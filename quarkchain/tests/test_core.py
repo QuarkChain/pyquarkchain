@@ -51,7 +51,7 @@ class TestMinorBlock(unittest.TestCase):
             version=1,
             height=123,
             branch=0b11,
-            hashPrevMajorBlock=random_bytes(32),
+            hashPrevRootBlock=random_bytes(32),
             hashPrevMinorBlock=random_bytes(32),
             hashMerkleRoot=mRoot,
             createTime=int(time.time()),

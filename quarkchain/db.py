@@ -14,8 +14,11 @@ class InMemoryDb:
     def set(self, key, value):
         self.kv[key] = value
 
-    def remove(self):
+    def remove(self, key):
         del self.kv[key]
 
     def __contains__(self, key):
         return key in self.kv
+
+
+DB = InMemoryDb()

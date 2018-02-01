@@ -111,12 +111,14 @@ class Serializable():
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-    def serialize(self, barray: bytearray = bytearray()):
+    def serialize(self, barray: bytearray = None):
+        barray = bytearray() if barray is None else barray
         for name, ser in self.FIELDS:
             ser.serialize(getattr(self, name), barray)
         return barray
 
-    def serializeWithout(self, excludeList, barray: bytearray = bytearray()):
+    def serializeWithout(self, excludeList, barray: bytearray = None):
+        barray = bytearray() if barray is None else barray
         for name, ser in self.FIELDS:
             if name not in excludeList:
                 ser.serialize(getattr(self, name), barray)
@@ -124,6 +126,8 @@ class Serializable():
 
     @classmethod
     def deserialize(cls, bb):
+        if not isinstance(bb, ByteBuffer):
+            bb = ByteBuffer(bb)
         kwargs = dict()
         for name, ser in cls.FIELDS:
             kwargs[name] = ser.deserialize(bb)
@@ -172,6 +176,14 @@ def put_varbytes(barray: bytearray, bs: bytes) -> bytearray:
     barray.append(len(bs))
     barray.extend(bs)
     return barray
+
+
+def normalize_bytes(data, size):
+    if len(data) == size:
+        return data
+    if len(data) == 2 * size:
+        return bytes.fromhex(data)
+    raise RuntimeError("Unable to normalize bytes")
 
 
 class Identity:
@@ -231,6 +243,11 @@ class Address(Serializable):
     def createEmptyAccount():
         return Address(bytes(20), 0)
 
+    @staticmethod
+    def createFrom(bs):
+        bs = normalize_bytes(bs, 24)
+        return Address(bs[0:20], int.from_bytes(bs[20:], byteorder="big"))
+
 
 class TransactionInput(Serializable):
     FIELDS = [
@@ -246,10 +263,10 @@ class TransactionInput(Serializable):
 class TransactionOutput(Serializable):
     FIELDS = [
         ("address", Address),
-        ("jiao", uint256),
+        ("quarkash", uint256),
     ]
 
-    def __init__(self, address: Address, jiao: int):
+    def __init__(self, address: Address, quarkash: int):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
@@ -333,7 +350,7 @@ class MinorBlockHeader(Serializable):
         ("version", uint32),
         ("height", uint32),
         ("branch", uint32),
-        ("hashPrevMajorBlock", hash256),
+        ("hashPrevRootBlock", hash256),
         ("hashPrevMinorBlock", hash256),
         ("hashMerkleRoot", hash256),
         ("createTime", uint32),
@@ -345,7 +362,7 @@ class MinorBlockHeader(Serializable):
                  version=0,
                  height=0,
                  branch=1,      # Left most bit indicate # of shards
-                 hashPrevMajorBlock=bytes(256),
+                 hashPrevRootBlock=bytes(256),
                  hashPrevMinorBlock=bytes(256),
                  hashMerkleRoot=bytes(256),
                  createTime=0,
@@ -381,7 +398,7 @@ class MinorBlock():
         return self.header == other.header and self.txList == other.txList
 
 
-class MajorBlockHeader(Serializable):
+class RootBlockHeader(Serializable):
     FIELDS = [
         ("version", uint32),
         ("height", uint32),
@@ -389,6 +406,7 @@ class MajorBlockHeader(Serializable):
         ("hashPrevBlock", hash256),
         ("hashMerkleRoot", hash256),
         ("coinbaseAddress", Address),
+        ("coinbaseValue", uint256),
         ("createTime", uint32),
         ("difficulty", uint32),
         ("nonce", uint32)]
@@ -400,6 +418,7 @@ class MajorBlockHeader(Serializable):
                  hashPrevBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
                  coinbaseAddress=Address.createEmptyAccount(),
+                 coinbaseValue=0,
                  createTime=0,
                  difficulty=0,
                  nonce=0):
@@ -407,9 +426,9 @@ class MajorBlockHeader(Serializable):
         super(type(self), self).__init__(**fields)
 
 
-class MajorBlock():
+class RootBlock(Serializable):
     FIELDS = [
-        ("header", MajorBlockHeader),
+        ("header", RootBlockHeader),
         ("minorBlockHeaderList", PreprendedSizeListSerializer(1, MinorBlockHeader))
     ]
 
@@ -423,7 +442,7 @@ def main():
         "208065a247edbe5df4d86fbdc0171303f23a76961be9f6013850dd2bdc759bbb")
     assert rec == b'\x0b\xedz\xbda$v5\xc1\x97>\xb3\x84t\xa2Qn\xd1\xd8\x84'
 
-    header = MajorBlockHeader(
+    header = RootBlockHeader(
         version=0,
         height=1,
         shardInfo=2,
@@ -434,7 +453,7 @@ def main():
         nonce=5)
     barray = header.serialize()
     bb = ByteBuffer(barray)
-    header1 = MajorBlockHeader.deserialize(bb)
+    header1 = RootBlockHeader.deserialize(bb)
     assert bb.remaining() == 0
     assert header == header1
 

@@ -1,6 +1,7 @@
 import argparse
 from quarkchain.core import Identity, Address
 
+
 def int_left_most_bit(v):
     """ Could be replaced by better raw implementation
     """

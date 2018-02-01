@@ -22,7 +22,7 @@ class TestItem:
 class TestHeap(unittest.TestCase):
 
     def testHeapSort(self):
-        N = 1000
+        N = 100
         data = [TestItem(i) for i in range(N)]
         random.shuffle(data)
         h = heap.Heap(lambda x, y: x.value - y.value)
@@ -35,7 +35,7 @@ class TestHeap(unittest.TestCase):
         self.assertTrue(h.isEmpty())
 
     def testHeapRandomPop(self):
-        N = 1000
+        N = 100
         data = [TestItem(i) for i in range(N)]
         random.shuffle(data)
         h = heap.Heap(lambda x, y: x.value - y.value)
