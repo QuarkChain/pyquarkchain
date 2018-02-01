@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import proof_of_work
 
 # Simple moving average difficulty
 
@@ -33,7 +32,9 @@ class MADifficultyCalculator:
 
         return timeUsedSec / self.targetIntervalSec / workDone
 
+
 class FixedDifficultyCalculator:
+
     def __init__(self, diff):
         self.diff = diff
 

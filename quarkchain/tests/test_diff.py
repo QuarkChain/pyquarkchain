@@ -1,7 +1,6 @@
 import unittest
-import diff
-import time
-import proof_of_work
+import quarkchain.diff as diff
+import quarkchain.experimental.proof_of_work as proof_of_work
 import statistics as stat
 
 
@@ -41,7 +40,7 @@ class TestMADifficulty(unittest.TestCase):
 
 def main():
     targetIntervalSec = 5
-    diffCalc = diff.MADifficultyCalculator(maSamples=32, targetIntervalSec=5)
+    diffCalc = diff.MADifficultyCalculator(maSamples=32, targetIntervalSec=targetIntervalSec)
     hashPower = 100
 
     cTime = 0.0
@@ -59,8 +58,8 @@ def main():
         print("Time %.2f, block %d, requiredWork %.2f, usedTime %.2f" %
               (block.nTime, i + 1, 1 / block.requiredDiff, usedTime))
 
-    print("Max: %.2f, min: %.2f, avg: %.2f, std: %.2f" % (max(usedTimeList), min(usedTimeList), stat.mean(usedTimeList), stat.stdev(usedTimeList)))
-
+    print("Max: %.2f, min: %.2f, avg: %.2f, std: %.2f" % (max(usedTimeList), min(
+        usedTimeList), stat.mean(usedTimeList), stat.stdev(usedTimeList)))
 
 
 if __name__ == '__main__':

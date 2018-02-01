@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 
-from core import Identity, Address, Transaction, TransactionInput, TransactionOutput, Code, ByteBuffer, random_bytes
-from core import MinorBlock, MinorBlockHeader, calculate_merkle_root
+from quarkchain.core import Identity, Address
+from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code, ByteBuffer, random_bytes
+from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root
 import random
 import time
 import unittest
@@ -35,6 +36,7 @@ class TestTransaction(unittest.TestCase):
 
 
 class TestMinorBlock(unittest.TestCase):
+
     def testMinorBlock(self):
         id1 = Identity.createRandomIdentity()
         acc2 = Address.createRandomAccount()
