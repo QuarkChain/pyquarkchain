@@ -2,7 +2,8 @@
 
 from quarkchain.core import Identity, Address
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code, ByteBuffer, random_bytes
-from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root
+from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root, Branch
+from quarkchain.core import RootBlockHeader
 import random
 import time
 import unittest
@@ -50,7 +51,7 @@ class TestMinorBlock(unittest.TestCase):
         header = MinorBlockHeader(
             version=1,
             height=123,
-            branch=0b11,
+            branch=Branch.create(2, 1),
             hashPrevRootBlock=random_bytes(32),
             hashPrevMinorBlock=random_bytes(32),
             hashMerkleRoot=mRoot,
@@ -62,3 +63,30 @@ class TestMinorBlock(unittest.TestCase):
         block1 = MinorBlock.deserialize(bb)
         self.assertEqual(bb.remaining(), 0)
         self.assertEqual(block, block1)
+
+
+class TestRootBlock(unittest.TestCase):
+
+    def testRootBlock(self):
+        header = RootBlockHeader(
+            version=0,
+            height=1,
+            shardInfo=2,
+            hashPrevBlock=random_bytes(32),
+            hashMerkleRoot=random_bytes(32),
+            createTime=1234,
+            difficulty=4,
+            nonce=5)
+        barray = header.serialize()
+        bb = ByteBuffer(barray)
+        header1 = RootBlockHeader.deserialize(bb)
+        self.assertEqual(bb.remaining(), 0)
+        self.assertEqual(header, header1)
+
+
+class TestBranch(unittest.TestCase):
+
+    def testBranch(self):
+        b = Branch.create(8, 6)
+        self.assertEqual(b.getShardSize(), 8)
+        self.assertEqual(b.getShardId(), 6)

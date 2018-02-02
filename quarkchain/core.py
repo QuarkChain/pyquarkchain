@@ -7,7 +7,9 @@
 
 import ecdsa
 from ethereum import utils
+from quarkchain.utils import int_left_most_bit
 import random
+import argparse
 
 
 class ByteBuffer:
@@ -329,6 +331,9 @@ class Transaction(Serializable):
 
 
 def calculate_merkle_root(itemList):
+    if len(itemList) == 0:
+        return bytes(32)
+
     shaTree = []
     for item in itemList:
         shaTree.append(utils.sha3(item.serialize()))
@@ -343,13 +348,32 @@ def calculate_merkle_root(itemList):
     return shaTree[0]
 
 
+class Branch(Serializable):
+    FIELDS = [
+        ("value", uint32),
+    ]
+
+    def __init__(self, value):
+        self.value = value
+
+    def getShardSize(self):
+        return 1 << (int_left_most_bit(self.value) - 1)
+
+    def getShardId(self):
+        return self.value ^ self.getShardSize()
+
+    @staticmethod
+    def create(shardSize, shardId):
+        return Branch(shardSize | shardId)
+
+
 class MinorBlockHeader(Serializable):
     """ TODO: Add uncles
     """
     FIELDS = [
         ("version", uint32),
         ("height", uint32),
-        ("branch", uint32),
+        ("branch", Branch),
         ("hashPrevRootBlock", hash256),
         ("hashPrevMinorBlock", hash256),
         ("hashMerkleRoot", hash256),
@@ -361,7 +385,7 @@ class MinorBlockHeader(Serializable):
     def __init__(self,
                  version=0,
                  height=0,
-                 branch=1,      # Left most bit indicate # of shards
+                 branch=Branch.create(1, 0),
                  hashPrevRootBlock=bytes(32),
                  hashPrevMinorBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
@@ -428,25 +452,22 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList = minorBlockHeaderList
 
 
-def main():
+def test():
     rec = utils.privtoaddr(
         "208065a247edbe5df4d86fbdc0171303f23a76961be9f6013850dd2bdc759bbb")
     assert rec == b'\x0b\xedz\xbda$v5\xc1\x97>\xb3\x84t\xa2Qn\xd1\xd8\x84'
 
-    header = RootBlockHeader(
-        version=0,
-        height=1,
-        shardInfo=2,
-        hashPrevBlock=random_bytes(32),
-        hashMerkleRoot=random_bytes(32),
-        createTime=1234,
-        difficulty=4,
-        nonce=5)
-    barray = header.serialize()
-    bb = ByteBuffer(barray)
-    header1 = RootBlockHeader.deserialize(bb)
-    assert bb.remaining() == 0
-    assert header == header1
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cmd")
+    args = parser.parse_args()
+
+    if args.cmd == "create_account":
+        iden = Identity.createRandomIdentity()
+        addr = Address.createFromIdentity(iden)
+        print("Key: %s" % iden.getKey().hex())
+        print("Account: %s" % addr.serialize().hex())
 
 
 if __name__ == '__main__':
