@@ -362,9 +362,9 @@ class MinorBlockHeader(Serializable):
                  version=0,
                  height=0,
                  branch=1,      # Left most bit indicate # of shards
-                 hashPrevRootBlock=bytes(256),
-                 hashPrevMinorBlock=bytes(256),
-                 hashMerkleRoot=bytes(256),
+                 hashPrevRootBlock=bytes(32),
+                 hashPrevMinorBlock=bytes(32),
+                 hashMerkleRoot=bytes(32),
                  createTime=0,
                  difficulty=0,
                  nonce=0):
@@ -375,7 +375,11 @@ class MinorBlockHeader(Serializable):
         return utils.sha3(self.serialize())
 
 
-class MinorBlock():
+class MinorBlock(Serializable):
+    FIELDS = [
+        ("header", MinorBlockHeader),
+        ("txList", PreprendedSizeListSerializer(1, Transaction))
+    ]
 
     def __init__(self, header, txList=[]):
         self.header = header
@@ -383,19 +387,6 @@ class MinorBlock():
 
     def calculateMerkleRoot(self):
         return calculate_merkle_root(self.txList)
-
-    def serialize(self, barray: bytearray = bytearray()) -> bytearray:
-        self.header.serialize(barray)
-        serialize_list(self.txList, barray)
-        return barray
-
-    @staticmethod
-    def deserialize(bb: ByteBuffer):
-        return MinorBlock(
-            MinorBlockHeader.deserialize(bb), deserialize_list(bb, lambda bb: Transaction.deserialize(bb)))
-
-    def __eq__(self, other):
-        return self.header == other.header and self.txList == other.txList
 
 
 class RootBlockHeader(Serializable):
