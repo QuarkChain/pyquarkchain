@@ -1,7 +1,6 @@
 from quarkchain.core import RootBlockHeader, RootBlock
-from quarkchain.core import MinorBlockHeader, MinorBlock, Branch
+from quarkchain.core import MinorBlockHeader, MinorBlock, Branch, ShardInfo
 from quarkchain.config import DEFAULT_ENV
-import time
 
 
 def create_genesis_minor_block(env, shardId):
@@ -17,7 +16,9 @@ def create_genesis_minor_block(env, shardId):
 
 
 def create_genesis_root_block(env):
-    header = RootBlockHeader(version=0, height=0, shardInfo=env.config.SHARD_SIZE,
+    header = RootBlockHeader(version=0,
+                             height=0,
+                             shardInfo=ShardInfo.create(env.config.SHARD_SIZE),
                              hashPrevBlock=bytes(32),
                              hashMerkleRoot=bytes(32),
                              coinbaseAddress=env.config.GENESIS_ACCOUNT,

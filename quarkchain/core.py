@@ -7,7 +7,7 @@
 
 import ecdsa
 from ethereum import utils
-from quarkchain.utils import int_left_most_bit
+from quarkchain.utils import int_left_most_bit, is_p2
 import random
 import argparse
 
@@ -413,11 +413,36 @@ class MinorBlock(Serializable):
         return calculate_merkle_root(self.txList)
 
 
+class ShardInfo(Serializable):
+    """ Shard information contains
+    - shard size (power of 2)
+    - voting of increasing shards
+    """
+    FIELDS = [
+        ("value", uint32),
+    ]
+
+    def __init__(self, value):
+        self.value = value
+
+    def getShardSize(self):
+        return 1 << (self.value & 31)
+
+    def getReshardVote(self):
+        return (self.value & (1 << 31)) != 0
+
+    @staticmethod
+    def create(shardSize, reshardVote=False):
+        assert(is_p2(shardSize))
+        reshardVote = 1 if reshardVote else 0
+        return ShardInfo(int_left_most_bit(shardSize) - 1 + (reshardVote << 31))
+
+
 class RootBlockHeader(Serializable):
     FIELDS = [
         ("version", uint32),
         ("height", uint32),
-        ("shardInfo", uint32),
+        ("shardInfo", ShardInfo),
         ("hashPrevBlock", hash256),
         ("hashMerkleRoot", hash256),
         ("coinbaseAddress", Address),
@@ -429,7 +454,7 @@ class RootBlockHeader(Serializable):
     def __init__(self,
                  version=0,
                  height=0,
-                 shardInfo=1,
+                 shardInfo=ShardInfo.create(1, False),
                  hashPrevBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
                  coinbaseAddress=Address.createEmptyAccount(),

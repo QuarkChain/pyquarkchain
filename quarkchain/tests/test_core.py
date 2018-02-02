@@ -2,7 +2,7 @@
 
 from quarkchain.core import Identity, Address
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code, ByteBuffer, random_bytes
-from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root, Branch
+from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root, Branch, ShardInfo
 from quarkchain.core import RootBlockHeader
 import random
 import time
@@ -71,7 +71,7 @@ class TestRootBlock(unittest.TestCase):
         header = RootBlockHeader(
             version=0,
             height=1,
-            shardInfo=2,
+            shardInfo=ShardInfo.create(4, False),
             hashPrevBlock=random_bytes(32),
             hashMerkleRoot=random_bytes(32),
             createTime=1234,
@@ -90,3 +90,15 @@ class TestBranch(unittest.TestCase):
         b = Branch.create(8, 6)
         self.assertEqual(b.getShardSize(), 8)
         self.assertEqual(b.getShardId(), 6)
+
+
+class TestShardInfo(unittest.TestCase):
+
+    def testShardInfo(self):
+        info = ShardInfo.create(4, False)
+        self.assertEqual(info.getShardSize(), 4)
+        self.assertEqual(info.getReshardVote(), False)
+
+        info = ShardInfo.create(2147483648, True)
+        self.assertEqual(info.getShardSize(), 2147483648)
+        self.assertEqual(info.getReshardVote(), True)
