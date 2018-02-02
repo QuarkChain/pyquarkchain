@@ -11,7 +11,7 @@ def create_genesis_minor_block(env, shardId):
                               hashPrevRootBlock=bytes(32),
                               hashPrevMinorBlock=bytes(32),
                               hashMerkleRoot=bytes(32),
-                              createTime=int(time.time()),
+                              createTime=env.config.GENESIS_CREATE_TIME,
                               difficulty=env.config.GENESIS_MINOR_DIFFICULTY)
     return MinorBlock(header, [])
 
@@ -22,7 +22,7 @@ def create_genesis_root_block(env):
                              hashMerkleRoot=bytes(32),
                              coinbaseAddress=env.config.GENESIS_ACCOUNT,
                              coinbaseValue=env.config.GENESIS_COIN,
-                             createTime=int(time.time()),
+                             createTime=env.config.GENESIS_CREATE_TIME,
                              difficulty=env.config.GENESIS_DIFFICULTY)
     block = RootBlock(header, [])
     return block

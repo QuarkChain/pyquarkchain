@@ -14,6 +14,8 @@ class DefaultConfig:
         self.GENESIS_COIN = 10 ** 28
         self.GENESIS_DIFFICULTY = 100
         self.GENESIS_MINOR_DIFFICULTY = 25
+        # 2018/2/2 5 am 7 min 38 sec
+        self.GENESIS_CREATE_TIME = 1517547849
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
