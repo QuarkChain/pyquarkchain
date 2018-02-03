@@ -3,6 +3,7 @@
 
 class InMemoryDb:
     """ A simple in-memory key-value database
+    TODO: Need to support range operation (e.g., leveldb)
     """
 
     def __init__(self):
@@ -11,7 +12,7 @@ class InMemoryDb:
     def get(self, key, default=None):
         return self.kv.get(key, default)
 
-    def set(self, key, value):
+    def put(self, key, value):
         self.kv[key] = value
 
     def remove(self, key):

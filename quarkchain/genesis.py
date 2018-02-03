@@ -29,6 +29,13 @@ def create_genesis_root_block(env):
     return block
 
 
+def create_genesis_blocks(env):
+    rootBlock = create_genesis_root_block(env)
+    minorBlockList = [create_genesis_minor_block(env, i) for i in range(env.config.SHARD_SIZE)]
+    rootBlock.minorBlockHeaderList = [b.header for b in minorBlockList]
+    return (rootBlock, minorBlockList)
+
+
 def main():
     block = create_genesis_root_block(DEFAULT_ENV)
     s = block.serialize()

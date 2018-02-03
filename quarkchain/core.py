@@ -5,11 +5,13 @@
 # implementation
 
 
-import ecdsa
-from ethereum import utils
-from quarkchain.utils import int_left_most_bit, is_p2
-import random
 import argparse
+import copy
+import ecdsa
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
+from ethereum import utils
+import random
+import time
 
 
 class ByteBuffer:
@@ -194,7 +196,7 @@ class Identity:
     def createRandomIdentity():
         sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
         key = sk.to_string()
-        recipient = utils.sha3(sk.verifying_key.to_string())[-20:]
+        recipient = sha3_256(sk.verifying_key.to_string())[-20:]
         return Identity(recipient, key)
 
     def __init__(self, recipient: bytes, key=None) -> None:
@@ -297,7 +299,8 @@ class Transaction(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def serializeUnsigned(self, barray: bytearray = bytearray()) -> bytearray:
+    def serializeUnsigned(self, barray: bytearray = None) -> bytearray:
+        barray = barray if barray is not None else bytearray()
         return self.serializeWithout(["signList"], barray)
 
     def sign(self, keys):
@@ -306,7 +309,7 @@ class Transaction(Serializable):
         """
         signList = []
         for key in keys:
-            v, r, s = utils.ecsign(utils.sha3(self.serializeUnsigned()), key)
+            v, r, s = utils.ecsign(sha3_256(self.serializeUnsigned()), key)
             signList.append(
                 v.to_bytes(1, byteorder="big") + r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big"))
         self.signList = signList
@@ -324,8 +327,8 @@ class Transaction(Serializable):
             r = bb.getUint256()
             s = bb.getUint256()
             pub = utils.ecrecover_to_pub(
-                utils.sha3(self.serializeUnsigned()), v, r, s)
-            if utils.sha3(pub)[-20:] != recipients[i]:
+                sha3_256(self.serializeUnsigned()), v, r, s)
+            if sha3_256(pub)[-20:] != recipients[i]:
                 return False
         return True
 
@@ -336,14 +339,14 @@ def calculate_merkle_root(itemList):
 
     shaTree = []
     for item in itemList:
-        shaTree.append(utils.sha3(item.serialize()))
+        shaTree.append(sha3_256(item.serialize()))
 
     while len(shaTree) != 1:
         nextShaTree = []
         for i in range(0, len(shaTree) - 1, 2):
-            nextShaTree.append(utils.sha3(shaTree[i] + shaTree[i + 1]))
+            nextShaTree.append(sha3_256(shaTree[i] + shaTree[i + 1]))
         if len(shaTree) % 2 != 0:
-            nextShaTree.append(utils.sha3(shaTree[-1] + shaTree[-1]))
+            nextShaTree.append(sha3_256(shaTree[-1] + shaTree[-1]))
         shaTree = nextShaTree
     return shaTree[0]
 
@@ -377,6 +380,8 @@ class MinorBlockHeader(Serializable):
         ("hashPrevRootBlock", hash256),
         ("hashPrevMinorBlock", hash256),
         ("hashMerkleRoot", hash256),
+        ("coinbaseAddress", Address),
+        ("coinbaseValue", uint256),
         ("createTime", uint32),
         ("difficulty", uint32),
         ("nonce", uint32)
@@ -389,6 +394,8 @@ class MinorBlockHeader(Serializable):
                  hashPrevRootBlock=bytes(32),
                  hashPrevMinorBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
+                 coinbaseAddress=Address.createEmptyAccount(),
+                 coinbaseValue=0,
                  createTime=0,
                  difficulty=0,
                  nonce=0):
@@ -396,7 +403,7 @@ class MinorBlockHeader(Serializable):
         super(type(self), self).__init__(**fields)
 
     def getHash(self):
-        return utils.sha3(self.serialize())
+        return sha3_256(self.serialize())
 
 
 class MinorBlock(Serializable):
@@ -411,6 +418,21 @@ class MinorBlock(Serializable):
 
     def calculateMerkleRoot(self):
         return calculate_merkle_root(self.txList)
+
+    def createBlockToAppend(self):
+        # TODO:  Need to update diff
+        header = MinorBlockHeader(version=self.header.version,
+                                  height=self.header.height + 1,
+                                  branch=self.header.branch,
+                                  hashPrevRootBlock=bytes(32),
+                                  hashPrevMinorBlock=self.header.getHash(),
+                                  hashMerkleRoot=bytes(32),
+                                  coinbaseAddress=Address.createEmptyAccount(),
+                                  coinbaseValue=0,
+                                  createTime=int(time.time()),
+                                  difficulty=self.header.difficulty,
+                                  nonce=0)
+        return MinorBlock(header, [])
 
 
 class ShardInfo(Serializable):
@@ -465,6 +487,9 @@ class RootBlockHeader(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
+    def getHash(self):
+        return sha3_256(self.serialize())
+
 
 class RootBlock(Serializable):
     FIELDS = [
@@ -475,6 +500,23 @@ class RootBlock(Serializable):
     def __init__(self, header, minorBlockHeaderList=[]):
         self.header = header
         self.minorBlockHeaderList = minorBlockHeaderList
+
+    def finalize(self):
+        self.header.hashMerkleRoot = calculate_merkle_root(self.minorBlockHeaderList)
+
+    def createBlockToAppend(self):
+        # TODO: update difficulty
+        header = RootBlockHeader(version=self.header.version,
+                                 height=self.header.height + 1,
+                                 shardInfo=copy.copy(self.header.shardInfo),
+                                 hashPrevBlock=self.header.getHash(),
+                                 hashMerkleRoot=bytes(32),
+                                 coinbaseAddress=Address.createEmptyAccount(),
+                                 coinbaseValue=0,
+                                 createTime=int(time.time()),
+                                 difficulty=self.header.difficulty,
+                                 nonce=self.header.nonce)
+        return RootBlock(header, [])
 
 
 def test():

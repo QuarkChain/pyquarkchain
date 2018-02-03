@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
 
-def RootChain:
+class RootChain:
     def __init__(self):
         pass

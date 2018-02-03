@@ -1,7 +1,7 @@
 import unittest
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import RootBlock, MinorBlock, Branch
-from quarkchain.genesis import create_genesis_root_block, create_genesis_minor_block
+from quarkchain.genesis import create_genesis_root_block, create_genesis_minor_block, create_genesis_blocks
 import copy
 
 
@@ -12,6 +12,10 @@ class TestGenesisRootBlock(unittest.TestCase):
         s = block.serialize(bytearray())
         nblock = RootBlock.deserialize(s)
         self.assertEqual(block, nblock)
+
+    def testGensisBlocks(self):
+        rBlock, mBlockList = create_genesis_blocks(DEFAULT_ENV)
+        self.assertEqual(len(rBlock.minorBlockHeaderList), DEFAULT_ENV.config.SHARD_SIZE)
 
 
 class TestGenesisMinorBlock(unittest.TestCase):
