@@ -160,6 +160,12 @@ class Serializable():
                 return False
         return True
 
+    def __hash__(self):
+        hList = []
+        for name, ser in self.FIELDS:
+            hList.append(getattr(self, name))
+        return hash(tuple(hList))
+
 
 uint8 = UintSerializer(1)
 uint16 = UintSerializer(2)
@@ -235,16 +241,19 @@ class Identity:
 class Address(Serializable):
     FIELDS = [
         ("recipient", FixedSizeBytesSerializer(20)),
-        ("shardId", uint32),
+        ("fullShardId", uint32),
     ]
 
-    def __init__(self, recipient: bytes, shardId: int) -> None:
+    def __init__(self, recipient: bytes, fullShardId: int) -> None:
         """
         recipient is 20 bytes SHA3 of public key
         shardId is uint32_t
         """
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
+
+    def addressInShard(self, fullShardId):
+        return Address(self.recipient, fullShardId)
 
     @staticmethod
     def createFromIdentity(identity: Identity, shardId=None):
@@ -253,11 +262,12 @@ class Address(Serializable):
         return Address(identity.getRecipient(), shardId)
 
     @staticmethod
-    def createRandomAccount():
+    def createRandomAccount(shardId=None):
         """ An account is a special address with default shard that the
         account should be in.
         """
-        shardId = random.randint(0, (2 ** 32) - 1)
+        if shardId is None:
+            shardId = random.randint(0, (2 ** 32) - 1)
         return Address(Identity.createRandomIdentity().getRecipient(), shardId)
 
     @staticmethod
@@ -304,8 +314,13 @@ class Code(Serializable):
         super(type(self), self).__init__(**fields)
 
     @staticmethod
+    def getTransferCode():
+        return Code()
+
+    @staticmethod
     def createMinorBlockCoinbaseCode(height):
-        return Code(b'm' + height.to_bytes(4, byteorder="big"))
+        return Code(code=b'm' + height.to_bytes(4, byteorder="big"))
+
 
 
 class Transaction(Serializable):
@@ -316,7 +331,7 @@ class Transaction(Serializable):
         ("signList", PreprendedSizeListSerializer(1, FixedSizeBytesSerializer(65)))
     ]
 
-    def __init__(self, inList=[], code=Code, outList=[], signList=[]):
+    def __init__(self, inList=[], code=Code(), outList=[], signList=[]):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
@@ -389,6 +404,9 @@ class Branch(Serializable):
     def getShardId(self):
         return self.value ^ self.getShardSize()
 
+    def isInShard(self, fullShardId):
+        return (fullShardId & (self.getShardSize() - 1)) == self.getShardId()
+
     @staticmethod
     def create(shardSize, shardId):
         return Branch(shardSize | shardId)
@@ -438,6 +456,11 @@ class MinorBlock(Serializable):
 
     def calculateMerkleRoot(self):
         return calculate_merkle_root(self.txList)
+
+    def finalizeMerkleRoot(self):
+        """ Compute merkle root hash and put it in the field
+        """
+        self.header.hashMerkleRoot = self.calculateMerkleRoot()
 
     def addTx(self, tx):
         self.txList.append(tx)
@@ -526,7 +549,8 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList = minorBlockHeaderList
 
     def finalize(self):
-        self.header.hashMerkleRoot = calculate_merkle_root(self.minorBlockHeaderList)
+        self.header.hashMerkleRoot = calculate_merkle_root(
+            self.minorBlockHeaderList)
 
     def createBlockToAppend(self):
         # TODO: update difficulty

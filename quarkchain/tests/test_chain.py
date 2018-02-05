@@ -1,6 +1,8 @@
 import unittest
-from quarkchain.chain import QuarkChain
-from quarkchain.tests.test_utils import get_test_env
+from quarkchain.chain import QuarkChain, ShardState
+from quarkchain.core import Address, Identity
+from quarkchain.genesis import create_genesis_minor_block
+from quarkchain.tests.test_utils import get_test_env, create_test_transaction
 
 
 class TestQuarkChain(unittest.TestCase):
@@ -8,8 +10,10 @@ class TestQuarkChain(unittest.TestCase):
     def testQuarkChainBasic(self):
         qChain = QuarkChain(get_test_env())
 
-        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend(quarkash=100)
-        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend(quarkash=200)
+        b1 = qChain.minorChainManager.getGenesisBlock(
+            0).createBlockToAppend(quarkash=100)
+        b2 = qChain.minorChainManager.getGenesisBlock(
+            1).createBlockToAppend(quarkash=200)
         self.assertTrue(qChain.minorChainManager.addNewBlock(b1))
         self.assertTrue(qChain.minorChainManager.addNewBlock(b2))
 
@@ -89,3 +93,133 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertFalse(qChain.rootChain.addNewBlock(rB))
+
+
+class TestShardState(unittest.TestCase):
+
+    def testSimpleTransaction(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock)
+
+        tx = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
+        nBlock.addTx(tx)
+        nBlock.finalizeMerkleRoot()
+        self.assertTrue(sState.appendBlock(nBlock))
+
+    def testTwoTransactions(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1).addressInShard(0)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock)
+
+        tx1 = create_test_transaction(
+            id1,
+            gBlock.txList[0].getHash(),
+            acc2,
+            6000,
+            4000)
+        tx2 = create_test_transaction(id1, tx1.getHash(), acc2, 2000, 2000)
+        nBlock.addTx(tx1)
+        nBlock.addTx(tx2)
+        nBlock.finalizeMerkleRoot()
+        self.assertTrue(sState.appendBlock(nBlock))
+
+    def testNoneExistTransaction(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(get_test_env(), gBlock)
+
+        tx = create_test_transaction(id1, bytes(32), acc2, 6000, 4000)
+        nBlock.txList = [tx]
+        nBlock.finalizeMerkleRoot()
+        self.assertFalse(sState.appendBlock(nBlock))
+
+    def testTwoBlocks(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend(acc1, quarkash=5000)
+        sState = ShardState(get_test_env(), gBlock)
+
+        tx1 = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
+        nBlock.addTx(tx1)
+        nBlock.finalizeMerkleRoot()
+        self.assertTrue(sState.appendBlock(nBlock))
+
+        nBlock1 = nBlock.createBlockToAppend(acc1, quarkash=5000)
+        tx2 = create_test_transaction(
+            id1, nBlock.txList[0].getHash(), acc2, 4000, 1000)
+        nBlock1.addTx(tx2)
+        nBlock1.finalizeMerkleRoot()
+        self.assertTrue(sState.appendBlock(nBlock1))
+
+    def testIncorrectRemaining(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock)
+
+        tx = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 5000)
+        nBlock.addTx(tx)
+        nBlock.finalizeMerkleRoot()
+        self.assertFalse(sState.appendBlock(nBlock))
+
+    def testSpentUTXO(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1).addressInShard(0)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock)
+
+        tx1 = create_test_transaction(
+            id1,
+            gBlock.txList[0].getHash(),
+            acc2,
+            6000,
+            4000)
+        tx2 = create_test_transaction(id1, gBlock.txList[0].getHash(), acc2, 2000, 2000)
+        nBlock.addTx(tx1)
+        nBlock.addTx(tx2)
+        nBlock.finalizeMerkleRoot()
+        self.assertFalse(sState.appendBlock(nBlock))
+
+    def testRollBackOneTransaction(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, shardId=0)
+        acc2 = Address.createRandomAccount(shardId=0)
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock)
+
+        tx = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
+        nBlock.addTx(tx)
+        nBlock.finalizeMerkleRoot()
+        self.assertTrue(sState.appendBlock(nBlock))
+
+        sState.rollBackTip()
+
+        self.assertTrue(sState.appendBlock(nBlock))

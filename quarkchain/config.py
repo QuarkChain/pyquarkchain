@@ -21,6 +21,7 @@ class DefaultConfig:
         self.PROOF_OF_PROGRESS_BLOCKS = 1
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
+        self.SKIP_MINOR_COINBASE_CHECK = False
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))

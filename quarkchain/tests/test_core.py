@@ -1,22 +1,12 @@
 #!/usr/bin/python3
 
-from quarkchain.core import Identity, Address
-from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code, ByteBuffer, random_bytes
+from quarkchain.core import Identity, Address, Code
+from quarkchain.core import Transaction, ByteBuffer, random_bytes
 from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root, Branch, ShardInfo
 from quarkchain.core import RootBlockHeader
-import random
 import time
 import unittest
-
-
-def create_test_transaction(fromId, toAddress):
-    acc1 = Address.createFromIdentity(fromId)
-    tx = Transaction(
-        [TransactionInput(random_bytes(32), 0)],
-        Code(),
-        [TransactionOutput(acc1, random.randint(0, 100)), TransactionOutput(toAddress, random.randint(0, 100))])
-    tx.sign([fromId.getKey()])
-    return tx
+from quarkchain.tests.test_utils import create_random_test_transaction
 
 
 class TestTransaction(unittest.TestCase):
@@ -25,7 +15,7 @@ class TestTransaction(unittest.TestCase):
         id1 = Identity.createRandomIdentity()
         acc2 = Address.createRandomAccount()
 
-        tx = create_test_transaction(id1, acc2)
+        tx = create_random_test_transaction(id1, acc2)
 
         barray = tx.serialize(bytearray())
 
@@ -45,7 +35,9 @@ class TestMinorBlock(unittest.TestCase):
         acc4 = Address.createRandomAccount()
 
         txList = [
-            create_test_transaction(id1, acc2), create_test_transaction(id1, acc3), create_test_transaction(id1, acc4)]
+            create_random_test_transaction(id1, acc2),
+            create_random_test_transaction(id1, acc3),
+            create_random_test_transaction(id1, acc4)]
 
         mRoot = calculate_merkle_root(txList)
         header = MinorBlockHeader(
