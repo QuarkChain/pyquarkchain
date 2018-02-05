@@ -10,11 +10,14 @@ class TestQuarkChain(unittest.TestCase):
 
         b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend()
         b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend()
+        b1.header.coinbaseValue = 100
+        b2.header.coinbaseValue = 200
         self.assertTrue(qChain.minorChainManager.addNewBlock(b1))
         self.assertTrue(qChain.minorChainManager.addNewBlock(b2))
 
         rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
         rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.header.coinbaseValue = b1.header.coinbaseValue + b2.header.coinbaseValue
         rB.finalize()
 
         self.assertTrue(qChain.rootChain.addNewBlock(rB))
@@ -71,3 +74,20 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
         self.assertTrue(qChain.rootChain.addNewBlock(rB))
+
+    def testQuarkChainCoinbase(self):
+        qChain = QuarkChain(get_test_env())
+
+        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend()
+        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend()
+        b1.header.coinbaseValue = 100
+        b2.header.coinbaseValue = 200
+        self.assertTrue(qChain.minorChainManager.addNewBlock(b1))
+        self.assertTrue(qChain.minorChainManager.addNewBlock(b2))
+
+        rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.header.coinbaseValue = b1.header.coinbaseValue + b2.header.coinbaseValue + 1
+        rB.finalize()
+
+        self.assertFalse(qChain.rootChain.addNewBlock(rB))

@@ -163,7 +163,7 @@ class RootChain:
             return False
 
         # Check the coinbase value is valid (we allow burning coins)
-        if mheader.coinbaseValue > totalMinorCoinbase:
+        if block.header.coinbaseValue > totalMinorCoinbase:
             return False
 
         # Add the block hash to block header to memory pool and add the block
