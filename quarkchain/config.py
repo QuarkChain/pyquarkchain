@@ -18,6 +18,8 @@ class DefaultConfig:
         # 2018/2/2 5 am 7 min 38 sec
         self.GENESIS_CREATE_TIME = 1517547849
         self.PROOF_OF_PROGRESS_BLOCKS = 1
+        self.SKIP_ROOT_DIFFICULTY_CHECK = False
+        self.SKIP_MINOR_DIFFICULTY_CHECK = False
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))

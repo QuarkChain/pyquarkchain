@@ -295,13 +295,16 @@ class Transaction(Serializable):
         ("signList", PreprendedSizeListSerializer(1, FixedSizeBytesSerializer(65)))
     ]
 
-    def __init__(self, inList=[], code=[], outList=[], signList=[]):
+    def __init__(self, inList=[], code=Code, outList=[], signList=[]):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
     def serializeUnsigned(self, barray: bytearray = None) -> bytearray:
         barray = barray if barray is not None else bytearray()
         return self.serializeWithout(["signList"], barray)
+
+    def getHash(self):
+        return sha3_256(self.serialize())
 
     def sign(self, keys):
         """ Sign the transaction with keys.  It doesn't mean the transaction is valid in the chain since it doesn't

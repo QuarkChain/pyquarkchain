@@ -2,10 +2,10 @@
 
 from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, RootBlock, MinorBlock
-from ethereum import utils
 
 
 class MinorChainManager:
+
     def __init__(self, env):
         self.env = env
         self.db = env.db
@@ -40,14 +40,14 @@ class MinorChainManager:
 
     def addNewBlock(self, block):
         # TODO: validate the block
-        blockData = block.serialize()
-        blockHash = utils.sha3(blockData)
+        blockHash = block.header.getHash()
         self.blockPool[blockHash] = block.header
-        self.db.put(blockHash, blockData)
+        self.db.put(blockHash, block.serialize())
         return True
 
 
 class RootChain:
+
     def __init__(self, env):
         self.env = env
         self.db = env.db
@@ -91,7 +91,7 @@ class RootChain:
         if blockHash in self.blockPool:
             return True
 
-        # Check new whether previous block is in the pool
+        # Check whether previous block is in the pool
         if block.header.hashPrevBlock not in self.blockPool:
             return False
         prevBlock = RootBlock.deserialize(self.db.get(
@@ -100,27 +100,34 @@ class RootChain:
         # Check the merkle tree
         merkleHash = calculate_merkle_root(block.minorBlockHeaderList)
         if merkleHash != block.header.hashMerkleRoot:
-            print("merkle")
+            return False
+
+        # Check difficulty
+        if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
+            # TOOD: Implement difficulty
             return False
 
         # Check whether all minor blocks are validated
         for mheader in block.minorBlockHeaderList:
-            if not self.minorChainManager.checkValidationByHash(utils.sha3(mheader.serialize())):
+            if not self.minorChainManager.checkValidationByHash(mheader.getHash()):
                 return False
             # Check shard size matches
             if mheader.branch.getShardSize() != block.header.shardInfo.getShardSize():
                 return False
 
-        # Check whether all minor blocks ordered (and linked to previous block)
+        # Check whether all minor blocks are ordered (and linked to previous block)
         # Find the last block of previous block
         shardId = 0
         lastBlockHashList = []
+        prevHeader = prevBlock.minorBlockHeaderList[0]
         for mheader in prevBlock.minorBlockHeaderList:
             if shardId != mheader.branch.getShardId():
                 assert(shardId + 1 == mheader.branch.getShardId())
-                lastBlockHashList.append(utils.sha3(mheader))
+                lastBlockHashList.append(prevHeader.getHash())
+            prevHeader = mheader
         lastBlockHashList.append(prevBlock.minorBlockHeaderList[-1].getHash())
-        assert(len(lastBlockHashList) == prevBlock.header.shardInfo.getShardSize())
+        assert(len(lastBlockHashList) ==
+               prevBlock.header.shardInfo.getShardSize())
 
         shardId = 0
         prevHeader = block.minorBlockHeaderList[0]
@@ -130,12 +137,12 @@ class RootChain:
         if prevHeader.hashPrevMinorBlock != lastBlockHashList[0]:
             return False
 
-        totalMinorCoinbase = 0
-        for mheader in block.minorBlockHeaderList:
+        totalMinorCoinbase = block.minorBlockHeaderList[0].coinbaseValue
+        for mheader in block.minorBlockHeaderList[1:]:
             totalMinorCoinbase += mheader.coinbaseValue
             if mheader.branch.getShardId() == shardId:
                 # Check if all minor blocks are linked in the shard
-                if mheader.hashPrevMinorBlock != utils.sha3(prevHeader):
+                if mheader.hashPrevMinorBlock != prevHeader.getHash():
                     return False
                 blockCountInShard += 1
             elif mheader.branch.getShardId() != shardId + 1:
@@ -150,7 +157,7 @@ class RootChain:
                     return False
 
             prevHeader = mheader
-        if shardId != block.shardInfo.getShardSize() - 1:
+        if shardId != block.header.shardInfo.getShardSize() - 1:
             return False
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             return False
@@ -159,11 +166,12 @@ class RootChain:
         if mheader.coinbaseValue > totalMinorCoinbase:
             return False
 
-        # Add the block hash to block header to memory pool and add the block to db
-        self.blockPool.put(blockHash, block.header)
+        # Add the block hash to block header to memory pool and add the block
+        # to db
+        self.blockPool[blockHash] = block.header
         self.db.put(b"rblock_" + blockHash, block.serialize())
 
-        if block.header.height > self.block.header.height:
+        if block.header.height > self.tip.header.height:
             # Switch tip
             self.tip = block
             # TODO switch shard tips
@@ -171,6 +179,7 @@ class RootChain:
 
 
 class QuarkChain:
+
     def __init__(self, env):
         self.minorChainManager = MinorChainManager(env)
         self.rootChain = RootChain(env)
