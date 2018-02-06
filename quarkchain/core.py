@@ -92,6 +92,23 @@ class FixedSizeBytesSerializer():
         return bb.getBytes(self.size)
 
 
+class PreprendedSizeBytesSerializer():
+
+    def __init__(self, sizeBytes):
+        self.sizeBytes = sizeBytes
+
+    def serialize(self, bs, barray):
+        if len(bs) >= (256 ** self.sizeBytes):
+            raise RuntimeError("bytes size exceeds limit")
+        barray.extend(len(bs).to_bytes(self.sizeBytes, byteorder="big"))
+        barray.extend(bs)
+        return barray
+
+    def deserialize(self, bb):
+        size = bb.getUint(self.sizeBytes)
+        return bb.getBytes(size)
+
+
 class PreprendedSizeListSerializer():
 
     def __init__(self, sizeBytes, ser):
@@ -279,7 +296,7 @@ class Code(Serializable):
     OP_TRANSFER = b'1'
     # TODO: Replace it with vary-size bytes serializer
     FIELDS = [
-        ("code", FixedSizeBytesSerializer(1))
+        ("code", PreprendedSizeBytesSerializer(1))
     ]
 
     def __init__(self, code=OP_TRANSFER):
