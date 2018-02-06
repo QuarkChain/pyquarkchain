@@ -13,6 +13,7 @@ class DefaultConfig:
         self.GENESIS_ACCOUNT = Address.createFrom(
             '2bd6cc571427aa46a5e413ccbab5b9a759d08fb5142cbcb8')
         self.GENESIS_COIN = 10 ** 28
+        self.GENESIS_MINOR_COIN = 0
         self.GENESIS_DIFFICULTY = 100
         self.GENESIS_MINOR_DIFFICULTY = 25
         # 2018/2/2 5 am 7 min 38 sec

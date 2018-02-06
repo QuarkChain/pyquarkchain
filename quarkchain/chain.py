@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.core import calculate_merkle_root, RootBlock, MinorBlock
+from quarkchain.core import calculate_merkle_root, RootBlock, MinorBlock, Transaction
 
 
 class MinorChainManager:
@@ -42,8 +42,15 @@ class MinorChainManager:
         # TODO: validate the block
         blockHash = block.header.getHash()
         self.blockPool[blockHash] = block.header
-        self.db.put(blockHash, block.serialize())
+        self.db.put(b'mblock_' + blockHash, block.serialize())
+        self.db.put(b'mblockCoinbaseTx_' + blockHash, block.txList[0].serialize())
         return True
+
+    def getBlockCoinbaseTx(self, blockHash):
+        return Transaction.deserialize(self.db.get(b'mblockCoinbaseTx_' + blockHash))
+
+    def getBlockCoinbaseQuarkash(self, blockHash):
+        return self.getBlockCoinbaseTx(blockHash).outList[0].quarkash
 
 
 class RootChain:
@@ -137,9 +144,9 @@ class RootChain:
         if prevHeader.hashPrevMinorBlock != lastBlockHashList[0]:
             return False
 
-        totalMinorCoinbase = block.minorBlockHeaderList[0].coinbaseValue
+        totalMinorCoinbase = self.minorChainManager.getBlockCoinbaseQuarkash(block.minorBlockHeaderList[0].getHash())
         for mheader in block.minorBlockHeaderList[1:]:
-            totalMinorCoinbase += mheader.coinbaseValue
+            totalMinorCoinbase += self.minorChainManager.getBlockCoinbaseQuarkash(mheader.getHash())
             if mheader.branch.getShardId() == shardId:
                 # Check if all minor blocks are linked in the shard
                 if mheader.hashPrevMinorBlock != prevHeader.getHash():

@@ -8,16 +8,14 @@ class TestQuarkChain(unittest.TestCase):
     def testQuarkChainBasic(self):
         qChain = QuarkChain(get_test_env())
 
-        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend()
-        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend()
-        b1.header.coinbaseValue = 100
-        b2.header.coinbaseValue = 200
+        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend(quarkash=100)
+        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend(quarkash=200)
         self.assertTrue(qChain.minorChainManager.addNewBlock(b1))
         self.assertTrue(qChain.minorChainManager.addNewBlock(b2))
 
         rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
         rB.minorBlockHeaderList = [b1.header, b2.header]
-        rB.header.coinbaseValue = b1.header.coinbaseValue + b2.header.coinbaseValue
+        rB.header.coinbaseValue = 300
         rB.finalize()
 
         self.assertTrue(qChain.rootChain.addNewBlock(rB))

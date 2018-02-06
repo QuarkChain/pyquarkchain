@@ -303,6 +303,10 @@ class Code(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
+    @staticmethod
+    def createMinorBlockCoinbaseCode(height):
+        return Code(b'm' + height.to_bytes(4, byteorder="big"))
+
 
 class Transaction(Serializable):
     FIELDS = [
@@ -400,8 +404,6 @@ class MinorBlockHeader(Serializable):
         ("hashPrevRootBlock", hash256),
         ("hashPrevMinorBlock", hash256),
         ("hashMerkleRoot", hash256),
-        ("coinbaseAddress", Address),
-        ("coinbaseValue", uint256),
         ("createTime", uint32),
         ("difficulty", uint32),
         ("nonce", uint32)
@@ -414,8 +416,6 @@ class MinorBlockHeader(Serializable):
                  hashPrevRootBlock=bytes(32),
                  hashPrevMinorBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
-                 coinbaseAddress=Address.createEmptyAccount(),
-                 coinbaseValue=0,
                  createTime=0,
                  difficulty=0,
                  nonce=0):
@@ -439,7 +439,10 @@ class MinorBlock(Serializable):
     def calculateMerkleRoot(self):
         return calculate_merkle_root(self.txList)
 
-    def createBlockToAppend(self):
+    def addTx(self, tx):
+        self.txList.append(tx)
+
+    def createBlockToAppend(self, address=Address.createEmptyAccount(), quarkash=0):
         # TODO:  Need to update diff
         header = MinorBlockHeader(version=self.header.version,
                                   height=self.header.height + 1,
@@ -447,12 +450,13 @@ class MinorBlock(Serializable):
                                   hashPrevRootBlock=bytes(32),
                                   hashPrevMinorBlock=self.header.getHash(),
                                   hashMerkleRoot=bytes(32),
-                                  coinbaseAddress=Address.createEmptyAccount(),
-                                  coinbaseValue=0,
                                   createTime=int(time.time()),
                                   difficulty=self.header.difficulty,
                                   nonce=0)
-        return MinorBlock(header, [])
+        return MinorBlock(header, [Transaction(
+            inList=[],
+            code=Code.createMinorBlockCoinbaseCode(header.height),
+            outList=[TransactionOutput(address, quarkash)])])
 
 
 class ShardInfo(Serializable):
