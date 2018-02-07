@@ -322,7 +322,6 @@ class Code(Serializable):
         return Code(code=b'm' + height.to_bytes(4, byteorder="big"))
 
 
-
 class Transaction(Serializable):
     FIELDS = [
         ("inList", PreprendedSizeListSerializer(1, TransactionInput)),
