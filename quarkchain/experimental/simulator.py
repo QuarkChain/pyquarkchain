@@ -14,8 +14,8 @@
 
 import asyncio
 import copy
-import diff
-import proof_of_work
+from quarkchain import diff
+from quarkchain.experimental import proof_of_work
 import random
 import time
 
@@ -23,7 +23,7 @@ MINOR_BLOCK_GENSIS_DIFF = 0.01
 MINOR_BLOCK_RATE_SEC = 1
 MINOR_BLOCK_REWARD = 100
 MAJOR_BLOCK_RATE_SEC = 10
-MAJOR_BLOCK_GENSIS_DIFF = 0.01
+MAJOR_BLOCK_GENSIS_DIFF = 0.001
 MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS = 1
 SHARD_SIZE = 8
 NODE_SIZE = 18
@@ -313,6 +313,7 @@ class FixChainSelector:
         bestBlock = minorChainList[self.minorChainId].getBlockToMine()
         return (self.minorChainId + 1, bestBlock, bestBlock.getMiningEco())
 
+
 class FixMajorChainSelector:
     def __init__(self):
         pass
@@ -405,12 +406,12 @@ class Node:
     def broadcastMajorBlock(self, majorBlock):
         for peer in self.peers:
             block = copy.deepcopy(majorBlock)
-            peer.rpcGetMajorBlock(majorBlock)
+            peer.rpcGetMajorBlock(block)
 
     def broadcastMinorBlock(self, minorBlock):
         for peer in self.peers:
             block = copy.deepcopy(minorBlock)
-            peer.rpcGetMinorBlock(minorBlock)
+            peer.rpcGetMinorBlock(block)
 
     def addPeer(self, peer):
         self.peers.append(peer)
