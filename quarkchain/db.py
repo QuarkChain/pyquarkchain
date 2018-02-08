@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+from quarkchain.core import Transaction, RootBlockHeader
+
 
 class InMemoryDb:
     """ A simple in-memory key-value database
@@ -20,6 +22,20 @@ class InMemoryDb:
 
     def __contains__(self, key):
         return key in self.kv
+
+    def putTx(self, tx, rootBlockHeader=None, txHash=None):
+        if txHash is None:
+            txHash = tx.getHash()
+        self.put(b'tx_' + txHash, tx.serialize())
+        if rootBlockHeader is not None:
+            self.put(b'txRootBlockHeader_' + txHash,
+                     rootBlockHeader.serialize())
+
+    def getTx(self, txHash):
+        return Transaction.deserialize(self.get(b'tx_' + txHash))
+
+    def getTxRootBlockHeader(self, txHash):
+        return RootBlockHeader.deserialize(self.get(b'txRootBlockHeader_' + txHash))
 
 
 DB = InMemoryDb()

@@ -1,5 +1,5 @@
 import unittest
-from quarkchain.chain import QuarkChain, ShardState
+from quarkchain.chain import QuarkChain, ShardState, RootChain
 from quarkchain.core import Address, Identity
 from quarkchain.genesis import create_genesis_minor_block
 from quarkchain.tests.test_utils import get_test_env, create_test_transaction
@@ -133,11 +133,13 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(env, gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
         nBlock.addTx(tx)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertTrue(sState.appendBlock(nBlock))
 
@@ -148,7 +150,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(env, gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
 
         tx1 = create_test_transaction(
             id1,
@@ -159,6 +162,7 @@ class TestShardState(unittest.TestCase):
         tx2 = create_test_transaction(id1, tx1.getHash(), acc2, 2000, 2000)
         nBlock.addTx(tx1)
         nBlock.addTx(tx2)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertTrue(sState.appendBlock(nBlock))
 
@@ -169,10 +173,12 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(get_test_env(), gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(get_test_env(), gBlock, rootChain)
 
         tx = create_test_transaction(id1, bytes(32), acc2, 6000, 4000)
         nBlock.txList = [tx]
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertFalse(sState.appendBlock(nBlock))
 
@@ -183,11 +189,13 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend(acc1, quarkash=5000)
-        sState = ShardState(get_test_env(), gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(get_test_env(), gBlock, rootChain)
 
         tx1 = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
         nBlock.addTx(tx1)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertTrue(sState.appendBlock(nBlock))
 
@@ -195,6 +203,7 @@ class TestShardState(unittest.TestCase):
         tx2 = create_test_transaction(
             id1, nBlock.txList[0].getHash(), acc2, 4000, 1000)
         nBlock1.addTx(tx2)
+        nBlock1.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock1.finalizeMerkleRoot()
         self.assertTrue(sState.appendBlock(nBlock1))
 
@@ -205,11 +214,13 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(env, gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 5000)
         nBlock.addTx(tx)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertFalse(sState.appendBlock(nBlock))
 
@@ -220,7 +231,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(env, gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
 
         tx1 = create_test_transaction(
             id1,
@@ -231,6 +243,7 @@ class TestShardState(unittest.TestCase):
         tx2 = create_test_transaction(id1, gBlock.txList[0].getHash(), acc2, 2000, 2000)
         nBlock.addTx(tx1)
         nBlock.addTx(tx2)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertFalse(sState.appendBlock(nBlock))
 
@@ -241,11 +254,13 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
-        sState = ShardState(env, gBlock)
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
         nBlock.addTx(tx)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
         self.assertTrue(sState.appendBlock(nBlock))
 

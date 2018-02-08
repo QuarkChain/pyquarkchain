@@ -1,14 +1,16 @@
 #!/usr/bin/python3
 
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.core import calculate_merkle_root, RootBlock, MinorBlock, TransactionInput, Transaction, Code
+from quarkchain.core import calculate_merkle_root, RootBlock, TransactionInput, Transaction, Code
+from quarkchain.core import MinorBlock, MinorBlockHeader
 
 
 class UtxoValue:
 
-    def __init__(self, recipient, quarkash):
+    def __init__(self, recipient, quarkash, rootBlockHeader):
         self.recipient = recipient
         self.quarkash = quarkash
+        self.rootBlockHeader = rootBlockHeader
 
 
 class ShardState:
@@ -22,20 +24,25 @@ class ShardState:
     - reshard by split
     """
 
-    def __init__(self, env, genesisBlock):
+    def __init__(self, env, genesisBlock, rootChain):
         self.env = env
         self.db = env.db
         self.genesisBlock = genesisBlock
         self.utxoPool = dict()
         self.chain = [genesisBlock]
+        genesisRootBlock = rootChain.getGenesisBlock()
         # TODO: Check shard id or disable genesisBlock
         self.utxoPool[TransactionInput(genesisBlock.txList[0].getHash(), 0)] = UtxoValue(
-            genesisBlock.txList[0].outList[0].address.recipient, genesisBlock.txList[0].outList[0].quarkash)
-        self.db.put(
-            b'tx_' + genesisBlock.txList[0].getHash(), genesisBlock.txList[0].serialize())
+            genesisBlock.txList[0].outList[0].address.recipient,
+            genesisBlock.txList[0].outList[0].quarkash,
+            genesisRootBlock.header)
+        self.db.putTx(genesisBlock.txList[0], rootBlockHeader=genesisRootBlock)
+        # Don't need to put txRootBlockHeader because a genesis block will
+        # never be rolled back
         self.branch = self.genesisBlock.header.branch
+        self.rootChain = rootChain
 
-    def __performTx(self, tx):
+    def __performTx(self, tx, rootBlockHeader):
         """ Perform a transacton atomically.
         Return -1 if the transaction is invalid or
                >= 0 for the transaction fee if the transaction successfully executed.
@@ -44,7 +51,10 @@ class ShardState:
         if len(tx.inList) == 0:
             return -1
 
-        # Make sure all tx ids from inputs are unique and exist in utxo pool
+        # Make sure all tx ids from inputs:
+        # - are unique; and
+        # - exist in utxo pool; and
+        # - depend before rootBlockHeader (inclusive)
         txInputSet = set()
         txInputQuarkash = 0
         senderList = []
@@ -52,6 +62,8 @@ class ShardState:
             if txInput in txInputSet:
                 return -1
             if txInput not in self.utxoPool:
+                return -1
+            if self.utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
                 return -1
             txInputSet.add(txInput)
             txInputQuarkash = self.utxoPool[txInput].quarkash
@@ -76,9 +88,11 @@ class ShardState:
             if not self.branch.isInShard(txOutput.address.fullShardId):
                 continue
             self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
-                txOutput.address.recipient, txOutput.quarkash)
+                txOutput.address.recipient,
+                txOutput.quarkash,
+                rootBlockHeader)
 
-        self.db.put(b'tx_' + txHash, tx.serialize())
+        self.db.putTx(tx, rootBlockHeader=rootBlockHeader, txHash=txHash)
         return txInputQuarkash - txOutputQuarkash
 
     def __rollBackTx(self, tx):
@@ -87,10 +101,12 @@ class ShardState:
             del self.utxoPool[TransactionInput(txHash, i)]
 
         for txInput in tx.inList:
-            prevTx = Transaction.deserialize(
-                self.db.get(b'tx_' + txInput.hash))
+            prevTx = self.db.getTx(txInput.hash)
+            rootBlockHeader = self.db.getTxRootBlockHeader(txInput.hash)
             self.utxoPool[txInput] = UtxoValue(
-                prevTx.outList[txInput.index].address.recipient, prevTx.outList[txInput.index].quarkash)
+                prevTx.outList[txInput.index].address.recipient,
+                prevTx.outList[txInput.index].quarkash,
+                rootBlockHeader)
         return True
 
     def appendBlock(self, block):
@@ -136,10 +152,15 @@ class ShardState:
             # TODO: Check coinbase
             return False
 
+        # Check whether the root header is in the root chain
+        rootBlockHeader = self.rootChain.getBlockHeaderByHash(block.header.hashPrevRootBlock)
+        if rootBlockHeader is None:
+            return False
+
         txDoneList = []
         totalFee = 0
         for tx in block.txList[1:]:
-            fee = self.__performTx(tx)
+            fee = self.__performTx(tx, rootBlockHeader)
             if fee < 0:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
@@ -150,10 +171,11 @@ class ShardState:
         txHash = block.txList[0].getHash()
         for idx, txOutput in enumerate(block.txList[0].outList):
             self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
-                txOutput.address.recipient, txOutput.quarkash)
+                txOutput.address.recipient,
+                txOutput.quarkash,
+                rootBlockHeader)
 
-        self.db.put(
-            b'tx_' + block.txList[0].getHash(), block.txList[0].serialize())
+        self.db.putTx(block.txList[0], rootBlockHeader)
         self.db.put(b'mblock_' + block.header.getHash(), block.serialize())
         self.chain.append(block)
         return True
@@ -275,6 +297,9 @@ class RootChain:
 
     def containBlockByHash(self, h):
         return h in self.blockPool
+
+    def getBlockHeaderByHash(self, h):
+        return self.blockPool.get(h, None)
 
     def rollBack(self):
         if len(self.chain) == 1:
