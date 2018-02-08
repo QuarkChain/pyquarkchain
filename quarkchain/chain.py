@@ -308,6 +308,19 @@ class RootChain:
         del self.chain[-1]
         return True
 
+    def __checkCoinbaseTx(self, tx, height):
+        if len(tx.inList) != 0:
+            return False
+
+        if tx.code != Code.createRootBlockCoinbaseCode(height):
+            return False
+
+        # We only support one output for coinbase tx
+        if len(tx.outList) != 1:
+            return False
+
+        return True
+
     def appendBlock(self, block):
         """ Append new block.
         There are a couple of optimizations can be done here:
@@ -321,11 +334,13 @@ class RootChain:
         if block.header.height != len(self.chain):
             return False
 
-        # Check whether the block is already added
-        blockHash = block.header.getHash()
-        if blockHash in self.blockPool:
-            return True
+        if block.header.hashCoinbaseTx != block.coinbaseTx.getHash():
+            return False
 
+        if not self.__checkCoinbaseTx(block.coinbaseTx, block.header.height):
+            return False
+
+        blockHash = block.header.getHash()
         prevBlock = RootBlock.deserialize(self.db.get(
             b'rblock_' + block.header.hashPrevBlock))
 
@@ -397,7 +412,7 @@ class RootChain:
             return False
 
         # Check the coinbase value is valid (we allow burning coins)
-        if block.header.coinbaseValue > totalMinorCoinbase:
+        if block.coinbaseTx.outList[0].quarkash > totalMinorCoinbase:
             return False
 
         # Add the block hash to block header to memory pool and add the block

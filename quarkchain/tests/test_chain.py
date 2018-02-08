@@ -19,8 +19,7 @@ class TestQuarkChain(unittest.TestCase):
 
         rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
         rB.minorBlockHeaderList = [b1.header, b2.header]
-        rB.header.coinbaseValue = 300
-        rB.finalize()
+        rB.finalize(quarkash=300)
 
         self.assertTrue(qChain.rootChain.appendBlock(rB))
 
@@ -118,8 +117,8 @@ class TestQuarkChain(unittest.TestCase):
 
         rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
         rB.minorBlockHeaderList = [b1.header, b2.header]
-        rB.header.coinbaseValue = b1.header.coinbaseValue + b2.header.coinbaseValue + 1
-        rB.finalize()
+        rB.finalize(quarkash=b1.header.coinbaseValue +
+                    b2.header.coinbaseValue + 1)
 
         self.assertFalse(qChain.rootChain.appendBlock(rB))
 
@@ -240,7 +239,8 @@ class TestShardState(unittest.TestCase):
             acc2,
             6000,
             4000)
-        tx2 = create_test_transaction(id1, gBlock.txList[0].getHash(), acc2, 2000, 2000)
+        tx2 = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 2000, 2000)
         nBlock.addTx(tx1)
         nBlock.addTx(tx2)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()

@@ -321,6 +321,10 @@ class Code(Serializable):
     def createMinorBlockCoinbaseCode(height):
         return Code(code=b'm' + height.to_bytes(4, byteorder="big"))
 
+    @staticmethod
+    def createRootBlockCoinbaseCode(height):
+        return Code(code=b'r' + height.to_bytes(4, byteorder="big"))
+
 
 class Transaction(Serializable):
     FIELDS = [
@@ -513,8 +517,7 @@ class RootBlockHeader(Serializable):
         ("shardInfo", ShardInfo),
         ("hashPrevBlock", hash256),
         ("hashMerkleRoot", hash256),
-        ("coinbaseAddress", Address),
-        ("coinbaseValue", uint256),
+        ("hashCoinbaseTx", hash256),
         ("createTime", uint32),
         ("difficulty", uint32),
         ("nonce", uint32)]
@@ -525,8 +528,7 @@ class RootBlockHeader(Serializable):
                  shardInfo=ShardInfo.create(1, False),
                  hashPrevBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
-                 coinbaseAddress=Address.createEmptyAccount(),
-                 coinbaseValue=0,
+                 hashCoinbaseTx=bytes(32),
                  createTime=0,
                  difficulty=0,
                  nonce=0):
@@ -540,16 +542,23 @@ class RootBlockHeader(Serializable):
 class RootBlock(Serializable):
     FIELDS = [
         ("header", RootBlockHeader),
+        ("coinbaseTx", Transaction),
         ("minorBlockHeaderList", PreprendedSizeListSerializer(1, MinorBlockHeader))
     ]
 
-    def __init__(self, header, minorBlockHeaderList=[]):
+    def __init__(self, header, coinbaseTx, minorBlockHeaderList=[]):
         self.header = header
+        self.coinbaseTx = coinbaseTx
         self.minorBlockHeaderList = minorBlockHeaderList
 
-    def finalize(self):
+    def finalize(self, address=Address.createEmptyAccount(), quarkash=0):
         self.header.hashMerkleRoot = calculate_merkle_root(
             self.minorBlockHeaderList)
+
+        self.coinbaseTx.outList = [TransactionOutput(address, quarkash)]
+        self.header.hashCoinbaseTx = self.coinbaseTx.getHash()
+
+        return self
 
     def createBlockToAppend(self):
         # TODO: update difficulty
@@ -558,12 +567,11 @@ class RootBlock(Serializable):
                                  shardInfo=copy.copy(self.header.shardInfo),
                                  hashPrevBlock=self.header.getHash(),
                                  hashMerkleRoot=bytes(32),
-                                 coinbaseAddress=Address.createEmptyAccount(),
-                                 coinbaseValue=0,
+                                 hashCoinbaseTx=bytes(32),
                                  createTime=int(time.time()),
                                  difficulty=self.header.difficulty,
                                  nonce=self.header.nonce)
-        return RootBlock(header, [])
+        return RootBlock(header, Transaction(code=Code.createRootBlockCoinbaseCode(header.height)), [])
 
 
 def test():

@@ -25,11 +25,13 @@ def create_genesis_root_block(env):
                              shardInfo=ShardInfo.create(env.config.SHARD_SIZE),
                              hashPrevBlock=bytes(32),
                              hashMerkleRoot=bytes(32),
-                             coinbaseAddress=env.config.GENESIS_ACCOUNT,
-                             coinbaseValue=env.config.GENESIS_COIN,
                              createTime=env.config.GENESIS_CREATE_TIME,
                              difficulty=env.config.GENESIS_DIFFICULTY)
-    block = RootBlock(header, [])
+    block = RootBlock(header, Transaction(
+        inList=[],
+        code=Code.createRootBlockCoinbaseCode(header.height),
+        outList=[TransactionOutput(env.config.GENESIS_ACCOUNT, env.config.GENESIS_COIN)]),
+        [])
     return block
 
 
