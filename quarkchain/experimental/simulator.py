@@ -19,19 +19,22 @@ from quarkchain.experimental import proof_of_work
 import random
 import time
 
-MINOR_BLOCK_GENSIS_DIFF = 0.01
-MINOR_BLOCK_RATE_SEC = 1
-MINOR_BLOCK_REWARD = 100
-MAJOR_BLOCK_RATE_SEC = 10
-MAJOR_BLOCK_GENSIS_DIFF = 0.001
-MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS = 1
-SHARD_SIZE = 8
 NODE_SIZE = 18
-NODE_FIX_MINER_SIZE = 2
+NODE_FIX_MINER_SIZE = 0
 NODE_POWERFUL_MINER_SIZE = 2
 NODE_POWERFUL_MAJOR_MINER_SIZE = 0
 NODE_DEFAULT_HASH_POWER = 100
 NODE_POWERFUL_HASH_POWER = 10000
+TOTAL_HASH_POWER = NODE_POWERFUL_HASH_POWER * NODE_POWERFUL_MINER_SIZE + \
+    (NODE_SIZE - NODE_POWERFUL_MINER_SIZE) * NODE_DEFAULT_HASH_POWER
+
+SHARD_SIZE = 8
+MINOR_BLOCK_RATE_SEC = 10
+MINOR_BLOCK_GENSIS_DIFF = 1 / TOTAL_HASH_POWER * 2 * SHARD_SIZE / MINOR_BLOCK_RATE_SEC
+MINOR_BLOCK_REWARD = 100
+MAJOR_BLOCK_RATE_SEC = 150
+MAJOR_BLOCK_GENSIS_DIFF = 1 / TOTAL_HASH_POWER * 2 / MAJOR_BLOCK_RATE_SEC
+MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS = 1
 
 
 class Transaction:
@@ -315,6 +318,7 @@ class FixChainSelector:
 
 
 class FixMajorChainSelector:
+
     def __init__(self):
         pass
 
@@ -429,7 +433,8 @@ async def statsPrinter(nodeList):
                 powerfulRewards += node.rewards
             else:
                 weakRewards += node.rewards
-            print("Node %d, rewards %d" % (node.nodeId, node.rewards))
+            print("Node %d, rewards %d, mining %d" % (node.nodeId, node.rewards,
+                                                      node.mineChainId if hasattr(node, "mineChainId") else -1))
         if weakRewards != 0:
             print("Powerful/weak rewards ratio: %.2f" %
                   (powerfulRewards / weakRewards))
