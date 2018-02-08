@@ -276,6 +276,13 @@ class RootChain:
     def containBlockByHash(self, h):
         return h in self.blockPool
 
+    def rollBack(self):
+        if len(self.chain) == 1:
+            raise RuntimeError("cannot roll back genesis block")
+        del self.blockPool[self.chain[-1].getHash()]
+        del self.chain[-1]
+        return True
+
     def appendBlock(self, block):
         """ Append new block.
         There are a couple of optimizations can be done here:
@@ -284,6 +291,9 @@ class RootChain:
         """
 
         if block.header.hashPrevBlock != self.chain[-1].getHash():
+            return False
+
+        if block.header.height != len(self.chain):
             return False
 
         # Check whether the block is already added
