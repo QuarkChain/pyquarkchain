@@ -31,7 +31,7 @@
 
 import argparse
 import event_driven_simulator as simulator
-import diff
+from quarkchain import diff
 import proof_of_work
 
 
@@ -164,7 +164,10 @@ class Miner:
         for i in range(len(self.chain)):
             assert(self.chain[i].height == i)
 
+
 args = None
+
+
 def main():
     global args
     parser = argparse.ArgumentParser()
@@ -208,7 +211,8 @@ def main():
 
     print("Miner1 reward %d, Miner2 reward %d, ratio %.2f, agree %.2f%%" %
           (r1, r2, r1 / r2, agreeBlocks / args.nblocks * 100))
-    print("Miner1 stale blocks %d, Miner2 stale blocks %d" % (m1.wastedBlocks, m2.wastedBlocks))
+    print("Miner1 stale blocks %d, Miner2 stale blocks %d" %
+          (m1.wastedBlocks, m2.wastedBlocks))
 
 
 if __name__ == '__main__':
