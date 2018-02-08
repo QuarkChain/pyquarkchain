@@ -22,7 +22,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.header.coinbaseValue = 300
         rB.finalize()
 
-        self.assertTrue(qChain.rootChain.addNewBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(rB))
 
     def testProofOfProgress(self):
         env = get_test_env()
@@ -36,7 +36,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header]
         rB.finalize()
 
-        self.assertFalse(qChain.rootChain.addNewBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(rB))
 
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
@@ -50,7 +50,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b2.header, b1.header]
         rB.finalize()
 
-        self.assertFalse(qChain.rootChain.addNewBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(rB))
 
     def testQuarkChainMultiple(self):
         qChain = QuarkChain(get_test_env())
@@ -66,7 +66,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b3.header, b2.header]
         rB.finalize()
 
-        self.assertTrue(qChain.rootChain.addNewBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(rB))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -75,7 +75,7 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertTrue(qChain.rootChain.addNewBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(rB))
 
     def testQuarkChainCoinbase(self):
         qChain = QuarkChain(get_test_env())
@@ -92,7 +92,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.header.coinbaseValue = b1.header.coinbaseValue + b2.header.coinbaseValue + 1
         rB.finalize()
 
-        self.assertFalse(qChain.rootChain.addNewBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(rB))
 
 
 class TestShardState(unittest.TestCase):

@@ -31,7 +31,8 @@ class ShardState:
         # TODO: Check shard id or disable genesisBlock
         self.utxoPool[TransactionInput(genesisBlock.txList[0].getHash(), 0)] = UtxoValue(
             genesisBlock.txList[0].outList[0].address.recipient, genesisBlock.txList[0].outList[0].quarkash)
-        self.db.put(b'tx_' + genesisBlock.txList[0].getHash(), genesisBlock.txList[0].serialize())
+        self.db.put(
+            b'tx_' + genesisBlock.txList[0].getHash(), genesisBlock.txList[0].serialize())
         self.branch = self.genesisBlock.header.branch
 
     def __performTx(self, tx):
@@ -86,7 +87,8 @@ class ShardState:
             del self.utxoPool[TransactionInput(txHash, i)]
 
         for txInput in tx.inList:
-            prevTx = Transaction.deserialize(self.db.get(b'tx_' + txInput.hash))
+            prevTx = Transaction.deserialize(
+                self.db.get(b'tx_' + txInput.hash))
             self.utxoPool[txInput] = UtxoValue(
                 prevTx.outList[txInput.index].address.recipient, prevTx.outList[txInput.index].quarkash)
         return True
@@ -147,9 +149,11 @@ class ShardState:
 
         txHash = block.txList[0].getHash()
         for idx, txOutput in enumerate(block.txList[0].outList):
-            self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(txOutput.address.recipient, txOutput.quarkash)
+            self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
+                txOutput.address.recipient, txOutput.quarkash)
 
-        self.db.put(b'tx_' + block.txList[0].getHash(), block.txList[0].serialize())
+        self.db.put(
+            b'tx_' + block.txList[0].getHash(), block.txList[0].serialize())
         self.db.put(b'mblock_' + block.header.getHash(), block.serialize())
         self.chain.append(block)
         return True
@@ -223,7 +227,8 @@ class MinorChainManager:
         blockHash = block.header.getHash()
         self.blockPool[blockHash] = block.header
         self.db.put(b'mblock_' + blockHash, block.serialize())
-        self.db.put(b'mblockCoinbaseTx_' + blockHash, block.txList[0].serialize())
+        self.db.put(b'mblockCoinbaseTx_' + blockHash,
+                    block.txList[0].serialize())
         return True
 
     def getBlockCoinbaseTx(self, blockHash):
@@ -235,20 +240,24 @@ class MinorChainManager:
 
 class RootChain:
 
-    def __init__(self, env):
+    def __init__(self, env, genesisBlock=None):
         self.env = env
         self.db = env.db
         self.minorChainManager = None
         self.blockPool = dict()
 
         # Create genesis block if not exist
-        block, tmp = create_genesis_blocks(env)
+        block = genesisBlock
+        if block is None:
+            block, tmp = create_genesis_blocks(env)
+
         h = block.header.getHash()
         if b'rblock_' + h not in self.db:
             self.db.put(b'rblock_' + h, block.serialize())
         self.blockPool[h] = block.header
         self.tip = block
         self.genesisBlock = block
+        self.chain = [block.header]
 
     def setMinorChainManager(self, manager):
         assert(self.minorChainManager is None)
@@ -259,28 +268,29 @@ class RootChain:
         pass
 
     def tip(self):
-        return self.tip
+        return self.chain[-1]
 
     def getGenesisBlock(self):
         return self.genesisBlock
 
-    def addNewBlock(self, block):
-        """ Add new block.  The block doesn't not necessarily be appended to
-        the end of the chain.  However, if the block is the longest, then
-        will be updated
+    def containBlockByHash(self, h):
+        return h in self.blockPool
+
+    def appendBlock(self, block):
+        """ Append new block.
         There are a couple of optimizations can be done here:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
+
+        if block.header.hashPrevBlock != self.chain[-1].getHash():
+            return False
 
         # Check whether the block is already added
         blockHash = block.header.getHash()
         if blockHash in self.blockPool:
             return True
 
-        # Check whether previous block is in the pool
-        if block.header.hashPrevBlock not in self.blockPool:
-            return False
         prevBlock = RootBlock.deserialize(self.db.get(
             b'rblock_' + block.header.hashPrevBlock))
 
@@ -324,9 +334,11 @@ class RootChain:
         if prevHeader.hashPrevMinorBlock != lastBlockHashList[0]:
             return False
 
-        totalMinorCoinbase = self.minorChainManager.getBlockCoinbaseQuarkash(block.minorBlockHeaderList[0].getHash())
+        totalMinorCoinbase = self.minorChainManager.getBlockCoinbaseQuarkash(
+            block.minorBlockHeaderList[0].getHash())
         for mheader in block.minorBlockHeaderList[1:]:
-            totalMinorCoinbase += self.minorChainManager.getBlockCoinbaseQuarkash(mheader.getHash())
+            totalMinorCoinbase += self.minorChainManager.getBlockCoinbaseQuarkash(
+                mheader.getHash())
             if mheader.branch.getShardId() == shardId:
                 # Check if all minor blocks are linked in the shard
                 if mheader.hashPrevMinorBlock != prevHeader.getHash():
@@ -356,12 +368,9 @@ class RootChain:
         # Add the block hash to block header to memory pool and add the block
         # to db
         self.blockPool[blockHash] = block.header
+        self.chain.append(block.header)
         self.db.put(b"rblock_" + blockHash, block.serialize())
 
-        if block.header.height > self.tip.header.height:
-            # Switch tip
-            self.tip = block
-            # TODO switch shard tips
         return True
 
 
