@@ -461,7 +461,8 @@ class StatsPrinter:
                 1 / chain.getBlockToMine().header.requiredDiff,
                 usedTime / chain.bestChain[-1].header.height if chain.bestChain[-1].header.height > 0 else 0))
         print("====================================")
-        self.scheduler.scheduleAfter(STATS_PRINTER_INTERVAL, self.printStats, nodeList)
+        self.scheduler.scheduleAfter(
+            STATS_PRINTER_INTERVAL, self.printStats, nodeList)
 
 
 def main():
@@ -497,7 +498,8 @@ def main():
     for node in nodeList:
         node.start()
     statsPrinter = StatsPrinter(scheduler)
-    scheduler.scheduleAfter(STATS_PRINTER_INTERVAL, statsPrinter.printStats, nodeList)
+    scheduler.scheduleAfter(STATS_PRINTER_INTERVAL,
+                            statsPrinter.printStats, nodeList)
     scheduler.loopUntilNoTask()
 
 

@@ -3,12 +3,12 @@ from quarkchain.core import MinorBlockHeader, MinorBlock, Branch, ShardInfo
 from quarkchain.config import DEFAULT_ENV
 
 
-def create_genesis_minor_block(env, shardId):
+def create_genesis_minor_block(env, shardId, hashRootBlock=bytes(32)):
     header = MinorBlockHeader(version=0,
                               height=0,
                               branch=Branch.create(
                                   env.config.SHARD_SIZE, shardId),
-                              hashPrevRootBlock=bytes(32),
+                              hashPrevRootBlock=hashRootBlock,
                               hashPrevMinorBlock=bytes(32),
                               hashMerkleRoot=bytes(32),
                               createTime=env.config.GENESIS_CREATE_TIME,
@@ -38,7 +38,7 @@ def create_genesis_root_block(env):
 def create_genesis_blocks(env):
     rootBlock = create_genesis_root_block(env)
     minorBlockList = [create_genesis_minor_block(
-        env, i) for i in range(env.config.SHARD_SIZE)]
+        env, i, rootBlock.header.getHash()) for i in range(env.config.SHARD_SIZE)]
     rootBlock.minorBlockHeaderList = [b.header for b in minorBlockList]
     return (rootBlock, minorBlockList)
 

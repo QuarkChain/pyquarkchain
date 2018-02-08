@@ -464,6 +464,7 @@ class MinorBlock(Serializable):
         """ Compute merkle root hash and put it in the field
         """
         self.header.hashMerkleRoot = self.calculateMerkleRoot()
+        return self
 
     def addTx(self, tx):
         self.txList.append(tx)
@@ -473,7 +474,7 @@ class MinorBlock(Serializable):
         header = MinorBlockHeader(version=self.header.version,
                                   height=self.header.height + 1,
                                   branch=self.header.branch,
-                                  hashPrevRootBlock=bytes(32),
+                                  hashPrevRootBlock=self.header.hashPrevRootBlock,
                                   hashPrevMinorBlock=self.header.getHash(),
                                   hashMerkleRoot=bytes(32),
                                   createTime=int(time.time()),

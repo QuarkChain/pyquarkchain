@@ -1,5 +1,5 @@
 import unittest
-from quarkchain.chain import QuarkChain, ShardState, RootChain
+from quarkchain.chain import QuarkChain, ShardState, RootChain, QuarkChainState
 from quarkchain.core import Address, Identity
 from quarkchain.genesis import create_genesis_minor_block
 from quarkchain.tests.test_utils import get_test_env, create_test_transaction
@@ -21,7 +21,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b2.header]
         rB.finalize(quarkash=300)
 
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header}))
 
     def testProofOfProgress(self):
         env = get_test_env()
@@ -35,7 +36,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header]
         rB.finalize()
 
-        self.assertFalse(qChain.rootChain.appendBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(rB, {b1.header}))
 
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
@@ -49,7 +50,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b2.header, b1.header]
         rB.finalize()
 
-        self.assertFalse(qChain.rootChain.appendBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header}))
 
     def testQuarkChainMultiple(self):
         qChain = QuarkChain(get_test_env())
@@ -65,7 +67,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b3.header, b2.header]
         rB.finalize()
 
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header, b3.header}))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -74,7 +77,8 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b4.header, b5.header}))
 
     def testQuarkChainRollBack(self):
         qChain = QuarkChain(get_test_env())
@@ -90,7 +94,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b3.header, b2.header]
         rB.finalize()
 
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header, b3.header}))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -99,11 +104,13 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b4.header, b5.header}))
 
         qChain.rootChain.rollBack()
 
-        self.assertTrue(qChain.rootChain.appendBlock(rB))
+        self.assertTrue(qChain.rootChain.appendBlock(
+            rB, {b4.header, b5.header}))
 
     def testQuarkChainCoinbase(self):
         qChain = QuarkChain(get_test_env())
@@ -120,7 +127,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue +
                     b2.header.coinbaseValue + 1)
 
-        self.assertFalse(qChain.rootChain.appendBlock(rB))
+        self.assertFalse(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header}))
 
 
 class TestShardState(unittest.TestCase):
@@ -267,3 +275,51 @@ class TestShardState(unittest.TestCase):
         sState.rollBackTip()
 
         self.assertTrue(sState.appendBlock(nBlock))
+
+
+class TestQuarkChainState(unittest.TestCase):
+
+    def testSimpleQuarkChainState(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertTrue(qcState.appendMinorBlock(b1))
+        self.assertTrue(qcState.appendMinorBlock(b2))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.finalize(quarkash=300)
+
+        self.assertTrue(qcState.appendRootBlock(rB))
+
+    def testSingleTx(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000)
+        b1.addTx(tx)
+        b1.finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertTrue(qcState.appendMinorBlock(b1))
+        self.assertTrue(qcState.appendMinorBlock(b2))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.finalize(quarkash=300)
+
+    def testInShardTx(self):
+        pass
+
+    def testCrossShardTx(self):
+        pass
+
+        self.assertTrue(qcState.appendRootBlock(rB))

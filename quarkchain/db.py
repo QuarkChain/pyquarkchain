@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from quarkchain.core import Transaction, RootBlockHeader
+from quarkchain.core import MinorBlock, RootBlock
 
 
 class InMemoryDb:
@@ -36,6 +37,12 @@ class InMemoryDb:
 
     def getTxRootBlockHeader(self, txHash):
         return RootBlockHeader.deserialize(self.get(b'txRootBlockHeader_' + txHash))
+
+    def getMinorBlockByHash(self, h):
+        return MinorBlock.deserialize(self.get(b"mblock_" + h))
+
+    def getRootBlockByHash(self, h):
+        return RootBlock.deserialize(self.get(b"rblock_" + h))
 
 
 DB = InMemoryDb()
