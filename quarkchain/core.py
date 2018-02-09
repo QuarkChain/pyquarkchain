@@ -255,20 +255,23 @@ class Address(Serializable):
     def addressInShard(self, fullShardId):
         return Address(self.recipient, fullShardId)
 
-    @staticmethod
-    def createFromIdentity(identity: Identity, shardId=None):
-        if shardId is None:
-            shardId = random.randint(0, (2 ** 32) - 1)
-        return Address(identity.getRecipient(), shardId)
+    def addressInBranch(self, branch):
+        return Address(self.recipient, (self.fullShardId & ~(branch.getShardSize() - 1)) + branch.getShardId())
 
     @staticmethod
-    def createRandomAccount(shardId=None):
+    def createFromIdentity(identity: Identity, fullShardId=None):
+        if fullShardId is None:
+            fullShardId = random.randint(0, (2 ** 32) - 1)
+        return Address(identity.getRecipient(), fullShardId)
+
+    @staticmethod
+    def createRandomAccount(fullShardId=None):
         """ An account is a special address with default shard that the
         account should be in.
         """
-        if shardId is None:
-            shardId = random.randint(0, (2 ** 32) - 1)
-        return Address(Identity.createRandomIdentity().getRecipient(), shardId)
+        if fullShardId is None:
+            fullShardId = random.randint(0, (2 ** 32) - 1)
+        return Address(Identity.createRandomIdentity().getRecipient(), fullShardId)
 
     @staticmethod
     def createEmptyAccount():
@@ -468,6 +471,7 @@ class MinorBlock(Serializable):
 
     def addTx(self, tx):
         self.txList.append(tx)
+        return self
 
     def createBlockToAppend(self, address=Address.createEmptyAccount(), quarkash=0):
         # TODO:  Need to update diff
@@ -483,7 +487,7 @@ class MinorBlock(Serializable):
         return MinorBlock(header, [Transaction(
             inList=[],
             code=Code.createMinorBlockCoinbaseCode(header.height),
-            outList=[TransactionOutput(address, quarkash)])])
+            outList=[TransactionOutput(address.addressInBranch(self.header.branch), quarkash)])])
 
 
 class ShardInfo(Serializable):

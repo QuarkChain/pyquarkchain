@@ -2,7 +2,7 @@
 
 from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, RootBlock, TransactionInput, Transaction, Code
-from quarkchain.core import MinorBlock, MinorBlockHeader
+from quarkchain.core import MinorBlock
 
 
 class UtxoValue:
@@ -75,7 +75,7 @@ class ShardState:
         if not tx.verifySignature(senderList):
             return -1
 
-        # Check if the sum of output is smaller than input
+        # Check if the sum of output is smaller than or equal to the input
         txOutputQuarkash = 0
         for txOut in tx.outList:
             txOutputQuarkash += txOut.quarkash
@@ -109,56 +109,60 @@ class ShardState:
                 prevTx.outList[txInput.index].address.recipient,
                 prevTx.outList[txInput.index].quarkash,
                 rootBlockHeader)
-        return True
+        return None
 
     def appendBlock(self, block):
         """  Append a block.  This would perform validation check with local
         UTXO pool and perform state change atomically
+        Return None upon success, otherwise return a string with error message
         """
 
         # TODO: May check if the block is already in db (and thus already
         # validated)
 
         if block.header.hashPrevMinorBlock != self.chain[-1].header.getHash():
-            return False
+            return "prev hash mismatch"
 
         if block.header.height != self.chain[-1].header.height + 1:
-            return False
+            return "height mismatch"
 
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
             # TODO: Implement difficulty
-            return False
+            return "incorrect difficulty"
 
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
         if merkleHash != block.header.hashMerkleRoot:
-            return False
+            return "incorrect merkle root"
 
         # Check the first transaction of the block
         if len(block.txList) == 0:
-            return False
+            return "coinbase tx must exist"
 
         if len(block.txList[0].inList) != 0:
-            return False
+            return "coinbase tx's input must be empty"
 
         # TODO: Support multiple outputs in the coinbase tx
         if len(block.txList[0].outList) != 1:
-            return False
+            return "coinbase tx's output must be one"
+
+        if not self.branch.isInShard(block.txList[0].outList[0].address.fullShardId):
+            return "coinbase output must be in local shard"
 
         if block.txList[0].code != Code.createMinorBlockCoinbaseCode(block.header.height):
-            return False
+            return "incorrect coinbase code"
 
         # Check coinbase
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK:
             # TODO: Check coinbase
-            return False
+            return "incorrect coinbase value"
 
         # Check whether the root header is in the root chain
         rootBlockHeader = self.rootChain.getBlockHeaderByHash(
             block.header.hashPrevRootBlock)
         if rootBlockHeader is None:
-            return False
+            return "cannot find root block for the minor block"
 
         txDoneList = []
         totalFee = 0
@@ -168,7 +172,7 @@ class ShardState:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
                     assert(rollBackResult)
-                return False
+                return "one transaction is invalid"
             totalFee += fee
 
         txHash = block.txList[0].getHash()
@@ -183,7 +187,7 @@ class ShardState:
         self.db.put(b'mblockCoinbaseTx_' + block.header.getHash(),
                     block.txList[0].serialize())
         self.chain.append(block)
-        return True
+        return None
 
     def printUtxoPool(self):
         for k, v in self.utxoPool.items():
@@ -191,17 +195,19 @@ class ShardState:
 
     def rollBackTip(self):
         if len(self.chain) == 1:
-            raise RuntimeError("Cannot roll back genesis block")
+            return "Cannot roll back genesis block"
 
         block = self.chain[-1]
         del self.chain[-1]
         for rTx in reversed(block.txList[1:]):
             rollBackResult = self.__rollBackTx(rTx)
-            assert(rollBackResult)
+            assert(rollBackResult is None)
 
         txHash = block.txList[0].getHash()
         for idx in range(len(block.txList[0].outList)):
             del self.utxoPool[TransactionInput(txHash, idx)]
+
+        return None
 
         # Don't need to remove db data
 
@@ -274,7 +280,7 @@ class MinorChainManager:
         self.db.put(b'mblock_' + blockHash, block.serialize())
         self.db.put(b'mblockCoinbaseTx_' + blockHash,
                     block.txList[0].serialize())
-        return True
+        return None
 
     def getBlockCoinbaseTx(self, blockHash):
         return Transaction.deserialize(self.db.get(b'mblockCoinbaseTx_' + blockHash))
@@ -324,10 +330,10 @@ class RootChain:
 
     def rollBack(self):
         if len(self.chain) == 1:
-            raise RuntimeError("cannot roll back genesis block")
+            return "cannot roll back genesis block"
         del self.blockPool[self.chain[-1].getHash()]
         del self.chain[-1]
-        return True
+        return None
 
     def __checkCoinbaseTx(self, tx, height):
         if len(tx.inList) != 0:
@@ -356,16 +362,16 @@ class RootChain:
         """
 
         if block.header.hashPrevBlock != self.chain[-1].getHash():
-            return False
+            return "previous hash block mismatch"
 
         if block.header.height != len(self.chain):
-            return False
+            return "height mismatch"
 
         if block.header.hashCoinbaseTx != block.coinbaseTx.getHash():
-            return False
+            return "coinbase tx hash mismatch"
 
         if not self.__checkCoinbaseTx(block.coinbaseTx, block.header.height):
-            return False
+            return "incorrect coinbase tx"
 
         blockHash = block.header.getHash()
         prevBlock = RootBlock.deserialize(self.db.get(
@@ -374,20 +380,20 @@ class RootChain:
         # Check the merkle tree
         merkleHash = calculate_merkle_root(block.minorBlockHeaderList)
         if merkleHash != block.header.hashMerkleRoot:
-            return False
+            return "incorrect merkle root"
 
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
             # TOOD: Implement difficulty
-            return False
+            return "insufficient difficulty"
 
         # Check whether all minor blocks are validated
         for mheader in block.minorBlockHeaderList:
             if mheader not in uncommittedMinorBlockHeaderSet:
-                return False
+                return "root block confirms non-exist block"
             # Check shard size matches
             if mheader.branch.getShardSize() != block.header.shardInfo.getShardSize():
-                return False
+                return "root block shard size mismatches minor header"
 
         # Check whether all minor blocks are ordered (and linked to previous block)
         # Find the last block of previous block
@@ -407,9 +413,9 @@ class RootChain:
         prevHeader = block.minorBlockHeaderList[0]
         blockCountInShard = 1
         if prevHeader.branch.getShardId() != 0:
-            return False
+            return "first minor block header must start from shard 0"
         if prevHeader.hashPrevMinorBlock != lastBlockHashList[0]:
-            return False
+            return "first minor block in shard doesn't link to previous one in previous root block"
 
         totalMinorCoinbase = self.__getBlockCoinbaseQuarkash(
             block.minorBlockHeaderList[0].getHash())
@@ -419,28 +425,28 @@ class RootChain:
             if mheader.branch.getShardId() == shardId:
                 # Check if all minor blocks are linked in the shard
                 if mheader.hashPrevMinorBlock != prevHeader.getHash():
-                    return False
+                    return "minor block doesn't link to previous minor block"
                 blockCountInShard += 1
             elif mheader.branch.getShardId() != shardId + 1:
                 # Shard id is unordered
-                return False
+                return "shard id must be ordered"
             else:
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
-                    return False
+                    return "fail to prove progress"
                 # New shard is found in the list
                 shardId = mheader.branch.getShardId()
                 if mheader.hashPrevMinorBlock != lastBlockHashList[shardId]:
-                    return False
+                    return "first minor block in shard doesn't link to previous one in previous root block"
 
             prevHeader = mheader
         if shardId != block.header.shardInfo.getShardSize() - 1:
-            return False
+            return "fail to prove progress"
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
-            return False
+            return "fail to prove progress"
 
         # Check the coinbase value is valid (we allow burning coins)
         if block.coinbaseTx.outList[0].quarkash > totalMinorCoinbase:
-            return False
+            return "incorrect coinbase quarkash"
 
         # Add the block hash to block header to memory pool and add the block
         # to db
@@ -452,7 +458,7 @@ class RootChain:
         for mheader in block.minorBlockHeaderList:
             uncommittedMinorBlockHeaderSet.remove(mheader)
 
-        return True
+        return None
 
 
 class QuarkChain:
@@ -479,7 +485,6 @@ class QuarkChainState:
 
     def __addCrossShardTxFrom(self, mBlock, rBlock):
         shardSize = len(self.shardList)
-        rBlockHash = rBlock.header.getHash()
         for tx in mBlock.txList[1:]:
             txHash = tx.getHash()
             for idx, txOutput in enumerate(tx.outList):
@@ -491,7 +496,7 @@ class QuarkChainState:
                     UtxoValue(
                         txOutput.address.recipient,
                         txOutput.quarkash,
-                        rBlockHash))
+                        rBlock.header))
 
     def __removeCrossShardTxFrom(self, mBlock):
         shardSize = len(self.shardList)
@@ -506,58 +511,65 @@ class QuarkChainState:
 
     def appendMinorBlock(self, mBlock):
         if mBlock.header.branch.getShardSize() != len(self.shardList):
-            return False
+            return "minor block shard size is too large"
 
-        if not self.shardList[mBlock.header.branch.getShardId()].appendBlock(mBlock):
-            return False
+        appendResult = self.shardList[
+            mBlock.header.branch.getShardId()].appendBlock(mBlock)
+        if appendResult is not None:
+            return appendResult
 
         self.uncommittedMinorBlockHeaderSet.add(mBlock.header)
-        return True
+        return None
 
     def rollBackMinorBlock(self, shardId):
         """ Roll back a minor block of a shard.
         The minor block must not be commited by root blocks.
         """
         if shardId > len(self.shardList):
-            return False
+            return "shard id is too large"
         shard = self.shardList[shardId]
         if shard.tip not in self.uncommittedMinorBlockHeaderSet:
             """ Root block already commits the minor blocks.
             Need to roll back root block before rolling back the minor block.
             """
-            return False
-        shard.rollBackTip()
-        return True
+            return "the minor block is commited by root block"
+        return shard.rollBackTip()
 
     def appendRootBlock(self, rBlock):
         """ Append a root block to rootChain
         """
-        if not self.rootChain.appendBlock(rBlock, self.uncommittedMinorBlockHeaderSet):
-            return False
+        appendResult = self.rootChain.appendBlock(
+            rBlock, self.uncommittedMinorBlockHeaderSet)
+        if appendResult is not None:
+            return appendResult
 
         for mHeader in rBlock.minorBlockHeaderList:
             mBlock = self.db.getMinorBlockByHash(mHeader.getHash())
             self.__addCrossShardTxFrom(mBlock, rBlock)
 
-        return True
+        return None
 
         # TODO: Add root block coinbase tx
 
     def rollBackRootBlock(self):
         """ Roll back a root block in rootChain
         """
-        rBlock = self.rootChain.tip()
-        rBlockHash = rBlock.header.gethHash()
+        rBlockHeader = self.rootChain.tip()
+        rBlockHash = rBlockHeader.gethHash()
+        rBlock = self.db.getRootBlockByHash(rBlockHash)
         for mHeader in self.uncommittedMinorBlockHeaderSet:
             if mHeader.hashPrevRootBlock == rBlockHash:
                 # Cannot roll back the root block since it is being used.
-                return False
+                return "the root block is used by uncommitted minor blocks"
 
-        self.rootChain.rollBack()
+        result = self.rootChain.rollBack()
+        if result is not None:
+            return result
+
         for mHeader in rBlock.minorBlockHeaderList:
             self.uncommittedMinorBlockHeaderSet.add(mHeader)
 
-        return True
+        return None
 
         # TODO: Remove root block coinbase tx
 
