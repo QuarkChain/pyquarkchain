@@ -2,7 +2,8 @@
 # Performance of verification of transactions
 #
 # Some numbers on my machine (i7 7700K 4.2 GHZ):
-# Verifications per second: 170.16
+# Verifications per second: 170.16 (using slow ecdsa_raw_recover)
+# Verifications per second: 9549.38 (using coincurve)
 #
 # The number of openssl: openssl speed ecdsap256
 # Verificatoins per second: 19088.5
@@ -16,7 +17,7 @@ import profile
 
 
 def test_perf():
-    N = 1000
+    N = 5000
     IDN = 10
     print("Creating %d identities" % IDN)
     idList = []
