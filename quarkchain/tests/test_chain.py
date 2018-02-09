@@ -321,5 +321,3 @@ class TestQuarkChainState(unittest.TestCase):
 
     def testCrossShardTx(self):
         pass
-
-        self.assertTrue(qcState.appendRootBlock(rB))
