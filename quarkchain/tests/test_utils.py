@@ -13,6 +13,7 @@ def get_test_env(genesisAccount=Address.createEmptyAccount(), genesisQuarkash=10
     env.config.GENESIS_ACCOUNT = genesisAccount
     env.config.GENESIS_COIN = genesisQuarkash
     env.config.GENESIS_MINOR_COIN = genesisMinorQuarkash
+    env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
     return env
 
 

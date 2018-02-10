@@ -126,11 +126,6 @@ class ShardState:
         if block.header.height != self.chain[-1].header.height + 1:
             return "height mismatch"
 
-        # Check difficulty
-        if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
-            # TODO: Implement difficulty
-            return "incorrect difficulty"
-
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
         if merkleHash != block.header.hashMerkleRoot:
@@ -146,6 +141,14 @@ class ShardState:
         # TODO: Support multiple outputs in the coinbase tx
         if len(block.txList[0].outList) != 1:
             return "coinbase tx's output must be one"
+
+        # Check difficulty
+        if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
+            if self.env.config.NETWORK_ID == 0:
+                # TODO: Implement difficulty
+                return "incorrect difficulty"
+            elif block.txList[0].outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
+                return "incorrect master to create the block"
 
         if not self.branch.isInShard(block.txList[0].outList[0].address.fullShardId):
             return "coinbase output must be in local shard"
@@ -384,8 +387,11 @@ class RootChain:
 
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
-            # TOOD: Implement difficulty
-            return "insufficient difficulty"
+            if self.env.config.NETWORK_ID == 0:
+                # TOOD: Implement difficulty
+                return "insufficient difficulty"
+            elif block.coinbaseTx.outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
+                return "incorrect master to create the block"
 
         # Check whether all minor blocks are validated
         for mheader in block.minorBlockHeaderList:

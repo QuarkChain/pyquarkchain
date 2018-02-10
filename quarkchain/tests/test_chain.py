@@ -130,6 +130,28 @@ class TestQuarkChain(unittest.TestCase):
         self.assertIsNotNone(qChain.rootChain.appendBlock(
             rB, {b1.header, b2.header}))
 
+    def testQuarkChainTestnet(self):
+        env = get_test_env()
+        env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
+        env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.config.NETWORK_ID = 1
+        qChain = QuarkChain(env)
+
+        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
+        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
+        b1.header.coinbaseValue = 100
+        b2.header.coinbaseValue = 200
+        self.assertIsNone(qChain.minorChainManager.addNewBlock(b1))
+        self.assertIsNone(qChain.minorChainManager.addNewBlock(b2))
+
+        rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1,
+                    address=env.config.TESTNET_MASTER_ACCOUNT)
+
+        self.assertIsNotNone(qChain.rootChain.appendBlock(
+            rB, {b1.header, b2.header}))
+
 
 class TestShardState(unittest.TestCase):
 
@@ -262,6 +284,30 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         gBlock = create_genesis_minor_block(env, 0)
         nBlock = gBlock.createBlockToAppend()
+        rootChain = RootChain(env)
+        sState = ShardState(env, gBlock, rootChain)
+
+        tx = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
+        nBlock.addTx(tx)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
+        nBlock.finalizeMerkleRoot()
+        self.assertIsNone(sState.appendBlock(nBlock))
+
+        sState.rollBackTip()
+
+        self.assertIsNone(sState.appendBlock(nBlock))
+
+    def testTestnetMaster(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createRandomAccount(fullShardId=0)
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
+        env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.config.NETWORK_ID = 1
+        gBlock = create_genesis_minor_block(env, 0)
+        nBlock = gBlock.createBlockToAppend(address=acc1)
         rootChain = RootChain(env)
         sState = ShardState(env, gBlock, rootChain)
 

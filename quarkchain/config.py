@@ -22,6 +22,9 @@ class DefaultConfig:
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
+        #  0 is mainnet
+        self.NETWORK_ID = 0
+        self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
