@@ -3,6 +3,7 @@
 from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, RootBlock, TransactionInput, Transaction, Code
 from quarkchain.core import MinorBlock
+import copy
 
 
 class UtxoValue:
@@ -166,6 +167,9 @@ class ShardState:
             block.header.hashPrevRootBlock)
         if rootBlockHeader is None:
             return "cannot find root block for the minor block"
+
+        if rootBlockHeader.height < self.rootChain.getBlockHeaderByHash(self.chain[-1].header.hashPrevRootBlock).height:
+            return "prev root block height must be non-decreasing"
 
         txDoneList = []
         totalFee = 0
@@ -590,3 +594,9 @@ class QuarkChainState:
 
     def getGenesisRootBlock(self):
         return self.rootChain.getGenesisBlock()
+
+    def copy(self):
+        """ Return a copy of the state.
+        TODO: Don't copy immutable objects (headers, Utxo)
+        """
+        return copy.copy(self)

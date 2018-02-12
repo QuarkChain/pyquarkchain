@@ -160,9 +160,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
@@ -177,9 +177,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1).addressInShard(0)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
         tx1 = create_test_transaction(
@@ -200,9 +200,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(get_test_env(), gBlock, rootChain)
 
         tx = create_test_transaction(id1, bytes(32), acc2, 6000, 4000)
@@ -216,9 +216,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend(acc1, quarkash=5000)
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend(acc1, quarkash=5000)
         sState = ShardState(get_test_env(), gBlock, rootChain)
 
         tx1 = create_test_transaction(
@@ -241,9 +241,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
@@ -258,9 +258,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1).addressInShard(0)
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
         tx1 = create_test_transaction(
@@ -282,9 +282,9 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount(fullShardId=0)
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend()
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
@@ -306,9 +306,9 @@ class TestShardState(unittest.TestCase):
         env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
         env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.config.NETWORK_ID = 1
-        gBlock = create_genesis_minor_block(env, 0)
-        nBlock = gBlock.createBlockToAppend(address=acc1)
         rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend(address=acc1)
         sState = ShardState(env, gBlock, rootChain)
 
         tx = create_test_transaction(
@@ -435,3 +435,7 @@ class TestQuarkChainState(unittest.TestCase):
 
         b4.header.hashPrevRootBlock = rB.header.getHash()
         self.assertIsNone(qcState.appendMinorBlock(b4))
+
+        b5 = b4.createBlockToAppend(quarkash=300).finalizeMerkleRoot()
+        b5.header.hashPrevRootBlock = qcState.getGenesisRootBlock().header.getHash()
+        self.assertIsNotNone(qcState.appendMinorBlock(b5))
