@@ -548,7 +548,7 @@ class RootBlock(Serializable):
     FIELDS = [
         ("header", RootBlockHeader),
         ("coinbaseTx", Transaction),
-        ("minorBlockHeaderList", PreprendedSizeListSerializer(1, MinorBlockHeader))
+        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
     ]
 
     def __init__(self, header, coinbaseTx, minorBlockHeaderList=[]):
@@ -563,6 +563,14 @@ class RootBlock(Serializable):
         self.coinbaseTx.outList = [TransactionOutput(address, quarkash)]
         self.header.hashCoinbaseTx = self.coinbaseTx.getHash()
 
+        return self
+
+    def addMinorBlockHeader(self, header):
+        self.minorBlockHeaderList.append(header)
+        return self
+
+    def extendMinorBlockHeaderList(self, headerList):
+        self.minorBlockHeaderList.extend(headerList)
         return self
 
     def createBlockToAppend(self):

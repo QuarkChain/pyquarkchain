@@ -22,7 +22,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b2.header]
         rB.finalize(quarkash=300)
 
-        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([b2.header])]))
 
     def testProofOfProgress(self):
         env = get_test_env()
@@ -36,7 +37,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header]
         rB.finalize()
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([])]))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([])]))
 
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
@@ -50,7 +52,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b2.header, b1.header]
         rB.finalize()
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([b2.header])]))
 
     def testQuarkChainMultiple(self):
         qChain = QuarkChain(get_test_env())
@@ -66,7 +69,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b3.header, b2.header]
         rB.finalize()
 
-        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b1.header, b3.header]), deque([b2.header])]))
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header, b3.header]), deque([b2.header])]))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -75,7 +79,8 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b4.header]), deque([b5.header])]))
 
     def testQuarkChainRollBack(self):
         qChain = QuarkChain(get_test_env())
@@ -101,11 +106,13 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b4.header]), deque([b5.header])]))
 
         qChain.rootChain.rollBack()
 
-        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b4.header]), deque([b5.header])]))
 
     def testQuarkChainCoinbase(self):
         qChain = QuarkChain(get_test_env())
@@ -122,7 +129,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue +
                     b2.header.coinbaseValue + 1)
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([b2.header])]))
 
     def testQuarkChainTestnet(self):
         env = get_test_env()
@@ -131,8 +139,10 @@ class TestQuarkChain(unittest.TestCase):
         env.config.NETWORK_ID = 1
         qChain = QuarkChain(env)
 
-        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
-        b2 = qChain.minorChainManager.getGenesisBlock(1).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
+        b1 = qChain.minorChainManager.getGenesisBlock(
+            0).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
+        b2 = qChain.minorChainManager.getGenesisBlock(
+            1).createBlockToAppend(address=env.config.TESTNET_MASTER_ACCOUNT)
         b1.header.coinbaseValue = 100
         b2.header.coinbaseValue = 200
         self.assertIsNone(qChain.minorChainManager.addNewBlock(b1))
@@ -143,7 +153,8 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1,
                     address=env.config.TESTNET_MASTER_ACCOUNT)
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([b2.header])]))
 
 
 class TestShardState(unittest.TestCase):
@@ -154,7 +165,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
@@ -171,7 +183,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
@@ -194,7 +207,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(get_test_env(), gBlock, rootChain)
 
@@ -210,7 +224,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend(acc1, quarkash=5000)
         sState = ShardState(get_test_env(), gBlock, rootChain)
 
@@ -235,7 +250,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
@@ -252,7 +268,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
@@ -276,7 +293,8 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount(fullShardId=0)
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend()
         sState = ShardState(env, gBlock, rootChain)
 
@@ -300,7 +318,8 @@ class TestShardState(unittest.TestCase):
         env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.config.NETWORK_ID = 1
         rootChain = RootChain(env)
-        gBlock = create_genesis_minor_block(env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
         nBlock = gBlock.createBlockToAppend(address=acc1)
         sState = ShardState(env, gBlock, rootChain)
 
@@ -432,3 +451,69 @@ class TestQuarkChainState(unittest.TestCase):
         b5 = b4.createBlockToAppend(quarkash=300).finalizeMerkleRoot()
         b5.header.hashPrevRootBlock = qcState.getGenesisRootBlock().header.getHash()
         self.assertIsNotNone(qcState.appendMinorBlock(b5))
+
+        b5.header.hashPrevRootBlock = b4.header.hashPrevRootBlock
+        self.assertIsNone(qcState.appendMinorBlock(b5))
+
+    def testRollBack(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        id2 = Identity.createRandomIdentity()
+        acc2 = Address.createFromIdentity(id2, fullShardId=1)
+
+        env = get_test_env(acc1, genesisQuarkash=10000,
+                           genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        self.assertEqual(qcState.getBalance(id1.recipient), 30000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx1 = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, amount=6000, remaining=4000, shardId=0)
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        # Cross-shard TX is not confirmed
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        rB = qcState.getGenesisRootBlock()                      \
+            .createBlockToAppend()                              \
+            .extendMinorBlockHeaderList([b1.header, b2.header]) \
+            .finalize(quarkash=300)
+
+        self.assertIsNone(qcState.appendRootBlock(rB))
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 6000)
+
+        b4 = b2.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
+
+        b4.header.hashPrevRootBlock = rB.header.getHash()
+        self.assertIsNone(qcState.appendMinorBlock(b4))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        self.assertIsNotNone(qcState.rollBackRootBlock())
+        self.assertIsNotNone(qcState.rollBackMinorBlock(0))
+
+        self.assertIsNone(qcState.rollBackMinorBlock(1))   # b4
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 6000)
+
+        self.assertIsNone(qcState.rollBackRootBlock())
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        self.assertIsNone(qcState.rollBackMinorBlock(0))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 30000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)

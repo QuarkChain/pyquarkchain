@@ -41,11 +41,17 @@ class ShardState:
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
         self.db.putTx(genesisBlock.txList[0], rootBlockHeader=genesisRootBlock)
-        # Don't need to put txRootBlockHeader because a genesis block will
-        # never be rolled back
 
         self.branch = self.genesisBlock.header.branch
         self.rootChain = rootChain
+
+        grCoinbaseTx = rootChain.getGenesisBlock().coinbaseTx
+        if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):
+            self.utxoPool[TransactionInput(grCoinbaseTx.getHash(), 0)] = UtxoValue(
+                grCoinbaseTx.outList[0].address.recipient,
+                grCoinbaseTx.outList[0].quarkash,
+                genesisRootBlock.header)
+            self.db.putTx(grCoinbaseTx, rootBlockHeader=genesisRootBlock)
 
     def __performTx(self, tx, rootBlockHeader):
         """ Perform a transacton atomically.
@@ -103,6 +109,9 @@ class ShardState:
     def __rollBackTx(self, tx):
         txHash = tx.getHash()
         for i in range(len(tx.outList)):
+            # Don't roll back cross-shard TX
+            if not self.branch.isInShard(tx.outList[i].address.fullShardId):
+                continue
             del self.utxoPool[TransactionInput(txHash, i)]
 
         for txInput in tx.inList:
@@ -223,7 +232,7 @@ class ShardState:
     def tip(self):
         """ Return the header of the tail of the shard
         """
-        return self.chain[-1]
+        return self.chain[-1].header
 
     def addCrossShardUtxo(self, txInput, utxoValue):
         assert(txInput not in self.utxoPool)
@@ -238,7 +247,7 @@ class ShardState:
     def getGenesisBlock(self):
         return self.genesisBlock
 
-    def checkBalance(self, recipient):
+    def getBalance(self, recipient):
         balance = 0
         for k, v in self.utxoPool.items():
             if v.recipient != recipient:
@@ -314,7 +323,6 @@ class RootChain:
         if b'rblock_' + h not in self.db:
             self.db.put(b'rblock_' + h, block.serialize())
         self.blockPool[h] = block.header
-        self.tip = block
         self.genesisBlock = block
         self.chain = [block.header]
 
@@ -397,15 +405,6 @@ class RootChain:
             elif block.coinbaseTx.outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
                 return "incorrect master to create the block"
 
-        # # Check whether all minor blocks are validated
-        # for mheader in block.minorBlockHeaderList:
-
-        #     if mheader not in uncommittedMinorBlockHeaderSet:
-        #         return "root block confirms non-exist block"
-        #     # Check shard size matches
-        #     if mheader.branch.getShardSize() != block.header.shardInfo.getShardSize():
-        #         return "root block shard size mismatches minor header"
-
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         # Find the last block of previous block
         shardId = 0
@@ -446,7 +445,7 @@ class RootChain:
         self.db.put(b"rblock_" + blockHash, block.serialize())
 
         # Set new uncommitted blocks
-        for shardId in range(block.header.shardInfo.getShardSize() - 1):
+        for shardId in range(block.header.shardInfo.getShardSize()):
             uncommittedMinorBlockHeaderQueueList[shardId] = newQueueList[shardId]
 
         return None
@@ -472,7 +471,6 @@ class QuarkChainState:
         self.shardList = [ShardState(env, mBlock, self.rootChain)
                           for mBlock in mBlockList]
         self.blockToCrossShardUtxoMap = dict()
-        # self.uncommittedMinorBlockHeaderSet = set()
         self.uncommittedMinorBlockHeaderQueueList = [deque() for shard in self.shardList]
 
     def __addCrossShardTxFrom(self, mBlock, rBlock):
@@ -519,7 +517,8 @@ class QuarkChainState:
         """
         if shardId > len(self.shardList):
             return "shard id is too large"
-        if self.uncommittedMinorBlockHeaderQueueList[shardId].empty():
+
+        if len(self.uncommittedMinorBlockHeaderQueueList[shardId]) == 0:
             """ Root block already commits the minor blocks.
             Need to roll back root block before rolling back the minor block.
             """
@@ -548,14 +547,14 @@ class QuarkChainState:
         """ Roll back a root block in rootChain
         """
         rBlockHeader = self.rootChain.tip()
-        rBlockHash = rBlockHeader.gethHash()
+        rBlockHash = rBlockHeader.getHash()
         rBlock = self.db.getRootBlockByHash(rBlockHash)
         for uncommittedQueue in self.uncommittedMinorBlockHeaderQueueList:
-            if uncommittedQueue.empty():
+            if len(uncommittedQueue) == 0:
                 continue
 
             mHeader = uncommittedQueue[-1]
-            if mHeader.hashPrevBlock == rBlockHash:
+            if mHeader.hashPrevRootBlock == rBlockHash:
                 # Cannot roll back the root block since it is being used.
                 return "the root block is used by uncommitted minor blocks"
 
@@ -565,6 +564,7 @@ class QuarkChainState:
 
         for mHeader in reversed(rBlock.minorBlockHeaderList):
             self.uncommittedMinorBlockHeaderQueueList[mHeader.branch.getShardId()].appendleft(mHeader)
+            self.__removeCrossShardTxFrom(self.db.getMinorBlockByHash(mHeader.getHash()))
 
         return None
 
@@ -584,5 +584,13 @@ class QuarkChainState:
 
     def copy(self):
         """ Return a copy of the state.
+        TODO: Optimize copy
         """
-        return copy.copy(self)
+        return copy.deepcopy(self)
+
+    def getBalance(self, recipient):
+        balance = 0
+        for shard in self.shardList:
+            balance += shard.getBalance(recipient)
+
+        return balance

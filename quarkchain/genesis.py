@@ -16,7 +16,9 @@ def create_genesis_minor_block(env, shardId, hashRootBlock=bytes(32)):
     return MinorBlock(header, [Transaction(
         inList=[],
         code=Code.createMinorBlockCoinbaseCode(header.height),
-        outList=[TransactionOutput(env.config.GENESIS_ACCOUNT, env.config.GENESIS_MINOR_COIN)])])
+        outList=[TransactionOutput(
+            env.config.GENESIS_ACCOUNT.addressInBranch(header.branch),
+            env.config.GENESIS_MINOR_COIN)])])
 
 
 def create_genesis_root_block(env):
