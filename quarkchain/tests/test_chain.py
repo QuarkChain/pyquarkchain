@@ -3,6 +3,7 @@ from quarkchain.chain import QuarkChain, ShardState, RootChain, QuarkChainState
 from quarkchain.core import Address, Identity
 from quarkchain.genesis import create_genesis_minor_block
 from quarkchain.tests.test_utils import get_test_env, create_test_transaction
+from collections import deque
 
 
 class TestQuarkChain(unittest.TestCase):
@@ -21,8 +22,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b2.header]
         rB.finalize(quarkash=300)
 
-        self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header}))
+        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
 
     def testProofOfProgress(self):
         env = get_test_env()
@@ -36,7 +36,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header]
         rB.finalize()
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, {b1.header}))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([])]))
 
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
@@ -50,8 +50,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b2.header, b1.header]
         rB.finalize()
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header}))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
 
     def testQuarkChainMultiple(self):
         qChain = QuarkChain(get_test_env())
@@ -67,8 +66,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b1.header, b3.header, b2.header]
         rB.finalize()
 
-        self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header, b3.header}))
+        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b1.header, b3.header]), deque([b2.header])]))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -77,8 +75,7 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b4.header, b5.header}))
+        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
 
     def testQuarkChainRollBack(self):
         qChain = QuarkChain(get_test_env())
@@ -95,7 +92,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header, b3.header}))
+            rB, [deque([b1.header, b3.header]), deque([b2.header])]))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -104,13 +101,11 @@ class TestQuarkChain(unittest.TestCase):
         rB = rB.createBlockToAppend()
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
-        self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b4.header, b5.header}))
+        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
 
         qChain.rootChain.rollBack()
 
-        self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, {b4.header, b5.header}))
+        self.assertIsNone(qChain.rootChain.appendBlock(rB, [deque([b4.header]), deque([b5.header])]))
 
     def testQuarkChainCoinbase(self):
         qChain = QuarkChain(get_test_env())
@@ -127,8 +122,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue +
                     b2.header.coinbaseValue + 1)
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header}))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
 
     def testQuarkChainTestnet(self):
         env = get_test_env()
@@ -149,8 +143,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1,
                     address=env.config.TESTNET_MASTER_ACCOUNT)
 
-        self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, {b1.header, b2.header}))
+        self.assertIsNotNone(qChain.rootChain.appendBlock(rB, [deque([b1.header]), deque([b2.header])]))
 
 
 class TestShardState(unittest.TestCase):

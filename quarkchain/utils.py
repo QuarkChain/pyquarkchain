@@ -21,3 +21,11 @@ def sha3_256(x):
     if not isinstance(x, bytes):
         raise RuntimeError("sha3_256 only accepts bytes or bytearray")
     return keccak.new(digest_bits=256, data=x).digest()
+
+
+def check(condition):
+    """ Unlike assert, which can be optimized out,
+    check will always check whether condition is satisfied or throw AssertionError if not
+    """
+    if not condition:
+        raise AssertionError()

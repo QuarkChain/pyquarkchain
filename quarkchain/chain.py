@@ -1,9 +1,11 @@
 #!/usr/bin/python3
 
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.core import calculate_merkle_root, RootBlock, TransactionInput, Transaction, Code
+from quarkchain.core import calculate_merkle_root, TransactionInput, Transaction, Code
 from quarkchain.core import MinorBlock
 import copy
+from collections import deque
+from quarkchain.utils import check
 
 
 class UtxoValue:
@@ -361,7 +363,7 @@ class RootChain:
     def __getBlockCoinbaseQuarkash(self, blockHash):
         return self.__getBlockCoinbaseTx(blockHash).outList[0].quarkash
 
-    def appendBlock(self, block, uncommittedMinorBlockHeaderSet):
+    def appendBlock(self, block, uncommittedMinorBlockHeaderQueueList):
         """ Append new block.
         There are a couple of optimizations can be done here:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
@@ -381,8 +383,6 @@ class RootChain:
             return "incorrect coinbase tx"
 
         blockHash = block.header.getHash()
-        prevBlock = RootBlock.deserialize(self.db.get(
-            b'rblock_' + block.header.hashPrevBlock))
 
         # Check the merkle tree
         merkleHash = calculate_merkle_root(block.minorBlockHeaderList)
@@ -397,62 +397,43 @@ class RootChain:
             elif block.coinbaseTx.outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
                 return "incorrect master to create the block"
 
-        # Check whether all minor blocks are validated
-        for mheader in block.minorBlockHeaderList:
-            if mheader not in uncommittedMinorBlockHeaderSet:
-                return "root block confirms non-exist block"
-            # Check shard size matches
-            if mheader.branch.getShardSize() != block.header.shardInfo.getShardSize():
-                return "root block shard size mismatches minor header"
+        # # Check whether all minor blocks are validated
+        # for mheader in block.minorBlockHeaderList:
 
-        # Check whether all minor blocks are ordered (and linked to previous block)
+        #     if mheader not in uncommittedMinorBlockHeaderSet:
+        #         return "root block confirms non-exist block"
+        #     # Check shard size matches
+        #     if mheader.branch.getShardSize() != block.header.shardInfo.getShardSize():
+        #         return "root block shard size mismatches minor header"
+
+        # Check whether all minor blocks are ordered, validated (and linked to previous block)
         # Find the last block of previous block
         shardId = 0
-        lastBlockHashList = []
-        prevHeader = prevBlock.minorBlockHeaderList[0]
-        for mheader in prevBlock.minorBlockHeaderList:
-            if shardId != mheader.branch.getShardId():
-                assert(shardId + 1 == mheader.branch.getShardId())
-                lastBlockHashList.append(prevHeader.getHash())
-            prevHeader = mheader
-        lastBlockHashList.append(prevBlock.minorBlockHeaderList[-1].getHash())
-        assert(len(lastBlockHashList) ==
-               prevBlock.header.shardInfo.getShardSize())
-
-        shardId = 0
-        prevHeader = block.minorBlockHeaderList[0]
-        blockCountInShard = 1
-        if prevHeader.branch.getShardId() != 0:
-            return "first minor block header must start from shard 0"
-        if prevHeader.hashPrevMinorBlock != lastBlockHashList[0]:
-            return "first minor block in shard doesn't link to previous one in previous root block"
-
-        totalMinorCoinbase = self.__getBlockCoinbaseQuarkash(
-            block.minorBlockHeaderList[0].getHash())
-        for mheader in block.minorBlockHeaderList[1:]:
-            totalMinorCoinbase += self.__getBlockCoinbaseQuarkash(
-                mheader.getHash())
-            if mheader.branch.getShardId() == shardId:
-                # Check if all minor blocks are linked in the shard
-                if mheader.hashPrevMinorBlock != prevHeader.getHash():
-                    return "minor block doesn't link to previous minor block"
-                blockCountInShard += 1
-            elif mheader.branch.getShardId() != shardId + 1:
-                # Shard id is unordered
-                return "shard id must be ordered"
-            else:
+        newQueueList = []
+        q = copy.copy(uncommittedMinorBlockHeaderQueueList[shardId])
+        blockCountInShard = 0
+        totalMinorCoinbase = 0
+        for mHeader in block.minorBlockHeaderList:
+            if mHeader.branch.getShardId() != shardId:
+                if mHeader.branch.getShardId() != shardId + 1:
+                    return "shard id must be ordered"
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     return "fail to prove progress"
-                # New shard is found in the list
-                shardId = mheader.branch.getShardId()
-                if mheader.hashPrevMinorBlock != lastBlockHashList[shardId]:
-                    return "first minor block in shard doesn't link to previous one in previous root block"
+                newQueueList.append(q)
+                shardId += 1
+                q = copy.copy(uncommittedMinorBlockHeaderQueueList[shardId])
+                blockCountInShard = 0
 
-            prevHeader = mheader
+            if len(q) == 0 or q.popleft() != mHeader:
+                return "minor block doesn't link to previous minor block"
+            blockCountInShard += 1
+            totalMinorCoinbase += self.__getBlockCoinbaseQuarkash(mHeader.getHash())
+
         if shardId != block.header.shardInfo.getShardSize() - 1:
             return "fail to prove progress"
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             return "fail to prove progress"
+        newQueueList.append(q)
 
         # Check the coinbase value is valid (we allow burning coins)
         if block.coinbaseTx.outList[0].quarkash > totalMinorCoinbase:
@@ -464,9 +445,9 @@ class RootChain:
         self.chain.append(block.header)
         self.db.put(b"rblock_" + blockHash, block.serialize())
 
-        # Remove all uncommit blocks
-        for mheader in block.minorBlockHeaderList:
-            uncommittedMinorBlockHeaderSet.remove(mheader)
+        # Set new uncommitted blocks
+        for shardId in range(block.header.shardInfo.getShardSize() - 1):
+            uncommittedMinorBlockHeaderQueueList[shardId] = newQueueList[shardId]
 
         return None
 
@@ -491,7 +472,8 @@ class QuarkChainState:
         self.shardList = [ShardState(env, mBlock, self.rootChain)
                           for mBlock in mBlockList]
         self.blockToCrossShardUtxoMap = dict()
-        self.uncommittedMinorBlockHeaderSet = set()
+        # self.uncommittedMinorBlockHeaderSet = set()
+        self.uncommittedMinorBlockHeaderQueueList = [deque() for shard in self.shardList]
 
     def __addCrossShardTxFrom(self, mBlock, rBlock):
         shardSize = len(self.shardList)
@@ -528,7 +510,7 @@ class QuarkChainState:
         if appendResult is not None:
             return appendResult
 
-        self.uncommittedMinorBlockHeaderSet.add(mBlock.header)
+        self.uncommittedMinorBlockHeaderQueueList[mBlock.header.branch.getShardId()].append(mBlock.header)
         return None
 
     def rollBackMinorBlock(self, shardId):
@@ -537,19 +519,20 @@ class QuarkChainState:
         """
         if shardId > len(self.shardList):
             return "shard id is too large"
-        shard = self.shardList[shardId]
-        if shard.tip not in self.uncommittedMinorBlockHeaderSet:
+        if self.uncommittedMinorBlockHeaderQueueList[shardId].empty():
             """ Root block already commits the minor blocks.
             Need to roll back root block before rolling back the minor block.
             """
             return "the minor block is commited by root block"
+        shard = self.shardList[shardId]
+        check(self.uncommittedMinorBlockHeaderQueueList[shardId].pop() == shard.tip())
         return shard.rollBackTip()
 
     def appendRootBlock(self, rBlock):
         """ Append a root block to rootChain
         """
         appendResult = self.rootChain.appendBlock(
-            rBlock, self.uncommittedMinorBlockHeaderSet)
+            rBlock, self.uncommittedMinorBlockHeaderQueueList)
         if appendResult is not None:
             return appendResult
 
@@ -567,8 +550,12 @@ class QuarkChainState:
         rBlockHeader = self.rootChain.tip()
         rBlockHash = rBlockHeader.gethHash()
         rBlock = self.db.getRootBlockByHash(rBlockHash)
-        for mHeader in self.uncommittedMinorBlockHeaderSet:
-            if mHeader.hashPrevRootBlock == rBlockHash:
+        for uncommittedQueue in self.uncommittedMinorBlockHeaderQueueList:
+            if uncommittedQueue.empty():
+                continue
+
+            mHeader = uncommittedQueue[-1]
+            if mHeader.hashPrevBlock == rBlockHash:
                 # Cannot roll back the root block since it is being used.
                 return "the root block is used by uncommitted minor blocks"
 
@@ -576,8 +563,8 @@ class QuarkChainState:
         if result is not None:
             return result
 
-        for mHeader in rBlock.minorBlockHeaderList:
-            self.uncommittedMinorBlockHeaderSet.add(mHeader)
+        for mHeader in reversed(rBlock.minorBlockHeaderList):
+            self.uncommittedMinorBlockHeaderQueueList[mHeader.branch.getShardId()].appendleft(mHeader)
 
         return None
 
@@ -597,6 +584,5 @@ class QuarkChainState:
 
     def copy(self):
         """ Return a copy of the state.
-        TODO: Don't copy immutable objects (headers, Utxo)
         """
         return copy.copy(self)
