@@ -8,6 +8,9 @@ from quarkchain.utils import is_p2, int_left_most_bit
 class DefaultConfig:
 
     def __init__(self):
+        self.P2P_PROTOCOL_VERSION = 0
+        self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
+        self.P2P_SERVER_PORT = 38291
         self.SHARD_SIZE = 4
         self.SHARD_SIZE_BITS = 2
         self.GENESIS_ACCOUNT = Address.createFrom(
