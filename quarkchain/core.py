@@ -171,6 +171,7 @@ uint8 = UintSerializer(1)
 uint16 = UintSerializer(2)
 uint32 = UintSerializer(4)
 uint64 = UintSerializer(8)
+uint128 = UintSerializer(16)
 uint256 = UintSerializer(32)
 hash256 = FixedSizeBytesSerializer(32)
 

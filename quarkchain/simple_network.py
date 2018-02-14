@@ -1,13 +1,16 @@
 
 import asyncio
+import argparse
+import ipaddress
+import socket
 from quarkchain.core import Transaction, MinorBlockHeader
 from quarkchain.core import RootBlock
-from quarkchain.core import Serializable, uint32, hash256, RootBlockHeader, PreprendedSizeListSerializer
+from quarkchain.core import Serializable, RootBlockHeader, PreprendedSizeListSerializer
+from quarkchain.core import uint16, uint32, uint128, hash256
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
 from enum import Enum
-import argparse
 
 SEED_HOST = ("localhost", 38291)
 
@@ -17,17 +20,23 @@ class HelloCommand(Serializable):
         ("version", uint32),
         ("networkId", uint32),
         ("peerId", hash256),
+        ("peerIp", uint128),
+        ("peerPort", uint16),
         ("shardMaskList", PreprendedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
         ("rootBlockHeader", RootBlockHeader)
     ]
 
-    def __init__(self, version=0, networkId=0, peerId=bytes(32), shardMaskList=[], rootBlockHeader=RootBlockHeader()):
-        self.version = version
-        self.peerId = peerId
-        self.networkId = networkId
-        self.shardMaskList = shardMaskList
-        self.rootBlockHeader = rootBlockHeader
+    def __init__(self,
+                 version=0,
+                 networkId=0,
+                 peerId=bytes(32),
+                 peerIp=int(ipaddress.ip_address("127.0.0.1")),
+                 peerPort=38291,
+                 shardMaskList=[],
+                 rootBlockHeader=RootBlockHeader()):
+        fields = {k: v for k, v in locals().items() if k != 'self'}
+        super(type(self), self).__init__(**fields)
 
 
 class NewMinorBlockHeaderListCommand(Serializable):
@@ -164,6 +173,8 @@ class Peer:
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
                            networkId=self.env.config.NETWORK_ID,
                            peerId=self.network.selfId,
+                           peerIp=int(self.network.ip),
+                           peerPort=self.network.port,
                            shardMaskList=[],
                            rootBlockHeader=RootBlockHeader())
         # Send hello request
@@ -263,6 +274,8 @@ class SimpleNetwork:
         self.activePeerPool = dict()    # peer id => peer
         self.selfId = random_bytes(32)
         self.qcState = qcState
+        self.ip = ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))
+        self.port = self.env.config.P2P_SERVER_PORT
         pass
 
     async def newClient(self, client_reader, client_writer):
@@ -284,11 +297,11 @@ class SimpleNetwork:
 
     def start(self):
         coro = asyncio.start_server(
-            self.newClient, "localhost", self.env.config.P2P_SERVER_PORT, loop=self.loop)
+            self.newClient, "localhost", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
 
         print("Self id {}".format(self.selfId.hex()))
-        print("Listening on {}".format(self.server.sockets[0].getsockname()))
+        print("Litsening on {}".format(self.server.sockets[0].getsockname()))
 
         self.loop.create_task(self.connect(SEED_HOST[0], SEED_HOST[1]))
 
@@ -307,7 +320,7 @@ class SimpleNetwork:
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT)
+        "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
