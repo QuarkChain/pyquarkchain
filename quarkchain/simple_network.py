@@ -12,15 +12,17 @@ SEED_HOST = ("localhost", 38291)
 class HelloCommand(Serializable):
     FIELDS = [
         ("version", uint32),
+        ("networkId", uint32),
         ("peerId", hash256),
         ("shardMaskList", PreprendedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
         ("rootBlockHeader", RootBlockHeader)
     ]
 
-    def __init__(self, version=0, peerId=bytes(32), shardMaskList=[], rootBlockHeader=RootBlockHeader()):
+    def __init__(self, version=0, networkId=0, peerId=bytes(32), shardMaskList=[], rootBlockHeader=RootBlockHeader()):
         self.version = version
         self.peerId = peerId
+        self.networkId = networkId
         self.shardMaskList = shardMaskList
         self.rootBlockHeader = rootBlockHeader
 
@@ -78,12 +80,15 @@ class Peer:
 
     def writeCommand(self, op, cmd):
         data = cmd.serialize()
-        self.writer.write(bytes([op]))
-        self.writer.write(len(data).to_bytes(4, byteorder="big"))
-        self.writer.write(data)
+        ba = bytearray()
+        ba.append(op)
+        ba.extend(len(data).to_bytes(4, byteorder="big"))
+        ba.extend(data)
+        self.writer.write(ba)
 
     def sendHello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
+                           networkId=self.env.config.NETWORK_ID,
                            peerId=self.network.selfId,
                            shardMaskList=[],
                            rootBlockHeader=RootBlockHeader())
@@ -105,6 +110,9 @@ class Peer:
 
         if cmd.version != self.env.config.P2P_PROTOCOL_VERSION:
             return self.closeWithError("incompatible protocol version")
+
+        if cmd.networkId != self.env.config.NETWORK_ID:
+            return self.closeWithError("incompatible network id")
 
         self.id = cmd.peerId
         self.shardMaskList = cmd.shardMaskList
@@ -141,7 +149,8 @@ class Peer:
         self.state = PeerState.CLOSED
 
     def closeWithError(self, error):
-        print("Closing peer %s with the following reason: %s" % (self.id.hex(), error))
+        print("Closing peer %s with the following reason: %s" %
+              (self.id.hex(), error))
         self.close()
         return None
 
