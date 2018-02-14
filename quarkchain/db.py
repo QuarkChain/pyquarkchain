@@ -41,8 +41,18 @@ class InMemoryDb:
     def getMinorBlockByHash(self, h):
         return MinorBlock.deserialize(self.get(b"mblock_" + h))
 
+    def putRootBlock(self, rBlock, rBlockHash=None):
+        if rBlockHash is None:
+            rBlockHash = rBlock.header.getHash()
+
+        self.put(b'rblock_' + rBlockHash, rBlock.serialize())
+        self.put(b'rblockHeader_' + rBlockHash, rBlock.header.serialize())
+
     def getRootBlockByHash(self, h):
         return RootBlock.deserialize(self.get(b"rblock_" + h))
+
+    def getRootBlockHeaderByHash(self, h):
+        return RootBlockHeader.deserialize(self.get(b"rblockHeader_" + h))
 
 
 DB = InMemoryDb()

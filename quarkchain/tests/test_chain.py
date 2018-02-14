@@ -517,3 +517,62 @@ class TestQuarkChainState(unittest.TestCase):
 
         self.assertEqual(qcState.getBalance(id1.recipient), 30000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+    def testRollBackRootBlockTo(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        id2 = Identity.createRandomIdentity()
+        acc2 = Address.createFromIdentity(id2, fullShardId=1)
+
+        env = get_test_env(acc1, genesisQuarkash=10000,
+                           genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        self.assertEqual(qcState.getBalance(id1.recipient), 30000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx1 = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, amount=6000, remaining=4000, shardId=0)
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        # Cross-shard TX is not confirmed
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        rB = qcState.getGenesisRootBlock()                      \
+            .createBlockToAppend()                              \
+            .extendMinorBlockHeaderList([b1.header, b2.header]) \
+            .finalize(quarkash=300)
+
+        self.assertIsNone(qcState.appendRootBlock(rB))
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 6000)
+
+        b3 = b1.createBlockToAppend(quarkash=100, address=acc1).finalizeMerkleRoot()
+        b4 = b2.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
+
+        b4.header.hashPrevRootBlock = rB.header.getHash()
+        self.assertIsNone(qcState.appendMinorBlock(b3))
+        self.assertIsNone(qcState.appendMinorBlock(b4))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 24100)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+
+        rB1 = rB.createBlockToAppend().extendMinorBlockHeaderList([b3.header, b4.header]).finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB1))
+
+        self.assertEqual(qcState.getBalance(id1.recipient), 25600)
+        self.assertEqual(qcState.getBalance(id2.recipient), 4500)
+
+        self.assertIsNone(qcState.rollBackRootChainTo(qcState.getGenesisRootBlock().header))
+        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id2.recipient), 0)
+        self.assertEqual(qcState.getShardTip(0), b1.header)
+        self.assertEqual(qcState.getShardTip(1), b2.header)

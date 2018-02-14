@@ -6,7 +6,6 @@ from quarkchain.core import MinorBlock
 import copy
 from collections import deque
 from quarkchain.utils import check
-from quarkchain.config import DEFAULT_ENV
 
 
 class UtxoValue:
@@ -444,7 +443,7 @@ class RootChain:
         # to db
         self.blockPool[blockHash] = block.header
         self.chain.append(block.header)
-        self.db.put(b"rblock_" + blockHash, block.serialize())
+        self.db.putRootBlock(block, rBlockHash=blockHash)
 
         # Set new uncommitted blocks
         for shardId in range(block.header.shardInfo.getShardSize()):
@@ -533,6 +532,13 @@ class QuarkChainState:
               shardId].pop() == shard.tip())
         return shard.rollBackTip()
 
+    def getShardTip(self, shardId):
+        if shardId > len(self.shardList):
+            raise RuntimeError("shard id not exist")
+
+        shard = self.shardList[shardId]
+        return shard.tip()
+
     def appendRootBlock(self, rBlock):
         """ Append a root block to rootChain
         """
@@ -577,6 +583,24 @@ class QuarkChainState:
         return None
 
         # TODO: Remove root block coinbase tx
+
+    def rollBackRootChainTo(self, rBlockHeader):
+        """ Roll back the root chain to a specific block header
+        Return None upon success or error message upon failure
+        """
+
+        # TODO: Optimize with pqueue
+        blockHash = rBlockHeader.getHash()
+        if self.rootChain.getBlockHeaderByHash(blockHash) is None:
+            return "cannot find the root block in root chain"
+
+        while self.rootChain.tip() != rBlockHeader:
+            # Roll back minor blocks
+            for shardId, q in enumerate(self.uncommittedMinorBlockHeaderQueueList):
+                while len(q) > 0 and q[-1].height > rBlockHeader.height:
+                    check(self.rollBackMinorBlock(shardId) is None)
+            check(self.rollBackRootBlock() is None)
+        return None
 
     def getMinorBlockHeaderByHeight(self, shardId, height):
         return self.shardList[shardId].getBlockHeaderByHeight(height)
