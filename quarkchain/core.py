@@ -338,7 +338,11 @@ class Transaction(Serializable):
         ("signList", PreprendedSizeListSerializer(1, FixedSizeBytesSerializer(65)))
     ]
 
-    def __init__(self, inList=[], code=Code(), outList=[], signList=[]):
+    def __init__(self, inList=None, code=Code(), outList=None, signList=None):
+        inList = [] if inList is None else inList
+        outList = [] if outList is None else outList
+        signList = [] if signList is None else signList
+
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
@@ -457,9 +461,9 @@ class MinorBlock(Serializable):
         ("txList", PreprendedSizeListSerializer(1, Transaction))
     ]
 
-    def __init__(self, header, txList=[]):
+    def __init__(self, header, txList=None):
         self.header = header
-        self.txList = txList
+        self.txList = [] if txList is None else txList
 
     def calculateMerkleRoot(self):
         return calculate_merkle_root(self.txList)
@@ -552,10 +556,10 @@ class RootBlock(Serializable):
         ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
     ]
 
-    def __init__(self, header, coinbaseTx, minorBlockHeaderList=[]):
+    def __init__(self, header, coinbaseTx, minorBlockHeaderList=None):
         self.header = header
         self.coinbaseTx = coinbaseTx
-        self.minorBlockHeaderList = minorBlockHeaderList
+        self.minorBlockHeaderList = [] if minorBlockHeaderList is None else minorBlockHeaderList
 
     def finalize(self, address=Address.createEmptyAccount(), quarkash=0):
         self.header.hashMerkleRoot = calculate_merkle_root(
