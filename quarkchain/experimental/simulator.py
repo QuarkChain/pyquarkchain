@@ -14,7 +14,7 @@
 
 import asyncio
 import copy
-from quarkchain import diff
+from quarkchain.experimental import diff
 from quarkchain.experimental import proof_of_work
 import random
 import time

@@ -13,7 +13,7 @@
 # - Calculate using 256 bit and compact version of float
 
 import copy
-from quarkchain import diff
+from quarkchain.experimental import diff
 from quarkchain.experimental import proof_of_work
 from quarkchain.experimental.event_driven_simulator import Scheduler
 import random

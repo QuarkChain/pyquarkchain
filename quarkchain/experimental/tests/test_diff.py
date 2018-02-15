@@ -1,5 +1,5 @@
 import unittest
-import quarkchain.diff as diff
+import quarkchain.experimental.diff as diff
 import quarkchain.experimental.proof_of_work as proof_of_work
 import statistics as stat
 

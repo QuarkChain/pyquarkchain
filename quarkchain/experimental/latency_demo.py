@@ -31,7 +31,7 @@
 
 import argparse
 import event_driven_simulator as simulator
-from quarkchain import diff
+from quarkchain.experimental import diff
 import proof_of_work
 
 
