@@ -16,7 +16,7 @@ class InMemoryDb:
         return self.kv.get(key, default)
 
     def put(self, key, value):
-        self.kv[key] = value
+        self.kv[key] = bytes(value)
 
     def remove(self, key):
         del self.kv[key]
@@ -40,6 +40,12 @@ class InMemoryDb:
 
     def getMinorBlockByHash(self, h):
         return MinorBlock.deserialize(self.get(b"mblock_" + h))
+
+    def putMinorBlock(self, mBlock, mBlockHash=None):
+        if mBlockHash is None:
+            mBlockHash = mBlock.header.getHash()
+        self.put(b'mblock_' + mBlockHash, mBlock.serialize())
+        self.put(b'mblockCoinbaseTx_' + mBlockHash, mBlock.txList[0].serialize())
 
     def putRootBlock(self, rBlock, rBlockHash=None):
         if rBlockHash is None:

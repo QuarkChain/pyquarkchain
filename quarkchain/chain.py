@@ -4,6 +4,7 @@ from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, TransactionInput, Transaction, Code
 from quarkchain.core import MinorBlock
 import copy
+import time
 from collections import deque
 from quarkchain.utils import check
 
@@ -33,7 +34,7 @@ class ShardState:
         self.db = env.db
         self.genesisBlock = genesisBlock
         self.utxoPool = dict()
-        self.chain = [genesisBlock]
+        self.chain = [genesisBlock.header]
         genesisRootBlock = rootChain.getGenesisBlock()
         # TODO: Check shard id or disable genesisBlock
         self.utxoPool[TransactionInput(genesisBlock.txList[0].getHash(), 0)] = UtxoValue(
@@ -44,6 +45,8 @@ class ShardState:
 
         self.branch = self.genesisBlock.header.branch
         self.rootChain = rootChain
+        self.diffCalc = self.env.config.MINOR_DIFF_CALCULATOR
+        self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
 
         grCoinbaseTx = rootChain.getGenesisBlock().coinbaseTx
         if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):
@@ -132,10 +135,10 @@ class ShardState:
         # TODO: May check if the block is already in db (and thus already
         # validated)
 
-        if block.header.hashPrevMinorBlock != self.chain[-1].header.getHash():
+        if block.header.hashPrevMinorBlock != self.chain[-1].getHash():
             return "prev hash mismatch"
 
-        if block.header.height != self.chain[-1].header.height + 1:
+        if block.header.height != self.chain[-1].height + 1:
             return "height mismatch"
 
         # Make sure merkle tree is valid
@@ -179,7 +182,7 @@ class ShardState:
         if rootBlockHeader is None:
             return "cannot find root block for the minor block"
 
-        if rootBlockHeader.height < self.rootChain.getBlockHeaderByHash(self.chain[-1].header.hashPrevRootBlock).height:
+        if rootBlockHeader.height < self.rootChain.getBlockHeaderByHash(self.chain[-1].hashPrevRootBlock).height:
             return "prev root block height must be non-decreasing"
 
         txDoneList = []
@@ -201,10 +204,8 @@ class ShardState:
                 rootBlockHeader)
 
         self.db.putTx(block.txList[0], rootBlockHeader)
-        self.db.put(b'mblock_' + block.header.getHash(), block.serialize())
-        self.db.put(b'mblockCoinbaseTx_' + block.header.getHash(),
-                    block.txList[0].serialize())
-        self.chain.append(block)
+        self.db.putMinorBlock(block)
+        self.chain.append(block.header)
         return None
 
     def printUtxoPool(self):
@@ -215,7 +216,8 @@ class ShardState:
         if len(self.chain) == 1:
             return "Cannot roll back genesis block"
 
-        block = self.chain[-1]
+        blockHeader = self.chain[-1]
+        block = self.db.getMinorBlockByHash(blockHeader.getHash())
         del self.chain[-1]
         for rTx in reversed(block.txList[1:]):
             rollBackResult = self.__rollBackTx(rTx)
@@ -232,7 +234,7 @@ class ShardState:
     def tip(self):
         """ Return the header of the tail of the shard
         """
-        return self.chain[-1].header
+        return self.chain[-1]
 
     def addCrossShardUtxo(self, txInput, utxoValue):
         assert(txInput not in self.utxoPool)
@@ -255,6 +257,9 @@ class ShardState:
 
             balance += v.quarkash
         return balance
+
+    def getNextBlockDifficulty(self, timeSec):
+        return self.diffCalc.calculateDiff(self, timeSec)
 
 
 class MinorChainManager:
@@ -325,6 +330,8 @@ class RootChain:
         self.blockPool[h] = block.header
         self.genesisBlock = block
         self.chain = [block.header]
+        self.diffCalc = self.env.config.ROOT_DIFF_CALCULATOR
+        self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
 
     def loadFromDb(self):
         # TODO
@@ -451,6 +458,9 @@ class RootChain:
                 shardId] = newQueueList[shardId]
 
         return None
+
+    def getNextBlockDifficulty(self, timeSec):
+        return self.diffCalc.calculateDiff(self, timeSec)
 
 
 class QuarkChain:
@@ -626,3 +636,21 @@ class QuarkChainState:
             balance += shard.getBalance(recipient)
 
         return balance
+
+    def getNextMinorBlockDifficulty(self, shardId, timeSec=int(time.time())):
+        if shardId >= len(self.shardList):
+            raise "invalid shard id"
+
+        shard = self.shardList[shardId]
+        return shard.getNextBlockDifficulty(timeSec)
+
+    def getNextRootBlockDifficulty(self, timeSec=int(time.time())):
+        return self.rootChain.getNextBlockDifficulty(timeSec)
+
+    def createMinorBlockToAppend(self, shardId, createTime=int(time.time())):
+        diff = self.getNextMinorBlockDifficulty(shardId, createTime)
+        return self.shardList[0].tip().createBlockToAppend(createTime=createTime, difficulty=diff)
+
+    def createRootBlockToAppend(self, createTime=int(time.time())):
+        diff = self.getNextRootBlockDifficulty(createTime)
+        return self.rootChain.tip().createBlockToAppend(createTime=createTime, difficulty=diff)

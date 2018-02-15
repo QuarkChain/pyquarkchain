@@ -2,7 +2,8 @@
 import copy
 import quarkchain.db
 from quarkchain.core import Address
-from quarkchain.utils import is_p2, int_left_most_bit
+from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
+from quarkchain.diff import MADifficultyCalculator
 
 
 class DefaultConfig:
@@ -18,7 +19,7 @@ class DefaultConfig:
         self.GENESIS_COIN = 10 ** 28
         self.GENESIS_MINOR_COIN = 0
         self.GENESIS_DIFFICULTY = 100
-        self.GENESIS_MINOR_DIFFICULTY = 25
+        self.GENESIS_MINOR_DIFFICULTY = self.GENESIS_DIFFICULTY // self.SHARD_SIZE
         # 2018/2/2 5 am 7 min 38 sec
         self.GENESIS_CREATE_TIME = 1517547849
         self.PROOF_OF_PROGRESS_BLOCKS = 1
@@ -28,6 +29,18 @@ class DefaultConfig:
         #  0 is mainnet
         self.NETWORK_ID = 0
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
+        self.ROOT_BLOCK_INTERVAL_SEC = 150
+        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=3600 // self.ROOT_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=3600 // self.ROOT_BLOCK_INTERVAL_SEC)
+        self.MINOR_BLOCK_INTERVAL_SEC = 15
+        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC)
+        # TODO: Use ASIC-resistent hash algorithm
+        self.DIFF_HASH_FUNC = sha3_256
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))

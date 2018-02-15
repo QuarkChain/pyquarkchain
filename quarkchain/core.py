@@ -454,6 +454,26 @@ class MinorBlockHeader(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
+    def createBlockToAppend(self,
+                            address=Address.createEmptyAccount(),
+                            quarkash=0,
+                            createTime=int(time.time()),
+                            difficulty=None):
+        difficulty = difficulty if difficulty is not None else self.difficulty
+        header = MinorBlockHeader(version=self.version,
+                                  height=self.height + 1,
+                                  branch=self.branch,
+                                  hashPrevRootBlock=self.hashPrevRootBlock,
+                                  hashPrevMinorBlock=self.getHash(),
+                                  hashMerkleRoot=bytes(32),
+                                  createTime=createTime,
+                                  difficulty=difficulty,
+                                  nonce=0)
+        return MinorBlock(header, [Transaction(
+            inList=[],
+            code=Code.createMinorBlockCoinbaseCode(header.height),
+            outList=[TransactionOutput(address.addressInBranch(self.branch), quarkash)])])
+
 
 class MinorBlock(Serializable):
     FIELDS = [
@@ -478,21 +498,16 @@ class MinorBlock(Serializable):
         self.txList.append(tx)
         return self
 
-    def createBlockToAppend(self, address=Address.createEmptyAccount(), quarkash=0):
-        # TODO:  Need to update diff
-        header = MinorBlockHeader(version=self.header.version,
-                                  height=self.header.height + 1,
-                                  branch=self.header.branch,
-                                  hashPrevRootBlock=self.header.hashPrevRootBlock,
-                                  hashPrevMinorBlock=self.header.getHash(),
-                                  hashMerkleRoot=bytes(32),
-                                  createTime=int(time.time()),
-                                  difficulty=self.header.difficulty,
-                                  nonce=0)
-        return MinorBlock(header, [Transaction(
-            inList=[],
-            code=Code.createMinorBlockCoinbaseCode(header.height),
-            outList=[TransactionOutput(address.addressInBranch(self.header.branch), quarkash)])])
+    def createBlockToAppend(self,
+                            address=Address.createEmptyAccount(),
+                            quarkash=0,
+                            createTime=int(time.time()),
+                            difficulty=None):
+        return self.header.createBlockToAppend(
+            address=address,
+            quarkash=quarkash,
+            createTime=createTime,
+            difficulty=difficulty)
 
 
 class ShardInfo(Serializable):
@@ -548,6 +563,21 @@ class RootBlockHeader(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
+    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None):
+        difficulty = difficulty if difficulty is not None else self.difficulty
+        header = RootBlockHeader(version=self.version,
+                                 height=self.height + 1,
+                                 shardInfo=copy.copy(self.shardInfo),
+                                 hashPrevBlock=self.getHash(),
+                                 hashMerkleRoot=bytes(32),
+                                 hashCoinbaseTx=bytes(32),
+                                 createTime=createTime,
+                                 difficulty=difficulty,
+                                 nonce=0)
+        return RootBlock(
+            header,
+            Transaction(code=Code.createRootBlockCoinbaseCode(header.height)), [])
+
 
 class RootBlock(Serializable):
     FIELDS = [
@@ -578,18 +608,8 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList.extend(headerList)
         return self
 
-    def createBlockToAppend(self):
-        # TODO: update difficulty
-        header = RootBlockHeader(version=self.header.version,
-                                 height=self.header.height + 1,
-                                 shardInfo=copy.copy(self.header.shardInfo),
-                                 hashPrevBlock=self.header.getHash(),
-                                 hashMerkleRoot=bytes(32),
-                                 hashCoinbaseTx=bytes(32),
-                                 createTime=int(time.time()),
-                                 difficulty=self.header.difficulty,
-                                 nonce=self.header.nonce)
-        return RootBlock(header, Transaction(code=Code.createRootBlockCoinbaseCode(header.height)), [])
+    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None):
+        return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty)
 
 
 def test():
