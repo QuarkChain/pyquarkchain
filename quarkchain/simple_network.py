@@ -113,6 +113,8 @@ class Peer:
         self.shardMaskList = []
         self.rpcId = 0  # 0 is broadcast
         self.rpcFutureMap = dict()
+        # Most recently received rpc id
+        self.peerRpcId = -1
 
     async def readCommand(self):
         opBytes = await self.reader.read(1)
@@ -142,6 +144,11 @@ class Peer:
             self.closeWithError("%s" % e)
             return (None, None, None)
 
+        if rpcId <= self.peerRpcId:
+            self.closeWithError("incorrect rpc id sequence")
+            return (None, None, None)
+
+        self.peerRpcId = max(rpcId, self.peerRpcId)
         return (op, cmd, rpcId)
 
     def writeCommand(self, op, cmd, rpcId=0):
@@ -215,7 +222,11 @@ class Peer:
 
     async def loopForever(self):
         while self.state == PeerState.ACTIVE:
-            op, cmd, rpcId = await self.readCommand()
+            try:
+                op, cmd, rpcId = await self.readCommand()
+            except Exception as e:
+                self.closeWithError("Error when reading {}".format(e))
+                break
             if op is None:
                 break
             if op in OP_HANDLER_LIST:
@@ -276,7 +287,6 @@ class SimpleNetwork:
         self.qcState = qcState
         self.ip = ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
-        pass
 
     async def newClient(self, client_reader, client_writer):
         peer = Peer(self.env, client_reader, client_writer, self)
