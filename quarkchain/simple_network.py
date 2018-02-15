@@ -261,6 +261,15 @@ class Peer:
         asyncio.ensure_future(self.loopForever())
         return None
 
+    async def handleRpcRequest(self, request, respOp, handler, rpcId):
+        try:
+            resp = await handler(self, request)
+        except Exception as e:
+            self.closeWithError("Unable to process rpc: {}".format(e))
+            return
+
+        self.writeRpcResponse(respOp, resp, rpcId)
+
     async def loopForever(self):
         while self.state == PeerState.ACTIVE:
             try:
@@ -268,11 +277,16 @@ class Peer:
             except Exception as e:
                 self.closeWithError("Error when reading {}".format(e))
                 break
+
             if op is None:
                 break
-            if op in OP_HANDLER_LIST:
-                handler = OP_HANDLER_LIST[op]
+
+            if op in OP_NONRPC_LIST:
+                handler = OP_NONRPC_LIST[op]
                 asyncio.ensure_future(handler(self, op, cmd, rpcId))
+            elif op in OP_RPC_LIST:
+                respOp, handler = OP_RPC_LIST[op]
+                asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId))
             else:
                 if rpcId not in self.rpcFutureMap:
                     self.closeWithError("Unexpected rpc response %d" % rpcId)
@@ -306,28 +320,31 @@ class Peer:
     async def handleError(self, op, cmd, rpcId):
         self.closeWithError("Unexpected op {}".format(op))
 
-    async def handleGetRootBlockListRequest(self, op, cmd, rpcId):
-        cmd = GetRootBlockListResponse()
-        self.writeRpcResponse(
-            CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, cmd, rpcId)
+    async def handleGetRootBlockListRequest(self, request):
+        return GetRootBlockListResponse()
 
-    async def handleGetPeerListRequest(self, op, cmd, rpcId):
+    async def handleGetPeerListRequest(self, request):
         resp = GetPeerListResponse()
         for peerId, peer in self.network.activePeerPool.items():
             if peer == self:
                 continue
             resp.peerInfoList.append(PeerInfo(int(peer.ip), peer.port))
-            if len(resp.peerInfoList) >= cmd.maxPeers:
+            if len(resp.peerInfoList) >= request.maxPeers:
                 break
-        self.writeRpcResponse(
-            CommandOp.GET_PEER_LIST_RESPONSE, resp, rpcId)
+        return resp
 
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
-OP_HANDLER_LIST = {
+OP_NONRPC_LIST = {
     CommandOp.HELLO: Peer.handleError,
-    CommandOp.GET_ROOT_BLOCK_LIST_REQUEST: Peer.handleGetRootBlockListRequest,
-    CommandOp.GET_PEER_LIST_REQUEST: Peer.handleGetPeerListRequest
+}
+
+# For RPC request commands
+OP_RPC_LIST = {
+    CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
+        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handleGetRootBlockListRequest),
+    CommandOp.GET_PEER_LIST_REQUEST:
+        (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest)
 }
 
 
@@ -373,6 +390,7 @@ class SimpleNetwork:
         except Exception as e:
             return
 
+        print("connecting {} peers ...".format(len(resp.peerInfoList)))
         for peerInfo in resp.peerInfoList:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
