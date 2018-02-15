@@ -144,12 +144,15 @@ class Peer:
         self.writer = writer
         self.network = network
         self.state = PeerState.CONNECTING
-        self.id = None
-        self.shardMaskList = []
         self.rpcId = 0  # 0 is broadcast
         self.rpcFutureMap = dict()
         # Most recently received rpc id
         self.peerRpcId = -1
+
+        # The following fields should be set once active
+        self.id = None
+        self.shardMaskList = None
+        self.bestRootBlockHeaderObserved = None
 
     async def readCommand(self):
         opBytes = await self.reader.read(1)
@@ -242,6 +245,7 @@ class Peer:
         self.shardMaskList = cmd.shardMaskList
         self.ip = ipaddress.ip_address(cmd.peerIp)
         self.port = cmd.peerPort
+        self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
         # TODO handle root block header
         if self.id == self.network.selfId:
             # connect to itself, stop it
@@ -319,6 +323,19 @@ class Peer:
 
     async def handleError(self, op, cmd, rpcId):
         self.closeWithError("Unexpected op {}".format(op))
+
+    async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+        if self.bestRootBlockHeaderObserved.height > cmd.rootBlockHeader.height:
+            self.closeWithError("Root block height should be non-decreasing")
+            return
+        elif self.bestRootBlockHeaderObserved.height == cmd.rootBlockHeader.height:
+            if self.bestRootBlockHeaderObserved != cmd.rootBlockHeader:
+                self.closeWithError("Root block the same height should not be changed")
+                return
+        else:
+            self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
+
+        # TODO: add minor blocks
 
     async def handleGetRootBlockListRequest(self, request):
         return GetRootBlockListResponse()
