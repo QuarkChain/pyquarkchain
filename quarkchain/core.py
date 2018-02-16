@@ -457,8 +457,9 @@ class MinorBlockHeader(Serializable):
     def createBlockToAppend(self,
                             address=None,
                             quarkash=0,
-                            createTime=int(time.time()),
+                            createTime=None,
                             difficulty=None):
+        createTime = self.createTime + 1 if createTime is None else createTime
         address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = MinorBlockHeader(version=self.version,
@@ -502,7 +503,7 @@ class MinorBlock(Serializable):
     def createBlockToAppend(self,
                             address=Address.createEmptyAccount(),
                             quarkash=0,
-                            createTime=int(time.time()),
+                            createTime=None,
                             difficulty=None):
         return self.header.createBlockToAppend(
             address=address,
@@ -564,7 +565,8 @@ class RootBlockHeader(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
-    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None, address=None):
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
+        createTime = self.createTime + 1 if createTime is None else createTime
         address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = RootBlockHeader(version=self.version,
@@ -614,7 +616,7 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList.extend(headerList)
         return self
 
-    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None, address=None):
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
         return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty, address=address)
 
 

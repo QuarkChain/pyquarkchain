@@ -88,6 +88,44 @@ class TestMADifficulty(unittest.TestCase):
         self.assertTrue(isRootBlock)
         self.assertIsNone(qcState.appendRootBlock(block.finalize()))
 
+    def testFindBestBlockToMineWithProofOfProgress(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(acc1)
+        env.config.setShardSize(2)
+        env.config.GENESIS_CREATE_TIME = 0
+        env.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=15,
+            bootstrapSamples=1)
+        env.config.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=150,
+            bootstrapSamples=1)
+        env.config.GENESIS_DIFFICULTY = 110
+        env.config.GENESIS_MINOR_DIFFICULTY = 50
+        env.config.PROOF_OF_PROGRESS_BLOCKS = 0
+
+        qcState = QuarkChainState(env)
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=10)
+        self.assertFalse(isRootBlock)
+        self.assertEqual(block.header.branch.getShardId(), 0)
+        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+
+        self.assertIsNone(qcState.appendMinorBlock(
+            qcState.createMinorBlockToAppend(0, createTime=15).finalizeMerkleRoot()))
+        self.assertIsNone(qcState.appendMinorBlock(
+            qcState.createMinorBlockToAppend(0, createTime=20).finalizeMerkleRoot()))
+
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=30)
+        self.assertTrue(isRootBlock)
+
+        env.config.PROOF_OF_PROGRESS_BLOCKS = 1
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=20)
+        self.assertFalse(isRootBlock)
+        self.assertEqual(block.header.branch.getShardId(), 1)
+
     def testPoW(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)

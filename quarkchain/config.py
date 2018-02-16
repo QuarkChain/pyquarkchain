@@ -69,7 +69,7 @@ class Env:
         self.config = config or DefaultConfig()
 
     def copy(self):
-        return copy.copy(self)
+        return Env(self.db, self.config.copy())
 
 
 DEFAULT_ENV = Env()

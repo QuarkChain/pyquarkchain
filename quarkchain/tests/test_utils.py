@@ -5,7 +5,7 @@ import random
 
 
 def get_test_env(genesisAccount=Address.createEmptyAccount(), genesisQuarkash=10000, genesisMinorQuarkash=1000):
-    env = DEFAULT_ENV
+    env = DEFAULT_ENV.copy()
     env.config.setShardSize(2)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True

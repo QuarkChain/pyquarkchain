@@ -40,6 +40,21 @@ class TestQuarkChain(unittest.TestCase):
         self.assertIsNotNone(qChain.rootChain.appendBlock(
             rB, [deque([b1.header]), deque([])]))
 
+    def testNoProofOfProgress(self):
+        env = get_test_env()
+        env.config.PROOF_OF_PROGRESS_BLOCKS = 0
+        qChain = QuarkChain(env)
+
+        b1 = qChain.minorChainManager.getGenesisBlock(0).createBlockToAppend()
+        self.assertIsNone(qChain.minorChainManager.addNewBlock(b1))
+
+        rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header]
+        rB.finalize()
+
+        self.assertIsNone(qChain.rootChain.appendBlock(
+            rB, [deque([b1.header]), deque([])]))
+
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
 

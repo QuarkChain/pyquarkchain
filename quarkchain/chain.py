@@ -497,7 +497,7 @@ class RootChain:
             totalMinorCoinbase += self.__getBlockCoinbaseQuarkash(
                 mHeader.getHash())
 
-        if shardId != block.header.shardInfo.getShardSize() - 1:
+        if shardId != block.header.shardInfo.getShardSize() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
             return "fail to prove progress"
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             return "fail to prove progress"
@@ -514,9 +514,9 @@ class RootChain:
         self.db.putRootBlock(block, rBlockHash=blockHash)
 
         # Set new uncommitted blocks
-        for shardId in range(block.header.shardInfo.getShardSize()):
-            uncommittedMinorBlockHeaderQueueList[
-                shardId] = newQueueList[shardId]
+        for shardId in range(min(block.header.shardInfo.getShardSize(), len(newQueueList))):
+            uncommittedMinorBlockHeaderQueueList[shardId] = \
+                newQueueList[shardId]
 
         return None
 
@@ -776,6 +776,11 @@ class QuarkChainState:
                 maxEco = eco
 
         if blockId == 0:
+            # Double check if we meet proof-of-progress
+            for shardId, q in enumerate(self.uncommittedMinorBlockHeaderQueueList):
+                if len(q) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+                    return (False, self.createMinorBlockToMine(
+                        shardId, createTime=createTime, address=address))
             return (True, self.createRootBlockToMine(
                 createTime=createTime, address=address))
         else:
