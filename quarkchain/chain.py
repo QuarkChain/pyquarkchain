@@ -160,6 +160,9 @@ class ShardState:
         if len(block.txList[0].outList) != 1:
             return "coinbase tx's output must be one"
 
+        if not self.branch.isInShard(block.txList[0].outList[0].address.fullShardId):
+            return "coinbase output address must be in the shard"
+
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == 0:

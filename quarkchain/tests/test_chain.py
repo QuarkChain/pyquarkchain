@@ -576,3 +576,15 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
         self.assertEqual(qcState.getShardTip(0), b1.header)
         self.assertEqual(qcState.getShardTip(1), b2.header)
+
+    def testMinorCoinbaseOutputMustInShard(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        acc1 = Address.createRandomAccount(fullShardId=1)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100, address=acc1).finalizeMerkleRoot()
+        b1.txList[0].outList[0].address = acc1
+        self.assertIsNotNone(qcState.appendMinorBlock(b1))
+
+        b1.txList[0].outList[0].address = acc1.addressInShard(0)
+        self.assertIsNone(qcState.appendMinorBlock(b1))
