@@ -10,7 +10,7 @@ from quarkchain.core import uint16, uint32, uint128, hash256
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
-from enum import Enum
+from quarkchain.protocol import Client, ClientState
 
 SEED_HOST = ("localhost", 38291)
 
@@ -108,13 +108,6 @@ class GetPeerListResponse(Serializable):
         self.peerInfoList = peerInfoList if peerInfoList is not None else []
 
 
-class PeerState(Enum):
-    CONNECTING = 0   # conneting before hello
-    DOWNLOADING = 1  # hello is down and the peer is downloading
-    ACTIVE = 2       # the peer is active, be able to receive relay
-    CLOSED = 3       # the peer connection is closed
-
-
 class CommandOp():
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
@@ -125,7 +118,7 @@ class CommandOp():
     GET_PEER_LIST_RESPONSE = 6
 
 
-OP_SERIALIZER_LIST = {
+OP_SERIALIZER_MAP = {
     CommandOp.HELLO: HelloCommand,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: NewMinorBlockHeaderListCommand,
     CommandOp.NEW_TRANSACTION_LIST: NewTransactionListCommand,
@@ -136,84 +129,16 @@ OP_SERIALIZER_LIST = {
 }
 
 
-class Peer:
+class Peer(Client):
 
     def __init__(self, env, reader, writer, network):
-        self.env = env
-        self.reader = reader
-        self.writer = writer
+        super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
         self.network = network
-        self.state = PeerState.CONNECTING
-        self.rpcId = 0  # 0 is broadcast
-        self.rpcFutureMap = dict()
-        # Most recently received rpc id
-        self.peerRpcId = -1
 
         # The following fields should be set once active
         self.id = None
         self.shardMaskList = None
         self.bestRootBlockHeaderObserved = None
-
-    async def readCommand(self):
-        opBytes = await self.reader.read(1)
-        if len(opBytes) == 0:
-            self.close()
-            return (None, None, None)
-
-        op = opBytes[0]
-        if op not in OP_SERIALIZER_LIST:
-            self.closeWithError("Unsupported op {}".format(op))
-            return (None, None, None)
-
-        ser = OP_SERIALIZER_LIST[op]
-        sizeBytes = await self.reader.read(4)
-        size = int.from_bytes(sizeBytes, byteorder="big")
-        if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
-            self.closeWithError("command package exceed limit")
-            return (None, None, None)
-
-        rpcIdBytes = await self.reader.read(8)
-        rpcId = int.from_bytes(rpcIdBytes, byteorder="big")
-
-        cmdBytes = await self.reader.read(size)
-        try:
-            cmd = ser.deserialize(cmdBytes)
-        except Exception as e:
-            self.closeWithError("%s" % e)
-            return (None, None, None)
-
-        if rpcId <= self.peerRpcId:
-            self.closeWithError("incorrect rpc id sequence")
-            return (None, None, None)
-
-        self.peerRpcId = max(rpcId, self.peerRpcId)
-        return (op, cmd, rpcId)
-
-    def writeCommand(self, op, cmd, rpcId=0):
-        data = cmd.serialize()
-        ba = bytearray()
-        ba.append(op)
-        ba.extend(len(data).to_bytes(4, byteorder="big"))
-        ba.extend(rpcId.to_bytes(8, byteorder="big"))
-        ba.extend(data)
-        self.writer.write(ba)
-
-    def writeRpcRequest(self, op, cmd):
-        rpcFuture = asyncio.Future()
-
-        if self.state != PeerState.ACTIVE:
-            rpcFuture.set_exception(RuntimeError(
-                "Peer connection is not active"))
-            return rpcFuture
-
-        self.rpcId += 1
-        rpcId = self.rpcId
-        self.rpcFutureMap[rpcId] = rpcFuture
-        self.writeCommand(op, cmd, rpcId)
-        return rpcFuture
-
-    def writeRpcResponse(self, op, cmd, rpcId):
-        self.writeCommand(op, cmd, rpcId)
 
     def sendHello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
@@ -229,7 +154,7 @@ class Peer:
     async def start(self, isServer=False):
         op, cmd, rpcId = await self.readCommand()
         if op is None:
-            assert(self.state == PeerState.CLOSED)
+            assert(self.state == ClientState.CLOSED)
             return "Failed to read command"
 
         if op != CommandOp.HELLO:
@@ -261,65 +186,23 @@ class Peer:
         if isServer:
             self.sendHello()
 
-        self.state = PeerState.ACTIVE
+        self.state = ClientState.ACTIVE
         asyncio.ensure_future(self.loopForever())
         return None
 
-    async def handleRpcRequest(self, request, respOp, handler, rpcId):
-        try:
-            resp = await handler(self, request)
-        except Exception as e:
-            self.closeWithError("Unable to process rpc: {}".format(e))
-            return
-
-        self.writeRpcResponse(respOp, resp, rpcId)
-
-    async def loopForever(self):
-        while self.state == PeerState.ACTIVE:
-            try:
-                op, cmd, rpcId = await self.readCommand()
-            except Exception as e:
-                self.closeWithError("Error when reading {}".format(e))
-                break
-
-            if op is None:
-                break
-
-            if op in OP_NONRPC_LIST:
-                handler = OP_NONRPC_LIST[op]
-                asyncio.ensure_future(handler(self, op, cmd, rpcId))
-            elif op in OP_RPC_LIST:
-                respOp, handler = OP_RPC_LIST[op]
-                asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId))
-            else:
-                if rpcId not in self.rpcFutureMap:
-                    self.closeWithError("Unexpected rpc response %d" % rpcId)
-                    break
-                future = self.rpcFutureMap[rpcId]
-                del self.rpcFutureMap[rpcId]
-                future.set_result((op, cmd, rpcId))
-        assert(self.state == PeerState.CLOSED)
-
-        # Abort all in-flight RPCs
-        for rpcId, future in self.rpcFutureMap.items():
-            future.set_exception(RuntimeError("Connection abort"))
-        self.rpcFutureMap.clear()
-
     def close(self):
-        self.writer.close()
-        if self.state == PeerState.ACTIVE:
+        if self.state == ClientState.ACTIVE:
             assert(self.id is not None)
             if self.id in self.network.activePeerPool:
                 del self.network.activePeerPool[self.id]
             print("Peer {} disconnected, remaining {}".format(
                 self.id.hex(), len(self.network.activePeerPool)))
-        self.state = PeerState.CLOSED
+        super().close()
 
     def closeWithError(self, error):
         print("Closing peer %s with the following reason: %s" %
               (self.id.hex() if self.id is not None else "unknown", error))
-        self.close()
-        return error
+        return super().closeWithError(error)
 
     async def handleError(self, op, cmd, rpcId):
         self.closeWithError("Unexpected op {}".format(op))
@@ -352,12 +235,12 @@ class Peer:
 
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
-OP_NONRPC_LIST = {
+OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handleError,
 }
 
 # For RPC request commands
-OP_RPC_LIST = {
+OP_RPC_MAP = {
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
         (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handleGetRootBlockListRequest),
     CommandOp.GET_PEER_LIST_REQUEST:
@@ -376,10 +259,16 @@ class SimpleNetwork:
         self.ip = ipaddress.ip_address(
             socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
+        self.localPort = self.env.config.LOCAL_SERVER_PORT
 
     async def newClient(self, client_reader, client_writer):
         peer = Peer(self.env, client_reader, client_writer, self)
         await peer.start(isServer=True)
+
+    async def newLocalClient(self, reader, writer):
+        # localClient = LocalClient(self.env, reader, writer, self)
+        # await localClient.start()
+        pass
 
     async def connect(self, ip, port):
         print("connecting {} {}".format(ip, port))
@@ -422,9 +311,14 @@ class SimpleNetwork:
         coro = asyncio.start_server(
             self.newClient, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
-
         print("Self id {}".format(self.selfId.hex()))
-        print("Litsening on {}".format(self.server.sockets[0].getsockname()))
+        print("Listening on {} for p2p".format(self.server.sockets[0].getsockname()))
+
+        if self.env.config.LOCAL_SERVER_ENABLE:
+            coro = asyncio.start_server(
+                self.newLocalClient, "127.0.0.1", self.localPort, loop=self.loop)
+            self.local_server = self.loop.run_until_complete(coro)
+            print("Listening on {} for local".format(self.server.sockets[0].getsockname()))
 
         self.loop.create_task(self.connectSeed(SEED_HOST[0], SEED_HOST[1]))
 
@@ -444,10 +338,17 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int)
+    # Local port for JSON-RPC, wallet, etc
+    parser.add_argument(
+        "--enable_local_port", default=False, type=bool)
+    parser.add_argument(
+        "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.config.P2P_SERVER_PORT = args.server_port
+    env.config.LOCAL_SERVER_PORT = args.local_port
+    env.config.LOCAL_SERVER_ENABLE = args.enable_local_port
     return env
 
 
