@@ -16,12 +16,30 @@ class DefaultConfig:
         self.LOCAL_SERVER_ENABLE = False
         self.SHARD_SIZE = 4
         self.SHARD_SIZE_BITS = 2
+
+        # Difficulty related
+        self.DIFF_MA_INTERVAL = 3600
+        self.ROOT_BLOCK_INTERVAL_SEC = 150
+        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=3600 // self.ROOT_BLOCK_INTERVAL_SEC)
+        self.MINOR_BLOCK_INTERVAL_SEC = 15
+        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC)
+        # TODO: Use ASIC-resistent hash algorithm
+        self.DIFF_HASH_FUNC = sha3_256
+
         self.GENESIS_ACCOUNT = Address.createFrom(
             '2bd6cc571427aa46a5e413ccbab5b9a759d08fb5142cbcb8')
         self.GENESIS_COIN = 10 ** 28
         self.GENESIS_MINOR_COIN = 0
-        self.GENESIS_DIFFICULTY = 100
-        self.GENESIS_MINOR_DIFFICULTY = self.GENESIS_DIFFICULTY // self.SHARD_SIZE
+        self.GENESIS_DIFFICULTY = 1000
+        self.GENESIS_MINOR_DIFFICULTY = \
+            self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
+            self.SHARD_SIZE // self.ROOT_BLOCK_INTERVAL_SEC
         # 2018/2/2 5 am 7 min 38 sec
         self.GENESIS_CREATE_TIME = 1517547849
         self.PROOF_OF_PROGRESS_BLOCKS = 1
@@ -31,18 +49,7 @@ class DefaultConfig:
         #  0 is mainnet
         self.NETWORK_ID = 0
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
-        self.ROOT_BLOCK_INTERVAL_SEC = 150
-        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=3600 // self.ROOT_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=3600 // self.ROOT_BLOCK_INTERVAL_SEC)
-        self.MINOR_BLOCK_INTERVAL_SEC = 15
-        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC)
-        # TODO: Use ASIC-resistent hash algorithm
-        self.DIFF_HASH_FUNC = sha3_256
+
         # Decimal level
         self.QUARKSH_TO_JIAOZI = 10 ** 18
 

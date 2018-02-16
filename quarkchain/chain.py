@@ -284,6 +284,26 @@ class ShardState:
     def getNextBlockDifficulty(self, timeSec):
         return self.diffCalc.calculateDiff(self, timeSec)
 
+    def getNextBlockReward(self):
+        return self.rewardCalc.getBlockReward(self)
+
+    def createBlockToAppend(self, createTime=None, address=None):
+        """ Create an empty block to append
+        """
+        createTime = int(time.time()) if createTime is None else createTime
+        return self.tip().createBlockToAppend(
+            createTime=createTime,
+            address=address,
+            difficulty=self.getNextBlockDifficulty(createTime),
+            quarkash=self.getNextBlockReward())
+
+    def createBlockToMine(self, createTime=None, address=None):
+        """ Create a block to append and include TXs to maximize rewards
+        """
+        # TODO:  Add pending TXs
+        return self.createBlockToAppend(
+            createTime=createTime, address=address)
+
 
 class MinorChainManager:
 
@@ -493,9 +513,6 @@ class RootChain:
     def getNextBlockDifficulty(self, timeSec):
         return self.diffCalc.calculateDiff(self, timeSec)
 
-    def getNextBlockReward(self):
-        return self.rewardCalc.getBlockReward(self)
-
 
 class QuarkChain:
 
@@ -687,10 +704,10 @@ class QuarkChainState:
         return self.rootChain.getNextBlockDifficulty(createTime)
 
     def createMinorBlockToAppend(self, shardId, createTime=None, address=None):
-        createTime = int(time.time()) if createTime is None else createTime
-        diff = self.getNextMinorBlockDifficulty(shardId, createTime)
-        return self.shardList[shardId].tip().createBlockToAppend(
-            createTime=createTime, difficulty=diff, address=address)
+        if shardId >= len(self.shardList):
+            raise RuntimeError("invalid shard id")
+        return self.shardList[shardId].createBlockToAppend(
+            createTime=createTime, address=address)
 
     def createRootBlockToAppend(self, createTime=None, address=None):
         createTime = int(time.time()) if createTime is None else createTime
@@ -706,6 +723,7 @@ class QuarkChainState:
             for mHeader in q:
                 rBlock.addMinorBlockHeader(mHeader)
                 totalReward += get_minor_block_coinbase_quarkash(
+                    self.db,
                     mHeader.getHash())
 
         return rBlock
@@ -725,5 +743,31 @@ class QuarkChainState:
         for q in self.uncommittedMinorBlockHeaderQueueList:
             for mHeader in q:
                 totalReward += get_minor_block_coinbase_quarkash(
-                    mHeader.getHash())
+                    self.db, mHeader.getHash())
         return totalReward
+
+    def findBestBlockToMine(self, includeRoot=True, shardMaskList=[], createTime=None, address=None):
+        """ Find the best block (reward / diff) to mine
+        Return None if no such block is found
+        """
+        createTime = int(time.time()) if createTime is None else createTime
+        if includeRoot:
+            blockId = 0
+            maxEco = self.getNextRootBlockReward() / self.getNextRootBlockDifficulty(createTime)
+        else:
+            blockId = None
+            maxEco = None
+
+        # TODO: Apply shard mask
+        for shardId, shard in enumerate(self.shardList):
+            eco = shard.getNextBlockReward() / shard.getNextBlockDifficulty(createTime)
+            if maxEco is None or eco > maxEco:
+                blockId = shardId + 1
+                maxEco = eco
+
+        if blockId == 0:
+            return (True, self.createRootBlockToMine(
+                createTime=createTime, address=address))
+        else:
+            return (False, self.createMinorBlockToMine(
+                blockId - 1, createTime=createTime, address=address))

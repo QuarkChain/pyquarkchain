@@ -37,8 +37,8 @@ class TestMADifficulty(unittest.TestCase):
         self.assertEqual(qcState.getNextRootBlockDifficulty(), env.config.GENESIS_DIFFICULTY)
         rB = qcState.createRootBlockToAppend(160).extendMinorBlockHeaderList([b1.header, b2.header]).finalize()
         self.assertIsNone(qcState.appendRootBlock(rB))
-        # 100 * 150 / 160 = 93
-        self.assertEqual(qcState.getNextRootBlockDifficulty(), 93)
+        # 1000 * 150 / 160 = 937
+        self.assertEqual(qcState.getNextRootBlockDifficulty(), 937)
 
         b3 = qcState.createMinorBlockToAppend(0, createTime=45).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b3))
@@ -47,5 +47,43 @@ class TestMADifficulty(unittest.TestCase):
 
         rB1 = qcState.createRootBlockToAppend(300).extendMinorBlockHeaderList([b3.header]).finalize()
         self.assertIsNone(qcState.appendRootBlock(rB1))
-        #  (93 + 100) * 150 / (300)
-        self.assertEqual(qcState.getNextRootBlockDifficulty(), 96)
+        #  (937 + 1000) * 150 / (300)
+        self.assertEqual(qcState.getNextRootBlockDifficulty(), 968)
+
+    def testFindBestBlockToMine(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(acc1)
+        env.config.setShardSize(2)
+        env.config.GENESIS_CREATE_TIME = 0
+        env.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=15,
+            bootstrapSamples=1)
+        env.config.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=150,
+            bootstrapSamples=1)
+        env.config.GENESIS_DIFFICULTY = 110
+        env.config.GENESIS_MINOR_DIFFICULTY = 50
+
+        qcState = QuarkChainState(env)
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=10)
+        self.assertFalse(isRootBlock)
+        self.assertEqual(block.header.branch.getShardId(), 0)
+        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=15)
+        self.assertFalse(isRootBlock)
+        self.assertEqual(block.header.branch.getShardId(), 1)
+        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=20)
+        self.assertFalse(isRootBlock)
+        self.assertEqual(block.header.branch.getShardId(), 1)
+        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=30)
+        self.assertTrue(isRootBlock)
+        self.assertIsNone(qcState.appendRootBlock(block.finalize()))

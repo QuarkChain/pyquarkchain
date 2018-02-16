@@ -50,27 +50,14 @@ class LocalClient(Client):
         asyncio.ensure_future(self.loopForever())
 
     async def handleGetBlockTemplateRequest(self, request):
-        qcState = self.network.qcState
-        if request.includeRoot:
-            blockId = 0
-            maxEco = qcState.getNextRootBlockReward() / qcState.getNextRootBlockDifficulty()
-        else:
-            blockId = None
-            maxEco = None
+        isRootBlock, block = self.network.qcState.findBestBlockToMine()
 
-        # TODO: Apply shard mask
-        for shardId in qcState.getShardSize():
-            eco = qcState.getNextMinorBlockReward(shardId) / qcState.getNextMinorBlockDifficulty(shardId)
-            if maxEco is None or eco > maxEco:
-                blockId = shardId + 1
-
-        response = GetBlockTemplateResponse()
-        if blockId == 0:
-            response.isRootBlock = 1
-            response.blockData = qcState.createRootBlockToMine().serialize()
+        if isRootBlock is None:
+            response = GetBlockTemplateResponse(0, bytes(0))
+        elif isRootBlock:
+            response = GetBlockTemplateResponse(1, block.serialize())
         else:
-            response.isRootBlock = 0
-            response.blockData = qcState.createMinorBlockToMine(blockId - 1).serialize()
+            response = GetBlockTemplateResponse(0, block.serialize())
         return response
 
 
