@@ -154,6 +154,9 @@ class ShardState:
         if block.header.branch != self.branch:
             return "branch mismatch"
 
+        if block.header.createTime <= self.chain[-1].createTime:
+            return "incorrect create time"
+
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
         if merkleHash != block.header.hashMerkleRoot:
@@ -176,8 +179,10 @@ class ShardState:
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == 0:
-                # TODO: Implement difficulty
-                return "incorrect difficulty"
+                diff = self.getNextBlockDifficulty(block.header.createTime)
+                metric = diff * int.from_bytes(block.header.getHash(), byteorder="big")
+                if metric >= 2 ** 256:
+                    return "incorrect difficulty"
             elif block.txList[0].outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
                 return "incorrect master to create the block"
 
@@ -281,8 +286,8 @@ class ShardState:
             balance += v.quarkash
         return balance
 
-    def getNextBlockDifficulty(self, timeSec):
-        return self.diffCalc.calculateDiff(self, timeSec)
+    def getNextBlockDifficulty(self, createTime):
+        return self.diffCalc.calculateDiff(self, createTime)
 
     def getNextBlockReward(self):
         return self.rewardCalc.getBlockReward(self)
@@ -442,6 +447,9 @@ class RootChain:
         if block.header.height != len(self.chain):
             return "height mismatch"
 
+        if block.header.createTime <= self.chain[-1].createTime:
+            return "incorrect create time"
+
         if block.header.hashCoinbaseTx != block.coinbaseTx.getHash():
             return "coinbase tx hash mismatch"
 
@@ -458,8 +466,10 @@ class RootChain:
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == 0:
-                # TOOD: Implement difficulty
-                return "insufficient difficulty"
+                diff = self.getNextBlockDifficulty(block.header.createTime)
+                metric = diff * int.from_bytes(blockHash, byteorder="big")
+                if metric >= 2 ** 256:
+                    return "insufficient difficulty"
             elif block.coinbaseTx.outList[0].address.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
                 return "incorrect master to create the block"
 

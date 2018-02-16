@@ -87,3 +87,43 @@ class TestMADifficulty(unittest.TestCase):
         isRootBlock, block = qcState.findBestBlockToMine(createTime=30)
         self.assertTrue(isRootBlock)
         self.assertIsNone(qcState.appendRootBlock(block.finalize()))
+
+    def testPoW(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(acc1)
+        env.config.setShardSize(1)
+        env.config.GENESIS_CREATE_TIME = 0
+        env.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=15,
+            bootstrapSamples=1)
+        env.config.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=2,
+            targetIntervalSec=150,
+            bootstrapSamples=1)
+        env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
+        env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.config.GENESIS_MINOR_DIFFICULTY = 1000
+        env.config.GENESIS_DIFFICULTY = 2000
+
+        qcState = QuarkChainState(env)
+        self.assertEqual(qcState.getNextMinorBlockDifficulty(0), env.config.GENESIS_MINOR_DIFFICULTY)
+        b1 = qcState.createMinorBlockToAppend(0, createTime=10).finalizeMerkleRoot()
+        for i in range(0, 2 ** 32):
+            b1.header.nonce = i
+            if int.from_bytes(b1.header.getHash(), byteorder="big") * env.config.GENESIS_MINOR_DIFFICULTY < 2 ** 256:
+                self.assertIsNone(qcState.appendMinorBlock(b1))
+                break
+            else:
+                self.assertIsNotNone(qcState.appendMinorBlock(b1))
+
+        rB = qcState.createRootBlockToMine(createTime=140).finalize()
+        for i in range(0, 2 ** 32):
+            rB.header.nonce = i
+            if int.from_bytes(rB.header.getHash(), byteorder="big") * env.config.GENESIS_DIFFICULTY < 2 ** 256:
+                self.assertIsNone(qcState.appendRootBlock(rB))
+                break
+            else:
+                self.assertIsNotNone(qcState.appendRootBlock(rB))

@@ -9,7 +9,7 @@ class MADifficultyCalculator:
         self.slideSize = slideSize
 
     # Obtain the difficulty required for the next block
-    def calculateDiff(self, chain, timeSec):
+    def calculateDiff(self, chain, createTime=None):
         tip = chain.tip()
 
         if tip.height < self.bootstrapSamples:
