@@ -455,10 +455,11 @@ class MinorBlockHeader(Serializable):
         return sha3_256(self.serialize())
 
     def createBlockToAppend(self,
-                            address=Address.createEmptyAccount(),
+                            address=None,
                             quarkash=0,
                             createTime=int(time.time()),
                             difficulty=None):
+        address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = MinorBlockHeader(version=self.version,
                                   height=self.height + 1,
@@ -563,7 +564,8 @@ class RootBlockHeader(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
-    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None):
+    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None, address=None):
+        address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = RootBlockHeader(version=self.version,
                                  height=self.height + 1,
@@ -576,7 +578,11 @@ class RootBlockHeader(Serializable):
                                  nonce=0)
         return RootBlock(
             header,
-            Transaction(code=Code.createRootBlockCoinbaseCode(header.height)), [])
+            Transaction(
+                inList=[],
+                code=Code.createRootBlockCoinbaseCode(header.height),
+                outList=[TransactionOutput(address, 0)]),
+            [])
 
 
 class RootBlock(Serializable):
@@ -591,11 +597,11 @@ class RootBlock(Serializable):
         self.coinbaseTx = coinbaseTx
         self.minorBlockHeaderList = [] if minorBlockHeaderList is None else minorBlockHeaderList
 
-    def finalize(self, address=Address.createEmptyAccount(), quarkash=0):
+    def finalize(self, quarkash=0):
         self.header.hashMerkleRoot = calculate_merkle_root(
             self.minorBlockHeaderList)
 
-        self.coinbaseTx.outList = [TransactionOutput(address, quarkash)]
+        self.coinbaseTx.outList[0].quarkash = quarkash
         self.header.hashCoinbaseTx = self.coinbaseTx.getHash()
 
         return self
@@ -608,8 +614,8 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList.extend(headerList)
         return self
 
-    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None):
-        return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty)
+    def createBlockToAppend(self, createTime=int(time.time()), difficulty=None, address=None):
+        return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty, address=address)
 
 
 def test():

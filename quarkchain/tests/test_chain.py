@@ -148,10 +148,10 @@ class TestQuarkChain(unittest.TestCase):
         self.assertIsNone(qChain.minorChainManager.addNewBlock(b1))
         self.assertIsNone(qChain.minorChainManager.addNewBlock(b2))
 
-        rB = qChain.rootChain.getGenesisBlock().createBlockToAppend()
+        rB = qChain.rootChain.getGenesisBlock().createBlockToAppend(
+            address=env.config.TESTNET_MASTER_ACCOUNT)
         rB.minorBlockHeaderList = [b1.header, b2.header]
-        rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1,
-                    address=env.config.TESTNET_MASTER_ACCOUNT)
+        rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1)
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
             rB, [deque([b1.header]), deque([b2.header])]))

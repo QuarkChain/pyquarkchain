@@ -18,6 +18,15 @@ class UtxoValue:
         self.rootBlockHeader = rootBlockHeader
 
 
+class MinorBlockRewardCalcultor:
+
+    def __init__(self, env):
+        self.env = env
+
+    def getBlockReward(self, chain):
+        return 100 * self.env.config.QUARKSH_TO_JIAOZI
+
+
 class ShardState:
     """  State of a shard, which includes
     - UTXO pool
@@ -47,6 +56,7 @@ class ShardState:
         self.rootChain = rootChain
         self.diffCalc = self.env.config.MINOR_DIFF_CALCULATOR
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
+        self.rewardCalc = MinorBlockRewardCalcultor(env)
 
         grCoinbaseTx = rootChain.getGenesisBlock().coinbaseTx
         if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):
@@ -202,6 +212,13 @@ class ShardState:
                 return "one transaction is invalid"
             totalFee += fee
 
+        # The rest fee goes to root block
+        if block.txList[0].outList[0].quarkash > totalFee // 2 + self.rewardCalc.getBlockReward(self):
+            for rTx in reversed(txDoneList):
+                rollBackResult = self.__rollBackTx(rTx)
+                assert(rollBackResult)
+            return "coinbase reward is greater than block reward + fee"
+
         txHash = block.txList[0].getHash()
         for idx, txOutput in enumerate(block.txList[0].outList):
             self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
@@ -318,6 +335,14 @@ class MinorChainManager:
         return self.getBlockCoinbaseTx(blockHash).outList[0].quarkash
 
 
+def get_minor_block_coinbase_tx(db, blockHash):
+    return Transaction.deserialize(db.get(b'mblockCoinbaseTx_' + blockHash))
+
+
+def get_minor_block_coinbase_quarkash(db, blockHash):
+    return get_minor_block_coinbase_tx(db, blockHash).outList[0].quarkash
+
+
 class RootChain:
 
     def __init__(self, env, genesisBlock=None):
@@ -379,10 +404,10 @@ class RootChain:
         return True
 
     def __getBlockCoinbaseTx(self, blockHash):
-        return Transaction.deserialize(self.db.get(b'mblockCoinbaseTx_' + blockHash))
+        return get_minor_block_coinbase_tx(self.db, blockHash)
 
     def __getBlockCoinbaseQuarkash(self, blockHash):
-        return self.__getBlockCoinbaseTx(blockHash).outList[0].quarkash
+        return get_minor_block_coinbase_quarkash(self.db, blockHash)
 
     def appendBlock(self, block, uncommittedMinorBlockHeaderQueueList):
         """ Append new block.
@@ -467,6 +492,9 @@ class RootChain:
 
     def getNextBlockDifficulty(self, timeSec):
         return self.diffCalc.calculateDiff(self, timeSec)
+
+    def getNextBlockReward(self):
+        return self.rewardCalc.getBlockReward(self)
 
 
 class QuarkChain:
@@ -554,6 +582,9 @@ class QuarkChainState:
 
         shard = self.shardList[shardId]
         return shard.tip()
+
+    def getShardSize(self):
+        return len(self.shardList)
 
     def appendRootBlock(self, rBlock):
         """ Append a root block to rootChain
@@ -643,20 +674,56 @@ class QuarkChainState:
 
         return balance
 
-    def getNextMinorBlockDifficulty(self, shardId, timeSec=int(time.time())):
+    def getNextMinorBlockDifficulty(self, shardId, createTime=None):
         if shardId >= len(self.shardList):
-            raise "invalid shard id"
+            raise RuntimeError("invalid shard id")
 
+        createTime = int(time.time()) if createTime is None else createTime
         shard = self.shardList[shardId]
-        return shard.getNextBlockDifficulty(timeSec)
+        return shard.getNextBlockDifficulty(createTime)
 
-    def getNextRootBlockDifficulty(self, timeSec=int(time.time())):
-        return self.rootChain.getNextBlockDifficulty(timeSec)
+    def getNextRootBlockDifficulty(self, createTime=None):
+        createTime = int(time.time()) if createTime is None else createTime
+        return self.rootChain.getNextBlockDifficulty(createTime)
 
-    def createMinorBlockToAppend(self, shardId, createTime=int(time.time())):
+    def createMinorBlockToAppend(self, shardId, createTime=None, address=None):
+        createTime = int(time.time()) if createTime is None else createTime
         diff = self.getNextMinorBlockDifficulty(shardId, createTime)
-        return self.shardList[0].tip().createBlockToAppend(createTime=createTime, difficulty=diff)
+        return self.shardList[shardId].tip().createBlockToAppend(
+            createTime=createTime, difficulty=diff, address=address)
 
-    def createRootBlockToAppend(self, createTime=int(time.time())):
+    def createRootBlockToAppend(self, createTime=None, address=None):
+        createTime = int(time.time()) if createTime is None else createTime
         diff = self.getNextRootBlockDifficulty(createTime)
-        return self.rootChain.tip().createBlockToAppend(createTime=createTime, difficulty=diff)
+        return self.rootChain.tip().createBlockToAppend(
+            createTime=createTime, difficulty=diff, address=address)
+
+    def createRootBlockToMine(self, createTime=None, address=None):
+        rBlock = self.createRootBlockToAppend(
+            createTime=createTime, address=address)
+        totalReward = 0
+        for q in self.uncommittedMinorBlockHeaderQueueList:
+            for mHeader in q:
+                rBlock.addMinorBlockHeader(mHeader)
+                totalReward += get_minor_block_coinbase_quarkash(
+                    mHeader.getHash())
+
+        return rBlock
+
+    def createMinorBlockToMine(self, shardId, createTime=None, address=None):
+        # TODO: add pending transactions
+        return self.createMinorBlockToAppend(shardId, createTime, address)
+
+    def getNextMinorBlockReward(self, shardId):
+        if shardId >= len(self.shardList):
+            raise RuntimeError("invalid shard id")
+
+        return self.shardList[shardId].getNextBlockReward()
+
+    def getNextRootBlockReward(self):
+        totalReward = 0
+        for q in self.uncommittedMinorBlockHeaderQueueList:
+            for mHeader in q:
+                totalReward += get_minor_block_coinbase_quarkash(
+                    mHeader.getHash())
+        return totalReward

@@ -43,6 +43,8 @@ class DefaultConfig:
             bootstrapSamples=3600 // self.MINOR_BLOCK_INTERVAL_SEC)
         # TODO: Use ASIC-resistent hash algorithm
         self.DIFF_HASH_FUNC = sha3_256
+        # Decimal level
+        self.QUARKSH_TO_JIAOZI = 10 ** 18
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
