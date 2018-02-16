@@ -15,7 +15,7 @@ def create_genesis_minor_block(env, shardId, hashRootBlock=bytes(32)):
                               difficulty=env.config.GENESIS_MINOR_DIFFICULTY)
     return MinorBlock(header, [Transaction(
         inList=[],
-        code=Code.createMinorBlockCoinbaseCode(header.height),
+        code=Code.createMinorBlockCoinbaseCode(header.height, header.branch),
         outList=[TransactionOutput(
             env.config.GENESIS_ACCOUNT.addressInBranch(header.branch),
             env.config.GENESIS_MINOR_COIN)])])

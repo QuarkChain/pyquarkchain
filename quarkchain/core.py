@@ -322,8 +322,8 @@ class Code(Serializable):
         return Code()
 
     @staticmethod
-    def createMinorBlockCoinbaseCode(height):
-        return Code(code=b'm' + height.to_bytes(4, byteorder="big"))
+    def createMinorBlockCoinbaseCode(height, branch):
+        return Code(code=b'm' + height.to_bytes(4, byteorder="big") + branch.value.to_bytes(4, byteorder="big"))
 
     @staticmethod
     def createRootBlockCoinbaseCode(height):
@@ -471,7 +471,7 @@ class MinorBlockHeader(Serializable):
                                   nonce=0)
         return MinorBlock(header, [Transaction(
             inList=[],
-            code=Code.createMinorBlockCoinbaseCode(header.height),
+            code=Code.createMinorBlockCoinbaseCode(header.height, header.branch),
             outList=[TransactionOutput(address.addressInBranch(self.branch), quarkash)])])
 
 

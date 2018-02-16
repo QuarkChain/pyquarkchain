@@ -141,6 +141,9 @@ class ShardState:
         if block.header.height != self.chain[-1].height + 1:
             return "height mismatch"
 
+        if block.header.branch != self.branch:
+            return "branch mismatch"
+
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
         if merkleHash != block.header.hashMerkleRoot:
@@ -168,7 +171,7 @@ class ShardState:
         if not self.branch.isInShard(block.txList[0].outList[0].address.fullShardId):
             return "coinbase output must be in local shard"
 
-        if block.txList[0].code != Code.createMinorBlockCoinbaseCode(block.header.height):
+        if block.txList[0].code != Code.createMinorBlockCoinbaseCode(block.header.height, block.header.branch):
             return "incorrect coinbase code"
 
         # Check coinbase
