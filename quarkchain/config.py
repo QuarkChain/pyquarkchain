@@ -52,6 +52,7 @@ class DefaultConfig:
 
         # Decimal level
         self.QUARKSH_TO_JIAOZI = 10 ** 18
+        self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))

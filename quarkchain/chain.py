@@ -24,7 +24,7 @@ class MinorBlockRewardCalcultor:
         self.env = env
 
     def getBlockReward(self, chain):
-        return 100 * self.env.config.QUARKSH_TO_JIAOZI
+        return self.env.config.MINOR_BLOCK_DEFAULT_REWARD
 
 
 class ShardState:
@@ -192,11 +192,6 @@ class ShardState:
         if block.txList[0].code != Code.createMinorBlockCoinbaseCode(block.header.height, block.header.branch):
             return "incorrect coinbase code"
 
-        # Check coinbase
-        if not self.env.config.SKIP_MINOR_COINBASE_CHECK:
-            # TODO: Check coinbase
-            return "incorrect coinbase value"
-
         # Check whether the root header is in the root chain
         rootBlockHeader = self.rootChain.getBlockHeaderByHash(
             block.header.hashPrevRootBlock)
@@ -213,15 +208,17 @@ class ShardState:
             if fee < 0:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
-                    assert(rollBackResult)
+                    assert(rollBackResult is None)
                 return "one transaction is invalid"
             totalFee += fee
+            txDoneList.append(tx)
 
         # The rest fee goes to root block
-        if block.txList[0].outList[0].quarkash > totalFee // 2 + self.rewardCalc.getBlockReward(self):
+        if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
+                block.txList[0].outList[0].quarkash > totalFee // 2 + self.rewardCalc.getBlockReward(self):
             for rTx in reversed(txDoneList):
                 rollBackResult = self.__rollBackTx(rTx)
-                assert(rollBackResult)
+                assert(rollBackResult is None)
             return "coinbase reward is greater than block reward + fee"
 
         txHash = block.txList[0].getHash()

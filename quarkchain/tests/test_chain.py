@@ -192,6 +192,31 @@ class TestShardState(unittest.TestCase):
         nBlock.finalizeMerkleRoot()
         self.assertIsNone(sState.appendBlock(nBlock))
 
+    def testMinorBlockCoinbase(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+
+        env.config.SKIP_MINOR_COINBASE_CHECK = False
+        rootChain = RootChain(env)
+        gBlock = create_genesis_minor_block(
+            env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())
+        nBlock = gBlock.createBlockToAppend()
+        sState = ShardState(env, gBlock, rootChain)
+
+        tx = create_test_transaction(
+            id1, gBlock.txList[0].getHash(), acc2, 6000, 3000)
+        nBlock.addTx(tx)
+        nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
+        nBlock.txList[0].outList[0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 501
+        nBlock.finalizeMerkleRoot()
+        self.assertIsNotNone(sState.appendBlock(nBlock))
+
+        nBlock.txList[0].outList[0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 500
+        nBlock.finalizeMerkleRoot()
+        self.assertIsNone(sState.appendBlock(nBlock))
+
     def testTwoTransactions(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1).addressInShard(0)
