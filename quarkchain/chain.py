@@ -67,11 +67,10 @@ class ShardState:
                 genesisRootBlock.header)
             self.db.putTx(grCoinbaseTx, rootBlockHeader=genesisRootBlock)
 
-    def __performTx(self, tx, rootBlockHeader):
-        """ Perform a transacton atomically.
-        Return -1 if the transaction is invalid or
-               >= 0 for the transaction fee if the transaction successfully executed.
-        """
+        self.txQueue = deque()
+
+    def __checkTx(self, tx, rootBlockHeader=None, utxoPool=None):
+        utxoPool = self.utxoPool if utxoPool is None else utxoPool
 
         if len(tx.inList) == 0:
             return -1
@@ -85,24 +84,37 @@ class ShardState:
         senderList = []
         for txInput in tx.inList:
             if txInput in txInputSet:
-                return -1
-            if txInput not in self.utxoPool:
-                return -1
-            if self.utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
-                return -1
+                raise RuntimeError("transaction input cannot be used twice")
+            if txInput not in utxoPool:
+                raise RuntimeError("transaction input hash doesn't exist in UTXO pool")
+            if rootBlockHeader is not None and self.utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
+                raise RuntimeError("current root block header doesn't depend on correct root block header")
             txInputSet.add(txInput)
             txInputQuarkash = self.utxoPool[txInput].quarkash
             senderList.append(self.utxoPool[txInput].recipient)
 
         # Check signature
         if not tx.verifySignature(senderList):
-            return -1
+            raise RuntimeError("incorrect signature")
 
         # Check if the sum of output is smaller than or equal to the input
         txOutputQuarkash = 0
         for txOut in tx.outList:
             txOutputQuarkash += txOut.quarkash
         if txOutputQuarkash > txInputQuarkash:
+            raise RuntimeError("output quarkash cannot exceed input one")
+
+        return txInputQuarkash - txOutputQuarkash
+
+    def __performTx(self, tx, rootBlockHeader, utxoPool=None):
+        """ Perform a transacton atomically.
+        Return -1 if the transaction is invalid or
+               >= 0 for the transaction fee if the transaction successfully executed.
+        """
+
+        try:
+            txFee = self.__checkTx(tx, rootBlockHeader)
+        except Exception as e:
             return -1
 
         for txInput in tx.inList:
@@ -118,7 +130,7 @@ class ShardState:
                 rootBlockHeader)
 
         self.db.putTx(tx, rootBlockHeader=rootBlockHeader, txHash=txHash)
-        return txInputQuarkash - txOutputQuarkash
+        return txFee
 
     def __rollBackTx(self, tx):
         txHash = tx.getHash()
@@ -307,6 +319,13 @@ class ShardState:
         # TODO:  Add pending TXs
         return self.createBlockToAppend(
             createTime=createTime, address=address)
+
+    def addNewTransactionToQueue(self, transaction):
+        # TODO: limit transaction queue size
+
+        # Perform early sanity check of the transaction
+        self.__checkTx(transaction, rootBlockHeader=None)
+        self.txQueue.append(transaction)
 
 
 class MinorChainManager:
@@ -756,7 +775,12 @@ class QuarkChainState:
                     self.db, mHeader.getHash())
         return totalReward
 
-    def findBestBlockToMine(self, includeRoot=True, shardMaskList=[], createTime=None, address=None):
+    def findBestBlockToMine(self,
+                            includeRoot=True,
+                            shardMaskList=[],
+                            createTime=None,
+                            address=None,
+                            randomizeOutput=True):
         """ Find the best block (reward / diff) to mine
         Return None if no such block is found
         """
@@ -776,7 +800,7 @@ class QuarkChainState:
                 blockId = shardId + 1
                 maxEco = eco
                 dupEcoCount = 1
-            elif eco == maxEco:
+            elif eco == maxEco and randomizeOutput:
                 dupEcoCount += 1
                 if random.random() < 1 / dupEcoCount:
                     blockId = shardId + 1

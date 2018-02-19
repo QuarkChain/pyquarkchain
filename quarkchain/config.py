@@ -55,6 +55,9 @@ class DefaultConfig:
         self.NETWORK_ID = 0
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
+        # Unlimited yet
+        self.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 2 ** 32
+
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
         self.SHARD_SIZE = shardSize

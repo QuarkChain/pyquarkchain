@@ -22,6 +22,8 @@ class TestMADifficulty(unittest.TestCase):
             maSamples=2,
             targetIntervalSec=150,
             bootstrapSamples=1)
+        env.config.GENESIS_DIFFICULTY = 1000
+        env.config.GENESIS_MINOR_DIFFICULTY = 25
 
         qcState = QuarkChainState(env)
         self.assertEqual(qcState.getNextMinorBlockDifficulty(0), env.config.GENESIS_MINOR_DIFFICULTY)
@@ -69,7 +71,7 @@ class TestMADifficulty(unittest.TestCase):
         env.config.GENESIS_MINOR_DIFFICULTY = 50
 
         qcState = QuarkChainState(env)
-        isRootBlock, block = qcState.findBestBlockToMine(createTime=10)
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=10, randomizeOutput=False)
         self.assertFalse(isRootBlock)
         self.assertEqual(block.header.branch.getShardId(), 0)
         self.assertIsNone(qcState.appendMinorBlock(block))
@@ -108,7 +110,7 @@ class TestMADifficulty(unittest.TestCase):
         env.config.PROOF_OF_PROGRESS_BLOCKS = 0
 
         qcState = QuarkChainState(env)
-        isRootBlock, block = qcState.findBestBlockToMine(createTime=10)
+        isRootBlock, block = qcState.findBestBlockToMine(createTime=10, randomizeOutput=False)
         self.assertFalse(isRootBlock)
         self.assertEqual(block.header.branch.getShardId(), 0)
         self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
