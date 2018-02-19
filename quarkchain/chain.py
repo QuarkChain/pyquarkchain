@@ -69,9 +69,7 @@ class ShardState:
 
         self.txQueue = deque()
 
-    def __checkTx(self, tx, rootBlockHeader=None, utxoPool=None):
-        utxoPool = self.utxoPool if utxoPool is None else utxoPool
-
+    def __checkTx(self, tx, utxoPool):
         if len(tx.inList) == 0:
             return -1
 
@@ -82,16 +80,17 @@ class ShardState:
         txInputSet = set()
         txInputQuarkash = 0
         senderList = []
+        rootBlockHeader = self.chain[0]
         for txInput in tx.inList:
             if txInput in txInputSet:
                 raise RuntimeError("transaction input cannot be used twice")
             if txInput not in utxoPool:
                 raise RuntimeError("transaction input hash doesn't exist in UTXO pool")
-            if rootBlockHeader is not None and self.utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
-                raise RuntimeError("current root block header doesn't depend on correct root block header")
+            if utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
+                rootBlockHeader = utxoPool[txInput].rootBlockHeader
             txInputSet.add(txInput)
-            txInputQuarkash = self.utxoPool[txInput].quarkash
-            senderList.append(self.utxoPool[txInput].recipient)
+            txInputQuarkash = utxoPool[txInput].quarkash
+            senderList.append(utxoPool[txInput].recipient)
 
         # Check signature
         if not tx.verifySignature(senderList):
@@ -104,19 +103,9 @@ class ShardState:
         if txOutputQuarkash > txInputQuarkash:
             raise RuntimeError("output quarkash cannot exceed input one")
 
-        return txInputQuarkash - txOutputQuarkash
+        return (txInputQuarkash - txOutputQuarkash, rootBlockHeader)
 
-    def __performTx(self, tx, rootBlockHeader, utxoPool=None):
-        """ Perform a transacton atomically.
-        Return -1 if the transaction is invalid or
-               >= 0 for the transaction fee if the transaction successfully executed.
-        """
-
-        try:
-            txFee = self.__checkTx(tx, rootBlockHeader)
-        except Exception as e:
-            return -1
-
+    def __doPerformTx(self, tx, rootBlockHeader, utxoPool):
         for txInput in tx.inList:
             del self.utxoPool[txInput]
 
@@ -130,6 +119,21 @@ class ShardState:
                 rootBlockHeader)
 
         self.db.putTx(tx, rootBlockHeader=rootBlockHeader, txHash=txHash)
+
+    def __performTx(self, tx, rootBlockHeader, utxoPool=None):
+        """ Perform a transacton atomically.
+        Return -1 if the transaction is invalid or
+               >= 0 for the transaction fee if the transaction successfully executed.
+        """
+
+        utxoPool = self.utxoPool if utxoPool is None else utxoPool
+
+        txFee, prevRootBlockHeader = self.__checkTx(tx, utxoPool)
+
+        if prevRootBlockHeader.height > rootBlockHeader.height:
+            raise RuntimeError("root block header's height is too small")
+
+        self.__doPerformTx(tx, rootBlockHeader, utxoPool)
         return txFee
 
     def __rollBackTx(self, tx):
@@ -218,12 +222,13 @@ class ShardState:
         txDoneList = []
         totalFee = 0
         for tx in block.txList[1:]:
-            fee = self.__performTx(tx, rootBlockHeader)
-            if fee < 0:
+            try:
+                fee = self.__performTx(tx, rootBlockHeader)
+            except Exception as e:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
                     assert(rollBackResult is None)
-                return "one transaction is invalid"
+                return str(e)
             totalFee += fee
             txDoneList.append(tx)
 
@@ -245,6 +250,8 @@ class ShardState:
         self.db.putTx(block.txList[0], rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
+
+        # TODO: invalidate consumed tx in txQueue
         return None
 
     def printUtxoPool(self):
@@ -316,9 +323,24 @@ class ShardState:
     def createBlockToMine(self, createTime=None, address=None):
         """ Create a block to append and include TXs to maximize rewards
         """
-        # TODO:  Add pending TXs
-        return self.createBlockToAppend(
+        block = self.createBlockToAppend(
             createTime=createTime, address=address)
+        utxoPool = copy.copy(self.utxoPool)
+        totalTxFee = 0
+        for tx in self.txQueue:
+            if len(block.txList) >= self.env.config.TRANSACTION_LIMIT_PER_BLOCK:
+                break
+
+            try:
+                txFee, rootBlockHeader = self.__checkTx(tx, utxoPool)
+            except Exception as e:
+                continue
+
+            totalTxFee += txFee
+            self.__doPerformTx(tx, rootBlockHeader, utxoPool)
+            block.addTx(tx)
+        block.txList[0].outList[0].quarkash += totalTxFee
+        return block.finalizeMerkleRoot()
 
     def addNewTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size
@@ -758,8 +780,10 @@ class QuarkChainState:
         return rBlock.finalize(quarkash=totalReward)
 
     def createMinorBlockToMine(self, shardId, createTime=None, address=None):
-        # TODO: add pending transactions
-        return self.createMinorBlockToAppend(shardId, createTime, address).finalizeMerkleRoot()
+        if shardId >= len(self.shardList):
+            raise RuntimeError("invalid shard id")
+        return self.shardList[shardId].createBlockToMine(
+            createTime=createTime, address=address)
 
     def getNextMinorBlockReward(self, shardId):
         if shardId >= len(self.shardList):
@@ -774,6 +798,12 @@ class QuarkChainState:
                 totalReward += get_minor_block_coinbase_quarkash(
                     self.db, mHeader.getHash())
         return totalReward
+
+    def addTransactionToQueue(self, shardId, transaction):
+        if shardId > len(self.shardList):
+            raise RuntimeError("invalid shard id")
+
+        self.shardList[shardId].addTransactionToQueue(transaction)
 
     def findBestBlockToMine(self,
                             includeRoot=True,

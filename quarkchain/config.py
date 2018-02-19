@@ -57,6 +57,7 @@ class DefaultConfig:
 
         # Unlimited yet
         self.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 2 ** 32
+        self.TRANSACTION_LIMIT_PER_BLOCK = 2048
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
