@@ -628,3 +628,56 @@ class TestQuarkChainState(unittest.TestCase):
 
         b1.txList[0].outList[0].address = acc1.addressInShard(0)
         self.assertIsNone(qcState.appendMinorBlock(b1))
+
+    def testCreateBlockToMine(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1).addressInShard(0)
+        acc2 = Address.createRandomAccount()
+        acc3 = Address.createEmptyAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+
+        qcState = QuarkChainState(env)
+        tx1 = create_test_transaction(
+            id1,
+            qcState.getGenesisMinorBlock(0).txList[0].getHash(),
+            acc2,
+            6000,
+            3000)
+        tx2 = create_test_transaction(id1, tx1.getHash(), acc2, 1000, 1000)
+        qcState.addTransactionToQueue(0, tx1)
+        qcState.addTransactionToQueue(0, tx2)
+
+        b1 = qcState.createMinorBlockToMine(0, address=acc3)
+        self.assertEqual(len(b1.txList), 3)
+        self.assertEqual(qcState.getBalance(acc3.recipient), 0)
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertEqual(qcState.getBalance(acc3.recipient), env.config.MINOR_BLOCK_DEFAULT_REWARD + 2000)
+
+    def testCreateBlockToMineWithConflictingTxs(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1).addressInShard(0)
+        acc2 = Address.createRandomAccount()
+        acc3 = Address.createEmptyAccount()
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+
+        qcState = QuarkChainState(env)
+        tx1 = create_test_transaction(
+            id1,
+            qcState.getGenesisMinorBlock(0).txList[0].getHash(),
+            acc2,
+            6000,
+            3000)
+        tx2 = create_test_transaction(
+            id1,
+            qcState.getGenesisMinorBlock(0).txList[0].getHash(),
+            acc2,
+            4000,
+            5500)
+        qcState.addTransactionToQueue(0, tx1)
+        qcState.addTransactionToQueue(0, tx2)
+
+        b1 = qcState.createMinorBlockToMine(0)
+        self.assertEqual(len(b1.txList), 2)
+        self.assertEqual(qcState.getBalance(acc3.recipient), 0)
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertEqual(qcState.getBalance(acc3.recipient), env.config.MINOR_BLOCK_DEFAULT_REWARD + 1000)

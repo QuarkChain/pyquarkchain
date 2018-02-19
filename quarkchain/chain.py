@@ -107,13 +107,13 @@ class ShardState:
 
     def __doPerformTx(self, tx, rootBlockHeader, utxoPool):
         for txInput in tx.inList:
-            del self.utxoPool[txInput]
+            del utxoPool[txInput]
 
         txHash = tx.getHash()
         for idx, txOutput in enumerate(tx.outList):
             if not self.branch.isInShard(txOutput.address.fullShardId):
                 continue
-            self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
+            utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
                 txOutput.address.recipient,
                 txOutput.quarkash,
                 rootBlockHeader)
@@ -327,6 +327,7 @@ class ShardState:
             createTime=createTime, address=address)
         utxoPool = copy.copy(self.utxoPool)
         totalTxFee = 0
+        invalidTxList = []
         for tx in self.txQueue:
             if len(block.txList) >= self.env.config.TRANSACTION_LIMIT_PER_BLOCK:
                 break
@@ -334,19 +335,21 @@ class ShardState:
             try:
                 txFee, rootBlockHeader = self.__checkTx(tx, utxoPool)
             except Exception as e:
+                # TODO: C++ style erase while iterating?
+                invalidTxList.append(tx)
                 continue
 
             totalTxFee += txFee
             self.__doPerformTx(tx, rootBlockHeader, utxoPool)
             block.addTx(tx)
+        for tx in invalidTxList:
+            self.txQueue.remove(tx)
         block.txList[0].outList[0].quarkash += totalTxFee
         return block.finalizeMerkleRoot()
 
-    def addNewTransactionToQueue(self, transaction):
+    def addTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size
 
-        # Perform early sanity check of the transaction
-        self.__checkTx(transaction, rootBlockHeader=None)
         self.txQueue.append(transaction)
 
 
