@@ -10,7 +10,7 @@ from quarkchain.core import uint16, uint32, uint128, hash256
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
-from quarkchain.protocol import Client, ClientState
+from quarkchain.protocol import Connection, ConnectionState
 
 SEED_HOST = ("localhost", 38291)
 
@@ -129,7 +129,7 @@ OP_SERIALIZER_MAP = {
 }
 
 
-class Peer(Client):
+class Peer(Connection):
 
     def __init__(self, env, reader, writer, network):
         super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
@@ -154,7 +154,7 @@ class Peer(Client):
     async def start(self, isServer=False):
         op, cmd, rpcId = await self.readCommand()
         if op is None:
-            assert(self.state == ClientState.CLOSED)
+            assert(self.state == ConnectionState.CLOSED)
             return "Failed to read command"
 
         if op != CommandOp.HELLO:
@@ -186,12 +186,12 @@ class Peer(Client):
         if isServer:
             self.sendHello()
 
-        self.state = ClientState.ACTIVE
+        self.state = ConnectionState.ACTIVE
         asyncio.ensure_future(self.loopForever())
         return None
 
     def close(self):
-        if self.state == ClientState.ACTIVE:
+        if self.state == ConnectionState.ACTIVE:
             assert(self.id is not None)
             if self.id in self.network.activePeerPool:
                 del self.network.activePeerPool[self.id]

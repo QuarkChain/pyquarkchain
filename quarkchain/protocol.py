@@ -3,13 +3,13 @@ import asyncio
 from enum import Enum
 
 
-class ClientState(Enum):
-    CONNECTING = 0   # connecting before the client can be used
+class ConnectionState(Enum):
+    CONNECTING = 0   # connecting before the Connection can be used
     ACTIVE = 1       # the peer is active
     CLOSED = 2       # the peer connection is closed
 
 
-class Client:
+class Connection:
 
     def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap):
         self.env = env
@@ -18,7 +18,7 @@ class Client:
         self.opSerMap = opSerMap
         self.opNonRpcMap = opNonRpcMap
         self.opRpcMap = opRpcMap
-        self.state = ClientState.CONNECTING
+        self.state = ConnectionState.CONNECTING
         # Most recently received rpc id
         self.peerRpcId = -1
         self.rpcId = 0  # 0 is for non-rpc (fire-and-forget)
@@ -52,11 +52,6 @@ class Client:
             self.closeWithError("%s" % e)
             return (None, None, None)
 
-        if rpcId <= self.peerRpcId:
-            self.closeWithError("incorrect rpc id sequence")
-            return (None, None, None)
-
-        self.peerRpcId = max(rpcId, self.peerRpcId)
         return (op, cmd, rpcId)
 
     def writeCommand(self, op, cmd, rpcId=0):
@@ -71,7 +66,7 @@ class Client:
     def writeRpcRequest(self, op, cmd):
         rpcFuture = asyncio.Future()
 
-        if self.state != ClientState.ACTIVE:
+        if self.state != ConnectionState.ACTIVE:
             rpcFuture.set_exception(RuntimeError(
                 "Peer connection is not active"))
             return rpcFuture
@@ -95,7 +90,7 @@ class Client:
         self.writeRpcResponse(respOp, resp, rpcId)
 
     async def loopForever(self):
-        while self.state == ClientState.ACTIVE:
+        while self.state == ConnectionState.ACTIVE:
             try:
                 op, cmd, rpcId = await self.readCommand()
             except Exception as e:
@@ -106,19 +101,29 @@ class Client:
                 break
 
             if op in self.opNonRpcMap:
+                if rpcId != 0:
+                    self.closeWithError("non-rpc command's id must be zero")
+                    break
                 handler = self.opNonRpcMap[op]
                 asyncio.ensure_future(handler(self, op, cmd, rpcId))
             elif op in self.opRpcMap:
+                # Check if it is a valid RPC request
+                if rpcId <= self.peerRpcId:
+                    self.closeWithError("incorrect rpc request id sequence")
+                    break
+                self.peerRpcId = max(rpcId, self.peerRpcId)
+
                 respOp, handler = self.opRpcMap[op]
                 asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId))
             else:
+                # Check if it is a valid RPC response
                 if rpcId not in self.rpcFutureMap:
                     self.closeWithError("Unexpected rpc response %d" % rpcId)
                     break
                 future = self.rpcFutureMap[rpcId]
                 del self.rpcFutureMap[rpcId]
                 future.set_result((op, cmd, rpcId))
-        assert(self.state == ClientState.CLOSED)
+        assert(self.state == ConnectionState.CLOSED)
 
         # Abort all in-flight RPCs
         for rpcId, future in self.rpcFutureMap.items():
@@ -127,7 +132,7 @@ class Client:
 
     def close(self):
         self.writer.close()
-        self.state = ClientState.CLOSED
+        self.state = ConnectionState.CLOSED
 
     def closeWithError(self, error):
         self.close()

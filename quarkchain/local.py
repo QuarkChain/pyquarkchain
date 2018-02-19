@@ -1,6 +1,6 @@
 from quarkchain.core import Serializable, uint8, uint32, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import Address
-from quarkchain.protocol import Client
+from quarkchain.protocol import Connection
 import asyncio
 
 
@@ -40,7 +40,7 @@ OP_SER_MAP = {
 }
 
 
-class LocalClient(Client):
+class LocalServer(Connection):
 
     def __init__(self, env, reader, writer, network):
         super().__init__(env, reader, writer, OP_SER_MAP, dict(), OP_RPC_MAP)
@@ -64,5 +64,5 @@ class LocalClient(Client):
 OP_RPC_MAP = {
     LocalCommandOp.GET_BLOCK_TEMPLATE_REQUEST:
         (LocalCommandOp.GET_BLOCK_TEMPLATE_RESPONSE,
-         LocalClient.handleGetBlockTemplateRequest),
+         LocalServer.handleGetBlockTemplateRequest),
 }
