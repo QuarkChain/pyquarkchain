@@ -36,12 +36,12 @@ class DefaultConfig:
             '2bd6cc571427aa46a5e413ccbab5b9a759d08fb5142cbcb8')
         self.GENESIS_COIN = 10 ** 28
         self.GENESIS_MINOR_COIN = 0
-        self.GENESIS_DIFFICULTY = 1000
+        self.GENESIS_DIFFICULTY = 10000000
         self.GENESIS_MINOR_DIFFICULTY = \
             self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
             self.SHARD_SIZE // self.ROOT_BLOCK_INTERVAL_SEC
         # 2018/2/2 5 am 7 min 38 sec
-        self.GENESIS_CREATE_TIME = 1517547849
+        self.GENESIS_CREATE_TIME = 1519058260
         self.PROOF_OF_PROGRESS_BLOCKS = 1
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False

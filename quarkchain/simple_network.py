@@ -11,6 +11,7 @@ from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
 from quarkchain.protocol import Connection, ConnectionState
+from quarkchain.local import LocalServer
 
 SEED_HOST = ("localhost", 38291)
 
@@ -266,9 +267,8 @@ class SimpleNetwork:
         await peer.start(isServer=True)
 
     async def newLocalClient(self, reader, writer):
-        # localClient = LocalClient(self.env, reader, writer, self)
-        # await localClient.start()
-        pass
+        localServer = LocalServer(self.env, reader, writer, self)
+        await localServer.start()
 
     async def connect(self, ip, port):
         print("connecting {} {}".format(ip, port))
@@ -318,7 +318,7 @@ class SimpleNetwork:
             coro = asyncio.start_server(
                 self.newLocalClient, "127.0.0.1", self.localPort, loop=self.loop)
             self.local_server = self.loop.run_until_complete(coro)
-            print("Listening on {} for local".format(self.server.sockets[0].getsockname()))
+            print("Listening on {} for local".format(self.local_server.sockets[0].getsockname()))
 
         self.loop.create_task(self.connectSeed(SEED_HOST[0], SEED_HOST[1]))
 
@@ -340,7 +340,7 @@ def parse_args():
         "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int)
     # Local port for JSON-RPC, wallet, etc
     parser.add_argument(
-        "--enable_local_port", default=False, type=bool)
+        "--enable_local_server", default=False, type=bool)
     parser.add_argument(
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     args = parser.parse_args()
@@ -348,7 +348,7 @@ def parse_args():
     env = DEFAULT_ENV.copy()
     env.config.P2P_SERVER_PORT = args.server_port
     env.config.LOCAL_SERVER_PORT = args.local_port
-    env.config.LOCAL_SERVER_ENABLE = args.enable_local_port
+    env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     return env
 
 

@@ -7,6 +7,7 @@ import copy
 import time
 from collections import deque
 from quarkchain.utils import check
+import random
 
 
 class UtxoValue:
@@ -155,7 +156,8 @@ class ShardState:
             return "branch mismatch"
 
         if block.header.createTime <= self.chain[-1].createTime:
-            return "incorrect create time"
+            return "incorrect create time tip time {}, new block time {}".format(
+                block.header.createTime, self.chain[-1].createTime)
 
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
@@ -445,7 +447,8 @@ class RootChain:
             return "height mismatch"
 
         if block.header.createTime <= self.chain[-1].createTime:
-            return "incorrect create time"
+            return "incorrect create time tip time {}, new block time {}".format(
+                block.header.createTime, self.chain[-1].createTime)
 
         if block.header.hashCoinbaseTx != block.coinbaseTx.getHash():
             return "coinbase tx hash mismatch"
@@ -733,11 +736,11 @@ class QuarkChainState:
                     self.db,
                     mHeader.getHash())
 
-        return rBlock
+        return rBlock.finalize(quarkash=totalReward)
 
     def createMinorBlockToMine(self, shardId, createTime=None, address=None):
         # TODO: add pending transactions
-        return self.createMinorBlockToAppend(shardId, createTime, address)
+        return self.createMinorBlockToAppend(shardId, createTime, address).finalizeMerkleRoot()
 
     def getNextMinorBlockReward(self, shardId):
         if shardId >= len(self.shardList):
@@ -766,11 +769,18 @@ class QuarkChainState:
             maxEco = None
 
         # TODO: Apply shard mask
+        dupEcoCount = 1
         for shardId, shard in enumerate(self.shardList):
             eco = shard.getNextBlockReward() / shard.getNextBlockDifficulty(createTime)
             if maxEco is None or eco > maxEco:
                 blockId = shardId + 1
                 maxEco = eco
+                dupEcoCount = 1
+            elif eco == maxEco:
+                dupEcoCount += 1
+                if random.random() < 1 / dupEcoCount:
+                    blockId = shardId + 1
+                    maxEco = eco
 
         if blockId == 0:
             # Double check if we meet proof-of-progress

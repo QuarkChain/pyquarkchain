@@ -72,21 +72,21 @@ class TestMADifficulty(unittest.TestCase):
         isRootBlock, block = qcState.findBestBlockToMine(createTime=10)
         self.assertFalse(isRootBlock)
         self.assertEqual(block.header.branch.getShardId(), 0)
-        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+        self.assertIsNone(qcState.appendMinorBlock(block))
 
         isRootBlock, block = qcState.findBestBlockToMine(createTime=15)
         self.assertFalse(isRootBlock)
         self.assertEqual(block.header.branch.getShardId(), 1)
-        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+        self.assertIsNone(qcState.appendMinorBlock(block))
 
         isRootBlock, block = qcState.findBestBlockToMine(createTime=20)
         self.assertFalse(isRootBlock)
         self.assertEqual(block.header.branch.getShardId(), 1)
-        self.assertIsNone(qcState.appendMinorBlock(block.finalizeMerkleRoot()))
+        self.assertIsNone(qcState.appendMinorBlock(block))
 
         isRootBlock, block = qcState.findBestBlockToMine(createTime=30)
         self.assertTrue(isRootBlock)
-        self.assertIsNone(qcState.appendRootBlock(block.finalize()))
+        self.assertIsNone(qcState.appendRootBlock(block))
 
     def testFindBestBlockToMineWithProofOfProgress(self):
         id1 = Identity.createRandomIdentity()
