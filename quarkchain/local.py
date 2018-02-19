@@ -1,5 +1,5 @@
 from quarkchain.core import Serializable, uint8, uint32, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, RootBlock, MinorBlock
+from quarkchain.core import Address, RootBlock, MinorBlock, Transaction
 from quarkchain.protocol import Connection, ConnectionState
 import asyncio
 
@@ -52,11 +52,31 @@ class SubmitNewBlockResponse(Serializable):
         self.resultMessage = resultMessage
 
 
+class AddNewTransactionListRequest(Serializable):
+    FIELDS = (
+        ("txList", PreprendedSizeListSerializer(4, Transaction)),
+    )
+
+    def __init__(self, txList):
+        self.txList = txList
+
+
+class AddNewTransactionListResponse(Serializable):
+    FIELDS = (
+        ("numTxAdded", uint32)
+    )
+
+    def __init__(self, numTxAdded):
+        self.numTxAdded = numTxAdded
+
+
 class LocalCommandOp:
     GET_BLOCK_TEMPLATE_REQUEST = 0
     GET_BLOCK_TEMPLATE_RESPONSE = 1
     SUBMIT_NEW_BLOCK_REQUEST = 2
     SUBMIT_NEW_BLOCK_RESPONSE = 3
+    ADD_NEW_TRANSACTION_LIST_REQUEST = 4
+    ADD_NEW_TRANSACTION_LIST_RESPONSE = 5
 
 
 OP_SER_MAP = {
@@ -64,6 +84,8 @@ OP_SER_MAP = {
     LocalCommandOp.GET_BLOCK_TEMPLATE_RESPONSE: GetBlockTemplateResponse,
     LocalCommandOp.SUBMIT_NEW_BLOCK_REQUEST: SubmitNewBlockRequest,
     LocalCommandOp.SUBMIT_NEW_BLOCK_RESPONSE: SubmitNewBlockResponse,
+    LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST: AddNewTransactionListRequest,
+    LocalCommandOp.ADD_NEW_TRANSACTION_LIST_RESPONSE: AddNewTransactionListResponse,
 }
 
 
@@ -118,6 +140,9 @@ class LocalServer(Connection):
                 return SubmitNewBlockResponse(
                     resultCode=1, resultMessage=bytes(msg, "ascii"))
 
+    async def handleAddNewTransactionListRequest(self, request):
+        return AddNewTransactionListResponse(0)
+
     def closeWithError(self, error):
         print("Closing with error {}".format(error))
         return super().closeWithError(error)
@@ -129,5 +154,8 @@ OP_RPC_MAP = {
          LocalServer.handleGetBlockTemplateRequest),
     LocalCommandOp.SUBMIT_NEW_BLOCK_REQUEST:
         (LocalCommandOp.SUBMIT_NEW_BLOCK_RESPONSE,
-         LocalServer.handleSubmitNewBlockRequest)
+         LocalServer.handleSubmitNewBlockRequest),
+    LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST:
+        (LocalCommandOp.ADD_NEW_TRANSACTION_LIST_RESPONSE,
+         LocalServer.handleAddNewTransactionListRequest)
 }

@@ -32,10 +32,15 @@ class DefaultConfig:
         # TODO: Use ASIC-resistent hash algorithm
         self.DIFF_HASH_FUNC = sha3_256
 
+        # Decimal level
+        self.QUARKSH_TO_JIAOZI = 10 ** 18
+        self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
+
+        # Distribute pre-mined quarkash into different shards for faster distribution
         self.GENESIS_ACCOUNT = Address.createFrom(
             '2bd6cc571427aa46a5e413ccbab5b9a759d08fb5142cbcb8')
-        self.GENESIS_COIN = 10 ** 28
-        self.GENESIS_MINOR_COIN = 0
+        self.GENESIS_COIN = 0
+        self.GENESIS_MINOR_COIN = self.QUARKSH_TO_JIAOZI * (10 ** 10) // self.SHARD_SIZE
         self.GENESIS_DIFFICULTY = 10000000
         self.GENESIS_MINOR_DIFFICULTY = \
             self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
@@ -49,10 +54,6 @@ class DefaultConfig:
         #  0 is mainnet
         self.NETWORK_ID = 0
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
-
-        # Decimal level
-        self.QUARKSH_TO_JIAOZI = 10 ** 18
-        self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
