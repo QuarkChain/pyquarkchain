@@ -38,7 +38,7 @@ class DefaultConfig:
 
         # Distribute pre-mined quarkash into different shards for faster distribution
         self.GENESIS_ACCOUNT = Address.createFrom(
-            '2bd6cc571427aa46a5e413ccbab5b9a759d08fb5142cbcb8')
+            '199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3')
         self.GENESIS_COIN = 0
         self.GENESIS_MINOR_COIN = self.QUARKSH_TO_JIAOZI * (10 ** 10) // self.SHARD_SIZE
         self.GENESIS_DIFFICULTY = 10000000

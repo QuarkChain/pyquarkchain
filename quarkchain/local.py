@@ -52,9 +52,22 @@ class SubmitNewBlockResponse(Serializable):
         self.resultMessage = resultMessage
 
 
+class NewTransaction(Serializable):
+    FIELDS = (
+        ("shardId", uint32),
+        ("transaction", Transaction),
+    )
+
+    def __init__(self, shardId, transaction):
+        """ Negative shardId indicates unknown shard (not support yet)
+        """
+        self.shardId = shardId
+        self.transaction = transaction
+
+
 class AddNewTransactionListRequest(Serializable):
     FIELDS = (
-        ("txList", PreprendedSizeListSerializer(4, Transaction)),
+        ("txList", PreprendedSizeListSerializer(4, NewTransaction)),
     )
 
     def __init__(self, txList):
@@ -141,7 +154,9 @@ class LocalServer(Connection):
                     resultCode=1, resultMessage=bytes(msg, "ascii"))
 
     async def handleAddNewTransactionListRequest(self, request):
-        return AddNewTransactionListResponse(0)
+        for newTx in request.txList:
+            self.network.qcState.addTransactionToQueue()
+        return AddNewTransactionListResponse(len(request.txList))
 
     def closeWithError(self, error):
         print("Closing with error {}".format(error))
