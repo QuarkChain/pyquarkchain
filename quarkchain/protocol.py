@@ -23,6 +23,7 @@ class Connection:
         self.peerRpcId = -1
         self.rpcId = 0  # 0 is for non-rpc (fire-and-forget)
         self.rpcFutureMap = dict()
+        self.closeFuture = asyncio.Future()
 
     async def readCommand(self):
         opBytes = await self.reader.read(1)
@@ -130,9 +131,14 @@ class Connection:
             future.set_exception(RuntimeError("Connection abort"))
         self.rpcFutureMap.clear()
 
+    async def waitUntilClosed(self):
+        await self.closeFuture
+
     def close(self):
         self.writer.close()
-        self.state = ConnectionState.CLOSED
+        if self.state != ConnectionState.CLOSED:
+            self.state = ConnectionState.CLOSED
+            self.closeFuture.set_result(None)
 
     def closeWithError(self, error):
         self.close()

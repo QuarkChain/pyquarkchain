@@ -732,6 +732,12 @@ class QuarkChainState:
     def getGenesisRootBlock(self):
         return self.rootChain.getGenesisBlock()
 
+    def getRootBlockTip(self):
+        return self.rootChain.tip()
+
+    def getMinorBlockTip(self, shardId):
+        return self.shardList[shardId].tip()
+
     def copy(self):
         """ Return a copy of the state.
         TODO: Optimize copy

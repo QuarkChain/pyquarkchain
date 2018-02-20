@@ -2,6 +2,9 @@ from quarkchain.core import Serializable, uint8, uint32, PreprendedSizeListSeria
 from quarkchain.core import Address, RootBlock, MinorBlock, Transaction
 from quarkchain.protocol import Connection, ConnectionState
 import asyncio
+import statistics
+import time
+import json
 
 
 class GetBlockTemplateRequest(Serializable):
@@ -83,6 +86,24 @@ class AddNewTransactionListResponse(Serializable):
         self.numTxAdded = numTxAdded
 
 
+class JsonRpcRequest(Serializable):
+    FIELDS = (
+        ("jrpcRequest", PreprendedSizeBytesSerializer(4)),
+    )
+
+    def __init__(self, jrpcRequest):
+        self.jrpcRequest = jrpcRequest
+
+
+class JsonRpcResponse(Serializable):
+    FIELDS = (
+        ("jrpcResponse", PreprendedSizeBytesSerializer(4)),
+    )
+
+    def __init__(self, jrpcResponse):
+        self.jrpcResponse = jrpcResponse
+
+
 class LocalCommandOp:
     GET_BLOCK_TEMPLATE_REQUEST = 0
     GET_BLOCK_TEMPLATE_RESPONSE = 1
@@ -90,6 +111,8 @@ class LocalCommandOp:
     SUBMIT_NEW_BLOCK_RESPONSE = 3
     ADD_NEW_TRANSACTION_LIST_REQUEST = 4
     ADD_NEW_TRANSACTION_LIST_RESPONSE = 5
+    JSON_RPC_REQUEST = 6
+    JSON_RPC_RESPONSE = 7
 
 
 OP_SER_MAP = {
@@ -99,6 +122,8 @@ OP_SER_MAP = {
     LocalCommandOp.SUBMIT_NEW_BLOCK_RESPONSE: SubmitNewBlockResponse,
     LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST: AddNewTransactionListRequest,
     LocalCommandOp.ADD_NEW_TRANSACTION_LIST_RESPONSE: AddNewTransactionListResponse,
+    LocalCommandOp.JSON_RPC_REQUEST: JsonRpcRequest,
+    LocalCommandOp.JSON_RPC_RESPONSE: JsonRpcResponse,
 }
 
 
@@ -162,6 +187,88 @@ class LocalServer(Connection):
         print("Closing with error {}".format(error))
         return super().closeWithError(error)
 
+    def countMinorBlockHeaderStatsIn(self, sec, func):
+        qcState = self.network.qcState
+        now = time.time()
+        metric = 0
+        for shardId in range(qcState.getShardSize()):
+            header = qcState.getMinorBlockTip(shardId)
+            while header.createTime >= now - sec:
+                metric += func(header)
+                if header.height == 0:
+                    break
+                header = qcState.getMinorBlockHeaderByHeight(header.height - 1)
+        return metric
+
+    def countMinorBlockStatsIn(self, sec, func):
+        qcState = self.network.qcState
+        now = time.time()
+        metric = 0
+        for shardId in range(qcState.getShardSize()):
+            header = qcState.getMinorBlockTip(shardId)
+            self.env.db.get
+            while header.createTime >= now - sec:
+                block = self.env.db.getMinorBlockByHash(shardId, header.getHash())
+                metric += func(block)
+                if header.height == 0:
+                    break
+                header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
+        return metric
+
+    async def jrpcGetStats(self, params):
+        qcState = self.network.qcState
+        resp = {
+            "shardSize": qcState.getShardSize(),
+            "rootHeight": qcState.getRootBlockTip().height,
+            "rootDifficulty": qcState.getRootBlockTip().difficulty,
+            "avgMinorHeight": statistics.mean(
+                [qcState.getMinorBlockTip(shardId).height for shardId in range(qcState.getShardSize())]),
+            "avgMinorDifficulty": statistics.mean(
+                [qcState.getMinorBlockTip(shardId).difficulty for shardId in range(qcState.getShardSize())]),
+            "minorBlocksIn60s": self.countMinorBlockHeaderStatsIn(60, lambda h: 1),
+            "minorBlocksIn300s": self.countMinorBlockHeaderStatsIn(300, lambda h: 1),
+            "transactionsIn60s": self.countMinorBlockStatsIn(60, lambda b: len(b.txList)),
+            "transactionsIn300s": self.countMinorBlockStatsIn(300, lambda b: len(b.txList)),
+        }
+        return resp
+
+    def jrpcError(self, errorCode, jrpcId=None):
+        response = {
+            "jsonrpc": "2.0",
+            "error": {"code": errorCode},
+        }
+        if jrpcId is not None:
+            response["id"] = jrpcId
+        return JsonRpcResponse(json.dumps(response).encode())
+
+    async def handleJsonRpcRequest(self, request):
+        # TODO: Better jrpc handling
+        try:
+            jrpcRequest = json.loads(request.jrpcRequest.decode("utf8"))
+        except Exception as e:
+            return self.jrpcError(-32700)
+
+        if "jsonrpc" not in jrpcRequest or jrpcRequest["jsonrpc"] != "2.0":
+            return self.jrpcError(-32600)
+
+        # Ignore id at the monent
+
+        if "method" not in jrpcRequest:
+            return self.jrpcError(-32600)
+
+        method = jrpcRequest["method"]
+        if method not in JRPC_MAP:
+            return self.jrpcError(-32601)
+
+        params = None if "params" not in jrpcRequest else jrpcRequest["params"]
+
+        try:
+            jrpcResponse = await JRPC_MAP[method](self, params)
+            return JsonRpcResponse(json.dumps(jrpcResponse).encode())
+        except Exception as e:
+            print(e)
+            return self.jrpcError(-32603)
+
 
 OP_RPC_MAP = {
     LocalCommandOp.GET_BLOCK_TEMPLATE_REQUEST:
@@ -172,5 +279,12 @@ OP_RPC_MAP = {
          LocalServer.handleSubmitNewBlockRequest),
     LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST:
         (LocalCommandOp.ADD_NEW_TRANSACTION_LIST_RESPONSE,
-         LocalServer.handleAddNewTransactionListRequest)
+         LocalServer.handleAddNewTransactionListRequest),
+    LocalCommandOp.JSON_RPC_REQUEST:
+        (LocalCommandOp.JSON_RPC_RESPONSE,
+         LocalServer.handleJsonRpcRequest)
+}
+
+JRPC_MAP = {
+    "getStats": LocalServer.jrpcGetStats,
 }
