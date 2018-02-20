@@ -18,7 +18,7 @@ class LocalClient(Connection):
 
     async def start(self):
         self.state = ConnectionState.ACTIVE
-        asyncio.ensure_future(self.loopForever())
+        asyncio.ensure_future(self.activeAndLoopForever())
 
     async def callJrpc(self, method, params=None):
         jrpcRequest = {

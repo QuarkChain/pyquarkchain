@@ -187,8 +187,7 @@ class Peer(Connection):
         if isServer:
             self.sendHello()
 
-        self.state = ConnectionState.ACTIVE
-        asyncio.ensure_future(self.loopForever())
+        asyncio.ensure_future(self.activeAndLoopForever())
         return None
 
     def close(self):

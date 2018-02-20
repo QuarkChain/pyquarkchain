@@ -52,7 +52,8 @@ class LocalClient(Connection):
             # Determine whether continue to mine previous block
             if self.miningBlock is not None and not self.isMiningBlockRoot and \
                     block.header.height == self.miningBlock.header.height and \
-                    block.header.branch == self.miningBlock.header.branch:
+                    block.header.branch == self.miningBlock.header.branch and \
+                    block.header.createTime == self.miningBlock.header.createTime:
                 block = self.miningBlock
 
         self.miningBlock = block
@@ -82,8 +83,7 @@ class LocalClient(Connection):
         asyncio.ensure_future(self.startMining())
 
     async def start(self):
-        self.state = ConnectionState.ACTIVE
-        asyncio.ensure_future(self.loopForever())
+        asyncio.ensure_future(self.activeAndLoopForever())
         asyncio.ensure_future(self.startMining())
 
     def closeWithError(self, error):

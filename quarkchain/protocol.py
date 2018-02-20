@@ -90,7 +90,9 @@ class Connection:
 
         self.writeRpcResponse(respOp, resp, rpcId)
 
-    async def loopForever(self):
+    async def activeAndLoopForever(self):
+        if self.state == ConnectionState.CONNECTING:
+            self.state = ConnectionState.ACTIVE
         while self.state == ConnectionState.ACTIVE:
             try:
                 op, cmd, rpcId = await self.readCommand()

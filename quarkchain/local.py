@@ -1,6 +1,6 @@
 from quarkchain.core import Serializable, uint8, uint32, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import Address, RootBlock, MinorBlock, Transaction
-from quarkchain.protocol import Connection, ConnectionState
+from quarkchain.protocol import Connection
 import asyncio
 import statistics
 import time
@@ -134,8 +134,7 @@ class LocalServer(Connection):
         self.network = network
 
     async def start(self):
-        self.state = ConnectionState.ACTIVE
-        asyncio.ensure_future(self.loopForever())
+        asyncio.ensure_future(self.activeAndLoopForever())
 
     async def handleGetBlockTemplateRequest(self, request):
         isRootBlock, block = self.network.qcState.findBestBlockToMine()
