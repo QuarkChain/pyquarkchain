@@ -199,19 +199,24 @@ class LocalServer(Connection):
                 header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
         return metric
 
-    def countMinorBlockStatsIn(self, sec, func):
+    def countShardStatsIn(self, shardId, sec, func):
         qcState = self.network.qcState
         now = time.time()
         metric = 0
+        header = qcState.getMinorBlockTip(shardId)
+        while header.createTime >= now - sec:
+            block = self.env.db.getMinorBlockByHash(header.getHash())
+            metric += func(block)
+            if header.height == 0:
+                break
+            header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
+        return metric
+
+    def countMinorBlockStatsIn(self, sec, func):
+        qcState = self.network.qcState
+        metric = 0
         for shardId in range(qcState.getShardSize()):
-            header = qcState.getMinorBlockTip(shardId)
-            self.env.db.get
-            while header.createTime >= now - sec:
-                block = self.env.db.getMinorBlockByHash(header.getHash())
-                metric += func(block)
-                if header.height == 0:
-                    break
-                header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
+            metric += self.countShardStatsIn(shardId, sec, func)
         return metric
 
     async def jrpcGetStats(self, params):
@@ -231,10 +236,29 @@ class LocalServer(Connection):
         }
         return resp
 
-    def jrpcError(self, errorCode, jrpcId=None):
+    async def jrpcGetFullStats(self, params):
+        qcState = self.network.qcState
+        resp = {
+            "shardSize": qcState.getShardSize(),
+            "rootHeight": qcState.getRootBlockTip().height,
+            "rootDifficulty": qcState.getRootBlockTip().difficulty,
+        }
+        for shardId in range(qcState.getShardSize()):
+            shardMetric = {
+                "blocksIn60s": self.countShardStatsIn(shardId, 60, lambda h: 1),
+                "blocksIn300s": self.countShardStatsIn(shardId, 300, lambda h: 1),
+                "difficulty": qcState.getMinorBlockTip(shardId).difficulty,
+                "transactionsIn60s": self.countShardStatsIn(shardId, 60, lambda b: len(b.txList)),
+                "transactionsIn300s": self.countShardStatsIn(shardId, 300, lambda b: len(b.txList)),
+            }
+            resp["shard{}".format(shardId)] = shardMetric
+
+        return resp
+
+    def jrpcError(self, errorCode, jrpcId=None, errorMessage=None):
         response = {
             "jsonrpc": "2.0",
-            "error": {"code": errorCode},
+            "error": {"code": errorCode, "message": "" if errorMessage is None else errorMessage},
         }
         if jrpcId is not None:
             response["id"] = jrpcId
@@ -265,7 +289,7 @@ class LocalServer(Connection):
             jrpcResponse = await JRPC_MAP[method](self, params)
             return JsonRpcResponse(json.dumps(jrpcResponse).encode())
         except Exception as e:
-            return self.jrpcError(-32603)
+            return self.jrpcError(-32603, errorMessage=str(e))
 
 
 OP_RPC_MAP = {
@@ -285,4 +309,5 @@ OP_RPC_MAP = {
 
 JRPC_MAP = {
     "getStats": LocalServer.jrpcGetStats,
+    "getFullStats": LocalServer.jrpcGetFullStats,
 }
