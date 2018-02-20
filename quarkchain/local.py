@@ -197,7 +197,7 @@ class LocalServer(Connection):
                 metric += func(header)
                 if header.height == 0:
                     break
-                header = qcState.getMinorBlockHeaderByHeight(header.height - 1)
+                header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
         return metric
 
     def countMinorBlockStatsIn(self, sec, func):
@@ -208,7 +208,7 @@ class LocalServer(Connection):
             header = qcState.getMinorBlockTip(shardId)
             self.env.db.get
             while header.createTime >= now - sec:
-                block = self.env.db.getMinorBlockByHash(shardId, header.getHash())
+                block = self.env.db.getMinorBlockByHash(header.getHash())
                 metric += func(block)
                 if header.height == 0:
                     break
@@ -266,7 +266,6 @@ class LocalServer(Connection):
             jrpcResponse = await JRPC_MAP[method](self, params)
             return JsonRpcResponse(json.dumps(jrpcResponse).encode())
         except Exception as e:
-            print(e)
             return self.jrpcError(-32603)
 
 
