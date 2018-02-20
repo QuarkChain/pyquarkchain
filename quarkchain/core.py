@@ -223,6 +223,12 @@ class Identity:
         recipient = sha3_256(sk.verifying_key.to_string())[-20:]
         return Identity(recipient, key)
 
+    @staticmethod
+    def createFromKey(key):
+        sk = ecdsa.SigningKey.from_string(key, curve=ecdsa.SECP256k1)
+        recipient = sha3_256(sk.verifying_key.to_string())[-20:]
+        return Identity(recipient, key)
+
     def __init__(self, recipient: bytes, key=None) -> None:
         self.recipient = recipient
         self.key = key

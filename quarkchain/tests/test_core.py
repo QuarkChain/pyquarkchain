@@ -111,3 +111,12 @@ class TestCode(unittest.TestCase):
             pass
         else:
             self.fail()
+
+
+class TestIdentity(unittest.TestCase):
+
+    def testIdentity(self):
+        id1 = Identity.createRandomIdentity()
+        id2 = id1.createFromKey(id1.getKey())
+        self.assertEqual(id1.getRecipient(), id2.getRecipient())
+        self.assertEqual(id1.getKey(), id2.getKey())

@@ -25,6 +25,15 @@ class Connection:
         self.rpcFutureMap = dict()
         self.closeFuture = asyncio.Future()
 
+    async def readFully(self, n):
+        bs = await self.reader.read(n)
+        while len(bs) < n:
+            nbs = await self.reader.read(n - len(bs))
+            if len(nbs) == 0 and self.reader.at_eof():
+                raise RuntimeError("read unexpected EOF")
+            bs = bs + nbs
+        return bs
+
     async def readCommand(self):
         opBytes = await self.reader.read(1)
         if len(opBytes) == 0:
@@ -37,16 +46,16 @@ class Connection:
             return (None, None, None)
 
         ser = self.opSerMap[op]
-        sizeBytes = await self.reader.read(4)
+        sizeBytes = await self.readFully(4)
         size = int.from_bytes(sizeBytes, byteorder="big")
         if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
             self.closeWithError("command package exceed limit")
             return (None, None, None)
 
-        rpcIdBytes = await self.reader.read(8)
+        rpcIdBytes = await self.readFully(8)
         rpcId = int.from_bytes(rpcIdBytes, byteorder="big")
 
-        cmdBytes = await self.reader.read(size)
+        cmdBytes = await self.readFully(size)
         try:
             cmd = ser.deserialize(cmdBytes)
         except Exception as e:

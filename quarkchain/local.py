@@ -1,4 +1,5 @@
-from quarkchain.core import Serializable, uint8, uint32, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
+from quarkchain.core import uint8, uint32, hash256, uint256
+from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import Address, RootBlock, MinorBlock, Transaction
 from quarkchain.protocol import Connection
 import asyncio
@@ -8,12 +9,12 @@ import json
 
 
 class GetBlockTemplateRequest(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("address", Address),
         ("includeRoot", uint8),
         ("shardMaskList", PreprendedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
-    )
+    ]
 
     def __init__(self, address, includeRoot=True, shardMaskList=None):
         shardMaskList = [] if shardMaskList is None else shardMaskList
@@ -23,10 +24,10 @@ class GetBlockTemplateRequest(Serializable):
 
 
 class GetBlockTemplateResponse(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("isRootBlock", uint8),
         ("blockData", PreprendedSizeBytesSerializer(4))
-    )
+    ]
 
     def __init__(self, isRootBlock, blockData):
         self.isRootBlock = isRootBlock
@@ -34,10 +35,10 @@ class GetBlockTemplateResponse(Serializable):
 
 
 class SubmitNewBlockRequest(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("isRootBlock", uint8),
         ("blockData", PreprendedSizeBytesSerializer(4))
-    )
+    ]
 
     def __init__(self, isRootBlock, blockData):
         self.isRootBlock = isRootBlock
@@ -45,10 +46,10 @@ class SubmitNewBlockRequest(Serializable):
 
 
 class SubmitNewBlockResponse(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("resultCode", uint8),
         ("resultMessage", PreprendedSizeBytesSerializer(4))
-    )
+    ]
 
     def __init__(self, resultCode, resultMessage=bytes(0)):
         self.resultCode = resultCode
@@ -56,10 +57,10 @@ class SubmitNewBlockResponse(Serializable):
 
 
 class NewTransaction(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("shardId", uint32),
         ("transaction", Transaction),
-    )
+    ]
 
     def __init__(self, shardId, transaction):
         """ Negative shardId indicates unknown shard (not support yet)
@@ -69,36 +70,36 @@ class NewTransaction(Serializable):
 
 
 class AddNewTransactionListRequest(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("txList", PreprendedSizeListSerializer(4, NewTransaction)),
-    )
+    ]
 
     def __init__(self, txList):
         self.txList = txList
 
 
 class AddNewTransactionListResponse(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("numTxAdded", uint32)
-    )
+    ]
 
     def __init__(self, numTxAdded):
         self.numTxAdded = numTxAdded
 
 
 class JsonRpcRequest(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("jrpcRequest", PreprendedSizeBytesSerializer(4)),
-    )
+    ]
 
     def __init__(self, jrpcRequest):
         self.jrpcRequest = jrpcRequest
 
 
 class JsonRpcResponse(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("jrpcResponse", PreprendedSizeBytesSerializer(4)),
-    )
+    ]
 
     def __init__(self, jrpcResponse):
         self.jrpcResponse = jrpcResponse
@@ -179,7 +180,7 @@ class LocalServer(Connection):
 
     async def handleAddNewTransactionListRequest(self, request):
         for newTx in request.txList:
-            self.network.qcState.addTransactionToQueue()
+            self.network.qcState.addTransactionToQueue(newTx.shardId, newTx.transaction)
         return AddNewTransactionListResponse(len(request.txList))
 
     def closeWithError(self, error):
@@ -196,7 +197,8 @@ class LocalServer(Connection):
                 metric += func(header)
                 if header.height == 0:
                     break
-                header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
+                header = qcState.getMinorBlockHeaderByHeight(
+                    shardId, header.height - 1)
         return metric
 
     def countShardStatsIn(self, shardId, sec, func):
@@ -209,7 +211,8 @@ class LocalServer(Connection):
             metric += func(block)
             if header.height == 0:
                 break
-            header = qcState.getMinorBlockHeaderByHeight(shardId, header.height - 1)
+            header = qcState.getMinorBlockHeaderByHeight(
+                shardId, header.height - 1)
         return metric
 
     def countMinorBlockStatsIn(self, sec, func):
