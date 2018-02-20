@@ -2,14 +2,16 @@
 
 class MADifficultyCalculator:
 
-    def __init__(self, maSamples=16, targetIntervalSec=1, bootstrapSamples=0, slideSize=1):
+    def __init__(self, maSamples=16, targetIntervalSec=1, bootstrapSamples=0, slideSize=1, minimumDiff=1):
         self.maSamples = maSamples
         self.targetIntervalSec = targetIntervalSec
         self.bootstrapSamples = bootstrapSamples
         self.slideSize = slideSize
+        self.minimumDiff = minimumDiff
 
-    # Obtain the difficulty required for the next block
     def calculateDiff(self, chain, createTime=None):
+        """ Obtain the difficulty required for the next block\
+        """
         tip = chain.tip()
 
         if tip.height < self.bootstrapSamples:
@@ -26,4 +28,4 @@ class MADifficultyCalculator:
         for i in range(startHeader.height + 1, tip.height + 1):
             totalDiff += chain.getBlockHeaderByHeight(i).difficulty
 
-        return totalDiff * self.targetIntervalSec // timeUsedSec
+        return max(totalDiff * self.targetIntervalSec // timeUsedSec, self.minimumDiff)

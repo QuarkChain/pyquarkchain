@@ -20,15 +20,7 @@ class DefaultConfig:
         # Difficulty related
         self.DIFF_MA_INTERVAL = 60
         self.ROOT_BLOCK_INTERVAL_SEC = 15
-        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC)
         self.MINOR_BLOCK_INTERVAL_SEC = 3
-        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC)
         # TODO: Use ASIC-resistent hash algorithm
         self.DIFF_HASH_FUNC = sha3_256
 
@@ -46,11 +38,22 @@ class DefaultConfig:
             self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
             self.SHARD_SIZE // self.ROOT_BLOCK_INTERVAL_SEC
         # 2018/2/2 5 am 7 min 38 sec
-        self.GENESIS_CREATE_TIME = 1519058611
+        self.GENESIS_CREATE_TIME = 1519147489
         self.PROOF_OF_PROGRESS_BLOCKS = 1
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
+        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
+            minimumDiff=self.GENESIS_DIFFICULTY)
+        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+            maSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
+            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
+            bootstrapSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
+            minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
+
         #  0 is mainnet
         self.NETWORK_ID = 0
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
