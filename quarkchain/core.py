@@ -486,7 +486,7 @@ class MinorBlockHeader(Serializable):
 class MinorBlock(Serializable):
     FIELDS = [
         ("header", MinorBlockHeader),
-        ("txList", PreprendedSizeListSerializer(1, Transaction))
+        ("txList", PreprendedSizeListSerializer(4, Transaction))
     ]
 
     def __init__(self, header, txList=None):

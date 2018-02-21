@@ -1,6 +1,7 @@
 
 import asyncio
 from enum import Enum
+from quarkchain.utils import Logger
 
 
 class ConnectionState(Enum):
@@ -95,6 +96,7 @@ class Connection:
             resp = await handler(self, request)
         except Exception as e:
             self.closeWithError("Unable to process rpc: {}".format(e))
+            Logger.errorExceptionEverySec(1)
             return
 
         self.writeRpcResponse(respOp, resp, rpcId)

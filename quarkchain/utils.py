@@ -1,4 +1,8 @@
 from Crypto.Hash import keccak
+import logging
+import time
+import traceback
+import sys
 
 
 def int_left_most_bit(v):
@@ -29,3 +33,86 @@ def check(condition):
     """
     if not condition:
         raise AssertionError()
+
+
+class Logger:
+    lastInfoTimeMap = dict()
+    lastWarningTimeMap = dict()
+    lastErrorTimeMap = dict()
+
+    @staticmethod
+    def info(msg):
+        logging.info(msg)
+
+    @classmethod
+    def infoEverySec(cls, msg, duration):
+        stackList = traceback.format_stack()
+        if len(stackList) <= 1:
+            logging.info(msg)
+            return
+        key = stackList[-2]
+
+        if key not in cls.lastInfoTimeMap or time.time() - cls.lastInfoTimeMap[key] > duration:
+            logging.info(msg)
+            cls.lastInfoTimeMap[key] = time.time()
+
+    @staticmethod
+    def warning(msg):
+        logging.warning(msg)
+
+    @classmethod
+    def warningEverySec(cls, msg, duration):
+        stackList = traceback.format_stack()
+        if len(stackList) <= 1:
+            logging.warning(msg)
+            return
+        key = stackList[-2]
+
+        if key not in cls.lastWarningTimeMap or time.time() - cls.lastWarningTimeMap[key] > duration:
+            logging.warning(msg)
+            cls.lastWarningTimeMap[key] = time.time()
+
+    @staticmethod
+    def error(msg):
+        logging.error(msg)
+
+    @classmethod
+    def errorEverySec(cls, msg, duration):
+        stackList = traceback.format_stack()
+        if len(stackList) <= 1:
+            logging.error(msg)
+            return
+        key = stackList[-2]
+
+        if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
+            logging.error(msg)
+            cls.lastErrorTimeMap[key] = time.time()
+
+    @classmethod
+    def errorExceptionEverySec(cls, duration):
+        stackList = traceback.format_stack()
+        if len(stackList) <= 1:
+            traceback.print_exc(file=sys.stderr)
+            return
+        key = stackList[-2]
+
+        if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
+            traceback.print_exc(file=sys.stderr)
+            cls.lastErrorTimeMap[key] = time.time()
+
+
+logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s')
+
+
+def main():
+    for i in range(50):
+        Logger.errorEverySec("log every 1s", 1)
+        time.sleep(0.1)
+
+    for i in range(50):
+        Logger.errorEverySec("log every 2s", 2)
+        time.sleep(0.1)
+
+
+if __name__ == '__main__':
+    main()

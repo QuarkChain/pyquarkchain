@@ -833,13 +833,20 @@ class QuarkChainState:
 
         # TODO: Apply shard mask
         dupEcoCount = 1
+        blockHeight = 0
         for shardId, shard in enumerate(self.shardList):
             eco = shard.getNextBlockReward() / shard.getNextBlockDifficulty(createTime)
-            if maxEco is None or eco > maxEco:
+            if maxEco is None or eco > maxEco or \
+                    (eco == maxEco and blockId > 0 and blockHeight > shard.tip().height):
                 blockId = shardId + 1
                 maxEco = eco
                 dupEcoCount = 1
+                blockHeight = shard.tip().height
             elif eco == maxEco and randomizeOutput:
+                # The current block with max eco has smaller height, mine the block first
+                # This should be only used during bootstrap.
+                if blockId > 0 and blockHeight < shard.tip().height:
+                    continue
                 dupEcoCount += 1
                 if random.random() < 1 / dupEcoCount:
                     blockId = shardId + 1
