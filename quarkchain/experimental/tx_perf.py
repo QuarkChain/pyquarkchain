@@ -29,7 +29,7 @@ def test_perf():
         accList.append(Address.createFromIdentity(idList[i]))
 
     print("Creating %d transactions..." % N)
-
+    startTime = time.time()
     txList = []
     recList = []
     for i in range(N):
@@ -37,13 +37,15 @@ def test_perf():
         toAddr = accList[random.randint(0, IDN - 1)]
         txList.append(create_random_test_transaction(fromId, toAddr))
         recList.append(fromId.getRecipient())
+    duration = time.time() - startTime
+    print("Creations PS: %.2f" % (N / duration))
 
     print("Verifying transactions")
     startTime = time.time()
     for i in range(N):
         assert(txList[i].verifySignature([recList[i]]))
     duration = time.time() - startTime
-    print("TPS: %.2f" % (N / duration))
+    print("Verifications PS: %.2f" % (N / duration))
 
 
 def main():
