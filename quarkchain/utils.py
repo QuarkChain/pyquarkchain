@@ -88,16 +88,20 @@ class Logger:
             logging.error(msg)
             cls.lastErrorTimeMap[key] = time.time()
 
+    @staticmethod
+    def errorException():
+        traceback.print_exc(file=sys.stderr)
+
     @classmethod
     def errorExceptionEverySec(cls, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
-            traceback.print_exc(file=sys.stderr)
+            cls.errorException()
             return
         key = stackList[-2]
 
         if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
-            traceback.print_exc(file=sys.stderr)
+            cls.errorException()
             cls.lastErrorTimeMap[key] = time.time()
 
 

@@ -1,11 +1,13 @@
 import asyncio
 from quarkchain.local import OP_SER_MAP, AddNewTransactionListRequest, LocalCommandOp, NewTransaction
+from quarkchain.local import GetUtxoRequest
 from quarkchain.protocol import Connection
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code
 from quarkchain.core import Identity
 import argparse
 from quarkchain.genesis import create_genesis_blocks
+from quarkchain.utils import Logger
 
 
 class TxGeneratorClient(Connection):
@@ -21,7 +23,8 @@ class TxGeneratorClient(Connection):
         asyncio.ensure_future(self.generateGenesisTx())
 
     async def generateGenesisTx(self):
-        INIT_TX_PER_SHARD = 10000
+        TOTAL_GENESIS_TX = 65536
+        INIT_TX_PER_SHARD = TOTAL_GENESIS_TX / self.env.config.SHARD_SIZE
         txList = []
         prevTxList = []
         rBlock, mBlockList = create_genesis_blocks(self.env)
@@ -53,6 +56,40 @@ class TxGeneratorClient(Connection):
             return
 
         print("Submitted {} genesis tx".format(resp.numTxAdded))
+        self.loop.call_later(1, self.generateTx)
+
+    async def generateTx(self):
+        UTXO_LIMIT = 10000
+        try:
+            op, resp, rpcId = await self.writerRpcRequest(
+                LocalCommandOp.GET_UTXO_REQUEST,
+                GetUtxoRequest(UTXO_LIMIT))
+        except Exception as e:
+            Logger.errorException()
+            self.close()
+
+        txList = []
+        for utxoItem in resp.utxoItemList:
+            if utxoItem.txOutput.address.recipient != self.genesisId.getRecipient():
+                continue
+            tx = Transaction(
+                inList=[utxoItem.txInput],
+                code=Code.getTransferCode(),
+                outList=[utxoItem.txOutput])
+            tx.sign([self.genesisId.getKey()])
+            txList.append(NewTransaction(utxoItem.shardId, tx))
+
+        try:
+            op, resp, rpcId = await self.writeRpcRequest(
+                LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST,
+                AddNewTransactionListRequest(txList))
+        except Exception as e:
+            Logger.errorException()
+            self.close()
+            return
+
+        print("Submitted {} Txs".format(resp.numTxAdded))
+        self.loop.call_later(1, self.generateTx)
 
 
 def parse_args():
@@ -83,6 +120,7 @@ def main():
     except KeyboardInterrupt:
         pass
 
+    client.close()
     loop.close()
 
 

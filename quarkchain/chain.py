@@ -12,8 +12,8 @@ import random
 
 class UtxoValue:
 
-    def __init__(self, recipient, quarkash, rootBlockHeader):
-        self.recipient = recipient
+    def __init__(self, address, quarkash, rootBlockHeader):
+        self.address = address
         self.quarkash = quarkash
         # Root block that requires to confirm the UTXO
         self.rootBlockHeader = rootBlockHeader
@@ -48,7 +48,7 @@ class ShardState:
         genesisRootBlock = rootChain.getGenesisBlock()
         # TODO: Check shard id or disable genesisBlock
         self.utxoPool[TransactionInput(genesisBlock.txList[0].getHash(), 0)] = UtxoValue(
-            genesisBlock.txList[0].outList[0].address.recipient,
+            genesisBlock.txList[0].outList[0].address,
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
         self.db.putTx(genesisBlock.txList[0], rootBlockHeader=genesisRootBlock)
@@ -62,7 +62,7 @@ class ShardState:
         grCoinbaseTx = rootChain.getGenesisBlock().coinbaseTx
         if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):
             self.utxoPool[TransactionInput(grCoinbaseTx.getHash(), 0)] = UtxoValue(
-                grCoinbaseTx.outList[0].address.recipient,
+                grCoinbaseTx.outList[0].address,
                 grCoinbaseTx.outList[0].quarkash,
                 genesisRootBlock.header)
             self.db.putTx(grCoinbaseTx, rootBlockHeader=genesisRootBlock)
@@ -90,7 +90,7 @@ class ShardState:
                 rootBlockHeader = utxoPool[txInput].rootBlockHeader
             txInputSet.add(txInput)
             txInputQuarkash = utxoPool[txInput].quarkash
-            senderList.append(utxoPool[txInput].recipient)
+            senderList.append(utxoPool[txInput].address.recipient)
 
         # Check signature
         if not tx.verifySignature(senderList):
@@ -114,7 +114,7 @@ class ShardState:
             if not self.branch.isInShard(txOutput.address.fullShardId):
                 continue
             utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
-                txOutput.address.recipient,
+                txOutput.address,
                 txOutput.quarkash,
                 rootBlockHeader)
 
@@ -148,7 +148,7 @@ class ShardState:
             prevTx = self.db.getTx(txInput.hash)
             rootBlockHeader = self.db.getTxRootBlockHeader(txInput.hash)
             self.utxoPool[txInput] = UtxoValue(
-                prevTx.outList[txInput.index].address.recipient,
+                prevTx.outList[txInput.index].address,
                 prevTx.outList[txInput.index].quarkash,
                 rootBlockHeader)
         return None
@@ -243,7 +243,7 @@ class ShardState:
         txHash = block.txList[0].getHash()
         for idx, txOutput in enumerate(block.txList[0].outList):
             self.utxoPool[TransactionInput(txHash, idx)] = UtxoValue(
-                txOutput.address.recipient,
+                txOutput.address,
                 txOutput.quarkash,
                 rootBlockHeader)
 
@@ -298,7 +298,7 @@ class ShardState:
     def getBalance(self, recipient):
         balance = 0
         for k, v in self.utxoPool.items():
-            if v.recipient != recipient:
+            if v.address.recipient != recipient:
                 continue
 
             balance += v.quarkash
@@ -351,6 +351,10 @@ class ShardState:
         # TODO: limit transaction queue size
 
         self.txQueue.append(transaction)
+
+    def getUtxoPool(self):
+        # TODO: May just return a copy
+        return self.utxoPool
 
 
 class MinorChainManager:
@@ -602,7 +606,7 @@ class QuarkChainState:
                 self.shardList[shardId].addCrossShardUtxo(
                     TransactionInput(txHash, idx),
                     UtxoValue(
-                        txOutput.address.recipient,
+                        txOutput.address,
                         txOutput.quarkash,
                         rBlock.header))
 
@@ -863,3 +867,6 @@ class QuarkChainState:
         else:
             return (False, self.createMinorBlockToMine(
                 blockId - 1, createTime=createTime, address=address))
+
+    def getUtxoPool(self, shardId):
+        return self.shardList[shardId].getUtxoPool()

@@ -1,6 +1,6 @@
 from quarkchain.core import uint8, uint32, hash256, uint256
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, RootBlock, MinorBlock, Transaction
+from quarkchain.core import Address, RootBlock, MinorBlock, Transaction, TransactionInput, Recipient
 from quarkchain.protocol import Connection
 import asyncio
 import statistics
@@ -105,6 +105,39 @@ class JsonRpcResponse(Serializable):
         self.jrpcResponse = jrpcResponse
 
 
+class GetUtxoRequest(Serializable):
+    # TODO: Add address filter, shard filter
+    FIELDS = [
+        ("uxtoLimit", uint32),
+    ]
+
+    def __init__(self, utxoLimit):
+        self.uxtoLimit = utxoLimit
+
+
+class UtxoItem(Serializable):
+    FIELDS = [
+        ("shardId", uint32),
+        ("txInput", TransactionInput),
+        ("recipient", Recipient),
+        ("quarkash", uint256),
+    ]
+
+    def __init__(self, txInput, recipient, quarkash):
+        self.txInput = txInput
+        self.recipient = recipient
+        self.quarkash = quarkash
+
+
+class GetUtxoResponse(Serializable):
+    FIELDS = [
+        ("utxoItemList", PreprendedSizeListSerializer(4, UtxoItem))
+    ]
+
+    def __init__(self, utxoItemList):
+        self.utxoItemList = utxoItemList
+
+
 class LocalCommandOp:
     GET_BLOCK_TEMPLATE_REQUEST = 0
     GET_BLOCK_TEMPLATE_RESPONSE = 1
@@ -114,6 +147,8 @@ class LocalCommandOp:
     ADD_NEW_TRANSACTION_LIST_RESPONSE = 5
     JSON_RPC_REQUEST = 6
     JSON_RPC_RESPONSE = 7
+    GET_UTXO_REQUEST = 8
+    GET_UTXO_RESPONSE = 9
 
 
 OP_SER_MAP = {
@@ -180,8 +215,19 @@ class LocalServer(Connection):
 
     async def handleAddNewTransactionListRequest(self, request):
         for newTx in request.txList:
-            self.network.qcState.addTransactionToQueue(newTx.shardId, newTx.transaction)
+            self.network.qcState.addTransactionToQueue(
+                newTx.shardId, newTx.transaction)
         return AddNewTransactionListResponse(len(request.txList))
+
+    async def handleGetUtxoRequest(self, request):
+        utxoList = []
+        for shardId in self.network.qcState.getShardSize():
+            for key, value in self.network.qcState.getUtxoPool(shardId):
+                utxoList.append(shardId, key, value.recipient, value.quarkash)
+                if len(utxoList) >= request.utxoLimit:
+                    break
+
+        return GetUtxoResponse([utxoList])
 
     def closeWithError(self, error):
         print("Closing with error {}".format(error))
@@ -307,7 +353,10 @@ OP_RPC_MAP = {
          LocalServer.handleAddNewTransactionListRequest),
     LocalCommandOp.JSON_RPC_REQUEST:
         (LocalCommandOp.JSON_RPC_RESPONSE,
-         LocalServer.handleJsonRpcRequest)
+         LocalServer.handleJsonRpcRequest),
+    LocalCommandOp.GET_UTXO_REQUEST:
+        (LocalCommandOp.GET_UTXO_RESPONSE,
+         LocalServer.handleGetUtxoRequest),
 }
 
 JRPC_MAP = {
