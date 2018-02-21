@@ -1,6 +1,6 @@
 import asyncio
 # from quarkchain.local import LocalClient
-from quarkchain.protocol import Connection, ConnectionState
+from quarkchain.protocol import Connection
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, RootBlock, MinorBlock
 from quarkchain.local import OP_SER_MAP, LocalCommandOp
@@ -63,7 +63,7 @@ class LocalClient(Connection):
             block.header.nonce += 1
             metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
             if metric < 2 ** 256:
-                print("mined on nonce {}".format(i))
+                print("mined on nonce {} with Txs {}".format(i, len(block.txList)))
                 submitReq = SubmitNewBlockRequest(resp.isRootBlock, block.serialize())
 
                 try:
@@ -115,7 +115,7 @@ def main():
     asyncio.ensure_future(client.start())
 
     try:
-        loop.run_forever()
+        loop.run_until_complete(client.waitUntilClosed())
     except KeyboardInterrupt:
         pass
 

@@ -17,14 +17,17 @@ class TxGeneratorClient(Connection):
         super().__init__(env, reader, writer, OP_SER_MAP, dict(), dict())
         self.loop = loop
         self.genesisId = genesisId
+        self.submittedUtxo = set()
 
-    async def start(self):
+    async def start(self, skipGenesisTx=False):
         asyncio.ensure_future(self.activeAndLoopForever())
-        asyncio.ensure_future(self.generateGenesisTx())
+        if skipGenesisTx:
+            asyncio.ensure_future(self.generateTxAsync())
+        else:
+            asyncio.ensure_future(self.generateGenesisTx())
 
     async def generateGenesisTx(self):
-        TOTAL_GENESIS_TX = 65536
-        INIT_TX_PER_SHARD = TOTAL_GENESIS_TX / self.env.config.SHARD_SIZE
+        INIT_TX_PER_SHARD = 2048
         txList = []
         prevTxList = []
         rBlock, mBlockList = create_genesis_blocks(self.env)
@@ -58,20 +61,27 @@ class TxGeneratorClient(Connection):
         print("Submitted {} genesis tx".format(resp.numTxAdded))
         self.loop.call_later(1, self.generateTx)
 
-    async def generateTx(self):
+    def generateTx(self):
+        asyncio.ensure_future(self.generateTxAsync())
+
+    async def generateTxAsync(self):
         UTXO_LIMIT = 10000
         try:
-            op, resp, rpcId = await self.writerRpcRequest(
+            op, resp, rpcId = await self.writeRpcRequest(
                 LocalCommandOp.GET_UTXO_REQUEST,
                 GetUtxoRequest(UTXO_LIMIT))
         except Exception as e:
             Logger.errorException()
             self.close()
+            return
 
         txList = []
         for utxoItem in resp.utxoItemList:
             if utxoItem.txOutput.address.recipient != self.genesisId.getRecipient():
                 continue
+            if utxoItem.txInput in self.submittedUtxo:
+                continue
+            self.submittedUtxo.add(utxoItem.txInput)
             tx = Transaction(
                 inList=[utxoItem.txInput],
                 code=Code.getTransferCode(),
@@ -98,6 +108,8 @@ def parse_args():
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     parser.add_argument(
         "--genesis_key", default=None, type=str)
+    parser.add_argument(
+        "--skip_genesis_tx", default=False, type=bool)
     args = parser.parse_args()
 
     if args.genesis_key is None:
@@ -113,7 +125,7 @@ def main():
         "127.0.0.1", args.local_port, loop=loop)
     reader, writer = loop.run_until_complete(coro)
     client = TxGeneratorClient(loop, DEFAULT_ENV, reader, writer, genesisId)
-    asyncio.ensure_future(client.start())
+    asyncio.ensure_future(client.start(args.skip_genesis_tx))
 
     try:
         loop.run_until_complete(client.waitUntilClosed())
