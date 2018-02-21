@@ -41,9 +41,12 @@ class TxGeneratorClient(Connection):
                     inList=[TransactionInput(prevTx.getHash(), 0)],
                     code=Code.getTransferCode(),
                     outList=[
-                        TransactionOutput(prevTx.outList[0].address, prevTx.outList[
-                                          0].quarkash - 10000),
-                        TransactionOutput(prevTx.outList[0].address, 10000)])
+                        TransactionOutput(
+                            prevTx.outList[0].address,
+                            prevTx.outList[0].quarkash - 10000),
+                        TransactionOutput(
+                            prevTx.outList[0].address,
+                            10000)])
 
                 tx.sign([self.genesisId.getKey()])
                 prevTxList[shardId] = tx
@@ -65,7 +68,7 @@ class TxGeneratorClient(Connection):
         asyncio.ensure_future(self.generateTxAsync())
 
     async def generateTxAsync(self):
-        UTXO_LIMIT = 10000
+        UTXO_LIMIT = 100000
         try:
             op, resp, rpcId = await self.writeRpcRequest(
                 LocalCommandOp.GET_UTXO_REQUEST,

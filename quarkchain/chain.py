@@ -352,6 +352,9 @@ class ShardState:
 
         self.txQueue.append(transaction)
 
+    def getPendingTxSize(self):
+        return len(self.txQueue)
+
     def getUtxoPool(self):
         # TODO: May just return a copy
         return self.utxoPool
@@ -870,3 +873,6 @@ class QuarkChainState:
 
     def getUtxoPool(self, shardId):
         return self.shardList[shardId].getUtxoPool()
+
+    def getPendingTxSize(self, shardId):
+        return self.shardList[shardId].getPendingTxSize()

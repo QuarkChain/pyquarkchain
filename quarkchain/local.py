@@ -303,16 +303,14 @@ class LocalServer(Connection):
             "minorBlocksIn300s": self.countMinorBlockHeaderStatsIn(300, lambda h: 1),
             "transactionsIn60s": self.countMinorBlockTxIn(60),
             "transactionsIn300s": self.countMinorBlockTxIn(300),
+            "utxoPoolSize": sum([len(qcState.getUtxoPool(i)) for i in range(qcState.getShardSize())]),
+            "pendingTxSize": sum([qcState.getPendingTxSize(i) for i in range(qcState.getShardSize())]),
         }
         return resp
 
     async def jrpcGetFullStats(self, params):
         qcState = self.network.qcState
-        resp = {
-            "shardSize": qcState.getShardSize(),
-            "rootHeight": qcState.getRootBlockTip().height,
-            "rootDifficulty": qcState.getRootBlockTip().difficulty,
-        }
+        resp = self.jrpcGetStats(params)
         for shardId in range(qcState.getShardSize()):
             shardMetric = {
                 "blocksIn60s": self.countShardStatsIn(shardId, 60, lambda h: 1),
@@ -320,6 +318,9 @@ class LocalServer(Connection):
                 "difficulty": qcState.getMinorBlockTip(shardId).difficulty,
                 "transactionsIn60s": self.countShardTxIn(shardId, 60),
                 "transactionsIn300s": self.countShardTxIn(shardId, 300),
+                "height": qcState.getMinorBlockTip(shardId).height,
+                "utxoPoolSize": len(qcState.getUtxoPool(shardId)),
+                "pendingTxSize": qcState.getPendingTxSize(shardId),
             }
             resp["shard{}".format(shardId)] = shardMetric
 
