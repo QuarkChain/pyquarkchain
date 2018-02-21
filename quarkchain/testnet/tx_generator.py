@@ -27,7 +27,7 @@ class TxGeneratorClient(Connection):
             asyncio.ensure_future(self.generateGenesisTx())
 
     async def generateGenesisTx(self):
-        INIT_TX_PER_SHARD = 2048
+        INIT_TX_PER_SHARD = self.env.config.TRANSACTION_LIMIT_PER_BLOCK
         txList = []
         prevTxList = []
         rBlock, mBlockList = create_genesis_blocks(self.env)

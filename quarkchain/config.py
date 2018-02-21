@@ -14,7 +14,7 @@ class DefaultConfig:
         self.P2P_SERVER_PORT = 38291
         self.LOCAL_SERVER_PORT = 38391
         self.LOCAL_SERVER_ENABLE = False
-        self.SHARD_SIZE = 128
+        self.SHARD_SIZE = 16
         self.SHARD_SIZE_BITS = 2
 
         # Difficulty related
@@ -33,7 +33,7 @@ class DefaultConfig:
             '199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3')
         self.GENESIS_COIN = 0
         self.GENESIS_MINOR_COIN = self.QUARKSH_TO_JIAOZI * (10 ** 10) // self.SHARD_SIZE
-        self.GENESIS_DIFFICULTY = 10000000
+        self.GENESIS_DIFFICULTY = 1000000
         self.GENESIS_MINOR_DIFFICULTY = \
             self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
             self.SHARD_SIZE // self.ROOT_BLOCK_INTERVAL_SEC
@@ -60,7 +60,7 @@ class DefaultConfig:
 
         # Unlimited yet
         self.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 2 ** 32
-        self.TRANSACTION_LIMIT_PER_BLOCK = 2048
+        self.TRANSACTION_LIMIT_PER_BLOCK = 4096
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))

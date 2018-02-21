@@ -6,6 +6,7 @@ from quarkchain.local import OP_SER_MAP, LocalCommandOp, JsonRpcRequest
 from quarkchain.config import DEFAULT_ENV
 import argparse
 import json
+import time
 
 
 class LocalClient(Connection):
@@ -44,6 +45,8 @@ def parse_args():
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     parser.add_argument(
         "--method", default=None, type=str)
+    parser.add_argument("--times", default=1, type=int)
+    parser.add_argument("--interval", default=2.0, type=float)
     args = parser.parse_args()
 
     if args.method is None:
@@ -59,8 +62,11 @@ def main():
     reader, writer = loop.run_until_complete(coro)
     client = LocalClient(loop, DEFAULT_ENV, reader, writer)
     asyncio.ensure_future(client.start())
-    jrpcResp = loop.run_until_complete(client.callJrpc(args.method))
-    print(json.dumps(jrpcResp, sort_keys=True, indent=4))
+    for i in range(args.times):
+        jrpcResp = loop.run_until_complete(client.callJrpc(args.method))
+        print(json.dumps(jrpcResp, sort_keys=True, indent=4))
+        if i != args.times - 1:
+            time.sleep(args.interval)
 
     client.close()
     loop.run_until_complete(client.waitUntilClosed())

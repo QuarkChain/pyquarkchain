@@ -46,6 +46,7 @@ class InMemoryDb:
             mBlockHash = mBlock.header.getHash()
         self.put(b'mblock_' + mBlockHash, mBlock.serialize())
         self.put(b'mblockCoinbaseTx_' + mBlockHash, mBlock.txList[0].serialize())
+        self.put(b'mblockTxCount_' + mBlockHash, len(mBlock.txList).to_bytes(4, byteorder="big"))
 
     def putRootBlock(self, rBlock, rBlockHash=None):
         if rBlockHash is None:
@@ -59,6 +60,12 @@ class InMemoryDb:
 
     def getRootBlockHeaderByHash(self, h):
         return RootBlockHeader.deserialize(self.get(b"rblockHeader_" + h))
+
+    def getMinorBlockTxCount(self, h):
+        key = b"mblockTxCount_" + h
+        if key not in self.kv:
+            return 0
+        return int.from_bytes(self.get(key), byteorder="big")
 
 
 DB = InMemoryDb()

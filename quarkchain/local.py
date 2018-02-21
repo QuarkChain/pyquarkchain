@@ -269,6 +269,26 @@ class LocalServer(Connection):
             metric += self.countShardStatsIn(shardId, sec, func)
         return metric
 
+    def countShardTxIn(self, shardId, sec):
+        qcState = self.network.qcState
+        now = time.time()
+        metric = 0
+        header = qcState.getMinorBlockTip(shardId)
+        while header.createTime >= now - sec:
+            metric += self.env.db.getMinorBlockTxCount(header.getHash())
+            if header.height == 0:
+                break
+            header = qcState.getMinorBlockHeaderByHeight(
+                shardId, header.height - 1)
+        return metric
+
+    def countMinorBlockTxIn(self, sec):
+        qcState = self.network.qcState
+        metric = 0
+        for shardId in range(qcState.getShardSize()):
+            metric += self.countShardTxIn(shardId, sec)
+        return metric
+
     async def jrpcGetStats(self, params):
         qcState = self.network.qcState
         resp = {
@@ -281,8 +301,8 @@ class LocalServer(Connection):
                 [qcState.getMinorBlockTip(shardId).difficulty for shardId in range(qcState.getShardSize())]),
             "minorBlocksIn60s": self.countMinorBlockHeaderStatsIn(60, lambda h: 1),
             "minorBlocksIn300s": self.countMinorBlockHeaderStatsIn(300, lambda h: 1),
-            "transactionsIn60s": self.countMinorBlockStatsIn(60, lambda b: len(b.txList)),
-            "transactionsIn300s": self.countMinorBlockStatsIn(300, lambda b: len(b.txList)),
+            "transactionsIn60s": self.countMinorBlockTxIn(60),
+            "transactionsIn300s": self.countMinorBlockTxIn(300),
         }
         return resp
 
@@ -298,8 +318,8 @@ class LocalServer(Connection):
                 "blocksIn60s": self.countShardStatsIn(shardId, 60, lambda h: 1),
                 "blocksIn300s": self.countShardStatsIn(shardId, 300, lambda h: 1),
                 "difficulty": qcState.getMinorBlockTip(shardId).difficulty,
-                "transactionsIn60s": self.countShardStatsIn(shardId, 60, lambda b: len(b.txList)),
-                "transactionsIn300s": self.countShardStatsIn(shardId, 300, lambda b: len(b.txList)),
+                "transactionsIn60s": self.countShardTxIn(shardId, 60),
+                "transactionsIn300s": self.countShardTxIn(shardId, 300),
             }
             resp["shard{}".format(shardId)] = shardMetric
 

@@ -63,7 +63,7 @@ class LocalClient(Connection):
             block.header.nonce += 1
             metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
             if metric < 2 ** 256:
-                print("mined on nonce {} with Txs {}".format(i, len(block.txList)))
+                print("mined on nonce {} with Txs {}".format(i, 0 if self.isMiningBlockRoot else len(block.txList)))
                 submitReq = SubmitNewBlockRequest(resp.isRootBlock, block.serialize())
 
                 try:
