@@ -6,6 +6,7 @@ from quarkchain.core import Address, RootBlock, MinorBlock
 from quarkchain.local import OP_SER_MAP, LocalCommandOp
 from quarkchain.local import GetBlockTemplateRequest
 from quarkchain.local import SubmitNewBlockRequest
+from quarkchain.utils import Logger
 import argparse
 
 
@@ -29,6 +30,7 @@ class LocalClient(Connection):
                 req)
         except Exception as e:
             print("Caught exception when calling GetBlockTemplateRequest {}".format(e))
+            Logger.logException()
             self.loop.call_later(1, self.mineNext)
             return
 

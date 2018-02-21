@@ -320,11 +320,13 @@ class ShardState:
             difficulty=self.getNextBlockDifficulty(createTime),
             quarkash=self.getNextBlockReward())
 
-    def createBlockToMine(self, createTime=None, address=None):
+    def createBlockToMine(self, createTime=None, address=None, includeTx=True):
         """ Create a block to append and include TXs to maximize rewards
         """
         block = self.createBlockToAppend(
             createTime=createTime, address=address)
+        if not includeTx:
+            return block.finalizeMerkleRoot()
         utxoPool = copy.copy(self.utxoPool)
         totalTxFee = 0
         invalidTxList = []
@@ -795,11 +797,11 @@ class QuarkChainState:
 
         return rBlock.finalize(quarkash=totalReward)
 
-    def createMinorBlockToMine(self, shardId, createTime=None, address=None):
+    def createMinorBlockToMine(self, shardId, createTime=None, address=None, includeTx=True):
         if shardId >= len(self.shardList):
             raise RuntimeError("invalid shard id")
         return self.shardList[shardId].createBlockToMine(
-            createTime=createTime, address=address)
+            createTime=createTime, address=address, includeTx=includeTx)
 
     def getNextMinorBlockReward(self, shardId):
         if shardId >= len(self.shardList):
@@ -826,7 +828,8 @@ class QuarkChainState:
                             shardMaskList=[],
                             createTime=None,
                             address=None,
-                            randomizeOutput=True):
+                            randomizeOutput=True,
+                            includeTx=True):
         """ Find the best block (reward / diff) to mine
         Return None if no such block is found
         """
@@ -842,6 +845,7 @@ class QuarkChainState:
         dupEcoCount = 1
         blockHeight = 0
         for shardId, shard in enumerate(self.shardList):
+            # TODO: Obtain block reward and tx fee
             eco = shard.getNextBlockReward() / shard.getNextBlockDifficulty(createTime)
             if maxEco is None or eco > maxEco or \
                     (eco == maxEco and blockId > 0 and blockHeight > shard.tip().height):
@@ -864,12 +868,12 @@ class QuarkChainState:
             for shardId, q in enumerate(self.uncommittedMinorBlockHeaderQueueList):
                 if len(q) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     return (False, self.createMinorBlockToMine(
-                        shardId, createTime=createTime, address=address))
+                        shardId, createTime=createTime, address=address, includeTx=includeTx))
             return (True, self.createRootBlockToMine(
                 createTime=createTime, address=address))
         else:
             return (False, self.createMinorBlockToMine(
-                blockId - 1, createTime=createTime, address=address))
+                blockId - 1, createTime=createTime, address=address, includeTx=includeTx))
 
     def getUtxoPool(self, shardId):
         return self.shardList[shardId].getUtxoPool()

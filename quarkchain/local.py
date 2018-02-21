@@ -1,4 +1,4 @@
-from quarkchain.core import uint8, uint32
+from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import Address, RootBlock, MinorBlock, Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
@@ -11,21 +11,23 @@ import json
 class GetBlockTemplateRequest(Serializable):
     FIELDS = [
         ("address", Address),
-        ("includeRoot", uint8),
+        ("includeRoot", boolean),
+        ("includeTx", boolean),
         ("shardMaskList", PreprendedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
     ]
 
-    def __init__(self, address, includeRoot=True, shardMaskList=None):
+    def __init__(self, address, includeRoot=True, includeTx=True, shardMaskList=None):
         shardMaskList = [] if shardMaskList is None else shardMaskList
         self.address = address
         self.includeRoot = includeRoot
+        self.includeTx = includeTx
         self.shardMaskList = shardMaskList
 
 
 class GetBlockTemplateResponse(Serializable):
     FIELDS = [
-        ("isRootBlock", uint8),
+        ("isRootBlock", boolean),
         ("blockData", PreprendedSizeBytesSerializer(4))
     ]
 
@@ -36,7 +38,7 @@ class GetBlockTemplateResponse(Serializable):
 
 class SubmitNewBlockRequest(Serializable):
     FIELDS = [
-        ("isRootBlock", uint8),
+        ("isRootBlock", boolean),
         ("blockData", PreprendedSizeBytesSerializer(4))
     ]
 
@@ -174,16 +176,16 @@ class LocalServer(Connection):
         asyncio.ensure_future(self.activeAndLoopForever())
 
     async def handleGetBlockTemplateRequest(self, request):
-        isRootBlock, block = self.network.qcState.findBestBlockToMine()
+        isRootBlock, block = self.network.qcState.findBestBlockToMine(includeTx=request.includeTx)
 
         if isRootBlock is None:
-            response = GetBlockTemplateResponse(0, bytes(0))
+            response = GetBlockTemplateResponse(False, bytes(0))
         elif isRootBlock:
-            response = GetBlockTemplateResponse(1, block.serialize())
+            response = GetBlockTemplateResponse(True, block.serialize())
             print("obtained root block to mine, height {}, diff {}".format(
                 block.header.height, block.header.difficulty))
         else:
-            response = GetBlockTemplateResponse(0, block.serialize())
+            response = GetBlockTemplateResponse(False, block.serialize())
             print("obtained minor block to mine, shard {}, height {}, diff {}".format(
                 block.header.branch.getShardId(), block.header.height, block.header.difficulty))
         return response
@@ -193,7 +195,8 @@ class LocalServer(Connection):
             try:
                 rBlock = RootBlock.deserialize(request.blockData)
             except Exception as e:
-                return SubmitNewBlockResponse(1, bytes("{}".format(e), "ascii"))
+                return SubmitNewBlockResponse(
+                    resultCode=1, resultMessage=bytes("{}".format(e), "ascii"))
             msg = self.network.qcState.appendRootBlock(rBlock)
             if msg is None:
                 return SubmitNewBlockResponse(resultCode=0)

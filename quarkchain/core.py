@@ -11,7 +11,6 @@ import ecdsa
 from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
 from ethereum import utils
 import random
-import time
 
 
 class ByteBuffer:
@@ -75,6 +74,19 @@ class UintSerializer():
 
     def deserialize(self, bb):
         return bb.getUint(self.size)
+
+
+class BooleanSerializer():
+
+    def __init__(self):
+        pass
+
+    def serialize(self, value, barray):
+        barray.append(1 if value else 0)
+        return barray
+
+    def deserialize(self, bb):
+        return bool(bb.getUint8())
 
 
 class FixedSizeBytesSerializer():
@@ -174,6 +186,7 @@ uint64 = UintSerializer(8)
 uint128 = UintSerializer(16)
 uint256 = UintSerializer(32)
 hash256 = FixedSizeBytesSerializer(32)
+boolean = BooleanSerializer()
 
 
 def serialize_list(l: list, barray: bytearray, serializer=None) -> None:

@@ -92,6 +92,10 @@ class Logger:
     def errorException():
         traceback.print_exc(file=sys.stderr)
 
+    @staticmethod
+    def logException():
+        Logger.errorException()
+
     @classmethod
     def errorExceptionEverySec(cls, duration):
         stackList = traceback.format_stack()
