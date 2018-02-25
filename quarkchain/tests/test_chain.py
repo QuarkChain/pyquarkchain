@@ -23,7 +23,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=300)
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([b2.header])]))
+            rB, [deque([b1]), deque([b2])]))
 
     def testProofOfProgress(self):
         env = get_test_env()
@@ -38,7 +38,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([])]))
+            rB, [deque([b1]), deque([])]))
 
     def testNoProofOfProgress(self):
         env = get_test_env()
@@ -53,7 +53,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([])]))
+            rB, [deque([b1]), deque([])]))
 
     def testUnordered(self):
         qChain = QuarkChain(get_test_env())
@@ -68,7 +68,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([b2.header])]))
+            rB, [deque([b1]), deque([b2])]))
 
     def testQuarkChainMultiple(self):
         qChain = QuarkChain(get_test_env())
@@ -85,7 +85,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header, b3.header]), deque([b2.header])]))
+            rB, [deque([b1, b3]), deque([b2])]))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -95,7 +95,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b4.header]), deque([b5.header])]))
+            rB, [deque([b4]), deque([b5])]))
 
     def testQuarkChainRollBack(self):
         qChain = QuarkChain(get_test_env())
@@ -112,7 +112,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize()
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header, b3.header]), deque([b2.header])]))
+            rB, [deque([b1, b3]), deque([b2])]))
 
         b4 = b3.createBlockToAppend()
         b5 = b2.createBlockToAppend()
@@ -122,12 +122,12 @@ class TestQuarkChain(unittest.TestCase):
         rB.minorBlockHeaderList = [b4.header, b5.header]
         rB.finalize()
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b4.header]), deque([b5.header])]))
+            rB, [deque([b4]), deque([b5])]))
 
         qChain.rootChain.rollBack()
 
         self.assertIsNone(qChain.rootChain.appendBlock(
-            rB, [deque([b4.header]), deque([b5.header])]))
+            rB, [deque([b4]), deque([b5])]))
 
     def testQuarkChainCoinbase(self):
         qChain = QuarkChain(get_test_env())
@@ -145,7 +145,7 @@ class TestQuarkChain(unittest.TestCase):
                     b2.header.coinbaseValue + 1)
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([b2.header])]))
+            rB, [deque([b1]), deque([b2])]))
 
     def testQuarkChainTestnet(self):
         env = get_test_env()
@@ -169,7 +169,7 @@ class TestQuarkChain(unittest.TestCase):
         rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1)
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
-            rB, [deque([b1.header]), deque([b2.header])]))
+            rB, [deque([b1]), deque([b2])]))
 
 
 class TestShardState(unittest.TestCase):

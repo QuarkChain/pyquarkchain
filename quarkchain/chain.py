@@ -363,6 +363,8 @@ class ShardState:
 
 
 class MinorChainManager:
+    """ Deprecated
+    """
 
     def __init__(self, env):
         self.env = env
@@ -486,7 +488,7 @@ class RootChain:
     def __getBlockCoinbaseQuarkash(self, blockHash):
         return get_minor_block_coinbase_quarkash(self.db, blockHash)
 
-    def appendBlock(self, block, uncommittedMinorBlockHeaderQueueList):
+    def appendBlock(self, block, uncommittedMinorBlockQueueList):
         """ Append new block.
         There are a couple of optimizations can be done here:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
@@ -527,10 +529,9 @@ class RootChain:
                 return "incorrect master to create the block"
 
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
-        # Find the last block of previous block
         shardId = 0
         newQueueList = []
-        q = copy.copy(uncommittedMinorBlockHeaderQueueList[shardId])
+        q = copy.copy(uncommittedMinorBlockQueueList[shardId])
         blockCountInShard = 0
         totalMinorCoinbase = 0
         for mHeader in block.minorBlockHeaderList:
@@ -541,10 +542,10 @@ class RootChain:
                     return "fail to prove progress"
                 newQueueList.append(q)
                 shardId += 1
-                q = copy.copy(uncommittedMinorBlockHeaderQueueList[shardId])
+                q = copy.copy(uncommittedMinorBlockQueueList[shardId])
                 blockCountInShard = 0
 
-            if len(q) == 0 or q.popleft() != mHeader:
+            if len(q) == 0 or q.popleft().header != mHeader:
                 return "minor block doesn't link to previous minor block"
             blockCountInShard += 1
             totalMinorCoinbase += self.__getBlockCoinbaseQuarkash(
@@ -568,7 +569,7 @@ class RootChain:
 
         # Set new uncommitted blocks
         for shardId in range(min(block.header.shardInfo.getShardSize(), len(newQueueList))):
-            uncommittedMinorBlockHeaderQueueList[shardId] = \
+            uncommittedMinorBlockQueueList[shardId] = \
                 newQueueList[shardId]
 
         return None
@@ -597,7 +598,7 @@ class QuarkChainState:
         self.shardList = [ShardState(env, mBlock, self.rootChain)
                           for mBlock in mBlockList]
         self.blockToCrossShardUtxoMap = dict()
-        self.uncommittedMinorBlockHeaderQueueList = [
+        self.uncommittedMinorBlockQueueList = [
             deque() for shard in self.shardList]
 
     def __addCrossShardTxFrom(self, mBlock, rBlock):
@@ -635,8 +636,8 @@ class QuarkChainState:
         if appendResult is not None:
             return appendResult
 
-        self.uncommittedMinorBlockHeaderQueueList[
-            mBlock.header.branch.getShardId()].append(mBlock.header)
+        self.uncommittedMinorBlockQueueList[
+            mBlock.header.branch.getShardId()].append(mBlock)
         return None
 
     def rollBackMinorBlock(self, shardId):
@@ -646,14 +647,14 @@ class QuarkChainState:
         if shardId > len(self.shardList):
             return "shard id is too large"
 
-        if len(self.uncommittedMinorBlockHeaderQueueList[shardId]) == 0:
+        if len(self.uncommittedMinorBlockQueueList[shardId]) == 0:
             """ Root block already commits the minor blocks.
             Need to roll back root block before rolling back the minor block.
             """
             return "the minor block is commited by root block"
         shard = self.shardList[shardId]
-        check(self.uncommittedMinorBlockHeaderQueueList[
-              shardId].pop() == shard.tip())
+        check(self.uncommittedMinorBlockQueueList[
+              shardId].pop().header == shard.tip())
         return shard.rollBackTip()
 
     def getShardTip(self, shardId):
@@ -670,7 +671,7 @@ class QuarkChainState:
         """ Append a root block to rootChain
         """
         appendResult = self.rootChain.appendBlock(
-            rBlock, self.uncommittedMinorBlockHeaderQueueList)
+            rBlock, self.uncommittedMinorBlockQueueList)
         if appendResult is not None:
             return appendResult
 
@@ -688,11 +689,11 @@ class QuarkChainState:
         rBlockHeader = self.rootChain.tip()
         rBlockHash = rBlockHeader.getHash()
         rBlock = self.db.getRootBlockByHash(rBlockHash)
-        for uncommittedQueue in self.uncommittedMinorBlockHeaderQueueList:
+        for uncommittedQueue in self.uncommittedMinorBlockQueueList:
             if len(uncommittedQueue) == 0:
                 continue
 
-            mHeader = uncommittedQueue[-1]
+            mHeader = uncommittedQueue[-1].header
             if mHeader.hashPrevRootBlock == rBlockHash:
                 # Cannot roll back the root block since it is being used.
                 return "the root block is used by uncommitted minor blocks"
@@ -702,10 +703,10 @@ class QuarkChainState:
             return result
 
         for mHeader in reversed(rBlock.minorBlockHeaderList):
-            self.uncommittedMinorBlockHeaderQueueList[
-                mHeader.branch.getShardId()].appendleft(mHeader)
-            self.__removeCrossShardTxFrom(
-                self.db.getMinorBlockByHash(mHeader.getHash()))
+            mBlock = self.db.getMinorBlockByHash(mHeader.getHash())
+            self.uncommittedMinorBlockQueueList[
+                mHeader.branch.getShardId()].appendleft(mBlock)
+            self.__removeCrossShardTxFrom(mBlock)
 
         return None
 
@@ -723,8 +724,8 @@ class QuarkChainState:
 
         while self.rootChain.tip() != rBlockHeader:
             # Roll back minor blocks
-            for shardId, q in enumerate(self.uncommittedMinorBlockHeaderQueueList):
-                while len(q) > 0 and q[-1].height > rBlockHeader.height:
+            for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
+                while len(q) > 0 and q[-1].header.height > rBlockHeader.height:
                     check(self.rollBackMinorBlock(shardId) is None)
             check(self.rollBackRootBlock() is None)
         return None
@@ -788,12 +789,11 @@ class QuarkChainState:
         rBlock = self.createRootBlockToAppend(
             createTime=createTime, address=address)
         totalReward = 0
-        for q in self.uncommittedMinorBlockHeaderQueueList:
-            for mHeader in q:
+        for q in self.uncommittedMinorBlockQueueList:
+            for mBlock in q:
+                mHeader = mBlock.header
                 rBlock.addMinorBlockHeader(mHeader)
-                totalReward += get_minor_block_coinbase_quarkash(
-                    self.db,
-                    mHeader.getHash())
+                totalReward += mBlock.txList[0].outList[0].quarkash
 
         return rBlock.finalize(quarkash=totalReward)
 
@@ -811,10 +811,9 @@ class QuarkChainState:
 
     def getNextRootBlockReward(self):
         totalReward = 0
-        for q in self.uncommittedMinorBlockHeaderQueueList:
-            for mHeader in q:
-                totalReward += get_minor_block_coinbase_quarkash(
-                    self.db, mHeader.getHash())
+        for q in self.uncommittedMinorBlockQueueList:
+            for mBlock in q:
+                totalReward += mBlock.txList[0].outList[0].quarkash
         return totalReward
 
     def addTransactionToQueue(self, shardId, transaction):
@@ -865,7 +864,7 @@ class QuarkChainState:
 
         if blockId == 0:
             # Double check if we meet proof-of-progress
-            for shardId, q in enumerate(self.uncommittedMinorBlockHeaderQueueList):
+            for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
                 if len(q) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     return (False, self.createMinorBlockToMine(
                         shardId, createTime=createTime, address=address, includeTx=includeTx))

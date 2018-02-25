@@ -72,7 +72,7 @@ class TxGeneratorClient(Connection):
         future.set_result(newTxList)
 
     async def startMining(self):
-        print("starting mining")
+        Logger.info("starting mining")
         while True:
             try:
                 req = GetBlockTemplateRequest(
@@ -87,23 +87,21 @@ class TxGeneratorClient(Connection):
                 continue
 
             if len(resp.blockData) == 0:
-                print(
-                    "No block is available to mine, check shard mask or mine root block flag")
+                Logger.error("No block is available to mine, check shard mask or mine root block flag")
                 await asyncio.sleep(1)
                 continue
 
             if resp.isRootBlock:
                 block = RootBlock.deserialize(resp.blockData)
-                print("Starting mining on root block, height {} ...".format(
-                    block.header.height))
                 # Determine whether continue to mine previous block
                 if self.miningBlock is not None and self.isMiningBlockRoot and \
                         block.header.height == self.miningBlock.header.height:
                     block = self.miningBlock
+                Logger.info("Starting mining on root block, height {}, nonce {} ...".format(
+                    block.header.height, block.header.nonce))
+
             else:
                 block = MinorBlock.deserialize(resp.blockData)
-                print("Starting mining on shard {}, height {} ...".format(
-                    block.header.branch.getShardId(), block.header.height))
                 # Determine whether continue to mine previous block
                 if self.miningBlock is not None and not self.isMiningBlockRoot and \
                         block.header.height == self.miningBlock.header.height and \
@@ -117,6 +115,8 @@ class TxGeneratorClient(Connection):
                     block.txList.extend(
                         self.utxoPool[block.header.branch.getShardId()])
                     block.finalizeMerkleRoot()
+                Logger.info("Starting mining on shard {}, height {}, nonce {} ...".format(
+                    block.header.branch.getShardId(), block.header.height, block.header.nonce))
 
             self.miningBlock = block
             self.isMiningBlockRoot = resp.isRootBlock
@@ -133,7 +133,7 @@ class TxGeneratorClient(Connection):
                 # Try next block
                 continue
 
-            print("mined on nonce {} with Txs {}".format(
+            Logger.info("Mined on nonce {} with Txs {}".format(
                 i, 0 if self.isMiningBlockRoot else len(block.txList)))
             submitReq = SubmitNewBlockRequest(
                 resp.isRootBlock, block.serialize())
@@ -151,15 +151,15 @@ class TxGeneratorClient(Connection):
                     LocalCommandOp.SUBMIT_NEW_BLOCK_REQUEST,
                     submitReq)
             except Exception as e:
-                print(
+                Logger.error(
                     "Caught exception when calling SubmitNewBlockRequest {}".format(e))
                 self.close()
                 break
 
             if submitResp.resultCode == 0:
-                print("Mined block")
+                Logger.info("Mined block appended")
             else:
-                print("Mined failed, code {}, message {}".format(
+                Logger.info("Mined failed, code {}, message {}".format(
                     submitResp.resultCode, submitResp.resultMessage))
 
 
