@@ -48,7 +48,7 @@ class Db:
 
     def getMinorBlockTxCount(self, h):
         key = b"mblockTxCount_" + h
-        if key not in self.kv:
+        if key not in self:
             return 0
         return int.from_bytes(self.get(key), byteorder="big")
 
