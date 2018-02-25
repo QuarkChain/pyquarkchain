@@ -59,7 +59,7 @@ class TxGeneratorClient(Connection):
 
     async def generateTx(self, shardId, prevTxList):
         newTxList = []
-        for oldTx in prevTxList[1:]:
+        for oldTx in prevTxList:
             tx = Transaction(
                 inList=[TransactionInput(oldTx.getHash(), 0)],
                 code=Code.getTransferCode(),

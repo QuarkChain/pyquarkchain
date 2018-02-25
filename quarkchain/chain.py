@@ -607,11 +607,13 @@ class QuarkChainState:
     def __addCrossShardTxFrom(self, mBlock, rBlock):
         shardSize = len(self.shardList)
         for tx in mBlock.txList[1:]:
-            txHash = tx.getHash()
+            txHash = None
             for idx, txOutput in enumerate(tx.outList):
                 shardId = txOutput.address.fullShardId & (shardSize - 1)
                 if shardId == mBlock.header.branch.getShardId():
                     continue
+                # On-demand calcualtion of hash
+                txHash = tx.getHash() if txHash is None else txHash
                 self.shardList[shardId].addCrossShardUtxo(
                     TransactionInput(txHash, idx),
                     UtxoValue(
