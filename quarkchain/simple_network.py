@@ -12,6 +12,7 @@ from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
 from quarkchain.protocol import Connection, ConnectionState
 from quarkchain.local import LocalServer
+from quarkchain.db import PersistentDb
 
 SEED_HOST = ("localhost", 38291)
 
@@ -213,7 +214,8 @@ class Peer(Connection):
             return
         elif self.bestRootBlockHeaderObserved.height == cmd.rootBlockHeader.height:
             if self.bestRootBlockHeaderObserved != cmd.rootBlockHeader:
-                self.closeWithError("Root block the same height should not be changed")
+                self.closeWithError(
+                    "Root block the same height should not be changed")
                 return
         else:
             self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
@@ -242,7 +244,8 @@ OP_NONRPC_MAP = {
 # For RPC request commands
 OP_RPC_MAP = {
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
-        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handleGetRootBlockListRequest),
+        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
+         Peer.handleGetRootBlockListRequest),
     CommandOp.GET_PEER_LIST_REQUEST:
         (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest)
 }
@@ -311,13 +314,15 @@ class SimpleNetwork:
             self.newClient, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
         print("Self id {}".format(self.selfId.hex()))
-        print("Listening on {} for p2p".format(self.server.sockets[0].getsockname()))
+        print("Listening on {} for p2p".format(
+            self.server.sockets[0].getsockname()))
 
         if self.env.config.LOCAL_SERVER_ENABLE:
             coro = asyncio.start_server(
                 self.newLocalClient, "127.0.0.1", self.localPort, loop=self.loop)
             self.local_server = self.loop.run_until_complete(coro)
-            print("Listening on {} for local".format(self.local_server.sockets[0].getsockname()))
+            print("Listening on {} for local".format(
+                self.local_server.sockets[0].getsockname()))
 
         self.loop.create_task(self.connectSeed(SEED_HOST[0], SEED_HOST[1]))
 
@@ -342,12 +347,16 @@ def parse_args():
         "--enable_local_server", default=False, type=bool)
     parser.add_argument(
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
+    parser.add_argument("--in_memory_db", default=False)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.config.P2P_SERVER_PORT = args.server_port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
+    if not args.in_memory_db:
+        env.db = PersistentDb(path="./db", clean=True)
+
     return env
 
 

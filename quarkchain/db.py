@@ -2,27 +2,10 @@
 
 from quarkchain.core import Transaction, RootBlockHeader
 from quarkchain.core import MinorBlock, RootBlock
+import leveldb
 
 
-class InMemoryDb:
-    """ A simple in-memory key-value database
-    TODO: Need to support range operation (e.g., leveldb)
-    """
-
-    def __init__(self):
-        self.kv = dict()
-
-    def get(self, key, default=None):
-        return self.kv.get(key, default)
-
-    def put(self, key, value):
-        self.kv[key] = bytes(value)
-
-    def remove(self, key):
-        del self.kv[key]
-
-    def __contains__(self, key):
-        return key in self.kv
+class Db:
 
     def putTx(self, tx, rootBlockHeader=None, txHash=None):
         if txHash is None:
@@ -45,8 +28,10 @@ class InMemoryDb:
         if mBlockHash is None:
             mBlockHash = mBlock.header.getHash()
         self.put(b'mblock_' + mBlockHash, mBlock.serialize())
-        self.put(b'mblockCoinbaseTx_' + mBlockHash, mBlock.txList[0].serialize())
-        self.put(b'mblockTxCount_' + mBlockHash, len(mBlock.txList).to_bytes(4, byteorder="big"))
+        self.put(b'mblockCoinbaseTx_' + mBlockHash,
+                 mBlock.txList[0].serialize())
+        self.put(b'mblockTxCount_' + mBlockHash,
+                 len(mBlock.txList).to_bytes(4, byteorder="big"))
 
     def putRootBlock(self, rBlock, rBlockHash=None):
         if rBlockHash is None:
@@ -66,6 +51,61 @@ class InMemoryDb:
         if key not in self.kv:
             return 0
         return int.from_bytes(self.get(key), byteorder="big")
+
+    def close():
+        pass
+
+
+class InMemoryDb(Db):
+    """ A simple in-memory key-value database
+    TODO: Need to support range operation (e.g., leveldb)
+    """
+
+    def __init__(self):
+        self.kv = dict()
+
+    def get(self, key, default=None):
+        return self.kv.get(key, default)
+
+    def put(self, key, value):
+        self.kv[key] = bytes(value)
+
+    def remove(self, key):
+        del self.kv[key]
+
+    def __contains__(self, key):
+        return key in self.kv
+
+
+class PersistentDb(Db):
+
+    def __init__(self, path="./db", clean=False):
+        if clean:
+            leveldb.DestroyDB(path)
+        self.db = leveldb.LevelDB(path)
+
+    def get(self, key, default=None):
+        try:
+            return self.db.Get(key)
+        except KeyError:
+            return default
+
+    def put(self, key, value):
+        self.db.Put(key, value)
+
+    def remove(self, key):
+        self.db.Delete(key)
+
+    def __contains__(self, key):
+        try:
+            self.db.Get(key)
+            return True
+        except KeyError:
+            return False
+
+    def close():
+        # No close option in leveldb?
+        pass
 
 
 DB = InMemoryDb()
