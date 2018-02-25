@@ -2,6 +2,7 @@ from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import Address, RootBlock, MinorBlock, Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
+from quarkchain.utils import Logger
 import asyncio
 import statistics
 import time
@@ -195,8 +196,9 @@ class LocalServer(Connection):
             try:
                 rBlock = RootBlock.deserialize(request.blockData)
             except Exception as e:
+                Logger.logException()
                 return SubmitNewBlockResponse(
-                    resultCode=1, resultMessage=bytes("{}".format(e), "ascii"))
+                    resultCode=1, resultMessage=bytes("failed to deserialize root block", "ascii"))
             msg = self.network.qcState.appendRootBlock(rBlock)
             if msg is None:
                 return SubmitNewBlockResponse(resultCode=0)
@@ -207,8 +209,9 @@ class LocalServer(Connection):
             try:
                 mBlock = MinorBlock.deserialize(request.blockData)
             except Exception as e:
+                Logger.logException()
                 return SubmitNewBlockResponse(
-                    resultCode=1, resultMessage=bytes("{}".format(e), "ascii"))
+                    resultCode=1, resultMessage=bytes("failed to deserialize minor block", "ascii"))
 
             msg = self.network.qcState.appendMinorBlock(mBlock)
             if msg is None:
