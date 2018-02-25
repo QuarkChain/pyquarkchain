@@ -488,7 +488,7 @@ class RootChain:
     def __getBlockCoinbaseQuarkash(self, blockHash):
         return get_minor_block_coinbase_quarkash(self.db, blockHash)
 
-    def appendBlock(self, block, uncommittedMinorBlockQueueList):
+    def appendBlock(self, block, uncommittedMinorBlockQueueList, committedBlockList=None):
         """ Append new block.
         There are a couple of optimizations can be done here:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
@@ -534,6 +534,7 @@ class RootChain:
         q = copy.copy(uncommittedMinorBlockQueueList[shardId])
         blockCountInShard = 0
         totalMinorCoinbase = 0
+        committedBlockList = [] if committedBlockList is None else committedBlockList
         for mHeader in block.minorBlockHeaderList:
             if mHeader.branch.getShardId() != shardId:
                 if mHeader.branch.getShardId() != shardId + 1:
@@ -545,11 +546,13 @@ class RootChain:
                 q = copy.copy(uncommittedMinorBlockQueueList[shardId])
                 blockCountInShard = 0
 
-            if len(q) == 0 or q.popleft().header != mHeader:
+            mBlock = q.popleft() if len(q) != 0 else None
+            if mBlock is None or mBlock.header != mHeader:
                 return "minor block doesn't link to previous minor block"
             blockCountInShard += 1
             totalMinorCoinbase += self.__getBlockCoinbaseQuarkash(
                 mHeader.getHash())
+            committedBlockList.append(mBlock)
 
         if shardId != block.header.shardInfo.getShardSize() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
             return "fail to prove progress"
@@ -670,13 +673,15 @@ class QuarkChainState:
     def appendRootBlock(self, rBlock):
         """ Append a root block to rootChain
         """
+        committedBlockList = []
         appendResult = self.rootChain.appendBlock(
-            rBlock, self.uncommittedMinorBlockQueueList)
+            rBlock, self.uncommittedMinorBlockQueueList, committedBlockList)
         if appendResult is not None:
             return appendResult
 
-        for mHeader in rBlock.minorBlockHeaderList:
-            mBlock = self.db.getMinorBlockByHash(mHeader.getHash())
+        for idx, mHeader in enumerate(rBlock.minorBlockHeaderList):
+            mBlock = committedBlockList[idx]
+            check(mHeader == mBlock.header)
             self.__addCrossShardTxFrom(mBlock, rBlock)
 
         return None
