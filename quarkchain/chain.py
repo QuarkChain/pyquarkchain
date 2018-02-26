@@ -44,8 +44,10 @@ class ShardState:
         self.db = env.db
         self.genesisBlock = genesisBlock
         self.utxoPool = dict()
+        self.blockPool = dict()
         self.chain = [genesisBlock.header]
         genesisRootBlock = rootChain.getGenesisBlock()
+        self.blockPool[genesisBlock.header.getHash()] = genesisBlock.header
         # TODO: Check shard id or disable genesisBlock
         self.utxoPool[TransactionInput(genesisBlock.txList[0].getHash(), 0)] = UtxoValue(
             genesisBlock.txList[0].outList[0].address,
@@ -250,6 +252,7 @@ class ShardState:
         self.db.putTx(block.txList[0], rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
+        self.blockPool[block.header.getHash()] = block.header
 
         # TODO: invalidate consumed tx in txQueue
         return None
@@ -263,8 +266,10 @@ class ShardState:
             return "Cannot roll back genesis block"
 
         blockHeader = self.chain[-1]
-        block = self.db.getMinorBlockByHash(blockHeader.getHash())
+        blockHash = blockHeader.getHash()
+        block = self.db.getMinorBlockByHash(blockHash)
         del self.chain[-1]
+        del self.blockPool[blockHash]
         for rTx in reversed(block.txList[1:]):
             rollBackResult = self.__rollBackTx(rTx)
             assert(rollBackResult is None)
@@ -291,6 +296,9 @@ class ShardState:
 
     def getBlockHeaderByHeight(self, height):
         return self.chain[height]
+
+    def getBlockHeaderByHash(self, h):
+        return self.blockPool.get(h, None)
 
     def getGenesisBlock(self):
         return self.genesisBlock
@@ -886,3 +894,33 @@ class QuarkChainState:
 
     def getPendingTxSize(self, shardId):
         return self.shardList[shardId].getPendingTxSize()
+
+    def getRootBlockHeaderListByHash(self, h, maxBlocks=1, direction=0):
+        # TODO: Optimize it by maintaining global block pool
+        rBlock = self.rootChain.getBlockHeaderByHash(h)
+        if rBlock is None:
+            return None
+
+        hList = []
+        direction = -1 if direction == 0 else 1
+        for h in range(rBlock.height, rBlock.height + (direction * maxBlocks), direction):
+            if h < 0 or h > self.rootChain.tip().height:
+                break
+            hList.append(self.rootChain.getBlockHeaderByHeight(h))
+
+        return hList
+
+    def getMinorBlockHeaderListByHash(self, h, maxBlocks=1, direction=0):
+        direction = -1 if direction == 0 else 1
+        hList = []
+
+        for shard in self.shardList:
+            mBlock = shard.getBlockHeaderByHash(h)
+            if mBlock is not None:
+                for h in range(mBlock.height, mBlock.height + (direction * maxBlocks), direction):
+                    if h < 0 or h > shard.tip().height:
+                        break
+                    hList.append(shard.getBlockHeaderByHeight(h))
+                return hList
+
+        return None
