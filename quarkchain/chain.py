@@ -292,9 +292,6 @@ class ShardState:
     def getBlockHeaderByHeight(self, height):
         return self.chain[height]
 
-    def getBlockHeaderByHash(self, h):
-        return self.blockPool.get(h, None)
-
     def getGenesisBlock(self):
         return self.genesisBlock
 
@@ -889,33 +886,3 @@ class QuarkChainState:
 
     def getPendingTxSize(self, shardId):
         return self.shardList[shardId].getPendingTxSize()
-
-    def getRootBlockHeaderListByHash(self, h, maxBlocks=1, direction=0):
-        # TODO: Optimize it by maintaining global block pool
-        rBlock = self.rootChain.getBlockHeaderByHash(h)
-        if rBlock is None:
-            return None
-
-        hList = []
-        direction = -1 if direction == 0 else 1
-        for h in range(rBlock.height, rBlock.height + (direction * maxBlocks)):
-            if h < 0 or h > self.rootChain.tip().height:
-                break
-            hList.append(self.rootChain.getBlockHeaderByHeight(h))
-
-        return hList
-
-    def getMinorBlockHeaderByHash(self, h, maxBlocks=1, direction=0):
-        direction = -1 if direction == 0 else 1
-        hList = []
-
-        for shard in self.shardList:
-            mBlock = shard.getBlockHeaderByHash(h)
-            if mBlock is not None:
-                for h in range(mBlock.height, mBlock.height + (direction * maxBlocks)):
-                    if h < 0 or h > shard.tip().height:
-                        break
-                    hList.append(shard.getBlockHeaderByHeight(h))
-                    return hList
-
-        return None
