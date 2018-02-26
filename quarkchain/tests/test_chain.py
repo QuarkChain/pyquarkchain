@@ -166,7 +166,8 @@ class TestQuarkChain(unittest.TestCase):
         rB = qChain.rootChain.getGenesisBlock().createBlockToAppend(
             address=env.config.TESTNET_MASTER_ACCOUNT)
         rB.minorBlockHeaderList = [b1.header, b2.header]
-        rB.finalize(quarkash=b1.header.coinbaseValue + b2.header.coinbaseValue + 1)
+        rB.finalize(quarkash=b1.header.coinbaseValue +
+                    b2.header.coinbaseValue + 1)
 
         self.assertIsNotNone(qChain.rootChain.appendBlock(
             rB, [deque([b1]), deque([b2])]))
@@ -209,11 +210,13 @@ class TestShardState(unittest.TestCase):
             id1, gBlock.txList[0].getHash(), acc2, 6000, 3000)
         nBlock.addTx(tx)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
-        nBlock.txList[0].outList[0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 501
+        nBlock.txList[0].outList[
+            0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 501
         nBlock.finalizeMerkleRoot()
         self.assertIsNotNone(sState.appendBlock(nBlock))
 
-        nBlock.txList[0].outList[0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 500
+        nBlock.txList[0].outList[
+            0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 500
         nBlock.finalizeMerkleRoot()
         self.assertIsNone(sState.appendBlock(nBlock))
 
@@ -593,7 +596,8 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 6000)
 
-        b3 = b1.createBlockToAppend(quarkash=100, address=acc1).finalizeMerkleRoot()
+        b3 = b1.createBlockToAppend(
+            quarkash=100, address=acc1).finalizeMerkleRoot()
         b4 = b2.createBlockToAppend(quarkash=200) \
             .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)) \
             .finalizeMerkleRoot()
@@ -605,13 +609,15 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 24100)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
-        rB1 = rB.createBlockToAppend().extendMinorBlockHeaderList([b3.header, b4.header]).finalize()
+        rB1 = rB.createBlockToAppend().extendMinorBlockHeaderList(
+            [b3.header, b4.header]).finalize()
         self.assertIsNone(qcState.appendRootBlock(rB1))
 
         self.assertEqual(qcState.getBalance(id1.recipient), 25600)
         self.assertEqual(qcState.getBalance(id2.recipient), 4500)
 
-        self.assertIsNone(qcState.rollBackRootChainTo(qcState.getGenesisRootBlock().header))
+        self.assertIsNone(qcState.rollBackRootChainTo(
+            qcState.getGenesisRootBlock().header))
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
         self.assertEqual(qcState.getShardTip(0), b1.header)
@@ -651,7 +657,8 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(len(b1.txList), 3)
         self.assertEqual(qcState.getBalance(acc3.recipient), 0)
         self.assertIsNone(qcState.appendMinorBlock(b1))
-        self.assertEqual(qcState.getBalance(acc3.recipient), env.config.MINOR_BLOCK_DEFAULT_REWARD + 2000)
+        self.assertEqual(qcState.getBalance(acc3.recipient),
+                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 2000)
 
     def testCreateBlockToMineWithConflictingTxs(self):
         id1 = Identity.createRandomIdentity()
@@ -680,4 +687,30 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(len(b1.txList), 2)
         self.assertEqual(qcState.getBalance(acc3.recipient), 0)
         self.assertIsNone(qcState.appendMinorBlock(b1))
-        self.assertEqual(qcState.getBalance(acc3.recipient), env.config.MINOR_BLOCK_DEFAULT_REWARD + 1000)
+        self.assertEqual(qcState.getBalance(acc3.recipient),
+                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 1000)
+
+    def testGetBlockHeaderList(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        b3 = b1.createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b3))
+
+        rB1 = qcState.getGenesisRootBlock().createBlockToAppend()
+        rB1.minorBlockHeaderList = [b1.header, b3.header, b2.header]
+        rB1.finalize(quarkash=300)
+
+        self.assertIsNone(qcState.appendRootBlock(rB1))
+
+        rB2 = rB1.createBlockToAppend().finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB2))
