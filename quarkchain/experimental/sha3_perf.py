@@ -3,6 +3,9 @@
 #
 # Some numbers on my machine (i7 7700K 4.2 GHZ):
 # SHA3 80000 shas/sec
+# One i7 4700K 3.5 GHZ):
+# SHA3 69000 shas/sec with pycryptodome.
+# SHA3 134000 shas/sec with pysha3.
 
 from quarkchain.core import MinorBlockHeader
 import argparse

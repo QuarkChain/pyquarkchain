@@ -1,4 +1,4 @@
-from Crypto.Hash import keccak
+import sha3
 import logging
 import time
 import traceback
@@ -24,8 +24,7 @@ def sha3_256(x):
         x = bytes(x)
     if not isinstance(x, bytes):
         raise RuntimeError("sha3_256 only accepts bytes or bytearray")
-    return keccak.new(digest_bits=256, data=x).digest()
-
+    return sha3.keccak_256(x).digest()
 
 def check(condition):
     """ Unlike assert, which can be optimized out,
