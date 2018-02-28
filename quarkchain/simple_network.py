@@ -6,7 +6,7 @@ import socket
 from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import uint16, uint32, uint128, hash256
+from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
@@ -321,7 +321,7 @@ OP_RPC_MAP = {
         (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
          Peer.handleGetRootBlockListRequest),
     CommandOp.GET_PEER_LIST_REQUEST:
-        (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest)
+        (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
     CommandOp.GET_BLOCK_HEADER_LIST_REQUEST:
         (CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE, Peer.handleGetBlockHeaderListRequest)
 }
