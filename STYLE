@@ -3,15 +3,16 @@ Coding Style of pyquarkchain project
 =============
 General Rules
 
-We use PEP8 https://www.python.org/dev/peps/pep-0008/ as our general rules for coding style.  For sublime, we sugguest to use Anaconda package.
+We use PEP8 https://www.python.org/dev/peps/pep-0008/ as our general rules for coding style.
+For sublime, we suggest to use Anaconda package.
 
 ======
 Naming
 
 We use mix Java and C style naming:
-- Package name is lower case with underscore between words
-- Class name: the first letter of each word is upper case
-- Method name: the first word is lower case, and the first letters of the rest words are upper case
-- Constant: All words are upper case and separated by underscore
-- Global function: all words are lower case and separated by underscore
-- Local variable: the same as class method
+- Package name: lower_case_with_underscore
+- Class name: UpperCamelCase
+- Method name: lowerCamelCase
+- Constant: UPPER_CASE_WITH_UNDERSCORE
+- Global function: lower_case_with_underscore
+- Local variable: lowerCamelCase
