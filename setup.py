@@ -24,11 +24,11 @@ setup(
         "License :: MIT License",
     ],
     install_requires=[
-          'ethereum',
-          'pysha3',
-          'ecdsa',
-          'leveldb',
+        'ecdsa',
+        'ethereum',
+        'leveldb',
+        'numpy',
+        'pysha3',
     ],
     python_requires='>=3.6'
 )
-
