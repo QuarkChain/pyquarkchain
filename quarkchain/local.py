@@ -172,6 +172,7 @@ class LocalServer(Connection):
     def __init__(self, env, reader, writer, network):
         super().__init__(env, reader, writer, OP_SER_MAP, dict(), OP_RPC_MAP)
         self.network = network
+        self.db = self.env.db
 
     async def start(self):
         asyncio.ensure_future(self.activeAndLoopForever())
@@ -332,6 +333,61 @@ class LocalServer(Connection):
 
         return resp
 
+    async def jrpcGetTxOutputInfo(self, params):
+        try:
+            txHash = params["txHash"]
+            if len(txHash) == 64:
+                txHash = bytes.fromhex(txHash)
+            tx = self.db.getTx(txHash)
+            index = int(params["index"])
+        except Exception as e:
+            raise RuntimeError("failed to get tx")
+
+        if index > len(tx.outList):
+            raise RuntimeError("output index is too large")
+
+        txOutput = tx.outList[index]
+        unspent, utxoShardId = self.network.qcState.getUtxoInfo(TransactionInput(txHash, index))
+        resp = {
+            "address": txOutput.address.serialize().hex(),
+            "quarkash": txOutput.quarkash,
+            "unspent": unspent,
+        }
+
+        if unspent:
+            resp["utxoShardId"] = utxoShardId
+        else:
+            resp["spentTxHash"] = self.db.getSpentTxHash(TransactionInput(txHash, index)).hex()
+
+        return resp
+
+    async def jrpcGetBlockTx(self, params):
+        try:
+            shardId = int(params["shardId"])
+            height = int(params["height"])
+        except Exception as e:
+            raise RuntimeError("failed to get minor block")
+
+        if shardId >= self.network.qcState.getShardSize():
+            raise RuntimeError("incorrect shardId")
+
+        if height > self.network.qcState.getMinorBlockTip(shardId).height:
+            raise RuntimeError("incorrect height")
+
+        header = self.network.qcState.getMinorBlockHeaderByHeight(shardId, height)
+        block = self.db.getMinorBlockByHash(header.getHash())
+        txList = []
+        for tx in block.txList:
+            txList.append(tx.getHash().hex())
+        resp = {
+            "hashPrevMinorBlock": header.hashPrevMinorBlock.hex(),
+            "hashMerkleRoot": header.hashMerkleRoot.hex(),
+            "difficulty": header.difficulty,
+            "nonce": header.nonce,
+            "txList": txList,
+        }
+        return resp
+
     def jrpcError(self, errorCode, jrpcId=None, errorMessage=None):
         response = {
             "jsonrpc": "2.0",
@@ -390,4 +446,6 @@ OP_RPC_MAP = {
 JRPC_MAP = {
     "getStats": LocalServer.jrpcGetStats,
     "getFullStats": LocalServer.jrpcGetFullStats,
+    "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
+    "getBlockTx": LocalServer.jrpcGetBlockTx,
 }

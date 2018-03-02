@@ -6,7 +6,7 @@ from quarkchain.core import MinorBlock
 import copy
 import time
 from collections import deque
-from quarkchain.utils import check
+from quarkchain.utils import check, Logger
 import random
 
 
@@ -54,6 +54,7 @@ class ShardState:
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
         self.db.putTx(genesisBlock.txList[0], rootBlockHeader=genesisRootBlock)
+        self.db.putMinorBlock(genesisBlock)
 
         self.branch = self.genesisBlock.header.branch
         self.rootChain = rootChain
@@ -223,13 +224,15 @@ class ShardState:
 
         txDoneList = []
         totalFee = 0
-        for tx in block.txList[1:]:
+        for idx, tx in enumerate(block.txList[1:]):
             try:
                 fee = self.__performTx(tx, rootBlockHeader)
             except Exception as e:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
                     assert(rollBackResult is None)
+                Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
+                    tx.getHash(), idx, e))
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
@@ -924,3 +927,10 @@ class QuarkChainState:
                 return hList
 
         return None
+
+    def getUtxoInfo(self, txInput):
+        for shardId, shard in enumerate(self.shardList):
+            if txInput in shard.utxoPool:
+                return (True, shardId)
+
+        return (False, None)

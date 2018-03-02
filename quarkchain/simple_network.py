@@ -13,6 +13,7 @@ from quarkchain.chain import QuarkChainState
 from quarkchain.protocol import Connection, ConnectionState
 from quarkchain.local import LocalServer
 from quarkchain.db import PersistentDb
+from quarkchain.utils import set_logging_level
 
 SEED_HOST = ("localhost", 38291)
 
@@ -424,7 +425,10 @@ def parse_args():
     parser.add_argument(
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     parser.add_argument("--in_memory_db", default=False)
+    parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
+
+    set_logging_level(args.log_level)
 
     env = DEFAULT_ENV.copy()
     env.config.P2P_SERVER_PORT = args.server_port

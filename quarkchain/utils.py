@@ -26,6 +26,7 @@ def sha3_256(x):
         raise RuntimeError("sha3_256 only accepts bytes or bytearray")
     return sha3.keccak_256(x).digest()
 
+
 def check(condition):
     """ Unlike assert, which can be optimized out,
     check will always check whether condition is satisfied or throw AssertionError if not
@@ -38,6 +39,22 @@ class Logger:
     lastInfoTimeMap = dict()
     lastWarningTimeMap = dict()
     lastErrorTimeMap = dict()
+
+    @staticmethod
+    def debug(msg):
+        logging.debug(msg)
+
+    @classmethod
+    def debugEverySec(cls, msg, duration):
+        stackList = traceback.format_stack()
+        if len(stackList) <= 1:
+            logging.debug(msg)
+            return
+        key = stackList[-2]
+
+        if key not in cls.lastWarningTimeMap or time.time() - cls.lastWarningTimeMap[key] > duration:
+            logging.debug(msg)
+            cls.lastWarningTimeMap[key] = time.time()
 
     @staticmethod
     def info(msg):
@@ -109,6 +126,20 @@ class Logger:
 
 
 logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
+
+
+def set_logging_level(level):
+    levelMap = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL
+    }
+    level = level.upper()
+    if level not in levelMap:
+        raise RuntimeError("invalid level {}".format(level))
+    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=levelMap[level])
 
 
 def main():

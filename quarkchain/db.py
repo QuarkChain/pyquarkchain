@@ -14,9 +14,14 @@ class Db:
         if rootBlockHeader is not None:
             self.put(b'txRootBlockHeader_' + txHash,
                      rootBlockHeader.serialize())
+        for txIn in tx.inList:
+            self.put(b'spent_' + txIn.serialize(), txHash)
 
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
+
+    def getSpentTxHash(self, txIn):
+        return self.get(b'spent_' + txIn.serialize())
 
     def getTxRootBlockHeader(self, txHash):
         return RootBlockHeader.deserialize(self.get(b'txRootBlockHeader_' + txHash))
