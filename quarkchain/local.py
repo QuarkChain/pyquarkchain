@@ -317,7 +317,7 @@ class LocalServer(Connection):
 
     async def jrpcGetFullStats(self, params):
         qcState = self.network.qcState
-        resp = self.jrpcGetStats(params)
+        resp = await self.jrpcGetStats(params)
         for shardId in range(qcState.getShardSize()):
             shardMetric = {
                 "blocksIn60s": self.countShardStatsIn(shardId, 60, lambda h: 1),
