@@ -1,0 +1,5 @@
+ecdsa >= 0.13
+ethereum >= 2.3.0
+leveldb >= 0.194
+numpy >= 1.14.0
+pysha3 >= 1.0.2
