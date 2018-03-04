@@ -9,7 +9,7 @@ def get_test_env(genesisAccount=Address.createEmptyAccount(), genesisQuarkash=10
     env.config.setShardSize(2)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True
-    env.config.SKIP_MINOR_COINBASE_CHECK = True
+    env.config.SKIP_MINOR_COINBASE_CHECK = False
     env.config.GENESIS_ACCOUNT = genesisAccount
     env.config.GENESIS_COIN = genesisQuarkash
     env.config.GENESIS_MINOR_COIN = genesisMinorQuarkash

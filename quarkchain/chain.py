@@ -357,7 +357,8 @@ class ShardState:
             block.addTx(tx)
         for tx in invalidTxList:
             self.txQueue.remove(tx)
-        block.txList[0].outList[0].quarkash += totalTxFee
+        # Only share half the fees to the minor block miner
+        block.txList[0].outList[0].quarkash += totalTxFee // 2
         return block.finalizeMerkleRoot()
 
     def addTransactionToQueue(self, transaction):

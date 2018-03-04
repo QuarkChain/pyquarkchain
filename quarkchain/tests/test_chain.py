@@ -658,7 +658,7 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(acc3.recipient), 0)
         self.assertIsNone(qcState.appendMinorBlock(b1))
         self.assertEqual(qcState.getBalance(acc3.recipient),
-                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 2000)
+                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 1000)
 
     def testCreateBlockToMineWithConflictingTxs(self):
         id1 = Identity.createRandomIdentity()
@@ -688,7 +688,7 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(acc3.recipient), 0)
         self.assertIsNone(qcState.appendMinorBlock(b1))
         self.assertEqual(qcState.getBalance(acc3.recipient),
-                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 1000)
+                         env.config.MINOR_BLOCK_DEFAULT_REWARD + 500)
 
     def testGetBlockHeaderList(self):
         id1 = Identity.createRandomIdentity()
