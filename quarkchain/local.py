@@ -445,6 +445,20 @@ class LocalServer(Connection):
         }
         return resp
 
+    async def jrpcGetAccountTx(self, params):
+        addr = params["addr"]
+        if len(addr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid address length {}".format(len(addr))
+            )
+        address = Address.createFrom(addr)
+        txHashes = []
+        for txHash in self.db.accountTxIter(address):
+            txHashes.append(txHash.hex())
+        return {
+            "txHashes": txHashes,
+        }
+
     async def jrpcGetStats(self, params):
         qcState = self.network.qcState
         resp = {
@@ -596,6 +610,7 @@ JRPC_MAP = {
     "addSignedTx": LocalServer.jrpcAddSignedTx,
     "addTx": LocalServer.jrpcAddTx,
     "getAccountBalance": LocalServer.jrpcGetAccountBalance,
+    "getAccountTx": LocalServer.jrpcGetAccountTx,
     "getBlockTx": LocalServer.jrpcGetBlockTx,
     "getFullStats": LocalServer.jrpcGetFullStats,
     "getStats": LocalServer.jrpcGetStats,
