@@ -330,6 +330,9 @@ class TransactionInput(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
+    def getHashHex(self):
+        return self.hash.hex()
+
 
 class TransactionOutput(Serializable):
     FIELDS = [
@@ -340,6 +343,9 @@ class TransactionOutput(Serializable):
     def __init__(self, address: Address, quarkash: int):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
+
+    def getAddressHex(self):
+        return self.address.serialize().hex()
 
 
 class Code(Serializable):
@@ -388,6 +394,9 @@ class Transaction(Serializable):
 
     def getHash(self):
         return sha3_256(self.serialize())
+
+    def getHashHex(self):
+        return self.getHash().hex()
 
     def getHashUnsigned(self):
         return sha3_256(self.serializeUnsigned())

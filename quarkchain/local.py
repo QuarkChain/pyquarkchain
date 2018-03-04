@@ -362,6 +362,7 @@ class LocalServer(Connection):
             resp["inList"].append({
                 "hash": txInput.hash.hex(),
                 "index": txInput.index,
+                "quarkash": utxoPool[txInput].quarkash,
             })
         resp["outList"] = []
         for txOutput in outList:

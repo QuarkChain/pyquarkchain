@@ -92,8 +92,11 @@ class ShardState:
             if utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
                 rootBlockHeader = utxoPool[txInput].rootBlockHeader
             txInputSet.add(txInput)
-            txInputQuarkash = utxoPool[txInput].quarkash
+            txInputQuarkash += utxoPool[txInput].quarkash
             senderList.append(utxoPool[txInput].address.recipient)
+            Logger.debug("%s tx_in %s %d %d",
+                tx.getHashHex(),
+                txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
 
         # Check signature
         if not tx.verifySignature(senderList):
@@ -103,6 +106,8 @@ class ShardState:
         txOutputQuarkash = 0
         for txOut in tx.outList:
             txOutputQuarkash += txOut.quarkash
+            Logger.debug("%s tx_out %s %d",
+                tx.getHashHex(), txOut.getAddressHex(), txOut.quarkash)
         if txOutputQuarkash > txInputQuarkash:
             raise RuntimeError("output quarkash cannot exceed input one")
 
@@ -348,6 +353,7 @@ class ShardState:
             try:
                 txFee, rootBlockHeader = self.__checkTx(tx, utxoPool)
             except Exception as e:
+                Logger.errorException()
                 # TODO: C++ style erase while iterating?
                 invalidTxList.append(tx)
                 continue
@@ -355,8 +361,10 @@ class ShardState:
             totalTxFee += txFee
             self.__doPerformTx(tx, rootBlockHeader, utxoPool)
             block.addTx(tx)
+            Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
         for tx in invalidTxList:
             self.txQueue.remove(tx)
+            Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
         return block.finalizeMerkleRoot()
