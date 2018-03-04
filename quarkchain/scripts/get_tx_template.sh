@@ -1,6 +1,7 @@
 #!/bin/bash
 
-source constants.sh
+SCRIPT_DIR="$(dirname "$0")"
+source $SCRIPT_DIR/constants.sh
 
 $JRPC_CLIENT_BIN \
 --method=getTxTemplate \
