@@ -1,6 +1,6 @@
 from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, RootBlock, MinorBlock, Transaction, TransactionInput, TransactionOutput
+from quarkchain.core import Address, Code, Constant, RootBlock, MinorBlock, Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
 from quarkchain.utils import Logger
 import asyncio
@@ -296,6 +296,151 @@ class LocalServer(Connection):
             metric += self.countShardTxIn(shardId, sec)
         return metric
 
+    async def jrpcGetTxTemplate(self, params):
+        """ This only uses the utxos on the shard indicated by the fromAddr
+        And only support one fromAddr.
+        """
+        qcState = self.network.qcState
+        fromAddr = params["fromAddr"]
+        toAddr = params["toAddr"]
+        quarkash = int(params["quarkash"] * qcState.env.config.QUARKSH_TO_JIAOZI)
+        fee = int(params["fee"] * qcState.env.config.QUARKSH_TO_JIAOZI)
+
+        # sanity checks
+        if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid fromAddr length {}".format(len(fromAddr)))
+        if len(toAddr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid toAddr length {}".format(len(toAddr)))
+        if quarkash <= 0:
+            raise RuntimeError("Invalid quarkash amount {}".format(quarkash))
+        if fee < 0:
+            raise RuntimeError("Negative fee {}".format(fee))
+
+        fromAddress = Address.createFrom(fromAddr)
+        toAddress = Address.createFrom(toAddr)
+        shardId = fromAddress.getShardId(qcState.getShardSize())
+        balance = qcState.getAccountBalance(fromAddress)
+        requiredQuarkash = quarkash + fee
+        if balance < requiredQuarkash:
+            raise RuntimeError("Not enough balance {} > {}".format(
+                requiredQuarkash, balance))
+
+        # collect enough utxos to complete the tx
+        # TODO: better algorithm to reduce the total number of utxos
+        utxoPool = qcState.getUtxoPool(shardId)
+        inList = []
+        inQuarkash = 0
+        for txInput, utxo in utxoPool.items():
+            if utxo.address.recipient != fromAddress.recipient:
+                continue
+            inList.append(txInput)
+            inQuarkash += utxo.quarkash
+            if requiredQuarkash <= inQuarkash:
+                break
+
+        unspent = inQuarkash - requiredQuarkash
+        outList = [TransactionOutput(toAddress, quarkash)]
+        if unspent > 0:
+            outList.append(TransactionOutput(fromAddress, unspent))
+        tx = Transaction(
+            inList=inList,
+            code=Code.getTransferCode(),
+            outList=outList,
+        )
+        resp = {
+            "balance": balance,
+            "requiredQuarkash": requiredQuarkash,
+            "inQuarkash": inQuarkash,
+            "tx": tx.serialize().hex(),
+            "txHashUnsigned": tx.getHashUnsigned().hex(),
+            "code": tx.code.serialize().hex(),
+        }
+        resp["inList"] = []
+        for txInput in inList:
+            resp["inList"].append({
+                "hash": txInput.hash.hex(),
+                "index": txInput.index,
+            })
+        resp["outList"] = []
+        for txOutput in outList:
+            resp["outList"].append({
+                "address": txOutput.address.serialize().hex(),
+                "quarkash": txOutput.quarkash,
+            })
+        return resp
+
+    async def jrpcAddSignedTx(self, params):
+        qcState = self.network.qcState
+        tx = Transaction.deserialize(bytes.fromhex(params["tx"]))
+        signature = params["signature"]
+        fromAddr = params["fromAddr"]
+
+        # sanity checks
+        if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid fromAddr length {}".format(len(fromAddr)))
+        if len(signature) != Constant.SIGNATURE_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid signature length {}".format(len(signature)))
+        fromAddress = Address.createFrom(fromAddr)
+        shardId = fromAddress.getShardId(qcState.getShardSize())
+
+        # one signer owns all the input utxos
+        tx.signList = [bytes.fromhex(signature)] * len(tx.inList)
+        qcState.addTransactionToQueue(shardId, tx)
+
+        resp = {
+            "txHash": tx.getHash().hex(),
+        }
+        return resp
+
+    async def jrpcAddTx(self, params):
+        """ This only uses the utxos on the shard indicated by the fromAddr
+        """
+        qcState = self.network.qcState
+
+        key = params["key"]
+        fromAddr = params["fromAddr"]
+
+        # sanity checks
+        if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid fromAddr length {}".format(len(fromAddr)))
+        if len(key) != Constant.KEY_HEX_LENGTH:
+            raise RuntimeError("Invalid key {}".format(key))
+
+        fromAddress = Address.createFrom(fromAddr)
+        shardId = fromAddress.getShardId(qcState.getShardSize())
+
+        resp = await self.jrpcGetTxTemplate(params)
+        tx = Transaction.deserialize(bytes.fromhex(resp["tx"]))
+
+        # provide signatures to unlock the utxos in inList
+        tx.sign([bytes.fromhex(key)] * len(tx.inList))
+
+        qcState.addTransactionToQueue(shardId, tx)
+
+        resp = {
+            "txHash": tx.getHash().hex(),
+        }
+        return resp
+
+    async def jrpcGetAccountBalance(self, params):
+        qcState = self.network.qcState
+        addr = params["addr"]
+        if len(addr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid address length {}".format(len(addr))
+            )
+
+        address = Address.createFrom(addr)
+        resp = {
+            "balance": qcState.getAccountBalance(address) / qcState.env.config.QUARKSH_TO_JIAOZI,
+        }
+        return resp
+
     async def jrpcGetStats(self, params):
         qcState = self.network.qcState
         resp = {
@@ -336,7 +481,7 @@ class LocalServer(Connection):
     async def jrpcGetTxOutputInfo(self, params):
         try:
             txHash = params["txHash"]
-            if len(txHash) == 64:
+            if len(txHash) == Constant.TX_HASH_HEX_LENGTH:
                 txHash = bytes.fromhex(txHash)
             tx = self.db.getTx(txHash)
             index = int(params["index"])
@@ -444,6 +589,10 @@ OP_RPC_MAP = {
 }
 
 JRPC_MAP = {
+    "addSignedTx": LocalServer.jrpcAddSignedTx,
+    "addTx": LocalServer.jrpcAddTx,
+    "getTxTemplate": LocalServer.jrpcGetTxTemplate,
+    "getAccountBalance": LocalServer.jrpcGetAccountBalance,
     "getStats": LocalServer.jrpcGetStats,
     "getFullStats": LocalServer.jrpcGetFullStats,
     "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,

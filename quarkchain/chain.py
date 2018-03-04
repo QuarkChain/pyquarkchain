@@ -780,6 +780,9 @@ class QuarkChainState:
 
         return balance
 
+    def getAccountBalance(self, address):
+        return self.shardList[address.getShardId(self.getShardSize())].getBalance(address.recipient)
+
     def getNextMinorBlockDifficulty(self, shardId, createTime=None):
         if shardId >= len(self.shardList):
             raise RuntimeError("invalid shard id")

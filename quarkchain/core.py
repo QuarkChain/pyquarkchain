@@ -13,6 +13,18 @@ from ethereum import utils
 import random
 
 
+class Constant:
+    KEY_LENGTH = 32
+    KEY_HEX_LENGTH = KEY_LENGTH * 2
+    RECIPIENT_LENGTH = 20
+    SHARD_ID_LENGTH = 4
+    ADDRESS_LENGTH = RECIPIENT_LENGTH + SHARD_ID_LENGTH
+    ADDRESS_HEX_LENGTH = ADDRESS_LENGTH * 2
+    SIGNATURE_LENGTH = 65
+    SIGNATURE_HEX_LENGTH = SIGNATURE_LENGTH * 2
+    TX_HASH_HEX_LENGTH = 64
+
+
 class ByteBuffer:
     """ Java-like ByteBuffer, which wraps a bytes or bytearray with position.
     If there is no enough space during deserialization, throw exception
@@ -272,6 +284,11 @@ class Address(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
+    def getShardId(self, shardSize):
+        if not is_p2(shardSize):
+            raise RuntimeError("Invalid shard size {}".format(shardSize))
+        return self.fullShardId & (shardSize - 1)
+
     def addressInShard(self, fullShardId):
         return Address(self.recipient, fullShardId)
 
@@ -372,13 +389,16 @@ class Transaction(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
+    def getHashUnsigned(self):
+        return sha3_256(self.serializeUnsigned())
+
     def sign(self, keys):
         """ Sign the transaction with keys.  It doesn't mean the transaction is valid in the chain since it doesn't
         check whether the txInput's addresses (recipents) match the keys
         """
         signList = []
         for key in keys:
-            v, r, s = utils.ecsign(sha3_256(self.serializeUnsigned()), key)
+            v, r, s = utils.ecsign(self.getHashUnsigned(), key)
             signList.append(
                 v.to_bytes(1, byteorder="big") + r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big"))
         self.signList = signList
@@ -396,7 +416,7 @@ class Transaction(Serializable):
             r = bb.getUint256()
             s = bb.getUint256()
             pub = utils.ecrecover_to_pub(
-                sha3_256(self.serializeUnsigned()), v, r, s)
+                self.getHashUnsigned(), v, r, s)
             if sha3_256(pub)[-20:] != recipients[i]:
                 return False
         return True
