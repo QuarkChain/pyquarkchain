@@ -30,8 +30,10 @@ class ByteBuffer:
     If there is no enough space during deserialization, throw exception
     """
 
-    def __init__(self, bytes):
-        self.bytes = bytes
+    def __init__(self, data):
+        # We don't want deserialized object to have bytearray
+        # which isn't hashable
+        self.bytes = bytes(data)
         self.position = 0
 
     def __checkSpace(self, space):
