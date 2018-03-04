@@ -1,11 +1,27 @@
 #!/usr/bin/python3
 
-from quarkchain.core import Transaction, RootBlockHeader
-from quarkchain.core import MinorBlock, RootBlock
+from quarkchain.core import (
+    Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction)
 import leveldb
 
 
 class Db:
+
+    def __putTxToAccounts(self, tx, txHash):
+        done = set()
+        for txInput in tx.inList:
+            t = self.getTx(txInput.hash)
+            addr = t.outList[txInput.index].address
+            if addr.recipient not in done:
+                self.put(b'addr_' + addr.serialize() + txHash,
+                         b'out')
+                done.add(addr.recipient)
+        for txOutput in tx.outList:
+            addr = txOutput.address
+            if addr not in done:
+                self.put(b'addr_' + addr.serialize() + txHash,
+                         b'in')
+                done.add(addr)
 
     def putTx(self, tx, rootBlockHeader=None, txHash=None):
         if txHash is None:
@@ -16,9 +32,19 @@ class Db:
                      rootBlockHeader.serialize())
         for txIn in tx.inList:
             self.put(b'spent_' + txIn.serialize(), txHash)
+        self.__putTxToAccounts(tx, txHash)
 
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
+
+    def accountTxIter(self, address):
+        prefix = b'addr_'
+        start = prefix + address.serialize()
+        length = len(start)
+        end = (int.from_bytes(start, byteorder="big") + 1).to_bytes(length, byteorder="big")
+        for k, v in self.rangeIter(start, end):
+            txHash = k[len(prefix) + Constant.ADDRESS_LENGTH:]
+            yield txHash
 
     def getSpentTxHash(self, txIn):
         return self.get(b'spent_' + txIn.serialize())
@@ -69,6 +95,9 @@ class InMemoryDb(Db):
     def __init__(self):
         self.kv = dict()
 
+    def rangeIter(self, start, end):
+        raise RuntimeError("In memory db does not support rangeIter!")
+
     def get(self, key, default=None):
         return self.kv.get(key, default)
 
@@ -88,6 +117,9 @@ class PersistentDb(Db):
         if clean:
             leveldb.DestroyDB(path)
         self.db = leveldb.LevelDB(path)
+
+    def rangeIter(self, start, end):
+        yield from self.db.RangeIter(start, end)
 
     def get(self, key, default=None):
         try:

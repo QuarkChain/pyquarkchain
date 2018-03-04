@@ -595,10 +595,10 @@ OP_RPC_MAP = {
 JRPC_MAP = {
     "addSignedTx": LocalServer.jrpcAddSignedTx,
     "addTx": LocalServer.jrpcAddTx,
-    "getTxTemplate": LocalServer.jrpcGetTxTemplate,
     "getAccountBalance": LocalServer.jrpcGetAccountBalance,
-    "getStats": LocalServer.jrpcGetStats,
-    "getFullStats": LocalServer.jrpcGetFullStats,
-    "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
     "getBlockTx": LocalServer.jrpcGetBlockTx,
+    "getFullStats": LocalServer.jrpcGetFullStats,
+    "getStats": LocalServer.jrpcGetStats,
+    "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
+    "getTxTemplate": LocalServer.jrpcGetTxTemplate,
 }
