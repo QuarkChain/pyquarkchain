@@ -41,8 +41,8 @@ class Logger:
     lastErrorTimeMap = dict()
 
     @staticmethod
-    def debug(msg):
-        logging.debug(msg)
+    def debug(msg, *args, **kwargs):
+        logging.debug(msg, *args, **kwargs)
 
     @classmethod
     def debugEverySec(cls, msg, duration):
@@ -123,9 +123,6 @@ class Logger:
         if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
             cls.errorException()
             cls.lastErrorTimeMap[key] = time.time()
-
-
-logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=logging.INFO)
 
 
 def set_logging_level(level):
