@@ -436,8 +436,11 @@ class LocalServer(Connection):
             )
 
         address = Address.createFrom(addr)
+        accountBalance = qcState.getAccountBalance(address) / qcState.env.config.QUARKSH_TO_JIAOZI
+        total = qcState.getBalance(address.recipient) / qcState.env.config.QUARKSH_TO_JIAOZI
         resp = {
-            "balance": qcState.getAccountBalance(address) / qcState.env.config.QUARKSH_TO_JIAOZI,
+            "primary": accountBalance,
+            "secondary": total - accountBalance,
         }
         return resp
 
