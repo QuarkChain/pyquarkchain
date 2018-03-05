@@ -4,6 +4,7 @@ Coding Style of pyquarkchain project
 General Rules
 
 We use PEP8 https://www.python.org/dev/peps/pep-0008/ as our general rules for coding style.
+We allow a maximum of 120 chars on a single line.
 For sublime, we suggest to use Anaconda package.
 
 ======
