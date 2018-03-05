@@ -180,7 +180,8 @@ class LocalServer(Connection):
         asyncio.ensure_future(self.activeAndLoopForever())
 
     async def handleGetBlockTemplateRequest(self, request):
-        isRootBlock, block = self.network.qcState.findBestBlockToMine(includeTx=request.includeTx)
+        isRootBlock, block = self.network.qcState.findBestBlockToMine(
+            address=request.address, includeTx=request.includeTx)
 
         if isRootBlock is None:
             response = GetBlockTemplateResponse(False, bytes(0))
