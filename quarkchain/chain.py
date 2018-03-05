@@ -53,7 +53,7 @@ class ShardState:
             genesisBlock.txList[0].outList[0].address,
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
-        self.db.putTx(genesisBlock.txList[0], rootBlockHeader=genesisRootBlock)
+        self.db.putTx(genesisBlock.txList[0], genesisBlock, rootBlockHeader=genesisRootBlock)
         self.db.putMinorBlock(genesisBlock)
 
         self.branch = self.genesisBlock.header.branch
@@ -62,13 +62,15 @@ class ShardState:
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
         self.rewardCalc = MinorBlockRewardCalcultor(env)
 
-        grCoinbaseTx = rootChain.getGenesisBlock().coinbaseTx
+        grCoinbaseTx = genesisRootBlock.coinbaseTx
         if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):
+            # root coinbase tx is never included in any minor block
+            # but only update utxo pool
             self.utxoPool[TransactionInput(grCoinbaseTx.getHash(), 0)] = UtxoValue(
                 grCoinbaseTx.outList[0].address,
                 grCoinbaseTx.outList[0].quarkash,
                 genesisRootBlock.header)
-            self.db.putTx(grCoinbaseTx, rootBlockHeader=genesisRootBlock)
+            self.db.putTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
 
         self.txQueue = deque()
 
@@ -113,7 +115,7 @@ class ShardState:
 
         return (txInputQuarkash - txOutputQuarkash, rootBlockHeader)
 
-    def __doPerformTx(self, tx, rootBlockHeader, utxoPool):
+    def __updateUtxoPool(self, tx, rootBlockHeader, utxoPool):
         for txInput in tx.inList:
             del utxoPool[txInput]
 
@@ -126,22 +128,17 @@ class ShardState:
                 txOutput.quarkash,
                 rootBlockHeader)
 
-        self.db.putTx(tx, rootBlockHeader=rootBlockHeader, txHash=txHash)
-
-    def __performTx(self, tx, rootBlockHeader, utxoPool=None):
+    def __performTx(self, tx, rootBlockHeader):
         """ Perform a transacton atomically.
         Return -1 if the transaction is invalid or
                >= 0 for the transaction fee if the transaction successfully executed.
         """
-
-        utxoPool = self.utxoPool if utxoPool is None else utxoPool
-
-        txFee, prevRootBlockHeader = self.__checkTx(tx, utxoPool)
+        txFee, prevRootBlockHeader = self.__checkTx(tx, self.utxoPool)
 
         if prevRootBlockHeader.height > rootBlockHeader.height:
             raise RuntimeError("root block header's height is too small")
 
-        self.__doPerformTx(tx, rootBlockHeader, utxoPool)
+        self.__updateUtxoPool(tx, rootBlockHeader, self.utxoPool)
         return txFee
 
     def __rollBackTx(self, tx):
@@ -241,6 +238,7 @@ class ShardState:
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
+            self.db.putTx(tx, block, rootBlockHeader=rootBlockHeader)
 
         # The rest fee goes to root block
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
@@ -257,7 +255,7 @@ class ShardState:
                 txOutput.quarkash,
                 rootBlockHeader)
 
-        self.db.putTx(block.txList[0], rootBlockHeader)
+        self.db.putTx(block.txList[0], block, rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
         self.blockPool[block.header.getHash()] = block.header
@@ -359,7 +357,7 @@ class ShardState:
                 continue
 
             totalTxFee += txFee
-            self.__doPerformTx(tx, rootBlockHeader, utxoPool)
+            self.__updateUtxoPool(tx, rootBlockHeader, utxoPool)
             block.addTx(tx)
             Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
         for tx in invalidTxList:

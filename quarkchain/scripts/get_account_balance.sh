@@ -4,6 +4,11 @@
 SCRIPT_DIR="$(dirname "$0")"
 source $SCRIPT_DIR/constants.sh
 
+ADDRESS=$GENESIS_ACCOUNT
+if [ ! -z $1 ]; then
+    ADDRESS=$1
+fi
+
 $JRPC_CLIENT_BIN \
 --method=getAccountBalance \
---params='{"addr":"'$GENESIS_ACCOUNT'"}'
+--params='{"addr":"'$ADDRESS'"}'

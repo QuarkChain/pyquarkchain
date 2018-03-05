@@ -1,9 +1,15 @@
 #!/bin/bash
-# This will add a transaction to shard 3
+# Get all the tx of the given account
+# ./get_account_tx.sh $ADDRESS
 
 SCRIPT_DIR="$(dirname "$0")"
 source $SCRIPT_DIR/constants.sh
 
+ADDRESS=$GENESIS_ACCOUNT
+if [ ! -z $1 ]; then
+    ADDRESS=$1
+fi
+
 $JRPC_CLIENT_BIN \
 --method=getAccountTx \
---params='{"addr":"'$GENESIS_ACCOUNT'"}'
+--params='{"addr":"'$ADDRESS'"}'
