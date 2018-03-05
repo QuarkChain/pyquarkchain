@@ -4,13 +4,14 @@
 # Use standard ecsda, but should be replaced by ethereum's secp256k1
 # implementation
 
-
 import argparse
 import copy
 import ecdsa
-from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
-from ethereum import utils
 import random
+
+from ethereum import utils
+
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
 
 
 class Constant:

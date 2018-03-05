@@ -1,4 +1,6 @@
+import argparse
 import asyncio
+
 # from quarkchain.local import LocalClient
 from quarkchain.protocol import Connection
 from quarkchain.config import DEFAULT_ENV
@@ -7,7 +9,6 @@ from quarkchain.local import OP_SER_MAP, LocalCommandOp
 from quarkchain.local import GetBlockTemplateRequest
 from quarkchain.local import SubmitNewBlockRequest
 from quarkchain.utils import Logger
-import argparse
 
 
 class LocalClient(Connection):

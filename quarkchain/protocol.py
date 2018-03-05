@@ -1,6 +1,6 @@
-
 import asyncio
 from enum import Enum
+
 from quarkchain.utils import Logger
 
 

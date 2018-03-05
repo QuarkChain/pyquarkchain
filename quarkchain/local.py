@@ -1,12 +1,14 @@
-from quarkchain.core import uint32, boolean, uint8
-from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, Code, Constant, RootBlock, MinorBlock, Transaction, TransactionInput, TransactionOutput
-from quarkchain.protocol import Connection
-from quarkchain.utils import Logger
 import asyncio
+import json
 import statistics
 import time
-import json
+
+from quarkchain.core import uint32, boolean, uint8
+from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
+from quarkchain.core import Address, Code, Constant, RootBlock, MinorBlock
+from quarkchain.core import Transaction, TransactionInput, TransactionOutput
+from quarkchain.protocol import Connection
+from quarkchain.utils import Logger
 
 
 class GetBlockTemplateRequest(Serializable):

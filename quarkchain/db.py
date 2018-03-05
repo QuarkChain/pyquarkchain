@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 
-from quarkchain.core import (
-    Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction)
 import leveldb
+
+from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
 
 
 class Db:

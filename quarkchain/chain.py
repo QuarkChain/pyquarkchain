@@ -1,13 +1,14 @@
 #!/usr/bin/python3
 
+import copy
+import random
+import time
+from collections import deque
+
 from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, TransactionInput, Transaction, Code
 from quarkchain.core import MinorBlock
-import copy
-import time
-from collections import deque
 from quarkchain.utils import check, Logger
-import random
 
 
 class UtxoValue:
@@ -96,9 +97,9 @@ class ShardState:
             txInputSet.add(txInput)
             txInputQuarkash += utxoPool[txInput].quarkash
             senderList.append(utxoPool[txInput].address.recipient)
-            Logger.debug("%s tx_in %s %d %d",
-                tx.getHashHex(),
-                txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
+            Logger.debug(
+                "%s tx_in %s %d %d",
+                tx.getHashHex(), txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
 
         # Check signature
         if not tx.verifySignature(senderList):
@@ -108,7 +109,8 @@ class ShardState:
         txOutputQuarkash = 0
         for txOut in tx.outList:
             txOutputQuarkash += txOut.quarkash
-            Logger.debug("%s tx_out %s %d",
+            Logger.debug(
+                "%s tx_out %s %d",
                 tx.getHashHex(), txOut.getAddressHex(), txOut.quarkash)
         if txOutputQuarkash > txInputQuarkash:
             raise RuntimeError("output quarkash cannot exceed input one")

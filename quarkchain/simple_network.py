@@ -1,8 +1,8 @@
-
-import asyncio
 import argparse
+import asyncio
 import ipaddress
 import socket
+
 from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer

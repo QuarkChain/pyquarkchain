@@ -1,12 +1,12 @@
-
+import argparse
 import asyncio
+import json
+import time
+
 # from quarkchain.local import LocalClient
 from quarkchain.protocol import Connection, ConnectionState
 from quarkchain.local import OP_SER_MAP, LocalCommandOp, JsonRpcRequest
 from quarkchain.config import DEFAULT_ENV
-import argparse
-import json
-import time
 
 
 class LocalClient(Connection):
