@@ -3,6 +3,7 @@
 import copy
 import random
 import time
+import traceback
 from collections import deque
 
 from quarkchain.genesis import create_genesis_blocks
@@ -353,7 +354,7 @@ class ShardState:
             try:
                 txFee, rootBlockHeader = self.__checkTx(tx, utxoPool)
             except Exception as e:
-                Logger.errorException()
+                Logger.debug(traceback.format_exc())
                 # TODO: C++ style erase while iterating?
                 invalidTxList.append(tx)
                 continue
