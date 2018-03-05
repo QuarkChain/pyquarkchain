@@ -287,6 +287,9 @@ class Address(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
+    def toHex(self):
+        return self.serialize().hex()
+
     def getShardId(self, shardSize):
         if not is_p2(shardSize):
             raise RuntimeError("Invalid shard size {}".format(shardSize))
@@ -368,7 +371,7 @@ class Code(Serializable):
 
     @staticmethod
     def createMinorBlockCoinbaseCode(height, branch):
-        return Code(code=b'm' + height.to_bytes(4, byteorder="big") + branch.value.to_bytes(4, byteorder="big"))
+        return Code(code=b'm' + height.to_bytes(4, byteorder="big") + branch.serialize())
 
     @staticmethod
     def createRootBlockCoinbaseCode(height):

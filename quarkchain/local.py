@@ -5,7 +5,7 @@ import time
 
 from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, Code, Constant, RootBlock, MinorBlock
+from quarkchain.core import Address, Branch, Code, Constant, RootBlock, MinorBlock
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
 from quarkchain.utils import Logger
@@ -498,16 +498,70 @@ class LocalServer(Connection):
 
         return resp
 
-    async def jrpcGetTxOutputInfo(self, params):
-        try:
-            txHash = params["txHash"]
-            if len(txHash) == Constant.TX_HASH_HEX_LENGTH:
-                txHash = bytes.fromhex(txHash)
-            tx = self.db.getTx(txHash)
-            index = int(params["index"])
-        except Exception as e:
-            raise RuntimeError("failed to get tx")
+    async def jrpcGetTx(self, params):
+        qcState = self.network.qcState
 
+        txHash = params["txHash"]
+        if len(txHash) != Constant.TX_HASH_HEX_LENGTH:
+            raise RuntimeError("Invalid transaction hash length {}".format(len(txHash)))
+        txHash = bytes.fromhex(txHash)
+        try:
+            tx = self.db.getTx(txHash)
+        except Exception as e:
+            raise RuntimeError("Failed to get TX {}".format(params["txHash"]))
+
+        inList = []
+        for txInput in tx.inList:
+            t = self.db.getTx(txInput.hash)
+            addr = t.outList[txInput.index].address.toHex()
+            inList.append({
+                "address": addr,
+                "quarkash": t.outList[txInput.index].quarkash / qcState.env.config.QUARKSH_TO_JIAOZI,
+            })
+
+        outList = []
+        for txOutput in tx.outList:
+            outList.append({
+                "address": txOutput.address.toHex(),
+                "quarkash": txOutput.quarkash / qcState.env.config.QUARKSH_TO_JIAOZI
+            })
+
+        code = {}
+        if tx.code.code == Code.OP_TRANSFER:
+            code = {
+                "op": "1",
+            }
+        elif tx.code.code[:1] == b'm':
+            height = int.from_bytes(tx.code.code[1:1 + 4], byteorder="big")
+            branch = Branch.deserialize(tx.code.code[1 + 4:])
+            code = {
+                "op": "m",
+                "height": height,
+                "shardId": branch.getShardId(),
+            }
+        elif tx.code.code[:1] == b'r':
+            height = int.from_bytes(tx.code.code[1:], byteorder="big")
+            code = {
+                "op": "r",
+                "height": height,
+            }
+        return {
+            "inList": inList,
+            "outList": outList,
+            "code": code,
+        }
+
+    async def jrpcGetTxOutputInfo(self, params):
+        txHash = params["txHash"]
+        if len(txHash) != Constant.TX_HASH_HEX_LENGTH:
+            raise RuntimeError("Invalid transaction hash length {}".format(len(txHash)))
+        txHash = bytes.fromhex(txHash)
+        try:
+            tx = self.db.getTx(txHash)
+        except Exception as e:
+            raise RuntimeError("Failed to get TX {}".format(params["txHash"]))
+
+        index = int(params["index"])
         if index > len(tx.outList):
             raise RuntimeError("output index is too large")
 
@@ -616,6 +670,7 @@ JRPC_MAP = {
     "getBlockTx": LocalServer.jrpcGetBlockTx,
     "getFullStats": LocalServer.jrpcGetFullStats,
     "getStats": LocalServer.jrpcGetStats,
+    "getTx": LocalServer.jrpcGetTx,
     "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
     "getTxTemplate": LocalServer.jrpcGetTxTemplate,
 }
