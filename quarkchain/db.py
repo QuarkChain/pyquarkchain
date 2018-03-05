@@ -7,23 +7,22 @@ import leveldb
 
 class Db:
 
-    def __putTxToAccounts(self, tx, txHash):
+    def __putTxToAccounts(self, tx, txHash, mblock):
+        blockHash = mblock.header.getHash()
         done = set()
         for txInput in tx.inList:
             t = self.getTx(txInput.hash)
             addr = t.outList[txInput.index].address
             if addr.recipient not in done:
-                self.put(b'addr_' + addr.serialize() + txHash,
-                         b'out')
+                self.put(b'addr_' + addr.serialize() + txHash, blockHash)
                 done.add(addr.recipient)
         for txOutput in tx.outList:
             addr = txOutput.address
             if addr not in done:
-                self.put(b'addr_' + addr.serialize() + txHash,
-                         b'in')
+                self.put(b'addr_' + addr.serialize() + txHash, blockHash)
                 done.add(addr)
 
-    def putTx(self, tx, rootBlockHeader=None, txHash=None):
+    def putTx(self, tx, mblock, rootBlockHeader=None, txHash=None):
         if txHash is None:
             txHash = tx.getHash()
         self.put(b'tx_' + txHash, tx.serialize())
@@ -32,7 +31,7 @@ class Db:
                      rootBlockHeader.serialize())
         for txIn in tx.inList:
             self.put(b'spent_' + txIn.serialize(), txHash)
-        self.__putTxToAccounts(tx, txHash)
+        self.__putTxToAccounts(tx, txHash, mblock)
 
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
