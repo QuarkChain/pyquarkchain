@@ -12,4 +12,4 @@ fi
 
 $JRPC_CLIENT_BIN \
 --method=getAccountTx \
---params='{"addr":"'$ADDRESS'"}'
+--params='{"addr":"'$ADDRESS'", "limit":1}'

@@ -12,7 +12,7 @@ class ConnectionState(Enum):
 
 class Connection:
 
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap):
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None):
         self.env = env
         self.reader = reader
         self.writer = writer
@@ -24,7 +24,8 @@ class Connection:
         self.peerRpcId = -1
         self.rpcId = 0  # 0 is for non-rpc (fire-and-forget)
         self.rpcFutureMap = dict()
-        self.closeFuture = asyncio.Future()
+        loop = loop if loop else asyncio.get_event_loop()
+        self.closeFuture = loop.create_future()
 
     async def readFully(self, n):
         bs = await self.reader.read(n)

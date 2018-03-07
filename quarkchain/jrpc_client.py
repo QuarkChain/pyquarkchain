@@ -12,7 +12,7 @@ from quarkchain.config import DEFAULT_ENV
 class LocalClient(Connection):
 
     def __init__(self, loop, env, reader, writer):
-        super().__init__(env, reader, writer, OP_SER_MAP, dict(), dict())
+        super().__init__(env, reader, writer, OP_SER_MAP, dict(), dict(), loop=loop)
         self.loop = loop
         self.miningBlock = None
         self.isMiningBlockRoot = None
@@ -38,6 +38,19 @@ class LocalClient(Connection):
         print("Closing with error {}".format(error))
         return super().closeWithError(error)
 
+    @staticmethod
+    def callJrpcSync(host, port, method, **kwargs):
+        loop = asyncio.new_event_loop()
+        coro = asyncio.open_connection(host, port, loop=loop)
+        reader, writer = loop.run_until_complete(coro)
+        client = LocalClient(loop, DEFAULT_ENV, reader, writer)
+        loop.create_task(client.start())
+        jrpcResp = loop.run_until_complete(client.callJrpc(method, params=kwargs))
+        client.close()
+        loop.run_until_complete(client.waitUntilClosed())
+        loop.close()
+        return jrpcResp
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -52,7 +65,6 @@ def parse_args():
 
     if args.method is None:
         raise RuntimeError("method must be specified")
-
     return args
 
 

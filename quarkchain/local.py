@@ -306,8 +306,8 @@ class LocalServer(Connection):
         qcState = self.network.qcState
         fromAddr = params["fromAddr"]
         toAddr = params["toAddr"]
-        quarkash = int(params["quarkash"] * qcState.env.config.QUARKSH_TO_JIAOZI)
-        fee = int(params["fee"] * qcState.env.config.QUARKSH_TO_JIAOZI)
+        quarkash = int(float(params["quarkash"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
+        fee = int(float(params["fee"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
 
         # sanity checks
         if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
@@ -445,6 +445,7 @@ class LocalServer(Connection):
         resp = {
             "primary": accountBalance,
             "secondary": total - accountBalance,
+            'shardId': address.getShardId(qcState.getShardSize()),
         }
         return resp
 
@@ -454,12 +455,16 @@ class LocalServer(Connection):
             raise RuntimeError(
                 "Invalid address length {}".format(len(addr))
             )
+        limit = params.get("limit", 0)
         address = Address.createFrom(addr)
-        txHashes = []
-        for txHash in self.db.accountTxIter(address):
-            txHashes.append(txHash.hex())
+        txList = []
+        for txHash, timestamp in self.db.accountTxIter(address, limit):
+            txList.append({
+                "txHash": txHash.hex(),
+                "timestamp": timestamp,
+            })
         return {
-            "txHashes": txHashes,
+            "txList": txList,
         }
 
     async def jrpcGetStats(self, params):
