@@ -526,14 +526,14 @@ class LocalServer(Connection):
             addr = t.outList[txInput.index].address.toHex()
             inList.append({
                 "address": addr,
-                "quarkash": t.outList[txInput.index].quarkash / qcState.env.config.QUARKSH_TO_JIAOZI,
+                "quarkash": str(Decimal(t.outList[txInput.index].quarkash) / qcState.env.config.QUARKSH_TO_JIAOZI),
             })
 
         outList = []
         for txOutput in tx.outList:
             outList.append({
                 "address": txOutput.address.toHex(),
-                "quarkash": txOutput.quarkash / qcState.env.config.QUARKSH_TO_JIAOZI
+                "quarkash": str(Decimal(txOutput.quarkash) / qcState.env.config.QUARKSH_TO_JIAOZI),
             })
 
         code = {}
