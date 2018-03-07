@@ -5,4 +5,4 @@ source $SCRIPT_DIR/constants.sh
 
 $JRPC_CLIENT_BIN \
 --method=getTxTemplate \
---params='{"fromAddr":"'$GENESIS_ACCOUNT'", "toAddr":"'$GENESIS_ACCOUNT'", "quarkash":0.5, "fee":0.01}'
+--params='{"fromAddr":"'$GENESIS_ACCOUNT'", "toAddr":"'$GENESIS_ACCOUNT'", "quarkash":123.456, "fee":0.0}'

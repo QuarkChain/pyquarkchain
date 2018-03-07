@@ -9,17 +9,20 @@ class Db:
 
     def __putTxToAccounts(self, tx, txHash, mblock):
         blockHash = mblock.header.getHash()
+        # Latest -> oldest
+        inverseCreateTime = 2 ** 32 - 1 - mblock.header.createTime
+        timestamp = inverseCreateTime.to_bytes(4, byteorder="big")
         done = set()
         for txInput in tx.inList:
             t = self.getTx(txInput.hash)
             addr = t.outList[txInput.index].address
             if addr.recipient not in done:
-                self.put(b'addr_' + addr.serialize() + txHash, blockHash)
+                self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
                 done.add(addr.recipient)
         for txOutput in tx.outList:
             addr = txOutput.address
             if addr not in done:
-                self.put(b'addr_' + addr.serialize() + txHash, blockHash)
+                self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
                 done.add(addr)
 
     def putTx(self, tx, mblock, rootBlockHeader=None, txHash=None):
@@ -36,14 +39,22 @@ class Db:
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
 
-    def accountTxIter(self, address):
+    def accountTxIter(self, address, limit=0):
         prefix = b'addr_'
         start = prefix + address.serialize()
         length = len(start)
         end = (int.from_bytes(start, byteorder="big") + 1).to_bytes(length, byteorder="big")
+        done = 0
         for k, v in self.rangeIter(start, end):
-            txHash = k[len(prefix) + Constant.ADDRESS_LENGTH:]
-            yield txHash
+            timestampStart = len(prefix) + Constant.ADDRESS_LENGTH
+            timestampEnd = timestampStart + 4
+            inverseTimestamp = int.from_bytes(k[timestampStart:timestampEnd], byteorder="big")
+            timestamp = 2 ** 32 - 1 - inverseTimestamp
+            txHash = k[timestampEnd:]
+            yield (txHash, timestamp)
+            done += 1
+            if limit > 0 and done >= limit:
+                raise StopIteration()
 
     def getSpentTxHash(self, txIn):
         return self.get(b'spent_' + txIn.serialize())
