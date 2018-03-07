@@ -321,6 +321,15 @@ class ShardState:
             balance += v.quarkash
         return balance
 
+    def getAccountBalance(self, address):
+        balance = 0
+        for k, v in self.utxoPool.items():
+            if v.address != address:
+                continue
+
+            balance += v.quarkash
+        return balance
+
     def getNextBlockDifficulty(self, createTime):
         return self.diffCalc.calculateDiff(self, createTime)
 
@@ -790,7 +799,7 @@ class QuarkChainState:
         return balance
 
     def getAccountBalance(self, address):
-        return self.shardList[address.getShardId(self.getShardSize())].getBalance(address.recipient)
+        return self.shardList[address.getShardId(self.getShardSize())].getAccountBalance(address)
 
     def getNextMinorBlockDifficulty(self, shardId, createTime=None):
         if shardId >= len(self.shardList):

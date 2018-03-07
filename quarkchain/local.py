@@ -336,7 +336,7 @@ class LocalServer(Connection):
         inList = []
         inQuarkash = 0
         for txInput, utxo in utxoPool.items():
-            if utxo.address.recipient != fromAddress.recipient:
+            if utxo.address != fromAddress:
                 continue
             inList.append(txInput)
             inQuarkash += utxo.quarkash
