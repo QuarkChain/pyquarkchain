@@ -2,6 +2,7 @@ import asyncio
 import json
 import statistics
 import time
+from decimal import Decimal
 
 from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
@@ -303,11 +304,13 @@ class LocalServer(Connection):
         """ This only uses the utxos on the shard indicated by the fromAddr
         And only support one fromAddr.
         """
+        Logger.debug("GetTxTemplate: {}".format(params))
+
         qcState = self.network.qcState
         fromAddr = params["fromAddr"]
         toAddr = params["toAddr"]
-        quarkash = int(float(params["quarkash"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
-        fee = int(float(params["fee"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
+        quarkash = int(Decimal(params["quarkash"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
+        fee = int(Decimal(params["fee"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
 
         # sanity checks
         if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
@@ -345,7 +348,9 @@ class LocalServer(Connection):
 
         unspent = inQuarkash - requiredQuarkash
         outList = [TransactionOutput(toAddress, quarkash)]
-        if unspent > 0:
+        if unspent < 0:
+            raise RuntimeError("Not enough balance!")
+        elif unspent > 0:
             outList.append(TransactionOutput(fromAddress, unspent))
         tx = Transaction(
             inList=inList,
@@ -404,7 +409,6 @@ class LocalServer(Connection):
         """ This only uses the utxos on the shard indicated by the fromAddr
         """
         qcState = self.network.qcState
-
         key = params["key"]
         fromAddr = params["fromAddr"]
 
@@ -425,7 +429,6 @@ class LocalServer(Connection):
         tx.sign([bytes.fromhex(key)] * len(tx.inList))
 
         qcState.addTransactionToQueue(shardId, tx)
-
         resp = {
             "txHash": tx.getHash().hex(),
         }
@@ -440,11 +443,12 @@ class LocalServer(Connection):
             )
 
         address = Address.createFrom(addr)
-        accountBalance = qcState.getAccountBalance(address) / qcState.env.config.QUARKSH_TO_JIAOZI
-        total = qcState.getBalance(address.recipient) / qcState.env.config.QUARKSH_TO_JIAOZI
+        primary = Decimal(qcState.getAccountBalance(address))
+        total = Decimal(qcState.getBalance(address.recipient))
+        secondary = total - primary
         resp = {
-            "primary": accountBalance,
-            "secondary": total - accountBalance,
+            "primary": str(primary / qcState.env.config.QUARKSH_TO_JIAOZI),
+            "secondary": str(secondary / qcState.env.config.QUARKSH_TO_JIAOZI),
             'shardId': address.getShardId(qcState.getShardSize()),
         }
         return resp
