@@ -21,7 +21,7 @@ def assert_config(node_num, num_nodes, min_peers, max_peers):
     assert node_num < num_nodes
     # node cannot be connected to self and
     # node cannot be connected twice to the same node
-    assert min_peers <= max_peers < num_nodes
+    assert min_peers <= max_peers
 
 
 def create_app(node_num, config, services, app_class):
@@ -36,7 +36,8 @@ def create_app(node_num, config, services, app_class):
     config['node_num'] = node_num
 
     # create this node priv_key
-    config['node']['privkey_hex'] = encode_hex(mk_privkey('{}:udp:{}'.format(seed, node_num).encode('utf-8')))
+    config['node']['privkey_hex'] = encode_hex(mk_privkey(
+        '{}:udp:{}'.format(seed, node_num).encode('utf-8')))
     # set ports based on node
     config['discovery']['listen_port'] = base_port + node_num
     config['p2p']['listen_port'] = base_port + node_num
@@ -72,7 +73,7 @@ def serve_until_stopped(apps):
         app.stop()
 
 
-def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=2, random_port=False):
+def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=10, random_port=False):
     gevent.get_hub().SYSTEM_ERROR = BaseException
     if random_port:
         base_port = random.randint(10000, 60000)
@@ -80,9 +81,11 @@ def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=2,
         base_port = 29870
 
     # get bootstrap node (node0) enode
-    bootstrap_node_privkey = mk_privkey('{}:udp:{}'.format(seed, 0).encode('utf-8'))
+    bootstrap_node_privkey = mk_privkey(
+        '{}:udp:{}'.format(seed, 0).encode('utf-8'))
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
-    enode = host_port_pubkey_to_uri('0.0.0.0', base_port, bootstrap_node_pubkey)
+    enode = host_port_pubkey_to_uri(
+        '0.0.0.0', base_port, bootstrap_node_pubkey)
 
     services = [NodeDiscovery, peermanager.PeerManager, service_class]
 
