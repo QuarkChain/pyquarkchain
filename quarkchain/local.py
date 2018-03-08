@@ -642,7 +642,6 @@ class LocalServer(Connection):
             "nonce": header.nonce,
             "createTime": header.createTime,
             "hash": header.getHash().hex(),
-            "hashPrevMinorBlock": header.hashPrevMinorBlock.hex(),
             "txList": txList,
         }
         return resp
