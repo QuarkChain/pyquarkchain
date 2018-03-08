@@ -25,9 +25,11 @@ class Db:
                 self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
                 done.add(addr)
 
-    # block is a root block is the tx is root chain coinbase
-    # otherwise it is always minor block
     def putTx(self, tx, block, rootBlockHeader=None, txHash=None):
+        '''
+        'block' is a root chain block if the tx is a root chain coinbase tx since such tx
+        isn't included in any minor block. Otherwise it is always a minor block.
+        '''
         if txHash is None:
             txHash = tx.getHash()
         self.put(b'tx_' + txHash, tx.serialize())
