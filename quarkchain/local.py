@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
-from quarkchain.core import Address, Branch, Code, Constant, RootBlock, MinorBlock
+from quarkchain.core import Address, Branch, Code, Constant, RootBlock, RootBlockHeader, MinorBlock, MinorBlockHeader
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
 from quarkchain.utils import Logger
@@ -555,10 +555,28 @@ class LocalServer(Connection):
                 "op": "r",
                 "height": height,
             }
+
+        if tx.code.code[:1] == b'r':
+            header = self.db.getTxBlockHeader(txHash, RootBlockHeader)
+            block = {
+                "height": header.height,
+                "hash": header.getHash().hex(),
+                "type": "r",
+            }
+        else:
+            header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
+            block = {
+                "shardId": header.branch.getShardId(),
+                "height": header.height,
+                "hash": header.getHash().hex(),
+                "type": "m",
+            }
+
         return {
             "inList": inList,
             "outList": outList,
             "code": code,
+            "block": block,
         }
 
     async def jrpcGetTxOutputInfo(self, params):
@@ -594,6 +612,7 @@ class LocalServer(Connection):
         try:
             shardId = int(params["shardId"])
             height = int(params["height"])
+            headerHashHex = params["headerHash"]
         except Exception as e:
             raise RuntimeError("failed to get minor block")
 
@@ -603,16 +622,26 @@ class LocalServer(Connection):
         if height > self.network.qcState.getMinorBlockTip(shardId).height:
             raise RuntimeError("incorrect height")
 
-        header = self.network.qcState.getMinorBlockHeaderByHeight(shardId, height)
-        block = self.db.getMinorBlockByHash(header.getHash())
+        if headerHashHex == "":
+            header = self.network.qcState.getMinorBlockHeaderByHeight(shardId, height)
+            headerHash = header.getHash()
+        else:
+            headerHash = bytes.fromhex(headerHashHex)
+
+        block = self.db.getMinorBlockByHash(headerHash)
+        header = block.header
         txList = []
         for tx in block.txList:
             txList.append(tx.getHash().hex())
         resp = {
+            "shardId": header.branch.getShardId(),
+            "height": header.height,
             "hashPrevMinorBlock": header.hashPrevMinorBlock.hex(),
             "hashMerkleRoot": header.hashMerkleRoot.hex(),
             "difficulty": header.difficulty,
             "nonce": header.nonce,
+            "createTime": header.createTime,
+            "hash": header.getHash().hex(),
             "txList": txList,
         }
         return resp
