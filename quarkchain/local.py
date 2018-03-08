@@ -309,8 +309,8 @@ class LocalServer(Connection):
         qcState = self.network.qcState
         fromAddr = params["fromAddr"]
         toAddr = params["toAddr"]
-        quarkash = int(Decimal(params["quarkash"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
-        fee = int(Decimal(params["fee"]) * qcState.env.config.QUARKSH_TO_JIAOZI)
+        quarkash = params["quarkash"]
+        fee = params["fee"]
 
         # sanity checks
         if len(fromAddr) != Constant.ADDRESS_HEX_LENGTH:
@@ -443,12 +443,12 @@ class LocalServer(Connection):
             )
 
         address = Address.createFrom(addr)
-        primary = Decimal(qcState.getAccountBalance(address))
-        total = Decimal(qcState.getBalance(address.recipient))
+        primary = qcState.getAccountBalance(address)
+        total = qcState.getBalance(address.recipient)
         secondary = total - primary
         resp = {
-            "primary": str(primary / qcState.env.config.QUARKSH_TO_JIAOZI),
-            "secondary": str(secondary / qcState.env.config.QUARKSH_TO_JIAOZI),
+            "primary": primary,
+            "secondary": secondary,
             'shardId': address.getShardId(qcState.getShardSize()),
         }
         return resp
@@ -526,14 +526,14 @@ class LocalServer(Connection):
             addr = t.outList[txInput.index].address.toHex()
             inList.append({
                 "address": addr,
-                "quarkash": str(Decimal(t.outList[txInput.index].quarkash) / qcState.env.config.QUARKSH_TO_JIAOZI),
+                "quarkash": t.outList[txInput.index].quarkash,
             })
 
         outList = []
         for txOutput in tx.outList:
             outList.append({
                 "address": txOutput.address.toHex(),
-                "quarkash": str(Decimal(txOutput.quarkash) / qcState.env.config.QUARKSH_TO_JIAOZI),
+                "quarkash": txOutput.quarkash,
             })
 
         code = {}
@@ -562,6 +562,7 @@ class LocalServer(Connection):
                 "height": header.height,
                 "hash": header.getHash().hex(),
                 "type": "r",
+                "shardId": "R",
             }
         else:
             header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
