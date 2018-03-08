@@ -509,8 +509,6 @@ class LocalServer(Connection):
         return resp
 
     async def jrpcGetTx(self, params):
-        qcState = self.network.qcState
-
         txHash = params["txHash"]
         if len(txHash) != Constant.TX_HASH_HEX_LENGTH:
             raise RuntimeError("Invalid transaction hash length {}".format(len(txHash)))
@@ -556,6 +554,7 @@ class LocalServer(Connection):
                 "height": height,
             }
 
+        block = {}
         if tx.code.code[:1] == b'r':
             header = self.db.getTxBlockHeader(txHash, RootBlockHeader)
             block = {
@@ -566,19 +565,23 @@ class LocalServer(Connection):
             }
         else:
             header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
-            block = {
-                "shardId": header.branch.getShardId(),
-                "height": header.height,
-                "hash": header.getHash().hex(),
-                "type": "m",
-            }
+            # Unconfirmed block does not have header
+            if header:
+                block = {
+                    "shardId": header.branch.getShardId(),
+                    "height": header.height,
+                    "hash": header.getHash().hex(),
+                    "type": "m",
+                }
 
-        return {
+        resp = {
             "inList": inList,
             "outList": outList,
             "code": code,
-            "block": block,
         }
+        if block:
+            resp["block"] = block
+        return resp
 
     async def jrpcGetTxOutputInfo(self, params):
         txHash = params["txHash"]
@@ -681,6 +684,7 @@ class LocalServer(Connection):
             jrpcResponse = await JRPC_MAP[method](self, params)
             return JsonRpcResponse(json.dumps(jrpcResponse).encode())
         except Exception as e:
+            Logger.debugException()
             return self.jrpcError(-32603, errorMessage=str(e))
 
 

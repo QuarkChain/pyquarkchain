@@ -374,6 +374,7 @@ class ShardState:
             Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
         for tx in invalidTxList:
             self.txQueue.remove(tx)
+            self.db.removePendingTx(tx)
             Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
@@ -382,7 +383,10 @@ class ShardState:
     def addTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size
 
+        self.__checkTx(transaction, self.utxoPool)
+
         self.txQueue.append(transaction)
+        self.db.putPendingTx(transaction)
 
     def getPendingTxSize(self):
         return len(self.txQueue)

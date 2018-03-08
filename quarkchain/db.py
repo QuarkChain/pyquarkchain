@@ -1,29 +1,55 @@
 #!/usr/bin/python3
+import time
 
 import leveldb
 
-from quarkchain.core import Constant, MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader, Transaction
+from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
 
 
 class Db:
 
-    def __putTxToAccounts(self, tx, txHash, block):
-        blockHash = block.header.getHash()
-        # Latest -> oldest
-        inverseCreateTime = 2 ** 32 - 1 - block.header.createTime
-        timestamp = inverseCreateTime.to_bytes(4, byteorder="big")
-        done = set()
+    MAX_TIMESTAMP = 2 ** 32 - 1
+
+    def __putTxToAccounts(self, tx, txHash, createTime, isPending=False):
+        # The order of the transactions are
+        # Pending tx, latest confirmed -> oldest confirmed
+        pendingTxTimestampKey = bytes(4)
+        if isPending:
+            timestampKey = pendingTxTimestampKey
+        else:
+            inverseCreateTime = self.MAX_TIMESTAMP - createTime
+            timestampKey = inverseCreateTime.to_bytes(4, byteorder="big")
+        timestampValue = createTime.to_bytes(4, byteorder="big")
+
+        addrSet = set()
         for txInput in tx.inList:
             t = self.getTx(txInput.hash)
             addr = t.outList[txInput.index].address
-            if addr.recipient not in done:
-                self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
-                done.add(addr.recipient)
+            addrSet.add(addr)
         for txOutput in tx.outList:
             addr = txOutput.address
-            if addr not in done:
-                self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
-                done.add(addr)
+            addrSet.add(addr)
+        for addr in addrSet:
+            self.put(b'addr_' + addr.serialize() + timestampKey + txHash, timestampValue)
+            if not isPending:
+                self.remove(b'addr_' + addr.serialize() + pendingTxTimestampKey + txHash)
+
+    def putPendingTx(self, tx):
+        self.put(b'tx_' + tx.getHash(), tx.serialize())
+        self.__putTxToAccounts(tx, tx.getHash(), int(time.time()), isPending=True)
+
+    def removePendingTx(self, tx):
+        addrSet = set()
+        txHash = tx.getHash()
+        for txInput in tx.inList:
+            t = self.getTx(txInput.hash)
+            addr = t.outList[txInput.index].address
+            addrSet.add(addr)
+        for txOutput in tx.outList:
+            addr = txOutput.address
+            addrSet.add(addr)
+        for addr in addrSet:
+            self.remove(b'addr_' + addr.serialize() + bytes(4) + txHash)
 
     def putTx(self, tx, block, rootBlockHeader=None, txHash=None):
         '''
@@ -40,7 +66,7 @@ class Db:
                      rootBlockHeader.serialize())
         for txIn in tx.inList:
             self.put(b'spent_' + txIn.serialize(), txHash)
-        self.__putTxToAccounts(tx, txHash, block)
+        self.__putTxToAccounts(tx, txHash, block.header.createTime)
 
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
@@ -54,10 +80,9 @@ class Db:
         for k, v in self.rangeIter(start, end):
             timestampStart = len(prefix) + Constant.ADDRESS_LENGTH
             timestampEnd = timestampStart + 4
-            inverseTimestamp = int.from_bytes(k[timestampStart:timestampEnd], byteorder="big")
-            timestamp = 2 ** 32 - 1 - inverseTimestamp
             txHash = k[timestampEnd:]
-            yield (txHash, timestamp)
+            createTime = int.from_bytes(v, byteorder="big")
+            yield (txHash, createTime)
             done += 1
             if limit > 0 and done >= limit:
                 raise StopIteration()
@@ -69,7 +94,10 @@ class Db:
         return RootBlockHeader.deserialize(self.get(b'txRootBlockHeader_' + txHash))
 
     def getTxBlockHeader(self, txHash, headerClass):
-        return headerClass.deserialize(self.get(b'txBlockHeader_' + txHash))
+        value = self.get(b'txBlockHeader_' + txHash)
+        if not value:
+            return None
+        return headerClass.deserialize(value)
 
     def getMinorBlockByHash(self, h):
         return MinorBlock.deserialize(self.get(b"mblock_" + h))
