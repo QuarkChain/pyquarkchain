@@ -562,6 +562,7 @@ class LocalServer(Connection):
                 "height": header.height,
                 "hash": header.getHash().hex(),
                 "type": "r",
+                "shardId": "R",
             }
         else:
             header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
