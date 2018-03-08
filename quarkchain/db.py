@@ -2,15 +2,15 @@
 
 import leveldb
 
-from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
+from quarkchain.core import Constant, MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader, Transaction
 
 
 class Db:
 
-    def __putTxToAccounts(self, tx, txHash, mblock):
-        blockHash = mblock.header.getHash()
+    def __putTxToAccounts(self, tx, txHash, block):
+        blockHash = block.header.getHash()
         # Latest -> oldest
-        inverseCreateTime = 2 ** 32 - 1 - mblock.header.createTime
+        inverseCreateTime = 2 ** 32 - 1 - block.header.createTime
         timestamp = inverseCreateTime.to_bytes(4, byteorder="big")
         done = set()
         for txInput in tx.inList:
@@ -25,16 +25,20 @@ class Db:
                 self.put(b'addr_' + addr.serialize() + timestamp + txHash, blockHash)
                 done.add(addr)
 
-    def putTx(self, tx, mblock, rootBlockHeader=None, txHash=None):
+    # block is a root block is the tx is root chain coinbase
+    # otherwise it is always minor block
+    def putTx(self, tx, block, rootBlockHeader=None, txHash=None):
         if txHash is None:
             txHash = tx.getHash()
         self.put(b'tx_' + txHash, tx.serialize())
+        self.put(b'txBlockHeader_' + txHash,
+                 block.header.serialize())
         if rootBlockHeader is not None:
             self.put(b'txRootBlockHeader_' + txHash,
                      rootBlockHeader.serialize())
         for txIn in tx.inList:
             self.put(b'spent_' + txIn.serialize(), txHash)
-        self.__putTxToAccounts(tx, txHash, mblock)
+        self.__putTxToAccounts(tx, txHash, block)
 
     def getTx(self, txHash):
         return Transaction.deserialize(self.get(b'tx_' + txHash))
@@ -61,6 +65,9 @@ class Db:
 
     def getTxRootBlockHeader(self, txHash):
         return RootBlockHeader.deserialize(self.get(b'txRootBlockHeader_' + txHash))
+
+    def getTxBlockHeader(self, txHash, headerClass):
+        return headerClass.deserialize(self.get(b'txBlockHeader_' + txHash))
 
     def getMinorBlockByHash(self, h):
         return MinorBlock.deserialize(self.get(b"mblock_" + h))
