@@ -514,7 +514,7 @@ class LocalServer(Connection):
             raise RuntimeError("Invalid transaction hash length {}".format(len(txHash)))
         txHash = bytes.fromhex(txHash)
         try:
-            tx = self.db.getTx(txHash)
+            tx, timestamp = self.db.getTxAndTimestamp(txHash)
         except Exception as e:
             raise RuntimeError("Failed to get TX {}".format(params["txHash"]))
 
@@ -578,6 +578,7 @@ class LocalServer(Connection):
             "inList": inList,
             "outList": outList,
             "code": code,
+            "timestamp": timestamp,
         }
         if block:
             resp["block"] = block

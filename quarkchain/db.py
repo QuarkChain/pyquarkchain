@@ -10,6 +10,9 @@ class Db:
 
     MAX_TIMESTAMP = 2 ** 32 - 1
 
+    def __putTx(self, tx, txHash, timestamp):
+        self.put(b'tx_' + txHash, timestamp.to_bytes(4, byteorder="big") + tx.serialize())
+
     def __putTxToAccounts(self, tx, txHash, createTime, isPending=False):
         # The order of the transactions are
         # Pending tx, latest confirmed -> oldest confirmed
@@ -35,12 +38,18 @@ class Db:
                 self.remove(b'addr_' + addr.serialize() + pendingTxTimestampKey + txHash)
 
     def putPendingTx(self, tx):
-        self.put(b'tx_' + tx.getHash(), tx.serialize())
-        self.__putTxToAccounts(tx, tx.getHash(), int(time.time()), isPending=True)
+        createTime = int(time.time())
+        txHash = tx.getHash()
+        self.__putTx(tx, txHash, createTime)
+        self.__putTxToAccounts(tx, txHash, int(time.time()), isPending=True)
 
     def removePendingTx(self, tx):
-        addrSet = set()
         txHash = tx.getHash()
+        if self.get(b'txBlockHeader_' + txHash):
+            # Don't delete confirmed tx
+            return
+        self.remove(b"tx_" + txHash)
+        addrSet = set()
         for txInput in tx.inList:
             t = self.getTx(txInput.hash)
             addr = t.outList[txInput.index].address
@@ -51,14 +60,13 @@ class Db:
         for addr in addrSet:
             self.remove(b'addr_' + addr.serialize() + bytes(4) + txHash)
 
-    def putTx(self, tx, block, rootBlockHeader=None, txHash=None):
+    def putConfirmedTx(self, tx, block, rootBlockHeader=None):
         '''
         'block' is a root chain block if the tx is a root chain coinbase tx since such tx
         isn't included in any minor block. Otherwise it is always a minor block.
         '''
-        if txHash is None:
-            txHash = tx.getHash()
-        self.put(b'tx_' + txHash, tx.serialize())
+        txHash = tx.getHash()
+        self.__putTx(tx, txHash, block.header.createTime)
         self.put(b'txBlockHeader_' + txHash,
                  block.header.serialize())
         if rootBlockHeader is not None:
@@ -68,8 +76,19 @@ class Db:
             self.put(b'spent_' + txIn.serialize(), txHash)
         self.__putTxToAccounts(tx, txHash, block.header.createTime)
 
+    def getTxAndTimestamp(self, txHash):
+        '''
+        The timestamp returned is tx creation time for pending tx
+        or block.createTime for confirmed tx
+        '''
+        value = self.get(b'tx_' + txHash)
+        if not value:
+            return None
+        timestamp = int.from_bytes(value[:4], byteorder="big")
+        return (Transaction.deserialize(value[4:]), timestamp)
+
     def getTx(self, txHash):
-        return Transaction.deserialize(self.get(b'tx_' + txHash))
+        return self.getTxAndTimestamp(txHash)[0]
 
     def accountTxIter(self, address, limit=0):
         prefix = b'addr_'

@@ -55,7 +55,7 @@ class ShardState:
             genesisBlock.txList[0].outList[0].address,
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
-        self.db.putTx(genesisBlock.txList[0], genesisBlock, rootBlockHeader=genesisRootBlock)
+        self.db.putConfirmedTx(genesisBlock.txList[0], genesisBlock, rootBlockHeader=genesisRootBlock)
         self.db.putMinorBlock(genesisBlock)
 
         self.branch = self.genesisBlock.header.branch
@@ -72,7 +72,7 @@ class ShardState:
                 grCoinbaseTx.outList[0].address,
                 grCoinbaseTx.outList[0].quarkash,
                 genesisRootBlock.header)
-            self.db.putTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
+            self.db.putConfirmedTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
 
         self.txQueue = deque()
 
@@ -241,7 +241,7 @@ class ShardState:
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
-            self.db.putTx(tx, block, rootBlockHeader=rootBlockHeader)
+            self.db.putConfirmedTx(tx, block, rootBlockHeader=rootBlockHeader)
 
         # The rest fee goes to root block
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
@@ -258,7 +258,7 @@ class ShardState:
                 txOutput.quarkash,
                 rootBlockHeader)
 
-        self.db.putTx(block.txList[0], block, rootBlockHeader)
+        self.db.putConfirmedTx(block.txList[0], block, rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
         self.blockPool[block.header.getHash()] = block.header
