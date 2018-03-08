@@ -1,3 +1,4 @@
+Django >= 2.0.0
 ecdsa >= 0.13
 ethereum >= 2.3.0
 leveldb >= 0.194
