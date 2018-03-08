@@ -339,20 +339,21 @@ class ShardState:
     def createBlockToAppend(self, createTime=None, address=None):
         """ Create an empty block to append
         """
-        createTime = int(time.time()) if createTime is None else createTime
-        return self.tip().createBlockToAppend(
+        block = self.tip().createBlockToAppend(
             createTime=createTime,
             address=address,
-            difficulty=self.getNextBlockDifficulty(createTime),
             quarkash=self.getNextBlockReward())
+        block.header.difficulty = self.getNextBlockDifficulty(block.header.createTime)
+        return block
 
     def createBlockToMine(self, createTime=None, address=None, includeTx=True):
         """ Create a block to append and include TXs to maximize rewards
         """
         block = self.createBlockToAppend(
             createTime=createTime, address=address)
+        rootBlockHeaderWithMaxHeight = self.rootChain.getBlockHeaderByHash(self.chain[-1].hashPrevRootBlock)
         if not includeTx:
-            return block.finalizeMerkleRoot()
+            return block.finalize(hashPrevRootBlock=rootBlockHeaderWithMaxHeight.getHash())
         utxoPool = copy.copy(self.utxoPool)
         totalTxFee = 0
         invalidTxList = []
@@ -368,6 +369,8 @@ class ShardState:
                 invalidTxList.append(tx)
                 continue
 
+            if rootBlockHeaderWithMaxHeight.height < rootBlockHeader.height:
+                rootBlockHeaderWithMaxHeight = rootBlockHeader
             totalTxFee += txFee
             self.__updateUtxoPool(tx, rootBlockHeader, utxoPool)
             block.addTx(tx)
@@ -377,7 +380,7 @@ class ShardState:
             Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
-        return block.finalizeMerkleRoot()
+        return block.finalize(hashPrevRootBlock=rootBlockHeaderWithMaxHeight.getHash())
 
     def addTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size

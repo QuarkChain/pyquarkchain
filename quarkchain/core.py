@@ -550,6 +550,11 @@ class MinorBlock(Serializable):
         self.header.hashMerkleRoot = self.calculateMerkleRoot()
         return self
 
+    def finalize(self, hashPrevRootBlock=None):
+        if hashPrevRootBlock is not None:
+            self.header.hashPrevRootBlock = hashPrevRootBlock
+        return self.finalizeMerkleRoot()
+
     def addTx(self, tx):
         self.txList.append(tx)
         return self

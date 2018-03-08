@@ -498,6 +498,36 @@ class TestQuarkChainState(unittest.TestCase):
         b5.header.hashPrevRootBlock = b4.header.hashPrevRootBlock
         self.assertIsNone(qcState.appendMinorBlock(b5))
 
+    def testCreateBlockToMineCrossShardTx(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        id2 = Identity.createRandomIdentity()
+        acc2 = Address.createFromIdentity(id2, fullShardId=1)
+
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx1 = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000, shardId=1)
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.finalize(quarkash=300)
+
+        self.assertIsNone(qcState.appendRootBlock(rB))
+
+        qcState.addTransactionToQueue(
+            1,
+            create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1))
+        b3 = qcState.createMinorBlockToMine(1).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b3))
+
     def testRollBack(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
