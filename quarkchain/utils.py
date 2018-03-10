@@ -124,6 +124,10 @@ class Logger:
             cls.errorException()
             cls.lastErrorTimeMap[key] = time.time()
 
+    @classmethod
+    def debugException(cls):
+        Logger.debug(traceback.format_exc())
+
 
 def set_logging_level(level):
     levelMap = {

@@ -454,6 +454,7 @@ class LocalServer(Connection):
         return resp
 
     async def jrpcGetAccountTx(self, params):
+        qcState = self.network.qcState
         addr = params["addr"]
         if len(addr) != Constant.ADDRESS_HEX_LENGTH:
             raise RuntimeError(
@@ -461,12 +462,20 @@ class LocalServer(Connection):
             )
         limit = params.get("limit", 0)
         address = Address.createFrom(addr)
+        shardId = address.getShardId(qcState.getShardSize())
         txList = []
-        for txHash, timestamp in self.db.accountTxIter(address, limit):
+        for txHash, timestamp in qcState.getTransactionPool(shardId).accountTxIter(address):
             txList.append({
                 "txHash": txHash.hex(),
                 "timestamp": timestamp,
             })
+        limit -= len(txList)
+        if limit > 0:
+            for txHash, timestamp in self.db.accountTxIter(address, limit):
+                txList.append({
+                    "txHash": txHash.hex(),
+                    "timestamp": timestamp,
+                })
         return {
             "txList": txList,
         }
@@ -510,14 +519,21 @@ class LocalServer(Connection):
 
     async def jrpcGetTx(self, params):
         qcState = self.network.qcState
-
         txHash = params["txHash"]
         if len(txHash) != Constant.TX_HASH_HEX_LENGTH:
             raise RuntimeError("Invalid transaction hash length {}".format(len(txHash)))
         txHash = bytes.fromhex(txHash)
-        try:
-            tx = self.db.getTx(txHash)
-        except Exception as e:
+        result = self.db.getTxAndTimestamp(txHash)
+        if result:
+            tx, timestamp = result
+        else:
+            for shardId in range(qcState.getShardSize()):
+                result = qcState.getTransactionPool(shardId).get(txHash)
+                if result:
+                    tx = result.tx
+                    timestamp = result.timestamp
+                    break
+        if not result:
             raise RuntimeError("Failed to get TX {}".format(params["txHash"]))
 
         inList = []
@@ -556,6 +572,7 @@ class LocalServer(Connection):
                 "height": height,
             }
 
+        block = {}
         if tx.code.code[:1] == b'r':
             header = self.db.getTxBlockHeader(txHash, RootBlockHeader)
             block = {
@@ -566,19 +583,24 @@ class LocalServer(Connection):
             }
         else:
             header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
-            block = {
-                "shardId": header.branch.getShardId(),
-                "height": header.height,
-                "hash": header.getHash().hex(),
-                "type": "m",
-            }
+            # Unconfirmed tx does not have header
+            if header:
+                block = {
+                    "shardId": header.branch.getShardId(),
+                    "height": header.height,
+                    "hash": header.getHash().hex(),
+                    "type": "m",
+                }
 
-        return {
+        resp = {
             "inList": inList,
             "outList": outList,
             "code": code,
-            "block": block,
+            "timestamp": timestamp,
         }
+        if block:
+            resp["block"] = block
+        return resp
 
     async def jrpcGetTxOutputInfo(self, params):
         txHash = params["txHash"]
@@ -681,6 +703,7 @@ class LocalServer(Connection):
             jrpcResponse = await JRPC_MAP[method](self, params)
             return JsonRpcResponse(json.dumps(jrpcResponse).encode())
         except Exception as e:
+            Logger.debugException()
             return self.jrpcError(-32603, errorMessage=str(e))
 
 
