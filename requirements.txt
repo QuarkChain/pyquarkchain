@@ -1,4 +1,6 @@
+coincurve >= 7.1.0
 Django >= 2.0.0
+django-extensions >= 2.0.0
 ecdsa >= 0.13
 ethereum >= 2.3.0
 leveldb >= 0.194
