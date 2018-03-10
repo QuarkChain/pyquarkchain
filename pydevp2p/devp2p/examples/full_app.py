@@ -126,13 +126,15 @@ class ExampleService(WiredService):
     def on_wire_protocol_stop(self, proto):
         assert isinstance(proto, self.wire_protocol)
         self.log('----------------------------------')
-        self.log('on_wire_protocol_stop', proto=proto)
+        log.info('on_wire_protocol_stop', proto=proto)
 
     # application logic
 
     def on_wire_protocol_start(self, proto):
         self.log('----------------------------------')
-        self.log('on_wire_protocol_start', proto=proto, peers=self.app.services.peermanager.peers)
+        log.info(
+            'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
+            proto=proto)
         assert isinstance(proto, self.wire_protocol)
         # register callbacks
         proto.receive_token_callbacks.append(self.on_receive_token)

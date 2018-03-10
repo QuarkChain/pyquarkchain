@@ -2,8 +2,8 @@ try:
     from UserDict import IterableUserDict
 except ImportError:
     from collections import UserDict as IterableUserDict
-from .service import BaseService
-from .slogging import get_logger
+from devp2p.service import BaseService
+from devp2p.slogging import get_logger
 from devp2p import utils
 from devp2p import crypto
 from rlp.utils import decode_hex
@@ -56,23 +56,25 @@ def main():
     import sys
     import signal
     import gevent
-    from .peermanager import PeerManager
-    from .discovery import NodeDiscovery
+    from devp2p.peermanager import PeerManager
+    from devp2p.discovery import NodeDiscovery
     from devp2p import slogging
     log = slogging.get_logger('app')
- 
+
     # read config
     sample_config = b"""
-p2p:
-    num_peers: 10
+discovery:
     bootstrap_nodes:
         # local bootstrap
-        # - enode://6ed2fecb28ff17dec8647f08aa4368b57790000e0e9b33a7b91f32c41b6ca9ba21600e9a8c44248ce63a71544388c6745fa291f88f8b81e109ba3da11f7b41b9@127.0.0.1:30303
+        - enode://6ed2fecb28ff17dec8647f08aa4368b57790000e0e9b33a7b91f32c41b6ca9ba21600e9a8c44248ce63a71544388c6745fa291f88f8b81e109ba3da11f7b41b9@127.0.0.1:30303
         # go_bootstrap
         #- enode://6cdd090303f394a1cac34ecc9f7cda18127eafa2a3a06de39f6d920b0e583e062a7362097c7c65ee490a758b442acd5c80c6fce4b148c6a391e946b45131365b@54.169.166.226:30303
         # cpp_bootstrap
-        - enode://4a44599974518ea5b0f14c31c4463692ac0329cb84851f3435e6d1b18ee4eae4aa495f846a0fa1219bd58035671881d44423876e57db2abd57254d0197da0ebe@5.1.83.226:30303
+        #- enode://4a44599974518ea5b0f14c31c4463692ac0329cb84851f3435e6d1b18ee4eae4aa495f846a0fa1219bd58035671881d44423876e57db2abd57254d0197da0ebe@5.1.83.226:30303
 
+p2p:
+    num_peers: 10
+    
     listen_host: 0.0.0.0
     listen_port: 30303
 node:
@@ -111,6 +113,7 @@ node:
 
     # finally stop
     app.stop()
+
 
 if __name__ == '__main__':
     #  python app.py 2>&1 | less +F

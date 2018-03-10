@@ -149,7 +149,7 @@ class Peer(gevent.Greenlet):
         remote_services = dict()
         for name, version in capabilities:
             # Remove this for py3, the decode failed later lookup.
-            #if isinstance(name, bytes) and not isinstance(name, str):
+            # if isinstance(name, bytes) and not isinstance(name, str):
             #    name = name.decode('utf-8')
             if not name in remote_services:
                 remote_services[name] = []
@@ -217,13 +217,15 @@ class Peer(gevent.Greenlet):
         assert isinstance(packet, Packet)
         try:
             protocol, cmd_id = self.protocol_cmd_id_from_packet(packet)
-            log.debug('recv packet', peer=self, cmd=protocol.cmd_by_id[cmd_id], protocol=protocol.name, orig_cmd_id=packet.cmd_id)
+            log.debug(
+                'recv packet', peer=self, cmd=protocol.cmd_by_id[cmd_id],
+                protocol=protocol.name, orig_cmd_id=packet.cmd_id)
             packet.cmd_id = cmd_id  # rewrite
             protocol.receive_packet(packet)
         except UnknownCommandError as e:
-            log.debug('received unknown cmd', peer=self, error=e, packet=packet)
+            log.info('received unknown cmd', peer=self, error=e, packet=packet)
         except Exception as e:
-            log.debug('failed to handle packet', peer=self, error=e)
+            log.info('failed to handle packet', peer=self, error=e)
             self.stop()
 
     def send(self, data):

@@ -73,19 +73,23 @@ def serve_until_stopped(apps):
         app.stop()
 
 
-def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=10, random_port=False):
+def setup_apps(app_class, service_class, num_nodes=3, seed=0,
+               min_peers=2, max_peers=10, random_port=False):
     gevent.get_hub().SYSTEM_ERROR = BaseException
     if random_port:
         base_port = random.randint(10000, 60000)
     else:
         base_port = 29870
+    # Bootnode always use fixed port. So far only one bootnode per machine.
+    if seed == 0:
+        base_port = 29000
 
     # get bootstrap node (node0) enode
     bootstrap_node_privkey = mk_privkey(
-        '{}:udp:{}'.format(seed, 0).encode('utf-8'))
+        '{}:udp:{}'.format(0, 0).encode('utf-8'))
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
     enode = host_port_pubkey_to_uri(
-        '0.0.0.0', base_port, bootstrap_node_pubkey)
+        '0.0.0.0', 29000, bootstrap_node_pubkey)
 
     services = [NodeDiscovery, peermanager.PeerManager, service_class]
 
@@ -107,5 +111,11 @@ def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=10
         app = create_app(node_num, base_config, services, app_class)
         apps.append(app)
 
+    return apps
+
+
+def run(app_class, service_class, num_nodes=3, seed=0, min_peers=2, max_peers=10, random_port=False):
+
     # start apps
+    apps = setup_apps(app_class, service_class, num_nodes, seed, min_peers, max_peers, random_port)
     serve_until_stopped(apps)
