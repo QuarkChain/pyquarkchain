@@ -188,7 +188,6 @@ class TestShardState(unittest.TestCase):
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
-        sState.addTransactionToQueue(tx)
         nBlock.addTx(tx)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
@@ -209,7 +208,6 @@ class TestShardState(unittest.TestCase):
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 3000)
-        sState.addTransactionToQueue(tx)
         nBlock.addTx(tx)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.txList[0].outList[
@@ -217,7 +215,6 @@ class TestShardState(unittest.TestCase):
         nBlock.finalizeMerkleRoot()
         self.assertIsNotNone(sState.appendBlock(nBlock))
 
-        sState.addTransactionToQueue(tx)
         nBlock.txList[0].outList[
             0].quarkash = env.config.MINOR_BLOCK_DEFAULT_REWARD + 500
         nBlock.finalizeMerkleRoot()
@@ -241,8 +238,6 @@ class TestShardState(unittest.TestCase):
             6000,
             4000)
         tx2 = create_test_transaction(id1, tx1.getHash(), acc2, 2000, 2000)
-        sState.addTransactionToQueue(tx1)
-        sState.addTransactionToQueue(tx2)
         nBlock.addTx(tx1)
         nBlock.addTx(tx2)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
@@ -279,7 +274,6 @@ class TestShardState(unittest.TestCase):
 
         tx1 = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
-        sState.addTransactionToQueue(tx1)
         nBlock.addTx(tx1)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
@@ -288,7 +282,6 @@ class TestShardState(unittest.TestCase):
         nBlock1 = nBlock.createBlockToAppend(acc1, quarkash=5000)
         tx2 = create_test_transaction(
             id1, nBlock.txList[0].getHash(), acc2, 4000, 1000)
-        sState.addTransactionToQueue(tx2)
         nBlock1.addTx(tx2)
         nBlock1.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock1.finalizeMerkleRoot()
@@ -331,8 +324,6 @@ class TestShardState(unittest.TestCase):
             4000)
         tx2 = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 2000, 2000)
-        sState.addTransactionToQueue(tx1)
-        sState.addTransactionToQueue(tx2)
         nBlock.addTx(tx1)
         nBlock.addTx(tx2)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
@@ -352,7 +343,6 @@ class TestShardState(unittest.TestCase):
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
-        sState.addTransactionToQueue(tx)
         nBlock.addTx(tx)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
@@ -360,7 +350,6 @@ class TestShardState(unittest.TestCase):
 
         sState.rollBackTip()
 
-        sState.addTransactionToQueue(tx)
         self.assertIsNone(sState.appendBlock(nBlock))
 
     def testTestnetMaster(self):
@@ -379,7 +368,6 @@ class TestShardState(unittest.TestCase):
 
         tx = create_test_transaction(
             id1, gBlock.txList[0].getHash(), acc2, 6000, 4000)
-        sState.addTransactionToQueue(tx)
         nBlock.addTx(tx)
         nBlock.header.hashPrevRootBlock = rootChain.getGenesisBlock().header.getHash()
         nBlock.finalizeMerkleRoot()
@@ -387,7 +375,6 @@ class TestShardState(unittest.TestCase):
 
         sState.rollBackTip()
 
-        sState.addTransactionToQueue(tx)
         self.assertIsNone(sState.appendBlock(nBlock))
 
 
@@ -416,13 +403,11 @@ class TestQuarkChainState(unittest.TestCase):
 
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         qcState = QuarkChainState(env)
-
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
         tx = create_test_transaction(
             id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000)
-        qcState.addTransactionToQueue(0, tx)
-
-        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
-        b1.addTx(tx).finalizeMerkleRoot()
+        b1.addTx(tx)
+        b1.finalizeMerkleRoot()
         b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
             quarkash=200).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
@@ -442,22 +427,20 @@ class TestQuarkChainState(unittest.TestCase):
 
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         qcState = QuarkChainState(env)
-
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
         tx1 = create_test_transaction(
             id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000)
-        qcState.addTransactionToQueue(0, tx1)
-
-        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
-        b1.addTx(tx1).finalizeMerkleRoot()
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
         b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
             quarkash=200).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
         self.assertIsNone(qcState.appendMinorBlock(b2))
 
         # We could use in shard tx asap
-        tx2 = create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1)
-        qcState.addTransactionToQueue(0, tx2)
-        b3 = b1.createBlockToAppend(quarkash=200).addTx(tx2).finalizeMerkleRoot()
+        b3 = b1.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
         b4 = b2.createBlockToAppend(quarkash=300).finalizeMerkleRoot()
 
         self.assertIsNone(qcState.appendMinorBlock(b3))
@@ -477,26 +460,26 @@ class TestQuarkChainState(unittest.TestCase):
 
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         qcState = QuarkChainState(env)
-
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
         tx1 = create_test_transaction(
             id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000, shardId=1)
-        qcState.addTransactionToQueue(0, tx1)
-
-        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
-        b1.addTx(tx1).finalizeMerkleRoot()
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
         b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
             quarkash=200).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
         self.assertIsNone(qcState.appendMinorBlock(b2))
 
         # The output is not in the shard
-        tx2 = create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1)
-        qcState.addTransactionToQueue(1, tx2)
-        b3 = b1.createBlockToAppend(quarkash=200).addTx(tx2).finalizeMerkleRoot()
+        b3 = b1.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
         self.assertIsNotNone(qcState.appendMinorBlock(b3))
 
         # We cannot perform the cross tx until it is confirmed by root chain
-        b4 = b2.createBlockToAppend(quarkash=200).addTx(tx2).finalizeMerkleRoot()
+        b4 = b2.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 2500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
         self.assertIsNotNone(qcState.appendMinorBlock(b4))
 
         rB = qcState.getGenesisRootBlock().createBlockToAppend()
@@ -527,12 +510,11 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 30000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
         tx1 = create_test_transaction(
             id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, amount=6000, remaining=4000, shardId=0)
-        qcState.addTransactionToQueue(0, tx1)
-
-        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
-        b1.addTx(tx1).finalizeMerkleRoot()
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
         b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
             quarkash=200).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
@@ -551,9 +533,9 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 6000)
 
-        tx2 = create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)
-        qcState.addTransactionToQueue(1, tx2)
-        b4 = b2.createBlockToAppend(quarkash=200).addTx(tx2).finalizeMerkleRoot()
+        b4 = b2.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
 
         b4.header.hashPrevRootBlock = rB.header.getHash()
         self.assertIsNone(qcState.appendMinorBlock(b4))
@@ -591,12 +573,11 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 30000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
         tx1 = create_test_transaction(
             id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, amount=6000, remaining=4000, shardId=0)
-        qcState.addTransactionToQueue(0, tx1)
-
-        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
-        b1.addTx(tx1).finalizeMerkleRoot()
+        b1.addTx(tx1)
+        b1.finalizeMerkleRoot()
         b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
             quarkash=200).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
@@ -615,12 +596,11 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 6000)
 
-        tx2 = create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)
-        qcState.addTransactionToQueue(1, tx2)
-
         b3 = b1.createBlockToAppend(
             quarkash=100, address=acc1).finalizeMerkleRoot()
-        b4 = b2.createBlockToAppend(quarkash=200).addTx(tx2).finalizeMerkleRoot()
+        b4 = b2.createBlockToAppend(quarkash=200) \
+            .addTx(create_test_transaction(id2, tx1.getHash(), acc1, 1500, 4500, shardId=0, outputIndex=1)) \
+            .finalizeMerkleRoot()
 
         b4.header.hashPrevRootBlock = rB.header.getHash()
         self.assertIsNone(qcState.appendMinorBlock(b3))

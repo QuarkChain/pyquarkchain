@@ -64,9 +64,11 @@ class TransactionPool:
             txDict[txHash] = transactionInfo
 
     def remove(self, tx):
+        '''tx might not be in the pool'''
         txHash = tx.getHash()
-        transactionInfo = self.queue[txHash]
-        del self.queue[txHash]
+        transactionInfo = self.queue.pop(txHash, None)
+        if not transactionInfo:
+            return
         for address in transactionInfo.addresses:
             del self.addressToTransactionInfos[address][txHash]
 

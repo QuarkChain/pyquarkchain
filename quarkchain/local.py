@@ -583,7 +583,7 @@ class LocalServer(Connection):
             }
         else:
             header = self.db.getTxBlockHeader(txHash, MinorBlockHeader)
-            # Unconfirmed block does not have header
+            # Unconfirmed tx does not have header
             if header:
                 block = {
                     "shardId": header.branch.getShardId(),
