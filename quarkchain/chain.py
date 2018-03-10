@@ -4,7 +4,7 @@ import copy
 import random
 import time
 import traceback
-from collections import deque
+from collections import deque, OrderedDict
 
 from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, TransactionInput, Transaction, Code
@@ -28,6 +28,65 @@ class MinorBlockRewardCalcultor:
 
     def getBlockReward(self, chain):
         return self.env.config.MINOR_BLOCK_DEFAULT_REWARD
+
+
+class TransactionInfo:
+
+    def __init__(self, tx, timestamp, addresses):
+        self.tx = tx
+        self.timestamp = timestamp
+        self.addresses = addresses
+
+
+class TransactionPool:
+
+    def __init__(self):
+        # txHash -> tx
+        self.queue = OrderedDict()
+        # address -> (txHash -> tx)
+        self.addressToTransactionInfos = dict()
+
+    def add(self, tx, utxoPool):
+        txHash = tx.getHash()
+        addresses = set()
+        for txInput in tx.inList:
+            # txInput might not be in the utxoPool as it can come from
+            # a pending transaction which is currently in this pool
+            if txInput in utxoPool:
+                addresses.add(utxoPool[txInput].address)
+        for txOutput in tx.outList:
+            addresses.add(txOutput.address)
+
+        transactionInfo = TransactionInfo(tx, int(time.time()), addresses)
+        self.queue[txHash] = transactionInfo
+        for address in addresses:
+            txDict = self.addressToTransactionInfos.setdefault(address, OrderedDict())
+            txDict[txHash] = transactionInfo
+
+    def remove(self, tx):
+        txHash = tx.getHash()
+        transactionInfo = self.queue[txHash]
+        del self.queue[txHash]
+        for address in transactionInfo.addresses:
+            del self.addressToTransactionInfos[address][txHash]
+
+    def get(self, txHash):
+        return self.queue.get(txHash, None)
+
+    def size(self):
+        return len(self.queue)
+
+    def accountTxIter(self, address):
+        txHashToTransactionInfo = self.addressToTransactionInfos.get(address, OrderedDict())
+        for txHash, txInfo in reversed(txHashToTransactionInfo.items()):
+            yield (txHash, txInfo.timestamp)
+
+    def transactions(self):
+        '''FIFO generator
+        TODO: prioritize based on transaction fee
+        '''
+        for txHash, txInfo in self.queue.items():
+            yield txInfo.tx
 
 
 class ShardState:
@@ -55,7 +114,7 @@ class ShardState:
             genesisBlock.txList[0].outList[0].address,
             genesisBlock.txList[0].outList[0].quarkash,
             genesisRootBlock.header)
-        self.db.putConfirmedTx(genesisBlock.txList[0], genesisBlock, rootBlockHeader=genesisRootBlock)
+        self.db.putTx(genesisBlock.txList[0], genesisBlock, rootBlockHeader=genesisRootBlock)
         self.db.putMinorBlock(genesisBlock)
 
         self.branch = self.genesisBlock.header.branch
@@ -72,9 +131,9 @@ class ShardState:
                 grCoinbaseTx.outList[0].address,
                 grCoinbaseTx.outList[0].quarkash,
                 genesisRootBlock.header)
-            self.db.putConfirmedTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
+            self.db.putTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
 
-        self.txQueue = deque()
+        self.transactionPool = TransactionPool()
 
     def __checkTx(self, tx, utxoPool):
         if len(tx.inList) == 0:
@@ -241,7 +300,8 @@ class ShardState:
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
-            self.db.putConfirmedTx(tx, block, rootBlockHeader=rootBlockHeader)
+            self.transactionPool.remove(tx)
+            self.db.putTx(tx, block, rootBlockHeader=rootBlockHeader)
 
         # The rest fee goes to root block
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
@@ -258,7 +318,7 @@ class ShardState:
                 txOutput.quarkash,
                 rootBlockHeader)
 
-        self.db.putConfirmedTx(block.txList[0], block, rootBlockHeader)
+        self.db.putTx(block.txList[0], block, rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
         self.blockPool[block.header.getHash()] = block.header
@@ -356,7 +416,7 @@ class ShardState:
         utxoPool = copy.copy(self.utxoPool)
         totalTxFee = 0
         invalidTxList = []
-        for tx in self.txQueue:
+        for tx in self.transactionPool.transactions():
             if len(block.txList) >= self.env.config.TRANSACTION_LIMIT_PER_BLOCK:
                 break
 
@@ -373,8 +433,7 @@ class ShardState:
             block.addTx(tx)
             Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
         for tx in invalidTxList:
-            self.txQueue.remove(tx)
-            self.db.removePendingTx(tx)
+            self.transactionPool.remove(tx)
             Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
@@ -382,14 +441,13 @@ class ShardState:
 
     def addTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size
+        self.transactionPool.add(transaction, self.utxoPool)
 
-        self.__checkTx(transaction, self.utxoPool)
-
-        self.txQueue.append(transaction)
-        self.db.putPendingTx(transaction)
+    def getTransactionPool(self):
+        return self.transactionPool
 
     def getPendingTxSize(self):
-        return len(self.txQueue)
+        return self.transactionPool.size()
 
     def getUtxoPool(self):
         # TODO: May just return a copy
@@ -920,6 +978,9 @@ class QuarkChainState:
 
     def getUtxoPool(self, shardId):
         return self.shardList[shardId].getUtxoPool()
+
+    def getTransactionPool(self, shardId):
+        return self.shardList[shardId].getTransactionPool()
 
     def getPendingTxSize(self, shardId):
         return self.shardList[shardId].getPendingTxSize()

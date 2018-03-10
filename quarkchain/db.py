@@ -1,6 +1,4 @@
 #!/usr/bin/python3
-import time
-
 import leveldb
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
@@ -10,18 +8,10 @@ class Db:
 
     MAX_TIMESTAMP = 2 ** 32 - 1
 
-    def __putTx(self, tx, txHash, timestamp):
-        self.put(b'tx_' + txHash, timestamp.to_bytes(4, byteorder="big") + tx.serialize())
-
-    def __putTxToAccounts(self, tx, txHash, createTime, isPending=False):
-        # The order of the transactions are
-        # Pending tx, latest confirmed -> oldest confirmed
-        pendingTxTimestampKey = bytes(4)
-        if isPending:
-            timestampKey = pendingTxTimestampKey
-        else:
-            inverseCreateTime = self.MAX_TIMESTAMP - createTime
-            timestampKey = inverseCreateTime.to_bytes(4, byteorder="big")
+    def __putTxToAccounts(self, tx, txHash, createTime):
+        # The transactions are ordered from the latest to the oldest
+        inverseCreateTime = self.MAX_TIMESTAMP - createTime
+        timestampKey = inverseCreateTime.to_bytes(4, byteorder="big")
         timestampValue = createTime.to_bytes(4, byteorder="big")
 
         addrSet = set()
@@ -34,39 +24,15 @@ class Db:
             addrSet.add(addr)
         for addr in addrSet:
             self.put(b'addr_' + addr.serialize() + timestampKey + txHash, timestampValue)
-            if not isPending:
-                self.remove(b'addr_' + addr.serialize() + pendingTxTimestampKey + txHash)
 
-    def putPendingTx(self, tx):
-        createTime = int(time.time())
-        txHash = tx.getHash()
-        self.__putTx(tx, txHash, createTime)
-        self.__putTxToAccounts(tx, txHash, int(time.time()), isPending=True)
-
-    def removePendingTx(self, tx):
-        txHash = tx.getHash()
-        if self.get(b'txBlockHeader_' + txHash):
-            # Don't delete confirmed tx
-            return
-        self.remove(b"tx_" + txHash)
-        addrSet = set()
-        for txInput in tx.inList:
-            t = self.getTx(txInput.hash)
-            addr = t.outList[txInput.index].address
-            addrSet.add(addr)
-        for txOutput in tx.outList:
-            addr = txOutput.address
-            addrSet.add(addr)
-        for addr in addrSet:
-            self.remove(b'addr_' + addr.serialize() + bytes(4) + txHash)
-
-    def putConfirmedTx(self, tx, block, rootBlockHeader=None):
+    def putTx(self, tx, block, rootBlockHeader=None):
         '''
         'block' is a root chain block if the tx is a root chain coinbase tx since such tx
         isn't included in any minor block. Otherwise it is always a minor block.
         '''
         txHash = tx.getHash()
-        self.__putTx(tx, txHash, block.header.createTime)
+        self.put(b'tx_' + txHash,
+                 block.header.createTime.to_bytes(4, byteorder="big") + tx.serialize())
         self.put(b'txBlockHeader_' + txHash,
                  block.header.serialize())
         if rootBlockHeader is not None:
@@ -78,8 +44,7 @@ class Db:
 
     def getTxAndTimestamp(self, txHash):
         '''
-        The timestamp returned is tx creation time for pending tx
-        or block.createTime for confirmed tx
+        The timestamp returned is the createTime of the block that confirms the tx
         '''
         value = self.get(b'tx_' + txHash)
         if not value:
