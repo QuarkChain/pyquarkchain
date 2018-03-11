@@ -7,7 +7,7 @@ from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Co
 from quarkchain.core import Identity
 import argparse
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, set_logging_level
 
 
 class TxGeneratorClient(Connection):
@@ -57,11 +57,11 @@ class TxGeneratorClient(Connection):
                 LocalCommandOp.ADD_NEW_TRANSACTION_LIST_REQUEST,
                 AddNewTransactionListRequest(txList))
         except Exception as e:
-            print("Failed to call AddNewTransactionListRequest {}".format(e))
+            Logger.info("Failed to call AddNewTransactionListRequest {}".format(e))
             self.close()
             return
 
-        print("Submitted {} genesis tx".format(resp.numTxAdded))
+        Logger.info("Submitted {} genesis tx".format(resp.numTxAdded))
         self.loop.call_later(1, self.generateTx)
 
     def generateTx(self):
@@ -101,7 +101,7 @@ class TxGeneratorClient(Connection):
             self.close()
             return
 
-        print("Submitted {} Txs".format(resp.numTxAdded))
+        Logger.info("Submitted {} Txs".format(resp.numTxAdded))
         self.loop.call_later(1, self.generateTx)
 
 
@@ -113,7 +113,10 @@ def parse_args():
         "--genesis_key", default=None, type=str)
     parser.add_argument(
         "--skip_genesis_tx", default=False, type=bool)
+    parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
+
+    set_logging_level(args.log_level)
 
     if args.genesis_key is None:
         raise RuntimeError("genesis key must be supplied")

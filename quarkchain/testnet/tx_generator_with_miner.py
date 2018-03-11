@@ -7,7 +7,7 @@ from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Co
 from quarkchain.core import Identity, RootBlock, MinorBlock
 import argparse
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, set_logging_level
 
 
 class TxGeneratorClient(Connection):
@@ -58,6 +58,7 @@ class TxGeneratorClient(Connection):
         asyncio.ensure_future(self.startMining())
 
     async def generateTx(self, shardId, prevTxList):
+        Logger.info("Start creating transactions for shard {}".format(shardId))
         newTxList = []
         for oldTx in prevTxList:
             tx = Transaction(
@@ -69,6 +70,7 @@ class TxGeneratorClient(Connection):
         self.utxoPool[shardId] = newTxList
         future = self.utxoGenerateFuture[shardId]
         del self.utxoGenerateFuture[shardId]
+        Logger.info("Finished creating transactions for shard {}".format(shardId))
         future.set_result(newTxList)
 
     async def startMining(self):
@@ -169,7 +171,10 @@ def parse_args():
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     parser.add_argument(
         "--genesis_key", default=None, type=str)
+    parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
+
+    set_logging_level(args.log_level)
 
     if args.genesis_key is None:
         raise RuntimeError("genesis key must be supplied")
