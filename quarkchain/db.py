@@ -8,29 +8,36 @@ class Db:
 
     MAX_TIMESTAMP = 2 ** 32 - 1
 
-    def __putTxToAccounts(self, tx, txHash, createTime):
+    def __putTxToAccounts(self, tx, txHash, createTime, consumedUtxoList=None):
         # The transactions are ordered from the latest to the oldest
         inverseCreateTime = self.MAX_TIMESTAMP - createTime
         timestampKey = inverseCreateTime.to_bytes(4, byteorder="big")
         timestampValue = createTime.to_bytes(4, byteorder="big")
 
         addrSet = set()
-        for txInput in tx.inList:
-            t = self.getTx(txInput.hash)
-            addr = t.outList[txInput.index].address
-            addrSet.add(addr)
+        if consumedUtxoList is None:
+            # Slow path
+            for txInput in tx.inList:
+                t = self.getTx(txInput.hash)
+                addr = t.outList[txInput.index].address
+                addrSet.add(addr)
+        else:
+            # Fast path
+            for consumedUtxo in consumedUtxoList:
+                addrSet.add(consumedUtxo.address)
+
         for txOutput in tx.outList:
             addr = txOutput.address
             addrSet.add(addr)
         for addr in addrSet:
             self.put(b'addr_' + addr.serialize() + timestampKey + txHash, timestampValue)
 
-    def putTx(self, tx, block, rootBlockHeader=None):
+    def putTx(self, tx, block, rootBlockHeader=None, txHash=None, consumedUtxoList=None):
         '''
         'block' is a root chain block if the tx is a root chain coinbase tx since such tx
         isn't included in any minor block. Otherwise it is always a minor block.
         '''
-        txHash = tx.getHash()
+        txHash = tx.getHash() if txHash is None else txHash
         self.put(b'tx_' + txHash,
                  block.header.createTime.to_bytes(4, byteorder="big") + tx.serialize())
         self.put(b'txBlockHeader_' + txHash,
@@ -40,7 +47,7 @@ class Db:
                      rootBlockHeader.serialize())
         for txIn in tx.inList:
             self.put(b'spent_' + txIn.serialize(), txHash)
-        self.__putTxToAccounts(tx, txHash, block.header.createTime)
+        self.__putTxToAccounts(tx, txHash, block.header.createTime, consumedUtxoList)
 
     def getTxAndTimestamp(self, txHash):
         '''

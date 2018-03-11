@@ -182,6 +182,7 @@ def parse_args():
 
 
 def main():
+    set_logging_level("INFO")
     args = parse_args()
     genesisId = Identity.createFromKey(bytes.fromhex(args.genesis_key))
     loop = asyncio.get_event_loop()
