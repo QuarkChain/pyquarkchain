@@ -39,6 +39,19 @@ class Logger:
     lastInfoTimeMap = dict()
     lastWarningTimeMap = dict()
     lastErrorTimeMap = dict()
+    logger = logging.getLogger()
+
+    @classmethod
+    def isEnableForDebug(cls):
+        return cls.logger.isEnabledFor(logging.DEBUG)
+
+    @classmethod
+    def isEnableForInfo(cls):
+        return cls.logger.isEnabledFor(logging.INFO)
+
+    @classmethod
+    def isEnableForWarning(cls):
+        return cls.logger.isEnabledFor(logging.WARNING)
 
     @staticmethod
     def debug(msg, *args, **kwargs):
