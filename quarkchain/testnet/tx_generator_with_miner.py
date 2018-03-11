@@ -7,7 +7,7 @@ from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Co
 from quarkchain.core import Identity, RootBlock, MinorBlock
 import argparse
 from quarkchain.genesis import create_genesis_blocks
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, set_logging_level
 
 
 class TxGeneratorClient(Connection):
@@ -177,6 +177,7 @@ def parse_args():
 
 
 def main():
+    set_logging_level("INFO")
     args = parse_args()
     genesisId = Identity.createFromKey(bytes.fromhex(args.genesis_key))
     loop = asyncio.get_event_loop()

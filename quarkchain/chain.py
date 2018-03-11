@@ -63,9 +63,9 @@ class TransactionPool:
             txDict = self.addressToTransactionInfos.setdefault(address, OrderedDict())
             txDict[txHash] = transactionInfo
 
-    def remove(self, tx):
+    def remove(self, tx, txHash=None):
         '''tx might not be in the pool'''
-        txHash = tx.getHash()
+        txHash = tx.getHash() if txHash is None else txHash
         transactionInfo = self.queue.pop(txHash, None)
         if not transactionInfo:
             return
@@ -181,11 +181,13 @@ class ShardState:
 
         return (txInputQuarkash - txOutputQuarkash, rootBlockHeader)
 
-    def __updateUtxoPool(self, tx, rootBlockHeader, utxoPool):
+    def __updateUtxoPool(self, tx, rootBlockHeader, utxoPool, txHash=None):
+        consumedUtxoList = []
         for txInput in tx.inList:
+            consumedUtxoList.append(utxoPool[txInput])
             del utxoPool[txInput]
 
-        txHash = tx.getHash()
+        txHash = tx.getHash() if txHash is None else txHash
         for idx, txOutput in enumerate(tx.outList):
             if not self.branch.isInShard(txOutput.address.fullShardId):
                 continue
@@ -193,8 +195,9 @@ class ShardState:
                 txOutput.address,
                 txOutput.quarkash,
                 rootBlockHeader)
+        return consumedUtxoList
 
-    def __performTx(self, tx, rootBlockHeader):
+    def __performTx(self, tx, rootBlockHeader, txHash=None):
         """ Perform a transacton atomically.
         Return -1 if the transaction is invalid or
                >= 0 for the transaction fee if the transaction successfully executed.
@@ -204,8 +207,8 @@ class ShardState:
         if prevRootBlockHeader.height > rootBlockHeader.height:
             raise RuntimeError("root block header's height is too small")
 
-        self.__updateUtxoPool(tx, rootBlockHeader, self.utxoPool)
-        return txFee
+        consumedUtxoList = self.__updateUtxoPool(tx, rootBlockHeader, self.utxoPool, txHash=txHash)
+        return txFee, consumedUtxoList
 
     def __rollBackTx(self, tx):
         txHash = tx.getHash()
@@ -293,8 +296,9 @@ class ShardState:
         txDoneList = []
         totalFee = 0
         for idx, tx in enumerate(block.txList[1:]):
+            txHash = tx.getHash()
             try:
-                fee = self.__performTx(tx, rootBlockHeader)
+                fee, consumedUtxoList = self.__performTx(tx, rootBlockHeader, txHash=txHash)
             except Exception as e:
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
@@ -304,8 +308,12 @@ class ShardState:
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
-            self.transactionPool.remove(tx)
-            self.db.putTx(tx, block, rootBlockHeader=rootBlockHeader)
+            self.transactionPool.remove(tx, txHash=txHash)
+            self.db.putTx(
+                tx, block,
+                rootBlockHeader=rootBlockHeader,
+                txHash=txHash,
+                consumedUtxoList=consumedUtxoList)
 
         # The rest fee goes to root block
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
