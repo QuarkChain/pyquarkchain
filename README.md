@@ -1,22 +1,32 @@
-# quarkchain
+# QuarkChain
 
-# Setup
+## Development Setup
 
-## For development
+It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project.
+The packages installed later will only affect this environment.
+
+To create a virtual environment
 ```
-python3 setup.py install
+mkdir ~/virtualenv
+python3 -m venv ~/virtualenv/qc
 ```
-or
+As the virtual env is created with python3 once the env is activated all the python and pip commands will point to their python3 versions automatically.
+
+To activate the virtual environment
 ```
-pip install requirements.txt
+source ~/virtualenv/qc/bin/activate
+```
+To install the required packages for the project. Under the same directory where setup.py is located.
+```
+pip install -e .
 ```
 
 Running network
 ```
-python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
+python simple_network.py
 ```
 
-## For Docker
+## Docker Deployment
 First [install docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
 
 Build docker image
