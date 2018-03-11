@@ -159,9 +159,10 @@ class ShardState:
             txInputSet.add(txInput)
             txInputQuarkash += utxoPool[txInput].quarkash
             senderList.append(utxoPool[txInput].address.recipient)
-            Logger.debug(
-                "%s tx_in %s %d %d",
-                tx.getHashHex(), txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
+            if Logger.isEnableForDebug():
+                Logger.debug(
+                    "%s tx_in %s %d %d",
+                    tx.getHashHex(), txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
 
         # Check signature
         if not tx.verifySignature(senderList):
@@ -171,9 +172,10 @@ class ShardState:
         txOutputQuarkash = 0
         for txOut in tx.outList:
             txOutputQuarkash += txOut.quarkash
-            Logger.debug(
-                "%s tx_out %s %d",
-                tx.getHashHex(), txOut.getAddressHex(), txOut.quarkash)
+            if Logger.isEnableForDebug():
+                Logger.debug(
+                    "%s tx_out %s %d",
+                    tx.getHashHex(), txOut.getAddressHex(), txOut.quarkash)
         if txOutputQuarkash > txInputQuarkash:
             raise RuntimeError("output quarkash cannot exceed input one")
 
@@ -436,10 +438,12 @@ class ShardState:
             totalTxFee += txFee
             self.__updateUtxoPool(tx, rootBlockHeader, utxoPool)
             block.addTx(tx)
-            Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
+            if Logger.isEnableForDebug():
+                Logger.debug("Add tx to block to mine %s", tx.getHash().hex())
         for tx in invalidTxList:
             self.transactionPool.remove(tx)
-            Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
+            if Logger.isEnableForDebug():
+                Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
         return block.finalize(hashPrevRootBlock=rootBlockHeaderWithMaxHeight.getHash())

@@ -304,7 +304,8 @@ class LocalServer(Connection):
         """ This only uses the utxos on the shard indicated by the fromAddr
         And only support one fromAddr.
         """
-        Logger.debug("GetTxTemplate: {}".format(params))
+        if Logger.isEnableForDebug():
+            Logger.debug("GetTxTemplate: {}".format(params))
 
         qcState = self.network.qcState
         fromAddr = params["fromAddr"]
