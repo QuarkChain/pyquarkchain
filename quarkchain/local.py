@@ -265,8 +265,7 @@ class LocalServer(Connection):
         metric = 0
         header = qcState.getMinorBlockTip(shardId)
         while header.createTime >= now - sec:
-            block = self.env.db.getMinorBlockByHash(header.getHash())
-            metric += func(block)
+            metric += func(header)
             if header.height == 0:
                 break
             header = qcState.getMinorBlockHeaderByHeight(
@@ -503,8 +502,9 @@ class LocalServer(Connection):
     async def jrpcGetFullStats(self, params):
         qcState = self.network.qcState
         resp = await self.jrpcGetStats(params)
+        resp["shards"] = []
         for shardId in range(qcState.getShardSize()):
-            shardMetric = {
+            resp["shards"].append({
                 "blocksIn60s": self.countShardStatsIn(shardId, 60, lambda h: 1),
                 "blocksIn300s": self.countShardStatsIn(shardId, 300, lambda h: 1),
                 "difficulty": qcState.getMinorBlockTip(shardId).difficulty,
@@ -513,8 +513,7 @@ class LocalServer(Connection):
                 "height": qcState.getMinorBlockTip(shardId).height,
                 "utxoPoolSize": len(qcState.getUtxoPool(shardId)),
                 "pendingTxSize": qcState.getPendingTxSize(shardId),
-            }
-            resp["shard{}".format(shardId)] = shardMetric
+            })
 
         return resp
 
