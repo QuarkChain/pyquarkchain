@@ -30,6 +30,7 @@ from quarkchain.utils import check, Logger
 from quarkchain.utils import set_logging_level
 from rlp.utils import encode_hex, decode_hex, is_integer
 from quarkchain.p2pinterface_pb2 import QuarkMessage
+from quarkchain.p2p_peer import P2PPeer
 import argparse
 import asyncio
 import ipaddress
@@ -38,7 +39,7 @@ import rlp
 import socket
 import sys
 import ethereum.slogging as slogging
-slogging.configure(config_string=':info,p2p.protocol:debug,p2p.peer:debug')
+slogging.configure(config_string=':info,p2p.protocol:info,p2p.peer:info')
 
 
 class Quark(rlp.Serializable):
@@ -87,6 +88,8 @@ class QuarkChainProtocol(BaseProtocol):
             ('quark', Quark)
         ]
 
+# P2P network side gevent domain.
+
 
 class P2PProxyService(WiredService):
     name = 'P2PProxyService'
@@ -96,11 +99,11 @@ class P2PProxyService(WiredService):
     wire_protocol = QuarkChainProtocol
 
     def __init__(self, app):
-        Logger.info('P2PProxyService init')
         self.config = app.config
         self.address = privtopub_raw(decode_hex(
             self.config['node']['privkey_hex']))
         super(P2PProxyService, self).__init__(app)
+        Logger.info('P2PProxyService init-ed. id:{}'.format(self.address))
 
     # This server is for quarkchain to p2p netowrk stack communication.
     def startIPCServer(self):
@@ -112,6 +115,7 @@ class P2PProxyService(WiredService):
     # Receive on the socket and send any received message to remote.
     def proxySocketRecv(self, sock, address):
         self.proxySocket = sock
+        Logger.info('Receive sock {} started'.format(sock))
         while True:
             lenBytes = sock.recv(4)
             if lenBytes == '':
@@ -128,7 +132,7 @@ class P2PProxyService(WiredService):
                     self.sendP2PQuark(quarkMessage)
             else:
                 break
-        print('close server side socket')
+        self.log('close server side socket')
         sock.close()
         self.proxySocket = None
 
@@ -150,7 +154,7 @@ class P2PProxyService(WiredService):
             text,
             (' %r' % kargs if kargs else ''),
             COLOR_END])
-        Logger.info(msg)
+        Logger.debug(msg)
 
     def broadcast(self, obj, origin=None):
         fmap = {Quark: 'quark'}
@@ -178,6 +182,7 @@ class P2PProxyService(WiredService):
         msg = QuarkMessage()
         msg.is_broadcast = False
         msg.peer_id = remotePubKey  # Can we just use name?
+        self.log('peer ', id=remotePubKey)
         msg.type = QuarkMessage.P2PHELLO
         protoStr = msg.SerializeToString()
         payload = len(protoStr).to_bytes(4, 'big') + protoStr
@@ -217,13 +222,16 @@ class ProxyServerApp(BaseApp):
     default_config['internal_ipc_port'] = random.randint(10000, 14000)
 
 
+# QC Core side asyncio domain.
 class P2PNetwork:
 
     def __init__(self, env, qcState, p2pApp):
         self.loop = asyncio.get_event_loop()
+        self.loop.set_debug(True)
         self.env = env
         self.activePeerPool = dict()    # peer id => peer
-        self.selfId = random_bytes(32)
+        # TODO: Add an attribute for p2pApp to get self id.
+        self.selfId = p2pApp.services.P2PProxyService.address
         self.qcState = qcState
         self.ip = ipaddress.ip_address(
             socket.gethostbyname(socket.gethostname()))
@@ -233,7 +241,7 @@ class P2PNetwork:
         self.config = p2pApp.config
         self.p2pReader = None
         self.p2pWriter = None
-        self.p2pReadCallbacks = []
+        self.activePeerPool = dict()
 
     # msgHandler must take a message as paramter.
     def registerP2PCallbacks(self, msgHandler):
@@ -241,6 +249,7 @@ class P2PNetwork:
             # The order is the priority.
             self.p2pReadCallbacks.append(msgHandler)
 
+    # All QC Core messages are received from here.
     async def handlRecvP2P(self):
         while True:
             lenStr = await self.p2pReader.read(4)
@@ -253,13 +262,18 @@ class P2PNetwork:
                 return
             quarkMessage = QuarkMessage()
             quarkMessage.ParseFromString(msgBuf)
-            Logger.info('QC Core Receive message {}'.format(QuarkMessage))
-            for cb in self.p2pReadCallbacks:
-                cb(msgBuf)
+            Logger.debug('QC Core Receive message {}'.format(quarkMessage))
+            peer = self.activePeerPool.get(quarkMessage.peer_id)
+            if peer is None:
+                peer = P2PPeer(self.env, self, quarkMessage.peer_id, self.writeToP2P, self.loop)
+                self.activePeerPool[quarkMessage.peer_id] = peer
+                asyncio.ensure_future(peer.recvMsg(), loop=self.loop)
 
-    async def writeToP2P(self, msg: bytes):
+            await peer.networkCallback(quarkMessage)
+
+    def writeToP2P(self, msg: bytes):
         proxyMsg = len(msg).to_bytes(4, 'big') + msg
-        Logger.info('QC Core sending to P2P {}'.format(proxyMsg))
+        Logger.debug('QC Core sending to P2P {}'.format(proxyMsg))
         self.p2pWriter.write(proxyMsg)
 
     def start(self):
@@ -267,13 +281,14 @@ class P2PNetwork:
             coro = asyncio.open_connection('127.0.0.1', self.config['internal_ipc_port'],
                                            loop=self.loop)
             self.p2pReader, self.p2pWriter = self.loop.run_until_complete(coro)
-
+            Logger.info('QC Core connected with P2PProxyService')
+            asyncio.ensure_future(self.handlRecvP2P(), loop=self.loop)
         try:
-            self.loop.run_until_complete(self.handlRecvP2P())
+            self.loop.run_forever()
         except KeyboardInterrupt:
             pass
         self.loop.close()
-        print("Server is shutdown")
+        Logger.info("Server is shutdown")
 
 
 def parse_args():

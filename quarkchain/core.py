@@ -111,7 +111,7 @@ class FixedSizeBytesSerializer():
 
     def serialize(self, bs, barray):
         if len(bs) != self.size:
-            raise RuntimeError("bytes size mismatch")
+            raise RuntimeError("FixedSizeBytesSerializer input bytes size {} expect {}".format(len(bs), self.size))
         barray.extend(bs)
         return barray
 
