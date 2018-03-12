@@ -2,7 +2,6 @@ import asyncio
 import json
 import statistics
 import time
-from decimal import Decimal
 
 from quarkchain.core import uint32, boolean, uint8
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
@@ -206,6 +205,7 @@ class LocalServer(Connection):
                     resultCode=1, resultMessage=bytes("failed to deserialize root block", "ascii"))
             msg = self.network.qcState.appendRootBlock(rBlock)
             if msg is None:
+                self.network.broadcastNewBlockWithRawData(request.isRootBlock, request.blockData)
                 return SubmitNewBlockResponse(resultCode=0)
             else:
                 return SubmitNewBlockResponse(
@@ -220,6 +220,7 @@ class LocalServer(Connection):
 
             msg = self.network.qcState.appendMinorBlock(mBlock)
             if msg is None:
+                self.network.broadcastNewBlockWithRawData(request.isRootBlock, request.blockData)
                 return SubmitNewBlockResponse(resultCode=0)
             else:
                 return SubmitNewBlockResponse(

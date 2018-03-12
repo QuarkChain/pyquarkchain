@@ -66,14 +66,17 @@ class Connection:
 
         return (op, cmd, rpcId)
 
-    def writeCommand(self, op, cmd, rpcId=0):
-        data = cmd.serialize()
+    def writeRawCommand(self, op, cmdData, rpcId=0):
         ba = bytearray()
         ba.append(op)
-        ba.extend(len(data).to_bytes(4, byteorder="big"))
+        ba.extend(len(cmdData).to_bytes(4, byteorder="big"))
         ba.extend(rpcId.to_bytes(8, byteorder="big"))
-        ba.extend(data)
+        ba.extend(cmdData)
         self.writer.write(ba)
+
+    def writeCommand(self, op, cmd, rpcId=0):
+        data = cmd.serialize()
+        self.writeRawCommand(op, data, rpcId)
 
     def writeRpcRequest(self, op, cmd):
         rpcFuture = asyncio.Future()

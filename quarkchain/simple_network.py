@@ -10,7 +10,7 @@ from quarkchain.protocol import Connection, ConnectionState
 from quarkchain.local import LocalServer
 from quarkchain.db import PersistentDb
 from quarkchain.commands import *
-from quarkchain.utils import set_logging_level
+from quarkchain.utils import set_logging_level, Logger
 
 SEED_HOST = ("localhost", 38291)
 
@@ -119,6 +119,48 @@ class Peer(Connection):
         #             return
             # if mHeader.height < self.network.qcState.
 
+    def broadcastNewBlockCommand(self, cmd):
+        pass
+
+    async def handleNewBlockCommand(self, op, cmd, rpcId):
+        # New block is arrived.  This only applies to simple network with one miner.
+        if cmd.isRootBlock:
+            try:
+                rBlock = RootBlock.deserialize(cmd.blockData)
+            except Exception as e:
+                Logger.logException()
+                self.closeWithError("failed to deserialize root block")
+
+            Logger.info("received root block with height {}".format(rBlock.header.height))
+            if rBlock.header.height != self.network.qcState.getRootBlockTip().height + 1:
+                return
+            errorMsg = self.network.qcState.appendRootBlock(rBlock)
+            if errorMsg is not None:
+                self.closeWithError(errorMsg)
+            else:
+                self.broadcastNewBlockCommand(cmd)
+        else:
+            try:
+                mBlock = MinorBlock.deserialize(cmd.blockData)
+            except Exception as e:
+                Logger.logException()
+                self.closeWithError("failed to deserialize minor block")
+
+            Logger.info("received minor block with shardId {}".format(mBlock.header.branch.getShardId()))
+
+            if mBlock.header.branch.getShardSize() != self.network.qcState.getShardSize():
+                self.closeWithError("new block with mismatched shard size")
+
+            shardId = mBlock.header.branch.getShardId()
+            if mBlock.header.height != self.network.qcState.getMinorBlockTip(shardId).height + 1:
+                return
+
+            errorMsg = self.network.qcState.appendMinorBlock(mBlock)
+            if errorMsg is not None:
+                self.closeWithError(errorMsg)
+            else:
+                self.broadcastNewBlockCommand(cmd)
+
     async def handleGetRootBlockListRequest(self, request):
         return GetRootBlockListResponse()
 
@@ -147,6 +189,7 @@ class Peer(Connection):
 # Only for non-RPC (fire-and-forget) and RPC request commands
 OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handleError,
+    CommandOp.NEW_BLOCK_COMMAND: Peer.handleNewBlockCommand,
 }
 
 # For RPC request commands
@@ -212,6 +255,17 @@ class SimpleNetwork:
         for peerInfo in resp.peerInfoList:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
+
+    def broadcastCommand(self, op, cmd, sourcePeerId=None):
+        data = cmd.serialize()
+        for peerId, peer in self.activePeerPool.items():
+            if peerId == sourcePeerId:
+                continue
+            peer.writeRawCommand(op, data)
+
+    def broadcastNewBlockWithRawData(self, isRootBlock, blockData, sourcePeerId=None):
+        cmd = NewBlockCommand(isRootBlock, blockData)
+        self.broadcastCommand(CommandOp.NEW_BLOCK_COMMAND, cmd, sourcePeerId)
 
     def shutdownPeers(self):
         activePeerPool = self.activePeerPool
