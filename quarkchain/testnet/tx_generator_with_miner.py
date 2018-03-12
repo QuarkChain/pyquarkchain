@@ -1,12 +1,15 @@
+import argparse
 import asyncio
+import json
+
 from quarkchain.local import OP_SER_MAP, LocalCommandOp
 from quarkchain.local import SubmitNewBlockRequest, GetBlockTemplateRequest
 from quarkchain.protocol import Connection
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput, Code
-from quarkchain.core import Address, Identity, RootBlock, MinorBlock
-import argparse
+from quarkchain.core import Address, Branch, Identity, RootBlock, MinorBlock
 from quarkchain.genesis import create_genesis_blocks
+from quarkchain.testnet.bank_accounts import BANK_ACCOUNTS
 from quarkchain.utils import Logger, set_logging_level
 
 
@@ -19,19 +22,23 @@ class AddressesToFund:
         ''' The inputFile contains address and value in the following format
             address_in_hex,amount
         '''
+        self.shardSize = shardSize
         self.shardToAddresses = dict()
         try:
-            with open(inputFile) as f:
-                for line in f:
-                    addressHex, valueStr = line.split(",")
-                    address = Address.createFrom(addressHex)
-                    shardId = address.getShardId(shardSize)
-                    addressList = self.shardToAddresses.setdefault(shardId, [])
-                    addressList.append((address, int(valueStr) * DEFAULT_ENV.config.QUARKSH_TO_JIAOZI))
+            accountList = json.load(open(inputFile))
+            for account in accountList:
+                address = Address.createFrom(account["address"])
+                shardId = address.getShardId(shardSize)
+                addressList = self.shardToAddresses.setdefault(shardId, [])
+                addressList.append((address, account["value"] * DEFAULT_ENV.config.QUARKSH_TO_JIAOZI))
         except Exception:
             # All or nothing - any error will lead to no funding for any address
             self.shardToAddresses = dict()
             Logger.logException()
+
+    def addAddressToFund(self, address: Address, value):
+        addressList = self.shardToAddresses.setdefault(address.getShardId(self.shardSize), [])
+        addressList.append((address, value * DEFAULT_ENV.config.QUARKSH_TO_JIAOZI))
 
     def getAddresses(self, shardId):
         return self.shardToAddresses.get(shardId, [])
@@ -39,6 +46,15 @@ class AddressesToFund:
     def getFundingRequired(self, shardId):
         addresses = self.getAddresses(shardId)
         return sum([address[1] for address in addresses])
+
+
+def add_bank_accounts_to_fund(addressesToFund: AddressesToFund, shardSize):
+    for account in BANK_ACCOUNTS:
+        address = Address.createFrom(account["address"])
+        for shardId in range(shardSize):
+            branch = Branch.create(shardSize, shardId)
+            addressInShard = address.addressInBranch(branch)
+            addressesToFund.addAddressToFund(addressInShard, 10000000)
 
 
 class TxGeneratorClient(Connection):
@@ -69,9 +85,11 @@ class TxGeneratorClient(Connection):
 
         for shardId in range(self.env.config.SHARD_SIZE):
             minorBlockCoinbaseTx = mBlockList[shardId].txList[0]
-            remaining = minorBlockCoinbaseTx.outList[0].quarkash - self.addressesToFund.getFundingRequired(shardId)
+            required = self.addressesToFund.getFundingRequired(shardId)
+            remaining = minorBlockCoinbaseTx.outList[0].quarkash - required
             if remaining <= self.num_tx_generated * TX_VALUE:
-                raise RuntimeError("Insufficient fund for addresses on shard {}".format(shardId))
+                raise RuntimeError("Insufficient fund for addresses on shard {}, {} > {}".format(
+                    shardId, required / 10**18, minorBlockCoinbaseTx.outList[0].quarkash / 10**18))
 
             prevTx = minorBlockCoinbaseTx
             # Fund addresses
@@ -231,7 +249,7 @@ def parse_args():
     parser.add_argument(
         "--genesis_key", default=None, type=str)
     parser.add_argument("--log_level", default="info", type=str)
-    parser.add_argument("--addresses_to_fund_file", default="addresses_to_fund.txt", type=str)
+    parser.add_argument("--addresses_to_fund_file", default="addresses_to_fund.json", type=str)
     parser.add_argument(
         "--num_tx_generated_per_block", default=DEFAULT_ENV.config.TRANSACTION_LIMIT_PER_BLOCK, type=int)
     args = parser.parse_args()
@@ -248,6 +266,8 @@ def main():
     args = parse_args()
     genesisId = Identity.createFromKey(bytes.fromhex(args.genesis_key))
     addressesToFund = AddressesToFund(args.addresses_to_fund_file, DEFAULT_ENV.config.SHARD_SIZE)
+    add_bank_accounts_to_fund(addressesToFund, DEFAULT_ENV.config.SHARD_SIZE)
+
     loop = asyncio.get_event_loop()
     coro = asyncio.open_connection(
         "127.0.0.1", args.local_port, loop=loop)
