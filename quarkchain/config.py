@@ -14,7 +14,7 @@ class DefaultConfig:
         self.P2P_SERVER_PORT = 38291
         self.LOCAL_SERVER_PORT = 38391
         self.LOCAL_SERVER_ENABLE = False
-        self.SHARD_SIZE = 16
+        self.SHARD_SIZE = 8
         self.SHARD_SIZE_BITS = 2
 
         # Difficulty related
