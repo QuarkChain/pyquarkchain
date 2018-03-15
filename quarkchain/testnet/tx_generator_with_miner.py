@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import json
 
-from quarkchain.local import OP_SER_MAP, LocalCommandOp
+from quarkchain.local import OP_SER_MAP, GetUtxoRequest, LocalCommandOp, UtxoItem
 from quarkchain.local import SubmitNewBlockRequest, GetBlockTemplateRequest
 from quarkchain.protocol import Connection
 from quarkchain.config import DEFAULT_ENV
@@ -59,81 +59,140 @@ def add_bank_accounts_to_fund(addressesToFund: AddressesToFund, shardSize):
 
 class TxGeneratorClient(Connection):
     # Assume the network only contains genesis block
+    TX_VALUE = 1 * DEFAULT_ENV.config.QUARKSH_TO_JIAOZI
 
-    def __init__(self, loop, env, reader, writer, genesisId, addressesToFund, num_tx_generated):
+    def __init__(self, loop, env, reader, writer, genesisId, addressesToFund, numTxGenerated):
         super().__init__(env, reader, writer, OP_SER_MAP, dict(), dict())
         self.loop = loop
         self.genesisId = genesisId
         self.addressesToFund = addressesToFund
-        self.num_tx_generated = num_tx_generated
+        self.numTxGenerated = numTxGenerated
         self.txPool = [[] for i in range(self.env.config.SHARD_SIZE)]
         self.miningBlock = None
         self.isMiningBlockRoot = None
         self.utxoGenerateFuture = dict()
 
-    async def start(self):
+        _, mBlockList = create_genesis_blocks(self.env)
+        self.minorBlockCoinbaseTxList = [
+            mBlockList[shardId].txList[0] for shardId in range(self.env.config.SHARD_SIZE)]
+
+    def start(self):
         asyncio.ensure_future(self.activeAndLoopForever())
-        asyncio.ensure_future(self.generateGenesisTx())
+        asyncio.ensure_future(self.generateInitialTxs())
+        asyncio.ensure_future(self.startMining())
 
-    async def generateGenesisTx(self):
-        ''' The transactions generated consists of
-            1. transactions to fund the given addresses
-            2. artificial transactions (the total number of which is num_tx_generated)
+    def __createTxToFundAddresses(self, shardId, fundingTx):
+        ''' Returns a TX with one output for each address to be funded and
+            a last output to keep the remaining balance
         '''
-        TX_VALUE = 1 * self.env.config.QUARKSH_TO_JIAOZI
-        rBlock, mBlockList = create_genesis_blocks(self.env)
+        required = self.addressesToFund.getFundingRequired(shardId)
+        remaining = fundingTx.outList[0].quarkash - required
+        if remaining <= self.numTxGenerated * self.TX_VALUE:
+            raise RuntimeError("Insufficient fund for addresses on shard {}, {} > {}".format(
+                shardId, required / 10**18, fundingTx.outList[0].quarkash / 10**18))
 
-        for shardId in range(self.env.config.SHARD_SIZE):
-            minorBlockCoinbaseTx = mBlockList[shardId].txList[0]
-            required = self.addressesToFund.getFundingRequired(shardId)
-            remaining = minorBlockCoinbaseTx.outList[0].quarkash - required
-            if remaining <= self.num_tx_generated * TX_VALUE:
-                raise RuntimeError("Insufficient fund for addresses on shard {}, {} > {}".format(
-                    shardId, required / 10**18, minorBlockCoinbaseTx.outList[0].quarkash / 10**18))
+        outList = []
+        for address in self.addressesToFund.getAddresses(shardId):
+            outList.append(TransactionOutput(address[0], address[1]))
 
-            prevTx = minorBlockCoinbaseTx
-            # Fund addresses
-            outList = []
-            for address in self.addressesToFund.getAddresses(shardId):
-                outList.append(TransactionOutput(address[0], address[1]))
-            outList.append(TransactionOutput(prevTx.outList[0].address, remaining))
+        outList.append(TransactionOutput(fundingTx.outList[0].address, remaining))
 
+        tx = Transaction(
+            inList=[TransactionInput(fundingTx.getHash(), 0)],
+            code=Code.getTransferCode(),
+            outList=outList,
+        )
+        tx.sign([self.genesisId.getKey()])
+        return tx
+
+    def __createArtificialTxs(self, utxoItem, numTxToGenerate):
+        '''Returns a list of artificial transactions by splitting the utxoItem
+           into UTXO value of TX_VALUE
+        '''
+        txList = []
+        while len(txList) < numTxToGenerate:
+            if utxoItem.txOutput.quarkash <= self.TX_VALUE:
+                break
             tx = Transaction(
-                inList=[TransactionInput(prevTx.getHash(), 0)],
+                inList=[utxoItem.txInput],
                 code=Code.getTransferCode(),
-                outList=outList,
+                outList=[
+                    TransactionOutput(
+                        utxoItem.txOutput.address,
+                        self.TX_VALUE),
+                    TransactionOutput(
+                        utxoItem.txOutput.address,
+                        utxoItem.txOutput.quarkash - self.TX_VALUE),
+                ],
             )
             tx.sign([self.genesisId.getKey()])
-            prevTx = tx
-            self.txPool[shardId].append(tx)
+            utxoItem = UtxoItem(
+                TransactionInput(tx.getHash(), 1),
+                TransactionOutput(tx.outList[1].address, tx.outList[1].quarkash),
+            )
+            txList.append(tx)
+        return txList
 
-            # Generate artificial transactions
-            for txId in range(self.num_tx_generated):
-                prevLastOutputIndex = len(prevTx.outList) - 1
-                prevLastOutput = prevTx.outList[-1]
+    async def __getUtxo(self, shardId, address, limit):
+        try:
+            op, resp, rpcId = await self.writeRpcRequest(
+                LocalCommandOp.GET_UTXO_REQUEST,
+                GetUtxoRequest(shardId=shardId, address=address, limit=limit))
+        except Exception as e:
+            Logger.errorException()
+            self.close()
+        return resp.utxoItemList
+
+    async def generateInitialTxsForShard(self, shardId, fundAddresses=False):
+        utxoItemList = []
+        self.txPool[shardId] = []
+
+        if fundAddresses and self.addressesToFund.getAddresses(shardId):
+            address = self.addressesToFund.getAddresses(shardId)[0][0]
+            utxos = await self.__getUtxo(shardId, address, 1)
+            # If the address to fund already has UTXO it means the address has been funded
+            # This also means other addresses on the same shard are also funded because
+            # they are all funded through the same transasction
+            if not utxos:
+                minorBlockCoinbaseTx = self.minorBlockCoinbaseTxList[shardId]
+                tx = self.__createTxToFundAddresses(shardId, minorBlockCoinbaseTx)
+                self.txPool[shardId].append(tx)
+                Logger.info("[{}] Created transaction to fund addresses".format(shardId))
+
+                utxoItemList.append(UtxoItem(
+                    TransactionInput(tx.getHash(), len(tx.outList) - 1),
+                    TransactionOutput(tx.outList[-1].address, tx.outList[-1].quarkash)))
+                numTxToGenerate = self.numTxGenerated
+
+        if not utxoItemList:
+            branch = Branch.create(self.env.config.SHARD_SIZE, shardId)
+            address = self.env.config.GENESIS_ACCOUNT.addressInBranch(branch)
+            utxoItemList = await self.__getUtxo(shardId, address, self.numTxGenerated)
+            Logger.info("[{}] Got {} UTXOs".format(shardId, len(utxoItemList)))
+            numTxToGenerate = self.numTxGenerated - len(utxoItemList)
+
+        for utxoItem in utxoItemList:
+            if numTxToGenerate > 0 and utxoItem.txOutput.quarkash > self.TX_VALUE:
+                txList = self.__createArtificialTxs(utxoItem, numTxToGenerate)
+                self.txPool[shardId].extend(txList)
+                numTxToGenerate -= len(txList)
+            else:
                 tx = Transaction(
-                    inList=[TransactionInput(prevTx.getHash(), prevLastOutputIndex)],
+                    inList=[utxoItem.txInput],
                     code=Code.getTransferCode(),
-                    outList=[
-                        TransactionOutput(
-                            prevLastOutput.address,
-                            TX_VALUE),
-                        TransactionOutput(
-                            prevLastOutput.address,
-                            prevLastOutput.quarkash - TX_VALUE),
-                    ],
-                )
+                    outList=[utxoItem.txOutput])
                 tx.sign([self.genesisId.getKey()])
-                prevTx = tx
                 self.txPool[shardId].append(tx)
 
-        asyncio.ensure_future(self.startMining())
+    async def generateInitialTxs(self):
+        ''' The transactions generated consists of
+            1. transactions to fund the given addresses
+            2. artificial transactions (the total number of which is numTxGenerated)
+        '''
+        await asyncio.gather(
+            *[self.generateInitialTxsForShard(shardId, True) for shardId in range(self.env.config.SHARD_SIZE)])
 
-    def mineNext(self):
-        asyncio.ensure_future(self.startMining())
-
-    async def generateTx(self, shardId, prevTxList):
-        Logger.info("Start creating transactions for shard {}".format(shardId))
+    async def generateTxsForShard(self, shardId, prevTxList):
         newTxList = []
         for oldTx in prevTxList:
             tx = Transaction(
@@ -145,7 +204,6 @@ class TxGeneratorClient(Connection):
         self.txPool[shardId] = newTxList
         future = self.utxoGenerateFuture[shardId]
         del self.utxoGenerateFuture[shardId]
-        Logger.info("Finished creating transactions for shard {}".format(shardId))
         future.set_result(newTxList)
 
     async def startMining(self):
@@ -174,7 +232,7 @@ class TxGeneratorClient(Connection):
                 if self.miningBlock is not None and self.isMiningBlockRoot and \
                         block.header.height == self.miningBlock.header.height:
                     block = self.miningBlock
-                Logger.info("Starting mining on root block, height {}, nonce {} ...".format(
+                Logger.info("[R] Starting mining height {}, nonce {} ...".format(
                     block.header.height, block.header.nonce))
 
             else:
@@ -192,7 +250,7 @@ class TxGeneratorClient(Connection):
                     block.txList.extend(
                         self.txPool[block.header.branch.getShardId()])
                     block.finalizeMerkleRoot()
-                Logger.info("Starting mining on shard {}, height {}, nonce {} ...".format(
+                Logger.info("[{}] Starting mining height {}, nonce {} ...".format(
                     block.header.branch.getShardId(), block.header.height, block.header.nonce))
 
             self.miningBlock = block
@@ -210,7 +268,7 @@ class TxGeneratorClient(Connection):
                 # Try next block
                 continue
 
-            Logger.info("Mined on nonce {} with Txs {}".format(
+            Logger.info("Mined on nonce {} with {} Txs".format(
                 i, 0 if self.isMiningBlockRoot else len(block.txList)))
             submitReq = SubmitNewBlockRequest(
                 resp.isRootBlock, block.serialize())
@@ -221,9 +279,9 @@ class TxGeneratorClient(Connection):
                 shardId = block.header.branch.getShardId()
                 self.txPool[shardId] = None
                 self.utxoGenerateFuture[shardId] = asyncio.Future()
-                # The last num_tx_generated transactions are always the artificial ones
-                artificialTransactions = block.txList[-self.num_tx_generated:]
-                asyncio.ensure_future(self.generateTx(shardId, artificialTransactions))
+                # The last numTxGenerated transactions are always the artificial ones
+                artificialTransactions = block.txList[-self.numTxGenerated:]
+                asyncio.ensure_future(self.generateTxsForShard(shardId, artificialTransactions))
 
             try:
                 op, submitResp, rpcId = await self.writeRpcRequest(
@@ -240,6 +298,8 @@ class TxGeneratorClient(Connection):
             else:
                 Logger.info("Mined failed, code {}, message {}".format(
                     submitResp.resultCode, submitResp.resultMessage))
+                if not self.isMiningBlockRoot:
+                    await self.generateInitialTxsForShard(shardId)
 
 
 def parse_args():
@@ -274,7 +334,7 @@ def main():
     reader, writer = loop.run_until_complete(coro)
     client = TxGeneratorClient(
         loop, DEFAULT_ENV, reader, writer, genesisId, addressesToFund, args.num_tx_generated_per_block)
-    asyncio.ensure_future(client.start())
+    client.start()
 
     try:
         loop.run_until_complete(client.waitUntilClosed())
