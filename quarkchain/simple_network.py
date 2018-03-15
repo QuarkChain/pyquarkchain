@@ -283,7 +283,7 @@ class SimpleNetwork:
 
         if self.env.config.LOCAL_SERVER_ENABLE:
             coro = asyncio.start_server(
-                self.newLocalClient, "127.0.0.1", self.localPort, loop=self.loop)
+                self.newLocalClient, "0.0.0.0", self.localPort, loop=self.loop)
             self.local_server = self.loop.run_until_complete(coro)
             print("Listening on {} for local".format(
                 self.local_server.sockets[0].getsockname()))
