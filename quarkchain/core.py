@@ -474,6 +474,7 @@ class Branch(Serializable):
 
     @staticmethod
     def create(shardSize, shardId):
+        assert(is_p2(shardSize))
         return Branch(shardSize | shardId)
 
 

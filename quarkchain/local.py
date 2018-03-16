@@ -111,24 +111,25 @@ class JsonRpcResponse(Serializable):
 
 
 class GetUtxoRequest(Serializable):
-    # TODO: Add address filter, shard filter
     FIELDS = [
-        ("utxoLimit", uint32),
+        ("shardId", uint32),
+        ("address", Address),
+        ("limit", uint32),
     ]
 
-    def __init__(self, utxoLimit):
-        self.utxoLimit = utxoLimit
+    def __init__(self, shardId, address, limit):
+        self.shardId = shardId
+        self.address = address
+        self.limit = limit
 
 
 class UtxoItem(Serializable):
     FIELDS = [
-        ("shardId", uint32),
         ("txInput", TransactionInput),
         ("txOutput", TransactionOutput),
     ]
 
-    def __init__(self, shardId, txInput, txOutput):
-        self.shardId = shardId
+    def __init__(self, txInput, txOutput):
         self.txInput = txInput
         self.txOutput = txOutput
 
@@ -233,12 +234,15 @@ class LocalServer(Connection):
         return AddNewTransactionListResponse(len(request.txList))
 
     async def handleGetUtxoRequest(self, request):
+        if request.shardId >= self.network.qcState.getShardSize():
+            return GetUtxoResponse([])
+
         utxoList = []
-        for shardId in range(self.network.qcState.getShardSize()):
-            for key, value in self.network.qcState.getUtxoPool(shardId).items():
-                utxoList.append(UtxoItem(shardId, key, TransactionOutput(value.address, value.quarkash)))
-                if len(utxoList) >= request.utxoLimit:
-                    break
+        for txInput, value in self.network.qcState.getUtxoPool(request.shardId).items():
+            if value.address == request.address:
+                utxoList.append(UtxoItem(txInput, TransactionOutput(value.address, value.quarkash)))
+            if len(utxoList) >= request.limit:
+                break
 
         return GetUtxoResponse(utxoList)
 

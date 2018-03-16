@@ -72,7 +72,7 @@ class TxGeneratorClient(Connection):
         try:
             op, resp, rpcId = await self.writeRpcRequest(
                 LocalCommandOp.GET_UTXO_REQUEST,
-                GetUtxoRequest(UTXO_LIMIT))
+                GetUtxoRequest(shardId=3, address=self.env.config.GENESIS_ACCOUNT, limit=UTXO_LIMIT))
         except Exception as e:
             Logger.errorException()
             self.close()
@@ -80,8 +80,6 @@ class TxGeneratorClient(Connection):
 
         txList = []
         for utxoItem in resp.utxoItemList:
-            if utxoItem.txOutput.address.recipient != self.genesisId.getRecipient():
-                continue
             if utxoItem.txInput in self.submittedUtxo:
                 continue
             self.submittedUtxo.add(utxoItem.txInput)
@@ -90,7 +88,7 @@ class TxGeneratorClient(Connection):
                 code=Code.getTransferCode(),
                 outList=[utxoItem.txOutput])
             tx.sign([self.genesisId.getKey()])
-            txList.append(NewTransaction(utxoItem.shardId, tx))
+            txList.append(NewTransaction(3, tx))
 
         try:
             op, resp, rpcId = await self.writeRpcRequest(

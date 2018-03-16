@@ -153,7 +153,7 @@ class ShardState:
             if txInput in txInputSet:
                 raise RuntimeError("transaction input cannot be used twice")
             if txInput not in utxoPool:
-                raise RuntimeError("transaction input hash doesn't exist in UTXO pool")
+                raise RuntimeError("transaction input hash doesn't exist in UTXO pool {}".format(txInput.hash.hex()))
             if utxoPool[txInput].rootBlockHeader.height > rootBlockHeader.height:
                 rootBlockHeader = utxoPool[txInput].rootBlockHeader
             txInputSet.add(txInput)
@@ -304,7 +304,7 @@ class ShardState:
                     rollBackResult = self.__rollBackTx(rTx)
                     assert(rollBackResult is None)
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
-                    tx.getHash(), idx, e))
+                    tx.getHash().hex(), idx, e))
                 return str(e)
             totalFee += fee
             txDoneList.append(tx)
