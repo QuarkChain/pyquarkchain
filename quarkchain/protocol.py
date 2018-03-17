@@ -25,6 +25,7 @@ class Connection:
         self.rpcId = 0  # 0 is for non-rpc (fire-and-forget)
         self.rpcFutureMap = dict()
         loop = loop if loop else asyncio.get_event_loop()
+        self.activeFuture = loop.create_future()
         self.closeFuture = loop.create_future()
 
     async def readFully(self, n):
@@ -108,6 +109,7 @@ class Connection:
     async def activeAndLoopForever(self):
         if self.state == ConnectionState.CONNECTING:
             self.state = ConnectionState.ACTIVE
+            self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
             try:
                 op, cmd, rpcId = await self.readCommand()
@@ -147,6 +149,9 @@ class Connection:
         for rpcId, future in self.rpcFutureMap.items():
             future.set_exception(RuntimeError("Connection abort"))
         self.rpcFutureMap.clear()
+
+    async def waitUntilActive(self):
+        await self.activeFuture
 
     async def waitUntilClosed(self):
         await self.closeFuture

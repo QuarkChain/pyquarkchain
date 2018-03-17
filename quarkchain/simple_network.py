@@ -66,7 +66,7 @@ class Peer(Connection):
             return self.closeWithError("Peer %s already connected" % self.id)
 
         self.network.activePeerPool[self.id] = self
-        print("Peer {} connected".format(self.id.hex()))
+        Logger.info("Peer {} connected".format(self.id.hex()))
 
         # Send hello back
         if isServer:
@@ -80,13 +80,14 @@ class Peer(Connection):
             assert(self.id is not None)
             if self.id in self.network.activePeerPool:
                 del self.network.activePeerPool[self.id]
-            print("Peer {} disconnected, remaining {}".format(
+            Logger.info("Peer {} disconnected, remaining {}".format(
                 self.id.hex(), len(self.network.activePeerPool)))
         super().close()
 
     def closeWithError(self, error):
-        print("Closing peer %s with the following reason: %s" %
-              (self.id.hex() if self.id is not None else "unknown", error))
+        Logger.info(
+            "Closing peer %s with the following reason: %s" %
+            (self.id.hex() if self.id is not None else "unknown", error))
         return super().closeWithError(error)
 
     async def handleError(self, op, cmd, rpcId):
@@ -226,11 +227,11 @@ class SimpleNetwork:
         await localServer.start()
 
     async def connect(self, ip, port):
-        print("connecting {} {}".format(ip, port))
+        Logger.info("connecting {} {}".format(ip, port))
         try:
             reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
         except Exception as e:
-            print("failed to connect {} {}: {}".format(ip, port, e))
+            Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
         peer = Peer(self.env, reader, writer, self)
         peer.sendHello()
@@ -245,13 +246,16 @@ class SimpleNetwork:
             # Fail to connect
             return
 
+        # Make sure the peer is ready for incoming messages
+        await peer.waitUntilActive()
         try:
             op, resp, rpcId = await peer.writeRpcRequest(
                 CommandOp.GET_PEER_LIST_REQUEST, GetPeerListRequest(10))
         except Exception as e:
+            Logger.logException()
             return
 
-        print("connecting {} peers ...".format(len(resp.peerInfoList)))
+        Logger.info("connecting {} peers ...".format(len(resp.peerInfoList)))
         for peerInfo in resp.peerInfoList:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
@@ -277,15 +281,15 @@ class SimpleNetwork:
         coro = asyncio.start_server(
             self.newClient, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
-        print("Self id {}".format(self.selfId.hex()))
-        print("Listening on {} for p2p".format(
+        Logger.info("Self id {}".format(self.selfId.hex()))
+        Logger.info("Listening on {} for p2p".format(
             self.server.sockets[0].getsockname()))
 
         if self.env.config.LOCAL_SERVER_ENABLE:
             coro = asyncio.start_server(
                 self.newLocalClient, "0.0.0.0", self.localPort, loop=self.loop)
             self.local_server = self.loop.run_until_complete(coro)
-            print("Listening on {} for local".format(
+            Logger.info("Listening on {} for local".format(
                 self.local_server.sockets[0].getsockname()))
 
         self.loop.create_task(self.connectSeed(SEED_HOST[0], SEED_HOST[1]))
@@ -299,7 +303,7 @@ class SimpleNetwork:
         self.server.close()
         self.loop.run_until_complete(self.server.wait_closed())
         self.loop.close()
-        print("Server is shutdown")
+        Logger.info("Server is shutdown")
 
 
 def parse_args():
