@@ -130,7 +130,7 @@ class Peer(Connection):
                 Logger.logException()
                 self.closeWithError("failed to deserialize root block")
 
-            Logger.info("received root block with height {}".format(rBlock.header.height))
+            Logger.info("[R] Received block with height {}".format(rBlock.header.height))
             if rBlock.header.height != self.network.qcState.getRootBlockTip().height + 1:
                 return
             errorMsg = self.network.qcState.appendRootBlock(rBlock)
@@ -145,7 +145,8 @@ class Peer(Connection):
                 Logger.logException()
                 self.closeWithError("failed to deserialize minor block")
 
-            Logger.info("received minor block with shardId {}".format(mBlock.header.branch.getShardId()))
+            Logger.info("[{}] Received block with height {}".format(
+                mBlock.header.branch.getShardId(), mBlock.header.height))
 
             if mBlock.header.branch.getShardSize() != self.network.qcState.getShardSize():
                 self.closeWithError("new block with mismatched shard size")
@@ -159,6 +160,13 @@ class Peer(Connection):
                 self.closeWithError(errorMsg)
             else:
                 self.broadcastNewBlockCommand(cmd)
+
+    async def handleNewTransactionList(self, op, cmd, rpcId):
+        for newTransaction in cmd.transactionList:
+            Logger.info("[{}] Received transaction {}".format(
+                newTransaction.shardId,
+                newTransaction.transaction.getHashHex()))
+            self.network.qcState.addTransactionToQueue(newTransaction.shardId, newTransaction.transaction)
 
     async def handleGetRootBlockListRequest(self, request):
         return GetRootBlockListResponse()
@@ -189,6 +197,7 @@ class Peer(Connection):
 OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handleError,
     CommandOp.NEW_BLOCK_COMMAND: Peer.handleNewBlockCommand,
+    CommandOp.NEW_TRANSACTION_LIST: Peer.handleNewTransactionList,
 }
 
 # For RPC request commands
@@ -258,7 +267,7 @@ class SimpleNetwork:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
 
-    def broadcastCommand(self, op, cmd, sourcePeerId=None):
+    def __broadcastCommand(self, op, cmd, sourcePeerId=None):
         data = cmd.serialize()
         for peerId, peer in self.activePeerPool.items():
             if peerId == sourcePeerId:
@@ -267,7 +276,11 @@ class SimpleNetwork:
 
     def broadcastNewBlockWithRawData(self, isRootBlock, blockData, sourcePeerId=None):
         cmd = NewBlockCommand(isRootBlock, blockData)
-        self.broadcastCommand(CommandOp.NEW_BLOCK_COMMAND, cmd, sourcePeerId)
+        self.__broadcastCommand(CommandOp.NEW_BLOCK_COMMAND, cmd, sourcePeerId)
+
+    def broadcastTransaction(self, shardId, tx, sourcePeerId=None):
+        cmd = NewTransactionListCommand([NewTransaction(shardId, tx)])
+        self.__broadcastCommand(CommandOp.NEW_TRANSACTION_LIST, cmd, sourcePeerId)
 
     def shutdownPeers(self):
         activePeerPool = self.activePeerPool
@@ -321,6 +334,7 @@ def parse_args():
     parser.add_argument(
         "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int)
     parser.add_argument("--in_memory_db", default=False)
+    parser.add_argument("--db_path", default="./db", type=str)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
 
@@ -333,7 +347,7 @@ def parse_args():
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     if not args.in_memory_db:
-        env.db = PersistentDb(path="./db", clean=True)
+        env.db = PersistentDb(path=args.db_path, clean=True)
 
     return env
 

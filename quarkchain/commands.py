@@ -43,9 +43,22 @@ class NewMinorBlockHeaderListCommand(Serializable):
         self.minorBlockHeaderList = minorBlockHeaderList
 
 
+class NewTransaction(Serializable):
+    FIELDS = [
+        ("shardId", uint32),
+        ("transaction", Transaction),
+    ]
+
+    def __init__(self, shardId, transaction):
+        """ Negative shardId indicates unknown shard (not support yet)
+        """
+        self.shardId = shardId
+        self.transaction = transaction
+
+
 class NewTransactionListCommand(Serializable):
     FIELDS = [
-        ("transactionList", PreprendedSizeListSerializer(4, Transaction))
+        ("transactionList", PreprendedSizeListSerializer(4, NewTransaction))
     ]
 
     def __init__(self, transactionList=None):
