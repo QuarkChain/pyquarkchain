@@ -546,9 +546,10 @@ class LocalServer(Connection):
         inList = []
         for txInput in tx.inList:
             t = self.db.getTx(txInput.hash)
-            addr = t.outList[txInput.index].address.toHex()
+            addr = t.outList[txInput.index].address
             inList.append({
-                "address": addr,
+                "address": addr.toHex(),
+                "shardId": addr.getShardId(qcState.getShardSize()),
                 "quarkash": t.outList[txInput.index].quarkash,
             })
 
@@ -556,6 +557,7 @@ class LocalServer(Connection):
         for txOutput in tx.outList:
             outList.append({
                 "address": txOutput.address.toHex(),
+                "shardId": txOutput.address.getShardId(qcState.getShardSize()),
                 "quarkash": txOutput.quarkash,
             })
 
@@ -680,8 +682,9 @@ class LocalServer(Connection):
         peerList = []
         for peerId, peer in self.network.activePeerPool.items():
             peerList.append({
+                "id": peerId.hex(),
                 "ip": str(peer.ip),
-                "port": str(peer.port)
+                "port": peer.port,
             })
         return {
             "peerList": peerList,
