@@ -674,6 +674,17 @@ class LocalServer(Connection):
         }
         return resp
 
+    async def jrpcGetPeers(self, params):
+        peerList = []
+        for peerId, peer in self.network.activePeerPool.items():
+            peerList.append({
+                "ip": str(peer.ip),
+                "port": str(peer.port)
+            })
+        return {
+            "peerList": peerList,
+        }
+
     def jrpcError(self, errorCode, jrpcId=None, errorMessage=None):
         response = {
             "jsonrpc": "2.0",
@@ -737,6 +748,7 @@ JRPC_MAP = {
     "getAccountTx": LocalServer.jrpcGetAccountTx,
     "getBlockTx": LocalServer.jrpcGetBlockTx,
     "getFullStats": LocalServer.jrpcGetFullStats,
+    "getPeers": LocalServer.jrpcGetPeers,
     "getStats": LocalServer.jrpcGetStats,
     "getTx": LocalServer.jrpcGetTx,
     "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
