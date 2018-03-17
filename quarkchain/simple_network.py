@@ -12,8 +12,6 @@ from quarkchain.db import PersistentDb
 from quarkchain.commands import *
 from quarkchain.utils import set_logging_level, Logger
 
-SEED_HOST = ("localhost", 38291)
-
 
 class Peer(Connection):
 
@@ -292,7 +290,8 @@ class SimpleNetwork:
             Logger.info("Listening on {} for local".format(
                 self.local_server.sockets[0].getsockname()))
 
-        self.loop.create_task(self.connectSeed(SEED_HOST[0], SEED_HOST[1]))
+        self.loop.create_task(
+            self.connectSeed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
 
         try:
             self.loop.run_forever()
@@ -308,6 +307,7 @@ class SimpleNetwork:
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    # P2P port
     parser.add_argument(
         "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int)
     # Local port for JSON-RPC, wallet, etc
@@ -315,6 +315,11 @@ def parse_args():
         "--enable_local_server", default=False, type=bool)
     parser.add_argument(
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
+    # Seed host which provides the list of available peers
+    parser.add_argument(
+        "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST, type=str)
+    parser.add_argument(
+        "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int)
     parser.add_argument("--in_memory_db", default=False)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
@@ -323,6 +328,8 @@ def parse_args():
 
     env = DEFAULT_ENV.copy()
     env.config.P2P_SERVER_PORT = args.server_port
+    env.config.P2P_SEED_HOST = args.seed_host
+    env.config.P2P_SEED_PORT = args.seed_port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     if not args.in_memory_db:
