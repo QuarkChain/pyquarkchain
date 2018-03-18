@@ -404,7 +404,7 @@ class LocalServer(Connection):
         # one signer owns all the input utxos
         tx.signList = [bytes.fromhex(signature)] * len(tx.inList)
         qcState.addTransactionToQueue(shardId, tx)
-        self.network.broadcastTransasction(shardId, tx)
+        self.network.broadcastTransaction(shardId, tx)
 
         resp = {
             "txHash": tx.getHash().hex(),
