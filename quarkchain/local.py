@@ -437,7 +437,7 @@ class LocalServer(Connection):
         qcState.addTransactionToQueue(shardId, tx)
         self.network.broadcastTransaction(shardId, tx)
         resp = {
-            "txHash": tx.getHash().hex(),
+            "txHash": tx.getHashHex(),
         }
         return resp
 
@@ -460,6 +460,55 @@ class LocalServer(Connection):
         }
         return resp
 
+    async def jrpcTransferBalance(self, params):
+        qcState = self.network.qcState
+        addr = params["account"]
+        key = params["key"]
+        if len(addr) != Constant.ADDRESS_HEX_LENGTH:
+            raise RuntimeError(
+                "Invalid address length {}".format(len(addr))
+            )
+        if len(key) != Constant.KEY_HEX_LENGTH:
+            raise RuntimeError("Invalid key {}".format(key))
+
+        toAddress = Address.createFrom(addr)
+
+        txList = []
+        for shardId in range(qcState.getShardSize()):
+            utxoPool = qcState.getUtxoPool(shardId)
+            inList = []
+            quarkash = 0
+            for txInput, utxo in utxoPool.items():
+                if utxo.address == toAddress:
+                    continue
+                if utxo.address.recipient != toAddress.recipient:
+                    continue
+                inList.append(txInput)
+                quarkash += utxo.quarkash
+            if not inList:
+                continue
+
+            outList = [TransactionOutput(toAddress, quarkash)]
+            tx = Transaction(
+                inList=inList,
+                code=Code.getTransferCode(),
+                outList=outList,
+            )
+            # provide signatures to unlock the utxos in inList
+            tx.sign([bytes.fromhex(key)] * len(tx.inList))
+
+            qcState.addTransactionToQueue(shardId, tx)
+            self.network.broadcastTransaction(shardId, tx)
+            txList.append({
+                "txHash": tx.getHashHex(),
+                "shardId": shardId,
+                "quarkash": quarkash,
+            })
+
+        return {
+            "txList": txList,
+        }
+
     async def jrpcGetAccountTx(self, params):
         qcState = self.network.qcState
         addr = params["addr"]
@@ -469,13 +518,13 @@ class LocalServer(Connection):
             )
         limit = params.get("limit", 0)
         address = Address.createFrom(addr)
-        shardId = address.getShardId(qcState.getShardSize())
         txList = []
-        for txHash, timestamp in qcState.getTransactionPool(shardId).accountTxIter(address):
-            txList.append({
-                "txHash": txHash.hex(),
-                "timestamp": timestamp,
-            })
+        for shardId in range(qcState.getShardSize()):
+            for txHash, timestamp in qcState.getTransactionPool(shardId).accountTxIter(address):
+                txList.append({
+                    "txHash": txHash.hex(),
+                    "timestamp": timestamp,
+                })
         limit -= len(txList)
         if limit > 0:
             for txHash, timestamp in self.db.accountTxIter(address, limit):
@@ -758,4 +807,5 @@ JRPC_MAP = {
     "getTx": LocalServer.jrpcGetTx,
     "getTxOutputInfo": LocalServer.jrpcGetTxOutputInfo,
     "getTxTemplate": LocalServer.jrpcGetTxTemplate,
+    "transferBalance": LocalServer.jrpcTransferBalance,
 }
