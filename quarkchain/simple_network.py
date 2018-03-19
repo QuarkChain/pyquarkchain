@@ -312,6 +312,9 @@ class SimpleNetwork:
         cmd = NewTransactionListCommand([NewTransaction(shardId, tx)])
         self.__broadcastCommand(CommandOp.NEW_TRANSACTION_LIST, cmd, sourcePeerId)
 
+    def isSyncing(self):
+        return self.syncing
+
     async def sync(self, peer=None):
         '''Only allow one sync at a time'''
         if self.syncing:
