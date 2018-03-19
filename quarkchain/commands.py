@@ -101,7 +101,7 @@ class GetMinorBlockListResponse(Serializable):
         self.minorBlockList = minorBlockList if minorBlockList is not None else []
 
 
-class GetBlockHeaderListRequest(Serializable):
+class GetBlockHashListRequest(Serializable):
     FIELDS = [
         ("blockHash", hash256),
         ("maxBlocks", uint32),
@@ -114,15 +114,15 @@ class GetBlockHeaderListRequest(Serializable):
         self.direction = direction
 
 
-class GetBlockHeaderListResponse(Serializable):
+class GetBlockHashListResponse(Serializable):
     FIELDS = [
         ("isRoot", boolean),
-        ("blockHeaderList", PreprendedSizeListSerializer(4, PreprendedSizeBytesSerializer))
+        ("blockHashList", PreprendedSizeListSerializer(4, hash256))
     ]
 
-    def __init__(self, isRoot, blockHeaderList):
+    def __init__(self, isRoot, blockHashList):
         self.isRoot = isRoot
-        self.blockHeaderList = blockHeaderList
+        self.blockHashList = blockHashList
 
 
 class GetPeerListRequest(Serializable):
@@ -175,8 +175,8 @@ class CommandOp():
     GET_PEER_LIST_RESPONSE = 6
     GET_MINOR_BLOCK_LIST_REQUEST = 7
     GET_MINOR_BLOCK_LIST_RESPONSE = 8
-    GET_BLOCK_HEADER_LIST_REQUEST = 9
-    GET_BLOCK_HEADER_LIST_RESPONSE = 10
+    GET_BLOCK_HASH_LIST_REQUEST = 9
+    GET_BLOCK_HASH_LIST_RESPONSE = 10
     NEW_BLOCK_COMMAND = 11
 
 
@@ -190,7 +190,7 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_PEER_LIST_RESPONSE: GetPeerListResponse,
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST: GetMinorBlockListRequest,
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
-    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST: GetBlockHeaderListRequest,
-    CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE: GetBlockHeaderListResponse,
+    CommandOp.GET_BLOCK_HASH_LIST_REQUEST: GetBlockHashListRequest,
+    CommandOp.GET_BLOCK_HASH_LIST_RESPONSE: GetBlockHashListResponse,
     CommandOp.NEW_BLOCK_COMMAND: NewBlockCommand,
 }

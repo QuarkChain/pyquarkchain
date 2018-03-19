@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import ipaddress
+import random
 import socket
 
 from quarkchain.core import random_bytes
@@ -130,14 +131,19 @@ class Peer(Connection):
                 Logger.logException()
                 self.closeWithError("failed to deserialize root block")
 
-            Logger.info("[R] Received block with height {}".format(rBlock.header.height))
-            if rBlock.header.height != self.network.qcState.getRootBlockTip().height + 1:
+            Logger.info("[R] Received block with height {}, local height {}".format(
+                rBlock.header.height, self.network.qcState.getRootBlockTip().height))
+            heightExpected = self.network.qcState.getRootBlockTip().height + 1
+            if rBlock.header.height > heightExpected:
+                await self.network.sync()
+                return
+            elif rBlock.header.height < heightExpected:
                 return
             errorMsg = self.network.qcState.appendRootBlock(rBlock)
-            if errorMsg is not None:
-                self.closeWithError(errorMsg)
-            else:
+            if errorMsg is None:
                 self.broadcastNewBlockCommand(cmd)
+            else:
+                Logger.info("[R] Failed to append block {}".format(rBlock.header.height))
         else:
             try:
                 mBlock = MinorBlock.deserialize(cmd.blockData)
@@ -146,20 +152,27 @@ class Peer(Connection):
                 self.closeWithError("failed to deserialize minor block")
 
             Logger.info("[{}] Received block with height {}".format(
-                mBlock.header.branch.getShardId(), mBlock.header.height))
+                mBlock.header.branch.getShardId(),
+                mBlock.header.height))
 
             if mBlock.header.branch.getShardSize() != self.network.qcState.getShardSize():
                 self.closeWithError("new block with mismatched shard size")
 
             shardId = mBlock.header.branch.getShardId()
-            if mBlock.header.height != self.network.qcState.getMinorBlockTip(shardId).height + 1:
+            heightExpected = self.network.qcState.getMinorBlockTip(shardId).height + 1
+            if mBlock.header.height > heightExpected:
+                await self.network.sync()
+                return
+            elif mBlock.header.height < heightExpected:
                 return
 
             errorMsg = self.network.qcState.appendMinorBlock(mBlock)
-            if errorMsg is not None:
-                self.closeWithError(errorMsg)
-            else:
+            if errorMsg is None:
                 self.broadcastNewBlockCommand(cmd)
+            else:
+                Logger.info("[{}] Failed to append block {}".format(
+                    mBlock.header.branch.getShardId(),
+                    mBlock.header.height))
 
     async def handleNewTransactionList(self, op, cmd, rpcId):
         for newTransaction in cmd.transactionList:
@@ -169,18 +182,29 @@ class Peer(Connection):
             self.network.qcState.addTransactionToQueue(newTransaction.shardId, newTransaction.transaction)
 
     async def handleGetRootBlockListRequest(self, request):
-        return GetRootBlockListResponse()
-
-    async def handleGetBlockHeaderListRequest(self, request):
         qcState = self.network.qcState
-        hList = qcState.getRootBlockHeaderList(request.blockHash)
-        if hList is not None:
-            return GetBlockHeaderListResponse(True, hList)
+        blockList = []
+        for h in request.rootBlockHashList:
+            blockList.append(qcState.db.getRootBlockByHash(h))
+        return GetRootBlockListResponse(blockList)
 
-        hList = qcState.getMinorBlockHeaderList(request.blockHash)
+    async def handleGetMinorBlockListRequest(self, request):
+        qcState = self.network.qcState
+        blockList = []
+        for h in request.minorBlockHashList:
+            blockList.append(qcState.db.getMinorBlockByHash(h))
+        return GetMinorBlockListResponse(blockList)
+
+    async def handleGetBlockHashListRequest(self, request):
+        qcState = self.network.qcState
+        hList = qcState.getRootBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
+        if hList is not None:
+            return GetBlockHashListResponse(True, [header.getHash() for header in hList])
+
+        hList = qcState.getMinorBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
         if hList is None:
-            return GetBlockHeaderListResponse(False, [])
-        return GetBlockHeaderListResponse(False, hList)
+            return GetBlockHashListResponse(False, [])
+        return GetBlockHashListResponse(False, [header.getHash() for header in hList])
 
     async def handleGetPeerListRequest(self, request):
         resp = GetPeerListResponse()
@@ -205,10 +229,13 @@ OP_RPC_MAP = {
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
         (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
          Peer.handleGetRootBlockListRequest),
+    CommandOp.GET_MINOR_BLOCK_LIST_REQUEST:
+        (CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE,
+         Peer.handleGetMinorBlockListRequest),
     CommandOp.GET_PEER_LIST_REQUEST:
         (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
-    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST:
-        (CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE, Peer.handleGetBlockHeaderListRequest)
+    CommandOp.GET_BLOCK_HASH_LIST_REQUEST:
+        (CommandOp.GET_BLOCK_HASH_LIST_RESPONSE, Peer.handleGetBlockHashListRequest)
 }
 
 
@@ -224,6 +251,7 @@ class SimpleNetwork:
             socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
         self.localPort = self.env.config.LOCAL_SERVER_PORT
+        self.syncing = False
 
     async def newClient(self, client_reader, client_writer):
         peer = Peer(self.env, client_reader, client_writer, self)
@@ -267,6 +295,8 @@ class SimpleNetwork:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
 
+        await self.sync(peer)
+
     def __broadcastCommand(self, op, cmd, sourcePeerId=None):
         data = cmd.serialize()
         for peerId, peer in self.activePeerPool.items():
@@ -281,6 +311,139 @@ class SimpleNetwork:
     def broadcastTransaction(self, shardId, tx, sourcePeerId=None):
         cmd = NewTransactionListCommand([NewTransaction(shardId, tx)])
         self.__broadcastCommand(CommandOp.NEW_TRANSACTION_LIST, cmd, sourcePeerId)
+
+    async def sync(self, peer=None):
+        '''Only allow one sync at a time'''
+        if self.syncing:
+            return
+        self.syncing = True
+        try:
+            await self.__doSync(peer)
+        except Exception:
+            Logger.logException()
+
+        self.syncing = False
+
+    async def __syncMinorBlocks(self, peer, minorBlockHashList):
+        '''Download and append the minor blocks.
+           Appending failures are ignored as we might got root blocks that
+           includes already synced minor blocks.
+        '''
+        try:
+            op, resp, rpcId = await peer.writeRpcRequest(
+                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST,
+                GetMinorBlockListRequest(
+                    minorBlockHashList=minorBlockHashList,
+                )
+            )
+        except Exception as e:
+            Logger.logException()
+            return "Failed to fetch minor blocks: " + str(e)
+
+        for minorBlock in resp.minorBlockList:
+            errorMsg = self.qcState.appendMinorBlock(minorBlock)
+            if errorMsg:
+                Logger.info("[SYNC] Ignoring minor block appending failure {}/{}: {}".format(
+                    minorBlock.header.height, minorBlock.header.branch.getShardId(), errorMsg))
+
+    async def __syncRootBlocksAndConfirmedMinorBlocks(self, peer, rootBlockHashList):
+        '''Download and append the root blocks and all the confirmed minor blocks
+        '''
+        try:
+            op, resp, rpcId = await peer.writeRpcRequest(
+                CommandOp.GET_ROOT_BLOCK_LIST_REQUEST,
+                GetRootBlockListRequest(
+                    rootBlockHashList=rootBlockHashList,
+                )
+            )
+        except Exception as e:
+            Logger.logException()
+            return "Failed to fetch root blocks: " + str(e)
+
+        numNewRootBlocks = len(resp.rootBlockList)
+        Logger.info("[SYNC] syncing {} root blocks".format(numNewRootBlocks))
+
+        for rootBlock in resp.rootBlockList:
+            minorBlockHashList = [header.getHash() for header in rootBlock.minorBlockHeaderList]
+            Logger.info("[SYNC] syncing {} confirmed minor blocks on root block {}".format(
+                len(minorBlockHashList), rootBlock.header.height))
+            errorMsg = await self.__syncMinorBlocks(peer, minorBlockHashList)
+            if errorMsg:
+                return "error syncing minor blocks: {}".format(errorMsg)
+
+            errorMsg = self.qcState.appendRootBlock(rootBlock)
+            if errorMsg:
+                return "error appending root block {}: {}".format(
+                    rootBlock.header.height, errorMsg)
+
+    async def __doSync(self, peer=None):
+        '''Sync the state of all the block chains with the given peer or a randomly picked remote peer.
+           1) Sync the root blocks and all the confirmed minor blocks starting from the current root tip
+           2) Sync the unconfirmed minor blocks for each shard starting from the current shard tip
+           Assuming no folk in the network and every node returns the correct data.
+        '''
+        if not peer:
+            if not self.activePeerPool:
+                Logger.info("[SYNC] No available peer to sync with")
+                return
+
+            peerId, peer = random.choice(list(self.activePeerPool.items()))
+
+        Logger.info("[SYNC] start syncing with " + peer.id.hex())
+
+        # Sync root blocks and all the minor blocks confirmed
+        while True:
+            rootTip = self.qcState.getRootBlockTip()
+            try:
+                op, resp, rpcId = await peer.writeRpcRequest(
+                    CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
+                    GetBlockHashListRequest(
+                        blockHash=rootTip.getHash(),
+                        maxBlocks=1024,
+                        direction=1,
+                    ),
+                )
+            except Exception as e:
+                Logger.logException()
+                return
+
+            if len(resp.blockHashList) - 1 <= 0:
+                Logger.info("[SYNC] Finished syncing root blocks and all the confirmed minor blocks")
+                break
+
+            errorMsg = await self.__syncRootBlocksAndConfirmedMinorBlocks(peer, resp.blockHashList[1:])
+            if errorMsg:
+                Logger.info("[SYNC] FAILED " + errorMsg)
+                return
+
+        # Sync unconfirmed minor blocks
+        # TODO: we currently assume the number of pending minor blocks is less than 1024
+        for shardId in range(self.qcState.getShardSize()):
+            minorTip = self.qcState.getMinorBlockTip(shardId)
+            try:
+                op, resp, rpcId = await peer.writeRpcRequest(
+                    CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
+                    GetBlockHashListRequest(
+                        blockHash=minorTip.getHash(),
+                        maxBlocks=1024,
+                        direction=1,
+                    ),
+                )
+            except Exception as e:
+                Logger.logException()
+                return
+
+            if len(resp.blockHashList) - 1 <= 0:
+                continue
+
+            Logger.info("[SYNC] Syncing {} unconfirmed minor blocks on shard {}!".format(
+                len(resp.blockHashList) - 1, shardId))
+            errorMsg = await self.__syncMinorBlocks(peer, resp.blockHashList[1:])
+            if errorMsg:
+                Logger.info("[SYNC] FAILED " + errorMsg)
+                return
+
+        Logger.info("[SYNC] Finished syncing all the unconfirmed minor blocks")
 
     def shutdownPeers(self):
         activePeerPool = self.activePeerPool
