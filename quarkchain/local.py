@@ -539,6 +539,7 @@ class LocalServer(Connection):
     async def jrpcGetStats(self, params):
         qcState = self.network.qcState
         resp = {
+            "syncing": self.network.isSyncing(),
             "shardSize": qcState.getShardSize(),
             "rootHeight": qcState.getRootBlockTip().height,
             "rootDifficulty": qcState.getRootBlockTip().difficulty,
