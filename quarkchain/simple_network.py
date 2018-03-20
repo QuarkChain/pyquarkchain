@@ -332,22 +332,25 @@ class SimpleNetwork:
            Appending failures are ignored as we might got root blocks that
            includes already synced minor blocks.
         '''
-        try:
-            op, resp, rpcId = await peer.writeRpcRequest(
-                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST,
-                GetMinorBlockListRequest(
-                    minorBlockHashList=minorBlockHashList,
+        # We fetch and append one block at a time rather than all at once
+        # so that the server can be responsive to JRPCs during the await slots
+        for minorBlockHash in minorBlockHashList:
+            try:
+                op, resp, rpcId = await peer.writeRpcRequest(
+                    CommandOp.GET_MINOR_BLOCK_LIST_REQUEST,
+                    GetMinorBlockListRequest(
+                        minorBlockHashList=[minorBlockHash],
+                    )
                 )
-            )
-        except Exception as e:
-            Logger.logException()
-            return "Failed to fetch minor blocks: " + str(e)
+            except Exception as e:
+                Logger.logException()
+                return "Failed to fetch minor blocks: " + str(e)
 
-        for minorBlock in resp.minorBlockList:
-            errorMsg = self.qcState.appendMinorBlock(minorBlock)
-            if errorMsg:
-                Logger.info("[SYNC] Ignoring minor block appending failure {}/{}: {}".format(
-                    minorBlock.header.height, minorBlock.header.branch.getShardId(), errorMsg))
+            for minorBlock in resp.minorBlockList:
+                errorMsg = self.qcState.appendMinorBlock(minorBlock)
+                if errorMsg:
+                    Logger.info("[SYNC] Ignoring minor block appending failure {}/{}: {}".format(
+                        minorBlock.header.height, minorBlock.header.branch.getShardId(), errorMsg))
 
     async def __syncRootBlocksAndConfirmedMinorBlocks(self, peer, rootBlockHashList):
         '''Download and append the root blocks and all the confirmed minor blocks
