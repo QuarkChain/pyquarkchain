@@ -72,7 +72,8 @@ class TxGeneratorClient(Connection):
         self.isMiningBlockRoot = None
         self.utxoGenerateFuture = dict()
 
-        _, mBlockList = create_genesis_blocks(self.env)
+        self.genesisRootBlock, mBlockList = create_genesis_blocks(self.env)
+        self.txRootHeaders = [self.genesisRootBlock.header for i in range(self.env.config.SHARD_SIZE)]
         self.minorBlockCoinbaseTxList = [
             mBlockList[shardId].txList[0] for shardId in range(self.env.config.SHARD_SIZE)]
 
@@ -129,6 +130,7 @@ class TxGeneratorClient(Connection):
             utxoItem = UtxoItem(
                 TransactionInput(tx.getHash(), 1),
                 TransactionOutput(tx.outList[1].address, tx.outList[1].quarkash),
+                self.genesisRootBlock.header,
             )
             txList.append(tx)
         return txList
@@ -161,7 +163,9 @@ class TxGeneratorClient(Connection):
 
                 utxoItemList.append(UtxoItem(
                     TransactionInput(tx.getHash(), len(tx.outList) - 1),
-                    TransactionOutput(tx.outList[-1].address, tx.outList[-1].quarkash)))
+                    TransactionOutput(tx.outList[-1].address, tx.outList[-1].quarkash),
+                    self.genesisRootBlock.header,
+                ))
                 numTxToGenerate = self.numTxGenerated
 
         if not utxoItemList:
@@ -183,6 +187,8 @@ class TxGeneratorClient(Connection):
                     outList=[utxoItem.txOutput])
                 tx.sign([self.genesisId.getKey()])
                 self.txPool[shardId].append(tx)
+            if utxoItem.rootBlockHeader.height > self.txRootHeaders[shardId].height:
+                self.txRootHeaders[shardId] = utxoItem.rootBlockHeader
 
     async def generateInitialTxs(self):
         ''' The transactions generated consists of
@@ -244,14 +250,17 @@ class TxGeneratorClient(Connection):
                         block.header.createTime == self.miningBlock.header.createTime:
                     block = self.miningBlock
                 else:
-                    if self.txPool[block.header.branch.getShardId()] is None:
-                        await self.utxoGenerateFuture[block.header.branch.getShardId()]
+                    shardId = block.header.branch.getShardId()
+                    if self.txPool[shardId] is None:
+                        await self.utxoGenerateFuture[shardId]
                     # Fill transactions
-                    block.txList.extend(
-                        self.txPool[block.header.branch.getShardId()])
-                    block.finalizeMerkleRoot()
+                    block.txList.extend(self.txPool[shardId])
+                    if self.txRootHeaders[shardId].height > resp.prevRootBlockHeader.height:
+                        block.finalize(self.txRootHeaders[shardId].getHash())
+                    else:
+                        block.finalizeMerkleRoot()
                 Logger.info("[{}] Starting mining height {}, nonce {} ...".format(
-                    block.header.branch.getShardId(), block.header.height, block.header.nonce))
+                    shardId, block.header.height, block.header.nonce))
 
             self.miningBlock = block
             self.isMiningBlockRoot = resp.isRootBlock

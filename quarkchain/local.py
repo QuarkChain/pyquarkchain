@@ -31,12 +31,14 @@ class GetBlockTemplateRequest(Serializable):
 class GetBlockTemplateResponse(Serializable):
     FIELDS = [
         ("isRootBlock", boolean),
-        ("blockData", PreprendedSizeBytesSerializer(4))
+        ("blockData", PreprendedSizeBytesSerializer(4)),
+        ("prevRootBlockHeader", RootBlockHeader),
     ]
 
-    def __init__(self, isRootBlock, blockData):
+    def __init__(self, isRootBlock, blockData, prevRootBlockHeader):
         self.isRootBlock = isRootBlock
         self.blockData = blockData
+        self.prevRootBlockHeader = prevRootBlockHeader
 
 
 class SubmitNewBlockRequest(Serializable):
@@ -127,11 +129,13 @@ class UtxoItem(Serializable):
     FIELDS = [
         ("txInput", TransactionInput),
         ("txOutput", TransactionOutput),
+        ("rootBlockHeader", RootBlockHeader),
     ]
 
-    def __init__(self, txInput, txOutput):
+    def __init__(self, txInput, txOutput, rootBlockHeader):
         self.txInput = txInput
         self.txOutput = txOutput
+        self.rootBlockHeader = rootBlockHeader
 
 
 class GetUtxoResponse(Serializable):
@@ -185,16 +189,19 @@ class LocalServer(Connection):
             address=request.address, includeTx=request.includeTx)
 
         if isRootBlock is None:
-            response = GetBlockTemplateResponse(False, bytes(0))
-        elif isRootBlock:
-            response = GetBlockTemplateResponse(True, block.serialize())
-            print("obtained root block to mine, height {}, diff {}".format(
+            return GetBlockTemplateResponse(False, bytes(0), RootBlockHeader())
+
+        if isRootBlock:
+            prevRootBlockHash = block.header.hashPrevBlock
+            Logger.info("obtained root block to mine, height {}, diff {}".format(
                 block.header.height, block.header.difficulty))
         else:
-            response = GetBlockTemplateResponse(False, block.serialize())
-            print("obtained minor block to mine, shard {}, height {}, diff {}".format(
+            prevRootBlockHash = block.header.hashPrevRootBlock
+            Logger.info("obtained minor block to mine, shard {}, height {}, diff {}".format(
                 block.header.branch.getShardId(), block.header.height, block.header.difficulty))
-        return response
+
+        prevRootBlockHeader = self.db.getRootBlockHeaderByHash(prevRootBlockHash)
+        return GetBlockTemplateResponse(isRootBlock, block.serialize(), prevRootBlockHeader)
 
     async def handleSubmitNewBlockRequest(self, request):
         if request.isRootBlock:
@@ -240,7 +247,8 @@ class LocalServer(Connection):
         utxoList = []
         for txInput, value in self.network.qcState.getUtxoPool(request.shardId).items():
             if value.address == request.address:
-                utxoList.append(UtxoItem(txInput, TransactionOutput(value.address, value.quarkash)))
+                utxoList.append(UtxoItem(
+                    txInput, TransactionOutput(value.address, value.quarkash), value.rootBlockHeader))
             if len(utxoList) >= request.limit:
                 break
 

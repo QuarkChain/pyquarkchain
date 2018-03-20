@@ -706,6 +706,7 @@ class QuarkChainState:
         self.env = env
         self.db = env.db
         rBlock, mBlockList = create_genesis_blocks(env)
+        self.db.putRootBlock(rBlock, rBlockHash=rBlock.header.getHash())
         self.rootChain = RootChain(env, rBlock)
         self.shardList = [ShardState(env, mBlock, self.rootChain)
                           for mBlock in mBlockList]
