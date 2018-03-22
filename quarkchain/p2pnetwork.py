@@ -16,6 +16,7 @@ from devp2p.utils import colors, COLOR_END
 from gevent.server import StreamServer
 from multiprocessing import Process
 from quarkchain.chain import QuarkChainState
+from quarkchain.commands import *
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import random_bytes
 from quarkchain.core import RootBlock, RootBlockHeader
@@ -24,21 +25,21 @@ from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
 from quarkchain.db import PersistentDb
 from quarkchain.local import LocalServer
+from quarkchain.p2p_peer import P2PPeer
+from quarkchain.p2pinterface_pb2 import QuarkMessage
 from quarkchain.protocol import Connection, ConnectionState
 from quarkchain.simple_network import Peer, CommandOp, GetPeerListRequest
 from quarkchain.utils import check, Logger
 from quarkchain.utils import set_logging_level
 from rlp.utils import encode_hex, decode_hex, is_integer
-from quarkchain.p2pinterface_pb2 import QuarkMessage
-from quarkchain.p2p_peer import P2PPeer
 import argparse
 import asyncio
+import ethereum.slogging as slogging
 import ipaddress
 import random
 import rlp
 import socket
 import sys
-import ethereum.slogging as slogging
 slogging.configure(config_string=':info,p2p.protocol:info,p2p.peer:info')
 
 
@@ -80,13 +81,18 @@ class QuarkChainProtocol(BaseProtocol):
     class quark(BaseProtocol.command):
 
         """
-        message sending a token and a nonce
+        message sending a quark
         """
         cmd_id = 0
 
         structure = [
-            ('quark', Quark)
+            ('quark', rlp.sedes.binary)
         ]
+
+        def receive(self, proto, data):
+            Logger.info('receive_quark peer={} data={}'.format(proto.peer, data))
+            quarkMessage = data['quark']
+            proto.service.proxySocketSend(len(quarkMessage).to_bytes(4, 'big') + quarkMessage)
 
 # P2P network side gevent domain.
 
@@ -136,6 +142,7 @@ class P2PProxyService(WiredService):
         sock.close()
         self.proxySocket = None
 
+    # quarkMessage is msgLen + serialized proto.
     def proxySocketSend(self, quarkMessage: bytes):
         # unsafe.
         if self.proxySocket:
@@ -154,13 +161,12 @@ class P2PProxyService(WiredService):
             text,
             (' %r' % kargs if kargs else ''),
             COLOR_END])
-        Logger.debug(msg)
+        Logger.info(msg)
 
     def broadcast(self, obj, origin=None):
-        fmap = {Quark: 'quark'}
         self.log('broadcasting', obj=obj)
         bcast = self.app.services.peermanager.broadcast
-        bcast(QuarkChainProtocol, fmap[type(obj)], args=(obj,),
+        bcast(QuarkChainProtocol, 'quark', args=(obj,),
               exclude_peers=[origin.peer] if origin else [])
 
     def on_wire_protocol_stop(self, proto):
@@ -202,10 +208,11 @@ class P2PProxyService(WiredService):
 
     def sendP2PQuark(self, quarkMessage):
         self.log('----------------------------------')
-        proto = self.pubkeyProtoDict.get(quarkMessage.peer_id.encode('latin-1'))
+        Logger.info('peer_id:{}'.format(quarkMessage.peer_id.encode('latin-1')))
+        proto = self.pubkeyProtoDict.get(quarkMessage.peer_id)
         if proto != None:
             self.log('sending quark', quark=quarkMessage)
-            proto.send_quark(quarkMessage.payload)
+            proto.send_quark(quarkMessage.SerializeToString())
         else:
             self.log('Failed to find peer {}'.format(quarkMessage.peer_id))
 
@@ -242,6 +249,7 @@ class P2PNetwork:
         self.p2pReader = None
         self.p2pWriter = None
         self.activePeerPool = dict()
+        self.syncing = False
 
     # msgHandler must take a message as paramter.
     def registerP2PCallbacks(self, msgHandler):
@@ -262,7 +270,7 @@ class P2PNetwork:
                 return
             quarkMessage = QuarkMessage()
             quarkMessage.ParseFromString(msgBuf)
-            Logger.debug('QC Core Receive message {}'.format(quarkMessage))
+            Logger.info('QC Core Receive message {}'.format(quarkMessage))
             peer = self.activePeerPool.get(quarkMessage.peer_id)
             if peer is None:
                 peer = P2PPeer(self.env, self, quarkMessage.peer_id, self.writeToP2P, self.loop)
@@ -273,8 +281,12 @@ class P2PNetwork:
 
     def writeToP2P(self, msg: bytes):
         proxyMsg = len(msg).to_bytes(4, 'big') + msg
-        Logger.debug('QC Core sending to P2P {}'.format(proxyMsg))
+        Logger.info('QC Core sending to P2P {}'.format(proxyMsg))
         self.p2pWriter.write(proxyMsg)
+
+    async def newLocalClient(self, reader, writer):
+        localServer = LocalServer(self.env, reader, writer, self)
+        await localServer.start()
 
     def start(self):
         if self.env.config.ENABLE_P2P:
@@ -283,12 +295,42 @@ class P2PNetwork:
             self.p2pReader, self.p2pWriter = self.loop.run_until_complete(coro)
             Logger.info('QC Core connected with P2PProxyService')
             asyncio.ensure_future(self.handlRecvP2P(), loop=self.loop)
+
+        if self.env.config.LOCAL_SERVER_ENABLE:
+            coro = asyncio.start_server(
+                self.newLocalClient, "0.0.0.0", self.localPort, loop=self.loop)
+            self.local_server = self.loop.run_until_complete(coro)
+            Logger.info("Listening on {} for local".format(
+                self.local_server.sockets[0].getsockname()))
+
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:
             pass
         self.loop.close()
         Logger.info("Server is shutdown")
+
+    def __broadcastCommand(self, op, cmd, sourcePeerId=None):
+        for peerId, peer in self.activePeerPool.items():
+            if peerId == sourcePeerId:
+                continue
+            peer.p2pSend(op, cmd, True)
+
+    # The same interfaces as simple network.
+    def broadcastNewBlockWithRawData(self, isRootBlock, blockData, sourcePeerId=None):
+        cmd = NewBlockCommand(isRootBlock, blockData)
+        self.__broadcastCommand(CommandOp.NEW_BLOCK_COMMAND, cmd, sourcePeerId)
+
+    def broadcastTransaction(self, shardId, tx, sourcePeerId=None):
+        cmd = NewTransactionListCommand([NewTransaction(shardId, tx)])
+        self.__broadcastCommand(CommandOp.NEW_TRANSACTION_LIST, cmd, sourcePeerId)
+
+    def isSyncing(self):
+        return self.syncing
+
+    def __sync(self):
+        # TODO Add syncing.
+        pass
 
 
 def parse_args():

@@ -19,6 +19,7 @@ from rlp.utils import decode_hex
 from devp2p import slogging
 log = slogging.get_logger('p2p.peermgr')
 
+
 def on_peer_exit(peer):
     peer.stop()
 

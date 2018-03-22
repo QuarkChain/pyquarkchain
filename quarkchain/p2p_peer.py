@@ -68,13 +68,18 @@ class P2PPeer:
         quarkMessage.payload = msg
         self.p2pNetworkSender(quarkMessage.SerializeToString())
 
-    # Loop for Peer to process messages sent by remote.
+    # Send to Peer op message.
+    def p2pSend(self, op, cmd, isBcast: bool, rpcId=0):
+        cmdBlob = self.__serialize(op, cmd, rpcId)
+        self.__p2pSender(bytes(cmdBlob), isBcast)
+
+    # Loop for Peer to process received messages from remote.
     async def recvMsg(self):
         Logger.info('P2PPeer start recvMsg...')
         while True:
             msg = await self.msgQueue.get()
             assert isinstance(msg, QuarkMessage)
-            Logger.debug('P2PPeer.recvMsg got {}'.format(msg))
+            Logger.info('P2PPeer.recvMsg got {}'.format(msg.__str__()))
             if msg.type == QuarkMessage.P2PHELLO:
                 if not self.helloSent:
                     # We need say HELLO to exchange chains.
