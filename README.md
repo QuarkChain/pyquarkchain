@@ -44,3 +44,20 @@ Run network outside docker
 ```
 docker run -t quarkchain python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
 ```
+
+## Running with P2P Network
+
+1. install pydevp2p, pyquarkchain
+```
+python setup.py install; cd pydevp2p; python setup.py install; cd ..
+```
+2. Run three or more pyquarkchain instance
+```
+python quarkchain/p2pnetwork.py --i_am_seed=true
+python quarkchain/p2pnetwork.py --db_path=./db1 --enable_local_server=true --local_port=5858 
+python quarkchain/p2pnetwork.py --db_path=./db2
+```
+3. Run miner
+```
+python quarkchain/miner.py --local_port=5858
+```
