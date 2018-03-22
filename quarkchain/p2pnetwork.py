@@ -40,7 +40,7 @@ import random
 import rlp
 import socket
 import sys
-slogging.configure(config_string=':info,p2p.protocol:info,p2p.peer:info')
+slogging.configure(config_string=':info,p2p.protocol:debug,p2p.peer:info')
 
 
 class Quark(rlp.Serializable):
@@ -90,7 +90,7 @@ class QuarkChainProtocol(BaseProtocol):
         ]
 
         def receive(self, proto, data):
-            Logger.info('receive_quark peer={} data={}'.format(proto.peer, data))
+            Logger.debug('receive_quark peer={} data={}'.format(proto.peer, data))
             quarkMessage = data['quark']
             proto.service.proxySocketSend(len(quarkMessage).to_bytes(4, 'big') + quarkMessage)
 
@@ -129,11 +129,12 @@ class P2PProxyService(WiredService):
             msgLen = int.from_bytes(lenBytes, 'big')
             msgBuf = sock.recv(msgLen)
             if msgBuf != b'':
+                # TODO remove deserialize, no need.
                 quarkMessage = QuarkMessage()
                 quarkMessage.ParseFromString(msgBuf)
-                self.log('proxySocket receive {} bytes msg {}'.format(msgLen, quarkMessage))
+                Logger.debug('proxySocket receive {} bytes msg {}'.format(msgLen, quarkMessage))
                 if quarkMessage.is_broadcast:
-                    self.bcastQuark(quarkMessage.payload)
+                    self.bcastQuark(msgBuf)
                 else:
                     self.sendP2PQuark(quarkMessage)
             else:
@@ -155,9 +156,10 @@ class P2PProxyService(WiredService):
 
     def log(self, text, **kargs):
         node_num = self.config['node_num']
+        base_port = self.config['base_port']
         msg = ' '.join([
             colors[node_num % len(colors)],
-            "NODE%d" % node_num,
+            "NODE{}".format(base_port),
             text,
             (' %r' % kargs if kargs else ''),
             COLOR_END])
@@ -268,9 +270,10 @@ class P2PNetwork:
             if msgBuf == '':
                 Logger.info('StreamReader closed')
                 return
+            Logger.info('msgbuf={}'.format(msgBuf))
             quarkMessage = QuarkMessage()
             quarkMessage.ParseFromString(msgBuf)
-            Logger.info('QC Core Receive message {}'.format(quarkMessage))
+            Logger.debug('QC Core Receive message {}'.format(quarkMessage))
             peer = self.activePeerPool.get(quarkMessage.peer_id)
             if peer is None:
                 peer = P2PPeer(self.env, self, quarkMessage.peer_id, self.writeToP2P, self.loop)
@@ -314,7 +317,9 @@ class P2PNetwork:
         for peerId, peer in self.activePeerPool.items():
             if peerId == sourcePeerId:
                 continue
+            Logger.info('bcast to one peer is enough')
             peer.p2pSend(op, cmd, True)
+            break
 
     # The same interfaces as simple network.
     def broadcastNewBlockWithRawData(self, isRootBlock, blockData, sourcePeerId=None):
@@ -347,6 +352,7 @@ def parse_args():
     parser.add_argument("--log_level", default="info", type=str)
     parser.add_argument("--enable_p2p", default=True, type=bool)
     parser.add_argument("--i_am_seed", default=False, type=bool)
+    parser.add_argument("--node_name", default='N/A', type=str)
     args = parser.parse_args()
 
     set_logging_level(args.log_level)
@@ -357,6 +363,7 @@ def parse_args():
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     env.config.ENABLE_P2P = args.enable_p2p
     env.config.IS_SEED = args.i_am_seed
+    env.config.node_name = args.node_name
     if not args.in_memory_db:
         env.db = PersistentDb(path=args.db_path, clean=True)
 
@@ -379,7 +386,8 @@ def main():
             seed = 0
         else:
             seed = random.randint(1, 10000)
-        app = app_helper.setup_apps(ProxyServerApp, P2PProxyService, num_nodes=1, seed=seed)
+        app = app_helper.setup_apps(ProxyServerApp, P2PProxyService, num_nodes=1,
+                                    seed=seed, random_port=False if seed == 0 else True)
         proc = Process(target=runner, args=(env, app[0]))
         proc.start()
         app_helper.serve_until_stopped(app)
