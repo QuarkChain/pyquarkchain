@@ -12,15 +12,33 @@ class MockSimpleNetwork:
         self.qcState = qcState
 
 
-class MockMinorBlockDownloader:
+class MockDownloader:
 
-    def __init__(self, minorBlockMap):
+    def __init__(self, rootBlockMap, minorBlockMap):
+        self.rootBlockMap = rootBlockMap
         self.minorBlockMap = minorBlockMap
+
+    async def getRootBlockByHash(self, h):
+        return self.rootBlockMap.get(h, None)
+
+    async def getPreviousRootBlockHeaderList(self, h, maxBlocks=10):
+        if h not in self.rootBlockMap:
+            return
+        h = self.rootBlockMap[h].header.hashPrevBlock
+
+        headerList = []
+        for i in range(maxBlocks):
+            if h not in self.rootBlockMap:
+                break
+            header = self.rootBlockMap[h].header
+            headerList.append(header)
+            h = header.hashPrevBlock
+        return headerList
 
     async def getMinorBlockByHash(self, h):
         return self.minorBlockMap.get(h, None)
 
-    async def getPreviousMinorBlockHeaderList(self, h, maxBlocks=1):
+    async def getPreviousMinorBlockHeaderList(self, h, maxBlocks=10):
         if h not in self.minorBlockMap:
             return
         h = self.minorBlockMap[h].header.hashPrevMinorBlock
@@ -35,14 +53,14 @@ class MockMinorBlockDownloader:
         return headerList
 
 
-def build_minor_block_map(blockList):
+def build_block_map(blockList):
     mbMap = dict()
     for block in blockList:
         mbMap[block.header.getHash()] = block
     return mbMap
 
 
-class TestSimpleNetwork(unittest.TestCase):
+class TestShardFork(unittest.TestCase):
 
     def testShardForkWithLength1(self):
         env = get_test_env()
@@ -52,7 +70,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(build_minor_block_map([b1, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b1, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b1.header)
@@ -70,8 +90,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(
-                build_minor_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b2.header)
@@ -92,8 +113,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(
-                build_minor_block_map([b2, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b2, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b2.header)
@@ -114,8 +136,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(
-                build_minor_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b2.header)
@@ -137,8 +160,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(
-                build_minor_block_map([b2, b3, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b2, b3, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b3.header)
@@ -160,8 +184,9 @@ class TestSimpleNetwork(unittest.TestCase):
 
         network = MockSimpleNetwork(qcState)
         frManager = ForkResolverManager(
-            lambda peer: MockMinorBlockDownloader(
-                build_minor_block_map([b2, b3, qcState.getGenesisMinorBlock(0)])))
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b2, b3, qcState.getGenesisMinorBlock(0)])))
 
         loop = asyncio.get_event_loop()
         frManager.tryResolveShardFork(network, None, b3.header)
@@ -170,6 +195,148 @@ class TestSimpleNetwork(unittest.TestCase):
         self.assertEqual(qcState.getShardTip(0).height, 2)
         self.assertEqual(qcState.getShardTip(0), b3.header)
         self.assertEqual(qcState.getShardTip(1).height, 0)
+
+
+class TestRootFork(unittest.TestCase):
+
+    def testRootForkWithoutShardFork(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                build_block_map([qcState.getGenesisRootBlock(), rB]),
+                build_block_map([b1, qcState.getGenesisMinorBlock(0)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB.header)
+
+    def testRootForkWithMissingMinorBlock(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                build_block_map([qcState.getGenesisRootBlock(), rB]),
+                build_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB.header)
+        self.assertEqual(qcState.getMinorBlockTip(0), b1.header)
+        self.assertEqual(qcState.getMinorBlockTip(1), b2.header)
+
+    def testRootForkWithShardFork(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        b3 = b2.createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+        self.assertIsNone(qcState.appendMinorBlock(b3))
+        b4 = qcState.getGenesisMinorBlock(1).createBlockToAppend(quarkash=100).finalizeMerkleRoot()
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b4.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                build_block_map([qcState.getGenesisRootBlock(), rB]),
+                build_block_map([b1, b4, qcState.getGenesisMinorBlock(0)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB.header)
+        self.assertEqual(qcState.getMinorBlockTip(0), b1.header)
+        self.assertEqual(qcState.getMinorBlockTip(1), b4.header)
+
+    def testRootForkWithEqualHeight(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header]).finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB))
+
+        b3 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=1).finalizeMerkleRoot()
+        b4 = qcState.getGenesisMinorBlock(1).createBlockToAppend(quarkash=2).finalizeMerkleRoot()
+        rB1 = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b3.header, b4.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                build_block_map([qcState.getGenesisRootBlock(), rB1]),
+                build_block_map([b3, b4, qcState.getGenesisMinorBlock(0), qcState.getGenesisMinorBlock(1)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB.header)
+        self.assertEqual(qcState.getMinorBlockTip(0), b1.header)
+        self.assertEqual(qcState.getMinorBlockTip(1), b2.header)
+
+    def testRootForkWithTwoRootForks(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header]).finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB))
+
+        b3 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=1).finalizeMerkleRoot()
+        b4 = qcState.getGenesisMinorBlock(1).createBlockToAppend(quarkash=2).finalizeMerkleRoot()
+        rB1 = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b3.header, b4.header]).finalize()
+        b5 = b3.createBlockToAppend().finalizeMerkleRoot()
+        b6 = b4.createBlockToAppend().finalizeMerkleRoot()
+        rB2 = rB1.createBlockToAppend().extendMinorBlockHeaderList(
+            [b5.header, b6.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                build_block_map([qcState.getGenesisRootBlock(), rB1, rB2]),
+                build_block_map([b3, b4, b5, b6, qcState.getGenesisMinorBlock(0), qcState.getGenesisMinorBlock(1)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB2.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB2.header)
+        self.assertEqual(qcState.getMinorBlockTip(0), b5.header)
+        self.assertEqual(qcState.getMinorBlockTip(1), b6.header)
 
 
 server_port = 51354
