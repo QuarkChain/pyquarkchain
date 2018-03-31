@@ -165,3 +165,9 @@ class Connection:
     def closeWithError(self, error):
         self.close()
         return error
+
+    def isActive(self):
+        return self.state == ConnectionState.ACTIVE
+
+    def isClosed(self):
+        return self.state == ConnectionState.CLOSED
