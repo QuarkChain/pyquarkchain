@@ -854,6 +854,9 @@ class QuarkChainState:
     def getRootBlockHeaderByHeight(self, height):
         return self.rootChain.getBlockHeaderByHeight(height)
 
+    def getRootBlockHeaderByHash(self, h):
+        return self.rootChain.getBlockHeaderByHash(h)
+
     def getGenesisMinorBlock(self, shardId):
         return self.shardList[shardId].getGenesisBlock()
 
@@ -1019,6 +1022,17 @@ class QuarkChainState:
 
         return hList
 
+    def getMinorBlockHeaderByHash(self, h, shardId=None):
+        if shardId is not None:
+            return self.shardList[shardId].getBlockHeaderByHash(h)
+
+        for shard in self.shardList:
+            mHeader = shard.getBlockHeaderByHash(h)
+            if mHeader is not None:
+                return mHeader
+
+        return None
+
     def getMinorBlockHeaderListByHash(self, h, maxBlocks=1, direction=0):
         direction = -1 if direction == 0 else 1
         hList = []
@@ -1040,3 +1054,9 @@ class QuarkChainState:
                 return (True, shardId)
 
         return (False, None)
+
+    def getCommittedShardTip(self, shardId):
+        q = self.uncommittedMinorBlockQueueList[shardId]
+        if len(q) == 0:
+            return self.getShardTip(shardId)
+        return self.getMinorBlockHeaderByHeight(shardId, q[0].header.height - 1)
