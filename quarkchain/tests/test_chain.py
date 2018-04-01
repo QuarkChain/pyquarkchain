@@ -648,9 +648,9 @@ class TestQuarkChainState(unittest.TestCase):
 
         self.assertIsNone(qcState.rollBackRootChainTo(
             qcState.getGenesisRootBlock().header))
-        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
+        self.assertEqual(qcState.getBalance(id1.recipient), 24100)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
-        self.assertEqual(qcState.getShardTip(0), b1.header)
+        self.assertEqual(qcState.getShardTip(0), b3.header)
         self.assertEqual(qcState.getShardTip(1), b2.header)
 
     def testMinorCoinbaseOutputMustInShard(self):

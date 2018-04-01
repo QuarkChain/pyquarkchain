@@ -840,9 +840,10 @@ class QuarkChainState:
             return "cannot find the root block in root chain"
 
         while self.rootChain.tip() != rBlockHeader:
+            tipHash = self.rootChain.tip().getHash()
             # Roll back minor blocks
             for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
-                while len(q) > 0 and q[-1].header.height > rBlockHeader.height:
+                while len(q) > 0 and q[-1].header.hashPrevRootBlock == tipHash:
                     check(self.rollBackMinorBlock(shardId) is None)
             check(self.rollBackRootBlock() is None)
         return None
