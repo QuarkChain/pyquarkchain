@@ -2,7 +2,6 @@ from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
-from quarkchain.core import random_bytes
 import ipaddress
 
 
@@ -102,26 +101,34 @@ class GetMinorBlockListResponse(Serializable):
 
 
 class GetBlockHashListRequest(Serializable):
+    """ Obtain block hashs in the active chain.
+    """
     FIELDS = [
         ("blockHash", hash256),
+        ("isRoot", boolean),
+        ("shardId", uint32),
         ("maxBlocks", uint32),
         ("direction", uint8),       # 0 to genesis, 1 to tip
     ]
 
-    def __init__(self, blockHash, maxBlocks, direction):
+    def __init__(self, blockHash, isRoot, shardId, maxBlocks, direction):
         self.blockHash = blockHash
+        self.isRoot = isRoot
+        self.shardId = shardId
         self.maxBlocks = maxBlocks
         self.direction = direction
 
 
 class GetBlockHashListResponse(Serializable):
     FIELDS = [
-        ("isRoot", boolean),
+        ("rootTip", RootBlockHeader),
+        ("shardTip", MinorBlockHeader),
         ("blockHashList", PreprendedSizeListSerializer(4, hash256))
     ]
 
-    def __init__(self, isRoot, blockHashList):
-        self.isRoot = isRoot
+    def __init__(self, rootTip, shardTip, blockHashList):
+        self.rootTip = rootTip
+        self.shardTip = shardTip
         self.blockHashList = blockHashList
 
 

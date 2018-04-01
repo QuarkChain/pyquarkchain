@@ -414,14 +414,33 @@ class Peer(Connection):
 
     async def handleGetBlockHashListRequest(self, request):
         qcState = self.network.qcState
-        hList = qcState.getRootBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
-        if hList is not None:
-            return GetBlockHashListResponse(True, [header.getHash() for header in hList])
+        if request.isRoot:
+            hList = qcState.getRootBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
+            if hList is not None:
+                return GetBlockHashListResponse(
+                    rootTip=qcState.getRootBlockTip(),
+                    shardTip=MinorBlockHeader(),
+                    blockHashList=[header.getHash() for header in hList])
+            else:
+                return GetBlockHashListResponse(
+                    rootTip=qcState.getRootBlockTip(),
+                    shardTip=MinorBlockHeader(),
+                    blockHashList=[])
 
-        hList = qcState.getMinorBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
+        hList = qcState.getMinorBlockHeaderListByHash(
+            h=request.blockHash,
+            shardId=request.shardId,
+            maxBlocks=request.maxBlocks,
+            direction=request.direction)
         if hList is None:
-            return GetBlockHashListResponse(False, [])
-        return GetBlockHashListResponse(False, [header.getHash() for header in hList])
+            return GetBlockHashListResponse(
+                rootTip=qcState.getRootBlockTip(),
+                shardTip=qcState.getShardTip(request.shardId),
+                blockHashList=[])
+        return GetBlockHashListResponse(
+            rootTip=qcState.getRootBlockTip(),
+            shardTip=qcState.getShardTip(request.shardId),
+            blockHashList=[header.getHash() for header in hList])
 
     async def handleGetPeerListRequest(self, request):
         resp = GetPeerListResponse()
@@ -623,6 +642,8 @@ class SimpleNetwork:
                 op, resp, rpcId = await peer.writeRpcRequest(
                     CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
                     GetBlockHashListRequest(
+                        isRoot=True,
+                        shardId=0,      # ignore
                         blockHash=rootTip.getHash(),
                         maxBlocks=1024,
                         direction=1,
@@ -649,6 +670,8 @@ class SimpleNetwork:
                 op, resp, rpcId = await peer.writeRpcRequest(
                     CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
                     GetBlockHashListRequest(
+                        isRoot=False,
+                        shardId=shardId,
                         blockHash=minorTip.getHash(),
                         maxBlocks=1024,
                         direction=1,
@@ -676,13 +699,21 @@ class SimpleNetwork:
         for peerId, peer in activePeerPool.items():
             peer.close()
 
-    def start(self):
+    def startServer(self):
         coro = asyncio.start_server(
             self.newClient, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
         Logger.info("Self id {}".format(self.selfId.hex()))
         Logger.info("Listening on {} for p2p".format(
             self.server.sockets[0].getsockname()))
+
+    def shutdown(self):
+        self.shutdownPeers()
+        self.server.close()
+        self.loop.run_until_complete(self.server.wait_closed())
+
+    def start(self):
+        self.startServer()
 
         if self.env.config.LOCAL_SERVER_ENABLE:
             coro = asyncio.start_server(
@@ -699,9 +730,7 @@ class SimpleNetwork:
         except KeyboardInterrupt:
             pass
 
-        self.shutdownPeers()
-        self.server.close()
-        self.loop.run_until_complete(self.server.wait_closed())
+        self.shutdown()
         self.loop.close()
         Logger.info("Server is shutdown")
 

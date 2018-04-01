@@ -770,7 +770,7 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(hList[0], qcState.getGenesisRootBlock().header)
 
         hList = qcState.getMinorBlockHeaderListByHash(
-            b4.header.getHash(), maxBlocks=10, direction=0)
+            b4.header.getHash(), shardId=b4.header.branch.getShardId(), maxBlocks=10, direction=0)
         self.assertEqual(len(hList), 4)
         self.assertEqual(hList[0], b4.header)
         self.assertEqual(hList[1], b3.header)
@@ -778,16 +778,16 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(hList[3], qcState.getGenesisMinorBlock(0).header)
 
         hList = qcState.getMinorBlockHeaderListByHash(
-            b2.header.getHash(), maxBlocks=10, direction=1)
+            b2.header.getHash(), shardId=b2.header.branch.getShardId(), maxBlocks=10, direction=1)
         self.assertEqual(len(hList), 2)
         self.assertEqual(hList[0], b2.header)
         self.assertEqual(hList[1], b5.header)
 
         hList = qcState.getMinorBlockHeaderListByHash(
-            qcState.getGenesisMinorBlock(1).header.getHash(), maxBlocks=10, direction=0)
+            qcState.getGenesisMinorBlock(1).header.getHash(), shardId=1, maxBlocks=10, direction=0)
         self.assertEqual(len(hList), 1)
         self.assertEqual(hList[0], qcState.getGenesisMinorBlock(1).header)
 
         hList = qcState.getMinorBlockHeaderListByHash(
-            qcState.getGenesisRootBlock().header.getHash(), maxBlocks=10, direction=0)
+            qcState.getGenesisRootBlock().header.getHash(), shardId=0, maxBlocks=10, direction=0)
         self.assertIsNone(hList, None)

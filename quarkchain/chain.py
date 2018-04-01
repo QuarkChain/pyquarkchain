@@ -1033,17 +1033,27 @@ class QuarkChainState:
 
         return None
 
-    def getMinorBlockHeaderListByHash(self, h, maxBlocks=1, direction=0):
+    def getMinorBlockHeaderListByHash(self, h, shardId, maxBlocks=1, direction=0):
         direction = -1 if direction == 0 else 1
-        hList = []
 
-        for shard in self.shardList:
-            mBlock = shard.getBlockHeaderByHash(h)
-            if mBlock is not None:
-                for h in range(mBlock.height, mBlock.height + (direction * maxBlocks), direction):
-                    if h < 0 or h > shard.tip().height:
-                        break
-                    hList.append(shard.getBlockHeaderByHeight(h))
+        shard = self.shardList[shardId]
+        mBlock = shard.getBlockHeaderByHash(h)
+        if mBlock is not None:
+            hList = []
+            for h in range(mBlock.height, mBlock.height + (direction * maxBlocks), direction):
+                if h < 0 or h > shard.tip().height:
+                    break
+                hList.append(shard.getBlockHeaderByHeight(h))
+            return hList
+
+        return None
+
+    def getMinorBlockHeaderListByHashFromAllShards(self, shardId, h, maxBlocks=1, direction=0):
+        direction = -1 if direction == 0 else 1
+
+        for shardId in range(len(self.shardList)):
+            hList = self.getMinorBlockHeaderByHash(h, shardId, maxBlocks=maxBlocks, direction=direction)
+            if hList is not None:
                 return hList
 
         return None
