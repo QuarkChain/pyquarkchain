@@ -1,3 +1,4 @@
+from enum import IntEnum
 from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
@@ -100,7 +101,12 @@ class GetMinorBlockListResponse(Serializable):
         self.minorBlockList = minorBlockList if minorBlockList is not None else []
 
 
-class GetBlockHashListRequest(Serializable):
+class Direction(IntEnum):
+    GENESIS = 0
+    TIP = 1
+
+
+class GetBlockHeaderListRequest(Serializable):
     """ Obtain block hashs in the active chain.
     """
     FIELDS = [
@@ -119,17 +125,17 @@ class GetBlockHashListRequest(Serializable):
         self.direction = direction
 
 
-class GetBlockHashListResponse(Serializable):
+class GetBlockHeaderListResponse(Serializable):
     FIELDS = [
         ("rootTip", RootBlockHeader),
         ("shardTip", MinorBlockHeader),
-        ("blockHashList", PreprendedSizeListSerializer(4, hash256))
+        ("blockHeaderList", PreprendedSizeListSerializer(4, PreprendedSizeBytesSerializer(4)))
     ]
 
-    def __init__(self, rootTip, shardTip, blockHashList):
+    def __init__(self, rootTip, shardTip, blockHeaderList):
         self.rootTip = rootTip
         self.shardTip = shardTip
-        self.blockHashList = blockHashList
+        self.blockHeaderList = blockHeaderList
 
 
 class GetPeerListRequest(Serializable):
@@ -161,6 +167,8 @@ class GetPeerListResponse(Serializable):
         self.peerInfoList = peerInfoList if peerInfoList is not None else []
 
 
+# TODO: deprecate this in favor of NewMinorBlockHeaderListCommand
+# to allow peers to pull blocks at their will
 class NewBlockCommand(Serializable):
     FIELDS = [
         ("isRootBlock", boolean),
@@ -182,8 +190,8 @@ class CommandOp():
     GET_PEER_LIST_RESPONSE = 6
     GET_MINOR_BLOCK_LIST_REQUEST = 7
     GET_MINOR_BLOCK_LIST_RESPONSE = 8
-    GET_BLOCK_HASH_LIST_REQUEST = 9
-    GET_BLOCK_HASH_LIST_RESPONSE = 10
+    GET_BLOCK_HEADER_LIST_REQUEST = 9
+    GET_BLOCK_HEADER_LIST_RESPONSE = 10
     NEW_BLOCK_COMMAND = 11
 
 
@@ -197,7 +205,7 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_PEER_LIST_RESPONSE: GetPeerListResponse,
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST: GetMinorBlockListRequest,
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
-    CommandOp.GET_BLOCK_HASH_LIST_REQUEST: GetBlockHashListRequest,
-    CommandOp.GET_BLOCK_HASH_LIST_RESPONSE: GetBlockHashListResponse,
+    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST: GetBlockHeaderListRequest,
+    CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE: GetBlockHeaderListResponse,
     CommandOp.NEW_BLOCK_COMMAND: NewBlockCommand,
 }

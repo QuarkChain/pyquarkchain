@@ -21,30 +21,64 @@ class Downloader():
     def __init__(self, peer):
         self.peer = peer
 
-    async def getRootBlockByHash(self, h):
-        return None
+    async def getRootBlockByHash(self, rootBlockHash):
+        try:
+            op, resp, rpcId = await self.peer.writeRpcRequest(
+                CommandOp.GET_ROOT_BLOCK_LIST_REQUEST, GetRootBlockListRequest([rootBlockHash]))
+        except Exception as e:
+            Logger.logException()
+            return None
+        if len(resp.rootBlockList) != 1:
+            Logger.error("Failed to get root block from peer {}".format(self.peer.id.hex()))
+            return None
+        return resp.rootBlockList[0]
 
-    async def getMinorBlockByHash(self, h):
-        return None
+    async def getMinorBlockByHash(self, minorBlockHash):
+        try:
+            op, resp, rpcId = await self.peer.writeRpcRequest(
+                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest([minorBlockHash]))
+        except Exception as e:
+            Logger.logException()
+            return None
+        if len(resp.minorBlockList) != 1:
+            Logger.error("Failed to get minor block from peer {}".format(self.peer.id.hex()))
+            return None
+        return resp.minorBlockList[0]
 
-    async def getPreviousMinorBlockHeaderList(self, h, maxBlocks=1):
-        """ Get the previous minor block header starting from h
-        The returned list must be ordered.
-        Return empty if the minor block of the hash is not in the active chain.
+    async def __getPreviousBlockHeaderList(self, isRoot, shardId, blockHash, maxBlocks):
+        """ Get the previous block headers starting from blockHash
+        The returned list must have heights in descending order and does not include blockHash
+        Return empty list if blockHash is not in the active chain.
         """
-        return []
+        try:
+            op, resp, rpcId = await self.peer.writeRpcRequest(
+                CommandOp.GET_BLOCK_HEADER_LIST_REQUEST,
+                GetBlockHeaderListRequest(
+                    isRoot=isRoot,
+                    shardId=shardId,
+                    blockHash=blockHash,
+                    maxBlocks=maxBlocks + 1,  # GetBlockHeaderListResponse includes blockHash
+                    direction=Direction.GENESIS,
+                ),
+            )
+            headerClass = RootBlockHeader if isRoot else MinorBlockHeader
+            headerList = [headerClass.deserialize(headerData) for headerData in resp.blockHeaderList]
+            check(headerList[0].getHash() == blockHash)
+            return headerList[1:]
+        except Exception as e:
+            Logger.logException()
+            return []
 
-    async def getPreviousRootBlockHeaderList(self, h, maxBlocks=1):
-        """ Get the previous root block header starting from h
-        The returned list must be ordered.
-        Return empty if the root block of the hash is not in the active chain.
-        """
-        return []
+    async def getPreviousMinorBlockHeaderList(self, shardId, minorBlockHash, maxBlocks=1):
+        return await self.__getPreviousBlockHeaderList(False, shardId, minorBlockHash, maxBlocks)
 
-    async def isPeerClosed(self):
+    async def getPreviousRootBlockHeaderList(self, rootBlockHash, maxBlocks=1):
+        return await self.__getPreviousBlockHeaderList(True, 0, rootBlockHash, maxBlocks)
+
+    def isPeerClosed(self):
         return self.peer.isClosed()
 
-    async def closePeerWithError(self, error):
+    def closePeerWithError(self, error):
         return self.peer.closeWithError(error)
 
 
@@ -186,7 +220,7 @@ class ShardForkResolver():
         Logger.info("resolving shard {} fork with remote height {}, tip height {}".format(
             shardId, self.header.height, tip.height))
         while True:
-            hList = await self.downloader.getPreviousMinorBlockHeaderList(currentHash, maxBlocks=10)
+            hList = await self.downloader.getPreviousMinorBlockHeaderList(shardId, currentHash, maxBlocks=10)
             if len(hList) == 0:
                 # The shard in peer has changed
                 # TODO: download latest tip from the peer immediately
@@ -511,35 +545,27 @@ class Peer(Connection):
             blockList.append(qcState.db.getMinorBlockByHash(h))
         return GetMinorBlockListResponse(blockList)
 
-    async def handleGetBlockHashListRequest(self, request):
+    async def handleGetBlockHeaderListRequest(self, request):
         qcState = self.network.qcState
         if request.isRoot:
             hList = qcState.getRootBlockHeaderListByHash(request.blockHash, request.maxBlocks, request.direction)
+            hList = [] if hList is None else hList
             if hList is not None:
-                return GetBlockHashListResponse(
+                return GetBlockHeaderListResponse(
                     rootTip=qcState.getRootBlockTip(),
                     shardTip=MinorBlockHeader(),
-                    blockHashList=[header.getHash() for header in hList])
-            else:
-                return GetBlockHashListResponse(
-                    rootTip=qcState.getRootBlockTip(),
-                    shardTip=MinorBlockHeader(),
-                    blockHashList=[])
+                    blockHeaderList=[header.serialize() for header in hList])
 
         hList = qcState.getMinorBlockHeaderListByHash(
             h=request.blockHash,
             shardId=request.shardId,
             maxBlocks=request.maxBlocks,
             direction=request.direction)
-        if hList is None:
-            return GetBlockHashListResponse(
-                rootTip=qcState.getRootBlockTip(),
-                shardTip=qcState.getShardTip(request.shardId),
-                blockHashList=[])
-        return GetBlockHashListResponse(
+        hList = [] if hList is None else hList
+        return GetBlockHeaderListResponse(
             rootTip=qcState.getRootBlockTip(),
             shardTip=qcState.getShardTip(request.shardId),
-            blockHashList=[header.getHash() for header in hList])
+            blockHeaderList=[header.serialize() for header in hList])
 
     async def handleGetPeerListRequest(self, request):
         resp = GetPeerListResponse()
@@ -569,8 +595,8 @@ OP_RPC_MAP = {
          Peer.handleGetMinorBlockListRequest),
     CommandOp.GET_PEER_LIST_REQUEST:
         (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
-    CommandOp.GET_BLOCK_HASH_LIST_REQUEST:
-        (CommandOp.GET_BLOCK_HASH_LIST_RESPONSE, Peer.handleGetBlockHashListRequest)
+    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST:
+        (CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE, Peer.handleGetBlockHeaderListRequest)
 }
 
 
@@ -739,24 +765,26 @@ class SimpleNetwork:
             rootTip = self.qcState.getRootBlockTip()
             try:
                 op, resp, rpcId = await peer.writeRpcRequest(
-                    CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
-                    GetBlockHashListRequest(
+                    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST,
+                    GetBlockHeaderListRequest(
                         isRoot=True,
                         shardId=0,      # ignore
                         blockHash=rootTip.getHash(),
                         maxBlocks=1024,
-                        direction=1,
+                        direction=Direction.TIP,
                     ),
                 )
             except Exception as e:
                 Logger.logException()
                 return
 
-            if len(resp.blockHashList) - 1 <= 0:
+            if len(resp.blockHeaderList) - 1 <= 0:
                 Logger.info("[SYNC] Finished syncing root blocks and all the confirmed minor blocks")
                 break
 
-            errorMsg = await self.__syncRootBlocksAndConfirmedMinorBlocks(peer, resp.blockHashList[1:])
+            blockHashList = [RootBlockHeader.deserialize(headerData).getHash() for headerData in resp.blockHeaderList]
+
+            errorMsg = await self.__syncRootBlocksAndConfirmedMinorBlocks(peer, blockHashList[1:])
             if errorMsg:
                 Logger.info("[SYNC] FAILED " + errorMsg)
                 return
@@ -767,25 +795,28 @@ class SimpleNetwork:
             minorTip = self.qcState.getMinorBlockTip(shardId)
             try:
                 op, resp, rpcId = await peer.writeRpcRequest(
-                    CommandOp.GET_BLOCK_HASH_LIST_REQUEST,
-                    GetBlockHashListRequest(
+                    CommandOp.GET_BLOCK_HEADER_LIST_REQUEST,
+                    GetBlockHeaderListRequest(
                         isRoot=False,
                         shardId=shardId,
                         blockHash=minorTip.getHash(),
                         maxBlocks=1024,
-                        direction=1,
+                        direction=Direction.TIP,
                     ),
                 )
             except Exception as e:
                 Logger.logException()
                 return
 
-            if len(resp.blockHashList) - 1 <= 0:
+            if len(resp.blockHeaderList) - 1 <= 0:
                 continue
 
             Logger.info("[SYNC] Syncing {} unconfirmed minor blocks on shard {}!".format(
-                len(resp.blockHashList) - 1, shardId))
-            errorMsg = await self.__syncMinorBlocks(peer, resp.blockHashList[1:])
+                len(resp.blockHeaderList) - 1, shardId))
+
+            blockHashList = [MinorBlockHeader.deserialize(headerData).getHash() for headerData in resp.blockHeaderList]
+
+            errorMsg = await self.__syncMinorBlocks(peer, blockHashList[1:])
             if errorMsg:
                 Logger.info("[SYNC] FAILED " + errorMsg)
                 return
