@@ -480,15 +480,12 @@ class TestSimpmleNetwork(unittest.TestCase):
 
 class TestDownloader(unittest.TestCase):
 
-    def connect(self):
-        peer = call_async(self.network1.connect("127.0.0.1", self.env0.config.P2P_SERVER_PORT))
-        self.downloader = Downloader(peer)
-        self.assertFalse(self.downloader.isPeerClosed())
-
     def setUp(self):
         self.env0, self.qcState0, self.network0 = create_network()
         env1, qcState1, self.network1 = create_network()
-        self.connect()
+        peer = call_async(self.network1.connect("127.0.0.1", self.env0.config.P2P_SERVER_PORT))
+        self.downloader = Downloader(peer)
+        self.assertFalse(self.downloader.isPeerClosed())
 
     def tearDown(self):
         self.network0.shutdown()
@@ -509,7 +506,7 @@ class TestDownloader(unittest.TestCase):
     def testGetRootBlockByHashNotExist(self):
         self.assertIsNone(call_async(self.downloader.getRootBlockByHash(
             self.qcState0.getGenesisMinorBlock(0).header.getHash())))
-        self.assertTrue(self.downloader.isPeerClosed())
+        self.assertFalse(self.downloader.isPeerClosed())
 
     def testGetMinorBlockByHash(self):
         b1 = self.qcState0.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
@@ -525,7 +522,7 @@ class TestDownloader(unittest.TestCase):
     def testGetMinorBlockByHashNotExist(self):
         self.assertIsNone(call_async(self.downloader.getMinorBlockByHash(
             self.qcState0.getGenesisRootBlock().header.getHash())))
-        self.assertTrue(self.downloader.isPeerClosed())
+        self.assertFalse(self.downloader.isPeerClosed())
 
     def testGetPreviousRootBlockHeaderList(self):
         rootBlocks = [self.qcState0.getGenesisRootBlock()]
@@ -564,14 +561,14 @@ class TestDownloader(unittest.TestCase):
         headerList = call_async(self.downloader.getPreviousRootBlockHeaderList(
             self.qcState0.getGenesisMinorBlock(0).header.getHash(), 10))
         self.assertEqual(len(headerList), 0)
-        self.assertTrue(self.downloader.isPeerClosed())
+        self.assertFalse(self.downloader.isPeerClosed())
 
     def testGetPreviousMinorBlockHeaderList(self):
         blocks0 = [self.qcState0.getGenesisMinorBlock(0)]
         blocks1 = [self.qcState0.getGenesisMinorBlock(1)]
         for i in range(5):
             b1 = blocks0[-1].createBlockToAppend().finalizeMerkleRoot()
-            b2 = blocks0[-1].createBlockToAppend().finalizeMerkleRoot()
+            b2 = blocks1[-1].createBlockToAppend().finalizeMerkleRoot()
             self.assertIsNone(self.qcState0.appendMinorBlock(b1))
             self.assertIsNone(self.qcState0.appendMinorBlock(b2))
             blocks0.append(b1)
@@ -601,4 +598,4 @@ class TestDownloader(unittest.TestCase):
         headerList = call_async(self.downloader.getPreviousMinorBlockHeaderList(
             0, self.qcState0.getGenesisMinorBlock(1).header.getHash(), 10))
         self.assertEqual(len(headerList), 0)
-        self.assertTrue(self.downloader.isPeerClosed())
+        self.assertFalse(self.downloader.isPeerClosed())

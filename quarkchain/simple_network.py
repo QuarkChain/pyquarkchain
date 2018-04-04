@@ -28,9 +28,21 @@ class Downloader():
         except Exception as e:
             Logger.logException()
             return None
-        if len(resp.rootBlockList) != 1:
-            Logger.error("Failed to get root block from peer {}".format(self.peer.id.hex()))
+
+        if not resp.rootBlockList:
+            # TODO: this means remote chain has changed.
+            # We should get the new tip (by piggybacking the RPC)
+            # and tell ResolverManager to resolve the new tip
             return None
+
+        size = len(resp.rootBlockList)
+        if size > 1 or resp.rootBlockList[0].header.getHash() != rootBlockHash:
+            # TODO: blacklist this peer
+            errorMsg = "Requested one root block but got {} from peer {}".format(size, self.peer.id.hex())
+            Logger.error(errorMsg)
+            self.closePeerWithError(errorMsg)
+            return None
+
         return resp.rootBlockList[0]
 
     async def getMinorBlockByHash(self, minorBlockHash):
@@ -40,9 +52,21 @@ class Downloader():
         except Exception as e:
             Logger.logException()
             return None
-        if len(resp.minorBlockList) != 1:
-            Logger.error("Failed to get minor block from peer {}".format(self.peer.id.hex()))
+
+        if not resp.minorBlockList:
+            # TODO: this means remote chain has changed.
+            # We should get the new tip (by piggybacking the RPC)
+            # and tell ResolverManager to resolve the new tip
             return None
+
+        size = len(resp.minorBlockList)
+        if size > 1 or resp.minorBlockList[0].header.getHash() != minorBlockHash:
+            # TODO: blacklist this peer
+            errorMsg = "Requested one minor block but got {} from peer {}".format(size, self.peer.id.hex())
+            Logger.error(errorMsg)
+            self.closePeerWithError(errorMsg)
+            return None
+
         return resp.minorBlockList[0]
 
     async def __getPreviousBlockHeaderList(self, isRoot, shardId, blockHash, maxBlocks):
@@ -61,9 +85,21 @@ class Downloader():
                     direction=Direction.GENESIS,
                 ),
             )
+            if not resp.blockHeaderList:
+                # TODO: this means remote chain has changed.
+                # We should get the new tip (by piggybacking the RPC)
+                # and tell ResolverManager to resolve the new tip
+                return []
             headerClass = RootBlockHeader if isRoot else MinorBlockHeader
             headerList = [headerClass.deserialize(headerData) for headerData in resp.blockHeaderList]
-            check(headerList[0].getHash() == blockHash)
+            if headerList[0].getHash() != blockHash:
+                # TODO: blacklist this peer
+                errorMsg = "The hash of the first header does not match the request from peer {}".format(
+                    self.peer.id.hex())
+                Logger.error(errorMsg)
+                self.closePeerWithError(errorMsg)
+                return []
+
             return headerList[1:]
         except Exception as e:
             Logger.logException()
@@ -534,16 +570,22 @@ class Peer(Connection):
     async def handleGetRootBlockListRequest(self, request):
         qcState = self.network.qcState
         blockList = []
-        for h in request.rootBlockHashList:
-            blockList.append(qcState.db.getRootBlockByHash(h))
-        return GetRootBlockListResponse(blockList)
+        try:
+            for h in request.rootBlockHashList:
+                blockList.append(qcState.db.getRootBlockByHash(h))
+            return GetRootBlockListResponse(blockList)
+        except Exception as e:
+            return GetRootBlockListResponse([])
 
     async def handleGetMinorBlockListRequest(self, request):
         qcState = self.network.qcState
         blockList = []
-        for h in request.minorBlockHashList:
-            blockList.append(qcState.db.getMinorBlockByHash(h))
-        return GetMinorBlockListResponse(blockList)
+        try:
+            for h in request.minorBlockHashList:
+                blockList.append(qcState.db.getMinorBlockByHash(h))
+            return GetMinorBlockListResponse(blockList)
+        except Exception as e:
+            return GetMinorBlockListResponse([])
 
     async def handleGetBlockHeaderListRequest(self, request):
         qcState = self.network.qcState
