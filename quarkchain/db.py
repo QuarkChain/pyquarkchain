@@ -2,6 +2,7 @@
 import leveldb
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
+from functools import lru_cache
 
 
 class Db:
@@ -181,6 +182,62 @@ class PersistentDb(Db):
     def close():
         # No close option in leveldb?
         pass
+
+
+@lru_cache(128)
+def add1(b):
+    v = int.from_bytes(b, byteorder="big")
+    return (v + 1).to_bytes(4, byteorder="big")
+
+
+@lru_cache(128)
+def sub1(b):
+    v = int.from_bytes(b, byteorder="big")
+    return (v - 1).to_bytes(4, byteorder="big")
+
+
+class RefcountedDb(Db):
+
+    def __init__(self, db):
+        self.db = db
+        self.kv = None
+
+    def get(self, key):
+        return self.db.get(key)[4:]
+
+    def getRefcount(self, key):
+        try:
+            return int.from_bytes(self.db.get(key)[:4], byteorder="big")
+        except KeyError:
+            return 0
+
+    def rangeIter(self, start, end):
+        for k, v in self.db.RangeIter(start, end):
+            yield (k, v[4:])
+
+    def put(self, key, value):
+        existing = self.db.get(key)
+        if existing is None:
+            self.db.put(key, (1).to_bytes(4, byteorder="big") + value)
+            return
+        assert existing[4:] == value
+        self.db.put(key, add1(existing[:4]) + value)
+
+    def remove(self, key):
+        existing = self.db.get(key)
+        if existing[:4] == (1).to_bytes(4, byteorder="big"):
+            self.db.remove(key)
+        else:
+            self.db.put(key, sub1(existing[:4]) + existing[4:])
+
+    def commit(self):
+        pass
+
+    def _has_key(self, key):
+        return key in self.db
+
+    def __contains__(self, key):
+        return self._has_key(key)
 
 
 DB = InMemoryDb()
