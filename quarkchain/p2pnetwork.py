@@ -322,9 +322,9 @@ class P2PNetwork:
             break
 
     # The same interfaces as simple network.
-    def broadcastNewBlockWithRawData(self, isRootBlock, blockData, sourcePeerId=None):
-        cmd = NewBlockCommand(isRootBlock, blockData)
-        self.__broadcastCommand(CommandOp.NEW_BLOCK_COMMAND, cmd, sourcePeerId)
+    def broadcastBlockHeaders(self, rHeader, mHeaderList=[]):
+        cmd = NewMinorBlockHeaderListCommand(rHeader, mHeaderList)
+        self.__broadcastCommand(CommandOp.NEW_MINOR_BLOCK_HEADER_LIST, cmd)
 
     def broadcastTransaction(self, shardId, tx, sourcePeerId=None):
         cmd = NewTransactionListCommand([NewTransaction(shardId, tx)])

@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import copy
 import leveldb
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
@@ -182,6 +183,18 @@ class PersistentDb(Db):
     def close():
         # No close option in leveldb?
         pass
+
+    def __deepcopy__(self, memo):
+        # LevelDB cannot be deep copied
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "db":
+                setattr(result, k, v)
+                continue
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
 
 
 @lru_cache(128)

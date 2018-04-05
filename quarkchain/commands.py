@@ -32,6 +32,7 @@ class HelloCommand(Serializable):
         super(type(self), self).__init__(**fields)
 
 
+# RPC to inform peers about new root or minor blocks
 class NewMinorBlockHeaderListCommand(Serializable):
     FIELDS = [
         ("rootBlockHeader", RootBlockHeader),
@@ -167,19 +168,6 @@ class GetPeerListResponse(Serializable):
         self.peerInfoList = peerInfoList if peerInfoList is not None else []
 
 
-# TODO: deprecate this in favor of NewMinorBlockHeaderListCommand
-# to allow peers to pull blocks at their will
-class NewBlockCommand(Serializable):
-    FIELDS = [
-        ("isRootBlock", boolean),
-        ("blockData", PreprendedSizeBytesSerializer(4))
-    ]
-
-    def __init__(self, isRootBlock, blockData):
-        self.isRootBlock = isRootBlock
-        self.blockData = blockData
-
-
 class CommandOp():
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
@@ -192,7 +180,6 @@ class CommandOp():
     GET_MINOR_BLOCK_LIST_RESPONSE = 8
     GET_BLOCK_HEADER_LIST_REQUEST = 9
     GET_BLOCK_HEADER_LIST_RESPONSE = 10
-    NEW_BLOCK_COMMAND = 11
 
 
 OP_SERIALIZER_MAP = {
@@ -207,5 +194,4 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
     CommandOp.GET_BLOCK_HEADER_LIST_REQUEST: GetBlockHeaderListRequest,
     CommandOp.GET_BLOCK_HEADER_LIST_RESPONSE: GetBlockHeaderListResponse,
-    CommandOp.NEW_BLOCK_COMMAND: NewBlockCommand,
 }
