@@ -478,7 +478,7 @@ class Peer(Connection):
                 self.closeWithError(
                     "Root block the same height should not be changed")
                 return
-            # TODO: Make sure the height of each shard is increasing
+            # TODO: Make sure the height of each shard is increasing by recording the bestMinorBlockHeaderObserved
         elif rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
             # TODO: Support reshard
             self.closeWithError("Incorrect root block shard size")
@@ -499,6 +499,7 @@ class Peer(Connection):
         elif rootTipHeight < rHeader.height:
             self.network.forkResolverManager.tryResolveRootFork(
                 self.network, self, rHeader)
+        # TODO: Broadcast new tips if a successful resolve changed the tips
 
     async def handleNewTransactionList(self, op, cmd, rpcId):
         for newTransaction in cmd.transactionList:
@@ -650,6 +651,8 @@ class SimpleNetwork:
             peer.writeRawCommand(op, data)
 
     def broadcastBlockHeaders(self, rHeader, mHeaderList=[]):
+        # TODO: record the best (heighest) headers broadcasted to each peer
+        # to guarantee non-decreasing order
         cmd = NewMinorBlockHeaderListCommand(rHeader, mHeaderList)
         self.__broadcastCommand(CommandOp.NEW_MINOR_BLOCK_HEADER_LIST, cmd)
 
