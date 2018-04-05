@@ -32,8 +32,9 @@ class HelloCommand(Serializable):
         super(type(self), self).__init__(**fields)
 
 
-# RPC to inform peers about new root or minor blocks
 class NewMinorBlockHeaderListCommand(Serializable):
+    '''RPC to inform peers about new root or minor blocks
+    '''
     FIELDS = [
         ("rootBlockHeader", RootBlockHeader),
         ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
