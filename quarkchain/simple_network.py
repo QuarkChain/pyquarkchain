@@ -395,15 +395,18 @@ class Peer(Connection):
         self.id = None
         self.shardMaskList = None
         self.bestRootBlockHeaderObserved = None
+        self.bestMinorBlockHeadersObserved = None
 
     def sendHello(self):
+        mBlockTips = [self.network.qcState.getShardTip(i) for i in range(self.network.qcState.getShardSize())]
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
                            networkId=self.env.config.NETWORK_ID,
                            peerId=self.network.selfId,
                            peerIp=int(self.network.ip),
                            peerPort=self.network.port,
                            shardMaskList=[],
-                           rootBlockHeader=self.network.qcState.getRootBlockTip())
+                           rootBlockHeader=self.network.qcState.getRootBlockTip(),
+                           minorBlockHeaderList=mBlockTips)
         # Send hello request
         self.writeCommand(CommandOp.HELLO, cmd)
 
@@ -426,7 +429,25 @@ class Peer(Connection):
         self.shardMaskList = cmd.shardMaskList
         self.ip = ipaddress.ip_address(cmd.peerIp)
         self.port = cmd.peerPort
+
+        # Validate best root and minor blocks from peer
+        # TODO: validate hash and difficulty through a helper function
+        if cmd.rootBlockHeader.shardInfo.getShardSize() != len(cmd.minorBlockHeaderList):
+            return self.closeWithError(
+                "Shard size from root block header does not match the size of minor block header list")
+        shardId = 0
+        for mHeader in cmd.minorBlockHeaderList:
+            if mHeader.branch.getShardSize() != cmd.rootBlockHeader.shardInfo.getShardSize():
+                return self.closeWithError(
+                    "Shard size from minor block header does not match the size from root header")
+            if mHeader.branch.getShardId() != shardId:
+                return self.closeWithError(
+                    "Shard id in minor block header list is not incrementing")
+            shardId += 1
+
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
+        self.bestMinorBlockHeadersObserved = cmd.minorBlockHeaderList
+
         # TODO handle root block header
         if self.id == self.network.selfId:
             # connect to itself, stop it
@@ -478,7 +499,10 @@ class Peer(Connection):
                 self.closeWithError(
                     "Root block the same height should not be changed")
                 return
-            # TODO: Make sure the height of each shard is increasing by recording the bestMinorBlockHeaderObserved
+            if len(cmd.minorBlockHeaderList) == 0:
+                self.closeWithError(
+                    "New root block of the same height shouldn't be published more than once")
+                return
         elif rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
             # TODO: Support reshard
             self.closeWithError("Incorrect root block shard size")
@@ -486,13 +510,20 @@ class Peer(Connection):
 
         self.bestRootBlockHeaderObserved = rHeader
 
+        # Make sure the minor block heights are increasing
+        for mHeader in cmd.minorBlockHeaderList:
+            if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
+                self.closeWithError("Incorrect minor block shard size")
+                return
+            if self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()].height >= mHeader.height:
+                self.closeWithError("Minor block height should be non-decreasing")
+                return
+            self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()] = mHeader
+
         rootTipHeight = self.network.qcState.getRootBlockTip().height
         if rootTipHeight == rHeader.height:
             # Try to resolve all minor headers
             for mHeader in cmd.minorBlockHeaderList:
-                if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
-                    self.closeWithError("Incorrect minor block shard size")
-                    return
                 if mHeader.height <= self.network.qcState.getShardTip(mHeader.branch.getShardId()).height:
                     continue
                 self.network.forkResolverManager.tryResolveShardFork(self.network, self, mHeader)
