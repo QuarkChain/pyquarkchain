@@ -34,6 +34,7 @@ script:
   # broken. Tests will be individually added here as they're fixed.
   - python3 -m unittest
   - cat quarkchain/DATA_SIZE | PYTHONPATH=. python3 quarkchain/data_size.py check
+  - PYTHONPATH=. python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
   #- if [ -d .tox/$TOX_ENV/ ]; then cd .tox/$TOX_ENV && coverage erase; fi;
   #- tox -e $TOX_ENV -- --ignore ethereum/tests/test_vm.py --ignore ethereum/tests/test_state.py
   #- tox -e $TOX_ENV -- ethereum/tests/test_vm.py
