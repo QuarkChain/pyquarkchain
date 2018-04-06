@@ -3,7 +3,6 @@ from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
 from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
-import ipaddress
 
 
 class HelloCommand(Serializable):
@@ -15,19 +14,19 @@ class HelloCommand(Serializable):
         ("peerPort", uint16),
         ("shardMaskList", PreprendedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
-        ("rootBlockHeader", RootBlockHeader)
+        ("rootBlockHeader", RootBlockHeader),
+        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
     def __init__(self,
-                 version=0,
-                 networkId=0,
-                 peerId=bytes(32),
-                 peerIp=int(ipaddress.ip_address("127.0.0.1")),
-                 peerPort=38291,
-                 shardMaskList=None,
-                 rootBlockHeader=None):
-        shardMaskList = shardMaskList if shardMaskList is not None else []
-        rootBlockHeader = rootBlockHeader if rootBlockHeader is not None else []
+                 version,
+                 networkId,
+                 peerId,
+                 peerIp,
+                 peerPort,
+                 shardMaskList,
+                 rootBlockHeader,
+                 minorBlockHeaderList):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 

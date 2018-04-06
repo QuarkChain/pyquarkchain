@@ -1,4 +1,5 @@
 import asyncio
+import time
 import unittest
 from quarkchain.chain import QuarkChainState
 from quarkchain.simple_network import Downloader, ForkResolverManager, SimpleNetwork
@@ -61,6 +62,7 @@ def build_block_map(blockList):
 
 
 class TestShardFork(unittest.TestCase):
+    '''Unit test of shard fork resolver with MockDownloader'''
 
     def testShardForkWithLength1(self):
         env = get_test_env()
@@ -198,6 +200,7 @@ class TestShardFork(unittest.TestCase):
 
 
 class TestRootFork(unittest.TestCase):
+    '''Unit test of root fork resolver with MockDownloader'''
 
     def testRootForkWithoutShardFork(self):
         env = get_test_env()
@@ -359,7 +362,18 @@ def call_async(coro):
     return future.result()
 
 
+def assert_true_with_timeout(f):
+        async def d():
+            deadline = time.time() + 1
+            while not f() and time.time() < deadline:
+                await asyncio.sleep(0.001)
+            assert(f())
+
+        asyncio.get_event_loop().run_until_complete(d())
+
+
 class TestSimpmleNetwork(unittest.TestCase):
+    '''Test of P2P commands with real node servers'''
 
     def testGetBlockHeaderListRequest(self):
         env0, qcState0, network0 = create_network()
@@ -479,6 +493,7 @@ class TestSimpmleNetwork(unittest.TestCase):
 
 
 class TestDownloader(unittest.TestCase):
+    '''Test Downloader with real node servers'''
 
     def setUp(self):
         self.env0, self.qcState0, self.network0 = create_network()
@@ -599,3 +614,239 @@ class TestDownloader(unittest.TestCase):
             0, self.qcState0.getGenesisMinorBlock(1).header.getHash(), 10))
         self.assertEqual(len(headerList), 0)
         self.assertFalse(self.downloader.isPeerClosed())
+
+
+class TestShardForkWithTwoNetworks(unittest.TestCase):
+    '''Test shard fork resolver with real node servers
+       Calling network1.broadcastBlockHeaders will invoke Peer.handleNewMinorBlockHeaderList in network0
+    '''
+
+    def addNewBlock(self, qcState, quarkash=0):
+        b1 = qcState.getShardTip(0).createBlockToAppend(quarkash=quarkash).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+
+    def testAppendBlocksFromLongerChain(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        for i in range(10):
+            self.addNewBlock(qcState1)
+
+        assert(qcState1.getShardTip(0).height == 10)
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [qcState1.getShardTip(0)])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
+
+    def testEqualHeightWithLocalChainDoNothing(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        for i in range(10):
+            self.addNewBlock(qcState0)
+            self.addNewBlock(qcState1, quarkash=1)
+
+        assert(qcState0.getShardTip(0).height == 10)
+        assert(qcState1.getShardTip(0).height == 10)
+        assert(qcState0.getShardTip(0) != qcState1.getShardTip(0))
+
+        oldTip = qcState0.getShardTip(0)
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [qcState1.getShardTip(0)])
+        assert_true_with_timeout(
+            lambda: qcState0.getShardTip(0) == oldTip)
+
+    def testLongerChainOverrideShorterChain(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        self.addNewBlock(qcState1, quarkash=1)
+        for i in range(10):
+            self.addNewBlock(qcState0)
+            self.addNewBlock(qcState1)
+
+        assert(qcState0.getShardTip(0).height == 10)
+        assert(qcState1.getShardTip(0).height == 11)
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [qcState1.getShardTip(0)])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
+
+    def testEqualHeightWithBestObservedCloseConnection(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        # Exchange best blocks info
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [qcState1.getShardTip(1)])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0).height == 0)
+        assert_true_with_timeout(
+            lambda: peer.isClosed())
+
+
+class TestRootForkWithTwoNetworks(unittest.TestCase):
+    '''Test root fork resolver with real node servers
+       Calling network1.broadcastBlockHeaders will invoke Peer.handleNewMinorBlockHeaderList in network0
+    '''
+
+    def addNewBlocks(self, qcState, addRootBlock=True, quarkash=0):
+        b1 = qcState.getShardTip(0).createBlockToAppend(quarkash=quarkash).finalizeMerkleRoot()
+        b2 = b1.createBlockToAppend(quarkash=quarkash).finalizeMerkleRoot()
+        b3 = qcState.getShardTip(1).createBlockToAppend(quarkash=quarkash).finalizeMerkleRoot()
+
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+        self.assertIsNone(qcState.appendMinorBlock(b3))
+
+        if not addRootBlock:
+            return
+
+        rB = qcState.getRootBlockTip().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header, b3.header]).finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB))
+
+    def testAppendRootBlocksFromLongerChain(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        for i in range(10):
+            self.addNewBlocks(qcState0, addRootBlock=False)
+            self.addNewBlocks(qcState1)
+
+        assert(qcState0.getRootBlockTip().height == 0)
+        assert(qcState0.getShardTip(0).height == 20)
+        assert(qcState0.getShardTip(1).height == 10)
+        assert(qcState1.getRootBlockTip().height == 10)
+        assert(qcState1.getShardTip(0).height == 20)
+        assert(qcState0.getShardTip(1).height == 10)
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == qcState1.getRootBlockTip())
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
+
+    def testAppendRootBlocksAndMinorBlocksFromLongerChain(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        for i in range(10):
+            self.addNewBlocks(qcState1)
+
+        assert(qcState0.getRootBlockTip().height == 0)
+        assert(qcState0.getShardTip(0).height == 0)
+        assert(qcState0.getShardTip(1).height == 0)
+        assert(qcState1.getRootBlockTip().height == 10)
+        assert(qcState1.getShardTip(0).height == 20)
+        assert(qcState1.getShardTip(1).height == 10)
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == qcState1.getRootBlockTip())
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
+
+    def testLongerChainOverrideShorterChainAndMinorBlocks(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        self.addNewBlocks(qcState1, quarkash=1)
+
+        for i in range(10):
+            self.addNewBlocks(qcState0)
+            self.addNewBlocks(qcState1)
+
+        assert(qcState0.getRootBlockTip().height == 10)
+        assert(qcState0.getShardTip(0).height == 20)
+        assert(qcState0.getShardTip(1).height == 10)
+        assert(qcState1.getRootBlockTip().height == 11)
+        assert(qcState1.getShardTip(0).height == 22)
+        assert(qcState1.getShardTip(1).height == 11)
+        assert(qcState0.getRootBlockTip() != qcState1.getRootBlockTip())
+        assert(qcState0.getShardTip(0) != qcState1.getShardTip(0))
+        assert(qcState0.getShardTip(1) != qcState1.getShardTip(1))
+
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == qcState1.getRootBlockTip())
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
+        assert_true_with_timeout(
+            lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
+
+    def testLowerHeightThanBestObservedCloseConnection(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        self.addNewBlocks(qcState1)
+
+        # Exchange best blocks info
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        oldTip = qcState0.getRootBlockTip()
+        network1.broadcastBlockHeaders(qcState1.getRootBlockHeaderByHeight(0), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == oldTip)
+        assert_true_with_timeout(
+            lambda: peer.isClosed())
+
+    def testEqualHeightWithBestObservedButDifferentHeaderCloseConnection(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        self.addNewBlocks(qcState0)
+        self.addNewBlocks(qcState1, quarkash=1)
+
+        # Exchange best blocks info
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        oldTip = qcState0.getRootBlockTip()
+
+        network1.broadcastBlockHeaders(qcState0.getRootBlockTip(), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == oldTip)
+        assert_true_with_timeout(
+            lambda: peer.isClosed())
+
+    def testEqualHeightWithBestObservedWithoutMinorBlockCloseConnection(self):
+        env0, qcState0, network0 = create_network()
+        env1, qcState1, network1 = create_network()
+
+        # Exchange best blocks info
+        peer = call_async(network1.connect("127.0.0.1", env0.config.P2P_SERVER_PORT))
+        self.assertIsNotNone(peer)
+
+        oldTip = qcState0.getRootBlockTip()
+        network1.broadcastBlockHeaders(qcState1.getRootBlockTip(), [])
+        assert_true_with_timeout(
+            lambda: network0.qcState.getRootBlockTip() == oldTip)
+        assert_true_with_timeout(
+            lambda: peer.isClosed())
+
+
