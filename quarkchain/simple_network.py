@@ -3,6 +3,7 @@ import asyncio
 import ipaddress
 import random
 import socket
+import time
 
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
@@ -66,7 +67,6 @@ class Downloader():
             Logger.error(errorMsg)
             self.closePeerWithError(errorMsg)
             return None
-
         return resp.minorBlockList[0]
 
     async def __getPreviousBlockHeaderList(self, isRoot, shardId, blockHash, maxBlocks):
@@ -140,8 +140,6 @@ class RootForkResolver():
         currentHash = self.header.getHash()
         currentHeader = self.header
         rHeaderList = [self.header]
-        Logger.info("resolving root fork with remote height {}, tip height {}".format(
-            self.header.height, tip.height))
         while parentHeader is None:
             hList = await self.downloader.getPreviousRootBlockHeaderList(currentHash, maxBlocks=10)
             if len(hList) == 0:
@@ -193,6 +191,7 @@ class RootForkResolver():
         for rBlock in reversed(rBlockList):
             for mHeader in reversed(rBlock.minorBlockHeaderList):
                 shardId = mHeader.branch.getShardId()
+                # TODO: only need to check once with the heighest block from each shard
                 if self.qcState.getMinorBlockHeaderByHash(mHeader.getHash(), shardId) is None:
                     # Cannot find the minor block in the shard
                     # Try to roll back the shard so that tip height is smaller than mHeader's height and
@@ -213,8 +212,15 @@ class RootForkResolver():
         self.stateContainer.qcState = self.qcState
 
     async def resolve(self):
+        tip = self.stateContainer.qcState.getRootBlockTip()
+        startTime = time.time()
+        Logger.info("[RootForkResolver] {} -> {}".format(
+            tip.height, self.header.height, ))
         try:
             await self.__resolve()
+            latencySec = time.time() - startTime
+            Logger.info("[RootForkResolver] {} -> {} {:.2f} s".format(
+                tip.height, self.header.height, latencySec))
         except Exception as e:
             self.downloader.closePeerWithError(str(e))
             raise e
@@ -248,8 +254,6 @@ class ShardForkResolver():
         mHeaderList = [self.header]
         currentHash = self.header.getHash()
         currentHeader = self.header
-        Logger.info("resolving shard {} fork with remote height {}, tip height {}".format(
-            shardId, self.header.height, tip.height))
         while parentHeader is None:
             # TODO: Check mHeaderList length and may stop resolving the fork if the difference is too large
             hList = await self.downloader.getPreviousMinorBlockHeaderList(shardId, currentHash, maxBlocks=10)
@@ -281,7 +285,6 @@ class ShardForkResolver():
 
                         parentHeader = header
                         break
-
         # TODO: Check difficulty before downloading
         # TODO: Check local db before downloading
         mBlockList = []
@@ -295,7 +298,6 @@ class ShardForkResolver():
             # Local miner may append new blocks.  Make sure the peer still has the longer shard.
             if self.header.height <= self.stateContainer.qcState.getShardTip(shardId).height:
                 return
-
         # Apply blocks atomically.  Make sure we have latest copy of qcState
         # (as other resolver may change it in parallel).
         qcState = self.stateContainer.qcState.copy()
@@ -310,8 +312,16 @@ class ShardForkResolver():
         self.stateContainer.qcState = qcState
 
     async def resolve(self):
+        startTime = time.time()
+        shardId = self.header.branch.getShardId()
+        tip = self.stateContainer.qcState.getShardTip(shardId)
+        Logger.info("[ShardForkResolver] [{}] {} -> {}".format(
+            shardId, tip.height, self.header.height))
         try:
             await self.__resolve()
+            latencySec = time.time() - startTime
+            Logger.info("[ShardForkResolver] [{}] {} -> {} {:.2f} s".format(
+                shardId, tip.height, self.header.height, latencySec))
         except Exception as e:
             self.downloader.closePeerWithError(str(e))
             raise e
