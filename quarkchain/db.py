@@ -225,7 +225,7 @@ class RefcountedDb(Db):
             return 0
 
     def rangeIter(self, start, end):
-        for k, v in self.db.RangeIter(start, end):
+        for k, v in self.db.rangeIter(start, end):
             yield (k, v[4:])
 
     def put(self, key, value):
@@ -251,6 +251,29 @@ class RefcountedDb(Db):
 
     def __contains__(self, key):
         return self._has_key(key)
+
+
+class ShardedDb(Db):
+
+    def __init__(self, db, fullShardId):
+        self.db = db
+        self.fullShardId = fullShardId
+        self.shardKey = fullShardId.to_bytes(4, byteorder="big")
+
+    def get(self, key):
+        return self.db.get(self.shardKey + key)
+
+    def put(self, key, value):
+        return self.db.put(self.shardKey + key, value)
+
+    def remove(self, key):
+        return self.db.remove(self.shardKey + key)
+
+    def __contains__(self, key):
+        return (self.shardKey + key) in self.db
+
+    def rangeIter(self, start, end):
+        yield from self.db.rangeIter(self.shardKey + start, self.shardKey + end)
 
 
 DB = InMemoryDb()
