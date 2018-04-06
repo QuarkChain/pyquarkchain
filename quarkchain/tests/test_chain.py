@@ -4,6 +4,7 @@ from quarkchain.core import Address, Identity, Transaction, TransactionInput, Co
 from quarkchain.genesis import create_genesis_minor_block
 from quarkchain.tests.test_utils import get_test_env, create_test_transaction
 from collections import deque
+from quarkchain.config import NetworkId
 
 
 class TestQuarkChain(unittest.TestCase):
@@ -359,7 +360,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(acc1, genesisMinorQuarkash=10000)
         env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
         env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
-        env.config.NETWORK_ID = 1
+        env.config.NETWORK_ID = NetworkId.TESTNET_FORD
         rootChain = RootChain(env)
         gBlock = create_genesis_minor_block(
             env, shardId=0, hashRootBlock=rootChain.getGenesisBlock().header.getHash())

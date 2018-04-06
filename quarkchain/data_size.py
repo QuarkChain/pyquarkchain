@@ -34,6 +34,7 @@ def main():
     if sys.argv[1] == "check":
         read = sys.stdin.read()
         if get_output() != read:
+            print("data size mismatched!")
             sys.exit(1)
 
 

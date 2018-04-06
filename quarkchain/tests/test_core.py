@@ -96,23 +96,6 @@ class TestShardInfo(unittest.TestCase):
         self.assertEqual(info.getReshardVote(), True)
 
 
-class TestCode(unittest.TestCase):
-
-    def testOversizedCode(self):
-        code = Code(random_bytes(255))
-        s = code.serialize()
-        code1 = Code.deserialize(s)
-        self.assertEqual(code, code1)
-
-        code = Code(random_bytes(256))
-        try:
-            s = code.serialize()
-        except RuntimeError as e:
-            pass
-        else:
-            self.fail()
-
-
 class TestIdentity(unittest.TestCase):
 
     def testIdentity(self):

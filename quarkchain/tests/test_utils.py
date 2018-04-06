@@ -17,12 +17,20 @@ def get_test_env(genesisAccount=Address.createEmptyAccount(), genesisQuarkash=10
     return env
 
 
-def create_test_transaction(fromId, fromTxId, toAddress, amount=100, remaining=100, shardId=0, outputIndex=0):
+def create_test_transaction(
+        fromId,
+        fromTxId,
+        toAddress,
+        amount=100,
+        remaining=100,
+        shardId=0,
+        outputIndex=0,
+        code=Code.getTransferCode()):
     acc1 = Address.createFromIdentity(fromId, shardId)
     tx = Transaction(
-        [TransactionInput(fromTxId, outputIndex)],
-        Code(),
-        [TransactionOutput(acc1, remaining), TransactionOutput(toAddress, amount)])
+        inList=[TransactionInput(fromTxId, outputIndex)],
+        code=code,
+        outList=[TransactionOutput(acc1, remaining), TransactionOutput(toAddress, amount)])
     tx.sign([fromId.getKey()])
     return tx
 

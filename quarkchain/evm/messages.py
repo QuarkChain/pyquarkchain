@@ -8,7 +8,7 @@ from ethereum import utils
 from ethereum import bloom
 from ethereum import transactions
 from ethereum import opcodes
-from ethereum import vm
+from quarkchain.evm import vm
 from ethereum.specials import specials as default_specials
 from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction

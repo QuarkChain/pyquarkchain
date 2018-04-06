@@ -7,6 +7,11 @@ from quarkchain.diff import MADifficultyCalculator
 import quarkchain.evm.config
 
 
+class NetworkId:
+    MAINNET = 1
+    TESTNET_FORD = 2
+
+
 class DefaultConfig:
 
     def __init__(self):
@@ -57,8 +62,8 @@ class DefaultConfig:
             bootstrapSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
             minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
 
-        #  0 is mainnet
-        self.NETWORK_ID = 0
+        #  1 is mainnet
+        self.NETWORK_ID = NetworkId.MAINNET
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
         # Unlimited yet
