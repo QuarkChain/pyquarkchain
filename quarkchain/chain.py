@@ -829,8 +829,10 @@ class QuarkChainState:
 
         # TODO: Remove root block coinbase tx
 
-    def rollBackRootChainTo(self, rBlockHeader):
+    def rollBackRootChainTo(self, rBlockHeader, rollbackHeaderList=[]):
         """ Roll back the root chain to a specific block header
+        The headers of the blocks rolled back are stored in rollbackHeaderList
+        with height in ascending order.
         Return None upon success or error message upon failure
         """
 
@@ -840,12 +842,15 @@ class QuarkChainState:
             return "cannot find the root block in root chain"
 
         while self.rootChain.tip() != rBlockHeader:
+            rollbackHeaderList.append(self.rootChain.tip())
             tipHash = self.rootChain.tip().getHash()
             # Roll back minor blocks
             for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
                 while len(q) > 0 and q[-1].header.hashPrevRootBlock == tipHash:
                     check(self.rollBackMinorBlock(shardId) is None)
             check(self.rollBackRootBlock() is None)
+
+        rollbackHeaderList.reverse()
         return None
 
     def getMinorBlockHeaderByHeight(self, shardId, height):

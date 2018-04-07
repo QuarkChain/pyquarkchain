@@ -119,7 +119,7 @@ class Logger:
 
     @staticmethod
     def errorException():
-        traceback.print_exc(file=sys.stderr)
+        Logger.error(traceback.format_exc())
 
     @staticmethod
     def logException():

@@ -125,6 +125,55 @@ class RootForkResolver():
         self.downloader = downloader
         self.header = header
 
+    async def __rollbackAndAppend(self, parentHeader, rBlockList, rollbackHeaderList):
+        '''Rollback tip until tip becomes parentHeader.
+        Then append rBlockList which should have height in ascending order.
+        The rolled back block headers will be stored in rollbackHeaderList in ascending order.
+        Returns None on success or a error message string.
+        '''
+        qcState = self.stateContainer.qcState
+        qcState.rollBackRootChainTo(parentHeader, rollbackHeaderList)
+        for rBlock in rBlockList:
+            for mHeader in reversed(rBlock.minorBlockHeaderList):
+                shardId = mHeader.branch.getShardId()
+                if qcState.getMinorBlockHeaderByHash(mHeader.getHash(), shardId) is None:
+                    # Cannot find the minor block in the shard
+                    # Try to roll back the shard so that tip height is smaller than mHeader's height and
+                    # thus run ShardForkResolver to address the following of the fork.
+                    while qcState.getShardTip(shardId).height >= mHeader.height:
+                        errMsg = qcState.rollBackMinorBlock(shardId)
+                        if errMsg is not None:
+                            return errMsg
+                    try:
+                        await ShardForkResolver(qcState, self.downloader, mHeader).resolve()
+                    except Exception as e:
+                        return str(e)
+                    if qcState.getMinorBlockHeaderByHash(mHeader.getHash()) is None:
+                        # Failed to resolve, the peer should be close by error
+                        return "unable to resolve the shard"
+            errMsg = qcState.appendRootBlock(rBlock)
+            if errMsg is not None:
+                return errMsg
+
+    def __rollbackAndRecover(self, parentHeader, rHeaderList):
+        qcState = self.stateContainer.qcState
+        qcState.rollBackRootChainTo(parentHeader)
+        for rHeader in rHeaderList:
+            rBlock = qcState.db.getRootBlockByHash(rHeader.getHash())
+            for mHeader in rBlock.minorBlockHeaderList:
+                shardId = mHeader.branch.getShardId()
+                if qcState.getMinorBlockHeaderByHash(mHeader.getHash(), shardId) is None:
+                    # Cannot find the minor block in the shard
+                    # Try to roll back the shard so that tip height is smaller than mHeader's height and
+                    # then append the minor block
+                    while qcState.getShardTip(shardId).height >= mHeader.height:
+                        errMsg = qcState.rollBackMinorBlock(shardId)
+                        check(errMsg is None)
+                errMsg = qcState.appendMinorBlock(qcState.db.getMinorBlockByHash(mHeader.getHash()))
+                check(errMsg is None)
+            errMsg = qcState.appendRootBlock(rBlock)
+            check(errMsg is None)
+
     async def __resolve(self):
         tip = self.stateContainer.qcState.getRootBlockTip()
 
@@ -186,33 +235,15 @@ class RootForkResolver():
 
         # Resolve shards if needed
         # TODO: perform parallel shard block downloading
-        if parentHeader == self.stateContainer.qcState.getRootBlockTip():
-            qcState = self.stateContainer.qcState
-        else:
-            qcState = self.stateContainer.qcState.copy()
-            qcState.rollBackRootChainTo(parentHeader)
+        rollbackHeaderList = []
+        errMsg = await self.__rollbackAndAppend(parentHeader, reversed(rBlockList), rollbackHeaderList)
+        if errMsg is None:
+            return
 
-        for rBlock in reversed(rBlockList):
-            for mHeader in reversed(rBlock.minorBlockHeaderList):
-                shardId = mHeader.branch.getShardId()
-                if qcState.getMinorBlockHeaderByHash(mHeader.getHash(), shardId) is None:
-                    # Cannot find the minor block in the shard
-                    # Try to roll back the shard so that tip height is smaller than mHeader's height and
-                    # thus run ShardForkResolver to address the following of the fork.
-                    while qcState.getShardTip(shardId).height >= mHeader.height:
-                        errMsg = qcState.rollBackMinorBlock(shardId)
-                        if errMsg is not None:
-                            raise RuntimeError(errMsg)
-
-                    await ShardForkResolver(qcState, self.downloader, mHeader).resolve()
-                    if qcState.getMinorBlockHeaderByHash(mHeader.getHash()) is None:
-                        # Failed to resolve, the peer should be close by error
-                        raise RuntimeError("unable to resolve the shard")
-            errMsg = qcState.appendRootBlock(rBlock)
-            if errMsg is not None:
-                raise RuntimeError(errMsg)
-
-        self.stateContainer.qcState = qcState
+        # Try to recover the old state which should always succeed
+        recoverErrMsg = self.__rollbackAndRecover(parentHeader, rollbackHeaderList)
+        check(recoverErrMsg is None)
+        raise RuntimeError(errMsg)
 
     async def resolve(self):
         tip = self.stateContainer.qcState.getRootBlockTip()
@@ -240,9 +271,9 @@ class ShardForkResolver():
 
     def __rollbackAndAppend(self, parentHeader, mBlockList, rollbackHeaderList):
         '''Rollback tip until tip becomes parentHeader.
-           Then append mBlockList which should have height in ascending order.
-           The rolled back block headers will be stored in rollbackHeaderList in ascending order.
-           Returns None on success or a error message string.
+        Then append mBlockList which should have height in ascending order.
+        The rolled back block headers will be stored in rollbackHeaderList in ascending order.
+        Returns None on success or a error message string.
         '''
         qcState = self.qcState
         while qcState.getShardTip(self.shardId) != parentHeader:
