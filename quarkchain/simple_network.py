@@ -578,7 +578,8 @@ class Peer(Connection):
                 self.closeWithError("Incorrect minor block shard size")
                 return
             if self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()].height >= mHeader.height:
-                self.closeWithError("Minor block height should be non-decreasing")
+                self.closeWithError("Minor block height should be increasing. shard {} height {}".format(
+                    mHeader.branch.getShardId(), mHeader.height))
                 return
             self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()] = mHeader
 
