@@ -5,12 +5,12 @@ from ethereum.utils import hash32, trie_root, \
     big_endian_to_int, parse_as_bin, parse_as_int, \
     decode_hex, sha3, is_string, is_numeric
 from ethereum import utils
-from ethereum import trie
-from ethereum.trie import Trie
-from ethereum.securetrie import SecureTrie
-from ethereum.config import Env
+from quarkchain.evm import trie
+from quarkchain.evm.trie import Trie
+from quarkchain.evm.securetrie import SecureTrie
+from quarkchain.evm.config import Env
 from ethereum.block import FakeHeader
-from ethereum.db import BaseDB, OverlayDB, RefcountDB
+from quarkchain.db import Db, RefcountedDb, OverlayDb
 import copy
 
 
@@ -54,13 +54,16 @@ class Account(rlp.Serializable):
         ('code_hash', hash32)
     ]
 
-    def __init__(self, nonce, balance, storage, code_hash, env, address):
-        assert isinstance(env.db, BaseDB)
+    def __init__(self, nonce, balance, storage, code_hash, env, address, db=None):
+        if db is None:
+            db = env.db
+        self.db = db
+        assert isinstance(db, Db)
         self.env = env
         self.address = address
         super(Account, self).__init__(nonce, balance, storage, code_hash)
         self.storage_cache = {}
-        self.storage_trie = SecureTrie(Trie(RefcountDB(self.env.db)))
+        self.storage_trie = SecureTrie(Trie(RefcountedDb(db)))
         self.storage_trie.root_hash = self.storage
         self.touched = False
         self.existent_at_start = True
@@ -78,7 +81,7 @@ class Account(rlp.Serializable):
 
     @property
     def code(self):
-        return self.env.db.get(self.code_hash)
+        return self.db[self.code_hash]
 
     @code.setter
     def code(self, value):
@@ -86,7 +89,7 @@ class Account(rlp.Serializable):
         # Technically a db storage leak, but doesn't really matter; the only
         # thing that fails to get garbage collected is when code disappears due
         # to a suicide
-        self.env.db.put(self.code_hash, value)
+        self.db.put(self.code_hash, value)
 
     def get_storage_data(self, key):
         if key not in self.storage_cache:
@@ -99,9 +102,11 @@ class Account(rlp.Serializable):
         self.storage_cache[key] = value
 
     @classmethod
-    def blank_account(cls, env, address, initial_nonce=0):
-        env.db.put(BLANK_HASH, b'')
-        o = cls(initial_nonce, 0, trie.BLANK_ROOT, BLANK_HASH, env, address)
+    def blank_account(cls, env, address, initial_nonce=0, db=None):
+        if db is None:
+            db = env.db
+        db.put(BLANK_HASH, b'')
+        o = cls(initial_nonce, 0, trie.BLANK_ROOT, BLANK_HASH, env, address, db=db)
         o.existent_at_start = False
         return o
 
@@ -127,9 +132,12 @@ class Account(rlp.Serializable):
 # from ethereum.state import State
 class State():
 
-    def __init__(self, root=b'', env=Env(), executing_on_head=False, **kwargs):
+    def __init__(self, root=b'', env=Env(), executing_on_head=False, db=None, **kwargs):
+        if db is None:
+            db = env.db
         self.env = env
-        self.trie = SecureTrie(Trie(RefcountDB(self.db), root))
+        self.__db = db
+        self.trie = SecureTrie(Trie(RefcountedDb(self.db), root))
         for k, v in STATE_DEFAULTS.items():
             setattr(self, k, kwargs.get(k, copy.copy(v)))
         self.journal = []
@@ -141,7 +149,7 @@ class State():
 
     @property
     def db(self):
-        return self.env.db
+        return self.__db
 
     @property
     def config(self):
@@ -162,7 +170,7 @@ class State():
             return self.cache[address]
         if self.executing_on_head and False:
             try:
-                rlpdata = self.db.get(b'address:' + address)
+                rlpdata = self.db[b'address:' + address]
             except KeyError:
                 rlpdata = b''
         else:
@@ -365,7 +373,7 @@ class State():
                     self.trie.delete(addr)
                     if self.executing_on_head:
                         try:
-                            self.db.delete(b'address:' + addr)
+                            self.db.remove(b'address:' + addr)
                         except KeyError:
                             pass
         self.deletes.extend(self.trie.deletes)
@@ -496,7 +504,7 @@ class State():
 
     def ephemeral_clone(self):
         snapshot = self.to_snapshot(root_only=True, no_prevblocks=True)
-        env2 = Env(OverlayDB(self.env.db), self.env.config)
+        env2 = Env(OverlayDb(self.db), self.env.config)
         s = State.from_snapshot(snapshot, env2)
         for param in STATE_DEFAULTS:
             setattr(s, param, getattr(self, param))
