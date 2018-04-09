@@ -9,6 +9,7 @@ from quarkchain.utils import set_logging_level
 
 
 # Disable error log in test
+# You want to comment out this if debugging the tests
 set_logging_level("critical")
 
 
