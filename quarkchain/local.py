@@ -410,7 +410,7 @@ class LocalServer(Connection):
         shardId = fromAddress.getShardId(qcState.getShardSize())
 
         # one signer owns all the input utxos
-        tx.signList = [bytes.fromhex(signature)] * len(tx.inList)
+        tx.signList = [bytes.fromhex(signature)]
         qcState.addTransactionToQueue(shardId, tx)
         self.network.broadcastTransaction(shardId, tx)
 
@@ -440,7 +440,7 @@ class LocalServer(Connection):
         tx = Transaction.deserialize(bytes.fromhex(resp["tx"]))
 
         # provide signatures to unlock the utxos in inList
-        tx.sign([bytes.fromhex(key)] * len(tx.inList))
+        tx.sign([bytes.fromhex(key)])
 
         qcState.addTransactionToQueue(shardId, tx)
         self.network.broadcastTransaction(shardId, tx)
@@ -503,7 +503,7 @@ class LocalServer(Connection):
                 outList=outList,
             )
             # provide signatures to unlock the utxos in inList
-            tx.sign([bytes.fromhex(key)] * len(tx.inList))
+            tx.sign([bytes.fromhex(key)])
 
             qcState.addTransactionToQueue(shardId, tx)
             self.network.broadcastTransaction(shardId, tx)

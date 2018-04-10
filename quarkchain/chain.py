@@ -147,7 +147,7 @@ class ShardState:
         # - depend before rootBlockHeader (inclusive)
         txInputSet = set()
         txInputQuarkash = 0
-        senderList = []
+        sender = None
         rootBlockHeader = self.chain[0]
         for txInput in tx.inList:
             if txInput in txInputSet:
@@ -158,14 +158,17 @@ class ShardState:
                 rootBlockHeader = utxoPool[txInput].rootBlockHeader
             txInputSet.add(txInput)
             txInputQuarkash += utxoPool[txInput].quarkash
-            senderList.append(utxoPool[txInput].address.recipient)
+            if sender is None:
+                sender = utxoPool[txInput].address.recipient
+            elif sender != utxoPool[txInput].address.recipient:
+                raise RuntimeError("all tx inputs must be from the same sender")
             if Logger.isEnableForDebug():
                 Logger.debug(
                     "%s tx_in %s %d %d",
                     tx.getHashHex(), txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
 
         # Check signature
-        if not tx.verifySignature(senderList):
+        if not tx.verifySignature([sender]):
             raise RuntimeError("incorrect signature")
 
         # Check if the sum of output is smaller than or equal to the input

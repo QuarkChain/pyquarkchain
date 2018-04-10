@@ -1,4 +1,4 @@
-from qaurkchain import utils
+from quarkchain import utils
 
 
 class SecureTrie(object):
@@ -13,10 +13,10 @@ class SecureTrie(object):
         self.trie.update(h, v)
 
     def get(self, k):
-        return self.trie.get(utils.sha3(k))
+        return self.trie.get(utils.sha3_256(k))
 
     def delete(self, k):
-        self.trie.delete(utils.sha3(k))
+        self.trie.delete(utils.sha3_256(k))
 
     def to_dict(self):
         o = {}

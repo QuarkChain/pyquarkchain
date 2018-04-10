@@ -1,6 +1,6 @@
 import unittest
 from quarkchain.chain import QuarkChain, ShardState, RootChain, QuarkChainState
-from quarkchain.core import Address, Identity
+from quarkchain.core import Address, Identity, Transaction, TransactionInput, Code
 from quarkchain.genesis import create_genesis_minor_block
 from quarkchain.tests.test_utils import get_test_env, create_test_transaction
 from collections import deque
@@ -791,3 +791,42 @@ class TestQuarkChainState(unittest.TestCase):
         hList = qcState.getMinorBlockHeaderListByHash(
             qcState.getGenesisRootBlock().header.getHash(), shardId=0, maxBlocks=10, direction=0)
         self.assertIsNone(hList, None)
+
+    def testIncorrectUtxoFromMultipleSenders(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx1 = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc2, 6000, 4000)
+
+        tx2 = Transaction(
+            inList=[TransactionInput(tx1.getHash(), 0), TransactionInput(tx1.getHash(), 1)],
+            code=Code.getTransferCode(),
+            outList=[])
+        tx2.sign([id1.getKey()])
+
+        b1.addTx(tx1).addTx(tx2).finalizeMerkleRoot()
+        self.assertIsNotNone(qcState.appendMinorBlock(b1))
+
+    def testMultipleUtxoFromSingleSender(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(acc1, genesisMinorQuarkash=10000)
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=100)
+        tx1 = create_test_transaction(
+            id1, qcState.getGenesisMinorBlock(0).txList[0].getHash(), acc1, 6000, 4000)
+
+        tx2 = Transaction(
+            inList=[TransactionInput(tx1.getHash(), 0), TransactionInput(tx1.getHash(), 1)],
+            code=Code.getTransferCode(),
+            outList=[])
+        tx2.sign([id1.getKey()])
+
+        b1.addTx(tx1).addTx(tx2).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))

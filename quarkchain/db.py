@@ -126,6 +126,12 @@ class Db:
     def close():
         pass
 
+    def __getitem__(self, key):
+        value = self.get(key)
+        if value is None:
+            raise KeyError("cannot find {}".format(key))
+        return value
+
 
 class InMemoryDb(Db):
     """ A simple in-memory key-value database
@@ -274,6 +280,39 @@ class ShardedDb(Db):
 
     def rangeIter(self, start, end):
         yield from self.db.rangeIter(self.shardKey + start, self.shardKey + end)
+
+
+class OverlayDb(Db):
+    ''' Used for making temporary objects '''
+
+    def __init__(self, db):
+        self.db = db
+        self.kv = None
+        self.overlay = {}
+
+    def get(self, key):
+        if key in self.overlay:
+            if self.overlay[key] is None:
+                return None
+            return self.overlay[key]
+        return self.db.get(key)
+
+    def put(self, key, value):
+        self.overlay[key] = value
+
+    def delete(self, key):
+        self.overlay[key] = None
+
+    def commit(self):
+        pass
+
+    def _has_key(self, key):
+        if key in self.overlay:
+            return self.overlay[key] is not None
+        return key in self.db
+
+    def __contains__(self, key):
+        return self._has_key(key)
 
 
 DB = InMemoryDb()

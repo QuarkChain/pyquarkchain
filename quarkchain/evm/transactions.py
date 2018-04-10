@@ -47,12 +47,13 @@ class Transaction(rlp.Serializable):
         ('v', big_endian_int),
         ('r', big_endian_int),
         ('s', big_endian_int),
+        ('branch', big_endian_int),
     ]
 
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas,
-                 to, value, data, v=0, r=0, s=0):
+                 to, value, data, v=0, r=0, s=0, branch=1):
         self.data = None
 
         to = utils.normalize_address(to, allow_blank=True)
@@ -68,7 +69,8 @@ class Transaction(rlp.Serializable):
             data,
             v,
             r,
-            s)
+            s,
+            branch)
 
         if self.gasprice >= TT256 or self.startgas >= TT256 or \
                 self.value >= TT256 or self.nonce >= TT256:
