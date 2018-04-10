@@ -1,6 +1,6 @@
 import json
 import sys
-import ethereum.tools.new_statetest_utils as new_statetest_utils
+import quarkchain.evm.tests.new_statetest_utils as new_statetest_utils
 import ethereum.tools.testutils as testutils
 
 from ethereum.slogging import get_logger, configure_logging

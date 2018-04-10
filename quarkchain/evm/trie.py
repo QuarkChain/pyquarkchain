@@ -8,6 +8,16 @@ rlp_encode = encode_optimized
 
 bin_to_nibbles_cache = {}
 
+
+def to_bytes(value):
+    if isinstance(value, bytes):
+        return value
+    if isinstance(value, str):
+        return bytes(value, 'utf-8')
+    if isinstance(value, int):
+        return bytes(str(value), 'utf-8')
+
+
 hti = {}
 for i, c in enumerate('0123456789abcdef'):
     hti[c] = i
@@ -37,11 +47,11 @@ def nibbles_to_bin(nibbles):
 
     res = bytearray()
     for i in range(0, len(nibbles), 2):
-        res.append((16 * nibbles[i] + nibbles[i + 1]).to_bytes(1, byteorder="big"))
+        res.append(16 * nibbles[i] + nibbles[i + 1])
     return bytes(res)
 
 
-NIBBLE_TERMINATOR = b'\16'
+NIBBLE_TERMINATOR = 16
 
 
 def with_terminator(nibbles):
@@ -220,7 +230,7 @@ class Trie(object):
             return BLANK_NODE
         if isinstance(encoded, list):
             return encoded
-        o = rlp.decode(self.db.get(encoded))
+        o = rlp.decode(self.db[encoded])
         return o
 
     def _get_node_type(self, node):
@@ -794,11 +804,11 @@ class Trie(object):
 
         if is_key_value_type(node_type):
             nibbles = without_terminator(unpack_to_nibbles(node[0]))
-            key = b'+'.join([x for x in nibbles])
+            key = b'+'.join([to_bytes(x) for x in nibbles])
             if node_type == NODE_TYPE_EXTENSION:
                 sub_tree = self._iter_branch(self._decode_to_node(node[1]))
             else:
-                sub_tree = [(NIBBLE_TERMINATOR, node[1])]
+                sub_tree = [(to_bytes(NIBBLE_TERMINATOR), node[1])]
 
             # prepend key of this node to the keys of children
             for sub_key, sub_value in sub_tree:
@@ -810,12 +820,12 @@ class Trie(object):
                 sub_tree = self._iter_branch(self._decode_to_node(node[i]))
                 for sub_key, sub_value in sub_tree:
                     full_key = (
-                        i.to_bytes(1, byteorder="big") +
+                        bytes(str(i), "ascii") +
                         b'+' +
                         sub_key).strip(b'+')
                     yield (full_key, sub_value)
             if node[16]:
-                yield (NIBBLE_TERMINATOR, node[-1])
+                yield (to_bytes(NIBBLE_TERMINATOR), node[-1])
 
     def iter_branch(self):
         for key_str, value in self._iter_branch(self.root_node):
@@ -843,11 +853,11 @@ class Trie(object):
 
         if is_key_value_type(node_type):
             nibbles = without_terminator(unpack_to_nibbles(node[0]))
-            key = b'+'.join([x for x in nibbles])
+            key = b'+'.join([to_bytes(x) for x in nibbles])
             if node_type == NODE_TYPE_EXTENSION:
                 sub_dict = self._to_dict(self._decode_to_node(node[1]))
             else:
-                sub_dict = {NIBBLE_TERMINATOR: node[1]}
+                sub_dict = {to_bytes(NIBBLE_TERMINATOR): node[1]}
 
             # prepend key of this node to the keys of children
             res = {}
@@ -863,13 +873,13 @@ class Trie(object):
 
                 for sub_key, sub_value in sub_dict.items():
                     full_key = (
-                        i.to_bytes(1, byteorder="big") +
+                        bytes(str(i), "ascii") +
                         b'+' +
                         sub_key).strip(b'+')
                     res[full_key] = sub_value
 
             if node[16]:
-                res[NIBBLE_TERMINATOR] = node[-1]
+                res[to_bytes(NIBBLE_TERMINATOR)] = node[-1]
             return res
 
     def to_dict(self):
@@ -885,7 +895,9 @@ class Trie(object):
         return res
 
     def get(self, key):
-        return self._get(self.root_node, bin_to_nibbles(key))
+        if not isinstance(key, bytes):
+            raise Exception("Key must be bytes")
+        return self._get(self.root_node, bin_to_nibbles(to_bytes(key)))
 
     def __len__(self):
         return self._get_size(self.root_node)
