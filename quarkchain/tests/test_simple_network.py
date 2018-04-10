@@ -114,6 +114,27 @@ class TestShardFork(unittest.TestCase):
         self.assertEqual(qcState.getShardTip(0), b2.header)
         self.assertEqual(qcState.getShardTip(1).height, 0)
 
+    def testShardForkWithLength2StateRecovery(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        b2 = b1.createBlockToAppend().finalizeMerkleRoot()
+        b2.header.createTime = 0
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveShardFork(network, None, b2.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getShardTip(0).height, 0)
+        self.assertEqual(qcState.getShardTip(1).height, 0)
+
     def testShardForkWithEqualLength(self):
         env = get_test_env()
         qcState = QuarkChainState(env)

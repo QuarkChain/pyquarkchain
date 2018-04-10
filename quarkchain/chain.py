@@ -884,6 +884,7 @@ class QuarkChainState:
         rollbackHeaderList = []
 
         errMsg = None
+        oldHeight = self.getMinorBlockTip(shardId).height
         while self.getMinorBlockTip(shardId) != parentHeader:
             rollbackHeaderList.append(self.getMinorBlockTip(shardId))
             errMsg = self.rollBackMinorBlock(shardId)
@@ -900,8 +901,9 @@ class QuarkChainState:
                     break
 
         # Rollback to previous state
-        if errMsg is not None and len(rollbackHeaderList) > 0:
-            while self.getMinorBlockTip(shardId).height != rollbackHeaderList[0].height - 1:
+        if errMsg is not None:
+            rollbackHeight = oldHeight if len(rollbackHeaderList) == 0 else rollbackHeaderList[0].height - 1
+            while self.getMinorBlockTip(shardId).height != rollbackHeight:
                 self.rollBackMinorBlock(shardId)
             for header in rollbackHeaderList:
                 block = self.db.getMinorBlockByHash(header.getHash())

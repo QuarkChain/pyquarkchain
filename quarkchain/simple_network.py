@@ -139,8 +139,8 @@ class RootForkResolver():
         self.downloader = downloader
         self.header = header
 
-    async def __getHeadersFromForkPoint(self):
-        '''Returns the list of headers from the fork point to self.header'''
+    async def __getRootHeadersFromForkPoint(self):
+        '''Returns the list of root headers from the fork point to self.header'''
         headerList = [self.header]  # descending
         parent = self.qcState.getRootBlockHeaderByHash(self.header.hashPrevBlock)
         while parent is None:
@@ -167,6 +167,8 @@ class RootForkResolver():
         headerList.reverse()
         return headerList
 
+    # TODO: Throttle downloading
+    # TODO: Check local db before downloading
     async def __getOneBlock(self, rHeader):
         '''Returns a tuple (rootBlock, [mBlock, mBlock, ...])
         where mBlocks are included by the corresponding rootBlock but not available on the local minor chain.
@@ -208,7 +210,7 @@ class RootForkResolver():
         if tip.height >= self.header.height:
             return
 
-        headerList = await self.__getHeadersFromForkPoint()
+        headerList = await self.__getRootHeadersFromForkPoint()
         blockList = await self.__getBlocks(headerList)
         if len(blockList) == 0:
             return
@@ -298,6 +300,7 @@ class ShardForkResolver():
 
     # TODO: Check difficulty before downloading
     # TODO: Check local db before downloading
+    # TODO: Throttle downloading
     async def __getBlocks(self, mHeaderList):
         '''Returns a list minor blocks or empty list if any download failed'''
         futureList = []
