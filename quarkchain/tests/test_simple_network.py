@@ -641,6 +641,9 @@ class TestShardForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testEqualHeightWithLocalChainDoNothing(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -661,6 +664,9 @@ class TestShardForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: qcState0.getShardTip(0) == oldTip)
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testLongerChainOverrideShorterChain(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -680,6 +686,9 @@ class TestShardForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testEqualHeightWithBestObservedCloseConnection(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -693,6 +702,9 @@ class TestShardForkWithTwoNetworks(unittest.TestCase):
             lambda: network0.qcState.getShardTip(0).height == 0)
         assert_true_with_timeout(
             lambda: peer.isClosed())
+
+        network0.shutdown()
+        network1.shutdown()
 
 
 class TestRootForkWithTwoNetworks(unittest.TestCase):
@@ -742,6 +754,9 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testAppendRootBlocksAndMinorBlocksFromLongerChain(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -766,6 +781,9 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
             lambda: network0.qcState.getShardTip(0) == qcState1.getShardTip(0))
         assert_true_with_timeout(
             lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
+
+        network0.shutdown()
+        network1.shutdown()
 
     def testLongerChainOverrideShorterChainAndMinorBlocks(self):
         env0, qcState0, network0 = create_network()
@@ -798,6 +816,9 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: network0.qcState.getShardTip(1) == qcState1.getShardTip(1))
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testLowerHeightThanBestObservedCloseConnection(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -814,6 +835,9 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
             lambda: network0.qcState.getRootBlockTip() == oldTip)
         assert_true_with_timeout(
             lambda: peer.isClosed())
+
+        network0.shutdown()
+        network1.shutdown()
 
     def testEqualHeightWithBestObservedButDifferentHeaderCloseConnection(self):
         env0, qcState0, network0 = create_network()
@@ -834,6 +858,9 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: peer.isClosed())
 
+        network0.shutdown()
+        network1.shutdown()
+
     def testEqualHeightWithBestObservedWithoutMinorBlockCloseConnection(self):
         env0, qcState0, network0 = create_network()
         env1, qcState1, network1 = create_network()
@@ -849,4 +876,6 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
         assert_true_with_timeout(
             lambda: peer.isClosed())
 
+        network0.shutdown()
+        network1.shutdown()
 
