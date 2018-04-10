@@ -210,6 +210,8 @@ class RootForkResolver():
 
         headerList = await self.__getHeadersFromForkPoint()
         blockList = await self.__getBlocks(headerList)
+        if len(blockList) == 0:
+            return
 
         # Local miner may append new blocks.  Make sure the peer still has the longer root chain.
         if self.header.height <= self.qcState.getRootBlockTip().height:
@@ -271,7 +273,7 @@ class ShardForkResolver():
             if len(hList) == 0:
                 # The minor chain in peer has changed
                 # TODO: download latest tip from the peer immediately
-                return
+                return []
 
             for header in hList:
                 if headerList[-1].hashPrevMinorBlock != header.getHash():
@@ -318,6 +320,9 @@ class ShardForkResolver():
 
         headerList = await self.__getHeadersFromForkPoint()
         blockList = await self.__getBlocks(headerList)
+        if len(blockList) == 0:
+            return
+
         # Local miner may append new blocks.  Make sure the peer still has the longer shard.
         if self.header.height <= self.qcState.getShardTip(self.shardId).height:
             return
