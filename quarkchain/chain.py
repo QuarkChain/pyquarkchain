@@ -832,10 +832,14 @@ class QuarkChainState:
 
         # TODO: Remove root block coinbase tx
 
-    def rollBackRootChainTo(self, rBlockHeader):
+    def rollBackRootChainTo(self, rBlockHeader, rollbackHeaderList=None):
         """ Roll back the root chain to a specific block header
+        The headers of the blocks rolled back are stored in rollbackHeaderList
+        with height in ascending order.
         Return None upon success or error message upon failure
         """
+        if rollbackHeaderList is None:
+            rollbackHeaderList = []
 
         # TODO: Optimize with pqueue
         blockHash = rBlockHeader.getHash()
@@ -843,13 +847,124 @@ class QuarkChainState:
             return "cannot find the root block in root chain"
 
         while self.rootChain.tip() != rBlockHeader:
+            rollbackHeaderList.append(self.rootChain.tip())
             tipHash = self.rootChain.tip().getHash()
             # Roll back minor blocks
             for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
                 while len(q) > 0 and q[-1].header.hashPrevRootBlock == tipHash:
                     check(self.rollBackMinorBlock(shardId) is None)
             check(self.rollBackRootBlock() is None)
+
+        rollbackHeaderList.reverse()
         return None
+
+    def overrideMinorChain(self, blockList):
+        '''Replace the subchain (blockList[0].parent, tip] with blockList.
+
+        Rollback tips until the tip becomes the parent of blockList[0].
+        Then append the blocks from blockList (which should be in ascending order).
+        The blocks rolled back will have their headers stored in rollbackHeaderList in ascending order.
+        Returns None if the rollback and append are successful or an erro string will be returned.
+
+        Note that this function is atomic meaning when the function returns either all the blocks from blockList
+        are successfully appended to the block located by the parentHeader or the state of this chain
+        will appear as if this function has never been called.
+
+        This function assumes that callers provide a valid blockList and thus it does not perform
+        any complicated sanity checks before rolling back and appending though this function
+        could still fail if the chain is modified between the caller collecting all the blocks and
+        calling this function. This also means the function will replace the local state even if the result
+        would be a shorter chain!
+        '''
+        if len(blockList) == 0:
+            return None
+
+        shardId = blockList[0].header.branch.getShardId()
+        parentHeader = self.getMinorBlockHeaderByHash(blockList[0].header.hashPrevMinorBlock, shardId)
+        if parentHeader is None:
+            return "Failed to find parent on shard {}".format(shardId)
+
+        rollbackHeaderList = []
+
+        errMsg = None
+        oldHeight = self.getMinorBlockTip(shardId).height
+        while self.getMinorBlockTip(shardId) != parentHeader:
+            rollbackHeaderList.append(self.getMinorBlockTip(shardId))
+            errMsg = self.rollBackMinorBlock(shardId)
+            if errMsg is not None:
+                rollbackHeaderList.pop()
+                break
+
+        rollbackHeaderList.reverse()
+
+        if errMsg is None:
+            for block in blockList:
+                errMsg = self.appendMinorBlock(block)
+                if errMsg is not None:
+                    break
+
+        # Rollback to previous state
+        if errMsg is not None:
+            rollbackHeight = oldHeight if len(rollbackHeaderList) == 0 else rollbackHeaderList[0].height - 1
+            while self.getMinorBlockTip(shardId).height != rollbackHeight:
+                self.rollBackMinorBlock(shardId)
+            for header in rollbackHeaderList:
+                block = self.db.getMinorBlockByHash(header.getHash())
+                check(self.appendMinorBlock(block) is None)
+
+        return errMsg
+
+    def overrideRootChain(self, blockList):
+        '''Replace the subchain (blockList[0].parent, tip] with blockList for both root and shards.
+
+        blockList is a list of tuple (rootBlock, [minorBlock, minorBlock, ...])
+        Similar to overrideMinorChain this function is atomic.
+        '''
+
+        def __overrideMinorChainsAndAppendRootBlock(rBlock, mBlocks):
+            # Group minor blocks by shard
+            mBlockListByShard = {}
+            for mBlock in mBlocks:
+                mBlockListByShard.setdefault(mBlock.header.branch.getShardId(), []).append(mBlock)
+            for shardId, mBlockList in mBlockListByShard.items():
+                errMsg = self.overrideMinorChain(mBlockList)
+                if errMsg is not None:
+                    return errMsg
+            errMsg = self.appendRootBlock(rBlock)
+            return errMsg
+
+        if len(blockList) == 0:
+            return ""
+
+        parentHeader = self.getRootBlockHeaderByHash(blockList[0][0].header.hashPrevBlock)
+        if parentHeader is None:
+            return "Failed to find parent on root chain"
+
+        rollbackHeaderList = []
+        errMsg = self.rollBackRootChainTo(parentHeader, rollbackHeaderList)
+        if errMsg is not None:
+            return errMsg
+
+        for rootBlockAndMinorBlockList in blockList:
+            rBlock, mBlockList = rootBlockAndMinorBlockList
+            errMsg = __overrideMinorChainsAndAppendRootBlock(rBlock, mBlockList)
+            if errMsg is not None:
+                break
+
+        # Rollback to previous state
+        if errMsg is not None:
+            check(self.rollBackRootChainTo(parentHeader) is None)
+            for rHeader in rollbackHeaderList:
+                rBlock = self.db.getRootBlockByHash(rHeader.getHash())
+                mBlocks = []
+                for mHeader in rBlock.minorBlockHeaderList:
+                    shardId = mHeader.branch.getShardId()
+                    if self.getMinorBlockHeaderByHash(mHeader.getHash(), shardId):
+                        continue
+                    mBlocks.append(self.db.getMinorBlockByHash(mHeader.getHash()))
+                check(__overrideMinorChainsAndAppendRootBlock(rBlock, mBlocks) is None)
+
+        return errMsg
 
     def getMinorBlockHeaderByHeight(self, shardId, height):
         return self.shardList[shardId].getBlockHeaderByHeight(height)

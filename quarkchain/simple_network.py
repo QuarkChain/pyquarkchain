@@ -3,6 +3,7 @@ import asyncio
 import ipaddress
 import random
 import socket
+import time
 
 from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
@@ -66,7 +67,6 @@ class Downloader():
             Logger.error(errorMsg)
             self.closePeerWithError(errorMsg)
             return None
-
         return resp.minorBlockList[0]
 
     async def __getPreviousBlockHeaderList(self, isRoot, shardId, blockHash, maxBlocks):
@@ -119,199 +119,235 @@ class Downloader():
 
 
 class RootForkResolver():
+    '''Class to handle a root block header received from peer.
 
-    def __init__(self, stateContainer, downloader, header):
-        self.stateContainer = stateContainer
+    Assuming the header is from an honest peer it should fall into one of the following cases:
+    1. The height of the received header is no greater than the height of the local tip and thus do nothing
+    2. The height of the received header if greater than the local tip and thus the local state should be
+       replaced with the remote state. The state includes both root chain and all the shards. To do that
+       a. Find the most recent common ancestor of the local root chain and the remote root chain
+       b. Rollback the local root chain from the common ancestor to tip
+       c. For any fork on the local shards regardless of height update the local shards with
+          the minor blocks included in the remote root blocks
+       d. Append the root blocks from the common ancestor to the remote tip
+    Note that b,c, and d are performed in an atomic operation such that it either ends up having the same
+    state as the peer or nothing gets changed at all.
+    '''
+
+    def __init__(self, qcState, downloader, header):
+        self.qcState = qcState
         self.downloader = downloader
         self.header = header
 
-    async def __resolve(self):
-        tip = self.stateContainer.qcState.getRootBlockTip()
-
-        if tip.height >= self.header.height:
-            return
-
-        parentHeader = None
-        if tip.getHash() == self.header.hashPrevBlock:
-            if tip.height + 1 != self.header.height:
-                raise RuntimeError("RootForkResolver: height mismatches")
-            parentHeader = tip
-
-        currentHash = self.header.getHash()
-        currentHeader = self.header
-        rHeaderList = [self.header]
-        Logger.info("resolving root fork with remote height {}, tip height {}".format(
-            self.header.height, tip.height))
-        while parentHeader is None:
-            hList = await self.downloader.getPreviousRootBlockHeaderList(currentHash, maxBlocks=10)
+    async def __getRootHeadersFromForkPoint(self):
+        '''Returns the list of root headers from the fork point to self.header'''
+        headerList = [self.header]  # descending
+        parent = self.qcState.getRootBlockHeaderByHash(self.header.hashPrevBlock)
+        while parent is None:
+            hList = await self.downloader.getPreviousRootBlockHeaderList(headerList[-1].getHash(), maxBlocks=10)
             if len(hList) == 0:
                 # The root chain in peer has changed
                 # TODO: download latest tip from the peer immediately
                 return
 
-            for rHeader in hList:
-                if currentHeader.hashPrevBlock != rHeader.getHash():
+            for header in hList:
+                if headerList[-1].hashPrevBlock != header.getHash():
                     raise RuntimeError("RootForkResolver: hashPrevBlock mismatches current hash!")
-                if currentHeader.height != rHeader.height + 1:
+                if headerList[-1].height != header.height + 1:
                     raise RuntimeError("RootForkResolver: header height mismatches")
 
-                currentHash = rHeader.getHash()
-                currentHeader = rHeader
+                headerList.append(header)
+                parent = self.qcState.getRootBlockHeaderByHash(header.hashPrevBlock)
+                if parent:
+                    break
 
-                rHeaderList.append(rHeader)
-                if currentHeader.height <= tip.height + 1:
-                    header = self.stateContainer.qcState.getRootBlockHeaderByHash(
-                        currentHeader.hashPrevBlock)
-                    if header is not None:
-                        if header.height + 1 != currentHeader.height:
-                            raise RuntimeError("RootForkResolver: incorrect header height from peer")
+        if parent.height != headerList[-1].height - 1:
+            raise RuntimeError("RootForkResolver: parent height mismatch")
 
-                        parentHeader = header
-                        break
+        headerList.reverse()
+        return headerList
 
-            # TODO: Check rHeaderList length and may stop resolving the fork if the difference is too large
+    # TODO: Throttle downloading
+    # TODO: Check local db before downloading
+    async def __getOneBlock(self, rHeader):
+        '''Returns a tuple (rootBlock, [mBlock, mBlock, ...])
+        where mBlocks are included by the corresponding rootBlock but not available on the local minor chain.
+        None is returned on download failure.
+        '''
+        rBlock = await self.downloader.getRootBlockByHash(rHeader.getHash())
+        if rBlock is None:
+            # Active chain is changed
+            return None
+        mBlockFutureList = []
+        for mHeader in rBlock.minorBlockHeaderList:
+            if self.qcState.getMinorBlockHeaderByHash(mHeader.getHash(), mHeader.branch.getShardId()):
+                continue
+            mBlockFuture = self.downloader.getMinorBlockByHash(mHeader.getHash())
+            mBlockFutureList.append(mBlockFuture)
+        mBlockList = await asyncio.gather(*mBlockFutureList)
+        if any([b is None for b in mBlockList]):
+            return None
+        return (rBlock, mBlockList)
 
-        # TODO: Check difficulty and other sanity check before downloading
-        # TODO: Check local db before downloading
-        # TODO: Append block to local chain as we download to avoid OOM when the list is long
-        rBlockList = []
+    # TODO: Check headerList length and may stop resolving the fork if the difference is too large
+    # TODO: Check difficulty and other sanity check before downloading
+    async def __getBlocks(self, rHeaderList):
+        '''Returns a list of tuple (rootBlock, [mBlock, mBlock, ...])
+        where mBlocks are included by the corresponding rootBlock but not available on the local minor chain.
+        An empty list is returned if failed to download any block.
+        '''
+        futureList = []
         for rHeader in rHeaderList:
-            rBlock = await self.downloader.getRootBlockByHash(rHeader.getHash())
-            if rBlock is None:
-                # Active chain is changed
-                return
-            rBlockList.append(rBlock)
+            futureList.append(self.__getOneBlock(rHeader))
+        blockList = await asyncio.gather(*futureList)
+        if any([b is None for b in blockList]):
+            return []
+        return blockList
 
-            # Local miner may append new blocks.  Make sure the peer still has the longer root chain.
-            if self.header.height <= self.stateContainer.qcState.getRootBlockTip().height:
-                return
+    async def __resolve(self):
+        tip = self.qcState.getRootBlockTip()
 
-        # Resolve shards if needed
-        # TODO: perform parallel shard block downloading
-        self.qcState = self.stateContainer.qcState.copy()
-        self.qcState.rollBackRootChainTo(parentHeader)
-        for rBlock in reversed(rBlockList):
-            for mHeader in reversed(rBlock.minorBlockHeaderList):
-                shardId = mHeader.branch.getShardId()
-                if self.qcState.getMinorBlockHeaderByHash(mHeader.getHash(), shardId) is None:
-                    # Cannot find the minor block in the shard
-                    # Try to roll back the shard so that tip height is smaller than mHeader's height and
-                    # thus run ShardForkResolver to address the following of the fork.
-                    while self.qcState.getShardTip(shardId).height >= mHeader.height:
-                        errMsg = self.qcState.rollBackMinorBlock(shardId)
-                        if errMsg is not None:
-                            raise RuntimeError(errMsg)
+        if tip.height >= self.header.height:
+            return
 
-                    await ShardForkResolver(self, self.downloader, mHeader).resolve()
-                    if self.qcState.getMinorBlockHeaderByHash(mHeader.getHash()) is None:
-                        # Failed to resolve, the peer should be close by error
-                        raise RuntimeError("unable to resolve the shard")
-            errMsg = self.qcState.appendRootBlock(rBlock)
-            if errMsg is not None:
-                raise RuntimeError(errMsg)
+        headerList = await self.__getRootHeadersFromForkPoint()
+        blockList = await self.__getBlocks(headerList)
+        if len(blockList) == 0:
+            return
 
-        self.stateContainer.qcState = self.qcState
+        # Local miner may append new blocks.  Make sure the peer still has the longer root chain.
+        if self.header.height <= self.qcState.getRootBlockTip().height:
+            return
+
+        errMsg = self.qcState.overrideRootChain(blockList)
+        if errMsg is not None:
+            raise RuntimeError(errMsg)
 
     async def resolve(self):
+        tip = self.qcState.getRootBlockTip()
+        startTime = time.time()
+        Logger.info("[RootForkResolver] {} -> {}".format(
+            tip.height, self.header.height, ))
         try:
             await self.__resolve()
+            latencySec = time.time() - startTime
+            Logger.info("[RootForkResolver] {} -> {} {:.2f} s".format(
+                tip.height, self.header.height, latencySec))
         except Exception as e:
             self.downloader.closePeerWithError(str(e))
             raise e
 
 
 class ShardForkResolver():
+    '''Class to handle a minor block header received from peer.
 
-    def __init__(self, stateContainer, downloader, header):
-        self.stateContainer = stateContainer
+    Assuming the header is from an honest peer it should fall into one of the following cases:
+    1. The height of the received header is no greater than the height of the local tip and thus do nothing
+    2. The height of the received header if greater than the local tip and thus the local state should be
+       replaced with the remote state. To do that
+       a. Find the most recent common ancestor of the local shard and the remote shard
+       b. Rollback the local shard from the common ancestor to tip
+       c. Append the blocks from the common ancestor to the remote tip
+    Note that b. and c. is performed in an atomic operation such that it either ends up having the same
+    state as the peer or nothing gets changed at all.
+
+    However, there are also two cases in which we abort and wait for root chain to be resolved first.
+    1. header.hashPrevRootBlock does not exist in local root chain
+    2. The local state to be replaced involves minor headers that have already been confirmed by local root blocks
+    '''
+
+    def __init__(self, qcState, downloader, header):
+        self.qcState = qcState
         self.downloader = downloader
         self.header = header
-        self.branch = header.branch
+        self.shardId = header.branch.getShardId()
+
+    async def __getHeadersFromForkPoint(self):
+        '''Returns the list of minor headers from the fork point to self.header
+        Or returns an empty list if any local minor headers of the same height has already been confirmed.
+        '''
+        commitedTip = self.qcState.getCommittedShardTip(self.shardId)
+        headerList = [self.header]  # descending
+        parent = self.qcState.getMinorBlockHeaderByHash(self.header.hashPrevMinorBlock, self.shardId)
+        while parent is None:
+            hList = await self.downloader.getPreviousMinorBlockHeaderList(
+                self.shardId, headerList[-1].getHash(), maxBlocks=10)
+            if len(hList) == 0:
+                # The minor chain in peer has changed
+                # TODO: download latest tip from the peer immediately
+                return []
+
+            for header in hList:
+                if headerList[-1].hashPrevMinorBlock != header.getHash():
+                    raise RuntimeError("ShardForkResolver: hashPrevMinorBlock mismatches current hash!")
+                if headerList[-1].height != header.height + 1:
+                    raise RuntimeError("ShardForkResolver: header height mismatches")
+
+                if header.height <= commitedTip.height:
+                    # Cannot resolve the fork until root chain is resolved
+                    return []
+
+                headerList.append(header)
+                parent = self.qcState.getMinorBlockHeaderByHash(header.hashPrevMinorBlock, self.shardId)
+                if parent:
+                    break
+
+        if parent.height != headerList[-1].height - 1:
+            raise RuntimeError("ShardForkResolver: parent height mismatch")
+
+        headerList.reverse()
+        return headerList
+
+    # TODO: Check difficulty before downloading
+    # TODO: Check local db before downloading
+    # TODO: Throttle downloading
+    async def __getBlocks(self, mHeaderList):
+        '''Returns a list minor blocks or empty list if any download failed'''
+        futureList = []
+        for mHeader in mHeaderList:
+            futureList.append(self.downloader.getMinorBlockByHash(mHeader.getHash()))
+        blockList = await asyncio.gather(*futureList)
+        if any([b is None for b in blockList]):
+            return []
+        return blockList
 
     async def __resolve(self):
-        shardId = self.header.branch.getShardId()
-        tip = self.stateContainer.qcState.getShardTip(shardId)
+        tip = self.qcState.getShardTip(self.shardId)
 
-        if self.stateContainer.qcState.getRootBlockHeaderByHash(self.header.hashPrevRootBlock) is None:
+        if self.qcState.getRootBlockHeaderByHash(self.header.hashPrevRootBlock) is None:
             # Cannot find the root block.  The fork must be resolved by root chain first.
             return
 
         if tip.height >= self.header.height:
             return
 
-        parentHeader = None
-        if tip.height + 1 == self.header.height and self.header.hashPrevMinorBlock == tip.getHash():
-            parentHeader = tip
+        headerList = await self.__getHeadersFromForkPoint()
+        blockList = await self.__getBlocks(headerList)
+        if len(blockList) == 0:
+            return
 
-        # Find the closest parent of the fork and current chain (uncommited part)
-        commitedTip = self.stateContainer.qcState.getCommittedShardTip(shardId)
-        mHeaderList = [self.header]
-        currentHash = self.header.getHash()
-        currentHeader = self.header
-        Logger.info("resolving shard {} fork with remote height {}, tip height {}".format(
-            shardId, self.header.height, tip.height))
-        while parentHeader is None:
-            # TODO: Check mHeaderList length and may stop resolving the fork if the difference is too large
-            hList = await self.downloader.getPreviousMinorBlockHeaderList(shardId, currentHash, maxBlocks=10)
-            if len(hList) == 0:
-                # The shard in peer has changed
-                # TODO: download latest tip from the peer immediately
-                return
+        # Local miner may append new blocks.  Make sure the peer still has the longer shard.
+        if self.header.height <= self.qcState.getShardTip(self.shardId).height:
+            return
+        commitedTip = self.qcState.getCommittedShardTip(self.shardId)
+        if blockList[0].header.height <= commitedTip.height:
+            return
 
-            for mHeader in hList:
-                if currentHeader.hashPrevMinorBlock != mHeader.getHash():
-                    raise RuntimeError("ShardForkResolver: hashPrevMinorBlock mismatches current hash!")
-                if currentHeader.height != mHeader.height + 1:
-                    raise RuntimeError("ShardForkResolver: header height mismatches")
-
-                currentHash = mHeader.getHash()
-                currentHeader = mHeader
-
-                if currentHeader.height < commitedTip.height:
-                    # Cannot resolve the fork until root chain is resolved
-                    return
-
-                mHeaderList.append(mHeader)
-                if currentHeader.height <= tip.height + 1:
-                    header = self.stateContainer.qcState.getMinorBlockHeaderByHash(
-                        currentHeader.hashPrevMinorBlock, shardId)
-                    if header is not None:
-                        if header.height + 1 != currentHeader.height:
-                            raise RuntimeError("ShardForkResolver: incorrect header height from peer")
-
-                        parentHeader = header
-                        break
-
-        # TODO: Check difficulty before downloading
-        # TODO: Check local db before downloading
-        mBlockList = []
-        for mHeader in mHeaderList:
-            mBlock = await self.downloader.getMinorBlockByHash(mHeader.getHash())
-            if mBlock is None:
-                # Active chain is changed
-                return
-            mBlockList.append(mBlock)
-
-            # Local miner may append new blocks.  Make sure the peer still has the longer shard.
-            if self.header.height <= self.stateContainer.qcState.getShardTip(shardId).height:
-                return
-
-        # Apply blocks atomically.  Make sure we have latest copy of qcState
-        # (as other resolver may change it in parallel).
-        qcState = self.stateContainer.qcState.copy()
-        while qcState.getShardTip(shardId) != parentHeader:
-            qcState.rollBackMinorBlock(shardId)
-
-        for mBlock in reversed(mBlockList):
-            errMsg = qcState.appendMinorBlock(mBlock)
-            if errMsg is not None:
-                raise RuntimeError(errMsg)
-
-        self.stateContainer.qcState = qcState
+        errMsg = self.qcState.overrideMinorChain(blockList)
+        if errMsg is not None:
+            raise RuntimeError(errMsg)
 
     async def resolve(self):
+        startTime = time.time()
+        shardId = self.header.branch.getShardId()
+        tip = self.qcState.getShardTip(shardId)
+        Logger.info("[ShardForkResolver] [{}] {} -> {}".format(
+            shardId, tip.height, self.header.height))
         try:
             await self.__resolve()
+            latencySec = time.time() - startTime
+            Logger.info("[ShardForkResolver] [{}] {} -> {} {:.2f} s".format(
+                shardId, tip.height, self.header.height, latencySec))
         except Exception as e:
             self.downloader.closePeerWithError(str(e))
             raise e
@@ -358,7 +394,7 @@ class ForkResolverManager:
     def tryResolveRootFork(self, network, peer, rHeader):
         if self.rootForkResolver is not None:
             return False
-        self.rootForkResolver = RootForkResolver(network, self.downloaderFactory(peer), rHeader)
+        self.rootForkResolver = RootForkResolver(network.qcState, self.downloaderFactory(peer), rHeader)
         if len(self.shardForkResolverMap) == 0:
             asyncio.ensure_future(self.__resolveRootFork())
         return True
@@ -380,7 +416,8 @@ class ForkResolverManager:
             return False
         if mHeader.branch in self.shardForkResolverMap:
             return False
-        self.shardForkResolverMap[mHeader.branch] = ShardForkResolver(network, self.downloaderFactory(peer), mHeader)
+        self.shardForkResolverMap[mHeader.branch] = ShardForkResolver(
+            network.qcState, self.downloaderFactory(peer), mHeader)
         asyncio.ensure_future(self.__resolveShardFork(mHeader))
         return True
 
@@ -485,39 +522,48 @@ class Peer(Connection):
         self.closeWithError("Unexpected op {}".format(op))
 
     async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+        '''This function handles the block headers broadcasted from peers.'''
         if self.network.isSyncing():
             Logger.info("Discarded block headers from peer due to sycing in progress")
             return
 
-        # Make sure the root block height is non-decreasing
+        # Sanity checks
         rHeader = cmd.rootBlockHeader
+        if rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
+            # TODO: Support reshard
+            self.closeWithError("Incorrect root block shard size")
+            return
+
+        for mHeader in cmd.minorBlockHeaderList:
+            if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
+                self.closeWithError("Incorrect minor block shard size")
+                return
+
+        # Make sure the root block height is non-decreasing
         if self.bestRootBlockHeaderObserved.height > rHeader.height:
             self.closeWithError("Root block height should be non-decreasing")
             return
         elif self.bestRootBlockHeaderObserved.height == rHeader.height:
             if self.bestRootBlockHeaderObserved != rHeader:
-                self.closeWithError(
-                    "Root block the same height should not be changed")
+                self.closeWithError("Root block the same height should not be changed")
                 return
             if len(cmd.minorBlockHeaderList) == 0:
                 self.closeWithError(
                     "New root block of the same height shouldn't be published more than once")
                 return
-        elif rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
-            # TODO: Support reshard
-            self.closeWithError("Incorrect root block shard size")
-            return
+            # Make sure the minor block heights are increasing
+            for mHeader in cmd.minorBlockHeaderList:
+                bestMinorBlockHeaderObserved = self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()]
+                if bestMinorBlockHeaderObserved and bestMinorBlockHeaderObserved.height >= mHeader.height:
+                    self.closeWithError("Minor block height should be increasing. shard {} height {}".format(
+                        mHeader.branch.getShardId(), mHeader.height))
+                    return
+        else:
+            # Got a new root header. Reset observed minor block headers.
+            self.bestMinorBlockHeadersObserved = [None for i in range(rHeader.shardInfo.getShardSize())]
 
         self.bestRootBlockHeaderObserved = rHeader
-
-        # Make sure the minor block heights are increasing
         for mHeader in cmd.minorBlockHeaderList:
-            if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
-                self.closeWithError("Incorrect minor block shard size")
-                return
-            if self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()].height >= mHeader.height:
-                self.closeWithError("Minor block height should be non-decreasing")
-                return
             self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()] = mHeader
 
         rootTipHeight = self.network.qcState.getRootBlockTip().height

@@ -2,9 +2,15 @@ import asyncio
 import time
 import unittest
 from quarkchain.chain import QuarkChainState
+from quarkchain.commands import *
 from quarkchain.simple_network import Downloader, ForkResolverManager, SimpleNetwork
 from quarkchain.tests.test_utils import get_test_env
-from quarkchain.commands import *
+from quarkchain.utils import set_logging_level
+
+
+# Disable error log in test
+# You want to comment out this if debugging the tests
+set_logging_level("critical")
 
 
 class MockSimpleNetwork:
@@ -18,6 +24,7 @@ class MockDownloader:
     def __init__(self, rootBlockMap, minorBlockMap):
         self.rootBlockMap = rootBlockMap
         self.minorBlockMap = minorBlockMap
+        self.error = None
 
     async def getRootBlockByHash(self, h):
         return self.rootBlockMap.get(h, None)
@@ -52,6 +59,9 @@ class MockDownloader:
             headerList.append(header)
             h = header.hashPrevMinorBlock
         return headerList
+
+    def closePeerWithError(self, error):
+        self.error = error
 
 
 def build_block_map(blockList):
@@ -102,6 +112,27 @@ class TestShardFork(unittest.TestCase):
         qcState = network.qcState
         self.assertEqual(qcState.getShardTip(0).height, 2)
         self.assertEqual(qcState.getShardTip(0), b2.header)
+        self.assertEqual(qcState.getShardTip(1).height, 0)
+
+    def testShardForkWithLength2StateRecovery(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        b2 = b1.createBlockToAppend().finalizeMerkleRoot()
+        b2.header.createTime = 0
+
+        network = MockSimpleNetwork(qcState)
+        frManager = ForkResolverManager(
+            lambda peer: MockDownloader(
+                dict(),
+                build_block_map([b1, b2, qcState.getGenesisMinorBlock(0)])))
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveShardFork(network, None, b2.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getShardTip(0).height, 0)
         self.assertEqual(qcState.getShardTip(1).height, 0)
 
     def testShardForkWithEqualLength(self):
@@ -197,6 +228,33 @@ class TestShardFork(unittest.TestCase):
         self.assertEqual(qcState.getShardTip(0).height, 2)
         self.assertEqual(qcState.getShardTip(0), b3.header)
         self.assertEqual(qcState.getShardTip(1).height, 0)
+
+    def testShardForkWithStateRecovery(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+
+        b2 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b3 = b2.createBlockToAppend().finalizeMerkleRoot()
+        b3.header.createTime = 0
+
+        network = MockSimpleNetwork(qcState)
+        downloader = MockDownloader(
+            dict(),
+            build_block_map([b2, b3, qcState.getGenesisMinorBlock(0)]))
+        frManager = ForkResolverManager(
+            lambda peer: downloader)
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveShardFork(network, None, b3.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getShardTip(0).height, 1)
+        self.assertEqual(qcState.getShardTip(0), b1.header)
+        self.assertEqual(qcState.getShardTip(1).height, 0)
+        self.assertTrue("incorrect create time tip time" in downloader.error)
 
 
 class TestRootFork(unittest.TestCase):
@@ -340,6 +398,43 @@ class TestRootFork(unittest.TestCase):
         self.assertEqual(qcState.getRootBlockTip(), rB2.header)
         self.assertEqual(qcState.getMinorBlockTip(0), b5.header)
         self.assertEqual(qcState.getMinorBlockTip(1), b6.header)
+
+    def testRootForkWithStateRecovery(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend().finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend().finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+        rB = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b1.header, b2.header]).finalize()
+        self.assertIsNone(qcState.appendRootBlock(rB))
+
+        b3 = qcState.getGenesisMinorBlock(0).createBlockToAppend(quarkash=1).finalizeMerkleRoot()
+        b4 = qcState.getGenesisMinorBlock(1).createBlockToAppend(quarkash=2).finalizeMerkleRoot()
+        rB1 = qcState.getGenesisRootBlock().createBlockToAppend().extendMinorBlockHeaderList(
+            [b3.header, b4.header]).finalize()
+        b5 = b3.createBlockToAppend().finalizeMerkleRoot()
+        b6 = b4.createBlockToAppend().finalizeMerkleRoot()
+        b6.header.createTime = 0
+
+        rB2 = rB1.createBlockToAppend().extendMinorBlockHeaderList(
+            [b5.header, b6.header]).finalize()
+
+        network = MockSimpleNetwork(qcState)
+        downloader = MockDownloader(
+            build_block_map([qcState.getGenesisRootBlock(), rB1, rB2]),
+            build_block_map([b3, b4, b5, b6, qcState.getGenesisMinorBlock(0), qcState.getGenesisMinorBlock(1)]))
+        frManager = ForkResolverManager(lambda peer: downloader)
+
+        loop = asyncio.get_event_loop()
+        frManager.tryResolveRootFork(network, None, rB2.header)
+        loop.run_until_complete(frManager.getCompletionFuture())
+        qcState = network.qcState
+        self.assertEqual(qcState.getRootBlockTip(), rB.header)
+        self.assertEqual(qcState.getMinorBlockTip(0), b1.header)
+        self.assertEqual(qcState.getMinorBlockTip(1), b2.header)
+        self.assertTrue("incorrect create time tip time" in downloader.error)
 
 
 server_port = 51354
@@ -878,4 +973,3 @@ class TestRootForkWithTwoNetworks(unittest.TestCase):
 
         network0.shutdown()
         network1.shutdown()
-
