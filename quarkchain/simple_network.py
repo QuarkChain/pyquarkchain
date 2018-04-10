@@ -519,40 +519,48 @@ class Peer(Connection):
         self.closeWithError("Unexpected op {}".format(op))
 
     async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+        '''This function handles the block headers broadcasted from peers.'''
         if self.network.isSyncing():
             Logger.info("Discarded block headers from peer due to sycing in progress")
             return
 
-        # Make sure the root block height is non-decreasing
+        # Sanity checks
         rHeader = cmd.rootBlockHeader
+        if rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
+            # TODO: Support reshard
+            self.closeWithError("Incorrect root block shard size")
+            return
+
+        for mHeader in cmd.minorBlockHeaderList:
+            if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
+                self.closeWithError("Incorrect minor block shard size")
+                return
+
+        # Make sure the root block height is non-decreasing
         if self.bestRootBlockHeaderObserved.height > rHeader.height:
             self.closeWithError("Root block height should be non-decreasing")
             return
         elif self.bestRootBlockHeaderObserved.height == rHeader.height:
             if self.bestRootBlockHeaderObserved != rHeader:
-                self.closeWithError(
-                    "Root block the same height should not be changed")
+                self.closeWithError("Root block the same height should not be changed")
                 return
             if len(cmd.minorBlockHeaderList) == 0:
                 self.closeWithError(
                     "New root block of the same height shouldn't be published more than once")
                 return
-        elif rHeader.shardInfo.getShardSize() != self.bestRootBlockHeaderObserved.shardInfo.getShardSize():
-            # TODO: Support reshard
-            self.closeWithError("Incorrect root block shard size")
-            return
+            # Make sure the minor block heights are increasing
+            for mHeader in cmd.minorBlockHeaderList:
+                bestMinorBlockHeaderObserved = self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()]
+                if bestMinorBlockHeaderObserved and bestMinorBlockHeaderObserved.height >= mHeader.height:
+                    self.closeWithError("Minor block height should be increasing. shard {} height {}".format(
+                        mHeader.branch.getShardId(), mHeader.height))
+                    return
+        else:
+            # Got a new root header. Reset observed minor block headers.
+            self.bestMinorBlockHeadersObserved = [None for i in range(rHeader.shardInfo.getShardSize())]
 
         self.bestRootBlockHeaderObserved = rHeader
-
-        # Make sure the minor block heights are increasing
         for mHeader in cmd.minorBlockHeaderList:
-            if mHeader.branch.getShardSize() != rHeader.shardInfo.getShardSize():
-                self.closeWithError("Incorrect minor block shard size")
-                return
-            if self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()].height >= mHeader.height:
-                self.closeWithError("Minor block height should be increasing. shard {} height {}".format(
-                    mHeader.branch.getShardId(), mHeader.height))
-                return
             self.bestMinorBlockHeadersObserved[mHeader.branch.getShardId()] = mHeader
 
         rootTipHeight = self.network.qcState.getRootBlockTip().height
