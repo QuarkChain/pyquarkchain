@@ -119,6 +119,20 @@ class Downloader():
 
 
 class RootForkResolver():
+    '''Class to handle a root block header received from peer.
+
+    Assuming the header is from an honest peer it should fall into one of the following cases:
+    1. The height of the received header is no greater than the height of the local tip and thus do nothing
+    2. The height of the received header if greater than the local tip and thus the local state should be
+       replaced with the remote state. The state includes both root chain and all the shards. To do that
+       a. Find the most recent common ancestor of the local root chain and the remote root chain
+       b. Rollback the local root chain from the common ancestor to tip
+       c. For any fork on the local shards regardless of height update the local shards with
+          the minor blocks included in the remote root blocks
+       d. Append the root blocks from the common ancestor to the remote tip
+    Note that b,c, and d are performed in an atomic operation such that it either ends up having the same
+    state as the peer or nothing gets changed at all.
+    '''
 
     def __init__(self, qcState, downloader, header):
         self.qcState = qcState
@@ -221,6 +235,22 @@ class RootForkResolver():
 
 
 class ShardForkResolver():
+    '''Class to handle a minor block header received from peer.
+
+    Assuming the header is from an honest peer it should fall into one of the following cases:
+    1. The height of the received header is no greater than the height of the local tip and thus do nothing
+    2. The height of the received header if greater than the local tip and thus the local state should be
+       replaced with the remote state. To do that
+       a. Find the most recent common ancestor of the local shard and the remote shard
+       b. Rollback the local shard from the common ancestor to tip
+       c. Append the blocks from the common ancestor to the remote tip
+    Note that b. and c. is performed in an atomic operation such that it either ends up having the same
+    state as the peer or nothing gets changed at all.
+
+    However, there are also two cases in which we abort and wait for root chain to be resolved first.
+    1. header.hashPrevRootBlock does not exist in local root chain
+    2. The local state to be replaced involves minor headers that have already been confirmed by local root blocks
+    '''
 
     def __init__(self, qcState, downloader, header):
         self.qcState = qcState
@@ -249,7 +279,7 @@ class ShardForkResolver():
                 if headerList[-1].height != header.height + 1:
                     raise RuntimeError("ShardForkResolver: header height mismatches")
 
-                if header.height < commitedTip.height:
+                if header.height <= commitedTip.height:
                     # Cannot resolve the fork until root chain is resolved
                     return []
 
@@ -290,6 +320,9 @@ class ShardForkResolver():
         blockList = await self.__getBlocks(headerList)
         # Local miner may append new blocks.  Make sure the peer still has the longer shard.
         if self.header.height <= self.qcState.getShardTip(self.shardId).height:
+            return
+        commitedTip = self.qcState.getCommittedShardTip(self.shardId)
+        if blockList[0].header.height <= commitedTip.height:
             return
 
         errMsg = self.qcState.overrideMinorChain(blockList)

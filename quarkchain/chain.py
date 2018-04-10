@@ -870,7 +870,8 @@ class QuarkChainState:
         This function assumes that callers provide a valid blockList and thus it does not perform
         any complicated sanity checks before rolling back and appending though this function
         could still fail if the chain is modified between the caller collecting all the blocks and
-        calling this function.
+        calling this function. This also means the function will replace the local state even if the result
+        would be a shorter chain!
         '''
         if len(blockList) == 0:
             return None
