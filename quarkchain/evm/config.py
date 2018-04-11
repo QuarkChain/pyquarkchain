@@ -1,7 +1,7 @@
 from rlp.utils import decode_hex
 
 from ethereum import utils
-from ethereum.db import BaseDB, EphemDB
+from quarkchain.db import InMemoryDb, Db
 from ethereum.child_dao_list import L as child_dao_list
 import copy
 
@@ -102,8 +102,8 @@ assert default_config['NEPHEW_REWARD'] == \
 class Env(object):
 
     def __init__(self, db=None, config=None, global_config=None):
-        self.db = EphemDB() if db is None else db
-        assert isinstance(self.db, BaseDB)
+        self.db = InMemoryDb() if db is None else db
+        assert isinstance(self.db, Db)
         self.config = config or dict(default_config)
         self.global_config = global_config or dict()
 

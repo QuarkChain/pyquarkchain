@@ -4,6 +4,7 @@ import quarkchain.db
 from quarkchain.core import Address
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
 from quarkchain.diff import MADifficultyCalculator
+import quarkchain.evm
 
 
 class DefaultConfig:
@@ -73,14 +74,20 @@ class DefaultConfig:
         return copy.copy(self)
 
 
+def get_default_evm_config():
+    return dict(quarkchain.evm.config.config_metropolis)
+
+
 class Env:
 
-    def __init__(self, db=None, config=None):
+    def __init__(self, db=None, config=None, evmConfig=None):
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
+        self.evmConfig = evmConfig or get_default_evm_config()
+        self.evmEnv = quarkchain.evm.config.Env(db=db, config=evmConfig)
 
     def copy(self):
-        return Env(self.db, self.config.copy())
+        return Env(self.db, self.config.copy(), dict(self.evmConfig))
 
 
 DEFAULT_ENV = Env()

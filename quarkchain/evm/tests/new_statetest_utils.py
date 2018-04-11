@@ -2,7 +2,8 @@ from quarkchain.evm.state import State
 from ethereum.block import FakeHeader
 from ethereum.utils import decode_hex, parse_int_or_hex, sha3, to_string, \
     remove_0x_head, encode_hex, big_endian_to_int
-from quarkchain.evm.config import default_config, config_metropolis, Env
+from quarkchain.evm.config import default_config, Env
+from quarkchain.config import get_default_evm_config
 from ethereum.exceptions import InvalidTransaction
 import quarkchain.evm.transactions as transactions
 from quarkchain.evm.messages import apply_transaction
@@ -42,7 +43,7 @@ configs = {
     # "Homestead": config_homestead,
     # "EIP150": config_tangerine,
     # "EIP158": config_spurious,
-    "Byzantium": config_metropolis
+    "Byzantium": get_default_evm_config()
 }
 
 # Makes a diff between a prev and post state
