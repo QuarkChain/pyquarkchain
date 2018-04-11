@@ -573,25 +573,20 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
-        self.assertIsNotNone(qcState.rollBackRootBlock())
-        self.assertIsNotNone(qcState.rollBackMinorBlock(0))
-
-        self.assertIsNone(qcState.rollBackMinorBlock(1))   # b4
-
-        self.assertEqual(qcState.getBalance(id1.recipient), 24000)
-        self.assertEqual(qcState.getBalance(id2.recipient), 6000)
-
-        self.assertIsNone(qcState.rollBackRootBlock())
+        history = qcState.rollBackRootBlock()
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0], b4)
+        self.assertEqual(history[1], rB)
 
         self.assertEqual(qcState.getBalance(id1.recipient), 24000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
-        self.assertIsNone(qcState.rollBackMinorBlock(0))
+        self.assertEqual(qcState.rollBackMinorBlock(0), b1)
 
         self.assertEqual(qcState.getBalance(id1.recipient), 30000)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
 
-    def testRollBackRootBlockTo(self):
+    def testRollBackRootBlock(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         id2 = Identity.createRandomIdentity()
@@ -646,8 +641,15 @@ class TestQuarkChainState(unittest.TestCase):
         self.assertEqual(qcState.getBalance(id1.recipient), 25600)
         self.assertEqual(qcState.getBalance(id2.recipient), 4500)
 
-        self.assertIsNone(qcState.rollBackRootChainTo(
-            qcState.getGenesisRootBlock().header))
+        history = qcState.rollBackRootBlock()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0], rB1)
+
+        history = qcState.rollBackRootBlock()
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0], b4)
+        self.assertEqual(history[1], rB)
+
         self.assertEqual(qcState.getBalance(id1.recipient), 24100)
         self.assertEqual(qcState.getBalance(id2.recipient), 0)
         self.assertEqual(qcState.getShardTip(0), b3.header)
