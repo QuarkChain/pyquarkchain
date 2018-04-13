@@ -941,7 +941,7 @@ class QuarkChainState:
 
         blockList is a list of tuple (rootBlock, [minorBlock, minorBlock, ...])
         Similar to overrideMinorChain this function is atomic.
-        Raise exception on any error.
+        Reverts to the state before the function is called and raises exception on any error.
         '''
 
         def __overrideMinorChainsAndAppendRootBlock(rBlock, mBlocks):
