@@ -346,8 +346,12 @@ class ShardState:
             print("%s, %s, %s" % (k.hash.hex(), k.index, v.quarkash))
 
     def rollBackTip(self):
+        '''Rollback the current tip.
+
+        Returns the block that got rolled back.
+        '''
         if len(self.chain) == 1:
-            return "Cannot roll back genesis block"
+            raise RuntimeError("Cannot roll back genesis block")
 
         blockHeader = self.chain[-1]
         blockHash = blockHeader.getHash()
@@ -362,7 +366,7 @@ class ShardState:
         for idx in range(len(block.txList[0].outList)):
             del self.utxoPool[TransactionInput(txHash, idx)]
 
-        return None
+        return block
 
         # Don't need to remove db data
 
@@ -576,10 +580,9 @@ class RootChain:
 
     def rollBack(self):
         if len(self.chain) == 1:
-            return "cannot roll back genesis block"
+            raise RuntimeError("cannot roll back genesis block")
         del self.blockPool[self.chain[-1].getHash()]
         del self.chain[-1]
-        return None
 
     def __checkCoinbaseTx(self, tx, height):
         if len(tx.inList) != 0:
@@ -703,6 +706,60 @@ class QuarkChain:
         self.minorChainManager.setRootChain(self.rootChain)
 
 
+class History:
+    '''A class to record and revert changes to QuarkChainState.
+
+    Often we need to update the QuarkChainState atomically from one to another,
+    which could involve a list of appending and rollback block events following
+    a strict order.  This class helps recording the order of operations and thus
+    allow easy reversion if needed.
+    '''
+    OP_APPEND = 0
+    OP_ROLLBACK = 1
+
+    def __init__(self):
+        self.events = []
+
+    def recordAppendBlock(self, block):
+        self.events.append((self.OP_APPEND, block))
+
+    def recordRollbackBlock(self, block):
+        self.events.append((self.OP_ROLLBACK, block))
+
+    def extend(self, history):
+        self.events.extend(history.events)
+
+    def __getitem__(self, key):
+        return self.events[key][1]
+
+    def __len__(self):
+        return len(self.events)
+
+    def revert(self, qcState):
+        '''Revert all the recorded events on qcState
+        Crash on any failure!
+        '''
+        try:
+            for action, block in reversed(self.events):
+                if isinstance(block, MinorBlock):
+                    shardId = block.header.branch.getShardId()
+                    if action == self.OP_ROLLBACK:
+                        Logger.debug("[{}] append {}".format(shardId, block.header.height))
+                        check(qcState.appendMinorBlock(block) is None)
+                    else:
+                        Logger.debug("[{}] rollback {}".format(shardId, block.header.height))
+                        check(block.header == qcState.rollBackMinorBlock(shardId).header)
+                else:
+                    if action == self.OP_ROLLBACK:
+                        Logger.debug("[R] append {}".format(block.header.height))
+                        check(qcState.appendRootBlock(block) is None)
+                    else:
+                        Logger.debug("[R] rollback {}".format(block.header.height))
+                        check(block.header == qcState.rollBackRootBlock()[-1].header)
+        except Exception:
+            Logger.fatalException()
+
+
 class QuarkChainState:
     """ TODO: Support reshard
     """
@@ -761,20 +818,20 @@ class QuarkChainState:
         return None
 
     def rollBackMinorBlock(self, shardId):
-        """ Roll back a minor block of a shard.
+        """ Roll back the tip of a shard.
         The minor block must not be commited by root blocks.
+        Returns the block that got rolled back.
         """
         if shardId > len(self.shardList):
-            return "shard id is too large"
+            raise RuntimeError("shard id is too large")
 
         if len(self.uncommittedMinorBlockQueueList[shardId]) == 0:
             """ Root block already commits the minor blocks.
             Need to roll back root block before rolling back the minor block.
             """
-            return "the minor block is commited by root block"
+            raise RuntimeError("the minor block is commited by root block")
         shard = self.shardList[shardId]
-        check(self.uncommittedMinorBlockQueueList[
-              shardId].pop().header == shard.tip())
+        check(self.uncommittedMinorBlockQueueList[shardId].pop().header == shard.tip())
         return shard.rollBackTip()
 
     def getShardTip(self, shardId):
@@ -807,58 +864,35 @@ class QuarkChainState:
 
     def rollBackRootBlock(self):
         """ Roll back a root block in rootChain
+        Returns a History object with all the rollback blocks recorded.
+        This should always succeed otherwise it suggests invalid qcState and serious bug!
+        Crash on any failure!
         """
-        rBlockHeader = self.rootChain.tip()
-        rBlockHash = rBlockHeader.getHash()
-        rBlock = self.db.getRootBlockByHash(rBlockHash)
-        for uncommittedQueue in self.uncommittedMinorBlockQueueList:
-            if len(uncommittedQueue) == 0:
-                continue
+        try:
+            rBlockHeader = self.rootChain.tip()
+            rBlockHash = rBlockHeader.getHash()
+            rBlock = self.db.getRootBlockByHash(rBlockHash)
 
-            mHeader = uncommittedQueue[-1].header
-            if mHeader.hashPrevRootBlock == rBlockHash:
-                # Cannot roll back the root block since it is being used.
-                return "the root block is used by uncommitted minor blocks"
+            history = History()
+            # Roll back minor blocks that depends on the root block
+            for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
+                while len(q) > 0 and q[-1].header.hashPrevRootBlock == rBlockHash:
+                    history.recordRollbackBlock(self.rollBackMinorBlock(shardId))
 
-        result = self.rootChain.rollBack()
-        if result is not None:
-            return result
+            self.rootChain.rollBack()
+            history.recordRollbackBlock(rBlock)
 
-        for mHeader in reversed(rBlock.minorBlockHeaderList):
-            mBlock = self.db.getMinorBlockByHash(mHeader.getHash())
-            self.uncommittedMinorBlockQueueList[
-                mHeader.branch.getShardId()].appendleft(mBlock)
-            self.__removeCrossShardTxFrom(mBlock)
+            for mHeader in reversed(rBlock.minorBlockHeaderList):
+                mBlock = self.db.getMinorBlockByHash(mHeader.getHash())
+                self.uncommittedMinorBlockQueueList[
+                    mHeader.branch.getShardId()].appendleft(mBlock)
+                self.__removeCrossShardTxFrom(mBlock)
 
-        return None
+            return history
+        except Exception:
+            Logger.fatalException()
 
         # TODO: Remove root block coinbase tx
-
-    def rollBackRootChainTo(self, rBlockHeader, rollbackHeaderList=None):
-        """ Roll back the root chain to a specific block header
-        The headers of the blocks rolled back are stored in rollbackHeaderList
-        with height in ascending order.
-        Return None upon success or error message upon failure
-        """
-        if rollbackHeaderList is None:
-            rollbackHeaderList = []
-
-        # TODO: Optimize with pqueue
-        blockHash = rBlockHeader.getHash()
-        if self.rootChain.getBlockHeaderByHash(blockHash) is None:
-            return "cannot find the root block in root chain"
-
-        while self.rootChain.tip() != rBlockHeader:
-            rollbackHeaderList.append(self.rootChain.tip())
-            tipHash = self.rootChain.tip().getHash()
-            # Roll back minor blocks
-            for shardId, q in enumerate(self.uncommittedMinorBlockQueueList):
-                while len(q) > 0 and q[-1].header.hashPrevRootBlock == tipHash:
-                    check(self.rollBackMinorBlock(shardId) is None)
-            check(self.rollBackRootBlock() is None)
-
-        rollbackHeaderList.reverse()
-        return None
 
     def overrideMinorChain(self, blockList):
         '''Replace the subchain (blockList[0].parent, tip] with blockList.
@@ -866,7 +900,7 @@ class QuarkChainState:
         Rollback tips until the tip becomes the parent of blockList[0].
         Then append the blocks from blockList (which should be in ascending order).
         The blocks rolled back will have their headers stored in rollbackHeaderList in ascending order.
-        Returns None if the rollback and append are successful or an erro string will be returned.
+        Returns history if the rollback and append are successful or raise exception.
 
         Note that this function is atomic meaning when the function returns either all the blocks from blockList
         are successfully appended to the block located by the parentHeader or the state of this chain
@@ -878,95 +912,76 @@ class QuarkChainState:
         calling this function. This also means the function will replace the local state even if the result
         would be a shorter chain!
         '''
+        history = History()
         if len(blockList) == 0:
-            return None
+            return history
 
         shardId = blockList[0].header.branch.getShardId()
         parentHeader = self.getMinorBlockHeaderByHash(blockList[0].header.hashPrevMinorBlock, shardId)
         if parentHeader is None:
-            return "Failed to find parent on shard {}".format(shardId)
+            raise RuntimeError("Failed to find parent on shard {}".format(shardId))
 
-        rollbackHeaderList = []
+        try:
+            while self.getMinorBlockTip(shardId) != parentHeader:
+                block = self.rollBackMinorBlock(shardId)
+                history.recordRollbackBlock(block)
 
-        errMsg = None
-        oldHeight = self.getMinorBlockTip(shardId).height
-        while self.getMinorBlockTip(shardId) != parentHeader:
-            rollbackHeaderList.append(self.getMinorBlockTip(shardId))
-            errMsg = self.rollBackMinorBlock(shardId)
-            if errMsg is not None:
-                rollbackHeaderList.pop()
-                break
-
-        rollbackHeaderList.reverse()
-
-        if errMsg is None:
             for block in blockList:
                 errMsg = self.appendMinorBlock(block)
-                if errMsg is not None:
-                    break
+                if errMsg:
+                    raise RuntimeError(errMsg)
+                history.recordAppendBlock(block)
 
-        # Rollback to previous state
-        if errMsg is not None:
-            rollbackHeight = oldHeight if len(rollbackHeaderList) == 0 else rollbackHeaderList[0].height - 1
-            while self.getMinorBlockTip(shardId).height != rollbackHeight:
-                self.rollBackMinorBlock(shardId)
-            for header in rollbackHeaderList:
-                block = self.db.getMinorBlockByHash(header.getHash())
-                check(self.appendMinorBlock(block) is None)
-
-        return errMsg
+            return history
+        except Exception as e:
+            # Rollback to previous state
+            history.revert(self)
+            raise e
 
     def overrideRootChain(self, blockList):
         '''Replace the subchain (blockList[0].parent, tip] with blockList for both root and shards.
 
         blockList is a list of tuple (rootBlock, [minorBlock, minorBlock, ...])
         Similar to overrideMinorChain this function is atomic.
+        Reverts to the state before the function is called and raises exception on any error.
         '''
 
         def __overrideMinorChainsAndAppendRootBlock(rBlock, mBlocks):
+            history = History()
             # Group minor blocks by shard
             mBlockListByShard = {}
             for mBlock in mBlocks:
                 mBlockListByShard.setdefault(mBlock.header.branch.getShardId(), []).append(mBlock)
-            for shardId, mBlockList in mBlockListByShard.items():
-                errMsg = self.overrideMinorChain(mBlockList)
-                if errMsg is not None:
-                    return errMsg
-            errMsg = self.appendRootBlock(rBlock)
-            return errMsg
+            try:
+                for shardId, mBlockList in mBlockListByShard.items():
+                    history.extend(self.overrideMinorChain(mBlockList))
+                errMsg = self.appendRootBlock(rBlock)
+                if errMsg:
+                    raise RuntimeError(errMsg)
+                history.recordAppendBlock(rBlock)
+                return history
+            except Exception as e:
+                history.revert(self)
+                raise e
 
         if len(blockList) == 0:
-            return ""
+            return
 
         parentHeader = self.getRootBlockHeaderByHash(blockList[0][0].header.hashPrevBlock)
         if parentHeader is None:
-            return "Failed to find parent on root chain"
+            raise RuntimeError("Failed to find parent on root chain")
 
-        rollbackHeaderList = []
-        errMsg = self.rollBackRootChainTo(parentHeader, rollbackHeaderList)
-        if errMsg is not None:
-            return errMsg
+        history = History()
+        try:
+            while self.getRootBlockTip() != parentHeader:
+                history.extend(self.rollBackRootBlock())
 
-        for rootBlockAndMinorBlockList in blockList:
-            rBlock, mBlockList = rootBlockAndMinorBlockList
-            errMsg = __overrideMinorChainsAndAppendRootBlock(rBlock, mBlockList)
-            if errMsg is not None:
-                break
-
-        # Rollback to previous state
-        if errMsg is not None:
-            check(self.rollBackRootChainTo(parentHeader) is None)
-            for rHeader in rollbackHeaderList:
-                rBlock = self.db.getRootBlockByHash(rHeader.getHash())
-                mBlocks = []
-                for mHeader in rBlock.minorBlockHeaderList:
-                    shardId = mHeader.branch.getShardId()
-                    if self.getMinorBlockHeaderByHash(mHeader.getHash(), shardId):
-                        continue
-                    mBlocks.append(self.db.getMinorBlockByHash(mHeader.getHash()))
-                check(__overrideMinorChainsAndAppendRootBlock(rBlock, mBlocks) is None)
-
-        return errMsg
+            for rootBlockAndMinorBlockList in blockList:
+                rBlock, mBlockList = rootBlockAndMinorBlockList
+                history.extend(__overrideMinorChainsAndAppendRootBlock(rBlock, mBlockList))
+        except Exception as e:
+            history.revert(self)
+            raise e
 
     def getMinorBlockHeaderByHeight(self, shardId, height):
         return self.shardList[shardId].getBlockHeaderByHeight(height)

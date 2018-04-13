@@ -1,8 +1,8 @@
+import ctypes
 import sha3
 import logging
 import time
 import traceback
-import sys
 
 
 def int_left_most_bit(v):
@@ -33,6 +33,12 @@ def check(condition):
     """
     if not condition:
         raise AssertionError()
+
+
+def crash():
+    """ Crash python interpreter """
+    p = ctypes.pointer(ctypes.c_char.from_address(5))
+    p[0] = b'x'
 
 
 class Logger:
@@ -137,9 +143,18 @@ class Logger:
             cls.errorException()
             cls.lastErrorTimeMap[key] = time.time()
 
-    @classmethod
-    def debugException(cls):
+    @staticmethod
+    def debugException():
         Logger.debug(traceback.format_exc())
+
+    @staticmethod
+    def fatal(msg):
+        logging.critical(msg)
+        crash()
+
+    @staticmethod
+    def fatalException(msg):
+        Logger.fatal(traceback.format_exc())
 
 
 def set_logging_level(level):

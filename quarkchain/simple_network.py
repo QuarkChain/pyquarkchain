@@ -219,9 +219,7 @@ class RootForkResolver():
         if self.header.height <= self.qcState.getRootBlockTip().height:
             return
 
-        errMsg = self.qcState.overrideRootChain(blockList)
-        if errMsg is not None:
-            raise RuntimeError(errMsg)
+        self.qcState.overrideRootChain(blockList)
 
     async def resolve(self):
         tip = self.qcState.getRootBlockTip()
@@ -333,9 +331,7 @@ class ShardForkResolver():
         if blockList[0].header.height <= commitedTip.height:
             return
 
-        errMsg = self.qcState.overrideMinorChain(blockList)
-        if errMsg is not None:
-            raise RuntimeError(errMsg)
+        self.qcState.overrideMinorChain(blockList)
 
     async def resolve(self):
         startTime = time.time()
