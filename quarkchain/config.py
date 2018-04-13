@@ -4,7 +4,7 @@ import quarkchain.db
 from quarkchain.core import Address
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
 from quarkchain.diff import MADifficultyCalculator
-import quarkchain.evm
+import quarkchain.evm.config
 
 
 class DefaultConfig:
