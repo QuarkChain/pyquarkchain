@@ -653,6 +653,8 @@ class RootChain:
                     return "shard id must be ordered"
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     return "fail to prove progress"
+                if mHeader.createTime > block.header.createTime:
+                    return "minor block create time is too large"
                 newQueueList.append(q)
                 shardId += 1
                 q = copy.copy(uncommittedMinorBlockQueueList[shardId])

@@ -830,3 +830,20 @@ class TestQuarkChainState(unittest.TestCase):
 
         b1.addTx(tx1).addTx(tx2).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
+
+    def testQuarkChainStateWithIllegalRootBlockCreateTime(self):
+        env = get_test_env()
+        qcState = QuarkChainState(env)
+        b1 = qcState.getGenesisMinorBlock(0).createBlockToAppend(
+            quarkash=100).finalizeMerkleRoot()
+        b2 = qcState.getGenesisMinorBlock(1).createBlockToAppend(
+            quarkash=200,
+            createTime=qcState.getGenesisMinorBlock(1).header.createTime + 3).finalizeMerkleRoot()
+        self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertIsNone(qcState.appendMinorBlock(b2))
+
+        rB = qcState.getGenesisRootBlock().createBlockToAppend()
+        rB.minorBlockHeaderList = [b1.header, b2.header]
+        rB.header.createTime = b2.header.createTime - 1
+
+        self.assertIsNotNone(qcState.appendRootBlock(rB.finalize()))
