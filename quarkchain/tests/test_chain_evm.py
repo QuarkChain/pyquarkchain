@@ -14,11 +14,12 @@ class TestEvm(unittest.TestCase):
 
         env = get_test_env(
             genesisAccount=acc1,
+            genesisQuarkash=0,
             genesisMinorQuarkash=100000)
         qcState = QuarkChainState(env)
         b1 = qcState \
             .getGenesisMinorBlock(0) \
-            .createBlockToAppend(quarkash=100)
+            .createBlockToAppend(quarkash=0)
 
         evmTx = EvmTransaction(
             branchValue=b1.header.branch.value,
@@ -28,7 +29,7 @@ class TestEvm(unittest.TestCase):
             to=acc1.recipient,
             value=0,
             data=bytes(0),
-            withdraw=100000 - 21000,
+            withdraw=100000,
             withdrawSign=0)
         evmTx.sign(
             key=id1.getKey(),
@@ -42,6 +43,7 @@ class TestEvm(unittest.TestCase):
                 code=Code.createEvmCode(evmTx),
                 outList=[]).sign([id1.getKey()])).finalizeMerkleRoot()
         self.assertIsNone(qcState.appendMinorBlock(b1))
+        self.assertEqual(qcState.getBalance(id1.getRecipient()), 100000 * 2 - 21000)
 
     def testIncorrectBlockReward(self):
         id1 = Identity.createRandomIdentity()
@@ -54,7 +56,7 @@ class TestEvm(unittest.TestCase):
         qcState = QuarkChainState(env)
         b1 = qcState \
             .getGenesisMinorBlock(0) \
-            .createBlockToAppend(quarkash=env.config.MINOR_BLOCK_DEFAULT_REWARD + (21000 // 2) + 1)
+            .createBlockToAppend(quarkash=env.config.MINOR_BLOCK_DEFAULT_REWARD + 1)
 
         evmTx = EvmTransaction(
             branchValue=b1.header.branch.value,
@@ -90,7 +92,7 @@ class TestEvm(unittest.TestCase):
         qcState = QuarkChainState(env)
         b1 = qcState \
             .getGenesisMinorBlock(0) \
-            .createBlockToAppend(quarkash=env.config.MINOR_BLOCK_DEFAULT_REWARD + (21000 // 2) + 1)
+            .createBlockToAppend(quarkash=env.config.MINOR_BLOCK_DEFAULT_REWARD)
 
         # Simple setter and getter sc, see
         # http://solidity.readthedocs.io/en/v0.4.21/introduction-to-smart-contracts.html

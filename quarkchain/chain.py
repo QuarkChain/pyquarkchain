@@ -343,6 +343,8 @@ class ShardState:
         evmState.recent_uncles[evmState.block_number] = []  # TODO [x.hash for x in block.uncles]
         evmState.block_coinbase = block.txList[0].outList[0].address.recipient
         evmState.block_difficulty = block.header.difficulty
+        evmState.block_reward = 0
+        evmState.add_block_header(block.header)
 
         txDoneList = []
         totalFee = 0
@@ -367,7 +369,6 @@ class ShardState:
                 txHash=txHash,
                 consumedUtxoList=consumedUtxoList)
 
-        totalFee += (evmState.gas_used // 2)
         # The rest fee goes to root block
         if not self.env.config.SKIP_MINOR_COINBASE_CHECK and \
                 block.txList[0].outList[0].quarkash > totalFee // 2 + self.rewardCalc.getBlockReward(self):
@@ -387,11 +388,7 @@ class ShardState:
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
 
-        evmState.block_number = block.header.height
-        evmState.timestamp = block.header.createTime
-        evmState.block_difficulty = block.header.difficulty
-        evmState.block_coinbase = block.txList[0].outList[0].address.recipient
-        evmState.add_block_header(block.header)
+        evmState.delta_balance(evmState.block_coinbase, evmState.block_reward // 2)     # half goes to root chain
         evmState.commit()
         # TODO: Save evm state root_hash in meta data
         self.evmStateList.append(evmState)
@@ -458,7 +455,7 @@ class ShardState:
                 continue
 
             balance += v.quarkash
-        return balance
+        return balance + self.evmStateList[-1].get_balance(recipient)
 
     def getAccountBalance(self, address):
         balance = 0
