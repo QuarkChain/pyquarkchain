@@ -913,6 +913,9 @@ class SimpleNetwork:
         self.loop.create_task(
             self.connectSeed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
 
+    def startAndLoop(self):
+        self.start()
+
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:
@@ -963,7 +966,7 @@ def main():
 
     qcState = QuarkChainState(env)
     network = SimpleNetwork(env, qcState)
-    network.start()
+    network.startAndLoop()
 
 
 if __name__ == '__main__':
