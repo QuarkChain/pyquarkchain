@@ -4,9 +4,43 @@ import json
 
 from asyncio import subprocess
 
+from quarkchain.utils import is_p2
+
+TEMP_CLUSTER_CONFIG = "cluster_config_temp.json"
+IP = "127.0.0.1"
+PORT = 38000
+
+
+def creatre_temp_cluster_config(num_slaves):
+    if num_slaves <= 0 or not is_p2(num_slaves):
+        print("Number of slaves must be power of 2")
+        return None
+
+    config = dict()
+    config["master"] = {
+        "ip": IP,
+        "port": PORT,
+    }
+    config["slaves"] = []
+    for i in range(num_slaves):
+        mask = i | num_slaves
+        config["slaves"].append({
+            "id": "S{}".format(i),
+            "ip": IP,
+            "port": PORT + i + 1,
+            "shard_masks": [mask]
+        })
+
+    return config
+
+
+def dump_config_to_file(config):
+    with open(TEMP_CLUSTER_CONFIG, "w") as outfile:
+        json.dump(config, outfile)
+
 
 async def run_master(port):
-    cmd = "python master.py --node_port={}".format(port)
+    cmd = "python master.py --node_port={} --cluster_config={}".format(port, TEMP_CLUSTER_CONFIG)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -57,8 +91,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--cluster_config", default="cluster_config.json", type=str)
+    parser.add_argument(
+        "--num_slaves", default=4, type=int)
     args = parser.parse_args()
-    config = json.load(open(args.cluster_config))
+
+    if args.num_slaves <= 0:
+        config = json.load(open(args.cluster_config))
+    else:
+        config = creatre_temp_cluster_config(args.num_slaves)
+        if not config:
+            return -1
+    dump_config_to_file(config)
 
     cluster = Cluster(config)
     cluster.startAndLoop()
