@@ -1,12 +1,13 @@
 import argparse
 import asyncio
 import json
+import os
+import tempfile
 
 from asyncio import subprocess
 
 from quarkchain.utils import is_p2
 
-TEMP_CLUSTER_CONFIG = "cluster_config_temp.json"
 IP = "127.0.0.1"
 PORT = 38000
 
@@ -35,12 +36,14 @@ def creatre_temp_cluster_config(num_slaves):
 
 
 def dump_config_to_file(config):
-    with open(TEMP_CLUSTER_CONFIG, "w") as outfile:
-        json.dump(config, outfile)
+    fd, filename = tempfile.mkstemp()
+    with os.fdopen(fd, 'w') as tmp:
+        json.dump(config, tmp)
+    return filename
 
 
-async def run_master(port):
-    cmd = "python master.py --node_port={} --cluster_config={}".format(port, TEMP_CLUSTER_CONFIG)
+async def run_master(port, configFilePath):
+    cmd = "python master.py --node_port={} --cluster_config={}".format(port, configFilePath)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -60,12 +63,13 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config):
+    def __init__(self, config, configFilePath):
         self.config = config
+        self.configFilePath = configFilePath
         self.procs = []
 
     async def run(self):
-        master = await run_master(self.config["master"]["port"])
+        master = await run_master(self.config["master"]["port"], self.configFilePath)
         asyncio.ensure_future(print_output("MASTER", master.stdout))
 
         self.procs.append(master)
@@ -97,13 +101,14 @@ def main():
 
     if args.num_slaves <= 0:
         config = json.load(open(args.cluster_config))
+        filename = args.cluster_config
     else:
         config = creatre_temp_cluster_config(args.num_slaves)
         if not config:
             return -1
-    dump_config_to_file(config)
+        filename = dump_config_to_file(config)
 
-    cluster = Cluster(config)
+    cluster = Cluster(config, filename)
     cluster.startAndLoop()
 
 
