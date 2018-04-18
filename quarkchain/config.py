@@ -74,20 +74,34 @@ class DefaultConfig:
         return copy.copy(self)
 
 
+class DefaultClusterConfig:
+
+    def __init__(self):
+        self.NODE_PORT = 38290
+        # Empty means Master
+        self.SHARD_MASK_LIST = []
+        self.ID = ""
+        self.CONFIG = None
+
+    def copy(self):
+        return copy.copy(self)
+
+
 def get_default_evm_config():
     return dict(quarkchain.evm.config.config_metropolis)
 
 
 class Env:
 
-    def __init__(self, db=None, config=None, evmConfig=None):
+    def __init__(self, db=None, config=None, evmConfig=None, clusterConfig=None):
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
         self.evmConfig = evmConfig or get_default_evm_config()
         self.evmEnv = quarkchain.evm.config.Env(db=db, config=evmConfig)
+        self.clusterConfig = clusterConfig or DefaultClusterConfig()
 
     def copy(self):
-        return Env(self.db, self.config.copy(), dict(self.evmConfig))
+        return Env(self.db, self.config.copy(), dict(self.evmConfig), self.clusterConfig.copy())
 
 
 DEFAULT_ENV = Env()

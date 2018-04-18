@@ -27,6 +27,10 @@ def sha3_256(x):
     return sha3.keccak_256(x).digest()
 
 
+def is_shard_in_mask(shardId, mask):
+    return ((2 ** 31 - 1) >> (32 - int_left_most_bit(mask)) & shardId) == mask ^ (1 << (int_left_most_bit(mask) - 1))
+
+
 def check(condition):
     """ Unlike assert, which can be optimized out,
     check will always check whether condition is satisfied or throw AssertionError if not
