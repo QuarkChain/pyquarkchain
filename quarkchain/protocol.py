@@ -4,6 +4,9 @@ from enum import Enum
 from quarkchain.utils import Logger
 
 
+ROOT_SHARD_ID = 0
+
+
 class ConnectionState(Enum):
     CONNECTING = 0   # connecting before the Connection can be used
     ACTIVE = 1       # the peer is active
@@ -28,6 +31,31 @@ class Connection:
         self.activeFuture = loop.create_future()
         self.closeFuture = loop.create_future()
 
+    def getConnectionToForward(self, branchValue):
+        ''' Returns the Connection object to forward a request for branchValue.
+        Returns None if the request should not be forwarded for branchValue.
+
+        Subclass should override this if the branch is on another node and this node
+        will forward the request without deserialize the request.
+
+        branchValue is a uint32 having shard size and shard id encoded as
+            shardSize | shardId
+        See the definition for Branch in core.py.
+        0 represents the root chain.
+
+        For example:
+        Assuming requests are sent to shards and master does the forwarding.
+
+        1. slave -> master -> peer
+            For requests coming from the slaves inside the cluster, this should return
+            a connection to the peer
+
+        2. peer -> master -> slave
+            For requests coming from other peers, this should return a connection
+            to the slave running the shard
+        '''
+        return None
+
     async def readFully(self, n):
         bs = await self.reader.read(n)
         while len(bs) < n:
@@ -37,7 +65,10 @@ class Connection:
             bs = bs + nbs
         return bs
 
-    async def readCommand(self):
+    async def readRawCommand(self):
+        branchValueBytes = await self.readFully(4)
+        branchValue = int.from_bytes(branchValueBytes, byteorder="big")
+
         opBytes = await self.reader.read(1)
         if len(opBytes) == 0:
             self.close()
@@ -48,7 +79,6 @@ class Connection:
             self.closeWithError("Unsupported op {}".format(op))
             return (None, None, None)
 
-        ser = self.opSerMap[op]
         sizeBytes = await self.readFully(4)
         size = int.from_bytes(sizeBytes, byteorder="big")
         if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
@@ -59,27 +89,34 @@ class Connection:
         rpcId = int.from_bytes(rpcIdBytes, byteorder="big")
 
         cmdBytes = await self.readFully(size)
-        try:
-            cmd = ser.deserialize(cmdBytes)
-        except Exception as e:
-            self.closeWithError("%s" % e)
-            return (None, None, None)
 
+        return (branchValue, op, cmdBytes, rpcId)
+
+    def __deserializeCommand(self, op, rawCommand):
+        ser = self.opSerMap[op]
+        cmd = ser.deserialize(rawCommand)
+        return cmd
+
+    async def readCommand(self):
+        branchValue, op, cmdBytes, rpcId = await self.readRawCommand()
+        cmd = self.__deserializeCommand(op, cmdBytes)
+        # we don't return the branchValue to not break the existing code
         return (op, cmd, rpcId)
 
-    def writeRawCommand(self, op, cmdData, rpcId=0):
+    def writeRawCommand(self, op, cmdData, rpcId=0, branchValue=ROOT_SHARD_ID):
         ba = bytearray()
+        ba.extend(branchValue.to_bytes(4, byteorder="big"))
         ba.append(op)
         ba.extend(len(cmdData).to_bytes(4, byteorder="big"))
         ba.extend(rpcId.to_bytes(8, byteorder="big"))
         ba.extend(cmdData)
         self.writer.write(ba)
 
-    def writeCommand(self, op, cmd, rpcId=0):
+    def writeCommand(self, op, cmd, rpcId=0, branchValue=ROOT_SHARD_ID):
         data = cmd.serialize()
-        self.writeRawCommand(op, data, rpcId)
+        self.writeRawCommand(op, data, rpcId, branchValue)
 
-    def writeRpcRequest(self, op, cmd):
+    def writeRawRpcRequest(self, op, rawCommand, branchValue=ROOT_SHARD_ID):
         rpcFuture = asyncio.Future()
 
         if self.state != ConnectionState.ACTIVE:
@@ -90,13 +127,19 @@ class Connection:
         self.rpcId += 1
         rpcId = self.rpcId
         self.rpcFutureMap[rpcId] = rpcFuture
-        self.writeCommand(op, cmd, rpcId)
+        self.writeRawCommand(op, rawCommand, rpcId, branchValue)
         return rpcFuture
 
-    def writeRpcResponse(self, op, cmd, rpcId):
-        self.writeCommand(op, cmd, rpcId)
+    def writeRpcRequest(self, op, cmd, branchValue=ROOT_SHARD_ID):
+        return self.writeRawRpcRequest(op, cmd.serialize(), branchValue)
 
-    async def handleRpcRequest(self, request, respOp, handler, rpcId):
+    def writeRawRpcResponse(self, op, rawCmd, rpcId, branchValue=ROOT_SHARD_ID):
+        self.writeRawCommand(op, rawCmd, rpcId, branchValue)
+
+    def writeRpcResponse(self, op, cmd, rpcId, branchValue=ROOT_SHARD_ID):
+        self.writeCommand(op, cmd, rpcId, branchValue)
+
+    async def handleRpcRequest(self, request, respOp, handler, rpcId, branchValue):
         try:
             resp = await handler(self, request)
         except Exception as e:
@@ -104,7 +147,17 @@ class Connection:
             Logger.errorExceptionEverySec(1)
             return
 
-        self.writeRpcResponse(respOp, resp, rpcId)
+        self.writeRpcResponse(respOp, resp, rpcId, branchValue)
+
+    async def forwardRpcRequest(self, forwardConn, op, rawCmd, rpcId, branchValue):
+        try:
+            respOp, rawResp, _ = await forwardConn.writeRawRpcRequest(op, rawCmd, branchValue)
+        except Exception as e:
+            self.closeWithError("Unable to forward rpc: {}".format(e))
+            Logger.errorExceptionEverySec(1)
+            return
+
+        self.writeRawRpcResponse(respOp, rawResp, rpcId, branchValue)
 
     async def activeAndLoopForever(self):
         if self.state == ConnectionState.CONNECTING:
@@ -112,7 +165,10 @@ class Connection:
             self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
             try:
-                op, cmd, rpcId = await self.readCommand()
+                branchValue, op, rawCmd, rpcId = await self.readRawCommand()
+                forwardConn = self.getConnectionToForward(branchValue)
+                if forwardConn is None:
+                    cmd = self.__deserializeCommand(op, rawCmd)
             except Exception as e:
                 self.closeWithError("Error when reading {}".format(e))
                 break
@@ -124,8 +180,11 @@ class Connection:
                 if rpcId != 0:
                     self.closeWithError("non-rpc command's id must be zero")
                     break
-                handler = self.opNonRpcMap[op]
-                asyncio.ensure_future(handler(self, op, cmd, rpcId))
+                if forwardConn is None:
+                    handler = self.opNonRpcMap[op]
+                    asyncio.ensure_future(handler(self, op, cmd, rpcId))
+                else:
+                    forwardConn.writeRawCommand(op, rawCmd, branchValue)
             elif op in self.opRpcMap:
                 # Check if it is a valid RPC request
                 if rpcId <= self.peerRpcId:
@@ -133,8 +192,11 @@ class Connection:
                     break
                 self.peerRpcId = max(rpcId, self.peerRpcId)
 
-                respOp, handler = self.opRpcMap[op]
-                asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId))
+                if forwardConn is None:
+                    respOp, handler = self.opRpcMap[op]
+                    asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId, branchValue))
+                else:
+                    asyncio.ensure_future(self.forwardRpcRequest(forwardConn, op, rawCmd, rpcId, branchValue))
             else:
                 # Check if it is a valid RPC response
                 if rpcId not in self.rpcFutureMap:
@@ -142,7 +204,10 @@ class Connection:
                     break
                 future = self.rpcFutureMap[rpcId]
                 del self.rpcFutureMap[rpcId]
-                future.set_result((op, cmd, rpcId))
+                if forwardConn is None:
+                    future.set_result((op, cmd, rpcId))
+                else:
+                    future.set_result((op, rawCmd, rpcId))
         assert(self.state == ConnectionState.CLOSED)
 
         # Abort all in-flight RPCs
