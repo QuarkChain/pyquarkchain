@@ -4,7 +4,7 @@ from enum import Enum
 from quarkchain.utils import Logger
 
 
-ROOT_SHARD_ID = 2 * 32 - 1
+ROOT_SHARD_ID = 0
 
 
 class ConnectionState(Enum):
@@ -31,14 +31,17 @@ class Connection:
         self.activeFuture = loop.create_future()
         self.closeFuture = loop.create_future()
 
-    def getConnectionToForward(self, shardId):
-        ''' Returns the Connection object to forward a request for shardId.
-        Returns None if the request should not be forwarded for shardId.
+    def getConnectionToForward(self, branchValue):
+        ''' Returns the Connection object to forward a request for branchValue.
+        Returns None if the request should not be forwarded for branchValue.
 
-        Subclass should override this if the shardId is on another node and this node
+        Subclass should override this if the branch is on another node and this node
         will forward the request without deserialize the request.
 
-        shardId is a uint32, the max value (2**32-1) represents the root chain.
+        branchValue is a uint32 having shard size and shard id encoded as
+            shardSize | shardId
+        See the definition for Branch in core.py.
+        0 represents the root chain.
 
         For example:
         Assuming requests are sent to shards and master does the forwarding.
@@ -63,8 +66,8 @@ class Connection:
         return bs
 
     async def readRawCommand(self):
-        shardIdBytes = await self.readFully(4)
-        shardId = int.from_bytes(shardIdBytes, byteorder="big")
+        branchValueBytes = await self.readFully(4)
+        branchValue = int.from_bytes(branchValueBytes, byteorder="big")
 
         opBytes = await self.reader.read(1)
         if len(opBytes) == 0:
@@ -87,7 +90,7 @@ class Connection:
 
         cmdBytes = await self.readFully(size)
 
-        return (shardId, op, cmdBytes, rpcId)
+        return (branchValue, op, cmdBytes, rpcId)
 
     def __deserializeCommand(self, op, rawCommand):
         ser = self.opSerMap[op]
@@ -95,25 +98,25 @@ class Connection:
         return cmd
 
     async def readCommand(self):
-        shardId, op, cmdBytes, rpcId = await self.readRawCommand()
+        branchValue, op, cmdBytes, rpcId = await self.readRawCommand()
         cmd = self.__deserializeCommand(op, cmdBytes)
-        # we don't return the shardId to not break the existing code
+        # we don't return the branchValue to not break the existing code
         return (op, cmd, rpcId)
 
-    def writeRawCommand(self, op, cmdData, rpcId=0, shardId=ROOT_SHARD_ID):
+    def writeRawCommand(self, op, cmdData, rpcId=0, branchValue=ROOT_SHARD_ID):
         ba = bytearray()
-        ba.extend(shardId.to_bytes(4, byteorder="big"))
+        ba.extend(branchValue.to_bytes(4, byteorder="big"))
         ba.append(op)
         ba.extend(len(cmdData).to_bytes(4, byteorder="big"))
         ba.extend(rpcId.to_bytes(8, byteorder="big"))
         ba.extend(cmdData)
         self.writer.write(ba)
 
-    def writeCommand(self, op, cmd, rpcId=0, shardId=ROOT_SHARD_ID):
+    def writeCommand(self, op, cmd, rpcId=0, branchValue=ROOT_SHARD_ID):
         data = cmd.serialize()
-        self.writeRawCommand(op, data, rpcId, shardId)
+        self.writeRawCommand(op, data, rpcId, branchValue)
 
-    def writeRawRpcRequest(self, op, rawCommand, shardId=ROOT_SHARD_ID):
+    def writeRawRpcRequest(self, op, rawCommand, branchValue=ROOT_SHARD_ID):
         rpcFuture = asyncio.Future()
 
         if self.state != ConnectionState.ACTIVE:
@@ -124,19 +127,19 @@ class Connection:
         self.rpcId += 1
         rpcId = self.rpcId
         self.rpcFutureMap[rpcId] = rpcFuture
-        self.writeRawCommand(op, rawCommand, rpcId, shardId)
+        self.writeRawCommand(op, rawCommand, rpcId, branchValue)
         return rpcFuture
 
-    def writeRpcRequest(self, op, cmd, shardId=ROOT_SHARD_ID):
-        return self.writeRawRpcRequest(op, cmd.serialize(), shardId)
+    def writeRpcRequest(self, op, cmd, branchValue=ROOT_SHARD_ID):
+        return self.writeRawRpcRequest(op, cmd.serialize(), branchValue)
 
-    def writeRawRpcResponse(self, op, rawCmd, rpcId, shardId=ROOT_SHARD_ID):
-        self.writeRawCommand(op, rawCmd, rpcId, shardId)
+    def writeRawRpcResponse(self, op, rawCmd, rpcId, branchValue=ROOT_SHARD_ID):
+        self.writeRawCommand(op, rawCmd, rpcId, branchValue)
 
-    def writeRpcResponse(self, op, cmd, rpcId, shardId=ROOT_SHARD_ID):
-        self.writeCommand(op, cmd, rpcId, shardId)
+    def writeRpcResponse(self, op, cmd, rpcId, branchValue=ROOT_SHARD_ID):
+        self.writeCommand(op, cmd, rpcId, branchValue)
 
-    async def handleRpcRequest(self, request, respOp, handler, rpcId, shardId):
+    async def handleRpcRequest(self, request, respOp, handler, rpcId, branchValue):
         try:
             resp = await handler(self, request)
         except Exception as e:
@@ -144,17 +147,17 @@ class Connection:
             Logger.errorExceptionEverySec(1)
             return
 
-        self.writeRpcResponse(respOp, resp, rpcId, shardId)
+        self.writeRpcResponse(respOp, resp, rpcId, branchValue)
 
-    async def forwardRpcRequest(self, forwardConn, op, rawCmd, rpcId, shardId):
+    async def forwardRpcRequest(self, forwardConn, op, rawCmd, rpcId, branchValue):
         try:
-            respOp, rawResp, _ = await forwardConn.writeRawRpcRequest(op, rawCmd, shardId)
+            respOp, rawResp, _ = await forwardConn.writeRawRpcRequest(op, rawCmd, branchValue)
         except Exception as e:
             self.closeWithError("Unable to forward rpc: {}".format(e))
             Logger.errorExceptionEverySec(1)
             return
 
-        self.writeRawRpcResponse(respOp, rawResp, rpcId, shardId)
+        self.writeRawRpcResponse(respOp, rawResp, rpcId, branchValue)
 
     async def activeAndLoopForever(self):
         if self.state == ConnectionState.CONNECTING:
@@ -162,8 +165,8 @@ class Connection:
             self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
             try:
-                shardId, op, rawCmd, rpcId = await self.readRawCommand()
-                forwardConn = self.getConnectionToForward(shardId)
+                branchValue, op, rawCmd, rpcId = await self.readRawCommand()
+                forwardConn = self.getConnectionToForward(branchValue)
                 if forwardConn is None:
                     cmd = self.__deserializeCommand(op, rawCmd)
             except Exception as e:
@@ -181,7 +184,7 @@ class Connection:
                     handler = self.opNonRpcMap[op]
                     asyncio.ensure_future(handler(self, op, cmd, rpcId))
                 else:
-                    forwardConn.writeRawCommand(op, rawCmd, shardId)
+                    forwardConn.writeRawCommand(op, rawCmd, branchValue)
             elif op in self.opRpcMap:
                 # Check if it is a valid RPC request
                 if rpcId <= self.peerRpcId:
@@ -191,9 +194,9 @@ class Connection:
 
                 if forwardConn is None:
                     respOp, handler = self.opRpcMap[op]
-                    asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId, shardId))
+                    asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId, branchValue))
                 else:
-                    asyncio.ensure_future(self.forwardRpcRequest(forwardConn, op, rawCmd, rpcId, shardId))
+                    asyncio.ensure_future(self.forwardRpcRequest(forwardConn, op, rawCmd, rpcId, branchValue))
             else:
                 # Check if it is a valid RPC response
                 if rpcId not in self.rpcFutureMap:
