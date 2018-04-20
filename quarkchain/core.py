@@ -8,10 +8,14 @@ import argparse
 import copy
 import ecdsa
 import random
+import rlp
 
 from ethereum import utils
 
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
+
+secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
 
 class Constant:
@@ -354,28 +358,82 @@ class TransactionOutput(Serializable):
         return self.address.serialize().hex()
 
 
+class Branch(Serializable):
+    FIELDS = [
+        ("value", uint32),
+    ]
+
+    def __init__(self, value):
+        self.value = value
+
+    def getShardSize(self):
+        return 1 << (int_left_most_bit(self.value) - 1)
+
+    def getShardId(self):
+        return self.value ^ self.getShardSize()
+
+    def isInShard(self, fullShardId):
+        return (fullShardId & (self.getShardSize() - 1)) == self.getShardId()
+
+    @staticmethod
+    def create(shardSize, shardId):
+        assert(is_p2(shardSize))
+        return Branch(shardSize | shardId)
+
+
 class Code(Serializable):
-    OP_TRANSFER = b'1'
+    OP_TRANSFER = b'\1'
+    OP_EVM = b'\2'
+    OP_SHARD_COINBASE = b'm'
+    OP_ROOT_COINBASE = b'r'
     # TODO: Replace it with vary-size bytes serializer
     FIELDS = [
-        ("code", PreprendedSizeBytesSerializer(1))
+        ("code", PreprendedSizeBytesSerializer(4))
     ]
 
     def __init__(self, code=OP_TRANSFER):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    @staticmethod
-    def getTransferCode():
-        return Code()
+    @classmethod
+    def getTransferCode(cls):
+        ''' Transfer quarkash from input list to output list
+        If evm is None, then no balance is withdrawn from evm account.
+        '''
+        return Code(code=cls.OP_TRANSFER)
 
-    @staticmethod
-    def createMinorBlockCoinbaseCode(height, branch):
-        return Code(code=b'm' + height.to_bytes(4, byteorder="big") + branch.serialize())
+    @classmethod
+    def createMinorBlockCoinbaseCode(cls, height, branch):
+        return Code(code=cls.OP_SHARD_COINBASE + height.to_bytes(4, byteorder="big") + branch.serialize())
 
-    @staticmethod
-    def createRootBlockCoinbaseCode(height):
-        return Code(code=b'r' + height.to_bytes(4, byteorder="big"))
+    @classmethod
+    def createRootBlockCoinbaseCode(cls, height):
+        return Code(code=cls.OP_ROOT_COINBASE + height.to_bytes(4, byteorder="big"))
+
+    @classmethod
+    def createEvmCode(cls, evmTx):
+        return Code(cls.OP_EVM + rlp.encode(evmTx))
+
+    def isValidOp(self):
+        if len(self.code) == 0:
+            return False
+        return self.isTransfer() or self.isShardCoinbase() or self.isRootCoinbase() or self.isEvm()
+
+    def isTransfer(self):
+        return self.code[:1] == self.OP_TRANSFER
+
+    def isShardCoinbase(self):
+        return self.code[:1] == self.OP_SHARD_COINBASE
+
+    def isRootCoinbase(self):
+        return self.code[:1] == self.OP_ROOT_COINBASE
+
+    def isEvm(self):
+        return self.code[:1] == self.OP_EVM
+
+    def getEvmTransaction(self):
+        assert(self.isEvm())
+        return rlp.decode(self.code[1:], EvmTransaction)
 
 
 class Transaction(Serializable):
@@ -417,6 +475,7 @@ class Transaction(Serializable):
             signList.append(
                 v.to_bytes(1, byteorder="big") + r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big"))
         self.signList = signList
+        return self
 
     def verifySignature(self, recipients):
         """ Verify whether the signatures are from a list of recipients.  Doesn't verify if the transaction is valid on
@@ -430,6 +489,8 @@ class Transaction(Serializable):
             v = bb.getUint8()
             r = bb.getUint256()
             s = bb.getUint256()
+            if r >= secpk1n or s >= secpk1n or r == 0 or s == 0:
+                return False
             pub = utils.ecrecover_to_pub(
                 self.getHashUnsigned(), v, r, s)
             if sha3_256(pub)[-20:] != recipients[i]:
@@ -453,29 +514,6 @@ def calculate_merkle_root(itemList):
             nextShaTree.append(sha3_256(shaTree[-1] + shaTree[-1]))
         shaTree = nextShaTree
     return shaTree[0]
-
-
-class Branch(Serializable):
-    FIELDS = [
-        ("value", uint32),
-    ]
-
-    def __init__(self, value):
-        self.value = value
-
-    def getShardSize(self):
-        return 1 << (int_left_most_bit(self.value) - 1)
-
-    def getShardId(self):
-        return self.value ^ self.getShardSize()
-
-    def isInShard(self, fullShardId):
-        return (fullShardId & (self.getShardSize() - 1)) == self.getShardId()
-
-    @staticmethod
-    def create(shardSize, shardId):
-        assert(is_p2(shardSize))
-        return Branch(shardSize | shardId)
 
 
 class MinorBlockHeader(Serializable):

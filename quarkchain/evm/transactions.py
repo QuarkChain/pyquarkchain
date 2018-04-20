@@ -17,6 +17,9 @@ secpk1n = 1157920892373161954235709850086879078528375642790749043826051631415181
 null_address = b'\xff' * 20
 
 
+UINT32_MAX = (2 ** 32) - 1
+
+
 class Transaction(rlp.Serializable):
 
     """
@@ -44,16 +47,18 @@ class Transaction(rlp.Serializable):
         ('to', utils.address),
         ('value', big_endian_int),
         ('data', binary),
+        ('branchValue', big_endian_int),
+        ('withdraw', big_endian_int),
+        ('withdrawSign', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
         ('s', big_endian_int),
-        ('branch', big_endian_int),
     ]
 
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas,
-                 to, value, data, v=0, r=0, s=0, branch=1):
+                 to, value, data, v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1):
         self.data = None
 
         to = utils.normalize_address(to, allow_blank=True)
@@ -67,13 +72,17 @@ class Transaction(rlp.Serializable):
             to,
             value,
             data,
+            branchValue,
+            withdraw,
+            withdrawSign,
             v,
             r,
-            s,
-            branch)
+            s)
 
         if self.gasprice >= TT256 or self.startgas >= TT256 or \
-                self.value >= TT256 or self.nonce >= TT256:
+                self.value >= TT256 or self.nonce >= TT256 or \
+                self.withdraw >= TT256 or self.withdrawSign >= 2 or \
+                self.branchValue > UINT32_MAX:
             raise InvalidTransaction("Values way too high!")
 
     @property
@@ -115,6 +124,19 @@ class Transaction(rlp.Serializable):
     @sender.setter
     def sender(self, value):
         self._sender = value
+
+    def getWithdraw(self):
+        if self.withdrawSign == 0:
+            return -self.withdraw
+        else:
+            return self.withdraw
+
+    def setWithdraw(self, value):
+        if value < 0:
+            self.withdrawSign = 0
+            self.withdraw = -value
+        else:
+            self.withdraw = value
 
     def sign(self, key, network_id=None):
         """Sign this transaction with a private key.

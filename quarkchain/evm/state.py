@@ -9,8 +9,8 @@ from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
-from ethereum.block import FakeHeader
 from quarkchain.db import Db, RefcountedDb, OverlayDb
+from quarkchain.evm.common import FakeHeader
 import copy
 
 
@@ -34,6 +34,7 @@ STATE_DEFAULTS = {
     "block_number": 0,
     "block_coinbase": '\x00' * 20,
     "block_difficulty": 1,
+    "block_reward": 0,
     "timestamp": 0,
     "logs": [],
     "receipts": [],
@@ -159,7 +160,7 @@ class State():
         if self.block_number < n or n > 256 or n < 0:
             o = b'\x00' * 32
         else:
-            o = self.prev_headers[n].hash if self.prev_headers[n] else b'\x00' * 32
+            o = self.prev_headers[n].getHash() if self.prev_headers[n] else b'\x00' * 32
         return o
 
     def add_block_header(self, block_header):

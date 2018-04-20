@@ -620,7 +620,7 @@ class LocalServer(Connection):
             })
 
         code = {}
-        if tx.code.code == Code.OP_TRANSFER:
+        if tx.code.code[:1] == Code.OP_TRANSFER:
             code = {
                 "op": "1",
             }

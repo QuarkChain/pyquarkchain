@@ -8,7 +8,7 @@ from ethereum import utils
 from ethereum import bloom
 from ethereum import transactions
 from ethereum import opcodes
-from ethereum import vm
+from quarkchain.evm import vm
 from ethereum.specials import specials as default_specials
 from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
@@ -228,6 +228,7 @@ def apply_transaction(state, tx):
                      startgas=tx.startgas, gas_remained=gas_remained)
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
         state.delta_balance(state.block_coinbase, tx.gasprice * gas_used)
+        state.block_reward += tx.gasprice * gas_used
         output = b''
         success = 0
     # Transaction success
@@ -246,6 +247,7 @@ def apply_transaction(state, tx):
         # sell remaining gas
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
         state.delta_balance(state.block_coinbase, tx.gasprice * gas_used)
+        state.block_reward += tx.gasprice * gas_used
         if tx.to:
             output = bytearray_to_bytestr(data)
         else:

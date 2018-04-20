@@ -1,5 +1,5 @@
 from quarkchain.evm.state import State
-from ethereum.block import FakeHeader
+from quarkchain.evm.common import FakeHeader
 from ethereum.utils import decode_hex, parse_int_or_hex, sha3, to_string, \
     remove_0x_head, encode_hex, big_endian_to_int
 from quarkchain.evm.config import default_config, Env

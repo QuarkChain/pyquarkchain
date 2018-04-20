@@ -10,6 +10,10 @@ from quarkchain.genesis import create_genesis_blocks
 from quarkchain.core import calculate_merkle_root, TransactionInput, Transaction, Code
 from quarkchain.core import MinorBlock
 from quarkchain.utils import check, Logger
+from quarkchain.evm.state import State
+from quarkchain.db import ShardedDb
+from quarkchain.evm.messages import apply_transaction
+from quarkchain.config import NetworkId
 
 
 class UtxoValue:
@@ -136,11 +140,13 @@ class ShardState:
             self.db.putTx(grCoinbaseTx, genesisRootBlock, rootBlockHeader=genesisRootBlock)
 
         self.transactionPool = TransactionPool()
+        self.evmStateList = [
+            State(
+                env=env.evmEnv,
+                db=ShardedDb(env.db, fullShardId=self.branch.value),
+                block_coinbase=grCoinbaseTx.outList[0].address.recipient)]
 
-    def __checkTx(self, tx, utxoPool):
-        if len(tx.inList) == 0:
-            return -1
-
+    def __checkTx(self, tx, utxoPool, evmState):
         # Make sure all tx ids from inputs:
         # - are unique; and
         # - exist in utxo pool; and
@@ -167,6 +173,30 @@ class ShardState:
                     "%s tx_in %s %d %d",
                     tx.getHashHex(), txInput.getHashHex(), txInput.index, utxoPool[txInput].quarkash)
 
+        # Check OP code
+        if len(tx.code.code) == 0:
+            raise RuntimeError("empty op code")
+        if not tx.code.isValidOp():
+            raise RuntimeError("unsupported op code {}".format(tx.code.code[0]))
+        if tx.code.isEvm():
+            evmTx = tx.code.getEvmTransaction()
+            if sender is None:
+                sender = evmTx.sender
+            elif sender != evmTx.sender:
+                raise RuntimeError("evm tx sender doesn't match that of tx inputs")
+            if self.branch.value != evmTx.branchValue:
+                raise RuntimeError("evm transfer is not in the shard")
+            if evmTx.getWithdraw() >= 0 and evmState.get_balance(sender) < evmTx.getWithdraw():
+                raise RuntimeError("insufficient evm account balance")
+            if evmTx.getWithdraw() < 0 and txInputQuarkash + evmTx.getWithdraw() < 0:
+                raise RuntimeError("insufficient input balance")
+            txInputQuarkash += evmTx.getWithdraw()
+        else:
+            evmTx = None
+
+        if sender is None:
+            raise RuntimeError("sender must be specified in tx input or evm tx")
+
         # Check signature
         if not tx.verifySignature([sender]):
             raise RuntimeError("incorrect signature")
@@ -182,7 +212,7 @@ class ShardState:
         if txOutputQuarkash > txInputQuarkash:
             raise RuntimeError("output quarkash cannot exceed input one")
 
-        return (txInputQuarkash - txOutputQuarkash, rootBlockHeader)
+        return (txInputQuarkash - txOutputQuarkash, rootBlockHeader, evmTx)
 
     def __updateUtxoPool(self, tx, rootBlockHeader, utxoPool, txHash=None):
         consumedUtxoList = []
@@ -200,16 +230,22 @@ class ShardState:
                 rootBlockHeader)
         return consumedUtxoList
 
-    def __performTx(self, tx, rootBlockHeader, txHash=None):
+    def __performEvmTx(self, evmState, evmTx):
+        evmState.delta_balance(evmTx.sender, -evmTx.getWithdraw())
+        success, output = apply_transaction(evmState, evmTx)
+
+    def __performTx(self, tx, rootBlockHeader, evmState, txHash=None):
         """ Perform a transacton atomically.
         Return -1 if the transaction is invalid or
                >= 0 for the transaction fee if the transaction successfully executed.
         """
-        txFee, prevRootBlockHeader = self.__checkTx(tx, self.utxoPool)
+        txFee, prevRootBlockHeader, evmTx = self.__checkTx(tx, self.utxoPool, evmState)
 
         if prevRootBlockHeader.height > rootBlockHeader.height:
             raise RuntimeError("root block header's height is too small")
 
+        if evmTx is not None:
+            self.__performEvmTx(evmState, evmTx)
         consumedUtxoList = self.__updateUtxoPool(tx, rootBlockHeader, self.utxoPool, txHash=txHash)
         return txFee, consumedUtxoList
 
@@ -273,7 +309,7 @@ class ShardState:
 
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
-            if self.env.config.NETWORK_ID == 0:
+            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.getNextBlockDifficulty(block.header.createTime)
                 metric = diff * int.from_bytes(block.header.getHash(), byteorder="big")
                 if metric >= 2 ** 256:
@@ -296,13 +332,28 @@ class ShardState:
         if rootBlockHeader.height < self.rootChain.getBlockHeaderByHash(self.chain[-1].hashPrevRootBlock).height:
             return "prev root block height must be non-decreasing"
 
+        evmState = self.evmStateList[-1].ephemeral_clone()
+        evmState.txindex = 0
+        evmState.gas_used = 0
+        evmState.bloom = 0
+        evmState.receipts = []
+        evmState.timestamp = block.header.createTime
+        evmState.gas_limit = 10000000000  # TODO
+        evmState.block_number = block.header.height
+        evmState.recent_uncles[evmState.block_number] = []  # TODO [x.hash for x in block.uncles]
+        evmState.block_coinbase = block.txList[0].outList[0].address.recipient
+        evmState.block_difficulty = block.header.difficulty
+        evmState.block_reward = 0
+        evmState.add_block_header(block.header)
+
         txDoneList = []
         totalFee = 0
         for idx, tx in enumerate(block.txList[1:]):
             txHash = tx.getHash()
             try:
-                fee, consumedUtxoList = self.__performTx(tx, rootBlockHeader, txHash=txHash)
+                fee, consumedUtxoList = self.__performTx(tx, rootBlockHeader, evmState, txHash=txHash)
             except Exception as e:
+                Logger.errorException()
                 for rTx in reversed(txDoneList):
                     rollBackResult = self.__rollBackTx(rTx)
                     assert(rollBackResult is None)
@@ -336,6 +387,11 @@ class ShardState:
         self.db.putTx(block.txList[0], block, rootBlockHeader)
         self.db.putMinorBlock(block)
         self.chain.append(block.header)
+
+        evmState.delta_balance(evmState.block_coinbase, evmState.block_reward // 2)     # half goes to root chain
+        evmState.commit()
+        # TODO: Save evm state root_hash in meta data
+        self.evmStateList.append(evmState)
         self.blockPool[block.header.getHash()] = block.header
 
         # TODO: invalidate consumed tx in txQueue
@@ -358,6 +414,7 @@ class ShardState:
         block = self.db.getMinorBlockByHash(blockHash)
         del self.chain[-1]
         del self.blockPool[blockHash]
+        del self.evmStateList[-1]
         for rTx in reversed(block.txList[1:]):
             rollBackResult = self.__rollBackTx(rTx)
             assert(rollBackResult is None)
@@ -398,7 +455,7 @@ class ShardState:
                 continue
 
             balance += v.quarkash
-        return balance
+        return balance + self.evmStateList[-1].get_balance(recipient)
 
     def getAccountBalance(self, address):
         balance = 0
@@ -436,16 +493,21 @@ class ShardState:
         utxoPool = copy.copy(self.utxoPool)
         totalTxFee = 0
         invalidTxList = []
+        evmState = self.evmStateList[-1].ephemeral_clone()
         for tx in self.transactionPool.transactions():
             if len(block.txList) >= self.env.config.TRANSACTION_LIMIT_PER_BLOCK:
                 break
 
+            snapshot = evmState.snapshot()
             try:
-                txFee, rootBlockHeader = self.__checkTx(tx, utxoPool)
-            except Exception as e:
+                txFee, rootBlockHeader, evmTx = self.__checkTx(tx, utxoPool, evmState)
+                if evmTx is not None:
+                    self.__performEvmTx(evmState, evmTx)
+            except Exception:
                 Logger.debug(traceback.format_exc())
                 # TODO: C++ style erase while iterating?
                 invalidTxList.append(tx)
+                evmState.revert(snapshot)
                 continue
 
             if rootBlockHeaderWithMaxHeight.height < rootBlockHeader.height:
@@ -459,6 +521,7 @@ class ShardState:
             self.transactionPool.remove(tx)
             if Logger.isEnableForDebug():
                 Logger.debug("Drop invalid tx {}".format(tx.getHash().hex()))
+        totalTxFee += evmState.gas_used
         # Only share half the fees to the minor block miner
         block.txList[0].outList[0].quarkash += totalTxFee // 2
         return block.finalize(hashPrevRootBlock=rootBlockHeaderWithMaxHeight.getHash())
@@ -635,7 +698,7 @@ class RootChain:
 
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
-            if self.env.config.NETWORK_ID == 0:
+            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.getNextBlockDifficulty(block.header.createTime)
                 metric = diff * int.from_bytes(blockHash, byteorder="big")
                 if metric >= 2 ** 256:
