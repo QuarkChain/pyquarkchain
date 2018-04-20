@@ -50,6 +50,7 @@ class Transaction(rlp.Serializable):
         ('branchValue', big_endian_int),
         ('withdraw', big_endian_int),
         ('withdrawSign', big_endian_int),
+        ('withdrawTo', binary),
         ('v', big_endian_int),
         ('r', big_endian_int),
         ('s', big_endian_int),
@@ -58,7 +59,7 @@ class Transaction(rlp.Serializable):
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas,
-                 to, value, data, v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1):
+                 to, value, data, v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1, withdrawTo=b''):
         self.data = None
 
         to = utils.normalize_address(to, allow_blank=True)
@@ -75,14 +76,15 @@ class Transaction(rlp.Serializable):
             branchValue,
             withdraw,
             withdrawSign,
+            withdrawTo,
             v,
             r,
             s)
 
         if self.gasprice >= TT256 or self.startgas >= TT256 or \
                 self.value >= TT256 or self.nonce >= TT256 or \
-                self.withdraw >= TT256 or self.withdrawSign >= 2 or \
-                self.branchValue > UINT32_MAX:
+                self.withdraw >= TT256 or self.withdrawSign < 0 or \
+                self.withdrawSign >= 2 or self.branchValue > UINT32_MAX:
             raise InvalidTransaction("Values way too high!")
 
     @property

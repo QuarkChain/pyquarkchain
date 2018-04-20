@@ -1,0 +1,231 @@
+#!/usr/bin/python3
+
+# Core data structures of cluster
+
+import argparse
+import copy
+
+from ethereum import utils
+
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
+from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
+from quarkchain.core import Address, Branch, Constant, Transaction
+from quarkchain.core import Serializable
+from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, FixedSizeBytesSerializer
+
+
+class MinorBlockMeta(Serializable):
+    """ Meta data that are not included in root block
+    """
+    FIELDS = [
+        ("hashPrevRootBlock", hash256),
+        ("hashMerkleRoot", hash256),
+        ("hashEvmStateRoot", hash256),
+        ("coinbaseAddress", Address),
+        ("coinbaseAmount", uint256),
+        ("evmGasLimit", uint256),
+        ("evmGasUsed", uint256),
+        ("extraData", PreprendedSizeBytesSerializer(2)),
+    ]
+
+    def __init__(self,
+                 hashPrevRootBlock=bytes(Constant.HASH_LENGTH),
+                 hashMerkleRoot=bytes(Constant.HASH_LENGTH),
+                 hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
+                 coinbaseAddress=bytes(Constant.ADDRESS_LENGTH),
+                 coinbaseAmount=0,
+                 evmGasLimit=100000000000,
+                 evmGasUsed=0,
+                 extraData=b''):
+        fields = {k: v for k, v in locals().items() if k != 'self'}
+        super(type(self), self).__init__(**fields)
+
+    def getHash(self):
+        return sha3_256(self.serialize())
+
+
+class MinorBlockHeader(Serializable):
+    """ Header fields that are included in root block so that the root chain could quickly verify
+    - Verify minor block headers included are valid appends on existing shards
+    - Verify minor block headers reach sufficient difficulty
+    - Verify minor block headers have correct timestamp
+    Once the root block contains these correct information, then it is highly likely that the root block is valid.
+    """
+    FIELDS = [
+        ("version", uint32),
+        ("branch", Branch),
+        ("height", uint64),
+        ("hashPrevMinorBlock", hash256),
+        ("hashMeta", hash256),
+        ("createTime", uint64),
+        ("difficulty", uint64),
+        ("nonce", uint64),
+    ]
+
+    def __init__(self,
+                 version=0,
+                 height=0,
+                 branch=Branch.create(1, 0),
+                 hashPrevMinorBlock=bytes(Constant.HASH_LENGTH),
+                 hashMeta=bytes(Constant.HASH_LENGTH),
+                 createTime=0,
+                 difficulty=0,
+                 nonce=0):
+        fields = {k: v for k, v in locals().items() if k != 'self'}
+        super(type(self), self).__init__(**fields)
+
+    def getHash(self):
+        return sha3_256(self.serialize())
+
+
+class MinorBlock(Serializable):
+    FIELDS = [
+        ("header", MinorBlockHeader),
+        ("meta", MinorBlockMeta),
+        ("txList", PreprendedSizeListSerializer(4, Transaction))
+    ]
+
+    def __init__(self, header, meta, txList=None):
+        self.header = header
+        self.meta = meta
+        self.txList = [] if txList is None else txList
+
+    def calculateMerkleRoot(self):
+        return calculate_merkle_root(self.txList)
+
+    def finalizeMerkleRoot(self):
+        """ Compute merkle root hash and put it in the field
+        """
+        self.header.hashMerkleRoot = self.calculateMerkleRoot()
+        return self
+
+    def finalize(self, evmState, hashPrevRootBlock=None):
+        if hashPrevRootBlock is not None:
+            self.meta.hashPrevRootBlock = hashPrevRootBlock
+        self.meta.hashEvmStateRoot = evmState.trie.hash_root
+        return self.finalizeMerkleRoot()
+
+    def addTx(self, tx):
+        self.txList.append(tx)
+        return self
+
+    def createBlockToAppend(self,
+                            address=Address.createEmptyAccount(),
+                            quarkash=0,
+                            createTime=None,
+                            difficulty=None,
+                            extraData=b''):
+        meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
+                              coinbaseAddress=address,
+                              evmGasLimit=self.meta.evmGasLimit,
+                              extraData=extraData)
+
+        createTime = self.header.createTime + 1 if createTime is None else createTime
+        difficulty = self.header.difficulty if difficulty is None else difficulty
+        header = MinorBlockHeader(version=self.header.version,
+                                  height=self.header.height + 1,
+                                  branch=self.header.branch,
+                                  hashPrevMinorBlock=self.header.getHash(),
+                                  createTime=createTime,
+                                  difficulty=difficulty)
+
+        return MinorBlock(header, meta, [])
+
+
+class ShardInfo(Serializable):
+    """ Shard information contains
+    - shard size (power of 2)
+    - voting of increasing shards
+    """
+    FIELDS = [
+        ("value", uint32),
+    ]
+
+    def __init__(self, value):
+        self.value = value
+
+    def getShardSize(self):
+        return 1 << (self.value & 31)
+
+    def getReshardVote(self):
+        return (self.value & (1 << 31)) != 0
+
+    @staticmethod
+    def create(shardSize, reshardVote=False):
+        assert(is_p2(shardSize))
+        reshardVote = 1 if reshardVote else 0
+        return ShardInfo(int_left_most_bit(shardSize) - 1 + (reshardVote << 31))
+
+
+class RootBlockHeader(Serializable):
+    FIELDS = [
+        ("version", uint32),
+        ("height", uint32),
+        ("shardInfo", ShardInfo),
+        ("hashPrevBlock", hash256),
+        ("hashMerkleRoot", hash256),
+        ("coinbaseAddress", FixedSizeBytesSerializer(Constant.ADDRESS_LENGTH)),
+        ("coinbaseAmount", uint256),
+        ("createTime", uint32),
+        ("difficulty", uint32),
+        ("nonce", uint32)]
+
+    def __init__(self,
+                 version=0,
+                 height=0,
+                 shardInfo=ShardInfo.create(1, False),
+                 hashPrevBlock=bytes(32),
+                 hashMerkleRoot=bytes(32),
+                 coinbaseAddress=bytes(Constant.ADDRESS_LENGTH),
+                 coinbaseAmount=0,
+                 createTime=0,
+                 difficulty=0,
+                 nonce=0):
+        fields = {k: v for k, v in locals().items() if k != 'self'}
+        super(type(self), self).__init__(**fields)
+
+    def getHash(self):
+        return sha3_256(self.serialize())
+
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
+        createTime = self.createTime + 1 if createTime is None else createTime
+        address = Address.createEmptyAccount() if address is None else address
+        difficulty = difficulty if difficulty is not None else self.difficulty
+        header = RootBlockHeader(version=self.version,
+                                 height=self.height + 1,
+                                 shardInfo=copy.copy(self.shardInfo),
+                                 hashPrevBlock=self.getHash(),
+                                 hashMerkleRoot=bytes(32),
+                                 createTime=createTime,
+                                 difficulty=difficulty,
+                                 nonce=0)
+        return RootBlock(header)
+
+
+class RootBlock(Serializable):
+    FIELDS = [
+        ("header", RootBlockHeader),
+        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
+    ]
+
+    def __init__(self, header, minorBlockHeaderList=None):
+        self.header = header
+        self.minorBlockHeaderList = [] if minorBlockHeaderList is None else minorBlockHeaderList
+
+    def finalize(self, quarkash=0):
+        self.header.hashMerkleRoot = calculate_merkle_root(
+            self.minorBlockHeaderList)
+
+        self.header.coinbaseAmount = quarkash
+        return self
+
+    def addMinorBlockHeader(self, header):
+        self.minorBlockHeaderList.append(header)
+        return self
+
+    def extendMinorBlockHeaderList(self, headerList):
+        self.minorBlockHeaderList.extend(headerList)
+        return self
+
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
+        return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty, address=address)
