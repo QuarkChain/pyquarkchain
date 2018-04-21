@@ -14,6 +14,7 @@ from quarkchain.evm.state import State
 from quarkchain.db import ShardedDb
 from quarkchain.evm.messages import apply_transaction
 from quarkchain.config import NetworkId
+from quarkchain.reward import ConstMinorBlockRewardCalcultor
 
 
 class UtxoValue:
@@ -23,15 +24,6 @@ class UtxoValue:
         self.quarkash = quarkash
         # Root block that requires to confirm the UTXO
         self.rootBlockHeader = rootBlockHeader
-
-
-class MinorBlockRewardCalcultor:
-
-    def __init__(self, env):
-        self.env = env
-
-    def getBlockReward(self, chain):
-        return self.env.config.MINOR_BLOCK_DEFAULT_REWARD
 
 
 class TransactionInfo:
@@ -127,7 +119,7 @@ class ShardState:
         self.rootChain = rootChain
         self.diffCalc = self.env.config.MINOR_DIFF_CALCULATOR
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
-        self.rewardCalc = MinorBlockRewardCalcultor(env)
+        self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
 
         grCoinbaseTx = genesisRootBlock.coinbaseTx
         if self.branch.isInShard(grCoinbaseTx.outList[0].address.fullShardId):

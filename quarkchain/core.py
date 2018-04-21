@@ -28,6 +28,7 @@ class Constant:
     SIGNATURE_LENGTH = 65
     SIGNATURE_HEX_LENGTH = SIGNATURE_LENGTH * 2
     TX_HASH_HEX_LENGTH = 64
+    HASH_LENGTH = 32
 
 
 class ByteBuffer:
