@@ -71,8 +71,11 @@ class ShardDb:
     def getMinorBlockHeaderByHash(self, h):
         return self.mHeaderPool.get(h)
 
-    def getMinorBlockEvmRootHashByBlockHash(self, h):
+    def getMinorBlockEvmRootHashByHash(self, h):
         return self.db.get(b"state_" + h)
+
+    def getMinorBlockMetaByHash(self, h):
+        return self.mMetaPool.get(h)
 
     def containMinorBlockByHash(self, h):
         return h in self.mHeaderPool
@@ -174,47 +177,52 @@ class ShardState:
         success, output = apply_transaction(evmState, evmTx)
         return success, output
 
-    def __getEvmStateForNewBlock(self, blockHash):
-        state = EvmState(env=self.env)
-        state.trie.root_hash = self.db.getMinorBlockEvmRootHashByBlockHash(blockHash)
+    def __getEvmStateForNewBlock(self, block):
+        state = EvmState(env=self.env.evmEnv)
+        state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
+        state.txindex = 0
+        state.gas_used = 0
+        state.bloom = 0
+        state.receipts = []
+        state.timestamp = block.header.createTime
+        state.gas_limit = block.meta.evmGasLimit  # TODO
+        state.block_number = block.header.height
+        state.recent_uncles[state.block_number] = []  # TODO [x.hash for x in block.uncles]
+        # TODO: Create a account with shard info if the account is not created
+        state.block_coinbase = block.meta.coinbaseAddress.recipient
+        state.block_difficulty = block.header.difficulty
+        state.block_reward = 0
+        state.prev_headers = []                          # TODO: state.add_block_header(block.header)
         return state
 
-    def appendBlock(self, block):
-        """  Append a block.  This would perform validation check with local
-        UTXO pool and perform state change atomically
-        Return None upon success, otherwise return a string with error message
-        """
-
-        # TODO: May check if the block is already in db (and thus already
-        # validated)
-
+    def runBlock(self, block):
         if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
             # TODO:  May put the block back to queue
-            return "prev block not found"
-        prevHeader = self.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
-        prevMeta = self.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
+            raise ValueError("prev block not found")
+        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
+        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
 
         if block.header.height != prevHeader.height + 1:
-            return "height mismatch"
+            raise ValueError("height mismatch")
 
         if block.header.branch != self.branch:
-            return "branch mismatch"
+            raise ValueError("branch mismatch")
 
         if block.header.createTime <= prevHeader.createTime:
-            return "incorrect create time tip time {}, new block time {}".format(
-                block.header.createTime, self.chain[-1].createTime)
+            raise ValueError("incorrect create time tip time {}, new block time {}".format(
+                block.header.createTime, self.chain[-1].createTime))
 
         if len(block.meta.extraData) > self.env.config.BLOCK_EXTRA_DATA_SIZE_LIMIT:
-            return "extraData in block is too large"
+            raise ValueError("extraData in block is too large")
 
         # Make sure merkle tree is valid
         merkleHash = calculate_merkle_root(block.txList)
         if merkleHash != block.meta.hashMerkleRoot:
-            return "incorrect merkle root"
+            raise ValueError("incorrect merkle root")
 
         # Check the first transaction of the block
-        if not self.branch.isInShard(block.txList[0].outList[0].address.fullShardId):
-            return "coinbase output address must be in the shard"
+        if not self.branch.isInShard(block.meta.coinbaseAddress.fullShardId):
+            raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
@@ -222,51 +230,54 @@ class ShardState:
                 diff = self.getNextBlockDifficulty(block.header.createTime)
                 metric = diff * int.from_bytes(block.header.getHash(), byteorder="big")
                 if metric >= 2 ** 256:
-                    return "incorrect difficulty"
+                    raise ValueError("incorrect difficulty")
             elif block.meta.coinbaseAddress.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
-                return "incorrect master to create the block"
+                raise ValueError("incorrect master to create the block")
 
         if not self.branch.isInShard(block.meta.coinbaseAddress.fullShardId):
-            return "coinbase output must be in local shard"
+            raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
-        rootBlockHeader = self.db.getBlockHeaderByHash(block.header.hashPrevRootBlock)
+        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock)
         if rootBlockHeader is None:
-            return "cannot find root block for the minor block"
+            raise ValueError("cannot find root block for the minor block")
 
-        if rootBlockHeader.height < self.rootChain.getBlockHeaderByHash(prevMeta.hashPrevRootBlock).height:
-            return "prev root block height must be non-decreasing"
+        if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock).height:
+            raise ValueError("prev root block height must be non-decreasing")
 
-        evmState = self.__getEvmStateForNewBlock(prevHeader.getHash())
-        evmState.txindex = 0
-        evmState.gas_used = 0
-        evmState.bloom = 0
-        evmState.receipts = []
-        evmState.timestamp = block.header.createTime
-        evmState.gas_limit = block.meta.gas_limit  # TODO
-        evmState.block_number = block.header.height
-        evmState.recent_uncles[evmState.block_number] = []  # TODO [x.hash for x in block.uncles]
-        # TODO: Create a account with shard info if the account is not created
-        evmState.block_coinbase = block.meta.coinbaseAddress.recipient
-        evmState.block_difficulty = block.header.difficulty
-        evmState.block_reward = 0
-        evmState.prev_headers = []                          # TODO: evmState.add_block_header(block.header)
+        evmState = self.__getEvmStateForNewBlock(block)
 
-        self.__runCrossShardTxList(evmState, rootBlockHeader, prevMeta.hashPrevRootBlock)
+        self.__runCrossShardTxList(
+            evmState=evmState,
+            descendantRootHeader=rootBlockHeader,
+            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock))
 
         for idx, tx in enumerate(block.txList):
-            txHash = tx.getHash()
             try:
-                self.__performTx(tx, rootBlockHeader, evmState, txHash=txHash)
+                self.__performTx(tx, evmState)
             except Exception as e:
                 Logger.errorException()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
                     tx.getHash().hex(), idx, e))
                 return str(e)
 
-        # ------------------------ Validate ending result of the block --------------------
         # Update actual root hash
         evmState.commit()
+        return evmState
+
+    def addBlock(self, block):
+        """  Add a block.  This would perform validation check with local
+        UTXO pool and perform state change atomically
+        Return None upon success, otherwise return a string with error message
+        """
+
+        # TODO: May check if the block is already in db (and thus already
+        # validated)
+
+        # Throw exception if fail to run
+        evmState = self.runBlock(block)
+
+        # ------------------------ Validate ending result of the block --------------------
         if block.meta.hashEvmStateRoot != evmState.trie.root_hash:
             raise ValueError("State root mismatch: header %s computed %s" %
                              (block.meta.hashEvmStateRoot.hex(), evmState.trie.root_hash.hex()))
@@ -284,7 +295,10 @@ class ShardState:
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block)
 
-        self.blockPool[block.header.getHash()] = block.header
+        # Update tip
+        # TODO: Check root
+        if block.header.hashPrevMinorBlock == self.tip.header.getHash():
+            self.tip = block
 
         return None
 
@@ -392,4 +406,4 @@ class ShardState:
                 evmState.gas_used = min(evmState.gas_used + tx.gasUsed, evmState.gas_limit)
                 evmState.delta_balance(evmState.block_coinbase, evmState.gas_used * evmState.gas_price // 2)
 
-            rHeader = rHeader.hashPrevRootBlock
+            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevRootBlock)

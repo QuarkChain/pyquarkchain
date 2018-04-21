@@ -96,7 +96,7 @@ class MinorBlock(Serializable):
     def finalizeMerkleRoot(self):
         """ Compute merkle root hash and put it in the field
         """
-        self.header.hashMerkleRoot = self.calculateMerkleRoot()
+        self.meta.hashMerkleRoot = self.calculateMerkleRoot()
         return self
 
     def finalize(self, evmState, hashPrevRootBlock=None):

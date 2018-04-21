@@ -1,5 +1,4 @@
 from quarkchain.cluster.core import RootBlockHeader, RootBlock
-from quarkchain.core import Transaction, TransactionOutput, Code
 from quarkchain.cluster.core import MinorBlockMeta, MinorBlockHeader, MinorBlock, Branch, ShardInfo
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.utils import sha3_256
