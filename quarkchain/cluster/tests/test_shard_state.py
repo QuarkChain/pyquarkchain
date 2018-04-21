@@ -34,5 +34,6 @@ class TestShardState(unittest.TestCase):
             shardState=state,
             fromId=id1,
             toAddress=acc2,
-            amount=12345))
-        # self.assertIsNone(state.appendBlock(b1))
+            amount=12345)).finalizeMerkleRoot()
+
+        self.assertIsNotNone(state.runBlock(b1))
