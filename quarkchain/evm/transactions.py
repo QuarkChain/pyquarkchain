@@ -6,7 +6,7 @@ from rlp.utils import str_to_bytes, ascii_chr
 from ethereum.utils import encode_hex
 
 from ethereum.exceptions import InvalidTransaction
-from ethereum import opcodes
+from quarkchain.evm import opcodes
 from ethereum import utils
 from ethereum.utils import TT256, mk_contract_address, ecsign, ecrecover_to_pub, normalize_key
 

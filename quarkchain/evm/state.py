@@ -43,6 +43,7 @@ STATE_DEFAULTS = {
     "recent_uncles": {},
     "prev_headers": [],
     "refunds": 0,
+    "xshard_list": [],
 }
 
 

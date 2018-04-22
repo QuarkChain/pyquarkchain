@@ -26,7 +26,9 @@ def create_transfer_transaction(
         toAddress,
         amount,
         startgas=21000,     # transfer tx min gas
-        gasprice=1):
+        gasprice=1,
+        withdraw=0,
+        withdrawTo=b''):
     """ Create an in-shard xfer tx
     """
     evmTx = EvmTransaction(
@@ -36,7 +38,10 @@ def create_transfer_transaction(
         startgas=startgas,
         to=toAddress.recipient,
         value=amount,
-        data=b'')
+        data=b'',
+        withdrawSign=1,
+        withdraw=withdraw,
+        withdrawTo=withdrawTo)
     evmTx.sign(
         key=fromId.getKey(),
         network_id=shardState.env.config.NETWORK_ID)

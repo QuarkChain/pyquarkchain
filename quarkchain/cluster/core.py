@@ -229,3 +229,27 @@ class RootBlock(Serializable):
 
     def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
         return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty, address=address)
+
+
+class CrossShardTransactionDeposit(Serializable):
+    """ Destination of x-shard tx
+    """
+    FIELDS = (
+        ("address", Address),
+        ("amount", uint256),
+        ("gasPrice", uint256),
+    )
+
+    def __init__(self, address, amount, gasPrice):
+        self.address = address
+        self.amount = amount
+        self.gasPrice = gasPrice
+
+
+class CrossShardTransactionList(Serializable):
+    FIELDS = (
+        ("txList", PreprendedSizeListSerializer(4, CrossShardTransactionDeposit))
+    )
+
+    def __init__(self, txList):
+        self.txList = txList

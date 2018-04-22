@@ -223,7 +223,6 @@ class ShardState:
         return consumedUtxoList
 
     def __performEvmTx(self, evmState, evmTx):
-        evmState.delta_balance(evmTx.sender, -evmTx.getWithdraw())
         success, output = apply_transaction(evmState, evmTx)
 
     def __performTx(self, tx, rootBlockHeader, evmState, txHash=None):

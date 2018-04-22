@@ -1,39 +1,11 @@
-from quarkchain.cluster.core import RootBlock, MinorBlock
+from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Constant, uint256
-from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
+from quarkchain.core import calculate_merkle_root, Address
 from quarkchain.evm.state import State as EvmState
-from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check
-
-
-class CrossShardTransactionDeposit:
-    """ Destination of x-shard tx
-    """
-    FIELDS = (
-        ("recipient", PreprendedSizeBytesSerializer(20)),
-        ("amount", uint256),
-        ("gasUsed", uint256),
-        ("gasPrice", uint256),
-    )
-
-    def __init__(self, recipient, amount, gasUsed, gasPrice):
-        self.recipient = recipient
-        self.amount = amount
-        self.gasUsed = gasUsed
-        self.gasPrice = gasPrice
-
-
-class CrossShardTransactionList:
-    FIELDS = (
-        ("txList", PreprendedSizeListSerializer(4, CrossShardTransactionDeposit))
-    )
-
-    def __init__(self, txList):
-        self.txList = txList
 
 
 class ShardDb:
@@ -164,17 +136,6 @@ class ShardState:
             raise RuntimeError("evm tx is not in the shard")
         if evmTx.getWithdraw() < 0:
             raise RuntimeError("withdraw must be non-negative")
-        if evmTx.getWithdraw() != 0:
-            if len(evmTx.withdrawTo) != Constant.ADDRESS_LENGTH:
-                raise RuntimeError("evm withdraw address is incorrect")
-            if evmTx.startgas < opcodes.GTXXSHARDCOST:
-                raise RuntimeError("insufficient startgas")
-            evmTx.startgas -= opcodes.GTXXSHARDCOST
-            withdrawCost = opcodes.GTXXSHARDCOST * evmTx.gasprice + evmState.getWithdraw()
-            if evmState.get_balance(evmTx.sender) < withdrawCost:
-                raise RuntimeError("insufficient balance")
-            evmState.delta_balance(evmTx.sender, -withdrawCost)
-            # the xshard gas and fee is consumed by destination shard block
 
         success, output = apply_transaction(evmState, evmTx)
         return success, output
@@ -404,3 +365,6 @@ class ShardState:
                 evmState.delta_balance(evmState.block_coinbase, evmState.gas_used * evmState.gas_price // 2)
 
             rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevRootBlock)
+
+            # TODO: Check x-shard gas used is within limit
+            # TODO: Refill local x-shard gas
