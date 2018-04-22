@@ -104,7 +104,6 @@ class ShardState:
     - evm state
     - minor blockchain
     - root blockchain and cross-shard transaction
-    And we can perform state change either by append new block or roll back a block
     TODO: Support
     - reshard by split
     """
@@ -304,9 +303,10 @@ class ShardState:
         self.db.putMinorBlock(block, evmState)
 
         # Update tip
-        # TODO: Check root
         if block.header.hashPrevMinorBlock == self.headerTip.getHash():
-            self.tip = block.header
+            self.evmState = evmState
+            self.headerTip = block.header
+            self.metaTip = block.meta
 
         return None
 
@@ -316,12 +316,6 @@ class ShardState:
     def getBlockHeaderByHeight(self, height):
         pass
         # return self.chain[height]
-
-    def getBlockHeaderByHash(self, h):
-        return self.blockPool.get(h, None)
-
-    def getGenesisBlock(self):
-        return self.genesisBlock
 
     def getBalance(self, recipient):
         return self.evmState.get_balance(recipient)
