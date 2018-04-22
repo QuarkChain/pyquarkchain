@@ -34,7 +34,7 @@ STATE_DEFAULTS = {
     "block_number": 0,
     "block_coinbase": '\x00' * 20,
     "block_difficulty": 1,
-    "block_reward": 0,
+    "block_fee": 0,
     "timestamp": 0,
     "logs": [],
     "receipts": [],

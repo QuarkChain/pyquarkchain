@@ -1,14 +1,13 @@
+from quarkchain.cluster.core import RootBlock, MinorBlock
+from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
+from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Constant, uint256
 from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
 from quarkchain.evm.state import State as EvmState
-from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction
-from quarkchain.config import NetworkId
-from quarkchain.utils import Logger
-from quarkchain.cluster.core import RootBlock
-from quarkchain.utils import check
-from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
+from quarkchain.reward import ConstMinorBlockRewardCalcultor
+from quarkchain.utils import Logger, check
 
 
 class CrossShardTransactionDeposit:
@@ -77,6 +76,9 @@ class ShardDb:
     def getMinorBlockMetaByHash(self, h):
         return self.mMetaPool.get(h)
 
+    def getMinorBlockByHash(self, h):
+        return MinorBlock.deserialize(self.db.get(b"mblock_" + h))
+
     def containMinorBlockByHash(self, h):
         return h in self.mHeaderPool
 
@@ -139,8 +141,9 @@ class ShardState:
         self.db.putMinorBlock(genesisMinorBlock, self.evmState)
         self.db.putRootBlock(genesisRootBlock)
 
-        self.rootTip = genesisRootBlock
-        self.shardTip = genesisMinorBlock
+        self.rootTip = genesisRootBlock.header
+        self.headerTip = genesisMinorBlock.header
+        self.metaTip = genesisMinorBlock.meta
 
     def __performTx(self, tx, evmState):
         # UTXOs are not supported now
@@ -195,7 +198,9 @@ class ShardState:
         state.prev_headers = []                          # TODO: state.add_block_header(block.header)
         return state
 
-    def runBlock(self, block):
+    def prevalidateBlock(self, block):
+        ''' Validate a block before running evm transactions
+        '''
         if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
             # TODO:  May put the block back to queue
             raise ValueError("prev block not found")
@@ -245,7 +250,11 @@ class ShardState:
         if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock).height:
             raise ValueError("prev root block height must be non-decreasing")
 
-        evmState = self.__getEvmStateForNewBlock(block)
+    def runBlock(self, block, evmState=None):
+        if evmState is None:
+            evmState = self.__getEvmStateForNewBlock(block)
+        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock)
+        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
 
         self.__runCrossShardTxList(
             evmState=evmState,
@@ -259,22 +268,21 @@ class ShardState:
                 Logger.errorException()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
                     tx.getHash().hex(), idx, e))
-                return str(e)
+                raise e
 
         # Update actual root hash
         evmState.commit()
         return evmState
 
     def addBlock(self, block):
-        """  Add a block.  This would perform validation check with local
-        UTXO pool and perform state change atomically
-        Return None upon success, otherwise return a string with error message
+        """  Add a block to local db.  Perform validate and update tip accordingly
         """
 
-        # TODO: May check if the block is already in db (and thus already
-        # validated)
+        if self.db.containMinorBlockByHash(block.header.getHash()):
+            return None
 
         # Throw exception if fail to run
+        self.prevalidateBlock(block)
         evmState = self.runBlock(block)
 
         # ------------------------ Validate ending result of the block --------------------
@@ -286,29 +294,24 @@ class ShardState:
             raise ValueError("Gas used mismatch: header %d computed %d" %
                              (block.meta.evmGasUsed, evmState.gas_used))
 
-        if evmState.block_reward != block.meta.coinbaseAmount:
+        # The rest fee goes to root block
+        if evmState.block_fee // 2 != block.meta.coinbaseAmount:
             raise ValueError("Coinbase reward incorrect")
         # TODO: Check evm receipt and bloom
 
-        # The rest fee goes to root block
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
-        self.db.putMinorBlock(block)
+        self.db.putMinorBlock(block, evmState)
 
         # Update tip
         # TODO: Check root
-        if block.header.hashPrevMinorBlock == self.tip.header.getHash():
-            self.tip = block
+        if block.header.hashPrevMinorBlock == self.headerTip.getHash():
+            self.tip = block.header
 
         return None
 
-    def tip(self):
-        """ Return the header of the tail of the shard
-        """
-        return self.header
-
-    def metaTip(self):
-        return self.meta
+    def getTip(self):
+        return self.db.getMinorBlockByHash(self.headerTip.getHash())
 
     def getBlockHeaderByHeight(self, height):
         pass

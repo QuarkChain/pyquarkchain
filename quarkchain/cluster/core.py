@@ -2,10 +2,8 @@
 
 # Core data structures of cluster
 
-import argparse
 import copy
 
-from ethereum import utils
 
 from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
@@ -102,7 +100,9 @@ class MinorBlock(Serializable):
     def finalize(self, evmState, hashPrevRootBlock=None):
         if hashPrevRootBlock is not None:
             self.meta.hashPrevRootBlock = hashPrevRootBlock
-        self.meta.hashEvmStateRoot = evmState.trie.hash_root
+        self.meta.hashEvmStateRoot = evmState.trie.root_hash
+        self.meta.evmGasUsed = evmState.gas_used
+        self.meta.coinbaseAmount = evmState.block_fee // 2
         return self.finalizeMerkleRoot()
 
     def addTx(self, tx):

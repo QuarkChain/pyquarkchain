@@ -16,8 +16,8 @@ class TestShardState(unittest.TestCase):
     def testShardStateSimple(self):
         env = get_test_env()
         state = create_default_shard_state(env)
-        self.assertEqual(state.rootTip.header.height, 0)
-        self.assertEqual(state.shardTip.header.height, 0)
+        self.assertEqual(state.rootTip.height, 0)
+        self.assertEqual(state.headerTip.height, 0)
 
     def testShardStateTx(self):
         id1 = Identity.createRandomIdentity()
@@ -29,11 +29,16 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        b1 = state.shardTip.createBlockToAppend()
+        b1 = state.getTip().createBlockToAppend()
         b1.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
-            amount=12345)).finalizeMerkleRoot()
+            amount=12345))
 
-        self.assertIsNotNone(state.runBlock(b1))
+        evmState = state.runBlock(b1)
+        b1.finalize(evmState)
+
+        # Should succeed
+        state.addBlock(b1)
+        self.assertEqual(state.tip, b1.header)
