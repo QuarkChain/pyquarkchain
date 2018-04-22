@@ -105,6 +105,7 @@ GCONTRACTBYTE = 200   # one byte of code in contract creation
 GCALLVALUETRANSFER = 9000   # non-zero-valued call
 GLOGBYTE = 8          # cost of a byte of logdata
 
+GTXXSHARDCOST = GCALLVALUETRANSFER      # x-shard tx deposit gas
 GTXCOST = 21000       # TX BASE GAS COST
 GTXDATAZERO = 4       # TX DATA ZERO BYTE GAS COST
 GTXDATANONZERO = 68   # TX DATA NON ZERO BYTE GAS COST

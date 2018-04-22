@@ -6,13 +6,16 @@ from rlp.sedes import big_endian_int, binary, CountableList
 from rlp.utils import decode_hex, encode_hex
 from ethereum import utils
 from ethereum import bloom
-from ethereum import transactions
-from ethereum import opcodes
+from quarkchain.evm import transactions
+from quarkchain.evm import opcodes
 from quarkchain.evm import vm
 from ethereum.specials import specials as default_specials
 from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
 from ethereum.slogging import get_logger
+from quarkchain.core import Constant, Address
+from quarkchain.cluster.core import CrossShardTransactionDeposit
+
 
 null_address = b'\xff' * 20
 
@@ -135,15 +138,19 @@ def validate_transaction(state, tx):
     if req_nonce != tx.nonce:
         raise InvalidNonce(rp(tx, 'nonce', tx.nonce, req_nonce))
 
+    if tx.getWithdraw() > 0 and len(tx.withdrawTo) != Constant.ADDRESS_LENGTH:
+            raise RuntimeError("evm withdraw address is incorrect")
+
     # (3) the gas limit is no smaller than the intrinsic gas,
     # g0, used by the transaction;
-    if tx.startgas < tx.intrinsic_gas_used:
+    total_gas = tx.intrinsic_gas_used + (0 if tx.getWithdraw() <= 0 else opcodes.GTXXSHARDCOST)
+    if tx.startgas < total_gas:
         raise InsufficientStartGas(
-            rp(tx, 'startgas', tx.startgas, tx.intrinsic_gas_used))
+            rp(tx, 'startgas', tx.startgas, total_gas))
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
-    total_cost = tx.value + tx.gasprice * tx.startgas
+    total_cost = tx.value + tx.gasprice * tx.startgas + tx.getWithdraw()
 
     if state.get_balance(tx.sender) < total_cost:
         raise InsufficientBalance(
@@ -177,6 +184,9 @@ def apply_transaction(state, tx):
     state.suicides = []
     state.refunds = 0
     validate_transaction(state, tx)
+
+    if tx.getWithdraw() < 0:
+        state.delta_balance(tx.sender, -tx.getWithdraw())
 
     intrinsic_gas = tx.intrinsic_gas_used
     if state.is_HOMESTEAD():
@@ -253,6 +263,16 @@ def apply_transaction(state, tx):
         else:
             output = data
         success = 1
+
+        if tx.getWithdraw() > 0:
+            # TODO: check if the destination address is correct, and consume xshard gas of the state
+            # the xshard gas and fee is consumed by destination shard block
+            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST - tx.getWithdraw())
+            state.xshard_list.append(
+                CrossShardTransactionDeposit(
+                    address=Address.deserialize(tx.withdrawTo),
+                    amount=tx.getWithdraw(),
+                    gasPrice=tx.gasprice))
 
     state.gas_used += gas_used
 
