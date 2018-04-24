@@ -1,7 +1,7 @@
 from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address
+from quarkchain.core import calculate_merkle_root, Address, Constant
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.messages import apply_transaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
@@ -136,6 +136,13 @@ class ShardState:
             raise RuntimeError("evm tx is not in the shard")
         if evmTx.getWithdraw() < 0:
             raise RuntimeError("withdraw must be non-negative")
+        if evmTx.getWithdraw() != 0:
+            if len(evmTx.withdrawTo) != Constant.ADDRESS_LENGTH:
+                raise ValueError("withdraw to address length is incorrect")
+            withdrawTo = Address.deserialize(evmTx.withdrawTo)
+            if self.branch.isInShard(withdrawTo.fullShardId):
+                raise ValueError("withdraw address must not in the shard")
+        # TODO: Neighborhood and xshard gas limit check
 
         success, output = apply_transaction(evmState, evmTx)
         return success, output
@@ -225,7 +232,7 @@ class ShardState:
             try:
                 self.__performTx(tx, evmState)
             except Exception as e:
-                Logger.errorException()
+                Logger.debugException()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
                     tx.getHash().hex(), idx, e))
                 raise e

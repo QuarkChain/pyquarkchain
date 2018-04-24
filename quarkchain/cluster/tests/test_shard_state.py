@@ -115,3 +115,27 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - 888888 - opcodes.GTXCOST - opcodes.GTXXSHARDCOST)
         # Make sure the xshard gas is not used by local block
         self.assertEqual(state.evmState.gas_used, opcodes.GTXCOST)
+
+    def testShardStateXshardTxSentWithIncorrectShardId(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)   # wrong full shard id
+        acc2 = Address.createRandomAccount()
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        b1 = state.getTip().createBlockToAppend()
+        evmTx = create_transfer_transaction(
+            shardState=state,
+            fromId=id1,
+            toAddress=acc2,
+            amount=0,
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            withdraw=888888,
+            withdrawTo=bytes(acc1.serialize()))
+        b1.addTx(evmTx)
+
+        with self.assertRaises(ValueError):
+            state.runBlock(b1)
