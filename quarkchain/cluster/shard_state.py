@@ -1,9 +1,10 @@
-from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList
+from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList, CrossShardTransactionDeposit
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Address, Constant
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm import opcodes
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check
 
@@ -17,6 +18,7 @@ class ShardDb:
         self.xShardSet = set()
         self.rHeaderPool = dict()
 
+    # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rootBlockHash=None):
         if rootBlockHash is None:
             rootBlockHash = rootBlock.header.getHash()
@@ -30,6 +32,10 @@ class ShardDb:
     def getRootBlockHeaderByHash(self, h):
         return self.rHeaderPool.get(h)
 
+    def containRootBlockByHash(self, h):
+        return h in self.rHeaderPool
+
+    # ------------------------- Minor block db operations --------------------------------
     def putMinorBlock(self, mBlock, evmState, mBlockHash=None):
         if mBlockHash is None:
             mBlockHash = mBlock.header.getHash()
@@ -54,12 +60,16 @@ class ShardDb:
     def containMinorBlockByHash(self, h):
         return h in self.mHeaderPool
 
+    # -------------------------- Cross-shard tx operations ----------------------------
     def putMinorBlockXshardTxList(self, h, txList):
         self.xShardSet.add(h)
         self.db.put(b"xShard_" + h, txList.serialize())
 
     def getMinorBlockXshardTxList(self, h):
         return CrossShardTransactionList.deserialize(self.db.get(b"xShard_" + h))
+
+    def containRemoteMinorBlockHash(self, h):
+        return h in self.xShardSet
 
     def put(self, key, value):
         self.db.put(key, value)
@@ -287,7 +297,6 @@ class ShardState:
 
     def getBlockHeaderByHeight(self, height):
         pass
-        # return self.chain[height]
 
     def getBalance(self, recipient):
         return self.evmState.get_balance(recipient)
@@ -324,20 +333,24 @@ class ShardState:
     # ============================ Cross-shard transaction handling =============================
     #
     def addCrossShardTxListByMinorBlockHash(self, h, txList):
-        ''' Add a cross shard tx list from another shard
+        ''' Add a cross shard tx list from remote shard
+        The list should be validated by remote shard, however,
+        it is better to diagnose some bugs in peer shard if we could check
+        - x-shard gas limit exceeded
+        - it is a neighor of current shard following our routing rule
         '''
         self.db.putMinorBlockXshardTxList(h, txList)
 
     def addRootBlock(self, rBlock):
         ''' Add a root block.
-        Make sure all cross shard tx lists confirmed by the root block are in local db.
+        Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
         '''
-        if not self.db.containMinorBlockByHash(rBlock.header.hashPrevRootBlock):
+        if not self.db.containRootBlockByHash(rBlock.header.hashPrevBlock):
             raise ValueError("cannot find previous root block in pool")
 
         for mHeader in rBlock.minorBlockHeaderList:
             h = mHeader.getHash()
-            if h not in self.xShardSet:
+            if not self.db.containRemoteMinorBlockHash(h):
                 raise ValueError("cannot find xShard tx list")
 
         self.db.putRootBlock(rBlock)
@@ -347,14 +360,13 @@ class ShardState:
         txList = []
         for mHeader in rBlock.minorBlockHeaderList:
             h = mHeader.getHash()
-            txList.extend(self.db.getMinorBlockXshardTxList(h))
+            txList.extend(self.db.getMinorBlockXshardTxList(h).txList)
 
         # Apply root block coinbase
         if self.branch.isInShard(rBlock.header.coinbaseAddress.fullShardId):
             txList.append(CrossShardTransactionDeposit(
-                recipient=rBlock.header.coinbaseAddress,
+                address=rBlock.header.coinbaseAddress,
                 amount=rBlock.header.coinbaseAmount,
-                gasUsed=0,
                 gasPrice=0))
         return txList
 
@@ -371,11 +383,12 @@ class ShardState:
 
             txList = self.__getCrossShardTxListByRootBlockHash(descendantRootHeader.getHash())
             for tx in txList:
-                evmState.delta_balance(tx.recipient, tx.amount)
-                evmState.gas_used = min(evmState.gas_used + tx.gasUsed, evmState.gas_limit)
-                evmState.delta_balance(evmState.block_coinbase, evmState.gas_used * evmState.gas_price // 2)
+                evmState.delta_balance(tx.address.recipient, tx.amount)
+                evmState.gas_used = min(evmState.gas_used + opcodes.GTXXSHARDCOST, evmState.gas_limit)
+                evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
+                evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
 
-            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevRootBlock)
+            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
 
             # TODO: Check x-shard gas used is within limit
             # TODO: Refill local x-shard gas
