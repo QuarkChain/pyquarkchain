@@ -25,13 +25,14 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
+        acc3 = Address.createRandomAccount(fullShardId=0)
 
         env = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        b1 = state.getTip().createBlockToAppend()
+        b1 = state.getTip().createBlockToAppend(address=acc3)
         b1.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
@@ -39,26 +40,28 @@ class TestShardState(unittest.TestCase):
             amount=12345))
 
         evmState = state.runBlock(b1)
-        b1.finalize(evmState)
+        b1.finalize(evmState=evmState)
 
         # Should succeed
         state.addBlock(b1)
         self.assertEqual(state.headerTip, b1.header)
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345)
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
+        self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
     def testShardStateTwoTx(self):
         id1 = Identity.createRandomIdentity()
         id2 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createFromIdentity(id2)
+        acc3 = Address.createRandomAccount(fullShardId=0)
 
         env = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        b1 = state.getTip().createBlockToAppend()
+        b1 = state.getTip().createBlockToAppend(address=acc3)
         b1.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
@@ -78,18 +81,20 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.headerTip, b1.header)
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 1234500 + 234500)
         self.assertEqual(state.getBalance(acc2.recipient), 1234500 - 234500 - opcodes.GTXCOST)
+        self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST)
 
     def testShardStateXshardTxSent(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=1)
         acc2 = Address.createRandomAccount()
+        acc3 = Address.createRandomAccount(fullShardId=0)
 
         env = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env, shardId=0)
 
-        b1 = state.getTip().createBlockToAppend()
+        b1 = state.getTip().createBlockToAppend(address=acc3)
         evmTx = create_transfer_transaction(
             shardState=state,
             fromId=id1,
@@ -115,6 +120,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - 888888 - opcodes.GTXCOST - opcodes.GTXXSHARDCOST)
         # Make sure the xshard gas is not used by local block
         self.assertEqual(state.evmState.gas_used, opcodes.GTXCOST)
+        # GTXXSHARDCOST is consumed by remote shard
+        self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
     def testShardStateXshardTxSentWithIncorrectShardId(self):
         id1 = Identity.createRandomIdentity()

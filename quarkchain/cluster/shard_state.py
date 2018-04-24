@@ -237,6 +237,10 @@ class ShardState:
                     tx.getHash().hex(), idx, e))
                 raise e
 
+        # Put only half of block fee to coinbase address
+        check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)
+        evmState.delta_balance(evmState.block_coinbase, -evmState.block_fee // 2)
+
         # Update actual root hash
         evmState.commit()
         return evmState
