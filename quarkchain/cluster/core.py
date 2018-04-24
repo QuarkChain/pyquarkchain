@@ -111,7 +111,6 @@ class MinorBlock(Serializable):
 
     def createBlockToAppend(self,
                             address=Address.createEmptyAccount(),
-                            quarkash=0,
                             createTime=None,
                             difficulty=None,
                             extraData=b''):
@@ -212,11 +211,12 @@ class RootBlock(Serializable):
         self.header = header
         self.minorBlockHeaderList = [] if minorBlockHeaderList is None else minorBlockHeaderList
 
-    def finalize(self, quarkash=0):
+    def finalize(self, quarkash=0, coinbaseAddress=Address.createEmptyAccount()):
         self.header.hashMerkleRoot = calculate_merkle_root(
             self.minorBlockHeaderList)
 
         self.header.coinbaseAmount = quarkash
+        self.header.coinbaseAddress = coinbaseAddress
         return self
 
     def addMinorBlockHeader(self, header):
