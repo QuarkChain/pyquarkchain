@@ -138,7 +138,7 @@ class ShardState:
         # Check OP code
         if len(tx.code.code) == 0:
             raise RuntimeError("empty op code")
-        if not tx.code.isEvm:
+        if not tx.code.isEvm():
             raise RuntimeError("only evm transaction is supported now")
 
         evmTx = tx.code.getEvmTransaction()
