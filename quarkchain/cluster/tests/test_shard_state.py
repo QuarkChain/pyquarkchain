@@ -3,7 +3,7 @@ from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_tr
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.core import Identity, Address
 from quarkchain.evm import opcodes
-from quarkchain.cluster.core import CrossShardTransactionDeposit
+from quarkchain.cluster.core import CrossShardTransactionDeposit, CrossShardTransactionList
 
 
 def create_default_shard_state(env, shardId=0):
@@ -146,3 +146,52 @@ class TestShardState(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             state.runBlock(b1)
+
+    def testShardStateXshardTxReceived(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createRandomAccount()
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env, shardId=0)
+        state1 = create_default_shard_state(env=env, shardId=1)
+
+        b1 = state1.getTip().createBlockToAppend()
+        evmTx = create_transfer_transaction(
+            shardState=state1,
+            fromId=id1,
+            toAddress=acc2,
+            amount=0,
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gasPrice=2,
+            withdraw=888888,
+            withdrawTo=bytes(acc1.serialize()))
+        b1.addTx(evmTx)
+
+        # Add a x-shard tx from remote peer
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b1.header.getHash(),
+            txList=CrossShardTransactionList(txList=[
+                CrossShardTransactionDeposit(
+                    address=acc1,
+                    amount=888888,
+                    gasPrice=2)
+            ]))
+
+        # Create a root block containing the block with the x-shard tx
+        rB = state0.rootTip.createBlockToAppend()
+        rB.addMinorBlockHeader(b1.header)
+        rB.finalize()
+        state0.addRootBlock(rB)
+
+        # Add b0 and make sure all x-shard tx's are added
+        b0 = state0.getTip().createBlockToAppend(address=acc3)
+        b0.meta.hashPrevRootBlock = rB.header.getHash()
+        b0.finalize(evmState=state0.runBlock(b0))
+        state0.addBlock(b0)
+
+        self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888)
+        self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)

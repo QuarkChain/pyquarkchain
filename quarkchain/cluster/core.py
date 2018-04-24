@@ -163,7 +163,7 @@ class RootBlockHeader(Serializable):
         ("shardInfo", ShardInfo),
         ("hashPrevBlock", hash256),
         ("hashMerkleRoot", hash256),
-        ("coinbaseAddress", FixedSizeBytesSerializer(Constant.ADDRESS_LENGTH)),
+        ("coinbaseAddress", Address),
         ("coinbaseAmount", uint256),
         ("createTime", uint32),
         ("difficulty", uint32),
@@ -175,7 +175,7 @@ class RootBlockHeader(Serializable):
                  shardInfo=ShardInfo.create(1, False),
                  hashPrevBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
-                 coinbaseAddress=bytes(Constant.ADDRESS_LENGTH),
+                 coinbaseAddress=Address.createEmptyAccount(),
                  coinbaseAmount=0,
                  createTime=0,
                  difficulty=0,
@@ -234,11 +234,11 @@ class RootBlock(Serializable):
 class CrossShardTransactionDeposit(Serializable):
     """ Destination of x-shard tx
     """
-    FIELDS = (
+    FIELDS = [
         ("address", Address),
         ("amount", uint256),
         ("gasPrice", uint256),
-    )
+    ]
 
     def __init__(self, address, amount, gasPrice):
         self.address = address
@@ -247,9 +247,9 @@ class CrossShardTransactionDeposit(Serializable):
 
 
 class CrossShardTransactionList(Serializable):
-    FIELDS = (
+    FIELDS = [
         ("txList", PreprendedSizeListSerializer(4, CrossShardTransactionDeposit))
-    )
+    ]
 
     def __init__(self, txList):
         self.txList = txList

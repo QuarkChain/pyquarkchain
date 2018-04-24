@@ -26,7 +26,7 @@ def create_transfer_transaction(
         toAddress,
         amount,
         startgas=21000,     # transfer tx min gas
-        gasprice=1,
+        gasPrice=1,
         withdraw=0,
         withdrawTo=b''):
     """ Create an in-shard xfer tx
@@ -34,7 +34,7 @@ def create_transfer_transaction(
     evmTx = EvmTransaction(
         branchValue=shardState.branch.value,
         nonce=shardState.evmState.get_nonce(fromId.getRecipient()),
-        gasprice=gasprice,
+        gasprice=gasPrice,
         startgas=startgas,
         to=toAddress.recipient,
         value=amount,
