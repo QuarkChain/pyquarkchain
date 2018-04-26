@@ -267,8 +267,6 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.headerTip, b00.header)
 
         # Create another fork that is much longer (however not confirmed by rB)
-        b2.finalize(evmState=state0.runBlock(b2))
-        state0.addBlock(b2)
         b3 = b2.createBlockToAppend()
         b3.finalize(evmState=state0.runBlock(b3))
         state0.addBlock(b3)
@@ -277,3 +275,64 @@ class TestShardState(unittest.TestCase):
         state0.addBlock(b4)
         self.assertGreater(b4.header.height, b00.header.height)
         self.assertEqual(state0.headerTip, b00.header)
+
+    def testShardStateAddRootBlock(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env, shardId=0)
+        state1 = create_default_shard_state(env=env, shardId=1)
+
+        # Add one block and prepare a fork
+        b0 = state0.getTip().createBlockToAppend(address=acc1)
+        b2 = state0.getTip().createBlockToAppend(address=Address.createEmptyAccount())
+
+        b0.finalize(evmState=state0.runBlock(b0))
+        state0.addBlock(b0)
+        b2.finalize(evmState=state0.runBlock(b2))
+        state0.addBlock(b2)
+
+        b1 = state1.getTip().createBlockToAppend()
+        b1.finalize(evmState=state1.runBlock(b1))
+
+        # Create a root block containing the block with the x-shard tx
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b1.header.getHash(),
+            txList=CrossShardTransactionList(txList=[]))
+        rB = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+        rB1 = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b2.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+
+        state0.addRootBlock(rB)
+
+        b00 = b0.createBlockToAppend()
+        b00.finalize(evmState=state0.runBlock(b00))
+        state0.addBlock(b00)
+        self.assertEqual(state0.headerTip, b00.header)
+
+        # Create another fork that is much longer (however not confirmed by rB)
+        b3 = b2.createBlockToAppend()
+        b3.finalize(evmState=state0.runBlock(b3))
+        state0.addBlock(b3)
+        b4 = b1.createBlockToAppend()
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b4.header.getHash(),
+            txList=CrossShardTransactionList(txList=[]))
+        rB2 = rB1.createBlockToAppend() \
+            .addMinorBlockHeader(b3.header) \
+            .addMinorBlockHeader(b4.header) \
+            .finalize()
+
+        self.assertFalse(state0.addRootBlock(rB1))
+        self.assertTrue(state0.addRootBlock(rB2))
+        self.assertEqual(state0.headerTip, b3.header)
+        self.assertEqual(state0.metaTip, b3.meta)
+        self.assertEqual(state0.rootTip, rB2.header)
