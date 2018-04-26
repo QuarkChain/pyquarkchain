@@ -123,6 +123,10 @@ class ShardState:
         self.db.putRootBlock(genesisRootBlock)
 
         self.rootTip = genesisRootBlock.header
+        # Tips that are confirmed by root
+        self.confirmedHeaderTip = genesisMinorBlock.header
+        self.confirmedMetaTip = genesisMinorBlock.header
+        # Tips that are unconfirmed by root
         self.headerTip = genesisMinorBlock.header
         self.metaTip = genesisMinorBlock.meta
 
@@ -255,6 +259,18 @@ class ShardState:
         evmState.commit()
         return evmState
 
+    def __isMinorBlockLinkedToRootTip(self, mBlock):
+        """ Determine whether a minor block is a descendant of a minor block confirmed by root tip
+        """
+        if mBlock.header.height <= self.confirmedHeaderTip.height:
+            return False
+
+        header = mBlock.header
+        for i in range(self.confirmedHeaderTip.height - mBlock.header.height):
+            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+
+        return header == self.confirmedHeaderTip
+
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
         """
@@ -284,8 +300,9 @@ class ShardState:
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block, evmState)
 
-        # Update tip
-        if block.header.hashPrevMinorBlock == self.headerTip.getHash():
+        # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
+        if block.header.hashPrevMinorBlock == self.headerTip.getHash() or \
+                (block.header.height > self.headerTip.height and self.__isMinorBlockLinkedToRootTip(block)):
             self.evmState = evmState
             self.headerTip = block.header
             self.metaTip = block.meta

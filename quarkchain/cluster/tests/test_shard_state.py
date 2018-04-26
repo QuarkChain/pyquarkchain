@@ -195,3 +195,30 @@ class TestShardState(unittest.TestCase):
 
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888)
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)
+
+    def testShardStateForkResolve(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        b0 = state.getTip().createBlockToAppend()
+        b1 = state.getTip().createBlockToAppend()
+
+        b0.finalize(evmState=state.runBlock(b0))
+        state.addBlock(b0)
+        self.assertEqual(state.headerTip, b0.header)
+
+        # Fork happens, first come first serve
+        b1.finalize(evmState=state.runBlock(b0))
+        state.addBlock(b1)
+        self.assertEqual(state.headerTip, b0.header)
+
+        # Longer fork happens, override existing one
+        b2 = b1.createBlockToAppend()
+        b2.finalize(evmState=state.runBlock(b1))
+        state.addBlock(b2)
+        self.assertEqual(state.headerTip, b2.header)
