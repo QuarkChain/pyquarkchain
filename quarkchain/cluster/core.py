@@ -103,7 +103,9 @@ class MinorBlock(Serializable):
         self.meta.hashEvmStateRoot = evmState.trie.root_hash
         self.meta.evmGasUsed = evmState.gas_used
         self.meta.coinbaseAmount = evmState.block_fee // 2
-        return self.finalizeMerkleRoot()
+        self.finalizeMerkleRoot()
+        self.header.hashMeta = self.meta.getHash()
+        return self
 
     def addTx(self, tx):
         self.txList.append(tx)

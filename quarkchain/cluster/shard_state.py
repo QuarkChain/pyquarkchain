@@ -198,6 +198,9 @@ class ShardState:
             raise ValueError("incorrect create time tip time {}, new block time {}".format(
                 block.header.createTime, self.chain[-1].createTime))
 
+        if block.header.hashMeta != block.meta.getHash():
+            raise ValueError("Hash of meta mismatch")
+
         if len(block.meta.extraData) > self.env.config.BLOCK_EXTRA_DATA_SIZE_LIMIT:
             raise ValueError("extraData in block is too large")
 
@@ -365,17 +368,50 @@ class ShardState:
         if not self.db.containRootBlockByHash(rBlock.header.hashPrevBlock):
             raise ValueError("cannot find previous root block in pool")
 
+        shardHeader = None
         for mHeader in rBlock.minorBlockHeaderList:
             h = mHeader.getHash()
+            if mHeader.branch == self.branch:
+                if not self.db.containMinorBlockByHash(h):
+                    raise ValueError("cannot find minor block in local shard")
+                if shardHeader is None or shardHeader.height < mHeader.header:
+                    shardHeader = mHeader
+                continue
+
+            if not self.__isNeighbor(mHeader.branch):
+                continue
+
             if not self.db.containRemoteMinorBlockHash(h):
                 raise ValueError("cannot find xShard tx list")
 
         self.db.putRootBlock(rBlock)
 
+        if rBlock.header.height > self.rootTip.height:
+            # Switch to the longest root block
+            # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
+            self.rootTip = rBlock.header
+            self.headerTip = shardHeader
+            self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+            # TODO: Should search and set the longest one linked to the root
+            self.confirmedHeaderTip = self.headerTip
+            self.confirmedMetaTip = self.metaTip
+            return True
+        return False
+
+    def __isNeighbor(self, remoteBranch):
+        # TODO: Apply routing rule to determine neighors that could directly send x-shard tx
+        return True
+
     def __getCrossShardTxListByRootBlockHash(self, h):
         rBlock = self.db.getRootBlockByHash(h)
         txList = []
         for mHeader in rBlock.minorBlockHeaderList:
+            if mHeader.branch == self.branch:
+                continue
+
+            if not self.__isNeighbor(mHeader.branch):
+                continue
+
             h = mHeader.getHash()
             txList.extend(self.db.getMinorBlockXshardTxList(h).txList)
 

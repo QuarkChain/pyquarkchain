@@ -159,6 +159,11 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env, shardId=0)
         state1 = create_default_shard_state(env=env, shardId=1)
 
+        # Add one block in shard 0
+        b0 = state0.getTip().createBlockToAppend()
+        b0.finalize(evmState=state0.runBlock(b0))
+        state0.addBlock(b0)
+
         b1 = state1.getTip().createBlockToAppend()
         evmTx = create_transfer_transaction(
             shardState=state1,
@@ -182,16 +187,17 @@ class TestShardState(unittest.TestCase):
             ]))
 
         # Create a root block containing the block with the x-shard tx
-        rB = state0.rootTip.createBlockToAppend()
-        rB.addMinorBlockHeader(b1.header)
-        rB.finalize()
+        rB = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
         state0.addRootBlock(rB)
 
         # Add b0 and make sure all x-shard tx's are added
-        b0 = state0.getTip().createBlockToAppend(address=acc3)
-        b0.meta.hashPrevRootBlock = rB.header.getHash()
-        b0.finalize(evmState=state0.runBlock(b0))
-        state0.addBlock(b0)
+        b2 = state0.getTip().createBlockToAppend(address=acc3)
+        b2.meta.hashPrevRootBlock = rB.header.getHash()
+        b2.finalize(evmState=state0.runBlock(b2))
+        state0.addBlock(b2)
 
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888)
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)
@@ -222,3 +228,52 @@ class TestShardState(unittest.TestCase):
         b2.finalize(evmState=state.runBlock(b1))
         state.addBlock(b2)
         self.assertEqual(state.headerTip, b2.header)
+
+    def testShardStateRootChainFirstConsensus(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env, shardId=0)
+        state1 = create_default_shard_state(env=env, shardId=1)
+
+        # Add one block and prepare a fork
+        b0 = state0.getTip().createBlockToAppend(address=acc1)
+        b2 = state0.getTip().createBlockToAppend(address=Address.createEmptyAccount())
+
+        b0.finalize(evmState=state0.runBlock(b0))
+        state0.addBlock(b0)
+        b2.finalize(evmState=state0.runBlock(b2))
+        state0.addBlock(b2)
+
+        b1 = state1.getTip().createBlockToAppend()
+        b1.finalize(evmState=state1.runBlock(b1))
+
+        # Create a root block containing the block with the x-shard tx
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b1.header.getHash(),
+            txList=CrossShardTransactionList(txList=[]))
+        rB = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+        state0.addRootBlock(rB)
+
+        b00 = b0.createBlockToAppend()
+        b00.finalize(evmState=state0.runBlock(b00))
+        state0.addBlock(b00)
+        self.assertEqual(state0.headerTip, b00.header)
+
+        # Create another fork that is much longer (however not confirmed by rB)
+        b2.finalize(evmState=state0.runBlock(b2))
+        state0.addBlock(b2)
+        b3 = b2.createBlockToAppend()
+        b3.finalize(evmState=state0.runBlock(b3))
+        state0.addBlock(b3)
+        b4 = b3.createBlockToAppend()
+        b4.finalize(evmState=state0.runBlock(b4))
+        state0.addBlock(b4)
+        self.assertGreater(b4.header.height, b00.header.height)
+        self.assertEqual(state0.headerTip, b00.header)
