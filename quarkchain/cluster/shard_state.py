@@ -71,6 +71,7 @@ class ShardDb:
     def containRemoteMinorBlockHash(self, h):
         return h in self.xShardSet
 
+    # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
         self.db.put(key, value)
 
@@ -314,6 +315,10 @@ class ShardState:
 
     def getTip(self):
         return self.db.getMinorBlockByHash(self.headerTip.getHash())
+
+    def finalizeAndAddBlock(self, block):
+        block.finalize(evmState=self.runBlock(block))
+        self.addBlock(block)
 
     def getBlockHeaderByHeight(self, height):
         pass

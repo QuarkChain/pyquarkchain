@@ -5,11 +5,11 @@
 import copy
 
 
-from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
+from quarkchain.utils import sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
-from quarkchain.core import Serializable
-from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, FixedSizeBytesSerializer
+from quarkchain.core import Serializable, ShardInfo
+from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
 
 
 class MinorBlockMeta(Serializable):
@@ -112,10 +112,12 @@ class MinorBlock(Serializable):
         return self
 
     def createBlockToAppend(self,
-                            address=Address.createEmptyAccount(),
+                            address=None,
                             createTime=None,
                             difficulty=None,
                             extraData=b''):
+        if address is None:
+            address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
         meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
                               coinbaseAddress=address,
                               evmGasLimit=self.meta.evmGasLimit,
@@ -131,31 +133,6 @@ class MinorBlock(Serializable):
                                   difficulty=difficulty)
 
         return MinorBlock(header, meta, [])
-
-
-class ShardInfo(Serializable):
-    """ Shard information contains
-    - shard size (power of 2)
-    - voting of increasing shards
-    """
-    FIELDS = [
-        ("value", uint32),
-    ]
-
-    def __init__(self, value):
-        self.value = value
-
-    def getShardSize(self):
-        return 1 << (self.value & 31)
-
-    def getReshardVote(self):
-        return (self.value & (1 << 31)) != 0
-
-    @staticmethod
-    def create(shardSize, reshardVote=False):
-        assert(is_p2(shardSize))
-        reshardVote = 1 if reshardVote else 0
-        return ShardInfo(int_left_most_bit(shardSize) - 1 + (reshardVote << 31))
 
 
 class RootBlockHeader(Serializable):
