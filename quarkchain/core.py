@@ -13,7 +13,7 @@ import rlp
 from ethereum import utils
 
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import int_left_most_bit, is_p2, sha3_256
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check
 
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
@@ -380,6 +380,33 @@ class Branch(Serializable):
     def create(shardSize, shardId):
         assert(is_p2(shardSize))
         return Branch(shardSize | shardId)
+
+
+class ShardMask(Serializable):
+    ''' Represent a mask of shards, basically matches all the bits from the right until the leftmost bit is hit.
+    E.g.,
+    mask = 1, matches *
+    mask = 0b10, matches *0
+    mask = 0b101, matches *01
+    '''
+    FIELDS = [
+        ("value", uint32),
+    ]
+
+    def __init__(self, value):
+        check(value != 0)
+        self.value = value
+
+    def containShardId(self, shardId):
+        bitMask = (1 << (int_left_most_bit(self.value) - 1)) - 1
+        return (bitMask & shardId) == (self.value & bitMask)
+
+    def iterate(self, shardSize):
+        shardBits = int_left_most_bit(shardSize)
+        maskBits = int_left_most_bit(self.value) - 1
+        bitMask = (1 << maskBits) - 1
+        for i in range(1 << (shardBits - maskBits - 1)):
+            yield (i << maskBits) + (bitMask & self.value)
 
 
 class Code(Serializable):
