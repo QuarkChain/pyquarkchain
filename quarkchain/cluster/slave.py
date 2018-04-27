@@ -1,26 +1,44 @@
 import argparse
 import asyncio
+import errno
 import ipaddress
 
+from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
+from quarkchain.cluster.core import CrossShardTransactionList
+from quarkchain.cluster.protocol import ClusterConnection
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong
+from quarkchain.cluster.rpc import AddRootBlockResponse, AddXshardTxListRequest, AddXshardTxListResponse
+from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import Connection
-from quarkchain.db import PersistentDb
-from quarkchain.utils import is_shard_in_mask, set_logging_level, Logger
+from quarkchain.db import PersistentDb, ShardedDb
+from quarkchain.utils import check, is_shard_in_mask, set_logging_level, Logger
 
 
-class MasterConnection(Connection):
+class MasterConnection(ClusterConnection):
 
     def __init__(self, env, reader, writer, slaveServer):
         super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, MASTER_OP_NONRPC_MAP, MASTER_OP_RPC_MAP)
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.slaveServer = slaveServer
+        self.shardStateMap = slaveServer.shardStateMap
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
+
+    def close(self):
+        Logger.info("Lost connection with master")
+        self.slaveServer.shutdown()
+        return super().close()
+
+    def closeWithError(self, error):
+        Logger.info("Closing connection with master: {}".format(error))
+        return super().closeWithError(error)
+
+    # Cluster RPC handlers
 
     async def handlePing(self, ping):
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
@@ -62,14 +80,19 @@ class MasterConnection(Connection):
             resultList.append(bytes())
         return ConnectToSlavesResponse(resultList)
 
-    def close(self):
-        Logger.info("Lost connection with master")
-        self.slaveServer.shutdown()
-        return super().close()
+    # Blockchain RPC handlers
 
-    def closeWithError(self, error):
-        Logger.info("Closing connection with master: {}".format(error))
-        return super().closeWithError(error)
+    async def handleAddRootBlockRequest(self, req):
+        # TODO: handle expectSwitch
+        errorCode = 0
+        switched = False
+        try:
+            switched = self.shardState.addRootBlock(req.rootBlock)
+        except ValueError:
+            # TODO: May be enum or Unix errno?
+            errorCode = errno.EBADMSG
+
+        return AddRootBlockResponse(errorCode, switched)
 
 
 MASTER_OP_NONRPC_MAP = {}
@@ -80,6 +103,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.CONNECT_TO_SLAVES_RESPONSE, MasterConnection.handleConnectToSlavesRequest),
     ClusterOp.PING:
         (ClusterOp.PONG, MasterConnection.handlePing),
+    ClusterOp.ADD_ROOT_BLOCK_REQUEST:
+        (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, MasterConnection.handleAddRootBlockRequest)
 }
 
 
@@ -90,6 +115,7 @@ class SlaveConnection(Connection):
         self.slaveServer = slaveServer
         self.id = slaveId
         self.shardMaskList = shardMaskList
+        self.shardStateMap = self.slaveServer.shardStateMap
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
@@ -99,10 +125,16 @@ class SlaveConnection(Connection):
                 return True
         return False
 
+    def closeWithError(self, error):
+        Logger.info("Closing connection with slave {}".format(self.id))
+        return super().closeWithError(error)
+
     async def sendPing(self):
         req = Ping(self.slaveServer.id, self.slaveServer.shardMaskList)
         op, resp, rpcId = await self.writeRpcRequest(ClusterOp.PING, req)
         return (resp.id, resp.shardMaskList)
+
+    # Cluster RPC handlers
 
     async def handlePing(self, ping):
         if not self.id:
@@ -114,9 +146,21 @@ class SlaveConnection(Connection):
 
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
 
-    def closeWithError(self, error):
-        Logger.info("Closing connection with slave {}".format(self.id))
-        return super().closeWithError(error)
+    # Blockchain RPC handlers
+
+    async def handleAddXshardTxListRequest(self, req):
+        if req.branch.getShardSize() != self.__getShardSize():
+            Logger.error(
+                "add xshard tx list request shard size mismatch! "
+                "Expect: {}, actual: {}".format(self.__getShardSize(), req.branch.getShardSize()))
+            return AddXshardTxListResponse(errorCode=errno.ESRCH)
+
+        if req.branch.value not in self.shardStateMap:
+            Logger.error("cannot find shard id {} locally".format(req.branch.getShardId()))
+            return AddXshardTxListResponse(errorCode=errno.ENOENT)
+
+        self.shardStateMap[req.branch.value].addCrossShardTxListByMinorBlockHash(req.minorBlockHash, req.txList)
+        return AddXshardTxListResponse(errorCode=0)
 
 
 SLAVE_OP_NONRPC_MAP = {}
@@ -125,6 +169,8 @@ SLAVE_OP_NONRPC_MAP = {}
 SLAVE_OP_RPC_MAP = {
     ClusterOp.PING:
         (ClusterOp.PONG, SlaveConnection.handlePing),
+    ClusterOp.ADD_XSHARD_TX_LIST_REQUEST:
+        (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, SlaveConnection.handleAddXshardTxListRequest)
 }
 
 
@@ -143,6 +189,29 @@ class SlaveServer():
         self.slaveIds = set()
 
         self.master = None
+
+        self.__initShardStateMap()
+
+    def __initShardStateMap(self):
+        ''' branchValue -> ShardState mapping '''
+        shardSize = self.__getShardSize()
+        self.shardStateMap = dict()
+        branchValues = set()
+        for shardMask in self.shardMaskList:
+            for shardId in ShardMask(shardMask).iterate(shardSize):
+                branchValue = shardId + shardSize
+                branchValues.add(branchValue)
+
+        for branchValue in branchValues:
+            self.shardStateMap[branchValue] = ShardState(
+                env=self.env,
+                shardId=shardId,
+                createGenesis=True,
+                db=ShardedDb(
+                    db=self.env.db,
+                    fullShardId=branchValue,
+                )
+            )
 
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
@@ -187,6 +256,31 @@ class SlaveServer():
         self.loop.stop()
         self.server.close()
         self.loop.create_task(self.server.wait_closed())
+
+    # Blockchain functions
+
+    async def broadcastXshardTxList(self, block, xshardTxList):
+        xshardMap = dict()
+        for xshardTx in xshardTxList:
+            shardId = xshardTx.address.getShardId(self.__getShardSize())
+            branchValue = Branch.create(self.__getShardSize(), shardId).value
+            xshardMap.setdefault(branchValue, []).append(xshardTx)
+
+        # TODO: Only broadcast to neighbors
+        blockHash = block.header.getHash()
+        for branchValue, txList in xshardMap.items():
+            crossShardTxList = CrossShardTransactionList(txList)
+            if branchValue in self.shardStateMap:
+                self.shardStateMap[branchValue].addCrossShardTxListByMinorBlockHash(blockHash, crossShardTxList)
+
+            branch = Branch(branchValue)
+            request = AddXshardTxListRequest(branch, blockHash, crossShardTxList)
+            rpcFutures = []
+            for slaveConn in self.shardToSlaves[branch.getShardId()]:
+                future = slaveConn.writeRpcRequest(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
+                rpcFutures.append(future)
+        responses = await asyncio.gather(*rpcFutures)
+        check(all([response.errorCode == 0 for response in responses]))
 
 
 def parse_args():
