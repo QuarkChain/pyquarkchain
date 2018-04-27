@@ -322,8 +322,8 @@ class Address(Serializable):
         return Address(Identity.createRandomIdentity().getRecipient(), fullShardId)
 
     @staticmethod
-    def createEmptyAccount():
-        return Address(bytes(20), 0)
+    def createEmptyAccount(fullShardId=0):
+        return Address(bytes(20), fullShardId)
 
     @staticmethod
     def createFrom(bs):
