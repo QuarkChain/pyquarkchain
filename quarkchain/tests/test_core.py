@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 
-from quarkchain.core import Identity, Address, Code
+from quarkchain.core import Identity, Address
 from quarkchain.core import Transaction, ByteBuffer, random_bytes
 from quarkchain.core import MinorBlock, MinorBlockHeader, calculate_merkle_root, Branch, ShardInfo
 from quarkchain.core import RootBlockHeader
 import time
 import unittest
 from quarkchain.tests.test_utils import create_random_test_transaction
+from quarkchain.core import ShardMask
 
 
 class TestTransaction(unittest.TestCase):
@@ -103,3 +104,41 @@ class TestIdentity(unittest.TestCase):
         id2 = id1.createFromKey(id1.getKey())
         self.assertEqual(id1.getRecipient(), id2.getRecipient())
         self.assertEqual(id1.getKey(), id2.getKey())
+
+
+class TestShardMask(unittest.TestCase):
+
+    def testShardMask(self):
+        sm0 = ShardMask(0b1)
+        self.assertTrue(sm0.containShardId(0))
+        self.assertTrue(sm0.containShardId(1))
+        self.assertTrue(sm0.containShardId(0b1111111))
+
+        sm1 = ShardMask(0b101)
+        self.assertFalse(sm1.containShardId(0))
+        self.assertTrue(sm1.containShardId(0b1))
+        self.assertFalse(sm1.containShardId(0b10))
+        self.assertFalse(sm1.containShardId(0b11))
+        self.assertFalse(sm1.containShardId(0b100))
+        self.assertTrue(sm1.containShardId(0b101))
+        self.assertFalse(sm1.containShardId(0b110))
+        self.assertFalse(sm1.containShardId(0b111))
+        self.assertFalse(sm1.containShardId(0b1000))
+        self.assertTrue(sm1.containShardId(0b1001))
+
+    def testShardMaskIterate(self):
+        sm0 = ShardMask(0b11)
+        self.assertEqual(
+            sorted(l for l in sm0.iterate(4)),
+            [1, 0b11])
+        self.assertEqual(
+            sorted(l for l in sm0.iterate(8)),
+            [1, 0b11, 0b101, 0b111])
+
+        sm1 = ShardMask(0b101)
+        self.assertEqual(
+            sorted(l for l in sm1.iterate(8)),
+            [1, 0b101])
+        self.assertEqual(
+            sorted(l for l in sm1.iterate(16)),
+            [1, 0b101, 0b1001, 0b1101])
