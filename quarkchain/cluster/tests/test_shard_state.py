@@ -336,3 +336,32 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.headerTip, b3.header)
         self.assertEqual(state0.metaTip, b3.meta)
         self.assertEqual(state0.rootTip, rB2.header)
+
+    def testShardStateForkResolveWithHigherRootChain(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        b0 = state.getTip().createBlockToAppend()
+        state.finalizeAndAddBlock(b0)
+        rB = state.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .finalize()
+
+        self.assertEqual(state.headerTip, b0.header)
+        self.assertTrue(state.addRootBlock(rB))
+
+        b1 = state.getTip().createBlockToAppend()
+        b2 = state.getTip().createBlockToAppend(nonce=1)
+        b2.meta.hashPrevRootBlock = rB.header.getHash()
+
+        state.finalizeAndAddBlock(b1)
+        self.assertEqual(state.headerTip, b1.header)
+
+        # Fork happens, although they have the same height, b2 survives since it confirms root block
+        state.finalizeAndAddBlock(b2)
+        self.assertEqual(state.headerTip, b2.header)

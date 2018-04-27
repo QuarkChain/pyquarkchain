@@ -270,7 +270,7 @@ class ShardState:
             return False
 
         header = mBlock.header
-        for i in range(self.confirmedHeaderTip.height - mBlock.header.height):
+        for i in range(mBlock.header.height - self.confirmedHeaderTip.height):
             header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
 
         return header == self.confirmedHeaderTip
@@ -305,8 +305,19 @@ class ShardState:
         self.db.putMinorBlock(block, evmState)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
-        if block.header.hashPrevMinorBlock == self.headerTip.getHash() or \
-                (block.header.height > self.headerTip.height and self.__isMinorBlockLinkedToRootTip(block)):
+        # or they are equal length but the root height confirmed by the block is longer
+        updateTip = False
+        if block.header.hashPrevMinorBlock == self.headerTip.getHash():
+            updateTip = True
+        elif self.__isMinorBlockLinkedToRootTip(block):
+            if block.header.height > self.headerTip.height:
+                updateTip = True
+            elif block.header.height == self.headerTip.height:
+                prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
+                updateTip = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock).height > \
+                    self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock).height
+
+        if updateTip:
             self.evmState = evmState
             self.headerTip = block.header
             self.metaTip = block.meta
