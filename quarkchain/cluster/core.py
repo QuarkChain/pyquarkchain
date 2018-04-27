@@ -115,7 +115,8 @@ class MinorBlock(Serializable):
                             address=None,
                             createTime=None,
                             difficulty=None,
-                            extraData=b''):
+                            extraData=b'',
+                            nonce=0):
         if address is None:
             address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
         meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
@@ -130,7 +131,8 @@ class MinorBlock(Serializable):
                                   branch=self.header.branch,
                                   hashPrevMinorBlock=self.header.getHash(),
                                   createTime=createTime,
-                                  difficulty=difficulty)
+                                  difficulty=difficulty,
+                                  nonce=nonce)
 
         return MinorBlock(header, meta, [])
 
