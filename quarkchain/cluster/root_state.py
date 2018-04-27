@@ -82,14 +82,14 @@ class RootState:
 
     def __createGenesisBlocks(self):
         genesisRootBlock = create_genesis_root_block(self.env)
-        genesisMinorBlockList = []
+        genesisMinorBlockHeaderList = []
         for shardId in range(self.env.config.SHARD_SIZE):
-            genesisMinorBlockList.append(
+            genesisMinorBlockHeaderList.append(
                 create_genesis_minor_block(
                     env=self.env,
                     shardId=shardId,
-                    hashRootBlock=genesisRootBlock.header.getHash()))
-        self.db.putRootBlock(genesisRootBlock, genesisMinorBlockList)
+                    hashRootBlock=genesisRootBlock.header.getHash()).header)
+        self.db.putRootBlock(genesisRootBlock, genesisMinorBlockHeaderList)
         self.tip = genesisRootBlock.header
 
     def addValidatedMinorBlockHash(self, h):
@@ -146,13 +146,13 @@ class RootState:
                 lastMinorBlockHeaderList.append(block.minorBlockHeaderList[idx - 1])
                 shardId += 1
                 blockCountInShard = 0
-                prevHeader = prevLastMinorBlockHeaderList[mHeader.branch.getShardId()]
+                prevHeader = prevLastMinorBlockHeaderList[shardId]
 
             if not self.db.containMinorBlockByHash(mHeader.getHash()):
                 raise ValueError("minor block is not validated")
 
             if mHeader.hashPrevMinorBlock != prevHeader.getHash():
-                return "minor block doesn't link to previous minor block"
+                raise ValueError("minor block doesn't link to previous minor block")
             blockCountInShard += 1
             prevHeader = mHeader
             # TODO: Add coinbase
@@ -163,7 +163,7 @@ class RootState:
             raise ValueError("fail to prove progress")
 
         lastMinorBlockHeaderList.append(mHeader)
-        self.db.putRootBlock(block, lastMinorBlockHeaderList, rBlockHash=blockHash)
+        self.db.putRootBlock(block, lastMinorBlockHeaderList, rootBlockHash=blockHash)
 
         if self.tip.height < block.header.height:
             self.tip = block.header
