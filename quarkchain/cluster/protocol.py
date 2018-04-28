@@ -117,4 +117,4 @@ class ClusterConnection(ProxyConnection):
     def validateAndUpdatePeerRpcId(self, metadata, rpcId):
         if rpcId <= self.peerRpcIds.setdefault(metadata.peerId, 0):
             raise RuntimeError("incorrect rpc request id sequence")
-        self.peerRpcIds[metadata.peerId] = max(rpcId, self.peerRpcIds[metadata.peerId])
+        self.peerRpcIds[metadata.peerId] = rpcId

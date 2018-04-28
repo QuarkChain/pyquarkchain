@@ -132,7 +132,7 @@ class Connection:
     def validateAndUpdatePeerRpcId(self, metadata, rpcId):
         if rpcId <= self.peerRpcId:
             raise RuntimeError("incorrect rpc request id sequence")
-        self.peerRpcId = max(rpcId, self.peerRpcId)
+        self.peerRpcId = rpcId
 
     async def handleMetadataAndRawData(self, metadata, rawData):
         ''' Subclass can override this to provide customized handler '''
