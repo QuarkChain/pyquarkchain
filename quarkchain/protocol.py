@@ -1,6 +1,7 @@
 import asyncio
 from enum import Enum
 
+from quarkchain.core import Serializable
 from quarkchain.utils import Logger
 
 
@@ -13,9 +14,22 @@ class ConnectionState(Enum):
     CLOSED = 2       # the peer connection is closed
 
 
+class Metadata(Serializable):
+    ''' Metadata contains the extra info that needs to be encoded in the RPC layer'''
+    FIELDS = []
+
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def getByteSize():
+        ''' Returns the size (in bytes) of the serialized object '''
+        return 0
+
+
 class Connection:
 
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None):
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
         self.env = env
         self.reader = reader
         self.writer = writer
@@ -30,93 +44,65 @@ class Connection:
         loop = loop if loop else asyncio.get_event_loop()
         self.activeFuture = loop.create_future()
         self.closeFuture = loop.create_future()
+        self.metadataClass = metadataClass
 
-    def getConnectionToForward(self, branchValue):
-        ''' Returns the Connection object to forward a request for branchValue.
-        Returns None if the request should not be forwarded for branchValue.
-
-        Subclass should override this if the branch is on another node and this node
-        will forward the request without deserialize the request.
-
-        branchValue is a uint32 having shard size and shard id encoded as
-            shardSize | shardId
-        See the definition for Branch in core.py.
-        0 represents the root chain.
-
-        For example:
-        Assuming requests are sent to shards and master does the forwarding.
-
-        1. slave -> master -> peer
-            For requests coming from the slaves inside the cluster, this should return
-            a connection to the peer
-
-        2. peer -> master -> slave
-            For requests coming from other peers, this should return a connection
-            to the slave running the shard
-        '''
-        return None
-
-    async def readFully(self, n):
+    async def __readFully(self, n):
+        ba = bytearray()
         bs = await self.reader.read(n)
-        while len(bs) < n:
-            nbs = await self.reader.read(n - len(bs))
-            if len(nbs) == 0 and self.reader.at_eof():
+        ba.extend(bs)
+        while len(ba) < n:
+            bs = await self.reader.read(n - len(ba))
+            if len(bs) == 0 and self.reader.at_eof():
                 raise RuntimeError("read unexpected EOF")
-            bs = bs + nbs
-        return bs
+            ba.extend(bs)
+        return ba
 
-    async def readRawCommand(self):
-        branchValueBytes = await self.readFully(4)
-        branchValue = int.from_bytes(branchValueBytes, byteorder="big")
+    async def __readMetadataAndRawData(self):
+        metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
+        metadata = self.metadataClass.deserialize(metadataBytes)
 
-        opBytes = await self.reader.read(1)
-        if len(opBytes) == 0:
-            self.close()
-            return (None, None, None)
-
-        op = opBytes[0]
-        if op not in self.opSerMap:
-            self.closeWithError("Unsupported op {}".format(op))
-            return (None, None, None)
-
-        sizeBytes = await self.readFully(4)
+        sizeBytes = await self.__readFully(4)
         size = int.from_bytes(sizeBytes, byteorder="big")
+
         if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
-            self.closeWithError("command package exceed limit")
-            return (None, None, None)
+            raise RuntimeError("command package exceed limit")
 
-        rpcIdBytes = await self.readFully(8)
-        rpcId = int.from_bytes(rpcIdBytes, byteorder="big")
+        rawDataWithoutSize = await self.__readFully(1 + 8 + size)
+        return metadata, rawDataWithoutSize
 
-        cmdBytes = await self.readFully(size)
-
-        return (branchValue, op, cmdBytes, rpcId)
-
-    def __deserializeCommand(self, op, rawCommand):
+    def __parseCommand(self, rawData):
+        op = rawData[0]
+        rpcId = int.from_bytes(rawData[1:9], byteorder="big")
         ser = self.opSerMap[op]
-        cmd = ser.deserialize(rawCommand)
-        return cmd
+        cmd = ser.deserialize(rawData[9:])
+        return op, cmd, rpcId
 
     async def readCommand(self):
-        branchValue, op, cmdBytes, rpcId = await self.readRawCommand()
-        cmd = self.__deserializeCommand(op, cmdBytes)
-        # we don't return the branchValue to not break the existing code
+        metadata, rawData = await self.__readMetadataAndRawData()
+        op, cmd, rpcId = self.__parseCommand(rawData)
+
+        # we don't return the metadata to not break the existing code
         return (op, cmd, rpcId)
 
-    def writeRawCommand(self, op, cmdData, rpcId=0, branchValue=ROOT_SHARD_ID):
+    def writeRawData(self, metadata, rawData):
+        self.writer.write(metadata.serialize())
+        cmdLengthBytes = (len(rawData) - 8 - 1).to_bytes(4, byteorder="big")
+        self.writer.write(cmdLengthBytes)
+        self.writer.write(rawData)
+
+    def writeRawCommand(self, op, cmdData, rpcId=0, metadata=None):
+        metadata = metadata if metadata else self.metadataClass()
         ba = bytearray()
-        ba.extend(branchValue.to_bytes(4, byteorder="big"))
         ba.append(op)
-        ba.extend(len(cmdData).to_bytes(4, byteorder="big"))
         ba.extend(rpcId.to_bytes(8, byteorder="big"))
         ba.extend(cmdData)
-        self.writer.write(ba)
+        self.writeRawData(metadata, ba)
 
-    def writeCommand(self, op, cmd, rpcId=0, branchValue=ROOT_SHARD_ID):
+    def writeCommand(self, op, cmd, rpcId=0, metadata=None):
         data = cmd.serialize()
-        self.writeRawCommand(op, data, rpcId, branchValue)
+        self.writeRawCommand(op, data, rpcId, metadata)
 
-    def writeRawRpcRequest(self, op, rawCommand, branchValue=ROOT_SHARD_ID):
+    def writeRpcRequest(self, op, cmd, metadata=None):
         rpcFuture = asyncio.Future()
 
         if self.state != ConnectionState.ACTIVE:
@@ -127,37 +113,57 @@ class Connection:
         self.rpcId += 1
         rpcId = self.rpcId
         self.rpcFutureMap[rpcId] = rpcFuture
-        self.writeRawCommand(op, rawCommand, rpcId, branchValue)
+        self.writeCommand(op, cmd, rpcId, metadata)
         return rpcFuture
 
-    def writeRpcRequest(self, op, cmd, branchValue=ROOT_SHARD_ID):
-        return self.writeRawRpcRequest(op, cmd.serialize(), branchValue)
+    def __writeRpcResponse(self, op, cmd, rpcId):
+        self.writeCommand(op, cmd, rpcId)
 
-    def writeRawRpcResponse(self, op, rawCmd, rpcId, branchValue=ROOT_SHARD_ID):
-        self.writeRawCommand(op, rawCmd, rpcId, branchValue)
+    async def __handleRequest(self, op, request):
+            handler = self.opNonRpcMap[op]
+            # TODO: remove rpcid from handler signature
+            await handler(self, op, request, 0)
 
-    def writeRpcResponse(self, op, cmd, rpcId, branchValue=ROOT_SHARD_ID):
-        self.writeCommand(op, cmd, rpcId, branchValue)
-
-    async def handleRpcRequest(self, request, respOp, handler, rpcId, branchValue):
-        try:
+    async def __handleRpcRequest(self, op, request, rpcId):
+            respOp, handler = self.opRpcMap[op]
             resp = await handler(self, request)
-        except Exception as e:
-            self.closeWithError("Unable to process rpc: {}".format(e))
-            Logger.errorExceptionEverySec(1)
-            return
+            self.__writeRpcResponse(respOp, resp, rpcId)
 
-        self.writeRpcResponse(respOp, resp, rpcId, branchValue)
+    def validateAndUpdatePeerRpcId(self, metadata, rpcId):
+        if rpcId <= self.peerRpcId:
+            raise RuntimeError("incorrect rpc request id sequence")
+        self.peerRpcId = rpcId
 
-    async def forwardRpcRequest(self, forwardConn, op, rawCmd, rpcId, branchValue):
+    async def handleMetadataAndRawData(self, metadata, rawData):
+        ''' Subclass can override this to provide customized handler '''
+        op, cmd, rpcId = self.__parseCommand(rawData)
+
+        if op not in self.opSerMap:
+            raise RuntimeError("Unsupported op {}".format(op))
+
+        if op in self.opNonRpcMap:
+            if rpcId != 0:
+                raise RuntimeError("non-rpc command's id must be zero")
+            asyncio.ensure_future(self.__handleRequest(op, cmd))
+        elif op in self.opRpcMap:
+            # Check if it is a valid RPC request
+            self.validateAndUpdatePeerRpcId(metadata, rpcId)
+
+            await self.__handleRpcRequest(op, cmd, rpcId)
+        else:
+            # Check if it is a valid RPC response
+            if rpcId not in self.rpcFutureMap:
+                raise RuntimeError("Unexpected rpc response %d" % rpcId)
+            future = self.rpcFutureMap[rpcId]
+            del self.rpcFutureMap[rpcId]
+            future.set_result((op, cmd, rpcId))
+
+    async def __internalHandleMetadataAndRawData(self, metadata, rawData):
         try:
-            respOp, rawResp, _ = await forwardConn.writeRawRpcRequest(op, rawCmd, branchValue)
+            await self.handleMetadataAndRawData(metadata, rawData)
         except Exception as e:
-            self.closeWithError("Unable to forward rpc: {}".format(e))
-            Logger.errorExceptionEverySec(1)
-            return
-
-        self.writeRawRpcResponse(respOp, rawResp, rpcId, branchValue)
+            Logger.logException()
+            self.closeWithError("Error processing request: {}".format(e))
 
     async def activeAndLoopForever(self):
         if self.state == ConnectionState.CONNECTING:
@@ -165,49 +171,14 @@ class Connection:
             self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
             try:
-                branchValue, op, rawCmd, rpcId = await self.readRawCommand()
-                forwardConn = self.getConnectionToForward(branchValue)
-                if forwardConn is None:
-                    cmd = self.__deserializeCommand(op, rawCmd)
+                metadata, rawData = await self.__readMetadataAndRawData()
             except Exception as e:
-                self.closeWithError("Error when reading {}".format(e))
+                Logger.logException()
+                self.closeWithError("Error reading request: {}".format(e))
                 break
 
-            if op is None:
-                break
+            asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
 
-            if op in self.opNonRpcMap:
-                if rpcId != 0:
-                    self.closeWithError("non-rpc command's id must be zero")
-                    break
-                if forwardConn is None:
-                    handler = self.opNonRpcMap[op]
-                    asyncio.ensure_future(handler(self, op, cmd, rpcId))
-                else:
-                    forwardConn.writeRawCommand(op, rawCmd, branchValue)
-            elif op in self.opRpcMap:
-                # Check if it is a valid RPC request
-                if rpcId <= self.peerRpcId:
-                    self.closeWithError("incorrect rpc request id sequence")
-                    break
-                self.peerRpcId = max(rpcId, self.peerRpcId)
-
-                if forwardConn is None:
-                    respOp, handler = self.opRpcMap[op]
-                    asyncio.ensure_future(self.handleRpcRequest(cmd, respOp, handler, rpcId, branchValue))
-                else:
-                    asyncio.ensure_future(self.forwardRpcRequest(forwardConn, op, rawCmd, rpcId, branchValue))
-            else:
-                # Check if it is a valid RPC response
-                if rpcId not in self.rpcFutureMap:
-                    self.closeWithError("Unexpected rpc response %d" % rpcId)
-                    break
-                future = self.rpcFutureMap[rpcId]
-                del self.rpcFutureMap[rpcId]
-                if forwardConn is None:
-                    future.set_result((op, cmd, rpcId))
-                else:
-                    future.set_result((op, rawCmd, rpcId))
         assert(self.state == ConnectionState.CLOSED)
 
         # Abort all in-flight RPCs
