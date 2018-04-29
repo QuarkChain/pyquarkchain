@@ -116,18 +116,18 @@ class Connection:
         self.writeCommand(op, cmd, rpcId, metadata)
         return rpcFuture
 
-    def __writeRpcResponse(self, op, cmd, rpcId):
-        self.writeCommand(op, cmd, rpcId)
+    def __writeRpcResponse(self, op, cmd, rpcId, metadata):
+        self.writeCommand(op, cmd, rpcId, metadata)
 
     async def __handleRequest(self, op, request):
-            handler = self.opNonRpcMap[op]
-            # TODO: remove rpcid from handler signature
-            await handler(self, op, request, 0)
+        handler = self.opNonRpcMap[op]
+        # TODO: remove rpcid from handler signature
+        await handler(self, op, request, 0)
 
-    async def __handleRpcRequest(self, op, request, rpcId):
-            respOp, handler = self.opRpcMap[op]
-            resp = await handler(self, request)
-            self.__writeRpcResponse(respOp, resp, rpcId)
+    async def __handleRpcRequest(self, op, request, rpcId, metadata):
+        respOp, handler = self.opRpcMap[op]
+        resp = await handler(self, request)
+        self.__writeRpcResponse(respOp, resp, rpcId, metadata)
 
     def validateAndUpdatePeerRpcId(self, metadata, rpcId):
         if rpcId <= self.peerRpcId:
@@ -144,12 +144,12 @@ class Connection:
         if op in self.opNonRpcMap:
             if rpcId != 0:
                 raise RuntimeError("non-rpc command's id must be zero")
-            asyncio.ensure_future(self.__handleRequest(op, cmd))
+            await self.__handleRequest(op, cmd)
         elif op in self.opRpcMap:
             # Check if it is a valid RPC request
             self.validateAndUpdatePeerRpcId(metadata, rpcId)
 
-            await self.__handleRpcRequest(op, cmd, rpcId)
+            await self.__handleRpcRequest(op, cmd, rpcId, metadata)
         else:
             # Check if it is a valid RPC response
             if rpcId not in self.rpcFutureMap:
@@ -165,19 +165,22 @@ class Connection:
             Logger.logException()
             self.closeWithError("Error processing request: {}".format(e))
 
+    async def loopOnce(self):
+        try:
+            metadata, rawData = await self.__readMetadataAndRawData()
+        except Exception as e:
+            Logger.logException()
+            self.closeWithError("Error reading request: {}".format(e))
+            return
+
+        asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
+
     async def activeAndLoopForever(self):
         if self.state == ConnectionState.CONNECTING:
             self.state = ConnectionState.ACTIVE
             self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
-            try:
-                metadata, rawData = await self.__readMetadataAndRawData()
-            except Exception as e:
-                Logger.logException()
-                self.closeWithError("Error reading request: {}".format(e))
-                break
-
-            asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
+            await self.loopOnce()
 
         assert(self.state == ConnectionState.CLOSED)
 
