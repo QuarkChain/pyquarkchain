@@ -1,4 +1,4 @@
-from quarkchain.core import uint256, Branch
+from quarkchain.core import hash256, Branch
 from quarkchain.protocol import Connection
 from quarkchain.protocol import Metadata
 from quarkchain.utils import check
@@ -44,9 +44,9 @@ class ProxyConnection(Connection):
 
     async def handleMetadataAndRawData(self, metadata, rawData):
         forwardConn = self.getConnectionToForward(metadata)
-        check(self.validateConnection(forwardConn))
         if forwardConn:
-            return await forwardConn.writeRawData(self.getMetadataToForward(metadata), rawData)
+            check(self.validateConnection(forwardConn))
+            return forwardConn.writeRawData(self.getMetadataToForward(metadata), rawData)
         await super().handleMetadataAndRawData(metadata, rawData)
 
 
@@ -68,7 +68,7 @@ class ClusterMetadata(Metadata):
     ''' Metadata for intra-cluster (master and slave) connections '''
     FIELDS = [
         ("branch", Branch),
-        ("peerId", uint256)
+        ("peerId", hash256)
     ]
 
     def __init__(self, branch=None, peerId=b"\x00" * 32):
