@@ -14,7 +14,7 @@ from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListRespon
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb, ShardedDb
-from quarkchain.utils import check, is_shard_in_mask, set_logging_level, Logger
+from quarkchain.utils import check, set_logging_level, Logger
 
 
 class MasterConnection(ClusterConnection):
@@ -146,14 +146,14 @@ class SlaveConnection(Connection):
         super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, SLAVE_OP_NONRPC_MAP, SLAVE_OP_RPC_MAP)
         self.slaveServer = slaveServer
         self.id = slaveId
-        self.shardMaskList = shardMaskList
+        self.shardMaskList = [ShardMask(v) for v in shardMaskList]
         self.shardStateMap = self.slaveServer.shardStateMap
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
     def hasShard(self, shardId):
         for shardMask in self.shardMaskList:
-            if is_shard_in_mask(shardId, shardMask):
+            if shardMask.containShardId(shardId):
                 return True
         return False
 
@@ -213,7 +213,7 @@ class SlaveServer():
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.id = self.env.clusterConfig.ID
-        self.shardMaskList = self.env.clusterConfig.SHARD_MASK_LIST
+        self.shardMaskList = [ShardMask(v) for v in self.env.clusterConfig.SHARD_MASK_LIST]
 
         # shard id -> a list of slave running the shard
         self.shardToSlaves = [[] for i in range(self.__getShardSize())]
@@ -230,7 +230,7 @@ class SlaveServer():
         self.shardStateMap = dict()
         branchValues = set()
         for shardMask in self.shardMaskList:
-            for shardId in ShardMask(shardMask).iterate(shardSize):
+            for shardId in shardMask.iterate(shardSize):
                 branchValue = shardId + shardSize
                 branchValues.add(branchValue)
 

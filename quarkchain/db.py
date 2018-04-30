@@ -266,8 +266,8 @@ class ShardedDb(Db):
         self.fullShardId = fullShardId
         self.shardKey = fullShardId.to_bytes(4, byteorder="big")
 
-    def get(self, key):
-        return self.db.get(self.shardKey + key)
+    def get(self, key, default=None):
+        return self.db.get(self.shardKey + key, default)
 
     def put(self, key, value):
         return self.db.put(self.shardKey + key, value)
