@@ -1,3 +1,5 @@
+import time
+
 from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList, CrossShardTransactionDeposit
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
@@ -336,26 +338,32 @@ class ShardState:
     def getBalance(self, recipient):
         return self.evmState.get_balance(recipient)
 
-    def getNextBlockDifficulty(self, createTime):
+    def getNextBlockDifficulty(self, createTime=None):
+        if not createTime:
+            createTime = int(time.time())
         return self.diffCalc.calculateDiff(self, createTime)
 
     def getNextBlockReward(self):
         return self.rewardCalc.getBlockReward(self)
 
-    def createBlockToAppend(self, createTime=None, address=None):
-        """ Create an empty block to append
-        """
-        block = self.tip().createBlockToAppend(
-            createTime=createTime,
-            address=address,
-            quarkash=self.getNextBlockReward())
-        block.header.difficulty = self.getNextBlockDifficulty(block.header.createTime)
-        return block
+    def getNextBlockCoinbaseAmount(self):
+        # TODO: add block fee
+        return self.getNextBlockReward()
 
     def createBlockToMine(self, createTime=None, address=None, includeTx=True):
         """ Create a block to append and include TXs to maximize rewards
         """
-        pass
+        if not createTime:
+            createTime = int(time.time())
+        difficulty = self.getNextBlockDifficulty(createTime)
+        block = self.getTip().createBlockToAppend(
+            createTime=createTime,
+            address=address,
+            quarkash=self.getNextBlockReward(),
+            difficulty=difficulty,
+        )
+        # TODO: include tx and finalize
+        return block
 
     def addTransactionToQueue(self, transaction):
         # TODO: limit transaction queue size

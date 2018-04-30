@@ -8,7 +8,9 @@ from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import CrossShardTransactionList
 from quarkchain.cluster.protocol import ClusterConnection
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong
-from quarkchain.cluster.rpc import AddRootBlockResponse, AddXshardTxListRequest, AddXshardTxListResponse
+from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
+from quarkchain.cluster.rpc import AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse
+from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb, ShardedDb
@@ -94,6 +96,32 @@ class MasterConnection(ClusterConnection):
 
         return AddRootBlockResponse(errorCode, switched)
 
+    async def handleGetEcoInfoListRequest(self, req):
+        ecoInfoList = []
+        for branchValue, shardState in self.shardStateMap.items():
+            ecoInfoList.append(EcoInfo(
+                branch=Branch(branchValue),
+                height=shardState.headerTip.height + 1,
+                coinbaseAmount=shardState.getNextBlockCoinbaseAmount(),
+                difficulty=shardState.getNextBlockDifficulty(),
+            ))
+        return GetEcoInfoListResponse(
+            errorCode=0,
+            ecoInfoList=ecoInfoList,
+        )
+
+    async def handleGetNextBlockToMineRequest(self, req):
+        branchValue = req.branch.value
+        if branchValue not in self.shardStateMap:
+            return GetNextBlockToMineResponse(errorCode=errno.EBADMSG)
+
+        block = self.shardStateMap[branchValue].createBlockToMine()
+        response = GetNextBlockToMineResponse(
+            errorCode=0,
+            block=block,
+        )
+        return response
+
 
 MASTER_OP_NONRPC_MAP = {}
 
@@ -104,7 +132,11 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.PING:
         (ClusterOp.PONG, MasterConnection.handlePing),
     ClusterOp.ADD_ROOT_BLOCK_REQUEST:
-        (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, MasterConnection.handleAddRootBlockRequest)
+        (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, MasterConnection.handleAddRootBlockRequest),
+    ClusterOp.GET_ECO_INFO_LIST_REQUEST:
+        (ClusterOp.GET_ECO_INFO_LIST_RESPONSE, MasterConnection.handleGetEcoInfoListRequest),
+    ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST:
+        (ClusterOp.GET_NEXT_BLOCK_TO_MINE_RESPONSE, MasterConnection.handleGetNextBlockToMineRequest),
 }
 
 
@@ -259,7 +291,14 @@ class SlaveServer():
 
     # Blockchain functions
 
+    async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
+        ''' Update master that a minor block has been appended successfully '''
+        request = AddMinorBlockHeaderRequest(minorBlockHeader)
+        resp = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
+        check(resp.errorCode == 0)
+
     async def broadcastXshardTxList(self, block, xshardTxList):
+        ''' Broadcast x-shard transactions to their recipient shards '''
         xshardMap = dict()
         for xshardTx in xshardTxList:
             shardId = xshardTx.address.getShardId(self.__getShardSize())
