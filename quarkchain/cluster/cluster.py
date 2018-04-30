@@ -67,22 +67,38 @@ class Cluster:
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
+        self.shutdownCalled = False
+
+    async def waitAndShutdown(self, prefix, proc):
+        ''' If one process terminates shutdown the entire cluster '''
+        await proc.wait()
+        if self.shutdownCalled:
+            return
+
+        print("{} is dead. Shutting down the cluster...".format(prefix))
+        await self.shutdown()
 
     async def run(self):
         master = await run_master(self.config["master"]["port"], self.configFilePath)
         asyncio.ensure_future(print_output("MASTER", master.stdout))
 
-        self.procs.append(master)
+        self.procs.append(("MASTER", master))
         for slave in self.config["slaves"]:
             s = await run_slave(slave["port"], slave["id"], slave["shard_masks"])
-            asyncio.ensure_future(print_output("SLAVE_{}".format(slave["id"]), s.stdout))
-            self.procs.append(s)
+            prefix = "SLAVE_{}".format(slave["id"])
+            asyncio.ensure_future(print_output(prefix, s.stdout))
+            self.procs.append((prefix, s))
 
-        await asyncio.gather(*[proc.wait() for proc in self.procs])
+        await asyncio.gather(*[self.waitAndShutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
-        self.procs[0].terminate()
-        await asyncio.gather(*[proc.wait() for proc in self.procs])
+        self.shutdownCalled = True
+        for prefix, proc in self.procs:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+        await asyncio.gather(*[proc.wait() for prefix, proc in self.procs])
 
     def startAndLoop(self):
         try:
