@@ -340,7 +340,7 @@ class ShardState:
 
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
-            createTime = int(time.time())
+            createTime = max(int(time.time()), self.headerTip.createTime + 1)
         return self.diffCalc.calculateDiff(self, createTime)
 
     def getNextBlockReward(self):
@@ -354,7 +354,7 @@ class ShardState:
         """ Create a block to append and include TXs to maximize rewards
         """
         if not createTime:
-            createTime = int(time.time())
+            createTime = max(int(time.time()), self.headerTip.createTime + 1)
         difficulty = self.getNextBlockDifficulty(createTime)
         block = self.getTip().createBlockToAppend(
             createTime=createTime,
