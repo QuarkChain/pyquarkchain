@@ -58,7 +58,11 @@ class Connection:
         return ba
 
     async def __readMetadataAndRawData(self):
-        metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
+        try:
+            metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
+        except RuntimeError:
+            self.close()
+            return None, None
         metadata = self.metadataClass.deserialize(metadataBytes)
 
         sizeBytes = await self.__readFully(4)
@@ -79,6 +83,8 @@ class Connection:
 
     async def readCommand(self):
         metadata, rawData = await self.__readMetadataAndRawData()
+        if metadata is None:
+            return (None, None, None)
         op, cmd, rpcId = self.__parseCommand(rawData)
 
         # we don't return the metadata to not break the existing code
@@ -171,6 +177,10 @@ class Connection:
         except Exception as e:
             Logger.logException()
             self.closeWithError("Error reading request: {}".format(e))
+            return
+
+        if metadata is None:
+            check(self.state != ConnectionState.ACTIVE)
             return
 
         asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))

@@ -12,7 +12,7 @@ IP = "127.0.0.1"
 PORT = 38000
 
 
-def creatre_temp_cluster_config(num_slaves):
+def create_temp_cluster_config(num_slaves):
     if num_slaves <= 0 or not is_p2(num_slaves):
         print("Number of slaves must be power of 2")
         return None
@@ -43,12 +43,12 @@ def dump_config_to_file(config):
 
 
 async def run_master(port, configFilePath):
-    cmd = "python master.py --node_port={} --cluster_config={}".format(port, configFilePath)
+    cmd = "python3 master.py --node_port={} --cluster_config={}".format(port, configFilePath)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
 async def run_slave(port, id, shardMaskList):
-    cmd = "python slave.py --node_port={} --shard_mask={} --node_id={} --in_memory_db=true".format(
+    cmd = "python3 slave.py --node_port={} --shard_mask={} --node_id={} --in_memory_db=true".format(
         port, shardMaskList[0], id)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -103,7 +103,7 @@ def main():
         config = json.load(open(args.cluster_config))
         filename = args.cluster_config
     else:
-        config = creatre_temp_cluster_config(args.num_slaves)
+        config = create_temp_cluster_config(args.num_slaves)
         if not config:
             return -1
         filename = dump_config_to_file(config)

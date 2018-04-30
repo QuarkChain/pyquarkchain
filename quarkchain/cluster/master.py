@@ -6,10 +6,11 @@ import json
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
+from quarkchain.core import ShardMask
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
 from quarkchain.simple_network import SimpleNetwork
-from quarkchain.utils import is_shard_in_mask, set_logging_level, Logger, check
+from quarkchain.utils import set_logging_level, Logger, check
 
 
 class ClusterConfig:
@@ -33,14 +34,14 @@ class SlaveConnection(Connection):
         super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, self.OP_RPC_MAP)
         self.masterServer = masterServer
         self.id = slaveId
-        self.shardMaskList = shardMaskList
+        self.shardMaskList = [ShardMask(v) for v in shardMaskList]
         check(len(shardMaskList) > 0)
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
     def hasShard(self, shardId):
         for shardMask in self.shardMaskList:
-            if is_shard_in_mask(shardId, shardMask):
+            if shardMask.containShardId(shardId):
                 return True
         return False
 
