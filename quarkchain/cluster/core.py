@@ -112,8 +112,9 @@ class MinorBlock(Serializable):
         return self
 
     def createBlockToAppend(self,
-                            address=None,
                             createTime=None,
+                            address=None,
+                            quarkash=0,
                             difficulty=None,
                             extraData=b'',
                             nonce=0):
@@ -121,6 +122,7 @@ class MinorBlock(Serializable):
             address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
         meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
                               coinbaseAddress=address,
+                              coinbaseAmount=quarkash,
                               evmGasLimit=self.meta.evmGasLimit,
                               extraData=extraData)
 
