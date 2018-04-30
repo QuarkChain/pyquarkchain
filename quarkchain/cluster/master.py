@@ -4,12 +4,12 @@ import ipaddress
 import json
 
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.chain import QuarkChainState
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
 from quarkchain.core import ShardMask
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
-from quarkchain.simple_network import SimpleNetwork
+from quarkchain.cluster.root_state import RootState
+from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
 
 
@@ -86,7 +86,7 @@ class MasterServer():
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.network = network
-        self.qcState = network.qcState
+        self.rootState = network.rootState
         self.clusterConfig = env.clusterConfig.CONFIG
 
         # shard id -> a list of slave running the shard
@@ -94,7 +94,8 @@ class MasterServer():
         self.slavePool = set()
 
     def __getShardSize(self):
-        return self.qcState.getShardSize()
+        # TODO: replace it with dynamic size
+        return self.env.config.SHARD_SIZE
 
     def __hasAllShards(self):
         ''' Returns True if all the shards have been run by at least one node '''
@@ -215,8 +216,8 @@ def main():
     env = parse_args()
     env.NETWORK_ID = 1  # testnet
 
-    qcState = QuarkChainState(env)
-    network = SimpleNetwork(env, qcState)
+    rootState = RootState(env, createGenesis=True)
+    network = SimpleNetwork(env, rootState)
     network.start()
 
     master = MasterServer(env, network)
