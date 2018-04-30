@@ -61,11 +61,11 @@ class ShardDb:
         return h in self.mHeaderPool
 
     # -------------------------- Cross-shard tx operations ----------------------------
-    def putMinorBlockXshardTxList(self, h, txList):
+    def putMinorBlockXshardTxList(self, h, txList: CrossShardTransactionList):
         self.xShardSet.add(h)
         self.db.put(b"xShard_" + h, txList.serialize())
 
-    def getMinorBlockXshardTxList(self, h):
+    def getMinorBlockXshardTxList(self, h) -> CrossShardTransactionList:
         return CrossShardTransactionList.deserialize(self.db.get(b"xShard_" + h))
 
     def containRemoteMinorBlockHash(self, h):
@@ -313,9 +313,8 @@ class ShardState:
             if block.header.height > self.headerTip.height:
                 updateTip = True
             elif block.header.height == self.headerTip.height:
-                prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
                 updateTip = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock).height > \
-                    self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock).height
+                    self.db.getRootBlockHeaderByHash(self.metaTip.hashPrevRootBlock).height
 
         if updateTip:
             self.evmState = evmState
@@ -368,7 +367,7 @@ class ShardState:
     #
     # ============================ Cross-shard transaction handling =============================
     #
-    def addCrossShardTxListByMinorBlockHash(self, h, txList):
+    def addCrossShardTxListByMinorBlockHash(self, h, txList: CrossShardTransactionList):
         ''' Add a cross shard tx list from remote shard
         The list should be validated by remote shard, however,
         it is better to diagnose some bugs in peer shard if we could check
@@ -390,7 +389,7 @@ class ShardState:
             if mHeader.branch == self.branch:
                 if not self.db.containMinorBlockByHash(h):
                     raise ValueError("cannot find minor block in local shard")
-                if shardHeader is None or shardHeader.height < mHeader.header:
+                if shardHeader is None or shardHeader.height < mHeader.height:
                     shardHeader = mHeader
                 continue
 
@@ -400,11 +399,13 @@ class ShardState:
             if not self.db.containRemoteMinorBlockHash(h):
                 raise ValueError("cannot find xShard tx list")
 
+        # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
+        check(shardHeader is not None)
+
         self.db.putRootBlock(rBlock)
 
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
-            # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
             self.rootTip = rBlock.header
             self.headerTip = shardHeader
             self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())

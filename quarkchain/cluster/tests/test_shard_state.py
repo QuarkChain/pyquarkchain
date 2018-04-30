@@ -290,10 +290,8 @@ class TestShardState(unittest.TestCase):
         b0 = state0.getTip().createBlockToAppend(address=acc1)
         b2 = state0.getTip().createBlockToAppend(address=Address.createEmptyAccount())
 
-        b0.finalize(evmState=state0.runBlock(b0))
-        state0.addBlock(b0)
-        b2.finalize(evmState=state0.runBlock(b2))
-        state0.addBlock(b2)
+        state0.finalizeAndAddBlock(b0)
+        state0.finalizeAndAddBlock(b2)
 
         b1 = state1.getTip().createBlockToAppend()
         b1.finalize(evmState=state1.runBlock(b1))
@@ -314,27 +312,28 @@ class TestShardState(unittest.TestCase):
         state0.addRootBlock(rB)
 
         b00 = b0.createBlockToAppend()
-        b00.finalize(evmState=state0.runBlock(b00))
-        state0.addBlock(b00)
+        state0.finalizeAndAddBlock(b00)
         self.assertEqual(state0.headerTip, b00.header)
 
         # Create another fork that is much longer (however not confirmed by rB)
         b3 = b2.createBlockToAppend()
-        b3.finalize(evmState=state0.runBlock(b3))
-        state0.addBlock(b3)
-        b4 = b1.createBlockToAppend()
+        state0.finalizeAndAddBlock(b3)
+        b4 = b3.createBlockToAppend()
+        state0.finalizeAndAddBlock(b4)
+        b5 = b1.createBlockToAppend()
         state0.addCrossShardTxListByMinorBlockHash(
-            h=b4.header.getHash(),
+            h=b5.header.getHash(),
             txList=CrossShardTransactionList(txList=[]))
         rB2 = rB1.createBlockToAppend() \
             .addMinorBlockHeader(b3.header) \
             .addMinorBlockHeader(b4.header) \
+            .addMinorBlockHeader(b5.header) \
             .finalize()
 
         self.assertFalse(state0.addRootBlock(rB1))
         self.assertTrue(state0.addRootBlock(rB2))
-        self.assertEqual(state0.headerTip, b3.header)
-        self.assertEqual(state0.metaTip, b3.meta)
+        self.assertEqual(state0.headerTip, b4.header)
+        self.assertEqual(state0.metaTip, b4.meta)
         self.assertEqual(state0.rootTip, rB2.header)
 
     def testShardStateForkResolveWithHigherRootChain(self):
@@ -358,10 +357,16 @@ class TestShardState(unittest.TestCase):
         b1 = state.getTip().createBlockToAppend()
         b2 = state.getTip().createBlockToAppend(nonce=1)
         b2.meta.hashPrevRootBlock = rB.header.getHash()
+        b3 = state.getTip().createBlockToAppend(nonce=2)
+        b3.meta.hashPrevRootBlock = rB.header.getHash()
 
         state.finalizeAndAddBlock(b1)
         self.assertEqual(state.headerTip, b1.header)
 
         # Fork happens, although they have the same height, b2 survives since it confirms root block
         state.finalizeAndAddBlock(b2)
+        self.assertEqual(state.headerTip, b2.header)
+
+        # b3 confirms the same root block as b2, so it will not override b2
+        state.finalizeAndAddBlock(b3)
         self.assertEqual(state.headerTip, b2.header)
