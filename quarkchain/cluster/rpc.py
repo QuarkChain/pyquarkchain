@@ -3,7 +3,7 @@ from quarkchain.core import (
     PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Branch
 )
 
-from quarkchin.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, CrossShardTransactionList
+from quarkchain.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, CrossShardTransactionList
 
 
 # RPCs to initialize a cluster
