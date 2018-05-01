@@ -21,7 +21,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.rootTip.height, 0)
         self.assertEqual(state.headerTip.height, 0)
 
-    def testShardStateTx(self):
+    def testOneTx(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
         acc2 = Address.createRandomAccount()
@@ -32,24 +32,22 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        b1 = state.getTip().createBlockToAppend(address=acc3)
-        b1.addTx(create_transfer_transaction(
+        state.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
             amount=12345))
-
-        evmState = state.runBlock(b1)
-        b1.finalize(evmState=evmState)
+        b1 = state.createBlockToMine(address=acc3)
+        self.assertEqual(len(b1.txList), 1)
 
         # Should succeed
-        state.addBlock(b1)
+        state.finalizeAndAddBlock(b1)
         self.assertEqual(state.headerTip, b1.header)
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345)
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
-    def testShardStateTwoTx(self):
+    def testTwoTx(self):
         id1 = Identity.createRandomIdentity()
         id2 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
@@ -61,29 +59,27 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        b1 = state.getTip().createBlockToAppend(address=acc3)
-        b1.addTx(create_transfer_transaction(
+        state.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
             amount=1234500))
-        b1.addTx(create_transfer_transaction(
+        state.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id2,
             toAddress=acc1,
             amount=234500))
-
-        evmState = state.runBlock(b1)
-        b1.finalize(evmState)
+        b1 = state.createBlockToMine(address=acc3)
+        self.assertEqual(len(b1.txList), 2)
 
         # Should succeed
-        state.addBlock(b1)
+        state.finalizeAndAddBlock(b1)
         self.assertEqual(state.headerTip, b1.header)
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 1234500 + 234500)
         self.assertEqual(state.getBalance(acc2.recipient), 1234500 - 234500 - opcodes.GTXCOST)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST)
 
-    def testShardStateXshardTxSent(self):
+    def testXshardTxSent(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=1)
         acc2 = Address.createRandomAccount()
@@ -94,22 +90,20 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env, shardId=0)
 
-        b1 = state.getTip().createBlockToAppend(address=acc3)
-        evmTx = create_transfer_transaction(
+        state.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
             amount=0,
             startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             withdraw=888888,
-            withdrawTo=bytes(acc1.serialize()))
+            withdrawTo=bytes(acc1.serialize())))
 
-        b1.addTx(evmTx)
-        evmState = state.runBlock(b1)
-        b1.finalize(evmState)
+        b1 = state.createBlockToMine(address=acc3)
+        self.assertEqual(len(b1.txList), 1)
 
         # Should succeed
-        state.addBlock(b1)
+        state.finalizeAndAddBlock(b1)
         self.assertEqual(len(state.evmState.xshard_list), 1)
         self.assertEqual(
             state.evmState.xshard_list[0],
@@ -123,7 +117,7 @@ class TestShardState(unittest.TestCase):
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
-    def testShardStateXshardTxSentWithIncorrectShardId(self):
+    def testAddBlockXshardTxSentWithIncorrectShardId(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)   # wrong full shard id
         acc2 = Address.createRandomAccount()
@@ -134,20 +128,41 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shardId=0)
 
         b1 = state.getTip().createBlockToAppend()
-        evmTx = create_transfer_transaction(
+        b1.addTx(create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
             amount=0,
             startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             withdraw=888888,
-            withdrawTo=bytes(acc1.serialize()))
-        b1.addTx(evmTx)
+            withdrawTo=bytes(acc1.serialize())))
 
         with self.assertRaises(ValueError):
             state.runBlock(b1)
 
-    def testShardStateXshardTxReceived(self):
+    def testCreateBlockToMineXshardTxSentWithIncorrectShardId(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)   # wrong full shard id
+        acc2 = Address.createRandomAccount()
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        state.addTx(create_transfer_transaction(
+            shardState=state,
+            fromId=id1,
+            toAddress=acc2,
+            amount=0,
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            withdraw=888888,
+            withdrawTo=bytes(acc1.serialize())))
+        b1 = state.createBlockToMine(address=acc1)
+        self.assertEqual(len(b1.txList), 0)
+        self.assertEqual(len(state.txQueue), 0)
+
+    def testXshardTxReceived(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount()
@@ -160,9 +175,8 @@ class TestShardState(unittest.TestCase):
         state1 = create_default_shard_state(env=env, shardId=1)
 
         # Add one block in shard 0
-        b0 = state0.getTip().createBlockToAppend()
-        b0.finalize(evmState=state0.runBlock(b0))
-        state0.addBlock(b0)
+        b0 = state0.createBlockToMine()
+        state0.finalizeAndAddBlock(b0)
 
         b1 = state1.getTip().createBlockToAppend()
         evmTx = create_transfer_transaction(
@@ -194,15 +208,13 @@ class TestShardState(unittest.TestCase):
         state0.addRootBlock(rB)
 
         # Add b0 and make sure all x-shard tx's are added
-        b2 = state0.getTip().createBlockToAppend(address=acc3)
-        b2.meta.hashPrevRootBlock = rB.header.getHash()
-        b2.finalize(evmState=state0.runBlock(b2))
-        state0.addBlock(b2)
+        b2 = state0.createBlockToMine(address=acc3)
+        state0.finalizeAndAddBlock(b2)
 
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888)
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)
 
-    def testShardStateForkResolve(self):
+    def testForkResolve(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
@@ -214,22 +226,19 @@ class TestShardState(unittest.TestCase):
         b0 = state.getTip().createBlockToAppend()
         b1 = state.getTip().createBlockToAppend()
 
-        b0.finalize(evmState=state.runBlock(b0))
-        state.addBlock(b0)
+        state.finalizeAndAddBlock(b0)
         self.assertEqual(state.headerTip, b0.header)
 
         # Fork happens, first come first serve
-        b1.finalize(evmState=state.runBlock(b0))
-        state.addBlock(b1)
+        state.finalizeAndAddBlock(b1)
         self.assertEqual(state.headerTip, b0.header)
 
         # Longer fork happens, override existing one
         b2 = b1.createBlockToAppend()
-        b2.finalize(evmState=state.runBlock(b1))
-        state.addBlock(b2)
+        state.finalizeAndAddBlock(b2)
         self.assertEqual(state.headerTip, b2.header)
 
-    def testShardStateRootChainFirstConsensus(self):
+    def testRootChainFirstConsensus(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
@@ -243,10 +252,8 @@ class TestShardState(unittest.TestCase):
         b0 = state0.getTip().createBlockToAppend(address=acc1)
         b2 = state0.getTip().createBlockToAppend(address=Address.createEmptyAccount())
 
-        b0.finalize(evmState=state0.runBlock(b0))
-        state0.addBlock(b0)
-        b2.finalize(evmState=state0.runBlock(b2))
-        state0.addBlock(b2)
+        state0.finalizeAndAddBlock(b0)
+        state0.finalizeAndAddBlock(b2)
 
         b1 = state1.getTip().createBlockToAppend()
         b1.finalize(evmState=state1.runBlock(b1))
@@ -262,17 +269,14 @@ class TestShardState(unittest.TestCase):
         state0.addRootBlock(rB)
 
         b00 = b0.createBlockToAppend()
-        b00.finalize(evmState=state0.runBlock(b00))
-        state0.addBlock(b00)
+        state0.finalizeAndAddBlock(b00)
         self.assertEqual(state0.headerTip, b00.header)
 
         # Create another fork that is much longer (however not confirmed by rB)
         b3 = b2.createBlockToAppend()
-        b3.finalize(evmState=state0.runBlock(b3))
-        state0.addBlock(b3)
+        state0.finalizeAndAddBlock(b3)
         b4 = b3.createBlockToAppend()
-        b4.finalize(evmState=state0.runBlock(b4))
-        state0.addBlock(b4)
+        state0.finalizeAndAddBlock(b4)
         self.assertGreater(b4.header.height, b00.header.height)
         self.assertEqual(state0.headerTip, b00.header)
 

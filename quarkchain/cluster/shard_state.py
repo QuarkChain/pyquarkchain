@@ -3,9 +3,11 @@ import time
 from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList, CrossShardTransactionDeposit
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address, Constant
+from quarkchain.core import calculate_merkle_root, Address, Code, Constant, Transaction
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm import opcodes
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check
@@ -100,6 +102,7 @@ class ShardState:
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
         self.db = ShardDb(self.rawDb)
+        self.txQueue = TransactionQueue()
 
         check(createGenesis)
         if createGenesis:
@@ -133,7 +136,7 @@ class ShardState:
         self.headerTip = genesisMinorBlock.header
         self.metaTip = genesisMinorBlock.meta
 
-    def __performTx(self, tx, evmState):
+    def __validateTx(self, tx: Transaction) -> EvmTransaction:
         # UTXOs are not supported now
         if len(tx.inList) != 0:
             raise RuntimeError("input list must be empty")
@@ -160,9 +163,14 @@ class ShardState:
             if self.branch.isInShard(withdrawTo.fullShardId):
                 raise ValueError("withdraw address must not in the shard")
         # TODO: Neighborhood and xshard gas limit check
+        return evmTx
 
-        success, output = apply_transaction(evmState, evmTx)
-        return success, output
+    def addTx(self, tx: Transaction):
+        try:
+            evmTx = self.__validateTx(tx)
+            self.txQueue.add_transaction(evmTx)
+        except Exception as e:
+            Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
 
     def __getEvmStateForNewBlock(self, block):
         state = EvmState(env=self.env.evmEnv)
@@ -182,7 +190,7 @@ class ShardState:
         state.prev_headers = []                          # TODO: state.add_block_header(block.header)
         return state
 
-    def prevalidateBlock(self, block):
+    def __validateBlock(self, block):
         ''' Validate a block before running evm transactions
         '''
         if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
@@ -250,7 +258,8 @@ class ShardState:
 
         for idx, tx in enumerate(block.txList):
             try:
-                self.__performTx(tx, evmState)
+                evmTx = self.__validateTx(tx)
+                apply_transaction(evmState, evmTx)
             except Exception as e:
                 Logger.debugException()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
@@ -285,7 +294,7 @@ class ShardState:
             return None
 
         # Throw exception if fail to run
-        self.prevalidateBlock(block)
+        self.__validateBlock(block)
         evmState = self.runBlock(block)
 
         # ------------------------ Validate ending result of the block --------------------
@@ -328,6 +337,10 @@ class ShardState:
     def getTip(self):
         return self.db.getMinorBlockByHash(self.headerTip.getHash())
 
+    def tip(self):
+        ''' Called in diff.py '''
+        return self.headerTip
+
     def finalizeAndAddBlock(self, block):
         block.finalize(evmState=self.runBlock(block))
         self.addBlock(block)
@@ -341,7 +354,9 @@ class ShardState:
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)
-        return self.diffCalc.calculateDiff(self, createTime)
+        return 1
+        # TODO: fix this
+        # return self.diffCalc.calculateDiff(self, createTime)
 
     def getNextBlockReward(self):
         return self.rewardCalc.getBlockReward(self)
@@ -362,7 +377,37 @@ class ShardState:
             quarkash=self.getNextBlockReward(),
             difficulty=difficulty,
         )
-        # TODO: include tx and finalize
+        block.meta.hashPrevRootBlock = self.rootTip.getHash()
+
+        evmState = self.__getEvmStateForNewBlock(block)
+        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
+
+        self.__runCrossShardTxList(
+            evmState=evmState,
+            descendantRootHeader=self.rootTip,
+            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock))
+
+        while evmState.gas_used < evmState.gas_limit:
+            evmTx = self.txQueue.pop_transaction(
+                max_gas=evmState.gas_limit - evmState.gas_used,
+            )
+            if evmTx is None:
+                break
+
+            try:
+                apply_transaction(evmState, evmTx)
+                block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
+            except Exception as e:
+                Logger.debugException()
+
+        # Put only half of block fee to coinbase address
+        check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)
+        evmState.delta_balance(evmState.block_coinbase, -evmState.block_fee // 2)
+
+        # Update actual root hash
+        evmState.commit()
+
+        block.finalize(evmState=evmState)
         return block
 
     def addTransactionToQueue(self, transaction):
