@@ -84,6 +84,7 @@ class Connection:
         return op, cmd, rpcId
 
     async def readCommand(self):
+        # TODO: distinguish clean disconnect or unexpected disconnect
         try:
             metadata, rawData = await self.__readMetadataAndRawData()
             if metadata is None:
