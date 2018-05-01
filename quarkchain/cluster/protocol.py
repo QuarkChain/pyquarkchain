@@ -4,6 +4,7 @@ from quarkchain.protocol import Metadata
 from quarkchain.utils import check
 
 ROOT_SHARD_ID = 0
+ROOT_BRANCH = Branch(ROOT_SHARD_ID)
 
 
 class ProxyConnection(Connection):

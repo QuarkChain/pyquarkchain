@@ -1,6 +1,6 @@
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 from quarkchain.core import (
-    PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Branch
+    PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Branch, ShardMask
 )
 
 from quarkchain.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, CrossShardTransactionList
@@ -11,7 +11,7 @@ from quarkchain.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, Cro
 class Ping(Serializable):
     FIELDS = [
         ("id", PreprendedSizeBytesSerializer(4)),
-        ("shardMaskList", PreprendedSizeListSerializer(4, uint32)),
+        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
     ]
 
     def __init__(self, id, shardMaskList):
@@ -26,7 +26,7 @@ class Ping(Serializable):
 class Pong(Serializable):
     FIELDS = [
         ("id", PreprendedSizeBytesSerializer(4)),
-        ("shardMaskList", PreprendedSizeListSerializer(4, uint32)),
+        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
     ]
 
     def __init__(self, id, shardMaskList):
@@ -43,7 +43,7 @@ class SlaveInfo(Serializable):
         ("id", PreprendedSizeBytesSerializer(4)),
         ("ip", uint128),
         ("port", uint16),
-        ("shardMaskList", PreprendedSizeListSerializer(4, uint32)),
+        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
     ]
 
     def __init__(self, id, ip, port, shardMaskList):
