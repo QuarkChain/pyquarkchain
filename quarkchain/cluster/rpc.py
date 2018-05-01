@@ -271,6 +271,40 @@ class DownloadMinorBlockListResponse(Serializable):
         self.errorCode = errorCode
 
 
+# Virtual connection management
+class CreateClusterPeerConnectionRequest(Serializable):
+    ''' Broadcast to the cluster and announce that a peer connection is created
+    Assume always succeed.
+    '''
+    FIELDS = [
+        ("clusterPeerId", uint64)
+    ]
+
+    def __init__(self, clusterPeerId):
+        self.clusterPeerId = clusterPeerId
+
+
+class CreateClusterPeerConnectionResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32)
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
+class DestroyClusterPeerConnectionCommand(Serializable):
+    ''' Broadcast to the cluster and announce that a peer connection is lost
+    As a contract, the master will not send traffic after the command.
+    '''
+    FIELDS = [
+        ("clusterPeerId", uint64)
+    ]
+
+    def __init__(self, clusterPeerId):
+        self.clusterPeerId = clusterPeerId
+
+
 # slave -> master
 
 class AddMinorBlockHeaderRequest(Serializable):
@@ -345,6 +379,9 @@ class ClusterOp():
     DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE = 22 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_REQUEST = 23 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_RESPONSE = 24 + CLUSTER_OP_BASE
+    CREATE_CLUSTER_PEER_CONNECTION_REQUEST = 25 + CLUSTER_OP_BASE
+    CREATE_CLUSTER_PEER_CONNECTION_RESPONSE = 26 + CLUSTER_OP_BASE
+    DESTROY_CLUSTER_PEER_CONNECTION_COMMAND = 27 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -372,4 +409,7 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.ADD_TRANSACTION_RESPONSE: AddTransactionResponse,
     ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST: DownloadMinorBlockListRequest,
     ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE: DownloadMinorBlockListResponse,
+    ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST: CreateClusterPeerConnectionRequest,
+    ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE: CreateClusterPeerConnectionResponse,
+    ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: DestroyClusterPeerConnectionCommand,
 }

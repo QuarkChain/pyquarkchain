@@ -111,6 +111,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, masterServer)
+        masterServer.network = network
         network.startServer()
         if i != 0:
             peer = call_async(network.connect("127.0.0.1", seedPort))
@@ -128,6 +129,9 @@ def shutdown_clusters(clusterList):
     for cluster in clusterList:
         # Shutdown simple network first
         cluster.network.shutdown()
+
+        # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
+        loop.run_until_complete(asyncio.sleep(0.1))
 
         for slave in cluster.slaveList:
             slave.shutdown()

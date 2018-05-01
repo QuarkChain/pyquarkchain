@@ -3,7 +3,7 @@ import unittest
 from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
 from quarkchain.evm import opcodes
 from quarkchain.core import Address, Branch, Identity
-from quarkchain.utils import call_async
+from quarkchain.utils import call_async, assert_true_with_timeout
 
 
 class TestCluster(unittest.TestCase):
@@ -151,3 +151,11 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(
                 clusters[0].slaveList[1].shardStateMap[0b11].containRemoteMinorBlockHash(b1.header.getHash()))
             self.assertTrue(clusters[0].master.rootState.isMinorBlockValidated(b1.header.getHash()))
+
+            # Make sure another cluster received the new block
+            assert_true_with_timeout(
+                lambda: clusters[1].slaveList[0].shardStateMap[0b10].containBlockByHash(b1.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[1].slaveList[1].shardStateMap[0b11].containRemoteMinorBlockHash(b1.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[1].master.rootState.isMinorBlockValidated(b1.header.getHash()))

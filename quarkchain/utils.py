@@ -48,6 +48,16 @@ def call_async(coro):
     return future.result()
 
 
+def assert_true_with_timeout(f, duration=1):
+        async def d():
+            deadline = time.time() + duration
+            while not f() and time.time() < deadline:
+                await asyncio.sleep(0.001)
+            assert(f())
+
+        asyncio.get_event_loop().run_until_complete(d())
+
+
 class Logger:
     lastDebugTimeMap = dict()
     lastInfoTimeMap = dict()

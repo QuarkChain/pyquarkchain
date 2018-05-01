@@ -149,6 +149,8 @@ class AbstractConnection:
         try:
             metadata, rawData = await self.readMetadataAndRawData()
             if metadata is None:
+		# Hit EOF
+                self.close()
                 return
         except Exception as e:
             Logger.logException()

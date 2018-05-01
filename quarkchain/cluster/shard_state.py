@@ -443,6 +443,14 @@ class ShardState:
         block.finalize(evmState=evmState)
         return block
 
+    def getBlockByHash(self, h):
+        ''' Return an validated block.  Return None if no such block exists in db
+        '''
+        return self.db.getMinorBlockByHash(h)
+
+    def containBlockByHash(self, h):
+        return self.db.containMinorBlockByHash(h)
+
     def getPendingTxSize(self):
         return self.transactionPool.size()
 
