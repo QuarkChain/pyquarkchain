@@ -244,6 +244,7 @@ class DownloadMinorBlockListRequest(Serializable):
 class DownloadMinorBlockListResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
+        ("minorBlockList", PreprendedSizeListSerializer(4, MinorBlock))
     ]
 
     def __init__(self, errorCode):

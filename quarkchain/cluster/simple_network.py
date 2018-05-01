@@ -137,7 +137,7 @@ class Peer(P2PConnection):
         try:
             rBlock = await self.writeRpcRequest(
                 op=self.GET_ROOT_BLOCK_LIST_REQUEST,
-                cmd=GetRootBlockListRequest(rootBlockHashList[rBlockHash]),
+                cmd=GetRootBlockListRequest(rootBlockHashList=[rBlockHash]),
                 metadata=P2PMetadata(Branch(ROOT_SHARD_ID)))
         except Exception:
             self.closeWithError("Unable to download root block {}".format(rBlockHash.hex()))
@@ -149,9 +149,7 @@ class Peer(P2PConnection):
         for mBlockHeader in rBlock.minorBlockHeaderList:
             mBlockHash = mBlockHeader.getHash()
             if not self.rootState.isMinorBlockValidated(mBlockHash):
-                if mBlockHeader.branch not in minorBlockDownloadMap:
-                    minorBlockDownloadMap[mBlockHeader.branch] = []
-                minorBlockDownloadMap[mBlockHeader.branch].add(mBlockHash)
+                minorBlockDownloadMap.setdefault(mBlockHeader.branch, []).add(mBlockHash)
 
         futureList = []
         for branch, mBlockHashList in minorBlockDownloadMap.items():
@@ -184,6 +182,7 @@ class Peer(P2PConnection):
         if self.rootState.containRootBlockByHash(rBlockHash):
             return
 
+        # TODO: support single miner broadcast case at the monment
         try:
             self.rootState.validateBlockHeader(cmd.rootBlockHeader, blockHash=rBlockHash)
         except ValueError as e:
