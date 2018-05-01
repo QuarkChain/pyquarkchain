@@ -81,7 +81,7 @@ class TestP2PConnection(unittest.TestCase):
 
         reader = AsyncMock()
         writer = MagicMock()
-        reader.read.side_effect = [metaBytes, requestSizeBytes, rawData]
+        reader.read.side_effect = [requestSizeBytes, metaBytes, rawData]
 
         conn = DummyP2PConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
@@ -102,13 +102,13 @@ class TestP2PConnection(unittest.TestCase):
 
         reader = AsyncMock()
         writer = MagicMock()
-        reader.read.side_effect = [metaBytes, requestSizeBytes, rawData]
+        reader.read.side_effect = [requestSizeBytes, metaBytes, rawData]
 
         conn = DummyP2PConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
         conn.mockClusterConnection.writeRawData.assert_not_called()
-        writer.write.assert_has_calls([call(metaBytes), call(requestSizeBytes), call(rawData)])
+        writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
 
 
 class TestClusterConnection(unittest.TestCase):
@@ -126,7 +126,7 @@ class TestClusterConnection(unittest.TestCase):
 
         reader = AsyncMock()
         writer = MagicMock()
-        reader.read.side_effect = [metaBytes, requestSizeBytes, rawData]
+        reader.read.side_effect = [requestSizeBytes, metaBytes, rawData]
 
         conn = DummyClusterConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
@@ -147,10 +147,10 @@ class TestClusterConnection(unittest.TestCase):
 
         reader = AsyncMock()
         writer = MagicMock()
-        reader.read.side_effect = [metaBytes, requestSizeBytes, rawData]
+        reader.read.side_effect = [requestSizeBytes, metaBytes, rawData]
 
         conn = DummyClusterConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
         conn.mockP2PConnection.writeRawData.assert_not_called()
-        writer.write.assert_has_calls([call(metaBytes), call(requestSizeBytes), call(rawData)])
+        writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
