@@ -359,16 +359,17 @@ class SlaveServer():
 
     async def broadcastXshardTxList(self, block, xshardTxList):
         ''' Broadcast x-shard transactions to their recipient shards '''
-        if not xshardTxList:
-            return
 
         xshardMap = dict()
+        # TODO: Only broadcast to neighbors
+        for shardId in range(self.__getShardSize()):
+            xshardMap[shardId + self.__getShardSize()] = []
+
         for xshardTx in xshardTxList:
             shardId = xshardTx.address.getShardId(self.__getShardSize())
             branchValue = Branch.create(self.__getShardSize(), shardId).value
-            xshardMap.setdefault(branchValue, []).append(xshardTx)
+            xshardMap[branchValue].append(xshardTx)
 
-        # TODO: Only broadcast to neighbors
         blockHash = block.header.getHash()
         rpcFutures = []
         for branchValue, txList in xshardMap.items():
@@ -390,14 +391,13 @@ class SlaveServer():
         if branchValue not in self.shardStateMap:
             return False
         try:
-            success = self.shardStateMap[branchValue].addBlock(block)
-            if not success:
-                return False
+            updateTip = self.shardStateMap[branchValue].addBlock(block)
         except Exception as e:
             Logger.errorException()
             return False
         await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
         await self.sendMinorBlockHeaderToMaster(block.header)
+        # TODO: broadcast the block to peers if the block is a new tip and peers doesn't have it
         return True
 
     def addTx(self, tx):

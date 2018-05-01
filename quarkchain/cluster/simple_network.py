@@ -5,22 +5,26 @@ import random
 import socket
 import time
 
-from quarkchain.core import random_bytes
+from quarkchain.core import random_bytes, Branch
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.chain import QuarkChainState
-from quarkchain.protocol import Connection, ConnectionState
+from quarkchain.protocol import ConnectionState
+from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID, P2PMetadata
 from quarkchain.local import LocalServer
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
 from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
+from quarkchain.cluster.p2p_commands import GetRootBlockListResponse
 from quarkchain.utils import set_logging_level, Logger, check
 
 
-class Peer(Connection):
+class Peer(P2PConnection):
 
-    def __init__(self, env, reader, writer, network):
+    def __init__(self, env, reader, writer, network, masterServer):
         super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
         self.network = network
+        self.masterServer = masterServer
+        self.rootState = masterServer.rootState
 
         # The following fields should be set once active
         self.id = None
@@ -34,7 +38,7 @@ class Peer(Connection):
                            peerIp=int(self.network.ip),
                            peerPort=self.network.port,
                            shardMaskList=[],
-                           rootBlockHeader=self.network.rootState.tip)
+                           rootBlockHeader=self.rootState.tip)
         # Send hello request
         self.writeCommand(CommandOp.HELLO, cmd)
 
@@ -112,34 +116,125 @@ class Peer(Connection):
                 break
         return resp
 
+    # ------------------------ Operations for forwarding ---------------------
+    def getPeerId(self):
+        ''' Override P2PConnection.getPeerId()
+        '''
+        return self.id
+
+    def getConnectionToForward(self, metadata):
+        ''' Override P2PConnection.getConnectionToForward()
+        '''
+        if metadata.branch.value == ROOT_SHARD_ID:
+            return None
+
+        return self.masterServer.getSlaveConnection(meta.branch.value)
+
+    # ----------------------- RPC handlers ---------------------------------
+    async def tryDownloadRootBlock(self, rBlockHash):
+        ''' Try to download a root block.  Download its minor blocks if necessary.
+        '''
+        try:
+            rBlock = await self.writeRpcRequest(
+                op=self.GET_ROOT_BLOCK_LIST_REQUEST,
+                cmd=GetRootBlockListRequest(rootBlockHashList[rBlockHash]),
+                metadata=P2PMetadata(Branch(ROOT_SHARD_ID)))
+        except Exception:
+            self.closeWithError("Unable to download root block {}".format(rBlockHash.hex()))
+            return
+
+        # TODO: Validate the body of the root block
+
+        minorBlockDownloadMap = dict()
+        for mBlockHeader in rBlock.minorBlockHeaderList:
+            mBlockHash = mBlockHeader.getHash()
+            if not self.rootState.isMinorBlockValidated(mBlockHash):
+                if mBlockHeader.branch not in minorBlockDownloadMap:
+                    minorBlockDownloadMap[mBlockHeader.branch] = []
+                minorBlockDownloadMap[mBlockHeader.branch].add(mBlockHash)
+
+        futureList = []
+        for branch, mBlockHashList in minorBlockDownloadMap.items():
+            slaveConn = self.masterServer.getSlaveConnection(branch=branch)
+            futureList.add(slaveConn.writeRpcRequest(
+                op=ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST,
+                cmd=DownloadMinorBlockListRequest(mBlockHashList),
+                metadata=ClusterMetadata(branch, self.getPeerId())))
+
+        resultList = await asyncio.gather(*futureList)
+        for result in resultList:
+            if result is Exception:
+                self.closeWithError(
+                    "Unable to download minor blocks from root block with exception {}".format(result))
+                return
+
+            if result.errorCode != 0:
+                self.closeWithError("Unable to download minor blocks from root block")
+                return
+
+        # This will broadcast the root block to all shards and add root block locally
+        self.masterServer.updateRootBlock(rBlock)
+
+    def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+        if len(cmd.minorBlockHeaderList) != 0:
+            self.closeWithError("minor block header list must be empty")
+            return
+
+        rBlockHash = cmd.rootBlockHeader.gethHash()
+        if self.rootState.containRootBlockByHash(rBlockHash):
+            return
+
+        try:
+            self.rootState.validateBlockHeader(cmd.rootBlockHeader, blockHash=rBlockHash)
+        except ValueError as e:
+            self.closeWithError("invalid root block: {}".format(e))
+            return
+
+        # Simply download at the moment
+        # TODO: Check timestamp and delay processing if timestamp is greater
+        asyncio.ensure_future(self.tryDownloadRootBlock(rBlockHash))
+
+    def handleGetRootBlockListRequest(self, request):
+        rBlockList = []
+        for h in request.rootBlockHashList:
+            rBlock = rootState.getRootBlockByHash(h)
+            if rBlock is None:
+                continue
+            rBlockList.add(rBlock)
+        return GetRootBlockListResponse(rBlockList)
+
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
 OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handleError,
+    CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handleNewMinorBlockHeaderList,
 }
 
 # For RPC request commands
 OP_RPC_MAP = {
     CommandOp.GET_PEER_LIST_REQUEST:
         (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
+    CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
+        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
+         Peer.handleGetRootBlockListRequest),
 }
 
 
 class SimpleNetwork:
 
-    def __init__(self, env, rootState):
+    def __init__(self, env, masterServer):
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.activePeerPool = dict()    # peer id => peer
         self.selfId = random_bytes(32)
-        self.rootState = rootState
+        self.masterServer = masterServer
         self.ip = ipaddress.ip_address(
             socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
         self.localPort = self.env.config.LOCAL_SERVER_PORT
 
     async def newPeer(self, client_reader, client_writer):
-        peer = Peer(self.env, client_reader, client_writer, self)
+        peer = Peer(self.env, client_reader, client_writer, self, self.masterServer)
         await peer.start(isServer=True)
 
     async def connect(self, ip, port):
@@ -149,7 +244,7 @@ class SimpleNetwork:
         except Exception as e:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
-        peer = Peer(self.env, reader, writer, self)
+        peer = Peer(self.env, reader, writer, self, self.masterServer)
         peer.sendHello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -258,16 +353,3 @@ def parse_args():
         env.db = PersistentDb(path=args.db_path, clean=True)
 
     return env
-
-
-def main():
-    env = parse_args()
-    env.NETWORK_ID = 1  # testnet
-
-    rootState = RootState(env, createGenesis=True)
-    network = SimpleNetwork(env, rootState)
-    network.startAndLoop()
-
-
-if __name__ == '__main__':
-    main()

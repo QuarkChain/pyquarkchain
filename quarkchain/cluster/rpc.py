@@ -232,6 +232,24 @@ class AddTransactionResponse(Serializable):
         self.errorCode = errorCode
 
 
+class DownloadMinorBlockListRequest(Serializable):
+    FIELDS = [
+        ("minorBlockHashList", PreprendedSizeListSerializer(4, hash256)),
+    ]
+
+    def __init__(self, minorBlockHashList):
+        self.minorBlockHashList = minorBlockHashList
+
+
+class DownloadMinorBlockListResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
 # slave -> master
 
 class AddMinorBlockHeaderRequest(Serializable):
@@ -280,6 +298,7 @@ CLUSTER_OP_BASE = 128
 
 
 class ClusterOp():
+
     # TODO: Remove cluster op base as cluster op should be indepedent to p2p op
     PING = 1 + CLUSTER_OP_BASE
     PONG = 2 + CLUSTER_OP_BASE
@@ -301,6 +320,8 @@ class ClusterOp():
     ADD_MINOR_BLOCK_HEADER_RESPONSE = 18 + CLUSTER_OP_BASE
     ADD_XSHARD_TX_LIST_REQUEST = 19 + CLUSTER_OP_BASE
     ADD_XSHARD_TX_LIST_RESPONSE = 20 + CLUSTER_OP_BASE
+    DOWNLOAD_MINOR_BLOCK_LIST_REQUEST = 21 + CLUSTER_OP_BASE
+    DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE = 22 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -324,4 +345,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_TRANSACTION_COUNT_RESPONSE: GetTransactionCountResponse,
     ClusterOp.ADD_TRANSACTION_REQUEST: AddTransactionRequest,
     ClusterOp.ADD_TRANSACTION_RESPONSE: AddTransactionResponse,
+    ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST: DownloadMinorBlockListRequest,
+    ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE: DownloadMinorBlockListResponse,
 }

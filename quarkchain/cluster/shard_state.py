@@ -544,3 +544,6 @@ class ShardState:
 
             # TODO: Check x-shard gas used is within limit
             # TODO: Refill local x-shard gas
+
+    def containRemoteMinorBlockHash(self, h):
+        return self.db.containRemoteMinorBlockHash(h)

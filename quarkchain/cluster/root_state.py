@@ -115,7 +115,36 @@ class RootState:
         coinbaseAmount = coinbaseAmount // 2
         return block.finalize(quarkash=coinbaseAmount, coinbaseAddress=address)
 
-    def addBlock(self, block):
+    def validateBlockHeader(self, blockHeader, blockHash=None):
+        ''' Validate the block header.
+        '''
+        if not self.db.containRootBlockByHash(blockHeader.hashPrevBlock):
+            raise ValueError("previous hash block mismatch")
+        prevBlockHeader = self.db.getRootBlockHeaderByHash(blockHeader.hashPrevBlock)
+
+        if prevBlockHeader.height + 1 != blockHeader.height:
+            raise ValueError("incorrect block height")
+
+        if blockHeader.createTime <= prevBlockHeader.createTime:
+            raise ValueError("incorrect create time tip time {}, new block time {}".format(
+                blockHeader.createTime, prevBlockHeader.createTime))
+
+        if blockHash is None:
+            blockHash = blockHeader.getHash()
+
+        # Check difficulty
+        if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
+            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
+                diff = self.getNextBlockDifficulty(blockHeader.createTime)
+                metric = diff * int.from_bytes(blockHash, byteorder="big")
+                if metric >= 2 ** 256:
+                    raise ValueError("insufficient difficulty")
+            elif blockHeader.coinbaseAddress.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
+                raise ValueError("incorrect master to create the block")
+
+        return blockHash
+
+    def addBlock(self, block, blockHash=None):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
@@ -126,28 +155,13 @@ class RootState:
         if not self.db.containRootBlockByHash(block.header.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
         prevLastMinorBlockHeaderList = self.db.getRootBlockLastMinorBlockHeaderList(block.header.hashPrevBlock)
-        prevBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevBlock)
 
-        if block.header.createTime <= prevBlockHeader.createTime:
-            raise ValueError("incorrect create time tip time {}, new block time {}".format(
-                block.header.createTime, prevBlockHeader.createTime))
-
-        blockHash = block.header.getHash()
+        blockHash = self.validateBlockHeader(block.header, blockHash)
 
         # Check the merkle tree
         merkleHash = calculate_merkle_root(block.minorBlockHeaderList)
         if merkleHash != block.header.hashMerkleRoot:
             raise ValueError("incorrect merkle root")
-
-        # Check difficulty
-        if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
-            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.getNextBlockDifficulty(block.header.createTime)
-                metric = diff * int.from_bytes(blockHash, byteorder="big")
-                if metric >= 2 ** 256:
-                    raise ValueError("insufficient difficulty")
-            elif block.header.coinbaseAddress.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
-                raise ValueError("incorrect master to create the block")
 
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         shardId = 0
@@ -189,3 +203,17 @@ class RootState:
             self.tip = block.header
             return True
         return False
+
+    # -------------------------------- Root block db related operations ------------------------------
+    def getRootBlockByHash(self, h):
+        return self.db.getRootBlockByHash(h)
+
+    def containRootBlockByHash(self, h):
+        return self.db.containRootBlockByHash(h)
+
+    def getRootBlockHeaderByHash(self, h):
+        return self.db.getRootBlockHeaderByHash(h)
+
+    # --------------------------------- Minor block db related operations ----------------------------
+    def isMinorBlockValidated(self, h):
+        return self.db.containMinorBlockByHash(h)
