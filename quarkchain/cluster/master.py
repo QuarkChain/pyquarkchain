@@ -6,8 +6,8 @@ import random
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
+from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
 from quarkchain.core import Branch, ShardMask
-from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.rpc import GetEcoInfoListRequest, GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest
@@ -17,18 +17,18 @@ from quarkchain.utils import set_logging_level, Logger, check
 
 class ClusterConfig:
 
-    def __init__(self, configFile):
-        self.config = json.load(open(configFile))
+    def __init__(self, config):
+        self.config = config
 
     def getSlaveInfoList(self):
         results = []
         for slave in self.config["slaves"]:
             ip = int(ipaddress.ip_address(slave["ip"]))
-            results.append(SlaveInfo(slave["id"], ip, slave["port"], slave["shard_masks"]))
+            results.append(SlaveInfo(slave["id"], ip, slave["port"], [ShardMask(v) for v in slave["shard_masks"]]))
         return results
 
 
-class SlaveConnection(Connection):
+class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
     OP_RPC_MAP = {}
 
@@ -36,7 +36,7 @@ class SlaveConnection(Connection):
         super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, self.OP_RPC_MAP)
         self.masterServer = masterServer
         self.id = slaveId
-        self.shardMaskList = [ShardMask(v) for v in shardMaskList]
+        self.shardMaskList = shardMaskList
         check(len(shardMaskList) > 0)
 
         asyncio.ensure_future(self.activeAndLoopForever())
@@ -49,7 +49,10 @@ class SlaveConnection(Connection):
 
     async def sendPing(self):
         req = Ping("", [])
-        op, resp, rpcId = await self.writeRpcRequest(ClusterOp.PING, req)
+        op, resp, rpcId = await self.writeRpcRequest(
+            op=ClusterOp.PING,
+            cmd=req,
+            metadata=ClusterMetadata(branch=ROOT_BRANCH, peerId=bytes(32)))
         return (resp.id, resp.shardMaskList)
 
     async def sendConnectToSlaves(self, slaveInfoList):
@@ -84,16 +87,18 @@ class MasterServer():
     2. Make slaves connect to each other
     '''
 
-    def __init__(self, env, network):
+    def __init__(self, env, rootState):
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.network = network
-        self.rootState = network.rootState
+        self.rootState = rootState
         self.clusterConfig = env.clusterConfig.CONFIG
 
         # shard id -> a list of slave running the shard
         self.shardToSlaves = [[] for i in range(self.__getShardSize())]
         self.slavePool = set()
+
+        self.clusterActiveFuture = self.loop.create_future()
+        self.shutdownFuture = self.loop.create_future()
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -162,15 +167,27 @@ class MasterServer():
             return
         await self.__setupSlaveToSlaveConnections()
 
-    def startAndLoop(self):
+        self.clusterActiveFuture.set_result(None)
+
+    def start(self):
         self.loop.create_task(self.__initCluster())
+
+    def startAndLoop(self):
+        self.start()
         try:
-            self.loop.run_forever()
+            self.loop.run_until_complete(self.shutdownFuture)
         except KeyboardInterrupt:
             pass
 
     def shutdown(self):
-        self.loop.stop()
+        # TODO: May set exception and disconnect all slaves
+        if not self.shutdownFuture.done():
+            self.shutdownFuture.set_result(None)
+        if not self.clusterActiveFuture.done():
+            self.clusterActiveFuture.set_exception(RuntimeError("failed to start the cluster"))
+
+    def getShutdownFuture(self):
+        return self.shutdownFuture
 
     async def __createRootBlockToMine(self, address):
         futures = []
@@ -301,7 +318,7 @@ def parse_args():
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     env.clusterConfig.NODE_PORT = args.node_port
-    env.clusterConfig.CONFIG = ClusterConfig(args.cluster_config)
+    env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
     if not args.in_memory_db:
         env.db = PersistentDb(path=args.db_path, clean=True)
 
@@ -316,7 +333,7 @@ def main():
     network = SimpleNetwork(env, rootState)
     network.start()
 
-    master = MasterServer(env, network)
+    master = MasterServer(env, rootState)
     master.startAndLoop()
 
     Logger.info("Server is shutdown")

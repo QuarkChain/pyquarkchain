@@ -36,7 +36,6 @@ class MasterConnection(ClusterConnection):
 
     def close(self):
         Logger.info("Lost connection with master")
-        self.slaveServer.shutdown()
         return super().close()
 
     def closeWithError(self, error):
@@ -164,7 +163,7 @@ class SlaveConnection(Connection):
         super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, SLAVE_OP_NONRPC_MAP, SLAVE_OP_RPC_MAP)
         self.slaveServer = slaveServer
         self.id = slaveId
-        self.shardMaskList = [ShardMask(v) for v in shardMaskList]
+        self.shardMaskList = shardMaskList
         self.shardStateMap = self.slaveServer.shardStateMap
 
         asyncio.ensure_future(self.activeAndLoopForever())
@@ -231,7 +230,7 @@ class SlaveServer():
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.id = self.env.clusterConfig.ID
-        self.shardMaskList = [ShardMask(v) for v in self.env.clusterConfig.SHARD_MASK_LIST]
+        self.shardMaskList = self.env.clusterConfig.SHARD_MASK_LIST
 
         # shard id -> a list of slave running the shard
         self.shardToSlaves = [[] for i in range(self.__getShardSize())]
@@ -241,6 +240,7 @@ class SlaveServer():
         self.master = None
 
         self.__initShardStateMap()
+        self.shutdownInProgress = False
 
     def __initShardStateMap(self):
         ''' branchValue -> ShardState mapping '''
@@ -279,6 +279,14 @@ class SlaveServer():
         for shardId, slaves in enumerate(self.shardToSlaves):
             Logger.info("[{}] is run by slave {}".format(shardId, [s.id for s in slaves]))
 
+    async def __handleMasterConnectionLost(self):
+        check(self.master is not None)
+        await self.waitUntilClose()
+
+        if not self.shutdownInProgress:
+            # TODO: May reconnect
+            self.shutdown()
+
     async def __handleNewConnection(self, reader, writer):
         # The first connection should always come from master
         if not self.master:
@@ -294,8 +302,11 @@ class SlaveServer():
         Logger.info("Listening on {} for intra-cluster RPC".format(
             self.server.sockets[0].getsockname()))
 
-    def startAndLoop(self):
+    def start(self):
         self.loop.create_task(self.__startServer())
+
+    def startAndLoop(self):
+        self.start()
         try:
             self.loop.run_forever()
         except KeyboardInterrupt:
@@ -303,9 +314,15 @@ class SlaveServer():
         self.shutdown()
 
     def shutdown(self):
-        self.loop.stop()
+        self.shutdownInProgress = True
+        if self.master is not None:
+            self.master.close()
+        for slave in self.slaveConnections:
+            slave.close()
         self.server.close()
-        self.loop.create_task(self.server.wait_closed())
+
+    def getShutdownFuture(self):
+        return self.server.wait_closed()
 
     # Blockchain functions
 
@@ -380,7 +397,7 @@ def parse_args():
 
     env.clusterConfig.ID = bytes(args.node_id, "ascii")
     env.clusterConfig.NODE_PORT = args.node_port
-    env.clusterConfig.SHARD_MASK_LIST = [args.shard_mask]
+    env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
 
     if not args.in_memory_db:
         env.db = PersistentDb(path=args.db_path, clean=True)

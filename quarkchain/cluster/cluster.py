@@ -6,38 +6,11 @@ import tempfile
 
 from asyncio import subprocess
 
-from quarkchain.utils import is_p2
 from quarkchain.config import DEFAULT_ENV
+from quarkchain.cluster.utils import create_cluster_config
 
 IP = "127.0.0.1"
 PORT = 38000
-
-
-def create_temp_cluster_config(args):
-    num_slaves = args.num_slaves
-    if num_slaves <= 0 or not is_p2(num_slaves):
-        print("Number of slaves must be power of 2")
-        return None
-
-    config = dict()
-    config["master"] = {
-        "ip": IP,
-        "port": args.port_start,
-        "db_path": args.db_prefix + "m",
-        "server_port": args.p2p_port
-    }
-    config["slaves"] = []
-    for i in range(num_slaves):
-        mask = i | num_slaves
-        config["slaves"].append({
-            "id": "S{}".format(i),
-            "ip": IP,
-            "port": args.port_start + i + 1,
-            "shard_masks": [mask],
-            "db_path": args.db_prefix + str(i)
-        })
-
-    return config
 
 
 def dump_config_to_file(config):
@@ -141,7 +114,14 @@ def main():
         config = json.load(open(args.cluster_config))
         filename = args.cluster_config
     else:
-        config = create_temp_cluster_config(args)
+        args.ip = IP
+        config = create_cluster_config(
+            slaveCount=args.num_slaves,
+            ip="127.0.0.1",
+            p2pPort=args.p2p_port,
+            clusterPortStart=args.port_start,
+            dbPrefix=args.db_prefix,
+        )
         if not config:
             return -1
         filename = dump_config_to_file(config)
