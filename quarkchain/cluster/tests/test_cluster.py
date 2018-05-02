@@ -1,5 +1,4 @@
 import asyncio
-import argparse
 import unittest
 
 from quarkchain.cluster.tests.test_utils import get_test_env
@@ -9,30 +8,26 @@ from quarkchain.cluster.master import MasterServer, ClusterConfig
 from quarkchain.cluster.root_state import RootState
 from quarkchain.core import ShardMask
 
-port_start = 38000
-
 
 def create_test_clusters(numCluster):
-    global port_start
-    seedPort = None
+    portStart = 38000
+    seedPort = portStart
     clusterList = []
     loop = asyncio.get_event_loop()
 
     for i in range(numCluster):
         env = get_test_env()
-        args = argparse.Namespace
-        args.num_slaves = env.config.SHARD_SIZE
-        args.p2p_port = port_start
-        args.port_start = port_start + 1
-        args.ip = "127.0.0.1"
-        args.db_prefix = ""   # not used
 
-        config = create_cluster_config(args)
-        port_start += (1 + env.config.SHARD_SIZE)
+        p2pPort = portStart
+        config = create_cluster_config(
+            slaveCount=env.config.SHARD_SIZE,
+            ip="127.0.0.1",
+            p2pPort=p2pPort,
+            clusterPortStart=portStart + 1,
+        )
+        portStart += (1 + env.config.SHARD_SIZE)
 
-        env.config.P2P_SERVER_PORT = args.p2p_port
-        if seedPort is None:
-            seedPort = env.config.P2P_SERVER_PORT
+        env.config.P2P_SERVER_PORT = p2pPort
         env.config.P2P_SEED_PORT = seedPort
         env.clusterConfig.ID = 0
         env.clusterConfig.CONFIG = ClusterConfig(config)
@@ -75,5 +70,5 @@ def shutdown_clusters(clusterList):
 class TestCluster(unittest.TestCase):
 
     def testSingleCluster(self):
-        clusters = create_test_clusters(1)
+        clusters = create_test_clusters(4)
         shutdown_clusters(clusters)

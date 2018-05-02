@@ -115,7 +115,13 @@ def main():
         filename = args.cluster_config
     else:
         args.ip = IP
-        config = create_cluster_config(args)
+        config = create_cluster_config(
+            slaveCount=args.num_slaves,
+            ip="127.0.0.1",
+            p2pPort=args.p2p_port,
+            clusterPortStart=args.port_start,
+            dbPrefix=args.db_prefix,
+        )
         if not config:
             return -1
         filename = dump_config_to_file(config)

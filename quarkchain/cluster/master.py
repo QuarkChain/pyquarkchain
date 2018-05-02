@@ -7,7 +7,6 @@ from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
 from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
 from quarkchain.core import ShardMask
-from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
@@ -153,7 +152,6 @@ class MasterServer():
             success = await slave.sendConnectToSlaves(self.clusterConfig.getSlaveInfoList())
             if not success:
                 self.shutdown()
-        self.clusterActiveFuture.set_result(None)
 
     def __logSummary(self):
         for shardId, slaves in enumerate(self.shardToSlaves):
@@ -166,6 +164,8 @@ class MasterServer():
             Logger.error("Missing some shards. Check cluster config file!")
             return
         await self.__setupSlaveToSlaveConnections()
+
+        self.clusterActiveFuture.set_result(None)
 
     def start(self):
         self.loop.create_task(self.__initCluster())
