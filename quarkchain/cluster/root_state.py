@@ -1,3 +1,5 @@
+import time
+
 from quarkchain.cluster.core import RootBlock, MinorBlockHeader
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
@@ -69,6 +71,7 @@ class RootDb:
 class RootState:
     """ State of root
     """
+
     def __init__(self, env, createGenesis=False, db=None):
         self.env = env
         self.diffCalc = self.env.config.ROOT_DIFF_CALCULATOR
@@ -94,6 +97,23 @@ class RootState:
 
     def addValidatedMinorBlockHash(self, h):
         self.db.putMinorBlockHash(h)
+
+    def getNextBlockDifficulty(self):
+        # TODO: fix this
+        return 1
+
+    def createBlockToMine(self, mHeaderList, address):
+        createTime = max(self.tip.createTime + 1, int(time.time()))
+        difficulty = self.getNextBlockDifficulty()
+        block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficluty=difficulty)
+        block.minorBlockHeaderList = mHeaderList
+
+        coinbaseAmount = 0
+        for header in mHeaderList:
+            coinbaseAmount += header.coinbaseAmount
+
+        coinbaseAmount = coinbaseAmount // 2
+        return block.finalize(quarkash=coinbaseAmount, coinbaseAddress=address)
 
     def addBlock(self, block):
         """ Add new block.

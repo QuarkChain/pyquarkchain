@@ -9,7 +9,10 @@ from quarkchain.cluster.core import CrossShardTransactionList
 from quarkchain.cluster.protocol import ClusterConnection
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
-from quarkchain.cluster.rpc import AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse
+from quarkchain.cluster.rpc import (
+    AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
+    HeadersInfo, GetUnconfirmedHeadersResponse,
+)
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import Connection
@@ -103,6 +106,7 @@ class MasterConnection(ClusterConnection):
                 height=shardState.headerTip.height + 1,
                 coinbaseAmount=shardState.getNextBlockCoinbaseAmount(),
                 difficulty=shardState.getNextBlockDifficulty(),
+                unconfirmedHeadersCoinbaseAmount=shardState.getUnconfirmedHeadersCoinbaseAmount(),
             ))
         return GetEcoInfoListResponse(
             errorCode=0,
@@ -114,12 +118,24 @@ class MasterConnection(ClusterConnection):
         if branchValue not in self.shardStateMap:
             return GetNextBlockToMineResponse(errorCode=errno.EBADMSG)
 
-        block = self.shardStateMap[branchValue].createBlockToMine()
+        block = self.shardStateMap[branchValue].createBlockToMine(address=req.address)
         response = GetNextBlockToMineResponse(
             errorCode=0,
             block=block,
         )
         return response
+
+    async def handleGetUnconfirmedHeaderListRequest(self, req):
+        headersInfoList = []
+        for branchValue, shardState in self.shardStateMap.items():
+            headersInfoList.append(HeadersInfo(
+                branch=Branch(branchValue),
+                headerList=shardState.getUnconfirmedHeaderList(),
+            ))
+        return GetUnconfirmedHeadersResponse(
+            errorCode=0,
+            headersInfoList=headersInfoList,
+        )
 
 
 MASTER_OP_NONRPC_MAP = {}
@@ -136,6 +152,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.GET_ECO_INFO_LIST_RESPONSE, MasterConnection.handleGetEcoInfoListRequest),
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST:
         (ClusterOp.GET_NEXT_BLOCK_TO_MINE_RESPONSE, MasterConnection.handleGetNextBlockToMineRequest),
+    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST:
+        (ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE, MasterConnection.handleGetUnconfirmedHeaderListRequest),
 }
 
 

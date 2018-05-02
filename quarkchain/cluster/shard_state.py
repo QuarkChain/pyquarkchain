@@ -307,7 +307,7 @@ class ShardState:
                              (block.meta.evmGasUsed, evmState.gas_used))
 
         # The rest fee goes to root block
-        if evmState.block_fee // 2 != block.meta.coinbaseAmount:
+        if evmState.block_fee // 2 != block.header.coinbaseAmount:
             raise ValueError("Coinbase reward incorrect")
         # TODO: Check evm receipt and bloom
 
@@ -365,6 +365,26 @@ class ShardState:
         # TODO: add block fee
         return self.getNextBlockReward()
 
+    def getUnconfirmedHeadersCoinbaseAmount(self):
+        amount = 0
+        header = self.headerTip
+        for i in range(header.height - self.confirmedHeaderTip.height):
+            amount += header.coinbaseAmount
+            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+        check(header == self.confirmedHeaderTip)
+        return amount
+
+    def getUnconfirmedHeaderList(self):
+        ''' height in ascending order '''
+        headerList = []
+        header = self.headerTip
+        for i in range(header.height - self.confirmedHeaderTip.height):
+            headerList.append(header)
+            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+        check(header == self.confirmedHeaderTip)
+        headerList.reverse()
+        return headerList
+
     def createBlockToMine(self, createTime=None, address=None, includeTx=True):
         """ Create a block to append and include TXs to maximize rewards
         """
@@ -409,10 +429,6 @@ class ShardState:
 
         block.finalize(evmState=evmState)
         return block
-
-    def addTransactionToQueue(self, transaction):
-        # TODO: limit transaction queue size
-        self.transactionPool.add(transaction, self.utxoPool)
 
     def getPendingTxSize(self):
         return self.transactionPool.size()
