@@ -20,7 +20,6 @@ class MinorBlockMeta(Serializable):
         ("hashMerkleRoot", hash256),
         ("hashEvmStateRoot", hash256),
         ("coinbaseAddress", Address),
-        ("coinbaseAmount", uint256),
         ("evmGasLimit", uint256),
         ("evmGasUsed", uint256),
         ("extraData", PreprendedSizeBytesSerializer(2)),
@@ -31,7 +30,6 @@ class MinorBlockMeta(Serializable):
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
                  coinbaseAddress=bytes(Constant.ADDRESS_LENGTH),
-                 coinbaseAmount=0,
                  evmGasLimit=100000000000,
                  evmGasUsed=0,
                  extraData=b''):
@@ -53,6 +51,7 @@ class MinorBlockHeader(Serializable):
         ("version", uint32),
         ("branch", Branch),
         ("height", uint64),
+        ("coinbaseAmount", uint256),
         ("hashPrevMinorBlock", hash256),
         ("hashMeta", hash256),
         ("createTime", uint64),
@@ -64,6 +63,7 @@ class MinorBlockHeader(Serializable):
                  version=0,
                  height=0,
                  branch=Branch.create(1, 0),
+                 coinbaseAmount=0,
                  hashPrevMinorBlock=bytes(Constant.HASH_LENGTH),
                  hashMeta=bytes(Constant.HASH_LENGTH),
                  createTime=0,
@@ -102,7 +102,7 @@ class MinorBlock(Serializable):
             self.meta.hashPrevRootBlock = hashPrevRootBlock
         self.meta.hashEvmStateRoot = evmState.trie.root_hash
         self.meta.evmGasUsed = evmState.gas_used
-        self.meta.coinbaseAmount = evmState.block_fee // 2
+        self.header.coinbaseAmount = evmState.block_fee // 2
         self.finalizeMerkleRoot()
         self.header.hashMeta = self.meta.getHash()
         return self
@@ -122,7 +122,6 @@ class MinorBlock(Serializable):
             address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
         meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
                               coinbaseAddress=address,
-                              coinbaseAmount=quarkash,
                               evmGasLimit=self.meta.evmGasLimit,
                               extraData=extraData)
 
@@ -131,6 +130,7 @@ class MinorBlock(Serializable):
         header = MinorBlockHeader(version=self.header.version,
                                   height=self.header.height + 1,
                                   branch=self.header.branch,
+                                  coinbaseAmount=quarkash,
                                   hashPrevMinorBlock=self.header.getHash(),
                                   createTime=createTime,
                                   difficulty=difficulty,

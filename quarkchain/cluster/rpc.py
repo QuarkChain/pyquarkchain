@@ -1,6 +1,6 @@
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 from quarkchain.core import (
-    PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Branch
+    PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Address, Branch
 )
 
 from quarkchain.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, CrossShardTransactionList
@@ -113,13 +113,15 @@ class EcoInfo(Serializable):
         ("height", uint64),
         ("coinbaseAmount", uint256),
         ("difficulty", uint64),
+        ("unconfirmedHeadersCoinbaseAmount", uint256)
     ]
 
-    def __init__(self, branch, height, coinbaseAmount, difficulty):
+    def __init__(self, branch, height, coinbaseAmount, difficulty, unconfirmedHeadersCoinbaseAmount):
         self.branch = branch
         self.height = height
         self.coinbaseAmount = coinbaseAmount
         self.difficulty = difficulty
+        self.unconfirmedHeadersCoinbaseAmount = unconfirmedHeadersCoinbaseAmount
 
 
 class GetEcoInfoListRequest(Serializable):
@@ -143,10 +145,12 @@ class GetEcoInfoListResponse(Serializable):
 class GetNextBlockToMineRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
+        ("address", Address),
     ]
 
-    def __init__(self, branch):
+    def __init__(self, branch, address):
         self.branch = branch
+        self.address = address
 
 
 class GetNextBlockToMineResponse(Serializable):
@@ -158,6 +162,35 @@ class GetNextBlockToMineResponse(Serializable):
     def __init__(self, errorCode, block):
         self.errorCode = errorCode
         self.block = block
+
+
+class HeadersInfo(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("headerList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
+    ]
+
+    def __init__(self, errorCode, headerList):
+        self.errorCode = errorCode
+        self.headerList = headerList
+
+
+class GetUnconfirmedHeadersRequest(Serializable):
+    FIELDS = []
+
+    def __init__(self):
+        pass
+
+
+class GetUnconfirmedHeadersResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("headersInfoList", PreprendedSizeListSerializer(4, HeadersInfo)),
+    ]
+
+    def __init__(self, errorCode, headersInfoList):
+        self.errorCode = errorCode
+        self.headersInfoList = headersInfoList
 
 
 # slave -> master
@@ -214,10 +247,12 @@ class ClusterOp():
     GET_ECO_INFO_LIST_RESPONSE = 8
     GET_NEXT_BLOCK_TO_MINE_REQUEST = 9
     GET_NEXT_BLOCK_TO_MINE_RESPONSE = 10
-    ADD_MINOR_BLOCK_HEADER_REQUEST = 11
-    ADD_MINOR_BLOCK_HEADER_RESPONSE = 12
-    ADD_XSHARD_TX_LIST_REQUEST = 13
-    ADD_XSHARD_TX_LIST_RESPONSE = 14
+    GET_UNCONFIRMED_HEADERS_REQUEST = 11
+    GET_UNCONFIRMED_HEADERS_RESPONSE = 12
+    ADD_MINOR_BLOCK_HEADER_REQUEST = 13
+    ADD_MINOR_BLOCK_HEADER_RESPONSE = 14
+    ADD_XSHARD_TX_LIST_REQUEST = 15
+    ADD_XSHARD_TX_LIST_RESPONSE = 16
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -231,6 +266,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_ECO_INFO_LIST_RESPONSE: GetEcoInfoListResponse,
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST: GetNextBlockToMineRequest,
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_RESPONSE: GetNextBlockToMineResponse,
+    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST: GetUnconfirmedHeadersRequest,
+    ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE: GetUnconfirmedHeadersResponse,
     ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: AddMinorBlockHeaderRequest,
     ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE: AddMinorBlockHeaderResponse,
     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST: AddXshardTxListRequest,
