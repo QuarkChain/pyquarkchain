@@ -2,13 +2,15 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import random
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
-from quarkchain.core import ShardMask
+from quarkchain.core import Branch, ShardMask
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.root_state import RootState
+from quarkchain.cluster.rpc import GetEcoInfoListRequest, GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
 
@@ -169,6 +171,100 @@ class MasterServer():
 
     def shutdown(self):
         self.loop.stop()
+
+    async def __createRootBlockToMine(self, address):
+        futures = []
+        for slave in self.slavePool:
+            request = GetUnconfirmedHeadersRequest()
+            futures.append(slave.writeRpcRequest(ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request))
+        responses = await asyncio.gather(*futures)
+
+        # Slaves may run multiple copies of the same branch
+        # branchValue -> HeaderList
+        shardIdToHeaderList = dict()
+        for response in responses:
+            if response.errorCode != 0:
+                return None
+            for headersInfo in response.headersInfoList:
+                if headersInfo.branch.getShardSize() != self.__getShardSize():
+                    Logger.error("Expect shard size {} got {}".format(
+                        self.__getShardSize(), headersInfo.branch.getShardSize()))
+                    return None
+                # TODO: check headers are ordered by height
+                shardIdToHeaderList[headersInfo.branch.getShardId()] = headersInfo.headerList
+
+        headerList = []
+        # check proof of progress
+        for shardId in range(self.__getShardSize()):
+            headers = shardIdToHeaderList.get(shardId, [])
+            if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+                return None
+            headerList.extend(headers)
+
+        return self.rootState.createBlockToMine(headers, address)
+
+    async def __getMinorBlockToMine(self, branch, address):
+        request = GetNextBlockToMineRequest(
+            branch=branch,
+            address=address,
+        )
+        slave = self.shardToSlaves[branch.getShardId()][0]
+        response = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
+        return response.block if response.errorCode == 0 else None
+
+    async def getNextBlockToMine(self, address, randomizeOutput=True):
+        ''' Returns (isRootBlock, block) '''
+        futures = []
+        for slave in self.slavePool:
+            request = GetEcoInfoListRequest()
+            futures.append(slave.writeRpcRequest(ClusterOp.GET_ECO_INFO_LIST_REQUEST, request))
+        responses = await asyncio.gather(*futures)
+
+        # Slaves may run multiple copies of the same branch
+        # We only need one EcoInfo per branch
+        # branchValue -> EcoInfo
+        branchValueToEcoInfo = dict()
+        for response in responses:
+            if response.errorCode != 0:
+                return (None, None)
+            for ecoInfo in response.ecoInfoList:
+                branchValueToEcoInfo[ecoInfo.branch.value] = ecoInfo
+
+        rootCoinbaseAmount = 0
+        for branchValue, ecoInfo in branchValueToEcoInfo.items():
+            rootCoinbaseAmount += ecoInfo.unconfirmedHeadersCoinbaseAmount
+        rootCoinbaseAmount = rootCoinbaseAmount // 2
+
+        branchValueWithMaxEco = 0
+        maxEco = rootCoinbaseAmount / self.rootState.getNextBlockDifficulty()
+
+        dupEcoCount = 1
+        blockHeight = 0
+        for branchValue, ecoInfo in branchValueToEcoInfo.items():
+            # TODO: Obtain block reward and tx fee
+            eco = ecoInfo.coinbaseAmount / ecoInfo.difficulty
+            if eco > maxEco or (eco == maxEco and branchValueWithMaxEco > 0 and blockHeight > ecoInfo.height):
+                branchValueWithMaxEco = branchValue
+                maxEco = eco
+                dupEcoCount = 1
+                blockHeight = ecoInfo.height
+            elif eco == maxEco and randomizeOutput:
+                # The current block with max eco has smaller height, mine the block first
+                # This should be only used during bootstrap.
+                if branchValueWithMaxEco > 0 and blockHeight < ecoInfo.height:
+                    continue
+                dupEcoCount += 1
+                if random.random() < 1 / dupEcoCount:
+                    branchValueWithMaxEco = branchValue
+                    maxEco = eco
+
+        if branchValueWithMaxEco == 0:
+            block = await self.__createRootBlockToMine(address)
+            if block:
+                return (True, block)
+
+        block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
+        return (None, None) if not block else (False, block)
 
 
 def parse_args():
