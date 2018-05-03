@@ -80,6 +80,8 @@ class ShardDb:
         self.db.put(key, value)
 
     def get(self, key, default=None):
+
+        print(key)
         return self.db.get(key, default)
 
     def __getitem__(self, key):
@@ -110,6 +112,9 @@ class ShardState:
 
         # TODO: Query db to recover the latest state
 
+    def __createEvmState(self):
+        return EvmState(env=self.env.evmEnv, db=self.rawDb)
+
     def __createGenesisBlocks(self, shardId):
         genesisRootBlock = create_genesis_root_block(self.env)
         genesisMinorBlock = create_genesis_minor_block(
@@ -117,7 +122,7 @@ class ShardState:
             shardId=shardId,
             hashRootBlock=genesisRootBlock.header.getHash())
 
-        self.evmState = EvmState(env=self.env.evmEnv, db=self.db)
+        self.evmState = self.__createEvmState()
         self.evmState.block_coinbase = genesisMinorBlock.meta.coinbaseAddress.recipient
         self.evmState.delta_balance(
             self.evmState.block_coinbase,
@@ -169,11 +174,13 @@ class ShardState:
         try:
             evmTx = self.__validateTx(tx)
             self.txQueue.add_transaction(evmTx)
+            return True
         except Exception as e:
             Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
+            return False
 
     def __getEvmStateForNewBlock(self, block):
-        state = EvmState(env=self.env.evmEnv)
+        state = self.__createEvmState()
         state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
         state.txindex = 0
         state.gas_used = 0
@@ -289,9 +296,8 @@ class ShardState:
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
         """
-
         if self.db.containMinorBlockByHash(block.header.getHash()):
-            return None
+            return False
 
         # Throw exception if fail to run
         self.__validateBlock(block)
@@ -332,7 +338,7 @@ class ShardState:
             self.headerTip = block.header
             self.metaTip = block.meta
 
-        return None
+        return True
 
     def getTip(self):
         return self.db.getMinorBlockByHash(self.headerTip.getHash())
@@ -362,8 +368,14 @@ class ShardState:
         return self.rewardCalc.getBlockReward(self)
 
     def getNextBlockCoinbaseAmount(self):
-        # TODO: add block fee
-        return self.getNextBlockReward()
+        # TODO: add block reward
+        block = self.createBlockToMine()
+        # Add back the transactions that have been popped into block
+        # This actually lowers the priority of the popped tx if there are other tx with same gas price
+        # TODO: get a better data structure for txQueue
+        for tx in block.txList:
+            check(self.addTx(tx))
+        return block.header.coinbaseAmount
 
     def getUnconfirmedHeadersCoinbaseAmount(self):
         amount = 0
@@ -394,7 +406,6 @@ class ShardState:
         block = self.getTip().createBlockToAppend(
             createTime=createTime,
             address=address,
-            quarkash=self.getNextBlockReward(),
             difficulty=difficulty,
         )
         block.meta.hashPrevRootBlock = self.rootTip.getHash()
@@ -418,8 +429,7 @@ class ShardState:
                 apply_transaction(evmState, evmTx)
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
             except Exception as e:
-                Logger.debugException()
-
+                Logger.errorException()
         # Put only half of block fee to coinbase address
         check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)
         evmState.delta_balance(evmState.block_coinbase, -evmState.block_fee // 2)

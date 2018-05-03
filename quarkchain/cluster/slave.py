@@ -168,6 +168,9 @@ class SlaveConnection(Connection):
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
+    def __getShardSize(self):
+        return self.slaveServer.env.config.SHARD_SIZE
+
     def hasShard(self, shardId):
         for shardMask in self.shardMaskList:
             if shardMask.containShardId(shardId):
@@ -219,7 +222,7 @@ SLAVE_OP_RPC_MAP = {
     ClusterOp.PING:
         (ClusterOp.PONG, SlaveConnection.handlePing),
     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST:
-        (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, SlaveConnection.handleAddXshardTxListRequest)
+        (ClusterOp.ADD_XSHARD_TX_LIST_RESPONSE, SlaveConnection.handleAddXshardTxListRequest)
 }
 
 
@@ -329,11 +332,14 @@ class SlaveServer():
     async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
         ''' Update master that a minor block has been appended successfully '''
         request = AddMinorBlockHeaderRequest(minorBlockHeader)
-        resp = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
+        _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
 
     async def broadcastXshardTxList(self, block, xshardTxList):
         ''' Broadcast x-shard transactions to their recipient shards '''
+        if not xshardTxList:
+            return
+
         xshardMap = dict()
         for xshardTx in xshardTxList:
             shardId = xshardTx.address.getShardId(self.__getShardSize())
@@ -342,6 +348,7 @@ class SlaveServer():
 
         # TODO: Only broadcast to neighbors
         blockHash = block.header.getHash()
+        rpcFutures = []
         for branchValue, txList in xshardMap.items():
             crossShardTxList = CrossShardTransactionList(txList)
             if branchValue in self.shardStateMap:
@@ -349,12 +356,33 @@ class SlaveServer():
 
             branch = Branch(branchValue)
             request = AddXshardTxListRequest(branch, blockHash, crossShardTxList)
-            rpcFutures = []
+
             for slaveConn in self.shardToSlaves[branch.getShardId()]:
                 future = slaveConn.writeRpcRequest(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
                 rpcFutures.append(future)
         responses = await asyncio.gather(*rpcFutures)
-        check(all([response.errorCode == 0 for response in responses]))
+        check(all([response.errorCode == 0 for _, response, _ in responses]))
+
+    async def addBlock(self, block):
+        branchValue = block.header.branch.value
+        if branchValue not in self.shardStateMap:
+            return False
+        try:
+            success = self.shardStateMap[branchValue].addBlock(block)
+            if not success:
+                return False
+        except Exception as e:
+            Logger.errorException()
+            return False
+        await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
+        await self.sendMinorBlockHeaderToMaster(block.header)
+        return True
+
+    def addTx(self, tx):
+        evmTx = tx.code.getEvmTransaction()
+        if evmTx.branchValue not in self.shardStateMap:
+            return False
+        return self.shardStateMap[evmTx.branchValue].addTx(tx)
 
 
 def parse_args():

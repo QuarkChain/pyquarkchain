@@ -170,8 +170,8 @@ class HeadersInfo(Serializable):
         ("headerList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
-    def __init__(self, errorCode, headerList):
-        self.errorCode = errorCode
+    def __init__(self, branch, headerList):
+        self.branch = branch
         self.headerList = headerList
 
 
@@ -222,8 +222,9 @@ class AddXshardTxListRequest(Serializable):
         ("txList", CrossShardTransactionList),
     ]
 
-    def __init__(self, branch, txList):
+    def __init__(self, branch, minorBlockHash, txList):
         self.branch = branch
+        self.minorBlockHash = minorBlockHash
         self.txList = txList
 
 

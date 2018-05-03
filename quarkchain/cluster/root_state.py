@@ -105,7 +105,7 @@ class RootState:
     def createBlockToMine(self, mHeaderList, address):
         createTime = max(self.tip.createTime + 1, int(time.time()))
         difficulty = self.getNextBlockDifficulty()
-        block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficluty=difficulty)
+        block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficulty=difficulty)
         block.minorBlockHeaderList = mHeaderList
 
         coinbaseAmount = 0
