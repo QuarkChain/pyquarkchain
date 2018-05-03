@@ -169,7 +169,7 @@ class PersistentDb(Db):
 
     def get(self, key, default=None):
         try:
-            return self.db.Get(key)
+            return bytes(self.db.Get(key))
         except KeyError:
             return default
 
