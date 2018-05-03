@@ -92,11 +92,15 @@ class TestCluster(unittest.TestCase):
         clusters = create_test_clusters(1, acc1)
         master, slaves = clusters[0]
 
+        from quarkchain.evm import opcodes
         tx = create_transfer_transaction(
             shardState=slaves[0].shardStateMap[2 | 0],
             fromId=id1,
             toAddress=acc2,
             amount=12345,
+            withdraw=54321,
+            withdrawTo=bytes(acc3.serialize()),
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
         )
         self.assertTrue(slaves[0].addTx(tx))
 
@@ -108,9 +112,11 @@ class TestCluster(unittest.TestCase):
         self.assertEqual(len(block1.txList), 1)
 
         self.assertTrue(sync_run(slaves[0].addBlock(block1)))
+        self.assertEqual(slaves[0].shardStateMap[2].getBalance(acc2.recipient), 12345)
+        self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
         # Expect to mine shard 1 due to proof-of-progress
-        isRoot, block2 = sync_run(master.getNextBlockToMine(address=acc3))
+        isRoot, block2 = sync_run(master.getNextBlockToMine(address=acc1.addressInShard(1)))
         self.assertFalse(isRoot)
         self.assertEqual(block2.header.height, 1)
         self.assertEqual(block2.header.branch.value, 2 | 1)
@@ -119,7 +125,7 @@ class TestCluster(unittest.TestCase):
         self.assertTrue(sync_run(slaves[1].addBlock(block2)))
 
         # Expect to mine root
-        isRoot, block = sync_run(master.getNextBlockToMine(address=Address.createEmptyAccount()))
+        isRoot, block = sync_run(master.getNextBlockToMine(address=acc1.addressInShard(1)))
         self.assertTrue(isRoot)
         self.assertEqual(block.header.height, 1)
         self.assertEqual(len(block.minorBlockHeaderList), 2)
@@ -127,4 +133,18 @@ class TestCluster(unittest.TestCase):
         self.assertEqual(block.minorBlockHeaderList[1], block2.header)
 
         self.assertTrue(master.rootState.addBlock(block))
+        slaves[1].shardStateMap[3].addRootBlock(block)
+        self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
+
+        # Expect to mine shard 1 for the gas on xshard tx to acc3
+        isRoot, block3 = sync_run(master.getNextBlockToMine(address=acc1.addressInShard(1)))
+        self.assertFalse(isRoot)
+        self.assertEqual(block3.header.height, 2)
+        self.assertEqual(block3.header.branch.value, 2 | 1)
+        self.assertEqual(len(block3.txList), 0)
+
+        self.assertTrue(sync_run(slaves[1].addBlock(block3)))
+        # Expect withdrawTo is included in acc3's balance
+        self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 54321)
+
         shutdown_clusters(clusters)

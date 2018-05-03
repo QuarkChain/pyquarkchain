@@ -222,8 +222,9 @@ class AddXshardTxListRequest(Serializable):
         ("txList", CrossShardTransactionList),
     ]
 
-    def __init__(self, branch, txList):
+    def __init__(self, branch, minorBlockHash, txList):
         self.branch = branch
+        self.minorBlockHash = minorBlockHash
         self.txList = txList
 
 

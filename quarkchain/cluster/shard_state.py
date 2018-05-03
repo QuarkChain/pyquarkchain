@@ -297,7 +297,7 @@ class ShardState:
         """  Add a block to local db.  Perform validate and update tip accordingly
         """
         if self.db.containMinorBlockByHash(block.header.getHash()):
-            return None
+            return False
 
         # Throw exception if fail to run
         self.__validateBlock(block)
@@ -338,7 +338,7 @@ class ShardState:
             self.headerTip = block.header
             self.metaTip = block.meta
 
-        return None
+        return True
 
     def getTip(self):
         return self.db.getMinorBlockByHash(self.headerTip.getHash())
