@@ -329,7 +329,7 @@ class SlaveServer():
     async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
         ''' Update master that a minor block has been appended successfully '''
         request = AddMinorBlockHeaderRequest(minorBlockHeader)
-        resp = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
+        _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
 
     async def broadcastXshardTxList(self, block, xshardTxList):
@@ -355,6 +355,25 @@ class SlaveServer():
                 rpcFutures.append(future)
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for response in responses]))
+
+    async def addBlock(self, block):
+        branchValue = block.header.branch.value
+        if branchValue not in self.shardStateMap:
+            return False
+        try:
+            self.shardStateMap[branchValue].addBlock(block)
+        except Exception as e:
+            Logger.errorException()
+            return False
+        # broadcastXshardTxList
+        await self.sendMinorBlockHeaderToMaster(block.header)
+        return True
+
+    def addTx(self, tx):
+        evmTx = tx.code.getEvmTransaction()
+        if evmTx.branchValue not in self.shardStateMap:
+            return False
+        return self.shardStateMap[evmTx.branchValue].addTx(tx)
 
 
 def parse_args():

@@ -6,11 +6,14 @@ import random
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
+from quarkchain.cluster.rpc import (
+    AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
+    GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
+)
 from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
 from quarkchain.core import Branch, ShardMask
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.root_state import RootState
-from quarkchain.cluster.rpc import GetEcoInfoListRequest, GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
 
@@ -30,10 +33,9 @@ class ClusterConfig:
 
 class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
-    OP_RPC_MAP = {}
 
     def __init__(self, env, reader, writer, masterServer, slaveId, shardMaskList):
-        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, self.OP_RPC_MAP)
+        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, OP_RPC_MAP)
         self.masterServer = masterServer
         self.id = slaveId
         self.shardMaskList = shardMaskList
@@ -78,6 +80,20 @@ class SlaveConnection(ClusterConnection):
     def closeWithError(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().closeWithError(error)
+
+    # RPC handlers
+
+    async def handleAddMinorBlockHeaderRequest(self, req):
+        self.masterServer.rootState.addValidatedMinorBlockHash(req.minorBlockHeader.getHash())
+        return AddMinorBlockHeaderResponse(
+            errorCode=0,
+        )
+
+
+OP_RPC_MAP = {
+    ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: (
+        ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE, SlaveConnection.handleAddMinorBlockHeaderRequest),
+}
 
 
 class MasterServer():
@@ -189,7 +205,8 @@ class MasterServer():
     def getShutdownFuture(self):
         return self.shutdownFuture
 
-    async def __createRootBlockToMine(self, address):
+    async def __createRootBlockToMineOrFallbackToMinorBlock(self, address):
+        ''' Try to create a root block to mine or fallback to create minor block if failed proof-of-progress '''
         futures = []
         for slave in self.slavePool:
             request = GetUnconfirmedHeadersRequest()
@@ -200,13 +217,14 @@ class MasterServer():
         # branchValue -> HeaderList
         shardIdToHeaderList = dict()
         for response in responses:
+            _, response, _ = response
             if response.errorCode != 0:
-                return None
+                return (None, None)
             for headersInfo in response.headersInfoList:
                 if headersInfo.branch.getShardSize() != self.__getShardSize():
                     Logger.error("Expect shard size {} got {}".format(
                         self.__getShardSize(), headersInfo.branch.getShardSize()))
-                    return None
+                    return (None, None)
                 # TODO: check headers are ordered by height
                 shardIdToHeaderList[headersInfo.branch.getShardId()] = headersInfo.headerList
 
@@ -214,11 +232,13 @@ class MasterServer():
         # check proof of progress
         for shardId in range(self.__getShardSize()):
             headers = shardIdToHeaderList.get(shardId, [])
-            if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
-                return None
             headerList.extend(headers)
+            if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+                # Fallback to create minor block
+                block = await self.__getMinorBlockToMine(Branch.create(self.__getShardSize(), shardId), address)
+                return (None, None) if not block else (False, block)
 
-        return self.rootState.createBlockToMine(headers, address)
+        return (True, self.rootState.createBlockToMine(headerList, address))
 
     async def __getMinorBlockToMine(self, branch, address):
         request = GetNextBlockToMineRequest(
@@ -226,7 +246,7 @@ class MasterServer():
             address=address,
         )
         slave = self.shardToSlaves[branch.getShardId()][0]
-        response = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
+        _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
         return response.block if response.errorCode == 0 else None
 
     async def getNextBlockToMine(self, address, randomizeOutput=True):
@@ -242,6 +262,7 @@ class MasterServer():
         # branchValue -> EcoInfo
         branchValueToEcoInfo = dict()
         for response in responses:
+            _, response, _ = response
             if response.errorCode != 0:
                 return (None, None)
             for ecoInfo in response.ecoInfoList:
@@ -276,9 +297,7 @@ class MasterServer():
                     maxEco = eco
 
         if branchValueWithMaxEco == 0:
-            block = await self.__createRootBlockToMine(address)
-            if block:
-                return (True, block)
+            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
 
         block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
         return (None, None) if not block else (False, block)

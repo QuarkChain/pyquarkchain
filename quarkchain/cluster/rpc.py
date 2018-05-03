@@ -170,8 +170,8 @@ class HeadersInfo(Serializable):
         ("headerList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
-    def __init__(self, errorCode, headerList):
-        self.errorCode = errorCode
+    def __init__(self, branch, headerList):
+        self.branch = branch
         self.headerList = headerList
 
 
