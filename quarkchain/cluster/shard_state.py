@@ -372,7 +372,7 @@ class ShardState:
 
     def getNextBlockCoinbaseAmount(self):
         # TODO: add block reward
-        block = self.createBlockToMine()
+        block = self.createBlockToMine(artificialTxCount=0)
         # Add back the transactions that have been popped into block
         # This actually lowers the priority of the popped tx if there are other tx with same gas price
         # TODO: get a better data structure for txQueue
@@ -400,7 +400,28 @@ class ShardState:
         headerList.reverse()
         return headerList
 
-    def createBlockToMine(self, createTime=None, address=None, includeTx=True):
+    def __addArtificialTx(self, block, evmState, count):
+        for i in range(count):
+            evmTx = EvmTransaction(
+                branchValue=self.branch.value,
+                nonce=evmState.get_nonce(evmState.block_coinbase),
+                gasprice=1,
+                startgas=21000,
+                to=evmState.block_coinbase,
+                value=12,
+                data=b'',
+                withdrawSign=1,
+                withdraw=0,
+                withdrawTo=b'')
+            evmTx.sign(key=self.env.config.GENESIS_KEY, network_id=self.env.config.NETWORK_ID)
+            try:
+                apply_transaction(evmState, evmTx)
+                block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
+            except Exception as e:
+                Logger.errorException()
+                return
+
+    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxCount=0):
         """ Create a block to append and include TXs to maximize rewards
         """
         if not createTime:
@@ -433,6 +454,9 @@ class ShardState:
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
             except Exception as e:
                 Logger.errorException()
+
+        self.__addArtificialTx(block, evmState, artificialTxCount)
+
         # Put only half of block fee to coinbase address
         check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)
         evmState.delta_balance(evmState.block_coinbase, -evmState.block_fee // 2)

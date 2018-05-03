@@ -37,8 +37,9 @@ class DefaultConfig:
         self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
 
         # Distribute pre-mined quarkash into different shards for faster distribution
-        self.GENESIS_ACCOUNT = Address.createFrom(
-            '199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3')
+        self.GENESIS_ACCOUNT = Address.createFrom("199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3")
+        # The key is only here to sign artificial transactions for load test
+        self.GENESIS_KEY = bytes.fromhex("c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3")
         self.GENESIS_COIN = 0
         self.GENESIS_MINOR_COIN = self.QUARKSH_TO_JIAOZI * (10 ** 10) // self.SHARD_SIZE
         self.GENESIS_DIFFICULTY = 1000000

@@ -147,11 +147,13 @@ class GetNextBlockToMineRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("address", Address),
+        ("artificialTxCount", uint32),
     ]
 
-    def __init__(self, branch, address):
+    def __init__(self, branch, address, artificialTxCount):
         self.branch = branch
         self.address = address
+        self.artificialTxCount = artificialTxCount
 
 
 class GetNextBlockToMineResponse(Serializable):
