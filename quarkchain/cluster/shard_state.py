@@ -357,6 +357,9 @@ class ShardState:
     def getBalance(self, recipient):
         return self.evmState.get_balance(recipient)
 
+    def getTransactionCount(self, recipient):
+        return self.evmState.get_nonce(recipient)
+
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)

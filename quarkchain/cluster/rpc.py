@@ -1,5 +1,6 @@
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 from quarkchain.core import (
+    Transaction,
     PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Address, Branch, ShardMask
 )
 
@@ -193,6 +194,44 @@ class GetUnconfirmedHeadersResponse(Serializable):
         self.headersInfoList = headersInfoList
 
 
+class GetTransactionCountRequest(Serializable):
+    FIELDS = [
+        ("address", Address),
+    ]
+
+    def __init__(self, address):
+        self.address = address
+
+
+class GetTransactionCountResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("count", uint256),
+    ]
+
+    def __init__(self, errorCode, count):
+        self.errorCode = errorCode
+        self.count = count
+
+
+class AddTransactionRequest(Serializable):
+    FIELDS = [
+        ("tx", Transaction),
+    ]
+
+    def __init__(self, tx):
+        self.tx = tx
+
+
+class AddTransactionResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
 # slave -> master
 
 class AddMinorBlockHeaderRequest(Serializable):
@@ -254,6 +293,10 @@ class ClusterOp():
     ADD_MINOR_BLOCK_HEADER_RESPONSE = 14
     ADD_XSHARD_TX_LIST_REQUEST = 15
     ADD_XSHARD_TX_LIST_RESPONSE = 16
+    GET_TRANSACTION_COUNT_REQUEST = 17
+    GET_TRANSACTION_COUNT_RESPONSE = 18
+    ADD_TRANSACTION_REQUEST = 19
+    ADD_TRANSACTION_RESPONSE = 20
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -273,4 +316,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE: AddMinorBlockHeaderResponse,
     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST: AddXshardTxListRequest,
     ClusterOp.ADD_XSHARD_TX_LIST_RESPONSE: AddXshardTxListResponse,
+    ClusterOp.GET_TRANSACTION_COUNT_REQUEST: GetTransactionCountRequest,
+    ClusterOp.GET_TRANSACTION_COUNT_RESPONSE: GetTransactionCountResponse,
+    ClusterOp.ADD_TRANSACTION_REQUEST: AddTransactionRequest,
+    ClusterOp.ADD_TRANSACTION_RESPONSE: AddTransactionResponse,
 }
