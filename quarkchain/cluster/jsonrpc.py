@@ -113,11 +113,11 @@ def address_encoder(address):
 
 def branch_decoder(data):
     """Decode a branch from hex with 0x prefix to Branch."""
-    obj_decoder(data, Branch)
+    return obj_decoder(data, Branch)
 
 
 def branch_encoder(branch):
-    obj_encoder(branch, Branch)
+    return obj_encoder(branch, Branch)
 
 
 def block_id_decoder(data):
@@ -189,7 +189,7 @@ class JSONRPCServer:
 
     def start(self):
         self.loop.run_until_complete(self.runner.setup())
-        site = web.TCPSite(self.runner, "localhost", self.port)
+        site = web.TCPSite(self.runner, "0.0.0.0", self.port)
         self.loop.run_until_complete(site.start())
 
     def shutdown(self):
