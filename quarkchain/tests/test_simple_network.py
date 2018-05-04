@@ -5,7 +5,7 @@ from quarkchain.chain import QuarkChainState
 from quarkchain.commands import *
 from quarkchain.simple_network import Downloader, ForkResolverManager, SimpleNetwork
 from quarkchain.tests.test_utils import get_test_env
-from quarkchain.utils import set_logging_level
+from quarkchain.utils import set_logging_level, call_async
 
 
 # Disable error log in test
@@ -449,12 +449,6 @@ def create_network():
     network = SimpleNetwork(env, qcState)
     network.startServer()
     return (env, qcState, network)
-
-
-def call_async(coro):
-    future = asyncio.ensure_future(coro)
-    asyncio.get_event_loop().run_until_complete(future)
-    return future.result()
 
 
 def assert_true_with_timeout(f):

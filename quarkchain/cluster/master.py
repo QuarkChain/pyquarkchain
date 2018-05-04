@@ -152,7 +152,7 @@ class MasterServer():
                 break
             except Exception as e:
                 Logger.info("Failed to connect {} {}: {}".format(ip, port, e))
-                await asyncio.sleep(1)
+                await asyncio.sleep(self.env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY)
         Logger.info("Connected to {}:{}".format(ip, port))
         return (reader, writer)
 

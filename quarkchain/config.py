@@ -89,6 +89,7 @@ class DefaultClusterConfig:
         self.SHARD_MASK_LIST = []
         self.ID = ""
         self.CONFIG = None
+        self.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
 
     def copy(self):
         return copy.copy(self)

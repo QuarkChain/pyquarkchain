@@ -8,6 +8,17 @@ from quarkchain.cluster.master import MasterServer, ClusterConfig
 from quarkchain.cluster.root_state import RootState
 from quarkchain.evm import opcodes
 from quarkchain.core import Address, Branch, Identity, ShardMask
+from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.utils import call_async
+
+
+class Cluster:
+
+    def __init__(self, master, slaveList, network, peer):
+        self.master = master
+        self.slaveList = slaveList
+        self.network = network
+        self.peer = peer
 
 
 def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()):
@@ -26,7 +37,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             p2pPort=p2pPort,
             clusterPortStart=portStart + 1,
         )
-        portStart += (1 + env.config.SHARD_SIZE)
+        portStart += (2 + env.config.SHARD_SIZE)
 
         env.config.P2P_SERVER_PORT = p2pPort
         env.config.P2P_SEED_PORT = seedPort
@@ -43,13 +54,22 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             slaveServer.start()
             slaveServerList.append(slaveServer)
 
-        masterServer = MasterServer(env, RootState(env, createGenesis=True))
+        rootState = RootState(env, createGenesis=True)
+        masterServer = MasterServer(env, rootState)
         masterServer.start()
 
         # Wait until the cluster is ready
         loop.run_until_complete(masterServer.clusterActiveFuture)
 
-        clusterList.append((masterServer, slaveServerList))
+        # Start simple network and connect to seed host
+        network = SimpleNetwork(env, rootState)
+        network.startServer()
+        if i != 0:
+            peer = call_async(network.connect("127.0.0.1", seedPort))
+        else:
+            peer = None
+
+        clusterList.append(Cluster(masterServer, slaveServerList, network, peer))
 
     return clusterList
 
@@ -58,14 +78,15 @@ def shutdown_clusters(clusterList):
     loop = asyncio.get_event_loop()
 
     for cluster in clusterList:
-        master, slaveList = cluster
+        # Shutdown simple network first
+        cluster.network.shutdown()
 
-        for slave in slaveList:
+        for slave in cluster.slaveList:
             slave.shutdown()
             loop.run_until_complete(slave.getShutdownFuture())
 
-        master.shutdown()
-        loop.run_until_complete(master.getShutdownFuture())
+        cluster.master.shutdown()
+        loop.run_until_complete(cluster.master.getShutdownFuture())
 
 
 def sync_run(coro):
@@ -91,7 +112,8 @@ class TestCluster(unittest.TestCase):
         acc3 = Address.createRandomAccount(fullShardId=1)
 
         clusters = create_test_clusters(1, acc1)
-        master, slaves = clusters[0]
+        master = clusters[0].master
+        slaves = clusters[0].slaveList
 
         tx = create_transfer_transaction(
             shardState=slaves[0].shardStateMap[2 | 0],

@@ -280,7 +280,7 @@ class SlaveServer():
         for branchValue in branchValues:
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
-                shardId=shardId,
+                shardId=Branch(branchValue).getShardId(),
                 createGenesis=True,
                 db=ShardedDb(
                     db=self.env.db,

@@ -17,6 +17,7 @@ def get_test_env(
     env.config.GENESIS_COIN = genesisQuarkash
     env.config.GENESIS_MINOR_COIN = genesisMinorQuarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
+    env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.1
     return env
 
 
@@ -49,4 +50,3 @@ def create_transfer_transaction(
         inList=[],
         code=Code.createEvmCode(evmTx),
         outList=[])
-
