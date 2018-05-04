@@ -1,3 +1,4 @@
+import asyncio
 import ctypes
 import sha3
 import logging
@@ -39,6 +40,12 @@ def crash():
     """ Crash python interpreter """
     p = ctypes.pointer(ctypes.c_char.from_address(5))
     p[0] = b'x'
+
+
+def call_async(coro):
+    future = asyncio.ensure_future(coro)
+    asyncio.get_event_loop().run_until_complete(future)
+    return future.result()
 
 
 class Logger:
