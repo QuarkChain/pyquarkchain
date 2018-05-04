@@ -6,7 +6,8 @@ from quarkchain.cluster.utils import create_cluster_config
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.cluster.master import MasterServer, ClusterConfig
 from quarkchain.cluster.root_state import RootState
-from quarkchain.core import Address, Identity, ShardMask
+from quarkchain.evm import opcodes
+from quarkchain.core import Address, Branch, Identity, ShardMask
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import call_async
 
@@ -114,7 +115,6 @@ class TestCluster(unittest.TestCase):
         master = clusters[0].master
         slaves = clusters[0].slaveList
 
-        from quarkchain.evm import opcodes
         tx = create_transfer_transaction(
             shardState=slaves[0].shardStateMap[2 | 0],
             fromId=id1,
@@ -170,3 +170,62 @@ class TestCluster(unittest.TestCase):
         self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 54321)
 
         shutdown_clusters(clusters)
+
+    def testGetTransactionCount(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createRandomAccount(fullShardId=1)
+
+        clusters = create_test_clusters(1, acc1)
+        master = clusters[0].master
+        slaves = clusters[0].slaveList
+
+        branch = Branch.create(2, 0)
+        self.assertEqual(sync_run(master.getTransactionCount(acc1)), (branch, 0))
+        tx = create_transfer_transaction(
+            shardState=slaves[0].shardStateMap[branch.value],
+            fromId=id1,
+            toAddress=acc1,
+            amount=12345,
+        )
+        self.assertTrue(slaves[0].addTx(tx))
+
+        isRoot, block1 = sync_run(master.getNextBlockToMine(address=acc1))
+        self.assertTrue(sync_run(slaves[0].addBlock(block1)))
+
+        self.assertEqual(sync_run(master.getTransactionCount(acc1)), (branch, 1))
+        branch1 = Branch.create(2, 1)
+        self.assertEqual(sync_run(master.getTransactionCount(acc2)), (branch1, 0))
+
+        shutdown_clusters(clusters)
+
+    def testAddTransaction(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        clusters = create_test_clusters(1, acc1)
+        master = clusters[0].master
+        slaves = clusters[0].slaveList
+
+        branch = Branch.create(2, 0)
+        tx = create_transfer_transaction(
+            shardState=slaves[0].shardStateMap[branch.value],
+            fromId=id1,
+            toAddress=acc1,
+            amount=12345,
+        )
+        self.assertTrue(sync_run(master.addTransaction(tx, branch)))
+        self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+
+        tx = create_transfer_transaction(
+            shardState=slaves[0].shardStateMap[branch.value],
+            fromId=id1,
+            toAddress=acc1,
+            amount=12345,
+            withdraw=100,
+        )
+        self.assertFalse(sync_run(master.addTransaction(tx, branch)))
+        self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+
+        shutdown_clusters(clusters)
+

@@ -9,10 +9,12 @@ from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
+    GetTransactionCountRequest, AddTransactionRequest,
 )
 from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
 from quarkchain.core import Branch, ShardMask
 from quarkchain.db import PersistentDb
+from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
@@ -80,6 +82,23 @@ class SlaveConnection(ClusterConnection):
     def closeWithError(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().closeWithError(error)
+
+    async def getTransactionCount(self, address):
+        request = GetTransactionCountRequest(address)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_TRANSACTION_COUNT_REQUEST,
+            request,
+        )
+        check(resp.errorCode == 0)
+        return resp.count
+
+    async def addTransaction(self, tx):
+        request = AddTransactionRequest(tx)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.ADD_TRANSACTION_REQUEST,
+            request,
+        )
+        return resp.errorCode == 0
 
     # RPC handlers
 
@@ -302,6 +321,22 @@ class MasterServer():
         block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
         return (None, None) if not block else (False, block)
 
+    async def getTransactionCount(self, address):
+        shardId = address.getShardId(self.__getShardSize())
+        count = await self.shardToSlaves[shardId][0].getTransactionCount(address)
+        return Branch.create(self.__getShardSize(), shardId), count
+
+    async def addTransaction(self, tx, branch):
+        futures = []
+        for slave in self.shardToSlaves[branch.getShardId()]:
+            futures.append(slave.addTransaction(tx))
+
+        results = await asyncio.gather(*futures)
+
+        # TODO: broadcast tx to peers
+
+        return all(results)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -353,7 +388,13 @@ def main():
     network.start()
 
     master = MasterServer(env, rootState)
+
+    jsonRpcServer = JSONRPCServer(env, master)
+    jsonRpcServer.start()
+
     master.startAndLoop()
+
+    jsonRpcServer.shutdown()
 
     Logger.info("Server is shutdown")
 
