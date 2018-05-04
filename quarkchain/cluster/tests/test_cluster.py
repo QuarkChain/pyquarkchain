@@ -177,7 +177,8 @@ class TestCluster(unittest.TestCase):
         acc2 = Address.createRandomAccount(fullShardId=1)
 
         clusters = create_test_clusters(1, acc1)
-        master, slaves = clusters[0]
+        master = clusters[0].master
+        slaves = clusters[0].slaveList
 
         branch = Branch.create(2, 0)
         self.assertEqual(sync_run(master.getTransactionCount(acc1)), (branch, 0))
@@ -203,7 +204,8 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
         clusters = create_test_clusters(1, acc1)
-        master, slaves = clusters[0]
+        master = clusters[0].master
+        slaves = clusters[0].slaveList
 
         branch = Branch.create(2, 0)
         tx = create_transfer_transaction(
