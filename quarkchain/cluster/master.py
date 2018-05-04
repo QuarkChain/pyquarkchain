@@ -11,6 +11,7 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
     GetTransactionCountRequest, AddTransactionRequest,
+    AddRootBlockRequest, AddMinorBlockRequest,
 )
 from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
 from quarkchain.core import Branch, ShardMask
@@ -195,8 +196,8 @@ class MasterServer():
 
     def getSlaveConnection(self, branch):
         # TODO:  Support forwarding to multiple connections (for replication)
-        check(len(self.shardToSlaves[branch.value]) > 0)
-        return self.shardToSlaves[branch.value][0]
+        check(len(self.shardToSlaves[branch.getShardId()]) > 0)
+        return self.shardToSlaves[branch.getShardId()][0]
 
     def __logSummary(self):
         for shardId, slaves in enumerate(self.shardToSlaves):
@@ -334,7 +335,8 @@ class MasterServer():
         count = await self.shardToSlaves[shardId][0].getTransactionCount(address)
         return Branch.create(self.__getShardSize(), shardId), count
 
-    async def addTransaction(self, tx, branch):
+    async def addTransaction(self, tx):
+        branch = Branch(tx.code.getEvmTransaction().branchValue)
         futures = []
         for slave in self.shardToSlaves[branch.getShardId()]:
             futures.append(slave.addTransaction(tx))
@@ -362,7 +364,7 @@ class MasterServer():
                 branch = Branch(shardId + self.__getShardSize())
                 slaveConn = self.getSlaveConnection(branch=branch)
                 # TODO: Update switch
-                futureList.add(slaveConn.writeRpcRequest(
+                futureList.append(slaveConn.writeRpcRequest(
                     op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
                     cmd=AddRootBlockRequest(rBlock, False),
                     metadata=ClusterMetadata(branch, bytes(32))))
@@ -370,6 +372,23 @@ class MasterServer():
             # TODO: Check resultList
             self.rootState.addBlock(rBlock)
         self.isUpdatingRootBlock = False
+
+    async def addMinorBlock(self, block):
+        shardId = block.header.branch.getShardId()
+        if shardId >= len(self.shardToSlaves):
+            return False
+
+        request = AddMinorBlockRequest(block)
+        # TODO: support multiple slaves running the same shard
+        _, resp, _ = await self.shardToSlaves[shardId][0].writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
+        print(resp)
+        return resp.errorCode == 0
+
+    async def addRootBlock(self, block):
+        self.rootBlockUpdateQueue.append(block)
+        if not self.isUpdatingRootBlock:
+            self.isUpdatingRootBlock = True
+            await self.updateRooBlockAsync()
 
 
 def parse_args():

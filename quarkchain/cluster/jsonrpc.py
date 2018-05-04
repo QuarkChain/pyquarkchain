@@ -7,8 +7,10 @@ from ethereum.utils import (
     is_numeric, is_string, int_to_big_endian, big_endian_to_int,
     encode_hex, decode_hex, sha3, zpad, denoms, int32)
 from jsonrpcserver.aio import methods
-from jsonrpcserver.exceptions import InvalidParams
+from jsonrpcserver.async_methods import AsyncMethods
+from jsonrpcserver.exceptions import InvalidParams, ServerError
 
+from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -18,15 +20,6 @@ from quarkchain.utils import Logger
 # defaults
 default_startgas = 500 * 1000
 default_gasprice = 60 * denoms.shannon
-
-
-async def handle(request):
-    request = await request.text()
-    response = await methods.dispatch(request)
-    if response.is_notification:
-        return web.Response()
-    else:
-        return web.json_response(response, status=response.http_status)
 
 
 def is_json_string(data):
@@ -103,21 +96,17 @@ def obj_encoder(obj, cls):
 
 
 def address_decoder(data):
-    """Decode an address from hex with 0x prefix to Address."""
-    return obj_decoder(data, Address)
+    """Decode an address from hex with 0x prefix to 24 bytes."""
+    addr = data_decoder(data)
+    if len(addr) not in (24, 0):
+        raise InvalidParams('Addresses must be 24 or 0 bytes long')
+    return addr
 
 
 def address_encoder(address):
-    return obj_encoder(address, Address)
-
-
-def branch_decoder(data):
-    """Decode a branch from hex with 0x prefix to Branch."""
-    return obj_decoder(data, Branch)
-
-
-def branch_encoder(branch):
-    return obj_encoder(branch, Branch)
+    assert len(address) in (24, 0)
+    result = str('0x' + encode_hex(address))
+    return result
 
 
 def block_id_decoder(data):
@@ -174,20 +163,29 @@ def encode_res(encoder):
 class JSONRPCServer:
 
     def __init__(self, env, masterServer):
-        app = web.Application()
-        app.router.add_post("/", handle)
-        self.runner = web.AppRunner(app)
         self.loop = asyncio.get_event_loop()
         self.port = env.config.LOCAL_SERVER_PORT
         self.env = env
         self.master = masterServer
 
         # Bind RPC handler functions to this instance
+        self.handlers = AsyncMethods()
         for rpcName in methods:
             func = methods[rpcName]
-            methods[rpcName] = func.__get__(self, self.__class__)
+            self.handlers[rpcName] = func.__get__(self, self.__class__)
+
+    async def __handle(self, request):
+        request = await request.text()
+        response = await self.handlers.dispatch(request)
+        if response.is_notification:
+            return web.Response()
+        else:
+            return web.json_response(response, status=response.http_status)
 
     def start(self):
+        app = web.Application()
+        app.router.add_post("/", self.__handle)
+        self.runner = web.AppRunner(app)
         self.loop.run_until_complete(self.runner.setup())
         site = web.TCPSite(self.runner, "0.0.0.0", self.port)
         self.loop.run_until_complete(site.start())
@@ -206,14 +204,14 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     @decode_arg("blockId", block_id_decoder)
     async def getTransactionCount(self, address, blockId="pending"):
-        branch, count = await self.master.getTransactionCount(address)
+        branch, count = await self.master.getTransactionCount(Address.deserialize(address))
         return {
-            "branch": branch_encoder(branch),
+            "branch": quantity_encoder(branch.value),
             "count": quantity_encoder(count),
         }
 
     @methods.add
-    async def sendTransaction(self, data):
+    async def sendTransaction(self, **data):
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -234,30 +232,53 @@ class JSONRPCServer:
         s = getDataDefault("s", quantity_decoder, 0)
         nonce = getDataDefault("nonce", quantity_decoder, None)
 
-        branch = getDataDefault("branch", branch_decoder, None)
+        branch = getDataDefault("branch", quantity_decoder, 0)
         withdraw = getDataDefault("withdraw", quantity_decoder, 0)
-        withdrawTo = getDataDefault("withdrawTo", address_decoder, None)
+        withdrawTo = getDataDefault("withdrawTo", data_decoder, None)
 
         if nonce is None:
             raise InvalidParams("Missing nonce")
         if not (v and r and s):
             raise InvalidParams("Mising v, r, s")
-        if branch is None:
+        if branch == 0:
             raise InvalidParams("Missing branch")
         if withdraw > 0 and withdrawTo is None:
             raise InvalidParams("Missing withdrawTo")
 
+        toAddr = Address.deserialize(to)
         evmTx = EvmTransaction(
-            nonce, gasprice, startgas, to.recipient, value, data_, v, r, s,
-            branchValue=branch.value,
+            nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
+            branchValue=branch,
             withdraw=withdraw,
             withdrawSign=1,
-            withdrawTo=withdrawTo.serialize() if withdrawTo else b"",
+            withdrawTo=withdrawTo if withdrawTo else b"",
         )
         tx = Transaction(code=Code.createEvmCode(evmTx))
-        await self.master.addTx(tx, branch)
-        Logger.debug("decoded tx", tx=tx.to_dict())
-        return data_encoder(tx.hash)
+        success = await self.master.addTransaction(tx)
+        if not success:
+            raise ServerError("Failed to add transaction")
+
+        return data_encoder(tx.getHash())
+
+    @methods.add
+    @decode_arg("coinbaseAddress", address_decoder)
+    async def getNextBlockToMine(self, coinbaseAddress):
+        address = Address.deserialize(coinbaseAddress)
+        isRootBlock, block = await self.master.getNextBlockToMine(address)
+        return {
+            "isRootBlock": isRootBlock,
+            "blockData": data_encoder(block.serialize()),
+        }
+
+    @methods.add
+    @decode_arg("isRootBlock", bool_decoder)
+    @decode_arg("blockData", data_decoder)
+    async def addBlock(self, isRootBlock, blockData):
+        if isRootBlock:
+            block = RootBlock.deserialize(blockData)
+            return await self.master.addRootBlock(block)
+        block = MinorBlock.deserialize(blockData)
+        return await self.master.addMinorBlock(block)
 
 
 if __name__ == "__main__":

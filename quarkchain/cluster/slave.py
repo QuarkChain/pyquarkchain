@@ -11,7 +11,7 @@ from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_O
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
-    HeadersInfo, GetUnconfirmedHeadersResponse,
+    AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
     GetTransactionCountResponse, AddTransactionResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
@@ -91,11 +91,13 @@ class MasterConnection(ClusterConnection):
         # TODO: handle expectSwitch
         errorCode = 0
         switched = False
-        try:
-            switched = self.shardState.addRootBlock(req.rootBlock)
-        except ValueError:
-            # TODO: May be enum or Unix errno?
-            errorCode = errno.EBADMSG
+        for branchValue, shardState in self.shardStateMap.items():
+            try:
+                switched = shardState.addRootBlock(req.rootBlock)
+            except ValueError:
+                # TODO: May be enum or Unix errno?
+                errorCode = errno.EBADMSG
+                break
 
         return AddRootBlockResponse(errorCode, switched)
 
@@ -125,6 +127,12 @@ class MasterConnection(ClusterConnection):
             block=block,
         )
         return response
+
+    async def handleAddMinorBlockRequest(self, req):
+        success = await self.slaveServer.addBlock(req.minorBlock)
+        return AddMinorBlockResponse(
+            errorCode=0 if success else errno.EFAULT,
+        )
 
     async def handleGetUnconfirmedHeaderListRequest(self, req):
         headersInfoList = []
@@ -170,6 +178,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.GET_ECO_INFO_LIST_RESPONSE, MasterConnection.handleGetEcoInfoListRequest),
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST:
         (ClusterOp.GET_NEXT_BLOCK_TO_MINE_RESPONSE, MasterConnection.handleGetNextBlockToMineRequest),
+    ClusterOp.ADD_MINOR_BLOCK_REQUEST:
+        (ClusterOp.ADD_MINOR_BLOCK_RESPONSE, MasterConnection.handleAddMinorBlockRequest),
     ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST:
         (ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE, MasterConnection.handleGetUnconfirmedHeaderListRequest),
     ClusterOp.GET_TRANSACTION_COUNT_REQUEST:
