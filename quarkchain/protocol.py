@@ -27,12 +27,9 @@ class Metadata(Serializable):
         return 0
 
 
-class Connection:
+class AbstractConnection:
 
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
-        self.env = env
-        self.reader = reader
-        self.writer = writer
+    def __init__(self, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
         self.opSerMap = opSerMap
         self.opNonRpcMap = opNonRpcMap
         self.opRpcMap = opRpcMap
@@ -46,35 +43,11 @@ class Connection:
         self.closeFuture = loop.create_future()
         self.metadataClass = metadataClass
 
-    async def __readFully(self, n, allowEOF=False):
-        ba = bytearray()
-        bs = await self.reader.read(n)
-        if allowEOF and len(bs) == 0 and self.reader.at_eof():
-            return None
+    async def readMetadataAndRawData(self):
+        raise NotImplementedError()
 
-        ba.extend(bs)
-        while len(ba) < n:
-            bs = await self.reader.read(n - len(ba))
-            if len(bs) == 0 and self.reader.at_eof():
-                raise RuntimeError("read unexpected EOF")
-            ba.extend(bs)
-        return ba
-
-    async def __readMetadataAndRawData(self):
-        sizeBytes = await self.__readFully(4, allowEOF=True)
-        if sizeBytes is None:
-            self.close()
-            return None, None
-        size = int.from_bytes(sizeBytes, byteorder="big")
-
-        if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
-            raise RuntimeError("command package exceed limit")
-
-        metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
-        metadata = self.metadataClass.deserialize(metadataBytes)
-
-        rawDataWithoutSize = await self.__readFully(1 + 8 + size)
-        return metadata, rawDataWithoutSize
+    def writeRawData(self, metadata, rawData):
+        raise NotImplementedError()
 
     def __parseCommand(self, rawData):
         op = rawData[0]
@@ -86,7 +59,7 @@ class Connection:
     async def readCommand(self):
         # TODO: distinguish clean disconnect or unexpected disconnect
         try:
-            metadata, rawData = await self.__readMetadataAndRawData()
+            metadata, rawData = await self.readMetadataAndRawData()
             if metadata is None:
                 return (None, None, None)
         except Exception as e:
@@ -96,12 +69,6 @@ class Connection:
 
         # we don't return the metadata to not break the existing code
         return (op, cmd, rpcId)
-
-    def writeRawData(self, metadata, rawData):
-        cmdLengthBytes = (len(rawData) - 8 - 1).to_bytes(4, byteorder="big")
-        self.writer.write(cmdLengthBytes)
-        self.writer.write(metadata.serialize())
-        self.writer.write(rawData)
 
     def writeRawCommand(self, op, cmdData, rpcId=0, metadata=None):
         metadata = metadata if metadata else self.metadataClass()
@@ -180,7 +147,7 @@ class Connection:
 
     async def loopOnce(self):
         try:
-            metadata, rawData = await self.__readMetadataAndRawData()
+            metadata, rawData = await self.readMetadataAndRawData()
             if metadata is None:
                 return
         except Exception as e:
@@ -211,7 +178,6 @@ class Connection:
         await self.closeFuture
 
     def close(self):
-        self.writer.close()
         if self.state != ConnectionState.CLOSED:
             self.state = ConnectionState.CLOSED
             self.closeFuture.set_result(None)
@@ -225,3 +191,61 @@ class Connection:
 
     def isClosed(self):
         return self.state == ConnectionState.CLOSED
+
+
+class Connection(AbstractConnection):
+    ''' A TCP/IP connection based on socket stream
+    '''
+
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
+        loop = loop if loop else asyncio.get_event_loop()
+        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass)
+        self.env = env
+        self.reader = reader
+        self.writer = writer
+
+    async def __readFully(self, n, allowEOF=False):
+        ba = bytearray()
+        bs = await self.reader.read(n)
+        if allowEOF and len(bs) == 0 and self.reader.at_eof():
+            return None
+
+        ba.extend(bs)
+        while len(ba) < n:
+            bs = await self.reader.read(n - len(ba))
+            if len(bs) == 0 and self.reader.at_eof():
+                raise RuntimeError("read unexpected EOF")
+            ba.extend(bs)
+        return ba
+
+    async def readMetadataAndRawData(self):
+        ''' Override AbstractConnection.readMetadataAndRawData()
+        '''
+        sizeBytes = await self.__readFully(4, allowEOF=True)
+        if sizeBytes is None:
+            self.close()
+            return None, None
+        size = int.from_bytes(sizeBytes, byteorder="big")
+
+        if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
+            raise RuntimeError("command package exceed limit")
+
+        metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
+        metadata = self.metadataClass.deserialize(metadataBytes)
+
+        rawDataWithoutSize = await self.__readFully(1 + 8 + size)
+        return metadata, rawDataWithoutSize
+
+    def writeRawData(self, metadata, rawData):
+        ''' Override AbstractConnection.writeRawData()
+        '''
+        cmdLengthBytes = (len(rawData) - 8 - 1).to_bytes(4, byteorder="big")
+        self.writer.write(cmdLengthBytes)
+        self.writer.write(metadata.serialize())
+        self.writer.write(rawData)
+
+    def close(self):
+        ''' Override AbstractConnection.close()
+        '''
+        self.writer.close()
+        super().close()
