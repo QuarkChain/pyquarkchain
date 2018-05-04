@@ -3,6 +3,7 @@ import asyncio
 import ipaddress
 import json
 import random
+from collections import deque
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
@@ -134,6 +135,8 @@ class MasterServer():
 
         self.clusterActiveFuture = self.loop.create_future()
         self.shutdownFuture = self.loop.create_future()
+        self.rootBlockUpdateQueue = deque()
+        self.isUpdatingRootBlock = False
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -189,6 +192,11 @@ class MasterServer():
             success = await slave.sendConnectToSlaves(self.clusterConfig.getSlaveInfoList())
             if not success:
                 self.shutdown()
+
+    def getSlaveConnection(self, branch):
+        # TODO:  Support forwarding to multiple connections (for replication)
+        check(len(self.shardToSlaves[branch.value]) > 0)
+        return self.shardToSlaves[branch.value][0]
 
     def __logSummary(self):
         for shardId, slaves in enumerate(self.shardToSlaves):
@@ -336,6 +344,32 @@ class MasterServer():
         # TODO: broadcast tx to peers
 
         return all(results)
+
+    def updateRootBlock(self, rBlock):
+        self.rootBlockUpdateQueue.append(rBlock)
+        if not self.isUpdatingRootBlock:
+            self.isUpdatingRootBlock = True
+            asyncio.ensure_future(self.updateRooBlockAsync())
+
+    async def updateRooBlockAsync(self):
+        ''' Broadcast root block to all shards and add root block locally
+        '''
+        check(self.isUpdatingRootBlock)
+        while len(self.rootBlockUpdateQueue) != 0:
+            rBlock = self.rootBlockUpdateQueue.popleft()
+            futureList = []
+            for shardId in range(self.__getShardSize()):
+                branch = Branch(shardId + self.__getShardSize())
+                slaveConn = self.getSlaveConnection(branch=branch)
+                # TODO: Update switch
+                futureList.add(slaveConn.writeRpcRequest(
+                    op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
+                    cmd=AddRootBlockRequest(rBlock, False),
+                    metadata=ClusterMetadata(branch, bytes(32))))
+            resultList = await asyncio.gather(*futureList)
+            # TODO: Check resultList
+            self.rootState.addBlock(rBlock)
+        self.isUpdatingRootBlock = False
 
 
 def parse_args():

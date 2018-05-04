@@ -62,7 +62,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
         loop.run_until_complete(masterServer.clusterActiveFuture)
 
         # Start simple network and connect to seed host
-        network = SimpleNetwork(env, rootState)
+        network = SimpleNetwork(env, masterServer)
         network.startServer()
         if i != 0:
             peer = call_async(network.connect("127.0.0.1", seedPort))
@@ -229,3 +229,21 @@ class TestCluster(unittest.TestCase):
 
         shutdown_clusters(clusters)
 
+    def testAddMinorBlockRequestList(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        clusters = create_test_clusters(2, acc1)
+
+        shardState = clusters[0].slaveList[0].shardStateMap[0b10]
+        b1 = shardState.getTip().createBlockToAppend()
+        b1.finalize(evmState=shardState.runBlock(b1))
+        addResult = call_async(clusters[0].slaveList[0].addBlock(b1))
+        self.assertTrue(addResult)
+
+        # Make sure the xshard list is added to another slave
+        self.assertTrue(
+            clusters[0].slaveList[1].shardStateMap[0b11].containRemoteMinorBlockHash(b1.header.getHash()))
+        self.assertTrue(clusters[0].master.rootState.isMinorBlockValidated(b1.header.getHash()))
+
+        shutdown_clusters(clusters)
