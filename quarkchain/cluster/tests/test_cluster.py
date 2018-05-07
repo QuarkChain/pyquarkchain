@@ -123,7 +123,7 @@ class TestCluster(unittest.TestCase):
                 toAddress=acc1,
                 amount=12345,
             )
-            self.assertTrue(call_async(master.addTransaction(tx, branch)))
+            self.assertTrue(call_async(master.addTransaction(tx)))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
 
             tx = create_transfer_transaction(
@@ -133,7 +133,7 @@ class TestCluster(unittest.TestCase):
                 amount=12345,
                 withdraw=100,
             )
-            self.assertFalse(call_async(master.addTransaction(tx, branch)))
+            self.assertFalse(call_async(master.addTransaction(tx)))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
 
     def testAddMinorBlockRequestList(self):

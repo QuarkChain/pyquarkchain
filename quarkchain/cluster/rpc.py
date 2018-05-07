@@ -165,6 +165,24 @@ class GetNextBlockToMineResponse(Serializable):
         self.block = block
 
 
+class AddMinorBlockRequest(Serializable):
+    FIELDS = [
+        ("minorBlock", MinorBlock),
+    ]
+
+    def __init__(self, minorBlock):
+        self.minorBlock = minorBlock
+
+
+class AddMinorBlockResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
 class HeadersInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
@@ -323,6 +341,8 @@ class ClusterOp():
     ADD_XSHARD_TX_LIST_RESPONSE = 20 + CLUSTER_OP_BASE
     DOWNLOAD_MINOR_BLOCK_LIST_REQUEST = 21 + CLUSTER_OP_BASE
     DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE = 22 + CLUSTER_OP_BASE
+    ADD_MINOR_BLOCK_REQUEST = 23 + CLUSTER_OP_BASE
+    ADD_MINOR_BLOCK_RESPONSE = 24 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -336,6 +356,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_ECO_INFO_LIST_RESPONSE: GetEcoInfoListResponse,
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST: GetNextBlockToMineRequest,
     ClusterOp.GET_NEXT_BLOCK_TO_MINE_RESPONSE: GetNextBlockToMineResponse,
+    ClusterOp.ADD_MINOR_BLOCK_REQUEST: AddMinorBlockRequest,
+    ClusterOp.ADD_MINOR_BLOCK_RESPONSE: AddMinorBlockResponse,
     ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST: GetUnconfirmedHeadersRequest,
     ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE: GetUnconfirmedHeadersResponse,
     ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: AddMinorBlockHeaderRequest,

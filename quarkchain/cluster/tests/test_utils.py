@@ -42,7 +42,7 @@ def create_transfer_transaction(
     """
     evmTx = EvmTransaction(
         branchValue=shardState.branch.value,
-        nonce=shardState.evmState.get_nonce(fromId.getRecipient()),
+        nonce=shardState.getTransactionCount(fromId.getRecipient()),
         gasprice=gasPrice,
         startgas=startgas,
         to=toAddress.recipient,
