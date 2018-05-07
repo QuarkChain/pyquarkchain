@@ -273,7 +273,7 @@ class MasterServer():
     async def __getMinorBlockToMine(self, branch, address):
         request = GetNextBlockToMineRequest(
             branch=branch,
-            address=address,
+            address=address.addressInBranch(branch),
         )
         slave = self.getSlaveConnection(branch)
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
@@ -387,7 +387,6 @@ class MasterServer():
         request = AddMinorBlockRequest(block)
         # TODO: support multiple slaves running the same shard
         _, resp, _ = await self.getSlaveConnection(branch).writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
-        print(resp)
         return resp.errorCode == 0
 
     async def addRootBlock(self, block):

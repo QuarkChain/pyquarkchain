@@ -190,7 +190,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.addressInShard(1).serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
             self.assertFalse(response["isRootBlock"])
             block2 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block2.header.branch.value, 0b11)
@@ -211,7 +211,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.addressInShard(1).serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
             self.assertFalse(response["isRootBlock"])
             block3 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block3.header.branch.value, 0b11)
