@@ -130,8 +130,8 @@ class MasterServer():
         self.rootState = rootState
         self.clusterConfig = env.clusterConfig.CONFIG
 
-        # shard id -> a list of slave running the shard
-        self.shardToSlaves = [[] for i in range(self.__getShardSize())]
+        # branch value -> a list of slave running the shard
+        self.branchToSlaves = dict()
         self.slavePool = set()
 
         self.clusterActiveFuture = self.loop.create_future()
@@ -145,7 +145,8 @@ class MasterServer():
 
     def __hasAllShards(self):
         ''' Returns True if all the shards have been run by at least one node '''
-        return all([len(slaves) > 0 for slaves in self.shardToSlaves])
+        return (len(self.branchToSlaves) == self.__getShardSize() and
+                all([len(slaves) > 0 for _, slaves in self.branchToSlaves.items()]))
 
     async def __connect(self, ip, port):
         ''' Retries until success '''
@@ -181,8 +182,9 @@ class MasterServer():
 
             self.slavePool.add(slave)
             for shardId in range(self.__getShardSize()):
+                branch = Branch.create(self.__getShardSize(), shardId)
                 if slave.hasShard(shardId):
-                    self.shardToSlaves[shardId].append(slave)
+                    self.branchToSlaves.setdefault(branch.value, []).append(slave)
 
     async def __setupSlaveToSlaveConnections(self):
         ''' Make slaves connect to other slaves.
@@ -196,12 +198,12 @@ class MasterServer():
 
     def getSlaveConnection(self, branch):
         # TODO:  Support forwarding to multiple connections (for replication)
-        check(len(self.shardToSlaves[branch.getShardId()]) > 0)
-        return self.shardToSlaves[branch.getShardId()][0]
+        check(len(self.branchToSlaves[branch.value]) > 0)
+        return self.branchToSlaves[branch.value][0]
 
     def __logSummary(self):
-        for shardId, slaves in enumerate(self.shardToSlaves):
-            Logger.info("[{}] is run by slave {}".format(shardId, [s.id for s in slaves]))
+        for branchValue, slaves in self.branchToSlaves.items():
+            Logger.info("[{}] is run by slave {}".format(Branch(branchValue).getShardId(), [s.id for s in slaves]))
 
     async def __initCluster(self):
         await self.__connectToSlaves()
@@ -273,7 +275,7 @@ class MasterServer():
             branch=branch,
             address=address,
         )
-        slave = self.shardToSlaves[branch.getShardId()][0]
+        slave = self.getSlaveConnection(branch)
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
         return response.block if response.errorCode == 0 else None
 
@@ -332,13 +334,17 @@ class MasterServer():
 
     async def getTransactionCount(self, address):
         shardId = address.getShardId(self.__getShardSize())
-        count = await self.shardToSlaves[shardId][0].getTransactionCount(address)
+        branch = Branch.create(self.__getShardSize(), shardId)
+        count = await self.getSlaveConnection(branch).getTransactionCount(address)
         return Branch.create(self.__getShardSize(), shardId), count
 
     async def addTransaction(self, tx):
         branch = Branch(tx.code.getEvmTransaction().branchValue)
+        if branch.value not in self.branchToSlaves:
+            return False
+
         futures = []
-        for slave in self.shardToSlaves[branch.getShardId()]:
+        for slave in self.branchToSlaves[branch.value]:
             futures.append(slave.addTransaction(tx))
 
         results = await asyncio.gather(*futures)
@@ -374,13 +380,13 @@ class MasterServer():
         self.isUpdatingRootBlock = False
 
     async def addMinorBlock(self, block):
-        shardId = block.header.branch.getShardId()
-        if shardId >= len(self.shardToSlaves):
+        branch = block.header.branch
+        if branch.value not in self.branchToSlaves:
             return False
 
         request = AddMinorBlockRequest(block)
         # TODO: support multiple slaves running the same shard
-        _, resp, _ = await self.shardToSlaves[shardId][0].writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
+        _, resp, _ = await self.getSlaveConnection(branch).writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
         print(resp)
         return resp.errorCode == 0
 
