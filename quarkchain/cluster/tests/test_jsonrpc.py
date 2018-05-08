@@ -180,7 +180,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].addTx(tx))
 
             # Expect to mine shard 0 since it has one tx
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
             self.assertFalse(response["isRootBlock"])
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block1.header.branch.value, 0b10)
@@ -192,7 +192,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
             self.assertFalse(response["isRootBlock"])
             block2 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block2.header.branch.value, 0b11)
@@ -200,7 +200,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
 
             # Expect to mine root
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
             self.assertTrue(response["isRootBlock"])
             block = RootBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
 
@@ -213,7 +213,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
-            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex())
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
             self.assertFalse(response["isRootBlock"])
             block3 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block3.header.branch.value, 0b11)
@@ -223,3 +223,18 @@ class TestJSONRPC(unittest.TestCase):
             resp = sendRequest("getBalance", "0x" + acc3.serialize().hex())
             self.assertEqual(resp["branch"], "0x3")
             self.assertEqual(resp["balance"], "0xe")
+
+    def testGetNextBlockToMineWithShardMask(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x10")
+            self.assertFalse(response["isRootBlock"])
+            block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
+            self.assertEqual(block1.header.branch.value, 0b10)
+
+            response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x11")
+            self.assertFalse(response["isRootBlock"])
+            block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
+            self.assertEqual(block1.header.branch.value, 0b11)

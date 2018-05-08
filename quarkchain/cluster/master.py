@@ -279,9 +279,15 @@ class MasterServer():
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
         return response.block if response.errorCode == 0 else None
 
-    async def getNextBlockToMine(self, address, randomizeOutput=True):
-        ''' Returns (isRootBlock, block) '''
+    async def getNextBlockToMine(self, address, shardMaskValue=0, randomizeOutput=True):
+        ''' Returns (isRootBlock, block)
+
+        shardMaskValue = 0 means considering root chain and all the shards
+        '''
+        shardMask = None if shardMaskValue == 0 else ShardMask(shardMaskValue)
         futures = []
+
+        # TODO: only fetch from slaves that have the shards covered by shard mask
         for slave in self.slavePool:
             request = GetEcoInfoListRequest()
             futures.append(slave.writeRpcRequest(ClusterOp.GET_ECO_INFO_LIST_REQUEST, request))
@@ -303,15 +309,18 @@ class MasterServer():
             rootCoinbaseAmount += ecoInfo.unconfirmedHeadersCoinbaseAmount
         rootCoinbaseAmount = rootCoinbaseAmount // 2
 
-        branchValueWithMaxEco = 0
+        branchValueWithMaxEco = 0 if shardMask is None else None
         maxEco = rootCoinbaseAmount / self.rootState.getNextBlockDifficulty()
 
         dupEcoCount = 1
         blockHeight = 0
         for branchValue, ecoInfo in branchValueToEcoInfo.items():
+            if shardMask and not shardMask.containBranch(Branch(branchValue)):
+                continue
             # TODO: Obtain block reward and tx fee
             eco = ecoInfo.coinbaseAmount / ecoInfo.difficulty
-            if eco > maxEco or (eco == maxEco and branchValueWithMaxEco > 0 and blockHeight > ecoInfo.height):
+            if branchValueWithMaxEco is None or eco > maxEco or \
+               (eco == maxEco and branchValueWithMaxEco > 0 and blockHeight > ecoInfo.height):
                 branchValueWithMaxEco = branchValue
                 maxEco = eco
                 dupEcoCount = 1

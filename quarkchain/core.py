@@ -401,6 +401,9 @@ class ShardMask(Serializable):
         bitMask = (1 << (int_left_most_bit(self.value) - 1)) - 1
         return (bitMask & shardId) == (self.value & bitMask)
 
+    def containBranch(self, branch):
+        return self.containShardId(branch.getShardId())
+
     def iterate(self, shardSize):
         shardBits = int_left_most_bit(shardSize)
         maskBits = int_left_most_bit(self.value) - 1
