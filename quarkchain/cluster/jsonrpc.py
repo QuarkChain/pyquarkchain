@@ -211,6 +211,16 @@ class JSONRPCServer:
         }
 
     @methods.add
+    @decode_arg("address", address_decoder)
+    @decode_arg("blockId", block_id_decoder)
+    async def getBalance(self, address, blockId="pending"):
+        branch, balance = await self.master.getBalance(Address.deserialize(address))
+        return {
+            "branch": quantity_encoder(branch.value),
+            "balance": quantity_encoder(balance),
+        }
+
+    @methods.add
     async def sendTransaction(self, **data):
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")

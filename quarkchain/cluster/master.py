@@ -10,7 +10,7 @@ from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
-    GetTransactionCountRequest, AddTransactionRequest,
+    GetAccountDataRequest, AddTransactionRequest,
     AddRootBlockRequest, AddMinorBlockRequest,
 )
 from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
@@ -85,14 +85,14 @@ class SlaveConnection(ClusterConnection):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().closeWithError(error)
 
-    async def getTransactionCount(self, address):
-        request = GetTransactionCountRequest(address)
+    async def getAccountData(self, address):
+        request = GetAccountDataRequest(address)
         _, resp, _ = await self.writeRpcRequest(
-            ClusterOp.GET_TRANSACTION_COUNT_REQUEST,
+            ClusterOp.GET_ACCOUNT_DATA_REQUEST,
             request,
         )
         check(resp.errorCode == 0)
-        return resp.count
+        return resp
 
     async def addTransaction(self, tx):
         request = AddTransactionRequest(tx)
@@ -341,11 +341,19 @@ class MasterServer():
         block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
         return (None, None) if not block else (False, block)
 
-    async def getTransactionCount(self, address):
+    async def getAccountData(self, address):
         shardId = address.getShardId(self.__getShardSize())
         branch = Branch.create(self.__getShardSize(), shardId)
-        count = await self.getSlaveConnection(branch).getTransactionCount(address)
-        return Branch.create(self.__getShardSize(), shardId), count
+        resp = await self.getSlaveConnection(branch).getAccountData(address)
+        return Branch.create(self.__getShardSize(), shardId), resp
+
+    async def getTransactionCount(self, address):
+        branch, resp = await self.getAccountData(address)
+        return branch, resp.transactionCount
+
+    async def getBalance(self, address):
+        branch, resp = await self.getAccountData(address)
+        return branch, resp.balance
 
     async def addTransaction(self, tx):
         branch = Branch(tx.code.getEvmTransaction().branchValue)

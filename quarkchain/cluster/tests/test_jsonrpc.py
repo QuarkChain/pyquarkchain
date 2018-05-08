@@ -172,8 +172,8 @@ class TestJSONRPC(unittest.TestCase):
                 shardState=slaves[0].shardStateMap[2 | 0],
                 fromId=id1,
                 toAddress=acc2,
-                amount=12345,
-                withdraw=54321,
+                amount=13,
+                withdraw=14,
                 withdrawTo=bytes(acc3.serialize()),
                 startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             )
@@ -186,7 +186,9 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(block1.header.branch.value, 0b10)
 
             self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
-            self.assertEqual(slaves[0].shardStateMap[2].getBalance(acc2.recipient), 12345)
+            resp = sendRequest("getBalance", "0x" + acc2.serialize().hex())
+            self.assertEqual(resp["branch"], "0x2")
+            self.assertEqual(resp["balance"], "0xd")
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
@@ -218,7 +220,9 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
             # Expect withdrawTo is included in acc3's balance
-            self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 54321)
+            resp = sendRequest("getBalance", "0x" + acc3.serialize().hex())
+            self.assertEqual(resp["branch"], "0x3")
+            self.assertEqual(resp["balance"], "0xe")
 
     def testGetNextBlockToMineWithShardMask(self):
         id1 = Identity.createRandomIdentity()
@@ -234,5 +238,3 @@ class TestJSONRPC(unittest.TestCase):
             self.assertFalse(response["isRootBlock"])
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block1.header.branch.value, 0b11)
-
-

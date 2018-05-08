@@ -12,7 +12,7 @@ from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
     AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
-    GetTransactionCountResponse, AddTransactionResponse,
+    GetAccountDataResponse, AddTransactionResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -146,15 +146,18 @@ class MasterConnection(ClusterConnection):
             headersInfoList=headersInfoList,
         )
 
-    async def handleGetTransactionCountRequest(self, req):
+    async def handleAccountDataRequest(self, req):
         count = self.slaveServer.getTransactionCount(req.address)
+        balance = self.slaveServer.getBalance(req.address)
         errorCode = 0
-        if count is None:
+        if count is None or balance is None:
             errorCode = errno.EBADMSG
             count = -1
-        return GetTransactionCountResponse(
+            balance = -1
+        return GetAccountDataResponse(
             errorCode=errorCode,
-            count=count,
+            transactionCount=count,
+            balance=balance,
         )
 
     async def handleAddTransaction(self, req):
@@ -182,8 +185,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.ADD_MINOR_BLOCK_RESPONSE, MasterConnection.handleAddMinorBlockRequest),
     ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST:
         (ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE, MasterConnection.handleGetUnconfirmedHeaderListRequest),
-    ClusterOp.GET_TRANSACTION_COUNT_REQUEST:
-        (ClusterOp.GET_TRANSACTION_COUNT_RESPONSE, MasterConnection.handleGetTransactionCountRequest),
+    ClusterOp.GET_ACCOUNT_DATA_REQUEST:
+        (ClusterOp.GET_ACCOUNT_DATA_RESPONSE, MasterConnection.handleAccountDataRequest),
     ClusterOp.ADD_TRANSACTION_REQUEST:
         (ClusterOp.ADD_TRANSACTION_RESPONSE, MasterConnection.handleAddTransaction),
 }
@@ -421,6 +424,12 @@ class SlaveServer():
         if branch.value not in self.shardStateMap:
             return None
         return self.shardStateMap[branch.value].getTransactionCount(address.recipient)
+
+    def getBalance(self, address):
+        branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))
+        if branch.value not in self.shardStateMap:
+            return None
+        return self.shardStateMap[branch.value].getBalance(address.recipient)
 
 
 def parse_args():
