@@ -135,7 +135,7 @@ class RootState:
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.getNextBlockDifficulty(blockHeader.createTime)
+                diff = self.getNextBlockDifficulty()
                 metric = diff * int.from_bytes(blockHash, byteorder="big")
                 if metric >= 2 ** 256:
                     raise ValueError("insufficient difficulty")
@@ -175,7 +175,8 @@ class RootState:
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     raise ValueError("fail to prove progress")
                 if mHeader.createTime > block.header.createTime:
-                    raise ValueError("minor block create time is too large")
+                    raise ValueError("minor block create time is too large {}>{}".format(
+                        mHeader.createTime, block.header.createTime))
 
                 lastMinorBlockHeaderList.append(block.minorBlockHeaderList[idx - 1])
                 shardId += 1

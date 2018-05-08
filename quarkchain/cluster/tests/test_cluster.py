@@ -51,7 +51,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
-            isRoot, block2 = call_async(master.getNextBlockToMine(address=acc1.addressInShard(1)))
+            isRoot, block2 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
             self.assertEqual(block2.header.height, 1)
             self.assertEqual(block2.header.branch.value, 2 | 1)
@@ -60,7 +60,7 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(slaves[1].addBlock(block2)))
 
             # Expect to mine root
-            isRoot, block = call_async(master.getNextBlockToMine(address=acc1.addressInShard(1)))
+            isRoot, block = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(isRoot)
             self.assertEqual(block.header.height, 1)
             self.assertEqual(len(block.minorBlockHeaderList), 2)
@@ -72,7 +72,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
-            isRoot, block3 = call_async(master.getNextBlockToMine(address=acc1.addressInShard(1)))
+            isRoot, block3 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
             self.assertEqual(block3.header.height, 2)
             self.assertEqual(block3.header.branch.value, 2 | 1)
