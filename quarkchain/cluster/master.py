@@ -12,8 +12,12 @@ from quarkchain.cluster.rpc import (
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
     GetAccountDataRequest, AddTransactionRequest,
     AddRootBlockRequest, AddMinorBlockRequest,
+    CreateClusterPeerConnectionRequest,
+    DestroyClusterPeerConnectionCommand,
 )
-from quarkchain.cluster.protocol import ClusterMetadata, ClusterConnection, ROOT_BRANCH
+from quarkchain.cluster.protocol import (
+    ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION, P2PMetadata
+)
 from quarkchain.core import Branch, ShardMask
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.jsonrpc import JSONRPCServer
@@ -47,6 +51,22 @@ class SlaveConnection(ClusterConnection):
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
+    def getConnectionToForward(self, metadata):
+        ''' Override ProxyConnection.getConnectionToForward()
+        Forward traffic from slave to peer
+        '''
+        if metadata.clusterPeerId == 0:
+            return None
+
+        peer = self.masterServer.getPeer(metadata.clusterPeerId)
+        if peer is None:
+            return NULL_CONNECTION
+
+        return peer
+
+    def validateConnection(self, connection):
+        return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
+
     def hasShard(self, shardId):
         for shardMask in self.shardMaskList:
             if shardMask.containShardId(shardId):
@@ -58,7 +78,7 @@ class SlaveConnection(ClusterConnection):
         op, resp, rpcId = await self.writeRpcRequest(
             op=ClusterOp.PING,
             cmd=req,
-            metadata=ClusterMetadata(branch=ROOT_BRANCH, peerId=bytes(32)))
+            metadata=ClusterMetadata(branch=ROOT_BRANCH, clusterPeerId=0))
         return (resp.id, resp.shardMaskList)
 
     async def sendConnectToSlaves(self, slaveInfoList):
@@ -124,10 +144,11 @@ class MasterServer():
     2. Make slaves connect to each other
     '''
 
-    def __init__(self, env, rootState):
+    def __init__(self, env, rootState, network=None):
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.rootState = rootState
+        self.network = network
         self.clusterConfig = env.clusterConfig.CONFIG
 
         # branch value -> a list of slave running the shard
@@ -382,15 +403,9 @@ class MasterServer():
         check(self.isUpdatingRootBlock)
         while len(self.rootBlockUpdateQueue) != 0:
             rBlock = self.rootBlockUpdateQueue.popleft()
-            futureList = []
-            for shardId in range(self.__getShardSize()):
-                branch = Branch(shardId + self.__getShardSize())
-                slaveConn = self.getSlaveConnection(branch=branch)
-                # TODO: Update switch
-                futureList.append(slaveConn.writeRpcRequest(
-                    op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
-                    cmd=AddRootBlockRequest(rBlock, False),
-                    metadata=ClusterMetadata(branch, bytes(32))))
+            futureList = self.broadcastRpc(
+                op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
+                req=AddRootBlockRequest(rBlock, False))
             resultList = await asyncio.gather(*futureList)
             # TODO: Check resultList
             self.rootState.addBlock(rBlock)
@@ -411,6 +426,50 @@ class MasterServer():
         if not self.isUpdatingRootBlock:
             self.isUpdatingRootBlock = True
             await self.updateRooBlockAsync()
+
+    def broadcastCommand(self, op, cmd):
+        ''' Broadcast command to all slaves.
+        '''
+        for shardId in range(self.env.config.SHARD_SIZE):
+            branch = Branch(self.env.config.SHARD_SIZE + shardId)
+            slaveConn = self.getSlaveConnection(branch=branch)
+            slaveConn.writeCommand(
+                op=op,
+                cmd=cmd,
+                metadata=ClusterMetadata(branch, 0))
+
+    def broadcastRpc(self, op, req):
+        ''' Broadcast RPC request to all slaves.
+        '''
+        futureList = []
+        for shardId in range(self.env.config.SHARD_SIZE):
+            branch = Branch(self.__getShardSize() + shardId)
+            slaveConn = self.getSlaveConnection(branch=branch)
+            futureList.append(slaveConn.writeRpcRequest(
+                op=op,
+                cmd=req,
+                metadata=ClusterMetadata(branch, 0)))
+        return futureList
+
+    # ------------------------------ Cluster Peer Connnection Management --------------
+    def getPeer(self, clusterPeerId):
+        if self.network is None:
+            return None
+        return self.network.getPeerByClusterPeerId(clusterPeerId)
+
+    async def createPeerClusterConnections(self, clusterPeerId):
+        futureList = self.broadcastRpc(
+            op=ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST,
+            req=CreateClusterPeerConnectionRequest(clusterPeerId))
+        resultList = await asyncio.gather(*futureList)
+        # TODO: Check resultList
+        return
+
+    def destroyPeerClusterConnections(self, clusterPeerId):
+        # Broadcast connection lost to all slaves
+        self.broadcastCommand(
+            op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
+            cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
 
 def parse_args():

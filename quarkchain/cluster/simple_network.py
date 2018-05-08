@@ -20,7 +20,7 @@ from quarkchain.utils import set_logging_level, Logger, check
 
 class Peer(P2PConnection):
 
-    def __init__(self, env, reader, writer, network, masterServer):
+    def __init__(self, env, reader, writer, network, masterServer, clusterPeerId):
         super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
         self.network = network
         self.masterServer = masterServer
@@ -30,6 +30,7 @@ class Peer(P2PConnection):
         self.id = None
         self.shardMaskList = None
         self.bestRootBlockHeaderObserved = None
+        self.clusterPeerId = clusterPeerId
 
     def sendHello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
@@ -79,7 +80,12 @@ class Peer(P2PConnection):
             return self.closeWithError("Peer %s already connected" % self.id)
 
         self.network.activePeerPool[self.id] = self
+        self.network.clusterPeerPool[self.clusterPeerId] = self
         Logger.info("Peer {} connected".format(self.id.hex()))
+
+        # Send cluster command to create such connection.
+        # This should be sent before hello ack to avoid race.
+        await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
 
         # Send hello back
         if isServer:
@@ -93,8 +99,12 @@ class Peer(P2PConnection):
             assert(self.id is not None)
             if self.id in self.network.activePeerPool:
                 del self.network.activePeerPool[self.id]
+            if self.clusterPeerId in self.network.clusterPeerPool:
+                del self.network.clusterPeerPool[self.clusterPeerId]
             Logger.info("Peer {} disconnected, remaining {}".format(
                 self.id.hex(), len(self.network.activePeerPool)))
+            self.masterServer.destroyPeerClusterConnections(self.clusterPeerId)
+
         super().close()
 
     def closeWithError(self, error):
@@ -117,10 +127,10 @@ class Peer(P2PConnection):
         return resp
 
     # ------------------------ Operations for forwarding ---------------------
-    def getPeerId(self):
-        ''' Override P2PConnection.getPeerId()
+    def getClusterPeerId(self):
+        ''' Override P2PConnection.getClusterPeerId()
         '''
-        return self.id
+        return self.clusterPeerId
 
     def getConnectionToForward(self, metadata):
         ''' Override P2PConnection.getConnectionToForward()
@@ -128,7 +138,7 @@ class Peer(P2PConnection):
         if metadata.branch.value == ROOT_SHARD_ID:
             return None
 
-        return self.masterServer.getSlaveConnection(meta.branch.value)
+        return self.masterServer.getSlaveConnection(metadata.branch)
 
     # ----------------------- RPC handlers ---------------------------------
     async def tryDownloadRootBlock(self, rBlockHash):
@@ -231,9 +241,13 @@ class SimpleNetwork:
             socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
         self.localPort = self.env.config.LOCAL_SERVER_PORT
+        # Internal peer id in the cluster, mainly for connection management
+        # 0 is reserved for master
+        self.nextClusterPeerId = 0
+        self.clusterPeerPool = dict()   # cluster peer id => peer
 
     async def newPeer(self, client_reader, client_writer):
-        peer = Peer(self.env, client_reader, client_writer, self, self.masterServer)
+        peer = Peer(self.env, client_reader, client_writer, self, self.masterServer, self.__getNextClusterPeerId())
         await peer.start(isServer=True)
 
     async def connect(self, ip, port):
@@ -243,7 +257,7 @@ class SimpleNetwork:
         except Exception as e:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
-        peer = Peer(self.env, reader, writer, self, self.masterServer)
+        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__getNextClusterPeerId())
         peer.sendHello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -322,6 +336,14 @@ class SimpleNetwork:
         self.shutdown()
         self.loop.close()
         Logger.info("Server is shutdown")
+
+    # ------------------------------- Cluster Peer Management --------------------------------
+    def __getNextClusterPeerId(self):
+        self.nextClusterPeerId = self.nextClusterPeerId + 1
+        return self.nextClusterPeerId
+
+    def getPeerByClusterPeerId(self, clusterPeerId):
+        return self.clusterPeerPool.get(clusterPeerId)
 
 
 def parse_args():

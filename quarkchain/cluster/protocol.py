@@ -1,7 +1,10 @@
-from quarkchain.core import hash256, Branch
-from quarkchain.protocol import Connection
+import asyncio
+
+from quarkchain.core import uint64, Branch
+from quarkchain.protocol import Connection, AbstractConnection
 from quarkchain.protocol import Metadata
 from quarkchain.utils import check
+from collections import deque
 
 ROOT_SHARD_ID = 0
 ROOT_BRANCH = Branch(ROOT_SHARD_ID)
@@ -43,12 +46,77 @@ class ProxyConnection(Connection):
     def getMetadataToForward(self, metadata):
         return metadata
 
+    def closeConnection(self, conn):
+        pass
+
     async def handleMetadataAndRawData(self, metadata, rawData):
         forwardConn = self.getConnectionToForward(metadata)
         if forwardConn:
             check(self.validateConnection(forwardConn))
             return forwardConn.writeRawData(self.getMetadataToForward(metadata), rawData)
         await super().handleMetadataAndRawData(metadata, rawData)
+
+
+class ForwardingVirtualConnection():
+    ''' A forwarding virtual connection only forward to to a virtual connection
+    No need to inherit AbstractConnection since it does not maintain RPC state.
+    '''
+    def __init__(self, vConn):
+        self.vConn = vConn
+
+    def writeRawData(self, metadata, rawData):
+        self.vConn.readDeque.append((metadata, rawData))
+        if not self.vConn.readEvent.is_set():
+            self.vConn.readEvent.set()
+
+    def close(self):
+        # Write EOF
+        self.writeRawData(None, None)
+
+
+class VirtualConnection(AbstractConnection):
+
+    def __init__(self, proxyConn, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
+        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass)
+        self.readDeque = deque()
+        self.readEvent = asyncio.Event()
+        self.proxyConn = proxyConn
+        self.forwardConn = ForwardingVirtualConnection(self)
+
+    async def readMetadataAndRawData(self):
+        ''' Override AbstractConnection.readMetadataAndRawData()
+        '''
+        while len(self.readDeque) == 0:
+            self.readEvent.clear()
+            await self.readEvent.wait()
+
+        metadata, rawDataWithoutSize = self.readDeque.popleft()
+        return metadata, rawDataWithoutSize
+
+    def writeRawData(self, metadata, rawData):
+        self.proxyConn.writeRawData(
+            self.getMetadataToWrite(metadata),
+            rawData)
+
+    def getForwardingConnection(self):
+        return self.forwardConn
+
+    def getMetadataToWrite(self, metadata):
+        ''' Metadata when a forwarding conn write back to the proxy connection
+        '''
+        raise NotImplementedError()
+
+
+class NullConnection(AbstractConnection):
+
+    def __init__(self):
+        super().__init__(dict(), dict(), dict(), None, Metadata)
+
+    def writeRawData(self, metadata, rawData):
+        pass
+
+
+NULL_CONNECTION = NullConnection()
 
 
 class P2PMetadata(Metadata):
@@ -69,32 +137,32 @@ class ClusterMetadata(Metadata):
     ''' Metadata for intra-cluster (master and slave) connections '''
     FIELDS = [
         ("branch", Branch),
-        ("peerId", hash256)
+        ("clusterPeerId", uint64)
     ]
 
-    def __init__(self, branch=None, peerId=b"\x00" * 32):
+    def __init__(self, branch=None, clusterPeerId=0):
         self.branch = branch if branch else Branch(ROOT_SHARD_ID)
-        self.peerId = peerId
+        self.clusterPeerId = clusterPeerId
 
     @staticmethod
     def getByteSize():
-        return 36
+        return 12
 
 
 class P2PConnection(ProxyConnection):
     def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None):
         super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, P2PMetadata)
 
-    def getPeerId(self):
+    def getClusterPeerId(self):
         ''' To be implemented by subclass '''
-        return b"\x00" * 32
+        raise NotImplementedError()
 
     def getConnectionToForward(self, metadata):
         ''' To be implemented by subclass '''
-        return None
+        raise NotImplementedError()
 
     def getMetadataToForward(self, metadata):
-        return ClusterMetadata(metadata.branch, self.getPeerId())
+        return ClusterMetadata(metadata.branch, self.getClusterPeerId())
 
     def validateConnection(self, connection):
         return isinstance(connection, ClusterConnection)
@@ -106,16 +174,7 @@ class ClusterConnection(ProxyConnection):
         self.peerRpcIds = dict()
 
     def getConnectionToForward(self, metadata):
-        ''' To be implemented by subclass '''
-        return None
+        raise NotImplementedError()
 
     def getMetadataToForward(self, metadata):
         return P2PMetadata(metadata.branch)
-
-    def validateConnection(self, connection):
-        return isinstance(connection, P2PConnection)
-
-    def validateAndUpdatePeerRpcId(self, metadata, rpcId):
-        if rpcId <= self.peerRpcIds.setdefault(metadata.peerId, 0):
-            raise RuntimeError("incorrect rpc request id sequence")
-        self.peerRpcIds[metadata.peerId] = rpcId

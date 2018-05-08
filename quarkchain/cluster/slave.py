@@ -6,19 +6,112 @@ import ipaddress
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import CrossShardTransactionList
-from quarkchain.cluster.protocol import ClusterConnection
+from quarkchain.cluster.protocol import (
+    ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
+)
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
     AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
     GetAccountDataResponse, AddTransactionResponse,
+    CreateClusterPeerConnectionResponse
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.protocol import Connection
+from quarkchain.cluster.p2p_commands import (
+    CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse
+)
+from quarkchain.protocol import Connection, AbstractConnection
 from quarkchain.db import PersistentDb, ShardedDb
 from quarkchain.utils import check, set_logging_level, Logger
+
+
+class ShardConnection(VirtualConnection):
+    ''' A virtual connection between local shard and remote shard
+    '''
+
+    def __init__(self, masterConn, clusterPeerId, shardState):
+        super().__init__(masterConn, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
+        self.clusterPeerId = clusterPeerId
+        self.shardState = shardState
+        self.masterConn = masterConn
+        self.slaveServer = masterConn.slaveServer
+
+    def closeWithError(self, error):
+        Logger.error("Closing shard connection with error {}".format(error))
+        return super().closeWithError(error)
+
+    async def handleGetMinorBlockListRequest(self, request):
+        mBlockList = []
+        for mBlockHash in request.minorBlockHashList:
+            mBlock = self.shardState.getBlockByHash(mBlockHash)
+            if mBlock is None:
+                continue
+            # TODO: Check list size to make sure the resp is smaller than limit
+            mBlockList.append(mBlock)
+
+        return GetMinorBlockListResponse(mBlockList)
+
+    async def handleNewMinorBlockHeaderListCommand(self, op, cmd, rpcId):
+        # TODO:  Make sure the minor block height and root is not decreasing
+        if len(cmd.minorBlockHeaderList) == 0:
+            self.closeWithError("minor block header list must be not empty")
+            return
+        for mHeader in cmd.minorBlockHeaderList:
+            if mHeader.branch != self.shardState.branch:
+                self.closeWithError("incorrect branch")
+                return
+
+        # Download all that are not in db (and prev in db)
+        # TODO: Check timestamp and download only append after tip?
+        mDownloadList = []
+        for mHeader in cmd.minorBlockHeaderList:
+            mHash = mHeader.getHash()
+            if not self.shardState.containBlockByHash(mHeader.hashPrevMinorBlock):
+                # TODO: Download previous block
+                continue
+            mDownloadList.append(mHash)
+
+        if len(mDownloadList) == 0:
+            return
+
+        try:
+            op, resp, rpcId = await self.writeRpcRequest(
+                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(mDownloadList))
+        except Exception as e:
+            Logger.logException()
+            self.closeWithError(e)
+            return
+
+        for mBlock in resp.minorBlockList:
+            success = await self.slaveServer.addBlock(mBlock)
+            if not success:
+                self.closeWithError(e)
+
+    def broadcastNewTip(self):
+        # TODO: Compare local best observed and broadcast if the tip is latest
+        self.writeCommand(
+            op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
+            cmd=NewMinorBlockHeaderListCommand(self.shardState.rootTip, [self.shardState.headerTip]))
+
+    def getMetadataToWrite(self, metadata):
+        ''' Override VirtualConnection.getMetadataToWrite()
+        '''
+        return ClusterMetadata(self.shardState.branch, self.clusterPeerId)
+
+
+# P2P command definitions
+OP_NONRPC_MAP = {
+    CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: ShardConnection.handleNewMinorBlockHeaderListCommand,
+}
+
+
+OP_RPC_MAP = {
+    CommandOp.GET_MINOR_BLOCK_LIST_REQUEST:
+        (CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE, ShardConnection.handleGetMinorBlockListRequest),
+
+}
 
 
 class MasterConnection(ClusterConnection):
@@ -32,16 +125,51 @@ class MasterConnection(ClusterConnection):
 
         asyncio.ensure_future(self.activeAndLoopForever())
 
+        # clusterPeerId -> {branchValue -> ShardConn}
+        self.vConnMap = dict()
+
+    def getConnectionToForward(self, metadata):
+        ''' Override ProxyConnection.getConnectionToForward()
+        '''
+        if metadata.clusterPeerId == 0:
+            # Data from master
+            return None
+
+        if metadata.branch.value not in self.shardStateMap:
+            self.closeWithError("incorrect forwarding branch")
+            return
+
+        connMap = self.vConnMap.get(metadata.clusterPeerId)
+        if connMap is None:
+            self.closeWithError("cannot find cluster peer id in vConnMap")
+            return
+
+        return connMap[metadata.branch.value].getForwardingConnection()
+
+    def validateConnection(self, connection):
+        return isinstance(connection, ForwardingVirtualConnection)
+
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
 
     def close(self):
+        for clusterPeerId, connMap in self.vConnMap.items():
+            for branchValue, conn in connMap.items():
+                conn.getForwardingConnection().close()
+
         Logger.info("Lost connection with master")
         return super().close()
 
     def closeWithError(self, error):
         Logger.info("Closing connection with master: {}".format(error))
         return super().closeWithError(error)
+
+    def closeConnection(self, conn):
+        ''' TODO: Notify master that the connection is closed by local.
+        The master should close the peer connection, and notify the other slaves that a close happens
+        More hint could be provided so that the master may blacklist the peer if it is mis-behaving
+        '''
+        pass
 
     # Cluster RPC handlers
 
@@ -166,8 +294,42 @@ class MasterConnection(ClusterConnection):
             errorCode=0 if success else 1,
         )
 
+    async def handleDestroyClusterPeerConnectionCommand(self, op, cmd, rpcId):
+        if cmd.clusterPeerId not in self.vConnMap:
+            Logger.error("cannot find cluster peer connection to destroy {}".formate(cmd.clusterPeerId))
+            return
+        for branchValue, vConn in self.vConnMap[cmd.clusterPeerId].items():
+            vConn.getForwardingConnection().close()
+        del self.vConnMap[cmd.clusterPeerId]
 
-MASTER_OP_NONRPC_MAP = {}
+    async def handleCreateClusterPeerConnectionRequest(self, req):
+        if req.clusterPeerId in self.vConnMap:
+            Logger.error("duplicated create cluster peer connection {}".format(cmd.clusterPeerId))
+            return CreateClusterPeerConnectionResponse(errorCode=errno.ENOENT)
+
+        connMap = dict()
+        self.vConnMap[req.clusterPeerId] = connMap
+        for branchValue, shardState in self.shardStateMap.items():
+            conn = ShardConnection(
+                masterConn=self,
+                clusterPeerId=req.clusterPeerId,
+                shardState=shardState)
+            asyncio.ensure_future(conn.activeAndLoopForever())
+            connMap[branchValue] = conn
+        return CreateClusterPeerConnectionResponse(errorCode=0)
+
+    def broadcastNewTip(self, branch):
+        for clusterPeerId, connMap in self.vConnMap.items():
+            if branch.value not in connMap:
+                Logger.error("Cannot find branch {} in conn {}".format(branch.value, clusterPeerId))
+                continue
+
+            connMap[branch.value].broadcastNewTip()
+
+
+MASTER_OP_NONRPC_MAP = {
+    ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handleDestroyClusterPeerConnectionCommand,
+}
 
 
 MASTER_OP_RPC_MAP = {
@@ -189,6 +351,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.GET_ACCOUNT_DATA_RESPONSE, MasterConnection.handleAccountDataRequest),
     ClusterOp.ADD_TRANSACTION_REQUEST:
         (ClusterOp.ADD_TRANSACTION_RESPONSE, MasterConnection.handleAddTransaction),
+    ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST:
+        (ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE, MasterConnection.handleCreateClusterPeerConnectionRequest),
 }
 
 
@@ -410,7 +574,8 @@ class SlaveServer():
             return False
         await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
         await self.sendMinorBlockHeaderToMaster(block.header)
-        # TODO: broadcast the block to peers if the block is a new tip and peers doesn't have it
+        if updateTip:
+            self.master.broadcastNewTip(block.header.branch)
         return True
 
     def addTx(self, tx):

@@ -11,6 +11,7 @@ from quarkchain.cluster.protocol import ClusterConnection, P2PConnection
 FORWARD_BRANCH = Branch(123)
 EMPTY_BRANCH = Branch(456)
 PEER_ID = b"\xab" * 32
+CLUSTER_PEER_ID = 123
 OP = 66
 RPC_ID = 123456
 
@@ -44,8 +45,8 @@ class DummyP2PConnection(P2PConnection):
         self.mockClusterConnection = MagicMock()
         self.mockClusterConnection.__class__ = ClusterConnection
 
-    def getPeerId(self):
-        return PEER_ID
+    def getClusterPeerId(self):
+        return CLUSTER_PEER_ID
 
     def getConnectionToForward(self, metadata):
         if metadata.branch == FORWARD_BRANCH:
@@ -87,7 +88,7 @@ class TestP2PConnection(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
         conn.mockClusterConnection.writeRawData.assert_called_once_with(
-            ClusterMetadata(FORWARD_BRANCH, PEER_ID), rawData)
+            ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID), rawData)
 
     def testNoForward(self):
         meta = P2PMetadata(EMPTY_BRANCH)
@@ -114,7 +115,7 @@ class TestP2PConnection(unittest.TestCase):
 class TestClusterConnection(unittest.TestCase):
 
     def testForward(self):
-        meta = ClusterMetadata(FORWARD_BRANCH, PEER_ID)
+        meta = ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID)
         metaBytes = meta.serialize()
         request = DummyPackage(999)
         requestsBytes = request.serialize()
