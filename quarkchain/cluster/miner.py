@@ -71,8 +71,11 @@ class Miner:
                 self.block.header.nonce += 1
                 metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
                 if metric < 2 ** 256:
-                    Logger.info("Mined on nonce {}".format(self.block.header.nonce))
-                    await self.endpoint.addBlock(self.block)
+                    try:
+                        await self.endpoint.addBlock(self.block)
+                    except Exception as e:
+                        Logger.info("Failed to add block")
+                    Logger.info("Successfully added block with nonce {}".format(self.block.header.nonce))
                     self.block = None
                     break
             await asyncio.sleep(1)
