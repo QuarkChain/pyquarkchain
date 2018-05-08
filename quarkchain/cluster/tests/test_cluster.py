@@ -43,18 +43,18 @@ class TestCluster(unittest.TestCase):
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
             self.assertEqual(block1.header.height, 1)
-            self.assertEqual(block1.header.branch.value, 2 | 0)
+            self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.txList), 1)
 
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
-            self.assertEqual(slaves[0].shardStateMap[2].getBalance(acc2.recipient), 12345)
+            self.assertEqual(call_async(master.getBalance(acc2)), (Branch(0b10), 12345))
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
             isRoot, block2 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
             self.assertEqual(block2.header.height, 1)
-            self.assertEqual(block2.header.branch.value, 2 | 1)
+            self.assertEqual(block2.header.branch.value, 0b11)
             self.assertEqual(len(block2.txList), 0)
 
             self.assertTrue(call_async(slaves[1].addBlock(block2)))
@@ -75,12 +75,12 @@ class TestCluster(unittest.TestCase):
             isRoot, block3 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
             self.assertEqual(block3.header.height, 2)
-            self.assertEqual(block3.header.branch.value, 2 | 1)
+            self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.txList), 0)
 
             self.assertTrue(call_async(slaves[1].addBlock(block3)))
             # Expect withdrawTo is included in acc3's balance
-            self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 54321)
+            self.assertEqual(call_async(master.getBalance(acc3)), (Branch(0b11), 54321))
 
     def testGetTransactionCount(self):
         id1 = Identity.createRandomIdentity()

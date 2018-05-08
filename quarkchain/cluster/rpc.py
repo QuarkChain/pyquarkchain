@@ -212,7 +212,7 @@ class GetUnconfirmedHeadersResponse(Serializable):
         self.headersInfoList = headersInfoList
 
 
-class GetTransactionCountRequest(Serializable):
+class GetAccountDataRequest(Serializable):
     FIELDS = [
         ("address", Address),
     ]
@@ -221,15 +221,17 @@ class GetTransactionCountRequest(Serializable):
         self.address = address
 
 
-class GetTransactionCountResponse(Serializable):
+class GetAccountDataResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("count", uint256),
+        ("transactionCount", uint256),
+        ("balance", uint256),
     ]
 
-    def __init__(self, errorCode, count):
+    def __init__(self, errorCode, transactionCount, balance):
         self.errorCode = errorCode
-        self.count = count
+        self.transactionCount = transactionCount
+        self.balance = balance
 
 
 class AddTransactionRequest(Serializable):
@@ -331,8 +333,8 @@ class ClusterOp():
     GET_NEXT_BLOCK_TO_MINE_RESPONSE = 10 + CLUSTER_OP_BASE
     GET_UNCONFIRMED_HEADERS_REQUEST = 11 + CLUSTER_OP_BASE
     GET_UNCONFIRMED_HEADERS_RESPONSE = 12 + CLUSTER_OP_BASE
-    GET_TRANSACTION_COUNT_REQUEST = 13 + CLUSTER_OP_BASE
-    GET_TRANSACTION_COUNT_RESPONSE = 14 + CLUSTER_OP_BASE
+    GET_ACCOUNT_DATA_REQUEST = 13 + CLUSTER_OP_BASE
+    GET_ACCOUNT_DATA_RESPONSE = 14 + CLUSTER_OP_BASE
     ADD_TRANSACTION_REQUEST = 15 + CLUSTER_OP_BASE
     ADD_TRANSACTION_RESPONSE = 16 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_HEADER_REQUEST = 17 + CLUSTER_OP_BASE
@@ -364,8 +366,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE: AddMinorBlockHeaderResponse,
     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST: AddXshardTxListRequest,
     ClusterOp.ADD_XSHARD_TX_LIST_RESPONSE: AddXshardTxListResponse,
-    ClusterOp.GET_TRANSACTION_COUNT_REQUEST: GetTransactionCountRequest,
-    ClusterOp.GET_TRANSACTION_COUNT_RESPONSE: GetTransactionCountResponse,
+    ClusterOp.GET_ACCOUNT_DATA_REQUEST: GetAccountDataRequest,
+    ClusterOp.GET_ACCOUNT_DATA_RESPONSE: GetAccountDataResponse,
     ClusterOp.ADD_TRANSACTION_REQUEST: AddTransactionRequest,
     ClusterOp.ADD_TRANSACTION_RESPONSE: AddTransactionResponse,
     ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST: DownloadMinorBlockListRequest,
