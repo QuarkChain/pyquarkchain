@@ -28,8 +28,14 @@ class Metadata(Serializable):
 
 
 class AbstractConnection:
+    connId = 0
 
-    def __init__(self, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
+    @classmethod
+    def __getNextConnectionId(cls):
+        cls.connId += 1
+        return cls.connId
+
+    def __init__(self, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata, name=None):
         self.opSerMap = opSerMap
         self.opNonRpcMap = opNonRpcMap
         self.opRpcMap = opRpcMap
@@ -42,6 +48,9 @@ class AbstractConnection:
         self.activeFuture = loop.create_future()
         self.closeFuture = loop.create_future()
         self.metadataClass = metadataClass
+        if name is None:
+            name = "conn_{}".format(self.__getNextConnectionId())
+        self.name = name
 
     async def readMetadataAndRawData(self):
         raise NotImplementedError()
@@ -199,9 +208,19 @@ class Connection(AbstractConnection):
     ''' A TCP/IP connection based on socket stream
     '''
 
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
+    def __init__(
+            self,
+            env,
+            reader,
+            writer,
+            opSerMap,
+            opNonRpcMap,
+            opRpcMap,
+            loop=None,
+            metadataClass=Metadata,
+            name=None):
         loop = loop if loop else asyncio.get_event_loop()
-        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass)
+        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass, name=name)
         self.env = env
         self.reader = reader
         self.writer = writer

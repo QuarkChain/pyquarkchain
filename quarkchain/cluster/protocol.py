@@ -11,8 +11,17 @@ ROOT_BRANCH = Branch(ROOT_SHARD_ID)
 
 
 class ProxyConnection(Connection):
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=None):
-        super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass)
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=None, name=None):
+        super().__init__(
+            env,
+            reader,
+            writer,
+            opSerMap,
+            opNonRpcMap,
+            opRpcMap,
+            loop=loop,
+            metadataClass=metadataClass,
+            name=name)
 
     def getConnectionToForward(self, metadata):
         ''' Returns the Connection object to forward a request for metadata.
@@ -76,8 +85,8 @@ class ForwardingVirtualConnection():
 
 class VirtualConnection(AbstractConnection):
 
-    def __init__(self, proxyConn, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata):
-        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass)
+    def __init__(self, proxyConn, opSerMap, opNonRpcMap, opRpcMap, loop=None, metadataClass=Metadata, name=None):
+        super().__init__(opSerMap, opNonRpcMap, opRpcMap, loop, metadataClass, name=name)
         self.readDeque = deque()
         self.readEvent = asyncio.Event()
         self.proxyConn = proxyConn
@@ -110,7 +119,7 @@ class VirtualConnection(AbstractConnection):
 class NullConnection(AbstractConnection):
 
     def __init__(self):
-        super().__init__(dict(), dict(), dict(), None, Metadata)
+        super().__init__(dict(), dict(), dict(), None, Metadata, name="NULL_CONNECTION")
 
     def writeRawData(self, metadata, rawData):
         pass
@@ -150,8 +159,8 @@ class ClusterMetadata(Metadata):
 
 
 class P2PConnection(ProxyConnection):
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None):
-        super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, P2PMetadata)
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, name=None):
+        super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, P2PMetadata, name=name)
 
     def getClusterPeerId(self):
         ''' To be implemented by subclass '''
@@ -169,8 +178,8 @@ class P2PConnection(ProxyConnection):
 
 
 class ClusterConnection(ProxyConnection):
-    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None):
-        super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, ClusterMetadata)
+    def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, name=None):
+        super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, ClusterMetadata, name=name)
         self.peerRpcIds = dict()
 
     def getConnectionToForward(self, metadata):

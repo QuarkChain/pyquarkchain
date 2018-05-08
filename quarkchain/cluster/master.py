@@ -42,8 +42,8 @@ class ClusterConfig:
 class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
-    def __init__(self, env, reader, writer, masterServer, slaveId, shardMaskList):
-        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, OP_RPC_MAP)
+    def __init__(self, env, reader, writer, masterServer, slaveId, shardMaskList, name=None):
+        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, self.OP_NONRPC_MAP, OP_RPC_MAP, name=name)
         self.masterServer = masterServer
         self.id = slaveId
         self.shardMaskList = shardMaskList
@@ -144,7 +144,7 @@ class MasterServer():
     2. Make slaves connect to each other
     '''
 
-    def __init__(self, env, rootState, network=None):
+    def __init__(self, env, rootState, network=None, name="master"):
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.rootState = rootState
@@ -159,6 +159,7 @@ class MasterServer():
         self.shutdownFuture = self.loop.create_future()
         self.rootBlockUpdateQueue = deque()
         self.isUpdatingRootBlock = False
+        self.name = name
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -188,7 +189,14 @@ class MasterServer():
             ip = str(ipaddress.ip_address(slaveInfo.ip))
             reader, writer = await self.__connect(ip, slaveInfo.port)
 
-            slave = SlaveConnection(self.env, reader, writer, self, slaveInfo.id, slaveInfo.shardMaskList)
+            slave = SlaveConnection(
+                self.env,
+                reader,
+                writer,
+                self,
+                slaveInfo.id,
+                slaveInfo.shardMaskList,
+                name="{}_slave_{}".format(self.name, slaveInfo.id))
             await slave.waitUntilActive()
 
             # Verify the slave does have the same id and shard mask list as the config file
