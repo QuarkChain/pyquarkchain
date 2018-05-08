@@ -6,6 +6,8 @@ from decorator import decorator
 from ethereum.utils import (
     is_numeric, is_string, int_to_big_endian, big_endian_to_int,
     encode_hex, decode_hex, sha3, zpad, denoms, int32)
+
+from jsonrpcserver import config
 from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, ServerError
@@ -163,6 +165,10 @@ def encode_res(encoder):
 class JSONRPCServer:
 
     def __init__(self, env, masterServer):
+        # Disable logging
+        config.log_requests = False
+        config.log_responses = False
+
         self.loop = asyncio.get_event_loop()
         self.port = env.config.LOCAL_SERVER_PORT
         self.env = env
@@ -290,6 +296,11 @@ class JSONRPCServer:
             return await self.master.addRootBlock(block)
         block = MinorBlock.deserialize(blockData)
         return await self.master.addMinorBlock(block)
+
+    @methods.add
+    @decode_arg("count", quantity_decoder)
+    async def setArtificialTxCount(self, count):
+        self.master.setArtificialTxCount(count)
 
 
 if __name__ == "__main__":

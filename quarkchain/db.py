@@ -292,8 +292,6 @@ class OverlayDb(Db):
 
     def get(self, key):
         if key in self.overlay:
-            if self.overlay[key] is None:
-                return None
             return self.overlay[key]
         return self.db.get(key)
 

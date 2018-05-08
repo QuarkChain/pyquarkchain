@@ -160,6 +160,8 @@ class MasterServer():
         self.rootBlockUpdateQueue = deque()
         self.isUpdatingRootBlock = False
 
+        self.artificialTxCount = 0
+
     def __getShardSize(self):
         # TODO: replace it with dynamic size
         return self.env.config.SHARD_SIZE
@@ -295,6 +297,7 @@ class MasterServer():
         request = GetNextBlockToMineRequest(
             branch=branch,
             address=address.addressInBranch(branch),
+            artificialTxCount=self.artificialTxCount,
         )
         slave = self.getSlaveConnection(branch)
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
@@ -470,6 +473,9 @@ class MasterServer():
         self.broadcastCommand(
             op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
+
+    def setArtificialTxCount(self, count):
+        self.artificialTxCount = count
 
 
 def parse_args():

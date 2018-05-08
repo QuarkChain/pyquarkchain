@@ -184,7 +184,8 @@ class RootState:
                 prevHeader = prevLastMinorBlockHeaderList[shardId]
 
             if not self.db.containMinorBlockByHash(mHeader.getHash()):
-                raise ValueError("minor block is not validated")
+                raise ValueError("minor block is not validated. {}-{}".format(
+                    mHeader.branch.getShardId(), mHeader.height))
 
             if mHeader.hashPrevMinorBlock != prevHeader.getHash():
                 raise ValueError("minor block doesn't link to previous minor block")

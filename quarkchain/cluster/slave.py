@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import errno
 import ipaddress
+import time
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
@@ -249,7 +250,10 @@ class MasterConnection(ClusterConnection):
         if branchValue not in self.shardStateMap:
             return GetNextBlockToMineResponse(errorCode=errno.EBADMSG)
 
-        block = self.shardStateMap[branchValue].createBlockToMine(address=req.address)
+        block = self.shardStateMap[branchValue].createBlockToMine(
+            address=req.address,
+            artificialTxCount=req.artificialTxCount,
+        )
         response = GetNextBlockToMineResponse(
             errorCode=0,
             block=block,
