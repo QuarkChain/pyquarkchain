@@ -10,6 +10,7 @@
 
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.core import Identity, Address
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 import argparse
 import random
 import time
@@ -48,15 +49,66 @@ def test_perf():
     print("Verifications PS: %.2f" % (N / duration))
 
 
+def test_perf_evm():
+    N = 5000
+    IDN = 10
+    print("Creating %d identities" % IDN)
+    idList = []
+    for i in range(IDN):
+        idList.append(Identity.createRandomIdentity())
+
+    accList = []
+    for i in range(IDN):
+        accList.append(Address.createFromIdentity(idList[i]))
+
+    print("Creating %d transactions..." % N)
+    startTime = time.time()
+    txList = []
+    fromList = []
+    for i in range(N):
+        fromId = idList[random.randint(0, IDN - 1)]
+        toAddr = accList[random.randint(0, IDN - 1)]
+        evmTx = EvmTransaction(
+            branchValue=1,
+            nonce=0,
+            gasprice=1,
+            startgas=2,
+            to=toAddr.recipient,
+            value=3,
+            data=b'',
+            withdrawSign=1,
+            withdraw=0,
+            withdrawTo=b'')
+        evmTx.sign(
+            key=fromId.getKey(),
+            network_id=1)
+        txList.append(evmTx)
+        fromList.append(fromId.getRecipient())
+    duration = time.time() - startTime
+    print("Creations PS: %.2f" % (N / duration))
+
+    print("Verifying transactions")
+    startTime = time.time()
+    for i in range(N):
+        txList[i]._sender = None
+        assert(txList[i].sender == fromList[i])
+    duration = time.time() - startTime
+    print("Verifications PS: %.2f" % (N / duration))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", default=False)
+    parser.add_argument("--evm", default=False)
     args = parser.parse_args()
 
     if args.profile:
         profile.run('test_perf()')
     else:
-        test_perf()
+        if args.evm:
+            test_perf_evm()
+        else:
+            test_perf()
 
 
 if __name__ == '__main__':
