@@ -288,14 +288,13 @@ class JSONRPCServer:
         }
 
     @methods.add
-    @decode_arg("isRootBlock", bool_decoder)
+    @decode_arg("branch", quantity_decoder)
     @decode_arg("blockData", data_decoder)
-    async def addBlock(self, isRootBlock, blockData):
-        if isRootBlock:
+    async def addBlock(self, branch, blockData):
+        if branch == 0:
             block = RootBlock.deserialize(blockData)
             return await self.master.addRootBlock(block)
-        block = MinorBlock.deserialize(blockData)
-        return await self.master.addMinorBlock(block)
+        return await self.master.addRawMinorBlock(Branch(branch), blockData)
 
     @methods.add
     @decode_arg("count", quantity_decoder)
