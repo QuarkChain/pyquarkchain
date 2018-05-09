@@ -179,7 +179,12 @@ class ShardState:
             Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
             return False
 
-    def __getEvmStateForNewBlock(self, block):
+    def __getEvmStateForNewBlock(self, block, ephemeral=True):
+        if ephemeral:
+            state = self.evmState.ephemeral_clone()
+        else:
+            state = self.__createEvmState()
+
         state = self.__createEvmState()
         state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
         state.txindex = 0
@@ -254,7 +259,7 @@ class ShardState:
 
     def runBlock(self, block, evmState=None):
         if evmState is None:
-            evmState = self.__getEvmStateForNewBlock(block)
+            evmState = self.__getEvmStateForNewBlock(block, ephemeral=False)
         rootBlockHeader = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock)
         prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
 
