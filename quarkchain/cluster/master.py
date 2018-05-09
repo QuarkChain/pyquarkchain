@@ -410,17 +410,21 @@ class MasterServer():
             asyncio.ensure_future(self.updateRooBlockAsync())
 
     async def updateRooBlockAsync(self):
-        ''' Broadcast root block to all shards and add root block locally
+        ''' Add root block locally and broadcast root block to all shards and .
+        All update root block should be done in serial to avoid inconsistent global root block state.
         '''
         check(self.isUpdatingRootBlock)
         while len(self.rootBlockUpdateQueue) != 0:
             rBlock = self.rootBlockUpdateQueue.popleft()
+            try:
+                self.rootState.addBlock(rBlock)
+            except ValueError:
+                continue
             futureList = self.broadcastRpc(
                 op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
                 req=AddRootBlockRequest(rBlock, False))
             resultList = await asyncio.gather(*futureList)
-            # TODO: Check resultList
-            self.rootState.addBlock(rBlock)
+            # TODO: Check resultList (should always succeed unless the cluster is broken)
         self.isUpdatingRootBlock = False
 
     async def addMinorBlock(self, block):
@@ -434,6 +438,7 @@ class MasterServer():
         return resp.errorCode == 0
 
     async def addRootBlock(self, block):
+        self.rootState.validateBlock(block)     # throw exception if failed
         self.rootBlockUpdateQueue.append(block)
         if not self.isUpdatingRootBlock:
             self.isUpdatingRootBlock = True
