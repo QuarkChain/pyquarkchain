@@ -1,10 +1,7 @@
-import aiohttp
 import argparse
-import asyncio
 import logging
 
-from jsonrpcclient.aiohttp_client import aiohttpClient
-
+import jsonrpcclient
 
 from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import quantity_encoder
@@ -18,26 +15,23 @@ class Endpoint:
     def __init__(self, port):
         self.port = port
 
-    async def __sendRequest(self, *args):
-        async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-            client = aiohttpClient(session, "http://localhost:{}".format(self.port))
-            response = await client.request(*args)
-            return response
+    def __sendRequest(self, *args):
+        return jsonrpcclient.request("http://localhost:{}".format(self.port), *args)
 
-    async def setArtificialTxCount(self, count):
-        await self.__sendRequest("setArtificialTxCount", quantity_encoder(count))
+    def setArtificialTxCount(self, count):
+        self.__sendRequest("setArtificialTxCount", quantity_encoder(count))
 
-    async def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
-        resp = await self.__sendRequest("getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue))
+    def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
+        resp = self.__sendRequest("getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue))
         isRoot = resp["isRootBlock"]
         blockBytes = bytes.fromhex(resp["blockData"][2:])
         blockClass = RootBlock if isRoot else MinorBlock
         block = blockClass.deserialize(blockBytes)
         return isRoot, block
 
-    async def addBlock(self, block):
+    def addBlock(self, block):
         isRoot = True if isinstance(block, RootBlock) else False
-        resp = await self.__sendRequest("addBlock", isRoot, "0x" + block.serialize().hex())
+        resp = self.__sendRequest("addBlock", isRoot, "0x" + block.serialize().hex())
         return resp
 
 
@@ -51,10 +45,10 @@ class Miner:
         self.block = None
         self.isRoot = False
 
-    async def run(self):
-        await self.endpoint.setArtificialTxCount(self.artificialTxCount)
+    def run(self):
+        self.endpoint.setArtificialTxCount(self.artificialTxCount)
         while True:
-            isRoot, block = await self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
+            isRoot, block = self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
             check(block is not None)
 
             if self.block is None or self.block != block:
@@ -72,16 +66,12 @@ class Miner:
                 metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
                 if metric < 2 ** 256:
                     try:
-                        await self.endpoint.addBlock(self.block)
+                        self.endpoint.addBlock(self.block)
                     except Exception as e:
                         Logger.info("Failed to add block")
                     Logger.info("Successfully added block with nonce {}".format(self.block.header.nonce))
                     self.block = None
                     break
-            await asyncio.sleep(1)
-
-    def startAndLoop(self):
-        asyncio.get_event_loop().run_until_complete(self.run())
 
 
 def main():
@@ -107,7 +97,7 @@ def main():
 
     endpoint = Endpoint(args.jrpc_port)
     miner = Miner(endpoint, args.miner_address, args.shard_mask, args.tx_count)
-    miner.startAndLoop()
+    miner.run()
 
 
 if __name__ == '__main__':
