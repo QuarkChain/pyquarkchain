@@ -178,10 +178,10 @@ class State():
         else:
             rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
-            o = rlp.decode(rlpdata, Account, env=self.env, address=address)
+            o = rlp.decode(rlpdata, Account, env=self.env, address=address, db=self.db)
         else:
             o = Account.blank_account(
-                self.env, address, self.config['ACCOUNT_INITIAL_NONCE'])
+                self.env, address, self.config['ACCOUNT_INITIAL_NONCE'], db=self.db)
         self.cache[address] = o
         o._mutable = True
         o._cached_rlp = None
