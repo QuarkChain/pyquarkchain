@@ -14,14 +14,17 @@ from quarkchain.local import LocalServer
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
 from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
-from quarkchain.cluster.p2p_commands import GetRootBlockListResponse
+from quarkchain.cluster.p2p_commands import GetRootBlockListRequest, GetRootBlockListResponse
+from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand
 from quarkchain.utils import set_logging_level, Logger, check
 
 
 class Peer(P2PConnection):
 
-    def __init__(self, env, reader, writer, network, masterServer, clusterPeerId):
-        super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
+    def __init__(self, env, reader, writer, network, masterServer, clusterPeerId, name=None):
+        if name is None:
+            name = "{}_peer_{}".format(masterServer.name, clusterPeerId)
+        super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP, name=name)
         self.network = network
         self.masterServer = masterServer
         self.rootState = masterServer.rootState
@@ -145,11 +148,14 @@ class Peer(P2PConnection):
         ''' Try to download a root block.  Download its minor blocks if necessary.
         '''
         try:
-            rBlock = await self.writeRpcRequest(
-                op=self.GET_ROOT_BLOCK_LIST_REQUEST,
+            _, resp, _ = await self.writeRpcRequest(
+                op=CommandOp.GET_ROOT_BLOCK_LIST_REQUEST,
                 cmd=GetRootBlockListRequest(rootBlockHashList=[rBlockHash]),
                 metadata=P2PMetadata(Branch(ROOT_SHARD_ID)))
-        except Exception:
+            if len(resp.rootBlockList) == 0:
+                return
+            rBlock = resp.rootBlockList[0]
+        except Exception as e:
             self.closeWithError("Unable to download root block {}".format(rBlockHash.hex()))
             return
 
@@ -183,12 +189,12 @@ class Peer(P2PConnection):
         # This will broadcast the root block to all shards and add root block locally
         self.masterServer.updateRootBlock(rBlock)
 
-    def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+    async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
         if len(cmd.minorBlockHeaderList) != 0:
             self.closeWithError("minor block header list must be empty")
             return
 
-        rBlockHash = cmd.rootBlockHeader.gethHash()
+        rBlockHash = cmd.rootBlockHeader.getHash()
         if self.rootState.containRootBlockByHash(rBlockHash):
             return
 
@@ -203,14 +209,20 @@ class Peer(P2PConnection):
         # TODO: Check timestamp and delay processing if timestamp is greater
         asyncio.ensure_future(self.tryDownloadRootBlock(rBlockHash))
 
-    def handleGetRootBlockListRequest(self, request):
+    async def handleGetRootBlockListRequest(self, request):
         rBlockList = []
         for h in request.rootBlockHashList:
-            rBlock = rootState.getRootBlockByHash(h)
+            rBlock = self.rootState.getRootBlockByHash(h)
             if rBlock is None:
                 continue
-            rBlockList.add(rBlock)
+            rBlockList.append(rBlock)
         return GetRootBlockListResponse(rBlockList)
+
+    def sendUpdatedTip(self):
+        # TODO: compare best observed and skip sending the tip if the peer has newer one
+        self.writeCommand(
+            op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
+            cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))
 
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
@@ -247,7 +259,13 @@ class SimpleNetwork:
         self.clusterPeerPool = dict()   # cluster peer id => peer
 
     async def newPeer(self, client_reader, client_writer):
-        peer = Peer(self.env, client_reader, client_writer, self, self.masterServer, self.__getNextClusterPeerId())
+        peer = Peer(
+            self.env,
+            client_reader,
+            client_writer,
+            self,
+            self.masterServer,
+            self.__getNextClusterPeerId())
         await peer.start(isServer=True)
 
     async def connect(self, ip, port):
@@ -292,6 +310,9 @@ class SimpleNetwork:
             if peerId == sourcePeerId:
                 continue
             peer.writeRawCommand(op, data)
+
+    def iteratePeers(self):
+        return self.clusterPeerPool.values()
 
     def shutdownPeers(self):
         activePeerPool = self.activePeerPool

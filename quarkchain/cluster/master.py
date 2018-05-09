@@ -414,10 +414,11 @@ class MasterServer():
         All update root block should be done in serial to avoid inconsistent global root block state.
         '''
         check(self.isUpdatingRootBlock)
+        updateTip = False
         while len(self.rootBlockUpdateQueue) != 0:
             rBlock = self.rootBlockUpdateQueue.popleft()
             try:
-                self.rootState.addBlock(rBlock)
+                updateTip = updateTip or self.rootState.addBlock(rBlock)
             except ValueError:
                 continue
             futureList = self.broadcastRpc(
@@ -426,6 +427,9 @@ class MasterServer():
             resultList = await asyncio.gather(*futureList)
             # TODO: Check resultList (should always succeed unless the cluster is broken)
         self.isUpdatingRootBlock = False
+        if updateTip and self.network is not None:
+            for peer in self.network.iteratePeers():
+                peer.sendUpdatedTip()
 
     async def addRawMinorBlock(self, branch, blockData):
         if branch.value not in self.branchToSlaves:
