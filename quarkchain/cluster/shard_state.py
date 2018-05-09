@@ -1,7 +1,10 @@
 import time
 
+from collections import deque
+
 from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList, CrossShardTransactionDeposit
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
+from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Address, Code, Constant, Transaction
 from quarkchain.evm.state import State as EvmState
@@ -13,6 +16,56 @@ from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check
 
 
+class ExpiryQueue:
+    ''' A queue only keeps the elements added in the past ttl seconds '''
+
+    def __init__(self, ttlSec):
+        self.__queue = deque()
+        self.__ttl = ttlSec
+
+    def __removeExpiredElements(self):
+        current = time.time()
+        while len(self.__queue) > 0 and self.__queue[0][0] < current:
+            self.__queue.popleft()
+
+    def append(self, e):
+        self.__removeExpiredElements()
+        self.__queue.append((time.time() + self.__ttl, e))
+
+    def __iter__(self):
+        self.__removeExpiredElements()
+        for t, e in self.__queue:
+            yield e
+
+    def __getitem__(self, index):
+        self.__removeExpiredElements()
+        return self.__queue[index]
+
+    def __len__(self):
+        self.__removeExpiredElements()
+        return len(self.__queue)
+
+    def __str__(self):
+        self.__removeExpiredElements()
+        return str(self.__queue)
+
+
+class ExpiryCounter:
+
+    def __init__(self, windowSec):
+        self.window = windowSec
+        self.queue = ExpiryQueue(windowSec)
+
+    def increment(self, value):
+        self.queue.append(value)
+
+    def getCount(self):
+        return sum(self.queue)
+
+    def getCountPerSecond(self):
+        return self.getCount() / self.window
+
+
 class ShardDb:
     def __init__(self, db):
         self.db = db
@@ -21,6 +74,7 @@ class ShardDb:
         self.mMetaPool = dict()
         self.xShardSet = set()
         self.rHeaderPool = dict()
+        self.txCounter60s = ExpiryCounter(60)
 
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rootBlockHash=None):
@@ -48,6 +102,8 @@ class ShardDb:
         self.db.put(b"state_" + mBlockHash, evmState.trie.root_hash)
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
+
+        self.txCounter60s.increment(len(mBlock.txList))
 
     def getMinorBlockHeaderByHash(self, h):
         return self.mHeaderPool.get(h)
@@ -579,3 +635,10 @@ class ShardState:
 
     def containRemoteMinorBlockHash(self, h):
         return self.db.containRemoteMinorBlockHash(h)
+
+    def getShardStats(self) -> ShardStats:
+        return ShardStats(
+            branch=self.branch,
+            height=self.headerTip.height,
+            txCount60s=self.db.txCounter60s.getCount(),
+        )

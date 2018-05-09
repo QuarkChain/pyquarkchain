@@ -16,7 +16,8 @@ from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
     AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
     GetAccountDataResponse, AddTransactionResponse,
-    CreateClusterPeerConnectionResponse
+    CreateClusterPeerConnectionResponse,
+    GetStatsResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -340,6 +341,13 @@ class MasterConnection(ClusterConnection):
 
             connMap[branch.value].broadcastNewTip()
 
+    async def handleGetStatsRequest(self, req):
+        resp = GetStatsResponse(
+            errorCode=0,
+            shardStatsList=self.slaveServer.getStats(),
+        )
+        return resp
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handleDestroyClusterPeerConnectionCommand,
@@ -367,6 +375,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.ADD_TRANSACTION_RESPONSE, MasterConnection.handleAddTransaction),
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST:
         (ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE, MasterConnection.handleCreateClusterPeerConnectionRequest),
+    ClusterOp.GET_STATS_REQUEST:
+        (ClusterOp.GET_STATS_RESPONSE, MasterConnection.handleGetStatsRequest),
 }
 
 
@@ -619,6 +629,12 @@ class SlaveServer():
         if branch.value not in self.shardStateMap:
             return None
         return self.shardStateMap[branch.value].getBalance(address.recipient)
+
+    def getStats(self):
+        shardStatsList = []
+        for branchValue, shardState in self.shardStateMap.items():
+            shardStatsList.append(shardState.getShardStats())
+        return shardStatsList
 
 
 def parse_args():

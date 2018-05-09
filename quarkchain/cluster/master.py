@@ -14,6 +14,7 @@ from quarkchain.cluster.rpc import (
     AddRootBlockRequest, AddMinorBlockRequest,
     CreateClusterPeerConnectionRequest,
     DestroyClusterPeerConnectionCommand,
+    GetStatsRequest,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION, P2PMetadata
@@ -484,6 +485,35 @@ class MasterServer():
 
     def setArtificialTxCount(self, count):
         self.artificialTxCount = count
+
+    async def getStats(self):
+        futures = []
+        for slave in self.slavePool:
+            request = GetStatsRequest()
+            futures.append(slave.writeRpcRequest(ClusterOp.GET_STATS_REQUEST, request))
+        responses = await asyncio.gather(*futures)
+
+        branchValueToShardStats = dict()
+        for resp in responses:
+            _, resp, _ = resp
+            check(resp.errorCode == 0)
+            for shardStats in resp.shardStatsList:
+                branchValueToShardStats[shardStats.branch.value] = shardStats
+        # check we have stats from all shards
+        check(len(branchValueToShardStats) == self.__getShardSize())
+
+        shards = [dict() for i in range(self.__getShardSize())]
+        for shardStats in branchValueToShardStats.values():
+            shardId = shardStats.branch.getShardId()
+            shards[shardId]["height"] = shardStats.height
+            shards[shardId]["txCount60s"] = shardStats.txCount60s
+
+        txCount60s = sum([shardStats.txCount60s for shardStats in branchValueToShardStats.values()])
+        return {
+            "shardSize": self.__getShardSize(),
+            "txCount60s": txCount60s,
+            "shards": shards,
+        }
 
 
 def parse_args():
