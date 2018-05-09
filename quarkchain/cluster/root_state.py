@@ -144,14 +144,7 @@ class RootState:
 
         return blockHash
 
-    def addBlock(self, block, blockHash=None):
-        """ Add new block.
-        return True if a longest block is added, False otherwise
-        There are a couple of optimizations can be done here:
-        - the root block could only contain minor block header hashes as long as the shards fully validate the headers
-        - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
-        """
-
+    def validateBlock(self, block, blockHash=None):
         if not self.db.containRootBlockByHash(block.header.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
         prevLastMinorBlockHeaderList = self.db.getRootBlockLastMinorBlockHeaderList(block.header.hashPrevBlock)
@@ -197,8 +190,19 @@ class RootState:
             raise ValueError("fail to prove progress")
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             raise ValueError("fail to prove progress")
-
         lastMinorBlockHeaderList.append(mHeader)
+
+        return blockHash, lastMinorBlockHeaderList
+
+    def addBlock(self, block, blockHash=None):
+        """ Add new block.
+        return True if a longest block is added, False otherwise
+        There are a couple of optimizations can be done here:
+        - the root block could only contain minor block header hashes as long as the shards fully validate the headers
+        - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
+        """
+        blockHash, lastMinorBlockHeaderList = self.validateBlock(block, blockHash)
+
         self.db.putRootBlock(block, lastMinorBlockHeaderList, rootBlockHash=blockHash)
 
         if self.tip.height < block.header.height:

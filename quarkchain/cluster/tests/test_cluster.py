@@ -159,3 +159,39 @@ class TestCluster(unittest.TestCase):
                 lambda: clusters[1].slaveList[1].shardStateMap[0b11].containRemoteMinorBlockHash(b1.header.getHash()))
             assert_true_with_timeout(
                 lambda: clusters[1].master.rootState.isMinorBlockValidated(b1.header.getHash()))
+
+    def testAddRootBlockRequestList(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(2, acc1) as clusters:
+            shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]
+            b1 = shardState0.getTip().createBlockToAppend()
+            b1.finalize(evmState=shardState0.runBlock(b1))
+            addResult = call_async(clusters[0].slaveList[0].addBlock(b1))
+            self.assertTrue(addResult)
+
+            shardState1 = clusters[1].slaveList[1].shardStateMap[0b11]
+            b2 = shardState1.getTip().createBlockToAppend()
+            b2.finalize(evmState=shardState1.runBlock(b2))
+            addResult = call_async(clusters[1].slaveList[1].addBlock(b2))
+            self.assertTrue(addResult)
+
+            assert_true_with_timeout(
+                lambda: clusters[1].slaveList[0].shardStateMap[0b10].containBlockByHash(b1.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[0].slaveList[1].shardStateMap[0b11].containBlockByHash(b2.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[1].master.rootState.isMinorBlockValidated(b1.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[1].master.rootState.isMinorBlockValidated(b2.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[0].master.rootState.isMinorBlockValidated(b1.header.getHash()))
+            assert_true_with_timeout(
+                lambda: clusters[0].master.rootState.isMinorBlockValidated(b2.header.getHash()))
+
+            rB1 = clusters[0].master.rootState.createBlockToMine([b1.header, b2.header], acc1)
+            call_async(clusters[0].master.addRootBlock(rB1))
+
+            # Make sure the root block tip of local cluster is changed
+            self.assertEqual(clusters[0].master.rootState.tip, rB1.header)
