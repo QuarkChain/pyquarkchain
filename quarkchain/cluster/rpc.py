@@ -202,11 +202,11 @@ class GetNextBlockToMineResponse(Serializable):
 
 class AddMinorBlockRequest(Serializable):
     FIELDS = [
-        ("minorBlock", MinorBlock),
+        ("minorBlockData", PreprendedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, minorBlock):
-        self.minorBlock = minorBlock
+    def __init__(self, minorBlockData):
+        self.minorBlockData = minorBlockData
 
 
 class AddMinorBlockResponse(Serializable):

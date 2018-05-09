@@ -427,12 +427,11 @@ class MasterServer():
             # TODO: Check resultList (should always succeed unless the cluster is broken)
         self.isUpdatingRootBlock = False
 
-    async def addMinorBlock(self, block):
-        branch = block.header.branch
+    async def addRawMinorBlock(self, branch, blockData):
         if branch.value not in self.branchToSlaves:
             return False
 
-        request = AddMinorBlockRequest(block)
+        request = AddMinorBlockRequest(blockData)
         # TODO: support multiple slaves running the same shard
         _, resp, _ = await self.getSlaveConnection(branch).writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
         return resp.errorCode == 0

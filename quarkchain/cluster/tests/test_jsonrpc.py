@@ -185,7 +185,7 @@ class TestJSONRPC(unittest.TestCase):
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block1.header.branch.value, 0b10)
 
-            self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
+            self.assertTrue(sendRequest("addBlock", "0x2", response["blockData"]))
             resp = sendRequest("getBalance", "0x" + acc2.serialize().hex())
             self.assertEqual(resp["branch"], "0x2")
             self.assertEqual(resp["balance"], "0xd")
@@ -197,7 +197,7 @@ class TestJSONRPC(unittest.TestCase):
             block2 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block2.header.branch.value, 0b11)
 
-            self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
+            self.assertTrue(sendRequest("addBlock", "0x3", response["blockData"]))
 
             # Expect to mine root
             response = sendRequest("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
@@ -209,7 +209,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(block.minorBlockHeaderList[0], block1.header)
             self.assertEqual(block.minorBlockHeaderList[1], block2.header)
 
-            sendRequest("addBlock", True, response["blockData"])
+            sendRequest("addBlock", "0x0", response["blockData"])
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
@@ -218,7 +218,7 @@ class TestJSONRPC(unittest.TestCase):
             block3 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block3.header.branch.value, 0b11)
 
-            self.assertTrue(sendRequest("addBlock", False, response["blockData"]))
+            self.assertTrue(sendRequest("addBlock", "0x3", response["blockData"]))
             # Expect withdrawTo is included in acc3's balance
             resp = sendRequest("getBalance", "0x" + acc3.serialize().hex())
             self.assertEqual(resp["branch"], "0x3")

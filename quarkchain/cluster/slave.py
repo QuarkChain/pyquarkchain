@@ -2,11 +2,10 @@ import argparse
 import asyncio
 import errno
 import ipaddress
-import time
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.cluster.core import CrossShardTransactionList
+from quarkchain.cluster.core import CrossShardTransactionList, MinorBlock
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
 )
@@ -24,7 +23,7 @@ from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.p2p_commands import (
     CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse
 )
-from quarkchain.protocol import Connection, AbstractConnection
+from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb, ShardedDb
 from quarkchain.utils import check, set_logging_level, Logger
 
@@ -271,7 +270,14 @@ class MasterConnection(ClusterConnection):
         return response
 
     async def handleAddMinorBlockRequest(self, req):
-        success = await self.slaveServer.addBlock(req.minorBlock)
+        try:
+            block = MinorBlock.deserialize(req.minorBlockData)
+        except Exception:
+            Logger.warning("!@#$!@#@!")
+            return AddMinorBlockResponse(
+                errorCode=errno.EBADMSG,
+            )
+        success = await self.slaveServer.addBlock(block)
         return AddMinorBlockResponse(
             errorCode=0 if success else errno.EFAULT,
         )

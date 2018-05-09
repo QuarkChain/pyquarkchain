@@ -30,8 +30,8 @@ class Endpoint:
         return isRoot, block
 
     def addBlock(self, block):
-        isRoot = True if isinstance(block, RootBlock) else False
-        resp = self.__sendRequest("addBlock", isRoot, "0x" + block.serialize().hex())
+        branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
+        resp = self.__sendRequest("addBlock", quantity_encoder(branch), "0x" + block.serialize().hex())
         return resp
 
 
