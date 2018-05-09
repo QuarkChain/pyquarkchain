@@ -12,3 +12,4 @@ numpy >= 1.14.0
 protobuf >= 3.5.0
 pysha3 >= 1.0.2
 requests >= 2.18.4
+rlp >= 0.6.0
