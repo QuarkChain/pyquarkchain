@@ -302,6 +302,10 @@ class JSONRPCServer:
     async def setArtificialTxCount(self, count):
         self.master.setArtificialTxCount(count)
 
+    @methods.add
+    async def getStats(self):
+        return await self.master.getStats()
+
 
 if __name__ == "__main__":
     # web.run_app(app, port=5000)

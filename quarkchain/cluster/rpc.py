@@ -79,6 +79,39 @@ class ConnectToSlavesResponse(Serializable):
         self.resultList = resultList
 
 
+# RPCs to collect Stats
+
+class GetStatsRequest(Serializable):
+    FIELDS = []
+
+    def __init__(self):
+        pass
+
+
+class ShardStats(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("height", uint64),
+        ("txCount60s", uint32),
+    ]
+
+    def __init__(self, branch, height, txCount60s):
+        self.branch = branch
+        self.height = height
+        self.txCount60s = txCount60s
+
+
+class GetStatsResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("shardStatsList", PreprendedSizeListSerializer(4, ShardStats)),
+    ]
+
+    def __init__(self, errorCode, shardStatsList):
+        self.errorCode = errorCode
+        self.shardStatsList = shardStatsList
+
+
 # RPCs to update blockchains
 
 # master -> slave
@@ -384,6 +417,8 @@ class ClusterOp():
     CREATE_CLUSTER_PEER_CONNECTION_REQUEST = 25 + CLUSTER_OP_BASE
     CREATE_CLUSTER_PEER_CONNECTION_RESPONSE = 26 + CLUSTER_OP_BASE
     DESTROY_CLUSTER_PEER_CONNECTION_COMMAND = 27 + CLUSTER_OP_BASE
+    GET_STATS_REQUEST = 29 + CLUSTER_OP_BASE
+    GET_STATS_RESPONSE = 30 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -414,4 +449,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST: CreateClusterPeerConnectionRequest,
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE: CreateClusterPeerConnectionResponse,
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: DestroyClusterPeerConnectionCommand,
+    ClusterOp.GET_STATS_REQUEST: GetStatsRequest,
+    ClusterOp.GET_STATS_RESPONSE: GetStatsResponse,
 }
