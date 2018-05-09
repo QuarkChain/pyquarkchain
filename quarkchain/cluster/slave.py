@@ -32,8 +32,8 @@ class ShardConnection(VirtualConnection):
     ''' A virtual connection between local shard and remote shard
     '''
 
-    def __init__(self, masterConn, clusterPeerId, shardState):
-        super().__init__(masterConn, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
+    def __init__(self, masterConn, clusterPeerId, shardState, name=None):
+        super().__init__(masterConn, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP, name=name)
         self.clusterPeerId = clusterPeerId
         self.shardState = shardState
         self.masterConn = masterConn
@@ -69,6 +69,8 @@ class ShardConnection(VirtualConnection):
         mDownloadList = []
         for mHeader in cmd.minorBlockHeaderList:
             mHash = mHeader.getHash()
+            if self.shardState.containBlockByHash(mHash):
+                continue
             if not self.shardState.containBlockByHash(mHeader.hashPrevMinorBlock):
                 # TODO: Download previous block
                 continue
@@ -117,8 +119,15 @@ OP_RPC_MAP = {
 
 class MasterConnection(ClusterConnection):
 
-    def __init__(self, env, reader, writer, slaveServer):
-        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, MASTER_OP_NONRPC_MAP, MASTER_OP_RPC_MAP)
+    def __init__(self, env, reader, writer, slaveServer, name=None):
+        super().__init__(
+            env,
+            reader,
+            writer,
+            CLUSTER_OP_SERIALIZER_MAP,
+            MASTER_OP_NONRPC_MAP,
+            MASTER_OP_RPC_MAP,
+            name=name)
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.slaveServer = slaveServer
@@ -317,7 +326,8 @@ class MasterConnection(ClusterConnection):
             conn = ShardConnection(
                 masterConn=self,
                 clusterPeerId=req.clusterPeerId,
-                shardState=shardState)
+                shardState=shardState,
+                name="{}_vconn_{}".format(self.name, req.clusterPeerId))
             asyncio.ensure_future(conn.activeAndLoopForever())
             connMap[branchValue] = conn
         return CreateClusterPeerConnectionResponse(errorCode=0)
@@ -362,8 +372,8 @@ MASTER_OP_RPC_MAP = {
 
 class SlaveConnection(Connection):
 
-    def __init__(self, env, reader, writer, slaveServer, slaveId, shardMaskList):
-        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, SLAVE_OP_NONRPC_MAP, SLAVE_OP_RPC_MAP)
+    def __init__(self, env, reader, writer, slaveServer, slaveId, shardMaskList, name=None):
+        super().__init__(env, reader, writer, CLUSTER_OP_SERIALIZER_MAP, SLAVE_OP_NONRPC_MAP, SLAVE_OP_RPC_MAP, name=name)
         self.slaveServer = slaveServer
         self.id = slaveId
         self.shardMaskList = shardMaskList
@@ -432,7 +442,7 @@ SLAVE_OP_RPC_MAP = {
 class SlaveServer():
     """ Slave node in a cluster """
 
-    def __init__(self, env):
+    def __init__(self, env, name="slave"):
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.id = self.env.clusterConfig.ID
@@ -444,9 +454,11 @@ class SlaveServer():
         self.slaveIds = set()
 
         self.master = None
+        self.name = name
 
         self.__initShardStateMap()
         self.shutdownInProgress = False
+        self.slaveId = 0
 
     def __initShardStateMap(self):
         ''' branchValue -> ShardState mapping '''
@@ -496,10 +508,18 @@ class SlaveServer():
     async def __handleNewConnection(self, reader, writer):
         # The first connection should always come from master
         if not self.master:
-            self.master = MasterConnection(self.env, reader, writer, self)
+            self.master = MasterConnection(self.env, reader, writer, self, name="{}_master".format(self.name))
             return
 
-        self.slaveConnections.add(SlaveConnection(self.env, reader, writer, self, None, None))
+        self.slaveId += 1
+        self.slaveConnections.add(SlaveConnection(
+            self.env,
+            reader,
+            writer,
+            self,
+            None,
+            None,
+            name="{}_slave_{}".format(self.name, self.slaveId)))
 
     async def __startServer(self):
         ''' Run the server until shutdown is called '''

@@ -98,12 +98,12 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             slaveEnv.clusterConfig.ID = config["slaves"][slave]["id"]
             slaveEnv.clusterConfig.NODE_PORT = config["slaves"][slave]["port"]
             slaveEnv.clusterConfig.SHARD_MASK_LIST = [ShardMask(v) for v in config["slaves"][slave]["shard_masks"]]
-            slaveServer = SlaveServer(slaveEnv)
+            slaveServer = SlaveServer(slaveEnv, name="cluster{}_slave{}".format(i, slave))
             slaveServer.start()
             slaveServerList.append(slaveServer)
 
         rootState = RootState(env, createGenesis=True)
-        masterServer = MasterServer(env, rootState)
+        masterServer = MasterServer(env, rootState, name="cluster{}_master".format(i))
         masterServer.start()
 
         # Wait until the cluster is ready
