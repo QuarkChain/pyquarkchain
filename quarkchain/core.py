@@ -13,7 +13,7 @@ import rlp
 from ethereum import utils
 
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check, masks_have_overlap
 
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
@@ -403,6 +403,9 @@ class ShardMask(Serializable):
 
     def containBranch(self, branch):
         return self.containShardId(branch.getShardId())
+
+    def hasOverlap(self, shardMask):
+        return masks_have_overlap(self.value, shardMask.value)
 
     def iterate(self, shardSize):
         shardBits = int_left_most_bit(shardSize)
