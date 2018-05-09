@@ -78,10 +78,10 @@ def test_perf_evm():
             data=b'',
             withdrawSign=1,
             withdraw=0,
-            withdrawTo=b'')
+            withdrawTo=b'',
+            networkId=1)
         evmTx.sign(
-            key=fromId.getKey(),
-            network_id=1)
+            key=fromId.getKey())
         txList.append(evmTx)
         fromList.append(fromId.getRecipient())
     duration = time.time() - startTime

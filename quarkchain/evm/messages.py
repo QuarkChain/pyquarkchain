@@ -114,12 +114,9 @@ def config_fork_specific_validation(config, blknum, tx):
             raise InvalidTransaction("EIP86 transactions not available yet")
         if blknum >= config['HOMESTEAD_FORK_BLKNUM']:
             tx.check_low_s_homestead()
-    if blknum >= config["SPURIOUS_DRAGON_FORK_BLKNUM"]:
-        if tx.network_id not in (None, config["NETWORK_ID"]):
-            raise InvalidTransaction("Wrong network ID")
-    else:
-        if tx.network_id is not None:
-            raise InvalidTransaction("Wrong network ID")
+
+    if tx.network_id != config["NETWORK_ID"]:
+        raise InvalidTransaction("Wrong network ID")
     return True
 
 

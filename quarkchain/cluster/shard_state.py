@@ -213,6 +213,8 @@ class ShardState:
             raise RuntimeError("only evm transaction is supported now")
 
         evmTx = tx.code.getEvmTransaction()
+        if evmTx.networkId != self.env.config.NETWORK_ID:
+            raise RuntimeError("evm tx network id mismatch")
         if self.branch.value != evmTx.branchValue:
             raise RuntimeError("evm tx is not in the shard")
         if evmTx.getWithdraw() < 0:
@@ -473,8 +475,9 @@ class ShardState:
                 data=b'',
                 withdrawSign=1,
                 withdraw=0,
-                withdrawTo=b'')
-            evmTx.sign(key=self.env.config.GENESIS_KEY, network_id=self.env.config.NETWORK_ID)
+                withdrawTo=b'',
+                networkId=self.env.config.NETWORK_ID)
+            evmTx.sign(key=self.env.config.GENESIS_KEY)
             try:
                 apply_transaction(evmState, evmTx)
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))

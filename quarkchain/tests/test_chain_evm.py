@@ -30,10 +30,9 @@ class TestEvm(unittest.TestCase):
             value=0,
             data=bytes(0),
             withdraw=100000,
-            withdrawSign=0)
-        evmTx.sign(
-            key=id1.getKey(),
-            network_id=env.config.NETWORK_ID)
+            withdrawSign=0,
+            networkId=env.config.NETWORK_ID)
+        evmTx.sign(key=id1.getKey())
 
         b1.addTx(
             Transaction(
@@ -67,10 +66,9 @@ class TestEvm(unittest.TestCase):
             value=0,
             data=bytes(0),
             withdraw=100000,
-            withdrawSign=0)
-        evmTx.sign(
-            key=id1.getKey(),
-            network_id=env.config.NETWORK_ID)
+            withdrawSign=0,
+            networkId=env.config.NETWORK_ID)
+        evmTx.sign(key=id1.getKey())
 
         b1.addTx(
             Transaction(
@@ -111,10 +109,9 @@ class TestEvm(unittest.TestCase):
                 '5050565b600080549050905600a165627a7a72305820e170013eadb8debdf58398ee9834aa86cf08db2eee5c9094'
                 '7c1bcf6c18e3eeff0029'),
             withdraw=1000000,
-            withdrawSign=0)
-        evmTx.sign(
-            key=id1.getKey(),
-            network_id=env.config.NETWORK_ID)
+            withdrawSign=0,
+            networkId=env.config.NETWORK_ID)
+        evmTx.sign(key=id1.getKey())
 
         scAddr = mk_contract_address(
             sender=id1.recipient,
@@ -140,10 +137,9 @@ class TestEvm(unittest.TestCase):
             value=0,
             data=bytes.fromhex('60fe47b1000000000000000000000000000000000000000000000000000000000000007b'),
             withdraw=0,
-            withdrawSign=1)
-        evmTx1.sign(
-            key=id1.getKey(),
-            network_id=env.config.NETWORK_ID)
+            withdrawSign=1,
+            networkId=env.config.NETWORK_ID)
+        evmTx1.sign(key=id1.getKey())
 
         b2.addTx(
             Transaction(
@@ -162,10 +158,9 @@ class TestEvm(unittest.TestCase):
             value=0,
             data=bytes.fromhex('6d4ce63c'),
             withdraw=0,
-            withdrawSign=1)
-        evmTx2.sign(
-            key=id1.getKey(),
-            network_id=env.config.NETWORK_ID)
+            withdrawSign=1,
+            networkId=env.config.NETWORK_ID)
+        evmTx2.sign(key=id1.getKey())
 
         b3.addTx(
             Transaction(
