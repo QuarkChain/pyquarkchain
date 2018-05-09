@@ -25,7 +25,7 @@ def get_test_env(
     env.config.GENESIS_COIN = genesisQuarkash
     env.config.GENESIS_MINOR_COIN = genesisMinorQuarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
-    env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.1
+    env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
     return env
 
 
@@ -130,9 +130,10 @@ def shutdown_clusters(clusterList):
         # Shutdown simple network first
         cluster.network.shutdown()
 
-        # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
-        loop.run_until_complete(asyncio.sleep(0.1))
+    # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
+    loop.run_until_complete(asyncio.sleep(0.1))
 
+    for cluster in clusterList:
         for slave in cluster.slaveList:
             slave.shutdown()
             loop.run_until_complete(slave.getShutdownFuture())

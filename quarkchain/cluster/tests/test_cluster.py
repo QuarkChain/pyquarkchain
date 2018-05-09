@@ -195,3 +195,6 @@ class TestCluster(unittest.TestCase):
 
             # Make sure the root block tip of local cluster is changed
             self.assertEqual(clusters[0].master.rootState.tip, rB1.header)
+
+            # Make sure the root block tip of another cluster is changed
+            assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header)
