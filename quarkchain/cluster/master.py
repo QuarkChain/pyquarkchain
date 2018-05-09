@@ -567,10 +567,11 @@ def main():
     env.NETWORK_ID = 1  # testnet
 
     rootState = RootState(env, createGenesis=True)
-    network = SimpleNetwork(env, rootState)
-    network.start()
 
     master = MasterServer(env, rootState)
+
+    network = SimpleNetwork(env, master)
+    network.start()
 
     jsonRpcServer = JSONRPCServer(env, master)
     jsonRpcServer.start()
