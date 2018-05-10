@@ -1,5 +1,7 @@
 import argparse
 import logging
+import random
+import time
 
 import jsonrpcclient
 
@@ -45,6 +47,15 @@ class Miner:
         self.block = None
         self.isRoot = False
 
+    def __simulatePowDelay(self, startTime):
+        if self.isRoot:
+            expectedBlockTime = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
+        else:
+            expectedBlockTime = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
+        elapsed = time.time() - startTime
+        delay = max(0, expectedBlockTime - elapsed + random.uniform(-1, 1))
+        time.sleep(delay)
+
     def run(self):
         self.endpoint.setArtificialTxCount(self.artificialTxCount)
         while True:
@@ -61,10 +72,12 @@ class Miner:
             else:
                 Logger.info("Mining minor block {}-{} with {} transactions".format(
                     block.header.branch.getShardId(), block.header.height, len(self.block.txList)))
+            start = time.time()
             for i in range(1000000):
                 self.block.header.nonce += 1
                 metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
                 if metric < 2 ** 256:
+                    self.__simulatePowDelay(start)
                     try:
                         self.endpoint.addBlock(self.block)
                     except Exception as e:

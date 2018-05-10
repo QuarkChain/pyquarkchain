@@ -526,6 +526,7 @@ class MasterServer():
         txCount60s = sum([shardStats.txCount60s for shardStats in branchValueToShardStats.values()])
         return {
             "shardSize": self.__getShardSize(),
+            "rootHeight": self.rootState.tip.height,
             "txCount60s": txCount60s,
             "shards": shards,
         }
