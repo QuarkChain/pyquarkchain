@@ -249,6 +249,7 @@ class SimpleNetwork:
         self.activePeerPool = dict()    # peer id => peer
         self.selfId = random_bytes(32)
         self.masterServer = masterServer
+        masterServer.network = self
         self.ip = ipaddress.ip_address(
             socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT

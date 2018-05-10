@@ -151,11 +151,11 @@ class MasterServer():
     2. Make slaves connect to each other
     '''
 
-    def __init__(self, env, rootState, network=None, name="master"):
+    def __init__(self, env, rootState, name="master"):
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.rootState = rootState
-        self.network = network
+        self.network = None  # will be set by SimpleNetwork
         self.clusterConfig = env.clusterConfig.CONFIG
 
         # branch value -> a list of slave running the shard
