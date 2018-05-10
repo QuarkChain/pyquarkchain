@@ -257,6 +257,10 @@ class MasterServer():
         except KeyboardInterrupt:
             pass
 
+    def waitUntilClusterActive(self):
+        # Wait until cluster is ready
+        self.loop.run_until_complete(self.clusterActiveFuture)
+
     def shutdown(self):
         # TODO: May set exception and disconnect all slaves
         if not self.shutdownFuture.done():
@@ -450,25 +454,21 @@ class MasterServer():
     def broadcastCommand(self, op, cmd):
         ''' Broadcast command to all slaves.
         '''
-        for shardId in range(self.env.config.SHARD_SIZE):
-            branch = Branch(self.env.config.SHARD_SIZE + shardId)
-            slaveConn = self.getSlaveConnection(branch=branch)
+        for slaveConn in self.slavePool:
             slaveConn.writeCommand(
                 op=op,
                 cmd=cmd,
-                metadata=ClusterMetadata(branch, 0))
+                metadata=ClusterMetadata(ROOT_BRANCH, 0))
 
     def broadcastRpc(self, op, req):
         ''' Broadcast RPC request to all slaves.
         '''
         futureList = []
-        for shardId in range(self.env.config.SHARD_SIZE):
-            branch = Branch(self.__getShardSize() + shardId)
-            slaveConn = self.getSlaveConnection(branch=branch)
+        for slaveConn in self.slavePool:
             futureList.append(slaveConn.writeRpcRequest(
                 op=op,
                 cmd=req,
-                metadata=ClusterMetadata(branch, 0)))
+                metadata=ClusterMetadata(ROOT_BRANCH, 0)))
         return futureList
 
     # ------------------------------ Cluster Peer Connnection Management --------------
@@ -572,6 +572,8 @@ def main():
     rootState = RootState(env, createGenesis=True)
 
     master = MasterServer(env, rootState)
+    master.start()
+    master.waitUntilClusterActive()
 
     network = SimpleNetwork(env, master)
     network.start()
@@ -579,7 +581,11 @@ def main():
     jsonRpcServer = JSONRPCServer(env, master)
     jsonRpcServer.start()
 
-    master.startAndLoop()
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(master.shutdownFuture)
+    except KeyboardInterrupt:
+        pass
 
     jsonRpcServer.shutdown()
 

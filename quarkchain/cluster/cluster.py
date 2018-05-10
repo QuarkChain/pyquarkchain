@@ -21,9 +21,9 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(port, configFilePath, dbPath, serverPort):
-    cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} --server_port={}".format(
-        port, configFilePath, dbPath, serverPort)
+async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort):
+    cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} --server_port={} --local_port={}".format(
+        port, configFilePath, dbPath, serverPort, jsonRpcPort)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -48,13 +48,14 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, num_miners, tx_count):
+    def __init__(self, config, configFilePath, num_miners, tx_count, mineRoot):
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
         self.shutdownCalled = False
         self.num_miners = num_miners
         self.tx_count = tx_count
+        self.mineRoot = mineRoot
 
     async def waitAndShutdown(self, prefix, proc):
         ''' If one process terminates shutdown the entire cluster '''
@@ -70,7 +71,8 @@ class Cluster:
             port=self.config["master"]["port"],
             configFilePath=self.configFilePath,
             dbPath=self.config["master"]["db_path"],
-            serverPort=self.config["master"]["server_port"])
+            serverPort=self.config["master"]["server_port"],
+            jsonRpcPort=self.config["master"]["json_rpc_port"])
         asyncio.ensure_future(print_output("MASTER", master.stdout))
         self.procs.append(("MASTER", master))
 
@@ -93,11 +95,12 @@ class Cluster:
             asyncio.ensure_future(print_output(prefix, miner.stdout))
             self.procs.append((prefix, miner))
 
-        # Create a miner that covers root chain
-        miner = await run_miner(0, self.tx_count)
-        prefix = "MINER_R"
-        asyncio.ensure_future(print_output(prefix, miner.stdout))
-        self.procs.append((prefix, miner))
+        if self.mineRoot:
+            # Create a miner that covers root chain
+            miner = await run_miner(0, self.tx_count)
+            prefix = "MINER_R"
+            asyncio.ensure_future(print_output(prefix, miner.stdout))
+            self.procs.append((prefix, miner))
 
     async def run(self):
         await self.runMaster()
@@ -135,6 +138,8 @@ def main():
     parser.add_argument(
         "--num_miners", default=4, type=int)
     parser.add_argument(
+        "--not_mine_root", default=False, type=bool)
+    parser.add_argument(
         "--num_tx_per_block", default=100, type=int)
     parser.add_argument(
         "--port_start", default=PORT, type=int)
@@ -142,6 +147,8 @@ def main():
         "--db_prefix", default="./db_", type=str)
     parser.add_argument(
         "--p2p_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT)
+    parser.add_argument(
+        "--json_rpc_port", default=38391, type=int)
     args = parser.parse_args()
 
     if args.num_slaves <= 0:
@@ -153,6 +160,7 @@ def main():
             ip=IP,
             p2pPort=args.p2p_port,
             clusterPortStart=args.port_start,
+            jsonRpcPort=args.json_rpc_port,
             dbPrefix=args.db_prefix,
         )
         if not config:
@@ -163,7 +171,7 @@ def main():
         print("--num_miners must be power of 2")
         return -1
 
-    cluster = Cluster(config, filename, args.num_miners, args.num_tx_per_block)
+    cluster = Cluster(config, filename, args.num_miners, args.num_tx_per_block, not args.not_mine_root)
     cluster.startAndLoop()
 
 
