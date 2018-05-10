@@ -16,6 +16,19 @@ def int_left_most_bit(v):
     return b
 
 
+def masks_have_overlap(m1, m2):
+    '''
+    0b101, 0b11 -> True
+    0b101, 0b10 -> False
+    '''
+    check(m1 > 0 and m2 > 0)
+
+    i1 = int_left_most_bit(m1)
+    i2 = int_left_most_bit(m2)
+    bitMask = (1 << ((min(i1, i2) - 1))) - 1
+    return (m1 & bitMask) == (m2 & bitMask)
+
+
 def is_p2(v):
     return (v & (v - 1)) == 0
 

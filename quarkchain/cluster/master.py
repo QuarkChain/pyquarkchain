@@ -74,6 +74,12 @@ class SlaveConnection(ClusterConnection):
                 return True
         return False
 
+    def hasOverlap(self, shardMask):
+        for localShardMask in self.shardMaskList:
+            if localShardMask.hasOverlap(shardMask):
+                return True
+        return False
+
     async def sendPing(self):
         req = Ping("", [])
         op, resp, rpcId = await self.writeRpcRequest(
@@ -324,8 +330,9 @@ class MasterServer():
         shardMask = None if shardMaskValue == 0 else ShardMask(shardMaskValue)
         futures = []
 
-        # TODO: only fetch from slaves that have the shards covered by shard mask
         for slave in self.slavePool:
+            if shardMask and not slave.hasOverlap(shardMask):
+                continue
             request = GetEcoInfoListRequest()
             futures.append(slave.writeRpcRequest(ClusterOp.GET_ECO_INFO_LIST_REQUEST, request))
         responses = await asyncio.gather(*futures)

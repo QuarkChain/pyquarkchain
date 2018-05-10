@@ -191,7 +191,7 @@ class JSONRPCServer:
     def start(self):
         app = web.Application()
         app.router.add_post("/", self.__handle)
-        self.runner = web.AppRunner(app)
+        self.runner = web.AppRunner(app, access_log=None)
         self.loop.run_until_complete(self.runner.setup())
         site = web.TCPSite(self.runner, "0.0.0.0", self.port)
         self.loop.run_until_complete(site.start())
