@@ -9,6 +9,7 @@ from ethereum.exceptions import InvalidTransaction
 from quarkchain.evm import opcodes
 from ethereum import utils
 from ethereum.utils import TT256, mk_contract_address, ecsign, ecrecover_to_pub, normalize_key
+from quarkchain.utils import sha3_256
 
 
 # in the yellow paper it is specified that s should be smaller than
@@ -51,6 +52,7 @@ class Transaction(rlp.Serializable):
         ('withdraw', big_endian_int),
         ('withdrawSign', big_endian_int),
         ('withdrawTo', binary),
+        ('networkId', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
         ('s', big_endian_int),
@@ -58,8 +60,8 @@ class Transaction(rlp.Serializable):
 
     _sender = None
 
-    def __init__(self, nonce, gasprice, startgas,
-                 to, value, data, v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1, withdrawTo=b''):
+    def __init__(self, nonce, gasprice, startgas, to, value, data,
+                 v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1, withdrawTo=b'', networkId=1):
         self.data = None
 
         to = utils.normalize_address(to, allow_blank=True)
@@ -77,6 +79,7 @@ class Transaction(rlp.Serializable):
             withdraw,
             withdrawSign,
             withdrawTo,
+            networkId,
             v,
             r,
             s)
@@ -94,34 +97,19 @@ class Transaction(rlp.Serializable):
             if self.r == 0 and self.s == 0:
                 self._sender = null_address
             else:
-                if self.v in (27, 28):
-                    vee = self.v
-                    sighash = utils.sha3(rlp.encode(self, UnsignedTransaction))
-                elif self.v >= 37:
-                    vee = self.v - self.network_id * 2 - 8
-                    assert vee in (27, 28)
-                    rlpdata = rlp.encode(rlp.infer_sedes(self).serialize(self)[
-                                         :-3] + [self.network_id, '', ''])
-                    sighash = utils.sha3(rlpdata)
-                else:
-                    raise InvalidTransaction("Invalid V value")
+                sighash = sha3_256(rlp.encode(self, UnsignedTransaction))
                 if self.r >= secpk1n or self.s >= secpk1n or self.r == 0 or self.s == 0:
                     raise InvalidTransaction("Invalid signature values!")
-                pub = ecrecover_to_pub(sighash, vee, self.r, self.s)
+                pub = ecrecover_to_pub(sighash, self.v, self.r, self.s)
                 if pub == b'\x00' * 64:
                     raise InvalidTransaction(
                         "Invalid signature (zero privkey cannot sign)")
-                self._sender = utils.sha3(pub)[-20:]
+                self._sender = sha3_256(pub)[-20:]
         return self._sender
 
     @property
     def network_id(self):
-        if self.r == 0 and self.s == 0:
-            return self.v
-        elif self.v in (27, 28):
-            return None
-        else:
-            return ((self.v - 1) // 2) - 17
+        return self.networkId
 
     @sender.setter
     def sender(self, value):
@@ -145,26 +133,19 @@ class Transaction(rlp.Serializable):
 
         A potentially already existing signature would be overridden.
         """
-        if network_id is None:
-            rawhash = utils.sha3(rlp.encode(self, UnsignedTransaction))
-        else:
-            assert 1 <= network_id < 2**63 - 18
-            rlpdata = rlp.encode(rlp.infer_sedes(self).serialize(self)[
-                                 :-3] + [network_id, b'', b''])
-            rawhash = utils.sha3(rlpdata)
-
+        if network_id is not None:
+            self.networkId = network_id
+        rawhash = sha3_256(rlp.encode(self, UnsignedTransaction))
         key = normalize_key(key)
 
         self.v, self.r, self.s = ecsign(rawhash, key)
-        if network_id is not None:
-            self.v += 8 + network_id * 2
 
         self._sender = utils.privtoaddr(key)
         return self
 
     @property
     def hash(self):
-        return utils.sha3(rlp.encode(self))
+        return sha3_256(rlp.encode(self))
 
     def to_dict(self):
         d = {}

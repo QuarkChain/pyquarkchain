@@ -50,10 +50,9 @@ def create_transfer_transaction(
         data=b'',
         withdrawSign=1,
         withdraw=withdraw,
-        withdrawTo=withdrawTo)
-    evmTx.sign(
-        key=fromId.getKey(),
-        network_id=shardState.env.config.NETWORK_ID)
+        withdrawTo=withdrawTo,
+        networkId=shardState.env.config.NETWORK_ID)
+    evmTx.sign(key=fromId.getKey())
     return Transaction(
         inList=[],
         code=Code.createEvmCode(evmTx),

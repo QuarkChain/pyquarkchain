@@ -106,6 +106,7 @@ class Env:
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
         self.evmConfig = evmConfig or get_default_evm_config()
+        self.evmConfig["NETWORK_ID"] = self.config.NETWORK_ID
         self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
         self.clusterConfig = clusterConfig or DefaultClusterConfig()
 
