@@ -316,7 +316,7 @@ class MasterConnection(ClusterConnection):
 
     async def handleDestroyClusterPeerConnectionCommand(self, op, cmd, rpcId):
         if cmd.clusterPeerId not in self.vConnMap:
-            Logger.error("cannot find cluster peer connection to destroy {}".formate(cmd.clusterPeerId))
+            Logger.error("cannot find cluster peer connection to destroy {}".format(cmd.clusterPeerId))
             return
         for branchValue, vConn in self.vConnMap[cmd.clusterPeerId].items():
             vConn.getForwardingConnection().close()
@@ -324,7 +324,7 @@ class MasterConnection(ClusterConnection):
 
     async def handleCreateClusterPeerConnectionRequest(self, req):
         if req.clusterPeerId in self.vConnMap:
-            Logger.error("duplicated create cluster peer connection {}".format(cmd.clusterPeerId))
+            Logger.error("duplicated create cluster peer connection {}".format(req.clusterPeerId))
             return CreateClusterPeerConnectionResponse(errorCode=errno.ENOENT)
 
         connMap = dict()

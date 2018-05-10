@@ -82,9 +82,10 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             slaveCount=env.config.SHARD_SIZE,
             ip="127.0.0.1",
             p2pPort=p2pPort,
-            clusterPortStart=portStart + 1,
+            jsonRpcPort=portStart + 1,
+            clusterPortStart=portStart + 2,
         )
-        portStart += (2 + env.config.SHARD_SIZE)
+        portStart += (3 + env.config.SHARD_SIZE)
 
         env.config.P2P_SERVER_PORT = p2pPort
         env.config.P2P_SEED_PORT = seedPort
