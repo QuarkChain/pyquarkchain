@@ -29,6 +29,7 @@ class Metadata(Serializable):
 
 class AbstractConnection:
     connId = 0
+    abortedRpcCount = 0
 
     @classmethod
     def __getNextConnectionId(cls):
@@ -128,11 +129,11 @@ class AbstractConnection:
         op, cmd, rpcId = self.__parseCommand(rawData)
 
         if op not in self.opSerMap:
-            raise RuntimeError("Unsupported op {}".format(op))
+            raise RuntimeError("{}: unsupported op {}".format(self.name, op))
 
         if op in self.opNonRpcMap:
             if rpcId != 0:
-                raise RuntimeError("non-rpc command's id must be zero")
+                raise RuntimeError("{}: non-rpc command's id must be zero".format(self.name))
             await self.__handleRequest(op, cmd)
         elif op in self.opRpcMap:
             # Check if it is a valid RPC request
@@ -142,7 +143,7 @@ class AbstractConnection:
         else:
             # Check if it is a valid RPC response
             if rpcId not in self.rpcFutureMap:
-                raise RuntimeError("Unexpected rpc response %d" % rpcId)
+                raise RuntimeError("{}: unexpected rpc response {}".format(self.name, rpcId))
             future = self.rpcFutureMap[rpcId]
             del self.rpcFutureMap[rpcId]
             future.set_result((op, cmd, rpcId))
@@ -152,18 +153,18 @@ class AbstractConnection:
             await self.handleMetadataAndRawData(metadata, rawData)
         except Exception as e:
             Logger.logException()
-            self.closeWithError("Error processing request: {}".format(e))
+            self.closeWithError("{}: error processing request: {}".format(self.name, e))
 
     async def loopOnce(self):
         try:
             metadata, rawData = await self.readMetadataAndRawData()
             if metadata is None:
-		# Hit EOF
+                # Hit EOF
                 self.close()
                 return
         except Exception as e:
             Logger.logException()
-            self.closeWithError("Error reading request: {}".format(e))
+            self.closeWithError("{}: error reading request: {}".format(self.name, e))
             return
 
         asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
@@ -179,7 +180,8 @@ class AbstractConnection:
 
         # Abort all in-flight RPCs
         for rpcId, future in self.rpcFutureMap.items():
-            future.set_exception(RuntimeError("Connection abort"))
+            future.set_exception(RuntimeError("{}: connection abort".format(self.name)))
+        AbstractConnection.abortedRpcCount += len(self.rpcFutureMap)
         self.rpcFutureMap.clear()
 
     async def waitUntilActive(self):
@@ -235,7 +237,7 @@ class Connection(AbstractConnection):
         while len(ba) < n:
             bs = await self.reader.read(n - len(ba))
             if len(bs) == 0 and self.reader.at_eof():
-                raise RuntimeError("read unexpected EOF")
+                raise RuntimeError("{}: read unexpected EOF".format(self.name))
             ba.extend(bs)
         return ba
 
@@ -249,7 +251,7 @@ class Connection(AbstractConnection):
         size = int.from_bytes(sizeBytes, byteorder="big")
 
         if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
-            raise RuntimeError("command package exceed limit")
+            raise RuntimeError("{}: command package exceed limit".format(self.name))
 
         metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
         metadata = self.metadataClass.deserialize(metadataBytes)

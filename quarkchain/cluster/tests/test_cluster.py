@@ -247,5 +247,9 @@ class TestCluster(unittest.TestCase):
                 assert_true_with_timeout(
                     lambda: clusters[1].slaveList[0].shardStateMap[0b10].containBlockByHash(
                         block.header.getHash()))
+                assert_true_with_timeout(
+                    lambda: clusters[1].master.rootState.isMinorBlockValidated(
+                        block.header.getHash()))
+
             self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip,
                              clusters[0].slaveList[0].shardStateMap[0b10].headerTip)
