@@ -1,5 +1,8 @@
 import unittest
 
+import asyncio
+import time
+
 from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
 from quarkchain.evm import opcodes
 from quarkchain.core import Address, Branch, Identity
@@ -198,3 +201,51 @@ class TestCluster(unittest.TestCase):
 
             # Make sure the root block tip of another cluster is changed
             assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header)
+
+    def testShardSynchronizerWithFork(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(2, acc1) as clusters:
+            # shutdown cluster connection
+            clusters[1].peer.close()
+
+            blockList = []
+            # cluster 0 has 13 blocks added
+            for i in range(13):
+                shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]
+                block = shardState0.getTip().createBlockToAppend()
+                block.finalize(evmState=shardState0.runBlock(block))
+                addResult = call_async(clusters[0].slaveList[0].addBlock(block))
+                self.assertTrue(addResult)
+                blockList.append(block)
+            self.assertEqual(clusters[0].slaveList[0].shardStateMap[0b10].headerTip.height, 13)
+
+            # cluster 1 has 12 blocks added
+            for i in range(12):
+                shardState0 = clusters[1].slaveList[0].shardStateMap[0b10]
+                block = shardState0.getTip().createBlockToAppend()
+                block.finalize(evmState=shardState0.runBlock(block))
+                addResult = call_async(clusters[1].slaveList[0].addBlock(block))
+                self.assertTrue(addResult)
+            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip.height, 12)
+
+            # reestablish cluster connection
+            call_async(clusters[1].network.connect("127.0.0.1", 38000))
+
+            # a new block from cluster 0 will trigger sync in cluster 1
+            shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]
+            block = shardState0.getTip().createBlockToAppend()
+            block.finalize(evmState=shardState0.runBlock(block))
+            addResult = call_async(clusters[0].slaveList[0].addBlock(block))
+            self.assertTrue(addResult)
+            blockList.append(block)
+
+            # expect cluster 1 has all the blocks from cluter 0 and
+            # has the same tip as cluster 0
+            for block in blockList:
+                assert_true_with_timeout(
+                    lambda: clusters[1].slaveList[0].shardStateMap[0b10].containBlockByHash(
+                        block.header.getHash()))
+            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip,
+                             clusters[0].slaveList[0].shardStateMap[0b10].headerTip)

@@ -1,6 +1,8 @@
+from enum import IntEnum
+
 from quarkchain.cluster.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
-from quarkchain.core import Serializable, PreprendedSizeListSerializer
-from quarkchain.core import uint16, uint32, uint128, hash256
+from quarkchain.core import Serializable, PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
+from quarkchain.core import Branch, boolean, uint8, uint16, uint32, uint128, hash256
 
 
 class HelloCommand(Serializable):
@@ -112,6 +114,41 @@ class GetMinorBlockListResponse(Serializable):
         self.minorBlockList = minorBlockList if minorBlockList is not None else []
 
 
+class Direction(IntEnum):
+    GENESIS = 0
+    TIP = 1
+
+
+class GetMinorBlockHeaderListRequest(Serializable):
+    """ Obtain block hashs in the active chain.
+    """
+    FIELDS = [
+        ("blockHash", hash256),
+        ("branch", Branch),
+        ("limit", uint32),
+        ("direction", uint8),       # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, blockHash, branch, limit, direction):
+        self.blockHash = blockHash
+        self.branch = branch
+        self.limit = limit
+        self.direction = direction
+
+
+class GetMinorBlockHeaderListResponse(Serializable):
+    FIELDS = [
+        ("rootTip", RootBlockHeader),
+        ("shardTip", MinorBlockHeader),
+        ("blockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
+    ]
+
+    def __init__(self, rootTip, shardTip, blockHeaderList):
+        self.rootTip = rootTip
+        self.shardTip = shardTip
+        self.blockHeaderList = blockHeaderList
+
+
 class CommandOp():
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
@@ -122,8 +159,8 @@ class CommandOp():
     GET_PEER_LIST_RESPONSE = 6
     GET_MINOR_BLOCK_LIST_REQUEST = 7
     GET_MINOR_BLOCK_LIST_RESPONSE = 8
-    GET_BLOCK_HEADER_LIST_REQUEST = 9
-    GET_BLOCK_HEADER_LIST_RESPONSE = 10
+    GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 9
+    GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 10
 
 
 OP_SERIALIZER_MAP = {
@@ -135,4 +172,6 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_PEER_LIST_RESPONSE: GetPeerListResponse,
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST: GetMinorBlockListRequest,
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST: GetMinorBlockHeaderListRequest,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE: GetMinorBlockHeaderListResponse,
 }
