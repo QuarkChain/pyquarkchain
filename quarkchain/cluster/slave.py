@@ -21,11 +21,94 @@ from quarkchain.cluster.rpc import (
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.p2p_commands import (
-    CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse
+    CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse,
+    GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse,
 )
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb, ShardedDb
 from quarkchain.utils import check, set_logging_level, Logger
+
+
+class Synchronizer:
+
+    def __init__(self, shardConn):
+        self.shardConn = shardConn
+        self.shardState = shardConn.shardState
+        self.slaveServer = shardConn.slaveServer
+        self.isRunning = False
+
+    async def sync(self, blockHash):
+        if self.isRunning:
+            Logger.info("[{}] syncing in progress. dropping new sync request".format(
+                self.shardState.branch.getShardId()))
+            return
+        self.isRunning = True
+        try:
+            await self.__runSync(blockHash)
+        except Exception as e:
+            Logger.logException()
+            self.shardConn.closeWithError()
+        self.isRunning = False
+
+    async def __runSync(self, blockHash):
+        # descending height
+        blockHeaderChain = []
+
+        # TODO: Stop if too many headers to revert
+        while not self.__hasBlockHash(blockHash):
+            blockHeaderList = await self.__downloadBlockHeaders(blockHash)
+            Logger.info("[{}] downloaded {} headers from peer".format(
+                self.shardState.branch.getShardId(), len(blockHeaderList)))
+            if not self.__validateBlockHeaders(blockHeaderList):
+                # TODO: tag bad peer
+                return self.shardConn.closeWithError("Bad peer sending discontinuing block headers")
+            for header in blockHeaderList:
+                if self.__hasBlockHash(header.getHash()):
+                    break
+                blockHeaderChain.append(header)
+            blockHash = blockHeaderChain[-1].hashPrevMinorBlock
+
+        # ascending height
+        blockHeaderChain.reverse()
+        while len(blockHeaderChain) > 0:
+            blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
+            Logger.info("[{}] downloaded {} blocks from peer".format(
+                self.shardState.branch.getShardId(), len(blockChain)))
+            check(len(blockChain) == len(blockHeaderChain[:100]))
+
+            for block in blockChain:
+                await self.slaveServer.addBlock(block)
+                blockHeaderChain.pop(0)
+
+    def __hasBlockHash(self, blockHash):
+        return self.shardState.db.containMinorBlockByHash(blockHash)
+
+    def __validateBlockHeaders(self, blockHeaderList):
+        # TODO: check difficulty and other stuff?
+        for i in range(len(blockHeaderList) - 1):
+            block, prev = blockHeaderList[i:i + 2]
+            if block.height != prev.height + 1:
+                return False
+            if block.hashPrevMinorBlock != prev.getHash():
+                return False
+        return True
+
+    async def __downloadBlockHeaders(self, blockHash):
+        request = GetMinorBlockHeaderListRequest(
+            blockHash=blockHash,
+            branch=self.shardState.branch,
+            limit=10,
+            direction=Direction.GENESIS,
+        )
+        op, resp, rpcId = await self.shardConn.writeRpcRequest(
+            CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST, request)
+        return resp.blockHeaderList
+
+    async def __downloadBlocks(self, blockHeaderList):
+        blockHashList = [b.getHash() for b in blockHeaderList]
+        op, resp, rpcId = await self.shardConn.writeRpcRequest(
+            CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
+        return resp.minorBlockList
 
 
 class ShardConnection(VirtualConnection):
@@ -38,10 +121,32 @@ class ShardConnection(VirtualConnection):
         self.shardState = shardState
         self.masterConn = masterConn
         self.slaveServer = masterConn.slaveServer
+        self.synchronizer = Synchronizer(self)
 
     def closeWithError(self, error):
         Logger.error("Closing shard connection with error {}".format(error))
         return super().closeWithError(error)
+
+    async def handleGetMinorBlockHeaderListRequest(self, request):
+        if request.branch != self.shardState.branch:
+            self.closeWithError("Wrong branch from peer")
+        if request.limit <= 0:
+            self.closeWithError("Bad limit")
+        # TODO: support tip direction
+        if request.direction != Direction.GENESIS:
+            self.closeWithError("Bad direction")
+
+        blockHash = request.blockHash
+        headerList = []
+        for i in range(request.limit):
+            header = self.shardState.db.getMinorBlockHeaderByHash(blockHash)
+            headerList.append(header)
+            if header.height == 0:
+                break
+            blockHash = header.hashPrevMinorBlock
+
+        return GetMinorBlockHeaderListResponse(
+            self.shardState.rootTip, self.shardState.headerTip, headerList)
 
     async def handleGetMinorBlockListRequest(self, request):
         mBlockList = []
@@ -60,6 +165,8 @@ class ShardConnection(VirtualConnection):
             self.closeWithError("minor block header list must be not empty")
             return
         for mHeader in cmd.minorBlockHeaderList:
+            Logger.info("[{}] received new header with height {}".format(
+                mHeader.branch.getShardId(), mHeader.height))
             if mHeader.branch != self.shardState.branch:
                 self.closeWithError("incorrect branch")
                 return
@@ -72,8 +179,8 @@ class ShardConnection(VirtualConnection):
             if self.shardState.containBlockByHash(mHash):
                 continue
             if not self.shardState.containBlockByHash(mHeader.hashPrevMinorBlock):
-                # TODO: Download previous block
-                continue
+                return asyncio.ensure_future(self.synchronizer.sync(mHash))
+
             mDownloadList.append(mHash)
 
         if len(mDownloadList) == 0:
@@ -111,6 +218,8 @@ OP_NONRPC_MAP = {
 
 
 OP_RPC_MAP = {
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST:
+        (CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE, ShardConnection.handleGetMinorBlockHeaderListRequest),
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST:
         (CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE, ShardConnection.handleGetMinorBlockListRequest),
 
