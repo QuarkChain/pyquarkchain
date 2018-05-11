@@ -1,11 +1,11 @@
 
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.config import FORD_ENV
 from quarkchain.core import Address, Transaction, TransactionInput, TransactionOutput, Code, random_bytes
 import random
 
 
 def get_test_env(genesisAccount=Address.createEmptyAccount(), genesisQuarkash=10000, genesisMinorQuarkash=1000):
-    env = DEFAULT_ENV.copy()
+    env = FORD_ENV.copy()
     env.config.setShardSize(2)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True

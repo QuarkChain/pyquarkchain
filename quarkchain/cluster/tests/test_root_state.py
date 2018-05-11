@@ -4,6 +4,8 @@ from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
 from quarkchain.cluster.core import CrossShardTransactionList
 import quarkchain.db
+from quarkchain.diff import EthDifficultyCalculator
+from quarkchain.core import Address
 
 
 def create_default_state(env):
@@ -185,3 +187,48 @@ class TestRootState(unittest.TestCase):
         self.assertEqual(rState.tip, rB2.header)
         self.assertEqual(sStates[0].rootTip, rB2.header)
         self.assertEqual(sStates[1].rootTip, rB2.header)
+
+    def testRootStateDifficulty(self):
+        env = get_test_env()
+        env.config.GENESIS_DIFFICULTY = 1000
+        env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=9,
+            diffFactor=2048,
+            minimumDiff=1)
+
+        rState, sStates = create_default_state(env)
+        b0 = sStates[0].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b0)
+        b1 = sStates[1].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b1)
+
+        rState.addValidatedMinorBlockHash(b0.header.getHash())
+        rState.addValidatedMinorBlockHash(b1.header.getHash())
+
+        # Check new difficulty
+        rB0 = rState.createBlockToMine(
+            mHeaderList=[b0.header, b1.header],
+            address=Address.createEmptyAccount(),
+            createTime=rState.tip.createTime + 9)
+        self.assertEqual(rState.tip.difficulty, rB0.header.difficulty)
+        rB0 = rState.createBlockToMine(
+            mHeaderList=[b0.header, b1.header],
+            address=Address.createEmptyAccount(),
+            createTime=rState.tip.createTime + 3)
+        self.assertEqual(rState.tip.difficulty + rState.tip.difficulty // 2048, rB0.header.difficulty)
+
+        rB0 = rState.createBlockToMine(
+            mHeaderList=[b0.header, b1.header],
+            address=Address.createEmptyAccount(),
+            createTime=rState.tip.createTime + 26).finalize()
+        self.assertEqual(rState.tip.difficulty - rState.tip.difficulty // 2048, rB0.header.difficulty)
+
+        for i in range(0, 2 ** 32):
+            rB0.header.nonce = i
+            if int.from_bytes(rB0.header.getHash(), byteorder="big") * env.config.GENESIS_DIFFICULTY < 2 ** 256:
+                self.assertTrue(rState.addBlock(rB0))
+                break
+            else:
+                with self.assertRaises(ValueError):
+                    rState.addBlock(rB0)

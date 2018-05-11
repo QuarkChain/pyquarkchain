@@ -297,10 +297,12 @@ class ShardState:
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.getNextBlockDifficulty(block.header.createTime)
+                diff = self.diffCalc.calculateDiffWithParent(prevHeader, block.header.createTime)
+                if diff != block.header.difficulty:
+                    raise ValueError("incorrect difficulty")
                 metric = diff * int.from_bytes(block.header.getHash(), byteorder="big")
                 if metric >= 2 ** 256:
-                    raise ValueError("incorrect difficulty")
+                    raise ValueError("insufficient difficulty")
             elif block.meta.coinbaseAddress.recipient != self.env.config.TESTNET_MASTER_ACCOUNT.recipient:
                 raise ValueError("incorrect master to create the block")
 
@@ -426,9 +428,7 @@ class ShardState:
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)
-        return 1
-        # TODO: fix this
-        # return self.diffCalc.calculateDiff(self, createTime)
+        return self.diffCalc.calculateDiffWithParent(self.headerTip, createTime)
 
     def getNextBlockReward(self):
         return self.rewardCalc.getBlockReward(self)
