@@ -1,22 +1,20 @@
 import argparse
 import asyncio
 import ipaddress
-import random
 import socket
-import time
 
-from quarkchain.core import random_bytes, Branch
+from quarkchain.core import random_bytes
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.chain import QuarkChainState
 from quarkchain.protocol import ConnectionState
-from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID, P2PMetadata
-from quarkchain.local import LocalServer
+from quarkchain.cluster.protocol import (
+    P2PConnection, ROOT_SHARD_ID,
+)
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
 from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
-from quarkchain.cluster.p2p_commands import GetRootBlockListRequest, GetRootBlockListResponse
-from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand
-from quarkchain.utils import set_logging_level, Logger, check
+from quarkchain.cluster.p2p_commands import GetRootBlockListResponse
+from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand, GetRootBlockHeaderListResponse, Direction
+from quarkchain.utils import set_logging_level, Logger
 
 
 class Peer(P2PConnection):
@@ -144,70 +142,30 @@ class Peer(P2PConnection):
         return self.masterServer.getSlaveConnection(metadata.branch)
 
     # ----------------------- RPC handlers ---------------------------------
-    async def tryDownloadRootBlock(self, rBlockHash):
-        ''' Try to download a root block.  Download its minor blocks if necessary.
-        '''
-        try:
-            _, resp, _ = await self.writeRpcRequest(
-                op=CommandOp.GET_ROOT_BLOCK_LIST_REQUEST,
-                cmd=GetRootBlockListRequest(rootBlockHashList=[rBlockHash]),
-                metadata=P2PMetadata(Branch(ROOT_SHARD_ID)))
-            if len(resp.rootBlockList) == 0:
-                return
-            rBlock = resp.rootBlockList[0]
-        except Exception as e:
-            self.closeWithError("Unable to download root block {}".format(rBlockHash.hex()))
-            return
-
-        # TODO: Validate the body of the root block
-
-        minorBlockDownloadMap = dict()
-        for mBlockHeader in rBlock.minorBlockHeaderList:
-            mBlockHash = mBlockHeader.getHash()
-            if not self.rootState.isMinorBlockValidated(mBlockHash):
-                minorBlockDownloadMap.setdefault(mBlockHeader.branch, []).add(mBlockHash)
-
-        futureList = []
-        for branch, mBlockHashList in minorBlockDownloadMap.items():
-            slaveConn = self.masterServer.getSlaveConnection(branch=branch)
-            futureList.add(slaveConn.writeRpcRequest(
-                op=ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST,
-                cmd=DownloadMinorBlockListRequest(mBlockHashList),
-                metadata=ClusterMetadata(branch, self.getPeerId())))
-
-        resultList = await asyncio.gather(*futureList)
-        for result in resultList:
-            if result is Exception:
-                self.closeWithError(
-                    "Unable to download minor blocks from root block with exception {}".format(result))
-                return
-
-            if result.errorCode != 0:
-                self.closeWithError("Unable to download minor blocks from root block")
-                return
-
-        # This will broadcast the root block to all shards and add root block locally
-        self.masterServer.updateRootBlock(rBlock)
 
     async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
         if len(cmd.minorBlockHeaderList) != 0:
             self.closeWithError("minor block header list must be empty")
             return
 
-        rBlockHash = cmd.rootBlockHeader.getHash()
-        if self.rootState.containRootBlockByHash(rBlockHash):
-            return
+        self.masterServer.handleNewRootBlockHeader(cmd.rootBlockHeader, self)
 
-        # TODO: support single miner broadcast case at the monment
-        try:
-            self.rootState.validateBlockHeader(cmd.rootBlockHeader, blockHash=rBlockHash)
-        except ValueError as e:
-            self.closeWithError("invalid root block: {}".format(e))
-            return
+    async def handleGetRootBlockHeaderListRequest(self, request):
+        if request.limit <= 0:
+            self.closeWithError("Bad limit")
+        # TODO: support tip direction
+        if request.direction != Direction.GENESIS:
+            self.closeWithError("Bad direction")
 
-        # Simply download at the moment
-        # TODO: Check timestamp and delay processing if timestamp is greater
-        asyncio.ensure_future(self.tryDownloadRootBlock(rBlockHash))
+        blockHash = request.blockHash
+        headerList = []
+        for i in range(request.limit):
+            header = self.rootState.db.getRootBlockHeaderByHash(blockHash)
+            headerList.append(header)
+            if header.height == 0:
+                break
+            blockHash = header.hashPrevBlock
+        return GetRootBlockHeaderListResponse(self.rootState.tip, headerList)
 
     async def handleGetRootBlockListRequest(self, request):
         rBlockList = []
@@ -235,9 +193,10 @@ OP_NONRPC_MAP = {
 OP_RPC_MAP = {
     CommandOp.GET_PEER_LIST_REQUEST:
         (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST:
+        (CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE, Peer.handleGetRootBlockHeaderListRequest),
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
-        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
-         Peer.handleGetRootBlockListRequest),
+        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handleGetRootBlockListRequest),
 }
 
 

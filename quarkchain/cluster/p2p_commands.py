@@ -73,6 +73,37 @@ class NewMinorBlockHeaderListCommand(Serializable):
         self.minorBlockHeaderList = minorBlockHeaderList
 
 
+class Direction(IntEnum):
+    GENESIS = 0
+    TIP = 1
+
+
+class GetRootBlockHeaderListRequest(Serializable):
+    """ Obtain block hashs in the active chain.
+    """
+    FIELDS = [
+        ("blockHash", hash256),
+        ("limit", uint32),
+        ("direction", uint8),       # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, blockHash, limit, direction):
+        self.blockHash = blockHash
+        self.limit = limit
+        self.direction = direction
+
+
+class GetRootBlockHeaderListResponse(Serializable):
+    FIELDS = [
+        ("rootTip", RootBlockHeader),
+        ("blockHeaderList", PreprendedSizeListSerializer(4, RootBlockHeader))
+    ]
+
+    def __init__(self, rootTip, blockHeaderList):
+        self.rootTip = rootTip
+        self.blockHeaderList = blockHeaderList
+
+
 class GetRootBlockListRequest(Serializable):
     ''' RPC to get a root block list.  The RPC should be only fired by root chain
     '''
@@ -114,11 +145,6 @@ class GetMinorBlockListResponse(Serializable):
         self.minorBlockList = minorBlockList if minorBlockList is not None else []
 
 
-class Direction(IntEnum):
-    GENESIS = 0
-    TIP = 1
-
-
 class GetMinorBlockHeaderListRequest(Serializable):
     """ Obtain block hashs in the active chain.
     """
@@ -153,23 +179,27 @@ class CommandOp():
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
     NEW_TRANSACTION_LIST = 2
-    GET_ROOT_BLOCK_LIST_REQUEST = 3
-    GET_ROOT_BLOCK_LIST_RESPONSE = 4
-    GET_PEER_LIST_REQUEST = 5
-    GET_PEER_LIST_RESPONSE = 6
-    GET_MINOR_BLOCK_LIST_REQUEST = 7
-    GET_MINOR_BLOCK_LIST_RESPONSE = 8
-    GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 9
-    GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 10
+    GET_PEER_LIST_REQUEST = 3
+    GET_PEER_LIST_RESPONSE = 4
+    GET_ROOT_BLOCK_HEADER_LIST_REQUEST = 5
+    GET_ROOT_BLOCK_HEADER_LIST_RESPONSE = 6
+    GET_ROOT_BLOCK_LIST_REQUEST = 7
+    GET_ROOT_BLOCK_LIST_RESPONSE = 8
+    GET_MINOR_BLOCK_LIST_REQUEST = 9
+    GET_MINOR_BLOCK_LIST_RESPONSE = 10
+    GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 11
+    GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 12
 
 
 OP_SERIALIZER_MAP = {
     CommandOp.HELLO: HelloCommand,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: NewMinorBlockHeaderListCommand,
-    CommandOp.GET_ROOT_BLOCK_LIST_REQUEST: GetRootBlockListRequest,
-    CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE: GetRootBlockListResponse,
     CommandOp.GET_PEER_LIST_REQUEST: GetPeerListRequest,
     CommandOp.GET_PEER_LIST_RESPONSE: GetPeerListResponse,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST: GetRootBlockHeaderListRequest,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE: GetRootBlockHeaderListResponse,
+    CommandOp.GET_ROOT_BLOCK_LIST_REQUEST: GetRootBlockListRequest,
+    CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE: GetRootBlockListResponse,
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST: GetMinorBlockListRequest,
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST: GetMinorBlockHeaderListRequest,

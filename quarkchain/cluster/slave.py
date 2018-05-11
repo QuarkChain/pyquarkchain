@@ -16,7 +16,7 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
     GetAccountDataResponse, AddTransactionResponse,
     CreateClusterPeerConnectionResponse,
-    GetStatsResponse,
+    GetStatsResponse, SyncMinorBlockListResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -197,7 +197,7 @@ class ShardConnection(VirtualConnection):
         for mBlock in resp.minorBlockList:
             success = await self.slaveServer.addBlock(mBlock)
             if not success:
-                self.closeWithError(e)
+                self.closeWithError("Failed to add block")
 
     def broadcastNewTip(self):
         # TODO: Compare local best observed and broadcast if the tip is latest
@@ -222,7 +222,6 @@ OP_RPC_MAP = {
         (CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE, ShardConnection.handleGetMinorBlockHeaderListRequest),
     CommandOp.GET_MINOR_BLOCK_LIST_REQUEST:
         (CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE, ShardConnection.handleGetMinorBlockListRequest),
-
 }
 
 
@@ -463,6 +462,37 @@ class MasterConnection(ClusterConnection):
         )
         return resp
 
+    async def handleSyncMinorBlockListRequest(self, req):
+
+        async def __downloadBlocks(blockHashList):
+            op, resp, rpcId = await vConn.writeRpcRequest(
+                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
+            return resp.minorBlockList
+
+        if req.clusterPeerId not in self.vConnMap:
+            return SyncMinorBlockListResponse(errorCode=errno.EBADMSG)
+        if req.branch.value not in self.vConnMap[req.clusterPeerId]:
+            return SyncMinorBlockListResponse(errorCode=errno.EBADMSG)
+
+        vConn = self.vConnMap[req.clusterPeerId][req.branch.value]
+
+        try:
+            blockHashList = req.minorBlockHashList
+            while len(blockHashList) > 0:
+                blockChain = await __downloadBlocks(blockHashList[:100])
+                Logger.info("[{}] handling sync request from master ... downloaded {} blocks from peer".format(
+                    req.branch.getShardId(), len(blockChain)))
+                check(len(blockChain) == len(blockHashList[:100]))
+
+                for block in blockChain:
+                    await self.slaveServer.addBlock(block)
+                    blockHashList.pop(0)
+        except Exception as e:
+            Logger.errorException()
+            return SyncMinorBlockListResponse(errorCode=1)
+
+        return SyncMinorBlockListResponse(errorCode=0)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handleDestroyClusterPeerConnectionCommand,
@@ -492,6 +522,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE, MasterConnection.handleCreateClusterPeerConnectionRequest),
     ClusterOp.GET_STATS_REQUEST:
         (ClusterOp.GET_STATS_RESPONSE, MasterConnection.handleGetStatsRequest),
+    ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST:
+        (ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE, MasterConnection.handleSyncMinorBlockListRequest),
 }
 
 
@@ -723,6 +755,7 @@ class SlaveServer():
             return False
         await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
         await self.sendMinorBlockHeaderToMaster(block.header)
+
         if updateTip:
             self.master.broadcastNewTip(block.header.branch)
         return True

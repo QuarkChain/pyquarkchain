@@ -168,39 +168,55 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
         with ClusterContext(2, acc1) as clusters:
-            shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]
-            b1 = shardState0.getTip().createBlockToAppend()
-            b1.finalize(evmState=shardState0.runBlock(b1))
-            addResult = call_async(clusters[0].slaveList[0].addBlock(b1))
-            self.assertTrue(addResult)
+            # shutdown cluster connection
+            clusters[1].peer.close()
 
+            # add blocks in cluster 0
+            blockHeaderList = []
+            for i in range(13):
+                shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]
+                b1 = shardState0.getTip().createBlockToAppend()
+                b1.finalize(evmState=shardState0.runBlock(b1))
+                addResult = call_async(clusters[0].slaveList[0].addBlock(b1))
+                self.assertTrue(addResult)
+                blockHeaderList.append(b1.header)
+
+            shardState0 = clusters[0].slaveList[1].shardStateMap[0b11]
+            b2 = shardState0.getTip().createBlockToAppend()
+            b2.finalize(evmState=shardState0.runBlock(b2))
+            addResult = call_async(clusters[0].slaveList[1].addBlock(b2))
+            self.assertTrue(addResult)
+            blockHeaderList.append(b2.header)
+
+            # add 1 block in cluster 1
             shardState1 = clusters[1].slaveList[1].shardStateMap[0b11]
-            b2 = shardState1.getTip().createBlockToAppend()
-            b2.finalize(evmState=shardState1.runBlock(b2))
-            addResult = call_async(clusters[1].slaveList[1].addBlock(b2))
+            b3 = shardState1.getTip().createBlockToAppend()
+            b3.finalize(evmState=shardState1.runBlock(b3))
+            addResult = call_async(clusters[1].slaveList[1].addBlock(b3))
             self.assertTrue(addResult)
 
-            assert_true_with_timeout(
-                lambda: clusters[1].slaveList[0].shardStateMap[0b10].containBlockByHash(b1.header.getHash()))
-            assert_true_with_timeout(
-                lambda: clusters[0].slaveList[1].shardStateMap[0b11].containBlockByHash(b2.header.getHash()))
-            assert_true_with_timeout(
-                lambda: clusters[1].master.rootState.isMinorBlockValidated(b1.header.getHash()))
-            assert_true_with_timeout(
-                lambda: clusters[1].master.rootState.isMinorBlockValidated(b2.header.getHash()))
-            assert_true_with_timeout(
-                lambda: clusters[0].master.rootState.isMinorBlockValidated(b1.header.getHash()))
-            assert_true_with_timeout(
-                lambda: clusters[0].master.rootState.isMinorBlockValidated(b2.header.getHash()))
+            self.assertEqual(clusters[1].slaveList[1].shardStateMap[0b11].headerTip, b3.header)
 
-            rB1 = clusters[0].master.rootState.createBlockToMine([b1.header, b2.header], acc1)
+            # reestablish cluster connection
+            call_async(clusters[1].network.connect("127.0.0.1", 38000))
+
+            rB1 = clusters[0].master.rootState.createBlockToMine(blockHeaderList, acc1)
             call_async(clusters[0].master.addRootBlock(rB1))
 
             # Make sure the root block tip of local cluster is changed
             self.assertEqual(clusters[0].master.rootState.tip, rB1.header)
 
-            # Make sure the root block tip of another cluster is changed
-            assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header)
+            # Make sure the root block tip of cluster 1 is changed
+            assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header, 2)
+
+            # Minor block is downloaded
+            self.assertEqual(b1.header.height, 13)
+            assert_true_with_timeout(
+                lambda: clusters[1].slaveList[0].shardStateMap[0b10].headerTip == b1.header)
+
+            # The tip is overwritten due to root chain first consensus
+            assert_true_with_timeout(
+                lambda: clusters[1].slaveList[1].shardStateMap[0b11].headerTip == b2.header)
 
     def testShardSynchronizerWithFork(self):
         id1 = Identity.createRandomIdentity()

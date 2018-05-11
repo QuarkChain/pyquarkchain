@@ -14,10 +14,13 @@ from quarkchain.cluster.rpc import (
     AddRootBlockRequest, AddMinorBlockRequest,
     CreateClusterPeerConnectionRequest,
     DestroyClusterPeerConnectionCommand,
-    GetStatsRequest,
+    GetStatsRequest, SyncMinorBlockListRequest,
 )
 from quarkchain.cluster.protocol import (
-    ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION, P2PMetadata
+    ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
+)
+from quarkchain.cluster.p2p_commands import (
+    CommandOp, Direction, GetRootBlockHeaderListRequest, GetRootBlockListRequest,
 )
 from quarkchain.core import Branch, ShardMask
 from quarkchain.db import PersistentDb
@@ -25,6 +28,111 @@ from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
+
+
+class Synchronizer:
+
+    def __init__(self, peer):
+        self.peer = peer
+        self.masterServer = peer.masterServer
+        self.rootState = peer.rootState
+
+    async def sync(self, blockHash):
+        try:
+            await self.__runSync(blockHash)
+        except Exception as e:
+            Logger.logException()
+            self.peer.closeWithError()
+
+    async def __runSync(self, blockHash):
+        # descending height
+        blockHeaderChain = []
+
+        # TODO: Stop if too many headers to revert
+        while not self.__hasBlockHash(blockHash):
+            blockHeaderList = await self.__downloadBlockHeaders(blockHash)
+            Logger.info("[R] downloaded {} headers from peer".format(len(blockHeaderList)))
+            if not self.__validateBlockHeaders(blockHeaderList):
+                # TODO: tag bad peer
+                return self.peer.closeWithError("Bad peer sending discontinuing block headers")
+            for header in blockHeaderList:
+                if self.__hasBlockHash(header.getHash()):
+                    break
+                blockHeaderChain.append(header)
+            blockHash = blockHeaderChain[-1].hashPrevBlock
+
+        # ascending height
+        blockHeaderChain.reverse()
+        while len(blockHeaderChain) > 0:
+            blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
+            Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
+            if len(blockChain) != len(blockHeaderChain[:100]):
+                # TODO: tag bad peer
+                return self.peer.closeWithError("Bad peer missing blocks for headers they have")
+
+            for block in blockChain:
+                await self.__addBlock(block)
+                blockHeaderChain.pop(0)
+
+    def __hasBlockHash(self, blockHash):
+        return self.rootState.db.containRootBlockByHash(blockHash)
+
+    def __validateBlockHeaders(self, blockHeaderList):
+        # TODO: check difficulty and other stuff?
+        for i in range(len(blockHeaderList) - 1):
+            block, prev = blockHeaderList[i:i + 2]
+            if block.height != prev.height + 1:
+                return False
+            if block.hashPrevBlock != prev.getHash():
+                return False
+        return True
+
+    async def __downloadBlockHeaders(self, blockHash):
+        request = GetRootBlockHeaderListRequest(
+            blockHash=blockHash,
+            limit=10,
+            direction=Direction.GENESIS,
+        )
+        op, resp, rpcId = await self.peer.writeRpcRequest(
+            CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request)
+        return resp.blockHeaderList
+
+    async def __downloadBlocks(self, blockHeaderList):
+        blockHashList = [b.getHash() for b in blockHeaderList]
+        op, resp, rpcId = await self.peer.writeRpcRequest(
+            CommandOp.GET_ROOT_BLOCK_LIST_REQUEST, GetRootBlockListRequest(blockHashList))
+        return resp.rootBlockList
+
+    async def __addBlock(self, rootBlock):
+        await self.__syncMinorBlocks(rootBlock.minorBlockHeaderList)
+        await self.masterServer.addRootBlock(rootBlock)
+
+    async def __syncMinorBlocks(self, minorBlockHeaderList):
+        minorBlockDownloadMap = dict()
+        for mBlockHeader in minorBlockHeaderList:
+            mBlockHash = mBlockHeader.getHash()
+            if not self.rootState.isMinorBlockValidated(mBlockHash):
+                minorBlockDownloadMap.setdefault(mBlockHeader.branch, []).append(mBlockHash)
+
+        futureList = []
+        for branch, mBlockHashList in minorBlockDownloadMap.items():
+            slaveConn = self.masterServer.getSlaveConnection(branch=branch)
+            future = slaveConn.writeRpcRequest(
+                op=ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST,
+                cmd=SyncMinorBlockListRequest(mBlockHashList, branch, self.peer.getClusterPeerId()),
+            )
+            futureList.append(future)
+
+        resultList = await asyncio.gather(*futureList)
+        for result in resultList:
+            if result is Exception:
+                self.peer.closeWithError(
+                    "Unable to download minor blocks from root block with exception {}".format(result))
+                return
+            _, result, _ = result
+            if result.errorCode != 0:
+                self.peer.closeWithError("Unable to download minor blocks from root block")
+                return
 
 
 class ClusterConfig:
@@ -169,6 +277,7 @@ class MasterServer():
         self.name = name
 
         self.artificialTxCount = 0
+        self.synchronizer = None
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -413,6 +522,22 @@ class MasterServer():
         # TODO: broadcast tx to peers
 
         return all(results)
+
+    def handleNewRootBlockHeader(self, header, peer):
+
+        async def __sync(rBlockHash, peer):
+            ''' Only allow one synchronizer running at a time '''
+            if self.synchronizer is not None:
+                return
+            self.synchronizer = Synchronizer(peer)
+            await self.synchronizer.sync(rBlockHash)
+            self.synchronizer = None
+
+        rBlockHash = header.getHash()
+        if self.rootState.containRootBlockByHash(rBlockHash):
+            return
+
+        asyncio.ensure_future(__sync(rBlockHash, peer))
 
     def updateRootBlock(self, rBlock):
         self.rootBlockUpdateQueue.append(rBlock)
