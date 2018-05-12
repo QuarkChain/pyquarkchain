@@ -77,6 +77,11 @@ class Synchronizer:
             check(len(blockChain) == len(blockHeaderChain[:100]))
 
             for block in blockChain:
+                # Stop if the block depends on an unknown root block
+                # TODO: move this check to early stage to avoid downloading unnecessary headers
+                # this requires moving hashPrevRootBlock to header from meta
+                if not self.shardState.db.containRootBlockByHash(block.meta.hashPrevRootBlock):
+                    return
                 await self.slaveServer.addBlock(block)
                 blockHeaderChain.pop(0)
 
@@ -97,7 +102,7 @@ class Synchronizer:
         request = GetMinorBlockHeaderListRequest(
             blockHash=blockHash,
             branch=self.shardState.branch,
-            limit=10,
+            limit=100,
             direction=Direction.GENESIS,
         )
         op, resp, rpcId = await self.shardConn.writeRpcRequest(
