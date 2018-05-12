@@ -47,7 +47,7 @@ class Synchronizer:
             await self.__runSync(blockHash)
         except Exception as e:
             Logger.logException()
-            self.shardConn.closeWithError()
+            self.shardConn.closeWithError(str(e))
         self.isRunning = False
 
     async def __runSync(self, blockHash):

@@ -9,7 +9,8 @@ from quarkchain.cluster.utils import create_cluster_config
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import call_async
+from quarkchain.utils import call_async, check
+from quarkchain.protocol import AbstractConnection
 
 
 def get_test_env(
@@ -122,7 +123,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
     return clusterList
 
 
-def shutdown_clusters(clusterList):
+def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
     loop = asyncio.get_event_loop()
 
     for cluster in clusterList:
@@ -139,6 +140,8 @@ def shutdown_clusters(clusterList):
 
         cluster.master.shutdown()
         loop.run_until_complete(cluster.master.getShutdownFuture())
+
+    check(expectAbortedRpcCount == AbstractConnection.abortedRpcCount)
 
 
 class ClusterContext(ContextDecorator):
