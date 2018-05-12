@@ -287,19 +287,22 @@ class AddTransactionResponse(Serializable):
         self.errorCode = errorCode
 
 
-class DownloadMinorBlockListRequest(Serializable):
+class SyncMinorBlockListRequest(Serializable):
     FIELDS = [
         ("minorBlockHashList", PreprendedSizeListSerializer(4, hash256)),
+        ("branch", Branch),
+        ("clusterPeerId", uint64),
     ]
 
-    def __init__(self, minorBlockHashList):
+    def __init__(self, minorBlockHashList, branch, clusterPeerId):
         self.minorBlockHashList = minorBlockHashList
+        self.branch = branch
+        self.clusterPeerId = clusterPeerId
 
 
-class DownloadMinorBlockListResponse(Serializable):
+class SyncMinorBlockListResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("minorBlockList", PreprendedSizeListSerializer(4, MinorBlock))
     ]
 
     def __init__(self, errorCode):
@@ -410,8 +413,8 @@ class ClusterOp():
     ADD_MINOR_BLOCK_HEADER_RESPONSE = 18 + CLUSTER_OP_BASE
     ADD_XSHARD_TX_LIST_REQUEST = 19 + CLUSTER_OP_BASE
     ADD_XSHARD_TX_LIST_RESPONSE = 20 + CLUSTER_OP_BASE
-    DOWNLOAD_MINOR_BLOCK_LIST_REQUEST = 21 + CLUSTER_OP_BASE
-    DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE = 22 + CLUSTER_OP_BASE
+    SYNC_MINOR_BLOCK_LIST_REQUEST = 21 + CLUSTER_OP_BASE
+    SYNC_MINOR_BLOCK_LIST_RESPONSE = 22 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_REQUEST = 23 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_RESPONSE = 24 + CLUSTER_OP_BASE
     CREATE_CLUSTER_PEER_CONNECTION_REQUEST = 25 + CLUSTER_OP_BASE
@@ -444,8 +447,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_ACCOUNT_DATA_RESPONSE: GetAccountDataResponse,
     ClusterOp.ADD_TRANSACTION_REQUEST: AddTransactionRequest,
     ClusterOp.ADD_TRANSACTION_RESPONSE: AddTransactionResponse,
-    ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_REQUEST: DownloadMinorBlockListRequest,
-    ClusterOp.DOWNLOAD_MINOR_BLOCK_LIST_RESPONSE: DownloadMinorBlockListResponse,
+    ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST: SyncMinorBlockListRequest,
+    ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE: SyncMinorBlockListResponse,
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST: CreateClusterPeerConnectionRequest,
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE: CreateClusterPeerConnectionResponse,
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: DestroyClusterPeerConnectionCommand,
