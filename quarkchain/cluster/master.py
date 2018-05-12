@@ -561,7 +561,8 @@ class MasterServer():
                 op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
                 req=AddRootBlockRequest(rBlock, False))
             resultList = await asyncio.gather(*futureList)
-            # TODO: Check resultList (should always succeed unless the cluster is broken)
+            check(all([resp.errorCode == 0 for _, resp, _ in resultList]))
+
         self.isUpdatingRootBlock = False
         if updateTip and self.network is not None:
             for peer in self.network.iteratePeers():
