@@ -30,29 +30,30 @@ from quarkchain.utils import check, set_logging_level, Logger
 
 
 class Synchronizer:
+    ''' Given a header and a shard connection, the synchronizer will synchronize
+    the shard state with the peer shard up to the height of the header.
+    '''
 
-    def __init__(self, shardConn):
+    def __init__(self, header, shardConn):
+        self.header = header
         self.shardConn = shardConn
         self.shardState = shardConn.shardState
         self.slaveServer = shardConn.slaveServer
-        self.isRunning = False
 
-    async def sync(self, blockHash):
-        if self.isRunning:
-            Logger.info("[{}] syncing in progress. dropping new sync request".format(
-                self.shardState.branch.getShardId()))
-            return
-        self.isRunning = True
+    async def sync(self):
         try:
-            await self.__runSync(blockHash)
+            await self.__runSync()
         except Exception as e:
             Logger.logException()
             self.shardConn.closeWithError(str(e))
-        self.isRunning = False
 
-    async def __runSync(self, blockHash):
+    async def __runSync(self):
+        if self.__hasBlockHash(self.header.getHash()):
+            return
+
         # descending height
-        blockHeaderChain = []
+        blockHeaderChain = [self.header]
+        blockHash = self.header.hashPrevMinorBlock
 
         # TODO: Stop if too many headers to revert
         while not self.__hasBlockHash(blockHash):
@@ -126,7 +127,6 @@ class ShardConnection(VirtualConnection):
         self.shardState = shardState
         self.masterConn = masterConn
         self.slaveServer = masterConn.slaveServer
-        self.synchronizer = Synchronizer(self)
 
     def closeWithError(self, error):
         Logger.error("Closing shard connection with error {}".format(error))
@@ -166,8 +166,9 @@ class ShardConnection(VirtualConnection):
 
     async def handleNewMinorBlockHeaderListCommand(self, op, cmd, rpcId):
         # TODO:  Make sure the minor block height and root is not decreasing
-        if len(cmd.minorBlockHeaderList) == 0:
-            self.closeWithError("minor block header list must be not empty")
+        # TODO: allow multiple headers if needed
+        if len(cmd.minorBlockHeaderList) != 1:
+            self.closeWithError("minor block header list must have only one header")
             return
         for mHeader in cmd.minorBlockHeaderList:
             Logger.info("[{}] received new header with height {}".format(
@@ -176,33 +177,7 @@ class ShardConnection(VirtualConnection):
                 self.closeWithError("incorrect branch")
                 return
 
-        # Download all that are not in db (and prev in db)
-        # TODO: Check timestamp and download only append after tip?
-        mDownloadList = []
-        for mHeader in cmd.minorBlockHeaderList:
-            mHash = mHeader.getHash()
-            if self.shardState.containBlockByHash(mHash):
-                continue
-            if not self.shardState.containBlockByHash(mHeader.hashPrevMinorBlock):
-                return asyncio.ensure_future(self.synchronizer.sync(mHash))
-
-            mDownloadList.append(mHash)
-
-        if len(mDownloadList) == 0:
-            return
-
-        try:
-            op, resp, rpcId = await self.writeRpcRequest(
-                CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(mDownloadList))
-        except Exception as e:
-            Logger.logException()
-            self.closeWithError(e)
-            return
-
-        for mBlock in resp.minorBlockList:
-            success = await self.slaveServer.addBlock(mBlock)
-            if not success:
-                self.closeWithError("Failed to add block")
+        await self.slaveServer.handleNewMinorBlockHeader(mHeader, self)
 
     def broadcastNewTip(self):
         # TODO: Compare local best observed and broadcast if the tip is latest
@@ -622,6 +597,8 @@ class SlaveServer():
         self.shutdownInProgress = False
         self.slaveId = 0
 
+        self.shardSynchronizerMap = dict()
+
     def __initShardStateMap(self):
         ''' branchValue -> ShardState mapping '''
         shardSize = self.__getShardSize()
@@ -713,6 +690,19 @@ class SlaveServer():
         return self.server.wait_closed()
 
     # Blockchain functions
+
+    async def handleNewMinorBlockHeader(self, header, shardConn):
+
+        async def __sync():
+            ''' Only allow one synchronizer running at a time for a shard'''
+            if header.branch.value in self.shardSynchronizerMap:
+                return
+            synchronizer = Synchronizer(header, shardConn)
+            self.shardSynchronizerMap[header.branch.value] = synchronizer
+            await synchronizer.sync()
+            del self.shardSynchronizerMap[header.branch.value]
+
+        asyncio.ensure_future(__sync())
 
     async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
         ''' Update master that a minor block has been appended successfully '''

@@ -31,22 +31,30 @@ from quarkchain.utils import set_logging_level, Logger, check
 
 
 class Synchronizer:
+    ''' Given a header and a peer, the synchronizer will synchronize the local state
+    including root chain and shards with the peer up to the height of the header.
+    '''
 
-    def __init__(self, peer):
+    def __init__(self, header, peer):
+        self.header = header
         self.peer = peer
         self.masterServer = peer.masterServer
         self.rootState = peer.rootState
 
-    async def sync(self, blockHash):
+    async def sync(self):
         try:
-            await self.__runSync(blockHash)
+            await self.__runSync()
         except Exception as e:
             Logger.logException()
-            self.peer.closeWithError()
+            self.peer.closeWithError(str(e))
 
-    async def __runSync(self, blockHash):
+    async def __runSync(self):
+        if self.__hasBlockHash(self.header.getHash()):
+            return
+
         # descending height
-        blockHeaderChain = []
+        blockHeaderChain = [self.header]
+        blockHash = self.header.hashPrevBlock
 
         # TODO: Stop if too many headers to revert
         while not self.__hasBlockHash(blockHash):
@@ -61,8 +69,8 @@ class Synchronizer:
                 blockHeaderChain.append(header)
             blockHash = blockHeaderChain[-1].hashPrevBlock
 
-        # ascending height
         blockHeaderChain.reverse()
+
         while len(blockHeaderChain) > 0:
             blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
             Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
@@ -75,7 +83,7 @@ class Synchronizer:
                 blockHeaderChain.pop(0)
 
     def __hasBlockHash(self, blockHash):
-        return self.rootState.db.containRootBlockByHash(blockHash)
+        return self.rootState.containRootBlockByHash(blockHash)
 
     def __validateBlockHeaders(self, blockHeaderList):
         # TODO: check difficulty and other stuff?
@@ -525,19 +533,15 @@ class MasterServer():
 
     def handleNewRootBlockHeader(self, header, peer):
 
-        async def __sync(rBlockHash, peer):
+        async def __sync():
             ''' Only allow one synchronizer running at a time '''
             if self.synchronizer is not None:
                 return
-            self.synchronizer = Synchronizer(peer)
-            await self.synchronizer.sync(rBlockHash)
+            self.synchronizer = Synchronizer(header, peer)
+            await self.synchronizer.sync()
             self.synchronizer = None
 
-        rBlockHash = header.getHash()
-        if self.rootState.containRootBlockByHash(rBlockHash):
-            return
-
-        asyncio.ensure_future(__sync(rBlockHash, peer))
+        asyncio.ensure_future(__sync())
 
     def updateRootBlock(self, rBlock):
         self.rootBlockUpdateQueue.append(rBlock)
