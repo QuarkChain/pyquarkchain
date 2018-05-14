@@ -85,6 +85,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             p2pPort=p2pPort,
             jsonRpcPort=portStart + 1,
             clusterPortStart=portStart + 2,
+            seedPort=env.config.P2P_SEED_PORT,
         )
         portStart += (3 + env.config.SHARD_SIZE)
 
