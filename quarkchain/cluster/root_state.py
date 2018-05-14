@@ -4,7 +4,7 @@ from quarkchain.cluster.core import RootBlock, MinorBlockHeader
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Serializable, PreprendedSizeListSerializer
-from quarkchain.utils import check
+from quarkchain.utils import Logger
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -27,6 +27,38 @@ class RootDb:
         self.mHashSet = set()
         self.rHeaderPool = dict()
 
+        self.__recoverFromDb()
+
+    def __recoverFromDb(self):
+        Logger.info("Recovering root state from local database...")
+
+        # recover rHeaderPool
+        prefix = b"rblock_"
+        start = prefix
+        end = prefix + b"\xff" * 32
+        numBytesToSkip = len(prefix)
+        for k, v in self.db.rangeIter(start, end):
+            rootBlockHash = k[numBytesToSkip:]
+            rootBlock = RootBlock.deserialize(v)
+            self.rHeaderPool[rootBlockHash] = rootBlock.header
+
+        # recover mHashSet
+        prefix = b"mheader_"
+        start = prefix
+        end = prefix + b"\xff" * 32
+        numBytesToSkip = len(prefix)
+        for k, v in self.db.rangeIter(start, end):
+            mBlockHash = k[numBytesToSkip:]
+            self.mHashSet.add(mBlockHash)
+
+    def getTipHeader(self):
+        if b"tipHash" not in self.db:
+            return None
+
+        rBlockHash = self.db.get(b"tipHash")
+        rootBlock = self.getRootBlockByHash(rBlockHash)
+        return rootBlock.header
+
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, lastMinorBlockHeaderList, rootBlockHash=None):
         if rootBlockHash is None:
@@ -36,6 +68,9 @@ class RootDb:
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
         self.db.put(b"lastlist_" + rootBlockHash, lastList.serialize())
         self.rHeaderPool[rootBlockHash] = rootBlock.header
+
+    def updateTipHash(self, blockHash):
+        self.db.put(b"tipHash", blockHash)
 
     def getRootBlockByHash(self, h):
         return RootBlock.deserialize(self.db.get(b"rblock_" + h))
@@ -72,16 +107,20 @@ class RootState:
     """ State of root
     """
 
-    def __init__(self, env, createGenesis=False, db=None):
+    def __init__(self, env):
         self.env = env
         self.diffCalc = self.env.config.ROOT_DIFF_CALCULATOR
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
-        self.rawDb = db if db is not None else env.db
+        self.rawDb = env.db
         self.db = RootDb(self.rawDb)
 
-        check(createGenesis)
-        if createGenesis:
+        persistedTip = self.db.getTipHeader()
+        if persistedTip:
+            self.tip = persistedTip
+            Logger.info("Recovered root state with tip height {}".format(self.tip.height))
+        else:
             self.__createGenesisBlocks()
+            Logger.info("Created genesis root block")
 
     def __createGenesisBlocks(self):
         genesisRootBlock = create_genesis_root_block(self.env)
@@ -94,6 +133,9 @@ class RootState:
                     hashRootBlock=genesisRootBlock.header.getHash()).header)
         self.db.putRootBlock(genesisRootBlock, genesisMinorBlockHeaderList)
         self.tip = genesisRootBlock.header
+
+    def getTipBlock(self):
+        return self.db.getRootBlockByHash(self.tip.getHash())
 
     def addValidatedMinorBlockHash(self, h):
         self.db.putMinorBlockHash(h)
@@ -211,6 +253,7 @@ class RootState:
 
         if self.tip.height < block.header.height:
             self.tip = block.header
+            self.db.updateTipHash(blockHash)
             return True
         return False
 

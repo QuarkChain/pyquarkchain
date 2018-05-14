@@ -21,15 +21,19 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort):
+async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort, clean):
     cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} --server_port={} --local_port={}".format(
         port, configFilePath, dbPath, serverPort, jsonRpcPort)
+    if clean:
+        cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_slave(port, id, shardMaskList, dbPath):
+async def run_slave(port, id, shardMaskList, dbPath, clean):
     cmd = "python3 slave.py --node_port={} --shard_mask={} --node_id={} --db_path={}".format(
         port, shardMaskList[0], id, dbPath)
+    if clean:
+        cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -48,7 +52,7 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, num_miners, tx_count, mineRoot):
+    def __init__(self, config, configFilePath, num_miners, tx_count, mineRoot, clean):
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
@@ -56,6 +60,7 @@ class Cluster:
         self.num_miners = num_miners
         self.tx_count = tx_count
         self.mineRoot = mineRoot
+        self.clean = clean
 
     async def waitAndShutdown(self, prefix, proc):
         ''' If one process terminates shutdown the entire cluster '''
@@ -72,7 +77,8 @@ class Cluster:
             configFilePath=self.configFilePath,
             dbPath=self.config["master"]["db_path"],
             serverPort=self.config["master"]["server_port"],
-            jsonRpcPort=self.config["master"]["json_rpc_port"])
+            jsonRpcPort=self.config["master"]["json_rpc_port"],
+            clean=self.clean)
         asyncio.ensure_future(print_output("MASTER", master.stdout))
         self.procs.append(("MASTER", master))
 
@@ -82,7 +88,8 @@ class Cluster:
                 port=slave["port"],
                 id=slave["id"],
                 shardMaskList=slave["shard_masks"],
-                dbPath=slave["db_path"])
+                dbPath=slave["db_path"],
+                clean=self.clean)
             prefix = "SLAVE_{}".format(slave["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
@@ -150,6 +157,8 @@ def main():
         "--p2p_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT)
     parser.add_argument(
         "--json_rpc_port", default=38391, type=int)
+    parser.add_argument(
+        "--clean", default=False)
     args = parser.parse_args()
 
     if args.num_slaves <= 0:
@@ -172,7 +181,7 @@ def main():
         print("--num_miners must be power of 2")
         return -1
 
-    cluster = Cluster(config, filename, args.num_miners, args.num_tx_per_block, not args.not_mine_root)
+    cluster = Cluster(config, filename, args.num_miners, args.num_tx_per_block, not args.not_mine_root, args.clean)
     cluster.startAndLoop()
 
 

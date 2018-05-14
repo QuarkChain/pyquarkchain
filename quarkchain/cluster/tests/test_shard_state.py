@@ -1,4 +1,5 @@
 import unittest
+from quarkchain.cluster.core import RootBlock, RootBlockHeader
 from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.core import Identity, Address
@@ -8,10 +9,12 @@ from quarkchain.diff import EthDifficultyCalculator
 
 
 def create_default_shard_state(env, shardId=0):
-    return ShardState(
+    shardState = ShardState(
         env=env,
         shardId=shardId,
-        createGenesis=True)
+    )
+    shardState.initFromRootBlock(RootBlock(RootBlockHeader()))
+    return shardState
 
 
 class TestShardState(unittest.TestCase):
@@ -169,11 +172,14 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.createRandomAccount()
         acc3 = Address.createRandomAccount(fullShardId=0)
 
-        env = get_test_env(
+        env0 = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
-        state0 = create_default_shard_state(env=env, shardId=0)
-        state1 = create_default_shard_state(env=env, shardId=1)
+        env1 = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env0, shardId=0)
+        state1 = create_default_shard_state(env=env1, shardId=1)
 
         # Add one block in shard 0
         b0 = state0.createBlockToMine()
@@ -243,11 +249,14 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
-        env = get_test_env(
+        env0 = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
-        state0 = create_default_shard_state(env=env, shardId=0)
-        state1 = create_default_shard_state(env=env, shardId=1)
+        env1 = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env0, shardId=0)
+        state1 = create_default_shard_state(env=env1, shardId=1)
 
         # Add one block and prepare a fork
         b0 = state0.getTip().createBlockToAppend(address=acc1)
@@ -285,11 +294,14 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
-        env = get_test_env(
+        env0 = get_test_env(
             genesisAccount=acc1,
             genesisMinorQuarkash=10000000)
-        state0 = create_default_shard_state(env=env, shardId=0)
-        state1 = create_default_shard_state(env=env, shardId=1)
+        env1 = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env0, shardId=0)
+        state1 = create_default_shard_state(env=env1, shardId=1)
 
         # Add one block and prepare a fork
         b0 = state0.getTip().createBlockToAppend(address=acc1)
@@ -407,3 +419,53 @@ class TestShardState(unittest.TestCase):
             else:
                 with self.assertRaises(ValueError):
                     state.addBlock(b0)
+
+    def testShardStateRecoveryFromRootBlock(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        blockHeaders = []
+        blockMetas = []
+        for i in range(12):
+            b = state.getTip().createBlockToAppend(address=acc1)
+            state.finalizeAndAddBlock(b)
+            blockHeaders.append(b.header)
+            blockMetas.append(b.meta)
+
+        rB = state.rootTip.createBlockToAppend()
+        rB.minorBlockHeaderList = blockHeaders[:5]
+        rB.finalize()
+
+        state.addRootBlock(rB)
+
+        rB1 = state.rootTip.createBlockToAppend()
+        rB1.minorBlockHeaderList = blockHeaders[5:11]
+        rB1.finalize()
+
+        state.addRootBlock(rB1)
+
+        recoveredState = ShardState(env=env, shardId=0)
+        recoveredState.initFromRootBlock(rB)
+
+        self.assertEqual(recoveredState.rootTip, rB.header)
+        self.assertEqual(recoveredState.headerTip, blockHeaders[4])
+        self.assertEqual(recoveredState.confirmedHeaderTip, blockHeaders[4])
+        self.assertEqual(recoveredState.metaTip, blockMetas[4])
+        self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[4])
+        self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[4].hashEvmStateRoot)
+
+        recoveredState = ShardState(env=env, shardId=0)
+        recoveredState.initFromRootBlock(rB1)
+
+        self.assertEqual(recoveredState.rootTip, rB1.header)
+        self.assertEqual(recoveredState.headerTip, blockHeaders[10])
+        self.assertEqual(recoveredState.confirmedHeaderTip, blockHeaders[10])
+        self.assertEqual(recoveredState.metaTip, blockMetas[10])
+        self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[10])
+        self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[10].hashEvmStateRoot)
+

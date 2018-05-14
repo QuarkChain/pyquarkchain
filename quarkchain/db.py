@@ -142,7 +142,13 @@ class InMemoryDb(Db):
         self.kv = dict()
 
     def rangeIter(self, start, end):
-        raise RuntimeError("In memory db does not support rangeIter!")
+        keys = []
+        for k in self.kv.keys():
+            if k >= start and k <= end:
+                keys.append(k)
+        keys.sort()
+        for k in keys:
+            yield k, self.kv[k]
 
     def get(self, key, default=None):
         return self.kv.get(key, default)
@@ -165,7 +171,8 @@ class PersistentDb(Db):
         self.db = leveldb.LevelDB(path)
 
     def rangeIter(self, start, end):
-        yield from self.db.RangeIter(start, end)
+        for k, v in self.db.RangeIter(start, end):
+            yield bytes(k), bytes(v)
 
     def get(self, key, default=None):
         try:
@@ -279,7 +286,8 @@ class ShardedDb(Db):
         return (self.shardKey + key) in self.db
 
     def rangeIter(self, start, end):
-        yield from self.db.rangeIter(self.shardKey + start, self.shardKey + end)
+        for k, v in self.db.rangeIter(self.shardKey + start, self.shardKey + end):
+            yield k[4:], v
 
 
 class OverlayDb(Db):

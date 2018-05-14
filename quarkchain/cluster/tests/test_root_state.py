@@ -2,24 +2,24 @@ import unittest
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
-from quarkchain.cluster.core import CrossShardTransactionList
+from quarkchain.cluster.core import CrossShardTransactionList, RootBlock, RootBlockHeader
 import quarkchain.db
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.core import Address
 
 
 def create_default_state(env):
-    rState = RootState(env=env, createGenesis=True)
+    rState = RootState(env=env)
     sState0 = ShardState(
         env=env,
         shardId=0,
-        createGenesis=True,
         db=quarkchain.db.InMemoryDb())
+    sState0.initFromRootBlock(RootBlock(RootBlockHeader()))
     sState1 = ShardState(
         env=env,
         shardId=1,
-        createGenesis=True,
         db=quarkchain.db.InMemoryDb())
+    sState1.initFromRootBlock(RootBlock(RootBlockHeader()))
     return (rState, [sState0, sState1])
 
 
@@ -37,9 +37,7 @@ class TestRootState(unittest.TestCase):
 
     def testRootStateSimple(self):
         env = get_test_env()
-        state = RootState(
-            env=env,
-            createGenesis=True)
+        state = RootState(env=env)
         self.assertEqual(state.tip.height, 0)
 
     def testRootStateAddBlock(self):
@@ -232,3 +230,38 @@ class TestRootState(unittest.TestCase):
             else:
                 with self.assertRaises(ValueError):
                     rState.addBlock(rB0)
+
+    def testRootStateRecovery(self):
+        env = get_test_env()
+        rState, sStates = create_default_state(env)
+
+        b0 = sStates[0].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b0)
+        b1 = sStates[1].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b1)
+
+        rState.addValidatedMinorBlockHash(b0.header.getHash())
+        rState.addValidatedMinorBlockHash(b1.header.getHash())
+        rB0 = rState.tip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+
+        self.assertTrue(rState.addBlock(rB0))
+
+        b2 = sStates[0].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b2)
+        b3 = sStates[1].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, b3)
+
+        rState.addValidatedMinorBlockHash(b2.header.getHash())
+        rState.addValidatedMinorBlockHash(b3.header.getHash())
+        rB1 = rState.tip.createBlockToAppend() \
+            .addMinorBlockHeader(b2.header) \
+            .addMinorBlockHeader(b3.header) \
+            .finalize()
+
+        self.assertTrue(rState.addBlock(rB1))
+
+        recoveredState = RootState(env=env)
+        self.assertEqual(recoveredState.tip, rB1.header)
