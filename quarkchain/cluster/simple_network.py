@@ -93,6 +93,8 @@ class Peer(P2PConnection):
             self.sendHello()
 
         asyncio.ensure_future(self.activeAndLoopForever())
+        await self.waitUntilActive()
+        self.masterServer.handleNewRootBlockHeader(self.bestRootBlockHeaderObserved, self)
         return None
 
     def close(self):
