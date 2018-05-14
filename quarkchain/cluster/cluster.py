@@ -33,8 +33,8 @@ async def run_slave(port, id, shardMaskList, dbPath):
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_miner(shardMask, txCount):
-    cmd = "python3 miner.py --shard_mask={} --tx_count={}".format(shardMask, txCount)
+async def run_miner(shardMask, txCount, jrpcPort):
+    cmd = "python3 miner.py --shard_mask={} --tx_count={} --jrpc_port={}".format(shardMask, txCount, jrpcPort)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -88,16 +88,17 @@ class Cluster:
             self.procs.append((prefix, s))
 
     async def runMiners(self):
+        jrpcPort = self.config["master"]["json_rpc_port"]
         # Create miners for shards
         for i in range(self.num_miners):
-            miner = await run_miner(self.num_miners | i, self.tx_count)
+            miner = await run_miner(self.num_miners | i, self.tx_count, jrpcPort)
             prefix = "MINER_{}".format(i)
             asyncio.ensure_future(print_output(prefix, miner.stdout))
             self.procs.append((prefix, miner))
 
         if self.mineRoot:
             # Create a miner that covers root chain
-            miner = await run_miner(0, self.tx_count)
+            miner = await run_miner(0, self.tx_count, jrpcPort)
             prefix = "MINER_R"
             asyncio.ensure_future(print_output(prefix, miner.stdout))
             self.procs.append((prefix, miner))
