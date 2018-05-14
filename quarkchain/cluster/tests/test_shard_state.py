@@ -4,6 +4,7 @@ from quarkchain.cluster.shard_state import ShardState
 from quarkchain.core import Identity, Address
 from quarkchain.evm import opcodes
 from quarkchain.cluster.core import CrossShardTransactionDeposit, CrossShardTransactionList
+from quarkchain.diff import EthDifficultyCalculator
 
 
 def create_default_shard_state(env, shardId=0):
@@ -374,3 +375,35 @@ class TestShardState(unittest.TestCase):
         # b3 confirms the same root block as b2, so it will not override b2
         state.finalizeAndAddBlock(b3)
         self.assertEqual(state.headerTip, b2.header)
+
+    def testShardStateDifficulty(self):
+        env = get_test_env()
+        env.config.GENESIS_MINOR_DIFFICULTY = 10000
+        env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
+        env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=9,
+            diffFactor=2048,
+            minimumDiff=1)
+
+        state = create_default_shard_state(env=env, shardId=0)
+
+        # Check new difficulty
+        b0 = state.createBlockToMine(state.headerTip.createTime + 8)
+        self.assertEqual(b0.header.difficulty, state.headerTip.difficulty // 2048 + state.headerTip.difficulty)
+        b0 = state.createBlockToMine(state.headerTip.createTime + 9)
+        self.assertEqual(b0.header.difficulty, state.headerTip.difficulty)
+        b0 = state.createBlockToMine(state.headerTip.createTime + 17)
+        self.assertEqual(b0.header.difficulty, state.headerTip.difficulty)
+        b0 = state.createBlockToMine(state.headerTip.createTime + 24)
+        self.assertEqual(b0.header.difficulty, state.headerTip.difficulty - state.headerTip.difficulty // 2048)
+        b0 = state.createBlockToMine(state.headerTip.createTime + 35)
+        self.assertEqual(b0.header.difficulty, state.headerTip.difficulty - state.headerTip.difficulty // 2048 * 2)
+
+        for i in range(0, 2 ** 32):
+            b0.header.nonce = i
+            if int.from_bytes(b0.header.getHash(), byteorder="big") * env.config.GENESIS_MINOR_DIFFICULTY < 2 ** 256:
+                self.assertTrue(state.addBlock(b0))
+                break
+            else:
+                with self.assertRaises(ValueError):
+                    state.addBlock(b0)

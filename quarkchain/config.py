@@ -3,7 +3,7 @@ import copy
 import quarkchain.db
 from quarkchain.core import Address
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
-from quarkchain.diff import MADifficultyCalculator
+from quarkchain.diff import MADifficultyCalculator, EthDifficultyCalculator
 import quarkchain.evm.config
 
 
@@ -52,15 +52,13 @@ class DefaultConfig:
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
-        self.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.ROOT_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=self.DIFF_MA_INTERVAL // self.ROOT_BLOCK_INTERVAL_SEC,
+        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=45,
+            diffFactor=2048,
             minimumDiff=self.GENESIS_DIFFICULTY)
-        self.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
-            maSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
-            targetIntervalSec=self.MINOR_BLOCK_INTERVAL_SEC,
-            bootstrapSamples=self.DIFF_MA_INTERVAL // self.MINOR_BLOCK_INTERVAL_SEC,
+        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=9,
+            diffFactor=2048,
             minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
 
         #  1 is mainnet
@@ -115,3 +113,13 @@ class Env:
 
 
 DEFAULT_ENV = Env()
+
+FORD_ENV = Env()
+FORD_ENV.config.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
+    maSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC,
+    targetIntervalSec=FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC,
+    bootstrapSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC)
+FORD_ENV.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
+    maSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC,
+    targetIntervalSec=FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC,
+    bootstrapSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC)
