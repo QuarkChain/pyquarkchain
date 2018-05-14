@@ -5,7 +5,7 @@ import ipaddress
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.cluster.core import CrossShardTransactionList, MinorBlock
+from quarkchain.cluster.core import CrossShardTransactionList, MinorBlock, RootBlock, RootBlockHeader
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
 )
@@ -272,6 +272,7 @@ class MasterConnection(ClusterConnection):
     # Cluster RPC handlers
 
     async def handlePing(self, ping):
+        self.slaveServer.initShardStates(ping.rootTip)
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
 
     async def handleConnectToSlavesRequest(self, connectToSlavesRequest):
@@ -532,7 +533,8 @@ class SlaveConnection(Connection):
         return super().closeWithError(error)
 
     async def sendPing(self):
-        req = Ping(self.slaveServer.id, self.slaveServer.shardMaskList)
+        # TODO: Send real root tip and allow shards to confirm each other
+        req = Ping(self.slaveServer.id, self.slaveServer.shardMaskList, RootBlock(RootBlockHeader()))
         op, resp, rpcId = await self.writeRpcRequest(ClusterOp.PING, req)
         return (resp.id, resp.shardMaskList)
 
@@ -613,12 +615,16 @@ class SlaveServer():
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
                 shardId=Branch(branchValue).getShardId(),
-                createGenesis=True,
                 db=ShardedDb(
                     db=self.env.db,
                     fullShardId=branchValue,
                 )
             )
+
+    def initShardStates(self, rootTip):
+        ''' Will be called when master connects to slaves '''
+        for _, shardState in self.shardStateMap.items():
+            shardState.initFromRootBlock(rootTip)
 
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
@@ -805,6 +811,7 @@ def parse_args():
     parser.add_argument(
         "--shard_mask", default=1, type=int)
     parser.add_argument("--in_memory_db", default=False)
+    parser.add_argument("--clean", default=False)
     parser.add_argument("--db_path", default="./db", type=str)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
@@ -823,7 +830,7 @@ def parse_args():
     env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
 
     if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=True)
+        env.db = PersistentDb(path=args.db_path, clean=args.clean)
 
     return env
 

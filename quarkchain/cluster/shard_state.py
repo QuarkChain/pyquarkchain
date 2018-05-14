@@ -6,7 +6,7 @@ from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransaction
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address, Code, Constant, Transaction
+from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Constant, Transaction
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.messages import apply_transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -75,6 +75,45 @@ class ShardDb:
         self.xShardSet = set()
         self.rHeaderPool = dict()
         self.txCounter60s = ExpiryCounter(60)
+
+        self.__recoverFromDb()
+
+    def __recoverFromDb(self):
+        Logger.info("Recovering shard state from local database...")
+
+        # recover mHeaderPool, mMetaPool
+        prefix = b"mblock_"
+        start = prefix
+        end = prefix + b"\xff" * 32
+        numBytesToSkip = len(prefix)
+        for k, v in self.db.rangeIter(start, end):
+            blockHash = k[numBytesToSkip:]
+            block = MinorBlock.deserialize(v)
+            Logger.debug("Recovering shard block height {}".format(block.header.height))
+            self.mHeaderPool[blockHash] = block.header
+            self.mMetaPool[blockHash] = block.meta
+
+        # recover xShardSet
+        prefix = b"xShard_"
+        start = prefix
+        end = prefix + b"\xff" * 32
+        numBytesToSkip = len(prefix)
+        Logger.info("Recovering xShardSet ...")
+        for k, v in self.db.rangeIter(start, end):
+            self.xShardSet.add(k[numBytesToSkip:])
+            Logger.debug("Recovered xShardSet height {}".format(k))
+
+        # recover rHeaderPool
+        prefix = b"rblock_"
+        start = prefix
+        end = prefix + b"\xff" * 32
+        numBytesToSkip = len(prefix)
+        Logger.info("Recovering mHeaderPool ...")
+        for k, v in self.db.rangeIter(start, end):
+            rootBlock = RootBlock.deserialize(v)
+            self.rHeaderPool[k[numBytesToSkip:]] = rootBlock.header
+            Logger.debug("Recovered root header height {} hash {}".format(
+                rootBlock.header.height, k[numBytesToSkip:]))
 
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rootBlockHash=None):
@@ -153,20 +192,58 @@ class ShardState:
     - reshard by split
     """
 
-    def __init__(self, env, shardId, createGenesis=False, db=None):
+    def __init__(self, env, shardId, db=None):
         self.env = env
+        self.shardId = shardId
         self.diffCalc = self.env.config.MINOR_DIFF_CALCULATOR
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
         self.db = ShardDb(self.rawDb)
         self.txQueue = TransactionQueue()
+        self.initialized = False
 
-        check(createGenesis)
-        if createGenesis:
-            self.__createGenesisBlocks(shardId)
+    def initFromRootBlock(self, rootBlock):
+        ''' Master will send its root chain tip when it connects to slaves.
+        Shards will initialize its state based on the root block.
+        '''
+        def __getHeaderTipFromRootBlock(branch):
+            headerTip = None
+            for mHeader in rootBlock.minorBlockHeaderList:
+                if mHeader.branch == branch:
+                    check(headerTip is None or headerTip.height + 1 == mHeader.height)
+                    headerTip = mHeader
+            check(headerTip is not None)
+            return headerTip
 
-        # TODO: Query db to recover the latest state
+        check(not self.initialized)
+        self.initialized = True
+
+        Logger.info("Initializing shard state from root height {} hash {}".format(
+            rootBlock.header.height, rootBlock.header.getHash()))
+
+        if rootBlock.header.height == 0:
+            self.__createGenesisBlocks(self.shardId)
+            Logger.info("Created genesis block")
+            return
+
+        # It's possible that the root block is unknown to this shard since
+        # the shard could crash before the root block arrived
+        # TODO: the ShardState should have necessary data to add the root block,
+        # this may fail if data are not properly flushed/synced to persistent storage (e.g., OS crash)
+        if not self.db.containRootBlockByHash(rootBlock.header.getHash()):
+            self.addRootBlock(rootBlock)
+
+        shardSize = rootBlock.header.shardInfo.getShardSize()
+        self.branch = Branch.create(shardSize, self.shardId)
+        self.rootTip = rootBlock.header
+        self.headerTip = __getHeaderTipFromRootBlock(self.branch)
+        self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+        self.confirmedHeaderTip = self.headerTip
+        self.confirmedMetaTip = self.metaTip
+        self.evmState = self.__createEvmState()
+        self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
+        check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
 
     def __createEvmState(self):
         return EvmState(env=self.env.evmEnv, db=self.rawDb)

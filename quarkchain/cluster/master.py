@@ -197,7 +197,7 @@ class SlaveConnection(ClusterConnection):
         return False
 
     async def sendPing(self):
-        req = Ping("", [])
+        req = Ping("", [], self.masterServer.rootState.getTipBlock())
         op, resp, rpcId = await self.writeRpcRequest(
             op=ClusterOp.PING,
             cmd=req,
@@ -543,12 +543,6 @@ class MasterServer():
 
         asyncio.ensure_future(__sync())
 
-    def updateRootBlock(self, rBlock):
-        self.rootBlockUpdateQueue.append(rBlock)
-        if not self.isUpdatingRootBlock:
-            self.isUpdatingRootBlock = True
-            asyncio.ensure_future(self.updateRooBlockAsync())
-
     async def updateRooBlockAsync(self):
         ''' Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
@@ -684,6 +678,7 @@ def parse_args():
         "--cluster_config", default="cluster_config.json", type=str)
     parser.add_argument("--in_memory_db", default=False)
     parser.add_argument("--db_path", default="./db", type=str)
+    parser.add_argument("--clean", default=False, type=bool)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
 
@@ -698,7 +693,7 @@ def parse_args():
     env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
     if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=True)
+        env.db = PersistentDb(path=args.db_path, clean=args.clean)
 
     return env
 
@@ -707,7 +702,7 @@ def main():
     env = parse_args()
     env.NETWORK_ID = 1  # testnet
 
-    rootState = RootState(env, createGenesis=True)
+    rootState = RootState(env)
 
     master = MasterServer(env, rootState)
     master.start()

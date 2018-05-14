@@ -21,7 +21,15 @@ class Endpoint:
         return jsonrpcclient.request("http://localhost:{}".format(self.port), *args)
 
     def setArtificialTxCount(self, count):
-        self.__sendRequest("setArtificialTxCount", quantity_encoder(count))
+        ''' Keep trying until success.
+        It might take a while for the cluster to recover state.
+        '''
+        while True:
+            try:
+                return self.__sendRequest("setArtificialTxCount", quantity_encoder(count))
+            except Exception:
+                pass
+            time.sleep(1)
 
     def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
         resp = self.__sendRequest("getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue))
