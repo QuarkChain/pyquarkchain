@@ -21,9 +21,10 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort, clean):
-    cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} --server_port={} --local_port={}".format(
-        port, configFilePath, dbPath, serverPort, jsonRpcPort)
+async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort, seedPort, clean):
+    cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} " \
+          "--server_port={} --local_port={} --seed_port={}".format(
+              port, configFilePath, dbPath, serverPort, jsonRpcPort, seedPort)
     if clean:
         cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -78,6 +79,7 @@ class Cluster:
             dbPath=self.config["master"]["db_path"],
             serverPort=self.config["master"]["server_port"],
             jsonRpcPort=self.config["master"]["json_rpc_port"],
+            seedPort=self.config["master"]["seed_port"],
             clean=self.clean)
         asyncio.ensure_future(print_output("MASTER", master.stdout))
         self.procs.append(("MASTER", master))
@@ -158,7 +160,10 @@ def main():
     parser.add_argument(
         "--json_rpc_port", default=38391, type=int)
     parser.add_argument(
+        "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT)
+    parser.add_argument(
         "--clean", default=False)
+
     args = parser.parse_args()
 
     if args.num_slaves <= 0:
@@ -171,6 +176,7 @@ def main():
             p2pPort=args.p2p_port,
             clusterPortStart=args.port_start,
             jsonRpcPort=args.json_rpc_port,
+            seedPort=args.seed_port,
             dbPrefix=args.db_prefix,
         )
         if not config:
