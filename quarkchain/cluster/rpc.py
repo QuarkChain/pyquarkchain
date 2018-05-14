@@ -13,15 +13,17 @@ class Ping(Serializable):
     FIELDS = [
         ("id", PreprendedSizeBytesSerializer(4)),
         ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
+        ("rootTip", RootBlock),
     ]
 
-    def __init__(self, id, shardMaskList):
+    def __init__(self, id, shardMaskList, rootTip):
         """ Empty shardMaskList means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
         self.shardMaskList = shardMaskList
+        self.rootTip = rootTip
 
 
 class Pong(Serializable):

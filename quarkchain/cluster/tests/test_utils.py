@@ -8,6 +8,7 @@ from quarkchain.cluster.slave import SlaveServer
 from quarkchain.cluster.utils import create_cluster_config
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
+from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, check
 from quarkchain.protocol import AbstractConnection
@@ -27,6 +28,7 @@ def get_test_env(
     env.config.GENESIS_MINOR_COIN = genesisMinorQuarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
     env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
+    env.db = InMemoryDb()
     return env
 
 
@@ -97,6 +99,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
         slaveServerList = []
         for slave in range(env.config.SHARD_SIZE):
             slaveEnv = env.copy()
+            slaveEnv.db = InMemoryDb()
             slaveEnv.clusterConfig.ID = config["slaves"][slave]["id"]
             slaveEnv.clusterConfig.NODE_PORT = config["slaves"][slave]["port"]
             slaveEnv.clusterConfig.SHARD_MASK_LIST = [ShardMask(v) for v in config["slaves"][slave]["shard_masks"]]
@@ -104,7 +107,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             slaveServer.start()
             slaveServerList.append(slaveServer)
 
-        rootState = RootState(env, createGenesis=True)
+        rootState = RootState(env)
         masterServer = MasterServer(env, rootState, name="cluster{}_master".format(i))
         masterServer.start()
 
