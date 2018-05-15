@@ -159,6 +159,44 @@ class ShardDb:
     def containMinorBlockByHash(self, h):
         return h in self.mHeaderPool
 
+    def putMinorBlockIndex(self, block):
+        self.db.put(b"mi_%d" % block.header.height, block.header.getHash())
+
+    def removeMinorBlockIndex(self, block):
+        self.db.remove(b"mi_%d" % block.header.height)
+
+    def getMinorBlockByHeight(self, height):
+        key = b"mi_%d" % height
+        if key not in self.db:
+            return None
+        blockHash = self.db.get(key)
+        return self.getMinorBlockByHash(blockHash)
+
+    # ------------------------- Transaction db operations --------------------------------
+    def putTransactionIndex(self, txHash, blockHeight, index):
+        self.db.put(b"txindex_" + txHash,
+                    blockHeight.to_bytes(4, "big") + index.to_bytes(4, "big"))
+
+    def removeTransactionIndex(self, txHash):
+        self.db.remove(b"txindex_" + txHash)
+
+    def getTransactionByHash(self, txHash):
+        result = self.db.get(b"txindex_" + txHash, None)
+        if not result:
+            return None, None
+        check(len(result) == 8)
+        blockHeight = int.from_bytes(result[:4], "big")
+        index = int.from_bytes(result[4:], "big")
+        return self.getMinorBlockByHeight(blockHeight), index
+
+    def putTransactionIndexFromBlock(self, minorBlock):
+        for i, tx in enumerate(minorBlock.txList):
+            self.putTransactionIndex(tx.getHash(), minorBlock.header.height, i)
+
+    def removeTransactionIndexFromBlock(self, minorBlock):
+        for tx in enumerate(minorBlock.txList):
+            self.removeTransactionIndex(tx.getHash())
+
     # -------------------------- Cross-shard tx operations ----------------------------
     def putMinorBlockXshardTxList(self, h, txList: CrossShardTransactionList):
         self.xShardSet.add(h)
@@ -245,6 +283,8 @@ class ShardState:
         self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
         check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
 
+        self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()))
+
     def __createEvmState(self):
         return EvmState(env=self.env.evmEnv, db=self.rawDb)
 
@@ -264,6 +304,7 @@ class ShardState:
 
         self.branch = genesisMinorBlock.header.branch
         self.db.putMinorBlock(genesisMinorBlock, self.evmState)
+        self.db.putMinorBlockIndex(genesisMinorBlock)
         self.db.putRootBlock(genesisRootBlock)
 
         self.rootTip = genesisRootBlock.header
@@ -435,6 +476,39 @@ class ShardState:
 
         return header == self.confirmedHeaderTip
 
+    def __rewriteBlockIndexTo(self, minorBlock):
+        ''' Find the common ancestor in the current chain and rewrite index till minorblock '''
+        newChain = []
+        oldChain = []
+
+        # minorBlock height could be lower than the curren tip
+        # we should revert all the blocks above minorBlock height
+        height = minorBlock.header.height + 1
+        while True:
+            origBlock = self.db.getMinorBlockByHeight(height)
+            if not origBlock:
+                break
+            oldChain.append(origBlock)
+            height += 1
+
+        block = minorBlock
+        # Find common ancestor and record the blocks that needs to be updated
+        while block.header.height >= 0:
+            origBlock = self.db.getMinorBlockByHeight(block.header.height)
+            if origBlock and origBlock.header == block.header:
+                break
+            newChain.append(block)
+            if origBlock:
+                oldChain.append(origBlock)
+            block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
+
+        for block in oldChain:
+            self.db.removeTransactionIndexFromBlock(block)
+            self.db.removeMinorBlockIndex(block)
+        for block in newChain:
+            self.db.putTransactionIndexFromBlock(block)
+            self.db.putMinorBlockIndex(block)
+
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
         """
@@ -476,6 +550,7 @@ class ShardState:
                     self.db.getRootBlockHeaderByHash(self.metaTip.hashPrevRootBlock).height
 
         if updateTip:
+            self.__rewriteBlockIndexTo(block)
             self.evmState = evmState
             self.headerTip = block.header
             self.metaTip = block.meta
@@ -662,11 +737,14 @@ class ShardState:
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
             self.rootTip = rBlock.header
-            self.headerTip = shardHeader
-            self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
-            # TODO: Should search and set the longest one linked to the root
             self.confirmedHeaderTip = self.headerTip
             self.confirmedMetaTip = self.metaTip
+
+            origBlock = self.db.getMinorBlockByHeight(shardHeader.height)
+            if not origBlock or origBlock.header != shardHeader:
+                self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(shardHeader.getHash()))
+                self.headerTip = shardHeader
+                self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
             return True
         return False
 

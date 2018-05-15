@@ -36,11 +36,12 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env)
 
-        state.addTx(create_transfer_transaction(
+        tx = create_transfer_transaction(
             shardState=state,
             fromId=id1,
             toAddress=acc2,
-            amount=12345))
+            amount=12345)
+        state.addTx(tx)
         b1 = state.createBlockToMine(address=acc3)
         self.assertEqual(len(b1.txList), 1)
 
@@ -50,6 +51,10 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345)
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
+
+        block, i = state.db.getTransactionByHash(tx.getHash())
+        self.assertEqual(block, b1)
+        self.assertEqual(i, 0)
 
     def testTwoTx(self):
         id1 = Identity.createRandomIdentity()
@@ -82,6 +87,14 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 1234500 + 234500)
         self.assertEqual(state.getBalance(acc2.recipient), 1234500 - 234500 - opcodes.GTXCOST)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST)
+
+        block, i = state.db.getTransactionByHash(b1.txList[0].getHash())
+        self.assertEqual(block, b1)
+        self.assertEqual(i, 0)
+
+        block, i = state.db.getTransactionByHash(b1.txList[1].getHash())
+        self.assertEqual(block, b1)
+        self.assertEqual(i, 1)
 
     def testXshardTxSent(self):
         id1 = Identity.createRandomIdentity()
@@ -337,6 +350,10 @@ class TestShardState(unittest.TestCase):
         state0.finalizeAndAddBlock(b3)
         b4 = b3.createBlockToAppend()
         state0.finalizeAndAddBlock(b4)
+        self.assertEqual(state0.headerTip, b00.header)
+        self.assertEqual(state0.db.getMinorBlockByHeight(2), b00)
+        self.assertIsNone(state0.db.getMinorBlockByHeight(3))
+
         b5 = b1.createBlockToAppend()
         state0.addCrossShardTxListByMinorBlockHash(
             h=b5.header.getHash(),
@@ -352,6 +369,9 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.headerTip, b4.header)
         self.assertEqual(state0.metaTip, b4.meta)
         self.assertEqual(state0.rootTip, rB2.header)
+
+        self.assertEqual(state0.db.getMinorBlockByHeight(2), b3)
+        self.assertEqual(state0.db.getMinorBlockByHeight(3), b4)
 
     def testShardStateForkResolveWithHigherRootChain(self):
         id1 = Identity.createRandomIdentity()
