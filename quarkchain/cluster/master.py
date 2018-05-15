@@ -291,6 +291,9 @@ class MasterServer():
         # TODO: replace it with dynamic size
         return self.env.config.SHARD_SIZE
 
+    def getShardSize(self):
+        return self.__getShardSize()
+
     def __hasAllShards(self):
         ''' Returns True if all the shards have been run by at least one node '''
         return (len(self.branchToSlaves) == self.__getShardSize() and

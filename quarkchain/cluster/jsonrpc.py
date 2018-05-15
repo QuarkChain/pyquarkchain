@@ -30,28 +30,16 @@ def is_json_string(data):
 
 def quantity_decoder(data):
     """Decode `data` representing a quantity."""
-    # [NOTE]: decode to `str` for both python2 and python3
-    if not is_json_string(data):
-        success = False
-    elif not data.startswith("0x"):
-        success = False  # must start with 0x prefix
-    elif len(data) > 3 and data[2] == "0":
-        success = False  # must not have leading zeros (except `0x0`)
-    else:
-        data = data[2:]
-        try:
-            return int(data, 16)
-        except ValueError:
-            success = False
-    assert not success
-    raise InvalidParams("Invalid quantity encoding")
+    try:
+        return int(data, 10)
+    except ValueError:
+        raise InvalidParams("Invalid quantity encoding")
 
 
 def quantity_encoder(i):
     """Encode integer quantity `data`."""
     assert is_numeric(i)
-    data = int_to_big_endian(i)
-    return str("0x" + (encode_hex(data).lstrip("0") or "0"))
+    return str(i)
 
 
 def data_decoder(data):
@@ -78,9 +66,9 @@ def data_encoder(data, length=None):
     """
     s = encode_hex(data)
     if length is None:
-        return str("0x" + s)
+        return str(s)
     else:
-        return str("0x" + s.rjust(length * 2, "0"))
+        return str(s.rjust(length * 2, "0"))
 
 
 def obj_decoder(data, cls):
@@ -227,6 +215,120 @@ class JSONRPCServer:
         }
 
     @methods.add
+    async def sendUnsignedTransaction(self, **data):
+        ''' Returns the unsigned hash of the evm transaction '''
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def getDataDefault(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        fromBytes = getDataDefault("from", address_decoder, None)
+        to = getDataDefault("to", address_decoder, None)
+        gasKey = "gas" if "gas" in data else "startgas"
+        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
+        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
+        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        value = getDataDefault("value", quantity_decoder, 0)
+        data_ = getDataDefault("data", data_decoder, b"")
+
+        if not fromBytes or not to or value == 0:
+            raise InvalidParams("bad input")
+
+        fromAddr = Address.deserialize(fromBytes)
+        toAddr = Address.deserialize(to)
+
+        shardSize = self.master.getShardSize()
+        fromShard = fromAddr.getShardId(shardSize)
+        toShard = toAddr.getShardId(shardSize)
+
+        if fromShard == toShard:
+            withdraw = 0
+            withdrawTo = b""
+        else:
+            withdraw = value
+            value = 0
+            withdrawTo = bytes(toAddr.serialize())
+
+        branch, nonce = await self.master.getTransactionCount(fromAddr)
+        evmTx = EvmTransaction(
+            nonce, gasprice, startgas, toAddr.recipient, value, data_,
+            branchValue=branch.value,
+            withdraw=withdraw,
+            withdrawSign=1,
+            withdrawTo=withdrawTo,
+        )
+        return data_encoder(evmTx.hash_unsigned)
+
+    @methods.add
+    async def sendSignedTransaction(self, **data):
+        ''' Returns the unsigned hash of the evm transaction '''
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def getDataDefault(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        fromBytes = getDataDefault("from", address_decoder, None)
+        to = getDataDefault("to", address_decoder, None)
+        gasKey = "gas" if "gas" in data else "startgas"
+        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
+        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
+        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        value = getDataDefault("value", quantity_decoder, 0)
+        data_ = getDataDefault("data", data_decoder, b"")
+        v = getDataDefault("v", quantity_decoder, 0)
+        r = getDataDefault("r", quantity_decoder, 0)
+        s = getDataDefault("s", quantity_decoder, 0)
+
+        if not (v and r and s):
+            raise InvalidParams("Mising v, r, s")
+        if not fromBytes or not to or value == 0:
+            raise InvalidParams("bad input")
+
+        fromAddr = Address.deserialize(fromBytes)
+        toAddr = Address.deserialize(to)
+
+        shardSize = self.master.getShardSize()
+        fromShard = fromAddr.getShardId(shardSize)
+        toShard = toAddr.getShardId(shardSize)
+
+        if fromShard == toShard:
+            withdraw = 0
+            withdrawTo = b""
+        else:
+            withdraw = value
+            value = 0
+            withdrawTo = bytes(toAddr.serialize())
+
+        branch, nonce = await self.master.getTransactionCount(fromAddr)
+        evmTx = EvmTransaction(
+            nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
+            branchValue=branch.value,
+            withdraw=withdraw,
+            withdrawSign=1,
+            withdrawTo=withdrawTo,
+        )
+
+        if evmTx.sender != fromAddr.recipient:
+            raise InvalidParams("Transaction sender does not match the from address.")
+
+        tx = Transaction(code=Code.createEvmCode(evmTx))
+        success = await self.master.addTransaction(tx)
+        if not success:
+            raise ServerError("Failed to add transaction")
+
+        return data_encoder(tx.getHash())
+
+    '''
+    This JRPC requires clients to know the data structure of the trasaction.
+    Commented out for now until open source.
+
+    @methods.add
     async def sendTransaction(self, **data):
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
@@ -275,6 +377,7 @@ class JSONRPCServer:
             raise ServerError("Failed to add transaction")
 
         return data_encoder(tx.getHash())
+    '''
 
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)
