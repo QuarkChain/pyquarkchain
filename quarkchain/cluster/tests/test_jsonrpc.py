@@ -238,3 +238,34 @@ class TestJSONRPC(unittest.TestCase):
             self.assertFalse(response["isRootBlock"])
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block1.header.branch.value, 0b11)
+
+    def testGetMinorBlockByHash(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 0))
+            tx = create_transfer_transaction(
+                shardState=slaves[0].shardStateMap[branch.value],
+                fromId=id1,
+                toAddress=acc1,
+                amount=12345,
+            )
+            self.assertTrue(slaves[0].addTx(tx))
+
+            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
+            self.assertTrue(call_async(slaves[0].addBlock(block1)))
+
+            resp = sendRequest("getMinorBlockByHash", block1.header.getHash().hex(), "2", False)
+            self.assertEqual(resp["transactions"][0], tx.getHash().hex())
+            resp = sendRequest("getMinorBlockByHash", block1.header.getHash().hex(), "2", True)
+            self.assertEqual(resp["transactions"][0]["hash"], tx.getHash().hex())
+
+            resp = sendRequest("getMinorBlockByHash", block1.header.getHash().hex(), "1", True)
+            self.assertIsNone(resp)
+            resp = sendRequest("getMinorBlockByHash", "abc", "2", True)
+            self.assertIsNone(resp)

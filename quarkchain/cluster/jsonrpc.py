@@ -95,7 +95,7 @@ def address_decoder(data):
 
 def address_encoder(address):
     assert len(address) in (24, 0)
-    result = str('0x' + encode_hex(address))
+    result = str(encode_hex(address))
     return result
 
 
@@ -127,6 +127,71 @@ def bool_decoder(data):
     if not isinstance(data, bool):
         raise InvalidParams("Parameter must be boolean")
     return data
+
+
+def minor_block_encoder(block, include_transactions=False):
+    """Encode a block as JSON object.
+
+    :param block: a :class:`ethereum.block.Block`
+    :param include_transactions: if true transactions are included, otherwise
+                                 only their hashes
+    :returns: a json encodable dictionary
+    """
+    header = block.header
+    meta = block.meta
+    print(meta.coinbaseAddress)
+    d = {
+        'numeber': quantity_encoder(header.height),
+        'hash': data_encoder(header.getHash()),
+        'branch': quantity_encoder(header.branch.value),
+        'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
+        'hashPrevRootBlock': data_encoder(meta.hashPrevRootBlock),
+        'nonce': quantity_encoder(header.nonce),
+        'hashMerkleRoot': data_encoder(meta.hashMerkleRoot),
+        'hashEvmStateRoot': data_encoder(meta.hashEvmStateRoot),
+        'miner': address_encoder(meta.coinbaseAddress.serialize()),
+        'difficulty': quantity_encoder(header.difficulty),
+        'extraData': data_encoder(meta.extraData),
+        'gasLimit': quantity_encoder(meta.evmGasLimit),
+        'gasUsed': quantity_encoder(meta.evmGasUsed),
+        'timestamp': quantity_encoder(header.createTime),
+        'size': quantity_encoder(len(block.serialize())),
+    }
+    if include_transactions:
+        d['transactions'] = []
+        for i, tx in enumerate(block.txList):
+            d['transactions'].append(tx_encoder(tx, i, header.getHash(), header.height))
+    else:
+        d['transactions'] = [data_encoder(tx.getHash()) for tx in block.txList]
+    return d
+
+
+def tx_encoder(tx, i, blockHash, blockNumber):
+    """Encode a transaction as JSON object.
+
+    `transaction` is the `i`th transaction in `block`.
+    """
+    evmTx = tx.code.getEvmTransaction()
+    return {
+        'hash': data_encoder(tx.getHash()),
+        'nonce': quantity_encoder(evmTx.nonce),
+        'blockHash': data_encoder(blockHash),
+        'blockNumber': quantity_encoder(blockNumber),
+        'transactionIndex': quantity_encoder(i),
+        'from': data_encoder(evmTx.sender),
+        'to': data_encoder(evmTx.to),
+        'value': quantity_encoder(evmTx.value),
+        'gasPrice': quantity_encoder(evmTx.gasprice),
+        'gas': quantity_encoder(evmTx.startgas),
+        'data': data_encoder(evmTx.data),
+        'branch': quantity_encoder(evmTx.branchValue),
+        'withdraw': quantity_encoder(evmTx.withdraw),
+        'withdrawTo': data_encoder(evmTx.withdrawTo),
+        'networkId': quantity_encoder(evmTx.networkId),
+        'r': quantity_encoder(evmTx.r),
+        's': quantity_encoder(evmTx.s),
+        'v': quantity_encoder(evmTx.v),
+    }
 
 
 def decode_arg(name, decoder):
@@ -324,10 +389,6 @@ class JSONRPCServer:
 
         return data_encoder(tx.getHash())
 
-    '''
-    This JRPC requires clients to know the data structure of the trasaction.
-    Commented out for now until open source.
-
     @methods.add
     async def sendTransaction(self, **data):
         if not isinstance(data, dict):
@@ -377,7 +438,6 @@ class JSONRPCServer:
             raise ServerError("Failed to add transaction")
 
         return data_encoder(tx.getHash())
-    '''
 
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)
@@ -407,6 +467,16 @@ class JSONRPCServer:
     @methods.add
     async def getStats(self):
         return await self.master.getStats()
+
+    @methods.add
+    @decode_arg("blockHash", data_decoder)
+    @decode_arg("branch", quantity_decoder)
+    @decode_arg("includeTransactions", bool_decoder)
+    async def getMinorBlockByHash(self, blockHash, branch, includeTransactions):
+        block = await self.master.getMinorBlockByHash(blockHash, Branch(branch))
+        if not block:
+            return None
+        return minor_block_encoder(block, includeTransactions)
 
 
 if __name__ == "__main__":

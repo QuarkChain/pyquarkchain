@@ -29,7 +29,7 @@ class MinorBlockMeta(Serializable):
                  hashPrevRootBlock=bytes(Constant.HASH_LENGTH),
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
-                 coinbaseAddress=bytes(Constant.ADDRESS_LENGTH),
+                 coinbaseAddress=Address.createEmptyAccount(),
                  evmGasLimit=100000000000,
                  evmGasUsed=0,
                  extraData=b''):

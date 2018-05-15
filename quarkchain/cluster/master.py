@@ -15,6 +15,7 @@ from quarkchain.cluster.rpc import (
     CreateClusterPeerConnectionRequest,
     DestroyClusterPeerConnectionCommand,
     GetStatsRequest, SyncMinorBlockListRequest,
+    GetMinorBlockRequest,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
@@ -244,6 +245,16 @@ class SlaveConnection(ClusterConnection):
             request,
         )
         return resp.errorCode == 0
+
+    async def getMinorBlockByHash(self, blockHash, branch):
+        request = GetMinorBlockRequest(branch, blockHash)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_MINOR_BLOCK_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None
+        return resp.minorBlock
 
     # RPC handlers
 
@@ -657,6 +668,13 @@ class MasterServer():
             "txCount60s": txCount60s,
             "shards": shards,
         }
+
+    async def getMinorBlockByHash(self, blockHash, branch):
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getMinorBlockByHash(blockHash, branch)
 
 
 def parse_args():

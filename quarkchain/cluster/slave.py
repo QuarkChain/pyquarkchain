@@ -5,7 +5,9 @@ import ipaddress
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.cluster.core import CrossShardTransactionList, MinorBlock, RootBlock, RootBlockHeader
+from quarkchain.cluster.core import (
+    CrossShardTransactionList, MinorBlock, MinorBlockHeader, MinorBlockMeta, RootBlock, RootBlockHeader
+)
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
 )
@@ -17,6 +19,7 @@ from quarkchain.cluster.rpc import (
     GetAccountDataResponse, AddTransactionResponse,
     CreateClusterPeerConnectionResponse,
     GetStatsResponse, SyncMinorBlockListResponse,
+    GetMinorBlockResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -443,6 +446,18 @@ class MasterConnection(ClusterConnection):
         )
         return resp
 
+    async def handleGetMinorBlockRequest(self, req):
+        if req.minorBlockHash != b"":
+            block = self.slaveServer.getMinorBlockByHash(req.minorBlockHash, req.branch)
+        else:
+            block = self.slaveServer.getMinorBlockByHeight(req.height, req.branch)
+
+        if not block:
+            emptyBlock = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
+            return GetMinorBlockResponse(errorCode=1, minorBlock=emptyBlock)
+
+        return GetMinorBlockResponse(errorCode=0, minorBlock=block)
+
     async def handleSyncMinorBlockListRequest(self, req):
 
         async def __downloadBlocks(blockHashList):
@@ -503,6 +518,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE, MasterConnection.handleCreateClusterPeerConnectionRequest),
     ClusterOp.GET_STATS_REQUEST:
         (ClusterOp.GET_STATS_RESPONSE, MasterConnection.handleGetStatsRequest),
+    ClusterOp.GET_MINOR_BLOCK_REQUEST:
+        (ClusterOp.GET_MINOR_BLOCK_RESPONSE, MasterConnection.handleGetMinorBlockRequest),
     ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST:
         (ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE, MasterConnection.handleSyncMinorBlockListRequest),
 }
@@ -784,6 +801,18 @@ class SlaveServer():
         for branchValue, shardState in self.shardStateMap.items():
             shardStatsList.append(shardState.getShardStats())
         return shardStatsList
+
+    def getMinorBlockByHash(self, blockHash, branch):
+        if branch.value not in self.shardStateMap:
+            return None
+
+        shardState = self.shardStateMap[branch.value]
+        if not shardState.containBlockByHash(blockHash):
+            return None
+        return shardState.getBlockByHash(blockHash)
+
+    def getMinorBlockByHeight(self, height, branch):
+        pass
 
 
 def parse_args():
