@@ -194,7 +194,7 @@ class ShardDb:
             self.putTransactionIndex(tx.getHash(), minorBlock.header.height, i)
 
     def removeTransactionIndexFromBlock(self, minorBlock):
-        for tx in enumerate(minorBlock.txList):
+        for tx in minorBlock.txList:
             self.removeTransactionIndex(tx.getHash())
 
     # -------------------------- Cross-shard tx operations ----------------------------
@@ -737,8 +737,8 @@ class ShardState:
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
             self.rootTip = rBlock.header
-            self.confirmedHeaderTip = self.headerTip
-            self.confirmedMetaTip = self.metaTip
+            self.confirmedHeaderTip = shardHeader
+            self.confirmedMetaTip = self.db.getMinorBlockMetaByHash(shardHeader.getHash())
 
             origBlock = self.db.getMinorBlockByHeight(shardHeader.height)
             if not origBlock or origBlock.header != shardHeader:

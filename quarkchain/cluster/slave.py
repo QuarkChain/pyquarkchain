@@ -19,7 +19,7 @@ from quarkchain.cluster.rpc import (
     GetAccountDataResponse, AddTransactionResponse,
     CreateClusterPeerConnectionResponse,
     GetStatsResponse, SyncMinorBlockListResponse,
-    GetMinorBlockResponse,
+    GetMinorBlockResponse, GetTransactionResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -458,6 +458,14 @@ class MasterConnection(ClusterConnection):
 
         return GetMinorBlockResponse(errorCode=0, minorBlock=block)
 
+    async def handleGetTransactionRequest(self, req):
+        minorBlock, i = self.slaveServer.getTransactionByHash(req.txHash, req.branch)
+        if not minorBlock:
+            emptyBlock = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
+            return GetTransactionResponse(errorCode=1, minorBlock=emptyBlock, index=0)
+
+        return GetTransactionResponse(errorCode=0, minorBlock=minorBlock, index=i)
+
     async def handleSyncMinorBlockListRequest(self, req):
 
         async def __downloadBlocks(blockHashList):
@@ -520,6 +528,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.GET_STATS_RESPONSE, MasterConnection.handleGetStatsRequest),
     ClusterOp.GET_MINOR_BLOCK_REQUEST:
         (ClusterOp.GET_MINOR_BLOCK_RESPONSE, MasterConnection.handleGetMinorBlockRequest),
+    ClusterOp.GET_TRANSACTION_REQUEST:
+        (ClusterOp.GET_TRANSACTION_RESPONSE, MasterConnection.handleGetTransactionRequest),
     ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST:
         (ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE, MasterConnection.handleSyncMinorBlockListRequest),
 }
@@ -812,7 +822,18 @@ class SlaveServer():
         return shardState.getBlockByHash(blockHash)
 
     def getMinorBlockByHeight(self, height, branch):
-        pass
+        if branch.value not in self.shardStateMap:
+            return None
+
+        shardState = self.shardStateMap[branch.value]
+        return shardState.db.getMinorBlockByHeight(height)
+
+    def getTransactionByHash(self, txHash, branch):
+        if branch.value not in self.shardStateMap:
+            return None
+
+        shardState = self.shardStateMap[branch.value]
+        return shardState.db.getTransactionByHash(txHash)
 
 
 def parse_args():

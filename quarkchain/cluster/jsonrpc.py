@@ -71,20 +71,6 @@ def data_encoder(data, length=None):
         return str(s.rjust(length * 2, "0"))
 
 
-def obj_decoder(data, cls):
-    raw = data_decoder(data)
-    try:
-        return cls.deserialize(raw)
-    except Exception as e:
-        raise InvalidParams(e)
-
-
-def obj_encoder(obj, cls):
-    assert isinstance(obj, cls)
-    result = str("0x" + encode_hex(obj.serialize()))
-    return result
-
-
 def address_decoder(data):
     """Decode an address from hex with 0x prefix to 24 bytes."""
     addr = data_decoder(data)
@@ -99,12 +85,14 @@ def address_encoder(address):
     return result
 
 
-def block_id_decoder(data):
-    """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
-    if data in (None, "latest", "earliest", "pending"):
-        return data
-    else:
-        return quantity_decoder(data)
+def id_encoder(hashBytes, branch):
+    return (hashBytes + branch.serialize()).hex()
+
+
+def id_decoder(data):
+    if len(data) != 36:
+        raise InvalidParams()
+    return data[:32], Branch.deserialize(data[32:])
 
 
 def block_hash_decoder(data):
@@ -141,6 +129,7 @@ def minor_block_encoder(block, include_transactions=False):
     meta = block.meta
     print(meta.coinbaseAddress)
     d = {
+        'id': id_encoder(header.getHash(), header.branch),
         'numeber': quantity_encoder(header.height),
         'hash': data_encoder(header.getHash()),
         'branch': quantity_encoder(header.branch.value),
@@ -160,23 +149,25 @@ def minor_block_encoder(block, include_transactions=False):
     if include_transactions:
         d['transactions'] = []
         for i, tx in enumerate(block.txList):
-            d['transactions'].append(tx_encoder(tx, i, header.getHash(), header.height))
+            d['transactions'].append(tx_encoder(block, i))
     else:
         d['transactions'] = [data_encoder(tx.getHash()) for tx in block.txList]
     return d
 
 
-def tx_encoder(tx, i, blockHash, blockNumber):
+def tx_encoder(block, i):
     """Encode a transaction as JSON object.
 
     `transaction` is the `i`th transaction in `block`.
     """
+    tx = block.txList[i]
     evmTx = tx.code.getEvmTransaction()
     return {
+        'id': id_encoder(tx.getHash(), block.header.branch),
         'hash': data_encoder(tx.getHash()),
         'nonce': quantity_encoder(evmTx.nonce),
-        'blockHash': data_encoder(blockHash),
-        'blockNumber': quantity_encoder(blockNumber),
+        'blockHash': data_encoder(block.header.getHash()),
+        'blockNumber': quantity_encoder(block.header.height),
         'transactionIndex': quantity_encoder(i),
         'from': data_encoder(evmTx.sender),
         'to': data_encoder(evmTx.to),
@@ -261,8 +252,7 @@ class JSONRPCServer:
 
     @methods.add
     @decode_arg("address", address_decoder)
-    @decode_arg("blockId", block_id_decoder)
-    async def getTransactionCount(self, address, blockId="pending"):
+    async def getTransactionCount(self, address):
         branch, count = await self.master.getTransactionCount(Address.deserialize(address))
         return {
             "branch": quantity_encoder(branch.value),
@@ -271,8 +261,7 @@ class JSONRPCServer:
 
     @methods.add
     @decode_arg("address", address_decoder)
-    @decode_arg("blockId", block_id_decoder)
-    async def getBalance(self, address, blockId="pending"):
+    async def getBalance(self, address):
         branch, balance = await self.master.getBalance(Address.deserialize(address))
         return {
             "branch": quantity_encoder(branch.value),
@@ -469,14 +458,25 @@ class JSONRPCServer:
         return await self.master.getStats()
 
     @methods.add
-    @decode_arg("blockHash", data_decoder)
-    @decode_arg("branch", quantity_decoder)
+    @decode_arg("blockId", data_decoder)
     @decode_arg("includeTransactions", bool_decoder)
-    async def getMinorBlockByHash(self, blockHash, branch, includeTransactions):
-        block = await self.master.getMinorBlockByHash(blockHash, Branch(branch))
+    async def getMinorBlockById(self, blockId, includeTransactions):
+        blockHash, branch = id_decoder(blockId)
+        block = await self.master.getMinorBlockByHash(blockHash, branch)
         if not block:
             return None
         return minor_block_encoder(block, includeTransactions)
+
+    @methods.add
+    @decode_arg("txId", data_decoder)
+    async def getTransactionById(self, txId):
+        txHash, branch = id_decoder(txId)
+        minorBlock, i = await self.master.getTransactionByHash(txHash, branch)
+        if not minorBlock:
+            return None
+        if len(minorBlock.txList) <= i:
+            return None
+        return tx_encoder(minorBlock, i)
 
 
 if __name__ == "__main__":
