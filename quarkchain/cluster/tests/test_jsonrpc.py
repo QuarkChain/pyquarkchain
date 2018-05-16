@@ -104,7 +104,7 @@ class TestJSONRPC(unittest.TestCase):
             tx = Transaction(code=Code.createEvmCode(evmTx))
             response = sendRequest("sendTransaction", request)
 
-            self.assertEqual(response, tx.getHash().hex())
+            self.assertEqual(response, tx.getHash().hex() + "02")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
             self.assertEqual(slaves[0].shardStateMap[branch.value].txQueue.pop_transaction(), evmTx)
 
@@ -252,7 +252,7 @@ class TestJSONRPC(unittest.TestCase):
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"]))
             self.assertEqual(block1.header.branch.value, 0b11)
 
-    def testGetMinorBlockById(self):
+    def testGetMinorBlock(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
@@ -273,12 +273,24 @@ class TestJSONRPC(unittest.TestCase):
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
+            # By id
             resp = sendRequest("getMinorBlockById", block1.header.getHash().hex() + branch.serialize().hex(), False)
-            self.assertEqual(resp["transactions"][0], tx.getHash().hex())
+            self.assertEqual(resp["transactions"][0], tx.getHash().hex() + "02")
             resp = sendRequest("getMinorBlockById", block1.header.getHash().hex() + branch.serialize().hex(), True)
             self.assertEqual(resp["transactions"][0]["hash"], tx.getHash().hex())
 
             resp = sendRequest("getMinorBlockById", "ff" * 36, True)
+            self.assertIsNone(resp)
+
+            # By height
+            resp = sendRequest("getMinorBlockByHeight", "0", "1", False)
+            self.assertEqual(resp["transactions"][0], tx.getHash().hex() + "02")
+            resp = sendRequest("getMinorBlockByHeight", "0", "1", True)
+            self.assertEqual(resp["transactions"][0]["hash"], tx.getHash().hex())
+
+            resp = sendRequest("getMinorBlockByHeight", "2", "2", False)
+            self.assertIsNone(resp)
+            resp = sendRequest("getMinorBlockByHeight", "0", "4", False)
             self.assertIsNone(resp)
 
     def testGetTransactionById(self):

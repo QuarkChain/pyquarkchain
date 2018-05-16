@@ -121,9 +121,9 @@ class GetMinorBlockRequest(Serializable):
         ("height", uint64),
     ]
 
-    def __init__(self, branch, minorBlockHash=b"", height=0):
+    def __init__(self, branch, minorBlockHash=None, height=0):
         self.branch = branch
-        self.minorBlockHash = minorBlockHash
+        self.minorBlockHash = minorBlockHash if minorBlockHash else bytes(32)
         self.height = height
 
 

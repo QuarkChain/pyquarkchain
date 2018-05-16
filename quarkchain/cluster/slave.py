@@ -447,7 +447,7 @@ class MasterConnection(ClusterConnection):
         return resp
 
     async def handleGetMinorBlockRequest(self, req):
-        if req.minorBlockHash != b"":
+        if req.minorBlockHash != bytes(32):
             block = self.slaveServer.getMinorBlockByHash(req.minorBlockHash, req.branch)
         else:
             block = self.slaveServer.getMinorBlockByHeight(req.height, req.branch)
