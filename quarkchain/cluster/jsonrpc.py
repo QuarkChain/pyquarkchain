@@ -149,6 +149,7 @@ def tx_encoder(block, i):
         'id': id_encoder(tx.getHash(), block.header.branch),
         'hash': data_encoder(tx.getHash()),
         'nonce': quantity_encoder(evmTx.nonce),
+        'timestamp': quantity_encoder(block.header.createTime),
         'blockId': id_encoder(block.header.getHash(), block.header.branch),
         'blockHeight': quantity_encoder(block.header.height),
         'transactionIndex': quantity_encoder(i),
