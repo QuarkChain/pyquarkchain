@@ -6,6 +6,7 @@ django-extensions >= 2.0.0
 decorator >= 4.2.1
 ecdsa >= 0.13
 ethereum >= 2.3.0
+gitpython >=2.1.9
 jsonrpcclient >= 2.5.2
 jsonrpcserver >= 3.5.4
 leveldb >= 0.194
