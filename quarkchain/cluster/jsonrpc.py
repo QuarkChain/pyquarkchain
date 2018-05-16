@@ -5,27 +5,22 @@ from aiohttp import web
 from decorator import decorator
 from ethereum.utils import (
     is_numeric, is_string, int_to_big_endian, big_endian_to_int,
-    encode_hex, decode_hex, sha3, zpad, denoms, int32)
+    encode_hex, zpad, denoms, int32)
 
 from jsonrpcserver import config
 from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, ServerError
 
-from quarkchain.cluster.core import MinorBlock, RootBlock
+from quarkchain.cluster.core import RootBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import Logger
 
-
 # defaults
 default_startgas = 500 * 1000
 default_gasprice = 60 * denoms.shannon
-
-
-def is_json_string(data):
-    return isinstance(data, str)
 
 
 def quantity_decoder(data):
@@ -44,31 +39,16 @@ def quantity_encoder(i):
 
 def data_decoder(data):
     """Decode `data` representing unformatted data."""
-    if not data.startswith("0x"):
-        data = "0x" + data
-
-    if len(data) % 2 != 0:
-        # workaround for missing leading zeros from netstats
-        assert len(data) < 64 + 2
-        data = "0x" + "0" * (64 - (len(data) - 2)) + data[2:]
-
     try:
-        return decode_hex(data[2:])
-    except TypeError:
-        raise InvalidParams("Invalid data hex encoding", data[2:])
+        return bytes.fromhex(data)
+    except Exception:
+        raise InvalidParams("Invalid data hex encoding", data)
 
 
-def data_encoder(data, length=None):
+def data_encoder(data):
     """Encode unformatted binary `data`.
-
-    If `length` is given, the result will be padded like this: ``data_encoder("b\xff", 3) ==
-    "0x0000ff"``.
     """
-    s = encode_hex(data)
-    if length is None:
-        return str(s)
-    else:
-        return str(s.rjust(length * 2, "0"))
+    return data.hex()
 
 
 def address_decoder(data):
@@ -81,18 +61,18 @@ def address_decoder(data):
 
 def address_encoder(address):
     assert len(address) in (24, 0)
-    result = str(encode_hex(address))
-    return result
+    return address.hex()
 
 
 def id_encoder(hashBytes, branch):
-    return (hashBytes + branch.serialize()).hex()
+    return hashBytes.hex() + branch.serialize().lstrip(b"\x00").hex()
 
 
 def id_decoder(data):
-    if len(data) != 36:
+    if len(data) <= 32:
         raise InvalidParams()
-    return data[:32], Branch.deserialize(data[32:])
+    pad = 36 - len(data)
+    return data[:32], Branch.deserialize(bytes(pad) + data[32:])
 
 
 def block_hash_decoder(data):
@@ -127,12 +107,13 @@ def minor_block_encoder(block, include_transactions=False):
     """
     header = block.header
     meta = block.meta
-    print(meta.coinbaseAddress)
+
     d = {
         'id': id_encoder(header.getHash(), header.branch),
-        'numeber': quantity_encoder(header.height),
+        'height': quantity_encoder(header.height),
         'hash': data_encoder(header.getHash()),
         'branch': quantity_encoder(header.branch.value),
+        'shard': quantity_encoder(header.branch.getShardId()),
         'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
         'hashPrevRootBlock': data_encoder(meta.hashPrevRootBlock),
         'nonce': quantity_encoder(header.nonce),
@@ -151,7 +132,7 @@ def minor_block_encoder(block, include_transactions=False):
         for i, tx in enumerate(block.txList):
             d['transactions'].append(tx_encoder(block, i))
     else:
-        d['transactions'] = [data_encoder(tx.getHash()) for tx in block.txList]
+        d['transactions'] = [id_encoder(tx.getHash(), block.header.branch) for tx in block.txList]
     return d
 
 
@@ -162,22 +143,25 @@ def tx_encoder(block, i):
     """
     tx = block.txList[i]
     evmTx = tx.code.getEvmTransaction()
+    to = evmTx.to if evmTx.withdraw == 0 else evmTx.withdrawTo
+    value = evmTx.value if evmTx.withdraw == 0 else evmTx.withdraw
     return {
         'id': id_encoder(tx.getHash(), block.header.branch),
         'hash': data_encoder(tx.getHash()),
         'nonce': quantity_encoder(evmTx.nonce),
-        'blockHash': data_encoder(block.header.getHash()),
-        'blockNumber': quantity_encoder(block.header.height),
+        'blockId': id_encoder(block.header.getHash(), block.header.branch),
+        'blockHeight': quantity_encoder(block.header.height),
         'transactionIndex': quantity_encoder(i),
         'from': data_encoder(evmTx.sender),
-        'to': data_encoder(evmTx.to),
-        'value': quantity_encoder(evmTx.value),
+        'to': data_encoder(to),
+        'value': quantity_encoder(value),
         'gasPrice': quantity_encoder(evmTx.gasprice),
         'gas': quantity_encoder(evmTx.startgas),
         'data': data_encoder(evmTx.data),
         'branch': quantity_encoder(evmTx.branchValue),
-        'withdraw': quantity_encoder(evmTx.withdraw),
-        'withdrawTo': data_encoder(evmTx.withdrawTo),
+        'shard': quantity_encoder(block.header.branch.getShardId()),
+        # 'withdraw': quantity_encoder(evmTx.withdraw),
+        # 'withdrawTo': data_encoder(evmTx.withdrawTo),
         'networkId': quantity_encoder(evmTx.networkId),
         'r': quantity_encoder(evmTx.r),
         's': quantity_encoder(evmTx.s),
@@ -265,6 +249,7 @@ class JSONRPCServer:
         branch, balance = await self.master.getBalance(Address.deserialize(address))
         return {
             "branch": quantity_encoder(branch.value),
+            "shard": quantity_encoder(branch.getShardId()),
             "balance": quantity_encoder(balance),
         }
 
@@ -376,7 +361,7 @@ class JSONRPCServer:
         if not success:
             raise ServerError("Failed to add transaction")
 
-        return data_encoder(tx.getHash())
+        return id_encoder(tx.getHash(), branch)
 
     @methods.add
     async def sendTransaction(self, **data):
@@ -426,7 +411,7 @@ class JSONRPCServer:
         if not success:
             raise ServerError("Failed to add transaction")
 
-        return data_encoder(tx.getHash())
+        return id_encoder(tx.getHash(), Branch(branch))
 
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)
@@ -460,9 +445,20 @@ class JSONRPCServer:
     @methods.add
     @decode_arg("blockId", data_decoder)
     @decode_arg("includeTransactions", bool_decoder)
-    async def getMinorBlockById(self, blockId, includeTransactions):
+    async def getMinorBlockById(self, blockId, includeTransactions=False):
         blockHash, branch = id_decoder(blockId)
         block = await self.master.getMinorBlockByHash(blockHash, branch)
+        if not block:
+            return None
+        return minor_block_encoder(block, includeTransactions)
+
+    @methods.add
+    @decode_arg("shard", quantity_decoder)
+    @decode_arg("height", quantity_decoder)
+    @decode_arg("includeTransactions", bool_decoder)
+    async def getMinorBlockByHeight(self, shard, height, includeTransactions=False):
+        branch = Branch.create(self.master.getShardSize(), shard)
+        block = await self.master.getMinorBlockByHeight(height, branch)
         if not block:
             return None
         return minor_block_encoder(block, includeTransactions)
@@ -477,6 +473,19 @@ class JSONRPCServer:
         if len(minorBlock.txList) <= i:
             return None
         return tx_encoder(minorBlock, i)
+
+    @methods.add
+    async def getPeers(self):
+        peerList = []
+        for peerId, peer in self.master.network.activePeerPool.items():
+            peerList.append({
+                "id": data_encoder(peerId),
+                "ip": quantity_encoder(int(peer.ip)),
+                "port": quantity_encoder(peer.port),
+            })
+        return {
+            "peers": peerList,
+        }
 
 
 if __name__ == "__main__":

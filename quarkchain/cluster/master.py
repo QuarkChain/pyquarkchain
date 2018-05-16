@@ -247,7 +247,17 @@ class SlaveConnection(ClusterConnection):
         return resp.errorCode == 0
 
     async def getMinorBlockByHash(self, blockHash, branch):
-        request = GetMinorBlockRequest(branch, blockHash)
+        request = GetMinorBlockRequest(branch, minorBlockHash=blockHash)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_MINOR_BLOCK_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None
+        return resp.minorBlock
+
+    async def getMinorBlockByHeight(self, height, branch):
+        request = GetMinorBlockRequest(branch, height=height)
         _, resp, _ = await self.writeRpcRequest(
             ClusterOp.GET_MINOR_BLOCK_REQUEST,
             request,
@@ -676,6 +686,7 @@ class MasterServer():
             "shardSize": self.__getShardSize(),
             "rootHeight": self.rootState.tip.height,
             "txCount60s": txCount60s,
+            "syncing": False,
             "shards": shards,
         }
 
@@ -685,6 +696,13 @@ class MasterServer():
 
         slave = self.branchToSlaves[branch.value][0]
         return await slave.getMinorBlockByHash(blockHash, branch)
+
+    async def getMinorBlockByHeight(self, height, branch):
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getMinorBlockByHeight(height, branch)
 
     async def getTransactionByHash(self, txHash, branch):
         ''' Returns (MinorBlock, i) where i is the index of the tx in the block txList '''
