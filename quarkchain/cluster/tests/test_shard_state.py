@@ -467,7 +467,7 @@ class TestShardState(unittest.TestCase):
         rB1.minorBlockHeaderList = blockHeaders[5:11]
         rB1.finalize()
 
-        state.addRootBlock(rB1)
+        # Note that rB1 has not been added to the shard state
 
         recoveredState = ShardState(env=env, shardId=0)
         recoveredState.initFromRootBlock(rB)
