@@ -97,10 +97,9 @@ class Transaction(rlp.Serializable):
             if self.r == 0 and self.s == 0:
                 self._sender = null_address
             else:
-                sighash = sha3_256(rlp.encode(self, UnsignedTransaction))
                 if self.r >= secpk1n or self.s >= secpk1n or self.r == 0 or self.s == 0:
                     raise InvalidTransaction("Invalid signature values!")
-                pub = ecrecover_to_pub(sighash, self.v, self.r, self.s)
+                pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
                 if pub == b'\x00' * 64:
                     raise InvalidTransaction(
                         "Invalid signature (zero privkey cannot sign)")
@@ -135,10 +134,9 @@ class Transaction(rlp.Serializable):
         """
         if network_id is not None:
             self.networkId = network_id
-        rawhash = sha3_256(rlp.encode(self, UnsignedTransaction))
         key = normalize_key(key)
 
-        self.v, self.r, self.s = ecsign(rawhash, key)
+        self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
 
         self._sender = utils.privtoaddr(key)
         return self
@@ -146,6 +144,10 @@ class Transaction(rlp.Serializable):
     @property
     def hash(self):
         return sha3_256(rlp.encode(self))
+
+    @property
+    def hash_unsigned(self):
+        return sha3_256(rlp.encode(self, UnsignedTransaction))
 
     def to_dict(self):
         d = {}

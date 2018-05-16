@@ -114,6 +114,54 @@ class GetStatsResponse(Serializable):
         self.shardStatsList = shardStatsList
 
 
+class GetMinorBlockRequest(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("minorBlockHash", hash256),
+        ("height", uint64),
+    ]
+
+    def __init__(self, branch, minorBlockHash=b"", height=0):
+        self.branch = branch
+        self.minorBlockHash = minorBlockHash
+        self.height = height
+
+
+class GetMinorBlockResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("minorBlock", MinorBlock),
+    ]
+
+    def __init__(self, errorCode, minorBlock):
+        self.errorCode = errorCode
+        self.minorBlock = minorBlock
+
+
+class GetTransactionRequest(Serializable):
+    FIELDS = [
+        ("txHash", hash256),
+        ("branch", Branch),
+    ]
+
+    def __init__(self, txHash, branch):
+        self.txHash = txHash
+        self.branch = branch
+
+
+class GetTransactionResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("minorBlock", MinorBlock),
+        ("index", uint32)
+    ]
+
+    def __init__(self, errorCode, minorBlock, index):
+        self.errorCode = errorCode
+        self.minorBlock = minorBlock
+        self.index = index
+
+
 # RPCs to update blockchains
 
 # master -> slave
@@ -424,6 +472,10 @@ class ClusterOp():
     DESTROY_CLUSTER_PEER_CONNECTION_COMMAND = 27 + CLUSTER_OP_BASE
     GET_STATS_REQUEST = 29 + CLUSTER_OP_BASE
     GET_STATS_RESPONSE = 30 + CLUSTER_OP_BASE
+    GET_MINOR_BLOCK_REQUEST = 31 + CLUSTER_OP_BASE
+    GET_MINOR_BLOCK_RESPONSE = 32 + CLUSTER_OP_BASE
+    GET_TRANSACTION_REQUEST = 33 + CLUSTER_OP_BASE
+    GET_TRANSACTION_RESPONSE = 34 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -456,4 +508,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: DestroyClusterPeerConnectionCommand,
     ClusterOp.GET_STATS_REQUEST: GetStatsRequest,
     ClusterOp.GET_STATS_RESPONSE: GetStatsResponse,
+    ClusterOp.GET_MINOR_BLOCK_REQUEST: GetMinorBlockRequest,
+    ClusterOp.GET_MINOR_BLOCK_RESPONSE: GetMinorBlockResponse,
+    ClusterOp.GET_TRANSACTION_REQUEST: GetTransactionRequest,
+    ClusterOp.GET_TRANSACTION_RESPONSE: GetTransactionResponse,
 }

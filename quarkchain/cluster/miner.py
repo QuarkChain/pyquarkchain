@@ -34,14 +34,14 @@ class Endpoint:
     def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
         resp = self.__sendRequest("getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue))
         isRoot = resp["isRootBlock"]
-        blockBytes = bytes.fromhex(resp["blockData"][2:])
+        blockBytes = bytes.fromhex(resp["blockData"])
         blockClass = RootBlock if isRoot else MinorBlock
         block = blockClass.deserialize(blockBytes)
         return isRoot, block
 
     def addBlock(self, block):
         branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
-        resp = self.__sendRequest("addBlock", quantity_encoder(branch), "0x" + block.serialize().hex())
+        resp = self.__sendRequest("addBlock", quantity_encoder(branch), block.serialize().hex())
         return resp
 
 

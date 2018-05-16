@@ -15,6 +15,7 @@ from quarkchain.cluster.rpc import (
     CreateClusterPeerConnectionRequest,
     DestroyClusterPeerConnectionCommand,
     GetStatsRequest, SyncMinorBlockListRequest,
+    GetMinorBlockRequest, GetTransactionRequest,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
@@ -245,6 +246,26 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.errorCode == 0
 
+    async def getMinorBlockByHash(self, blockHash, branch):
+        request = GetMinorBlockRequest(branch, blockHash)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_MINOR_BLOCK_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None
+        return resp.minorBlock
+
+    async def getTransactionByHash(self, txHash, branch):
+        request = GetTransactionRequest(txHash, branch)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_TRANSACTION_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None, None
+        return (resp.minorBlock, resp.index)
+
     # RPC handlers
 
     async def handleAddMinorBlockHeaderRequest(self, req):
@@ -290,6 +311,9 @@ class MasterServer():
     def __getShardSize(self):
         # TODO: replace it with dynamic size
         return self.env.config.SHARD_SIZE
+
+    def getShardSize(self):
+        return self.__getShardSize()
 
     def __hasAllShards(self):
         ''' Returns True if all the shards have been run by at least one node '''
@@ -654,6 +678,21 @@ class MasterServer():
             "txCount60s": txCount60s,
             "shards": shards,
         }
+
+    async def getMinorBlockByHash(self, blockHash, branch):
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getMinorBlockByHash(blockHash, branch)
+
+    async def getTransactionByHash(self, txHash, branch):
+        ''' Returns (MinorBlock, i) where i is the index of the tx in the block txList '''
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getTransactionByHash(txHash, branch)
 
 
 def parse_args():
