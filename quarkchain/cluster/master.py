@@ -679,14 +679,19 @@ class MasterServer():
         for shardStats in branchValueToShardStats.values():
             shardId = shardStats.branch.getShardId()
             shards[shardId]["height"] = shardStats.height
+            shards[shardId]["timestamp"] = shardStats.timestamp
             shards[shardId]["txCount60s"] = shardStats.txCount60s
+            shards[shardId]["pendingTxCount"] = shardStats.pendingTxCount
 
         txCount60s = sum([shardStats.txCount60s for shardStats in branchValueToShardStats.values()])
+        pendingTxCount = sum([shardStats.pendingTxCount for shardStats in branchValueToShardStats.values()])
         return {
             "shardSize": self.__getShardSize(),
             "rootHeight": self.rootState.tip.height,
+            "rootTimestamp": self.rootState.tip.createTime,
             "txCount60s": txCount60s,
-            "syncing": False,
+            "pendingTxCount": pendingTxCount,
+            "syncing": self.synchronizer is not None,
             "shards": shards,
         }
 

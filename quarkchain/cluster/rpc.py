@@ -94,13 +94,17 @@ class ShardStats(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("height", uint64),
+        ("timestamp", uint64),
         ("txCount60s", uint32),
+        ("pendingTxCount", uint32),
     ]
 
-    def __init__(self, branch, height, txCount60s):
+    def __init__(self, branch, height, timestamp, txCount60s, pendingTxCount):
         self.branch = branch
         self.height = height
+        self.timestamp = timestamp
         self.txCount60s = txCount60s
+        self.pendingTxCount = pendingTxCount
 
 
 class GetStatsResponse(Serializable):

@@ -803,5 +803,7 @@ class ShardState:
         return ShardStats(
             branch=self.branch,
             height=self.headerTip.height,
+            timestamp=self.headerTip.createTime,
             txCount60s=self.db.txCounter60s.getCount(),
+            pendingTxCount=len(self.txQueue),
         )
