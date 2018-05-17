@@ -656,7 +656,12 @@ class MasterServer():
             op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
-    def setArtificialTxCount(self, count):
+    def setArtificialTxCount(self, count, seconds=60):
+        async def revert(oldCount):
+            await asyncio.sleep(seconds)
+            self.artificialTxCount = oldCount
+
+        asyncio.ensure_future(revert(self.artificialTxCount))
         self.artificialTxCount = count
 
     async def getStats(self):
