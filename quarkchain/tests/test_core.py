@@ -7,7 +7,7 @@ from quarkchain.core import RootBlockHeader
 import time
 import unittest
 from quarkchain.tests.test_utils import create_random_test_transaction
-from quarkchain.core import ShardMask
+from quarkchain.core import ShardMask, Optional, Serializable, uint32
 
 
 class TestTransaction(unittest.TestCase):
@@ -142,3 +142,26 @@ class TestShardMask(unittest.TestCase):
         self.assertEqual(
             sorted(l for l in sm1.iterate(16)),
             [1, 0b101, 0b1001, 0b1101])
+
+
+class Uint32Optional(Serializable):
+    FIELDS = [
+        ("value", Optional(uint32)),
+    ]
+
+    def __init__(self, value):
+        self.value = value
+
+
+class TestOptional(unittest.TestCase):
+
+    def testOptional(self):
+        v = Uint32Optional(123)
+        b = v.serialize()
+        v1 = Uint32Optional.deserialize(b)
+        self.assertEqual(v.value, v1.value)
+
+        v = Uint32Optional(None)
+        b = v.serialize()
+        v1 = Uint32Optional.deserialize(b)
+        self.assertEqual(v.value, v1.value)
