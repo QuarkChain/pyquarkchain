@@ -4,11 +4,14 @@ from quarkchain.config import DEFAULT_ENV
 from quarkchain.utils import sha3_256
 
 
-def create_genesis_minor_block(env, shardId, hashRootBlock=bytes(32)):
+def create_genesis_minor_block(env, shardId, evmState, hashRootBlock=bytes(32)):
     branch = Branch.create(env.config.SHARD_SIZE, shardId)
+    evmState.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
+    evmState.commit()
+
     meta = MinorBlockMeta(hashPrevRootBlock=hashRootBlock,
                           hashMerkleRoot=bytes(32),
-                          hashEvmStateRoot=bytes(32),
+                          hashEvmStateRoot=evmState.trie.root_hash,
                           coinbaseAddress=env.config.GENESIS_ACCOUNT.addressInBranch(branch),
                           extraData=b'It was the best of times, it was the worst of times, ... - Charles Dickens')
     header = MinorBlockHeader(version=0,
@@ -16,8 +19,10 @@ def create_genesis_minor_block(env, shardId, hashRootBlock=bytes(32)):
                               branch=branch,
                               hashPrevMinorBlock=bytes(32),
                               hashMeta=sha3_256(meta.serialize()),
+                              coinbaseAmount=env.config.GENESIS_MINOR_COIN,
                               createTime=env.config.GENESIS_CREATE_TIME,
                               difficulty=env.config.GENESIS_MINOR_DIFFICULTY)
+
     return MinorBlock(
         header=header,
         meta=meta,
