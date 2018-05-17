@@ -436,8 +436,8 @@ class JSONRPCServer:
 
     @methods.add
     @decode_arg("count", quantity_decoder)
-    async def setArtificialTxCount(self, count):
-        self.master.setArtificialTxCount(count)
+    async def setArtificialTxCount(self, count, seconds=60):
+        self.master.setArtificialTxCount(count, seconds)
 
     @methods.add
     async def getStats(self):
