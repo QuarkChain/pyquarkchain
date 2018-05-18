@@ -319,3 +319,62 @@ class TestRootState(unittest.TestCase):
             .addMinorBlockHeader(m2.header) \
             .finalize()
         self.assertTrue(rState.addBlock(rB4))
+
+    def testAddMinorBlockWithWrongRootBlockHash(self):
+        ''' Test for the following case
+                 +--+
+                 |r1|
+                /+--+
+               /   |
+        +--+  /  +--+    +--+
+        |r0|<----|m1|<---|m3|
+        +--+  \  +--+    +--+
+          ^    \          |
+          |     \+--+     |
+          |      |r2|<----+
+          |      +--+
+          |        |
+          |      +--+
+          +------|m2|
+                 +--+
+        where m3 is invalid because m3 depeonds on r2, whose minor chain is not the same chain as m3
+        '''
+        env = get_test_env(shardSize=1)
+        rState, sStates = create_default_state(env)
+
+        rB0 = rState.getTipBlock()
+
+        m1 = sStates[0].getTip().createBlockToAppend(nonce=0)
+        m2 = sStates[0].getTip().createBlockToAppend(nonce=1)
+        add_minor_block_to_cluster(sStates, m1)
+        add_minor_block_to_cluster(sStates, m2)
+
+        rState.addValidatedMinorBlockHash(m1.header.getHash())
+        rState.addValidatedMinorBlockHash(m2.header.getHash())
+        rB1 = rB0.createBlockToAppend(nonce=0) \
+            .addMinorBlockHeader(m1.header) \
+            .finalize()
+        rB2 = rB0.createBlockToAppend(nonce=1) \
+            .addMinorBlockHeader(m2.header) \
+            .finalize()
+
+        self.assertTrue(rState.addBlock(rB1))
+        self.assertFalse(rState.addBlock(rB2))
+        self.assertTrue(sStates[0].addRootBlock(rB1))
+        self.assertFalse(sStates[0].addRootBlock(rB2))
+
+        m3 = m1.createBlockToAppend()
+        m3.header.hashPrevRootBlock = rB2.header.getHash()
+        with self.assertRaises(ValueError):
+            add_minor_block_to_cluster(sStates, m3)
+
+        m4 = m1.createBlockToAppend()
+        m4.header.hashPrevRootBlock = rB1.header.getHash()
+        add_minor_block_to_cluster(sStates, m4)
+
+        # Test recovery
+        sState0Recovered = ShardState(env, shardId=0, db=sStates[0].rawDb)
+        sState0Recovered.initFromRootBlock(rB1)
+        with self.assertRaises(ValueError):
+            add_minor_block_to_cluster(sStates, m3)
+
