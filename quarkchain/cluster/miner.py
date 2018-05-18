@@ -26,7 +26,7 @@ class Endpoint:
         '''
         while True:
             try:
-                return self.__sendRequest("setArtificialTxCount", quantity_encoder(count))
+                return self.__sendRequest("setArtificialTxConfig", count, 10, 0)
             except Exception:
                 pass
             time.sleep(1)

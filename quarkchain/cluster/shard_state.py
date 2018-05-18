@@ -1,3 +1,4 @@
+import random
 import time
 
 from collections import deque
@@ -586,7 +587,7 @@ class ShardState:
 
     def getNextBlockCoinbaseAmount(self):
         # TODO: add block reward
-        block = self.createBlockToMine(artificialTxCount=0)
+        block = self.createBlockToMine()
         # Add back the transactions that have been popped into block
         # This actually lowers the priority of the popped tx if there are other tx with same gas price
         # TODO: get a better data structure for txQueue
@@ -614,20 +615,40 @@ class ShardState:
         headerList.reverse()
         return headerList
 
-    def __addArtificialTx(self, block, evmState, count):
-        for i in range(count):
-            evmTx = EvmTransaction(
-                branchValue=self.branch.value,
-                nonce=evmState.get_nonce(evmState.block_coinbase),
-                gasprice=1,
-                startgas=21000,
-                to=evmState.block_coinbase,
-                value=12,
-                data=b'',
-                withdrawSign=1,
-                withdraw=0,
-                withdrawTo=b'',
-                networkId=self.env.config.NETWORK_ID)
+    def __addArtificialTx(self, block, evmState, artificialTxConfig):
+        for i in range(artificialTxConfig.numTxPerBlock):
+            if random.randint(1, 100) <= artificialTxConfig.xShardTxPercent:
+                # x-shard tx
+                toShard = random.randint(0, self.env.config.SHARD_SIZE - 1)
+                if toShard == self.branch.getShardId():
+                    continue
+                withdrawTo = evmState.block_coinbase + toShard.to_bytes(4, "big")
+                evmTx = EvmTransaction(
+                    branchValue=self.branch.value,
+                    nonce=evmState.get_nonce(evmState.block_coinbase),
+                    gasprice=1,
+                    startgas=500000,
+                    to=evmState.block_coinbase,
+                    value=0,
+                    data=b'',
+                    withdrawSign=1,
+                    withdraw=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
+                    withdrawTo=withdrawTo,
+                    networkId=self.env.config.NETWORK_ID)
+            else:
+                evmTx = EvmTransaction(
+                    branchValue=self.branch.value,
+                    nonce=evmState.get_nonce(evmState.block_coinbase),
+                    gasprice=1,
+                    startgas=21000,
+                    to=evmState.block_coinbase,
+                    value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
+                    data=b'',
+                    withdrawSign=1,
+                    withdraw=0,
+                    withdrawTo=b'',
+                    networkId=self.env.config.NETWORK_ID)
+
             evmTx.sign(key=self.env.config.GENESIS_KEY)
             try:
                 apply_transaction(evmState, evmTx)
@@ -636,7 +657,7 @@ class ShardState:
                 Logger.errorException()
                 return
 
-    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxCount=0):
+    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxConfig=None):
         """ Create a block to append and include TXs to maximize rewards
         """
         if not createTime:
@@ -670,7 +691,8 @@ class ShardState:
             except Exception as e:
                 Logger.errorException()
 
-        self.__addArtificialTx(block, evmState, artificialTxCount)
+        if artificialTxConfig:
+            self.__addArtificialTx(block, evmState, artificialTxConfig)
 
         # Put only half of block fee to coinbase address
         check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)

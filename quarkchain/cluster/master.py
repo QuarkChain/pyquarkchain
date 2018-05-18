@@ -16,6 +16,7 @@ from quarkchain.cluster.rpc import (
     DestroyClusterPeerConnectionCommand,
     GetStatsRequest, SyncMinorBlockListRequest,
     GetMinorBlockRequest, GetTransactionRequest,
+    ArtificialTxConfig,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
@@ -306,7 +307,7 @@ class MasterServer():
         self.isUpdatingRootBlock = False
         self.name = name
 
-        self.artificialTxCount = 0
+        self.artificialTxConfig = ArtificialTxConfig(0, 0)
         self.synchronizer = None
 
     def __getShardSize(self):
@@ -458,7 +459,7 @@ class MasterServer():
         request = GetNextBlockToMineRequest(
             branch=branch,
             address=address.addressInBranch(branch),
-            artificialTxCount=self.artificialTxCount,
+            artificialTxConfig=self.artificialTxConfig,
         )
         slave = self.getSlaveConnection(branch)
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
@@ -660,13 +661,15 @@ class MasterServer():
             op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
-    def setArtificialTxCount(self, count, seconds=60):
-        async def revert(oldCount):
+    def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds):
+        ''' Do NOT revert if seconds <= 0 '''
+        async def revertLater(oldConfig):
             await asyncio.sleep(seconds)
-            self.artificialTxCount = oldCount
+            self.artificialTxConfig = oldConfig
 
-        asyncio.ensure_future(revert(self.artificialTxCount))
-        self.artificialTxCount = count
+        if seconds > 0:
+            asyncio.ensure_future(revertLater(self.artificialTxConfig))
+        self.artificialTxConfig = ArtificialTxConfig(numTxPerBlock, xShardTxPercent)
 
     async def getStats(self):
         futures = []

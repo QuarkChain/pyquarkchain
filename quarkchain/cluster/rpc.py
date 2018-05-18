@@ -230,17 +230,28 @@ class GetEcoInfoListResponse(Serializable):
         self.ecoInfoList = ecoInfoList
 
 
+class ArtificialTxConfig(Serializable):
+    FIELDS = [
+        ("numTxPerBlock", uint32),
+        ("xShardTxPercent", uint32),  # [0,100]
+    ]
+
+    def __init__(self, numTxPerBlock, xShardTxPercent):
+        self.numTxPerBlock = numTxPerBlock
+        self.xShardTxPercent = xShardTxPercent
+
+
 class GetNextBlockToMineRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("address", Address),
-        ("artificialTxCount", uint32),
+        ("artificialTxConfig", ArtificialTxConfig),
     ]
 
-    def __init__(self, branch, address, artificialTxCount):
+    def __init__(self, branch, address, artificialTxConfig):
         self.branch = branch
         self.address = address
-        self.artificialTxCount = artificialTxCount
+        self.artificialTxConfig = artificialTxConfig
 
 
 class GetNextBlockToMineResponse(Serializable):
