@@ -85,6 +85,16 @@ class RootDb:
     def containRootBlockByHash(self, h):
         return h in self.rHeaderPool
 
+    def putRootBlockIndex(self, block):
+        self.db.put(b"ri_%d" % block.header.height, block.header.getHash())
+
+    def getRootBlockByHeight(self, height):
+        key = b"ri_%d" % height
+        if key not in self.db:
+            return None
+        blockHash = self.db.get(key)
+        return self.getRootBlockByHash(blockHash)
+
     # ------------------------- Minor block db operations --------------------------------
     def containMinorBlockByHash(self, h):
         return h in self.mHashSet
@@ -135,6 +145,7 @@ class RootState:
                     evmState=evmState.ephemeral_clone(),
                     hashRootBlock=genesisRootBlock.header.getHash()).header)
         self.db.putRootBlock(genesisRootBlock, genesisMinorBlockHeaderList)
+        self.db.putRootBlockIndex(genesisRootBlock)
         self.tip = genesisRootBlock.header
 
     def getTipBlock(self):
@@ -263,6 +274,15 @@ class RootState:
 
         return blockHash, lastMinorBlockHeaderList
 
+    def __rewriteBlockIndexTo(self, block):
+        ''' Find the common ancestor in the current chain and rewrite index till block '''
+        while block.header.height >= 0:
+            origBlock = self.db.getRootBlockByHeight(block.header.height)
+            if origBlock and origBlock.header == block.header:
+                break
+            self.db.putRootBlockIndex(block)
+            block = self.db.getRootBlockByHash(block.header.hashPrevBlock)
+
     def addBlock(self, block, blockHash=None):
         """ Add new block.
         return True if a longest block is added, False otherwise
@@ -277,6 +297,7 @@ class RootState:
         if self.tip.height < block.header.height:
             self.tip = block.header
             self.db.updateTipHash(blockHash)
+            self.__rewriteBlockIndexTo(block)
             return True
         return False
 
@@ -289,6 +310,9 @@ class RootState:
 
     def getRootBlockHeaderByHash(self, h):
         return self.db.getRootBlockHeaderByHash(h)
+
+    def getRootBlockByHeight(self, height):
+        return self.db.getRootBlockByHeight(height)
 
     # --------------------------------- Minor block db related operations ----------------------------
     def isMinorBlockValidated(self, h):
