@@ -67,16 +67,30 @@ class ExpiryCounter:
 
 
 class ShardDb:
-    def __init__(self, db):
+    def __init__(self, db, branch):
         self.db = db
+        self.branch = branch
         # TODO:  iterate db to recover pools and set
         self.mHeaderPool = dict()
         self.mMetaPool = dict()
         self.xShardSet = set()
         self.rHeaderPool = dict()
+        self.rMinorHeaderPool = dict()
         self.txCounter60s = ExpiryCounter(60)
 
         self.__recoverFromDb()
+
+    def __getLastMinorBlockInRootBlock(self, rootBlock):
+        lHeader = None
+        for mHeader in rootBlock.minorBlockHeaderList:
+            if mHeader.branch != self.branch:
+                continue
+
+            if lHeader is None or mHeader.height > lHeader.height:
+                lHeader = mHeader
+
+        check(lHeader is not None)
+        return lHeader
 
     def __recoverFromDb(self):
         Logger.info("Recovering shard state from local database...")
@@ -108,20 +122,26 @@ class ShardDb:
         start = prefix
         end = prefix + b"\xff" * 32
         numBytesToSkip = len(prefix)
-        Logger.info("Recovering mHeaderPool ...")
+        Logger.info("Recovering rHeaderPool ...")
         for k, v in self.db.rangeIter(start, end):
             rootBlock = RootBlock.deserialize(v)
             self.rHeaderPool[k[numBytesToSkip:]] = rootBlock.header
+            # TODO: genesis root block should contain minor header in future
+            if rootBlock.header.height != 0:
+                self.rMinorHeaderPool[k[numBytesToSkip:]] = self.__getLastMinorBlockInRootBlock(rootBlock)
             Logger.debug("Recovered root header height {} hash {}".format(
                 rootBlock.header.height, k[numBytesToSkip:]))
 
     # ------------------------- Root block db operations --------------------------------
-    def putRootBlock(self, rootBlock, rootBlockHash=None):
+    def putRootBlock(self, rootBlock, rMinorHeader, rootBlockHash=None):
+        ''' rMinorHeader: the minor header of the shard in the root block with largest height
+        '''
         if rootBlockHash is None:
             rootBlockHash = rootBlock.header.getHash()
 
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
         self.rHeaderPool[rootBlockHash] = rootBlock.header
+        self.rMinorHeaderPool[rootBlockHash] = rMinorHeader
 
     def getRootBlockByHash(self, h):
         return RootBlock.deserialize(self.db.get(b"rblock_" + h))
@@ -131,6 +151,9 @@ class ShardDb:
 
     def containRootBlockByHash(self, h):
         return h in self.rHeaderPool
+
+    def getLastMinorBlockInRootBlock(self, h):
+        return self.rMinorHeaderPool.get(h)
 
     # ------------------------- Minor block db operations --------------------------------
     def putMinorBlock(self, mBlock, evmState, mBlockHash=None):
@@ -238,7 +261,8 @@ class ShardState:
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
-        self.db = ShardDb(self.rawDb)
+        self.branch = Branch.create(env.config.SHARD_SIZE, shardId)
+        self.db = ShardDb(self.rawDb, self.branch)
         self.txQueue = TransactionQueue()
         self.initialized = False
 
@@ -301,10 +325,10 @@ class ShardState:
             hashRootBlock=genesisRootBlock.header.getHash(),
             evmState=self.evmState)
 
-        self.branch = genesisMinorBlock.header.branch
+        check(genesisMinorBlock.header.branch == self.branch)
         self.db.putMinorBlock(genesisMinorBlock, self.evmState)
         self.db.putMinorBlockIndex(genesisMinorBlock)
-        self.db.putRootBlock(genesisRootBlock)
+        self.db.putRootBlock(genesisRootBlock, genesisMinorBlock.header)
 
         self.rootTip = genesisRootBlock.header
         # Tips that are confirmed by root
@@ -377,6 +401,15 @@ class ShardState:
         state.prev_headers = []                          # TODO: state.add_block_header(block.header)
         return state
 
+    def __isSameChain(self, longerBlockHeader, shorterBlockHeader):
+        if shorterBlockHeader.height > longerBlockHeader.height:
+            return False
+
+        header = longerBlockHeader
+        for i in range(longerBlockHeader.height - shorterBlockHeader.height):
+            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+        return header == shorterBlockHeader
+
     def __validateBlock(self, block):
         ''' Validate a block before running evm transactions
         '''
@@ -433,6 +466,9 @@ class ShardState:
 
         if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock).height:
             raise ValueError("prev root block height must be non-decreasing")
+
+        if not self.__isSameChain(prevHeader, self.db.getLastMinorBlockInRootBlock(block.header.hashPrevRootBlock)):
+            raise ValueError("prev root block's minor block is not in the same chain as the minor block")
 
     def runBlock(self, block, evmState=None):
         if evmState is None:
@@ -731,7 +767,7 @@ class ShardState:
         # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
         check(shardHeader is not None)
 
-        self.db.putRootBlock(rBlock)
+        self.db.putRootBlock(rBlock, shardHeader)
 
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
