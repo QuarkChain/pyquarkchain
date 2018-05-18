@@ -199,6 +199,25 @@ class Serializable():
         return hash(tuple(hList))
 
 
+class Optional:
+
+    def __init__(self, serializer):
+        self.serializer = serializer
+
+    def serialize(self, obj, barray):
+        if obj is None:
+            barray.append(0)
+            return
+        barray.append(1)
+        self.serializer.serialize(obj, barray)
+
+    def deserialize(self, bb):
+        hasData = bb.getUint8()
+        if hasData == 0:
+            return None
+        return self.serializer.deserialize(bb)
+
+
 uint8 = UintSerializer(1)
 uint16 = UintSerializer(2)
 uint32 = UintSerializer(4)
