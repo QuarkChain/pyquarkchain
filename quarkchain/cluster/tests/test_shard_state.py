@@ -313,8 +313,21 @@ class TestShardState(unittest.TestCase):
             .finalize()
         state0.addRootBlock(rB1)
 
+        # Test x-shard gas limit when createBlockToMine
+        b5 = state0.createBlockToMine(address=acc3, gasLimit=0)
+        # Current algorithm allows at least one root block to be included
+        self.assertEqual(b5.header.hashPrevRootBlock, rB0.header.getHash())
+        b6 = state0.createBlockToMine(address=acc3, gasLimit=opcodes.GTXXSHARDCOST)
+        self.assertEqual(b6.header.hashPrevRootBlock, rB0.header.getHash())
+        # There are two x-shard txs: one is root block coinbase, and anonther is from shard 1
+        b7 = state0.createBlockToMine(address=acc3, gasLimit=2 * opcodes.GTXXSHARDCOST)
+        self.assertEqual(b7.header.hashPrevRootBlock, rB0.header.getHash())
+        b8 = state0.createBlockToMine(address=acc3, gasLimit=3 * opcodes.GTXXSHARDCOST)
+        self.assertEqual(b8.header.hashPrevRootBlock, rB1.header.getHash())
+
         # Add b0 and make sure all x-shard tx's are added
         b4 = state0.createBlockToMine(address=acc3)
+        self.assertEqual(b4.header.hashPrevRootBlock, rB1.header.getHash())
         state0.finalizeAndAddBlock(b4)
 
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888 + 385723)

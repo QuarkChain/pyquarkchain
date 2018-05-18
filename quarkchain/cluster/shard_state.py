@@ -744,7 +744,7 @@ class ShardState:
                 Logger.errorException()
                 return
 
-    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxConfig=None):
+    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxConfig=None, gasLimit=None):
         """ Create a block to append and include TXs to maximize rewards
         """
         if not createTime:
@@ -755,18 +755,19 @@ class ShardState:
             address=address,
             difficulty=difficulty,
         )
-        block.header.hashPrevRootBlock = self.rootTip.getHash()
 
         evmState = self.__getEvmStateForNewBlock(block)
         prevHeader = self.headerTip
 
         ancestorRootHeader = self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)
         check(self.__isSameRootChain(self.rootTip, ancestorRootHeader))
-
-        self.__runCrossShardTxList(
+        if gasLimit is not None:
+            # Set gasLimit.  Since gas limit is auto adjusted between blocks, this is for test purpose only.
+            evmState.gas_limit = gasLimit
+        block.header.hashPrevRootBlock = self.__includeCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=self.rootTip,
-            ancestorRootHeader=ancestorRootHeader)
+            ancestorRootHeader=ancestorRootHeader).getHash()
 
         while evmState.gas_used < evmState.gas_limit:
             evmTx = self.txQueue.pop_transaction(
@@ -890,6 +891,34 @@ class ShardState:
                 amount=rBlock.header.coinbaseAmount,
                 gasPrice=0))
         return txList
+
+    def __includeCrossShardTxList(self, evmState, descendantRootHeader, ancestorRootHeader):
+        ''' Include cross-shard transaction as much as possible by confirming root header as much as possible
+        '''
+        if descendantRootHeader == ancestorRootHeader:
+            return ancestorRootHeader
+
+        # Find all unconfirmed root headers
+        rHeader = descendantRootHeader
+        headerList = []
+        while rHeader != ancestorRootHeader:
+            check(rHeader.height > ancestorRootHeader.height)
+            headerList.append(rHeader)
+            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
+
+        # Add root headers.  Return if we run out of gas.
+        for rHeader in reversed(headerList):
+            txList = self.__getCrossShardTxListByRootBlockHash(rHeader.getHash())
+            for tx in txList:
+                evmState.delta_balance(tx.address.recipient, tx.amount)
+                evmState.gas_used = min(evmState.gas_used + opcodes.GTXXSHARDCOST, evmState.gas_limit)
+                evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
+                evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
+
+            if evmState.gas_used == evmState.gas_limit:
+                return rHeader
+
+        return descendantRootHeader
 
     def __runCrossShardTxList(self, evmState, descendantRootHeader, ancestorRootHeader):
         rHeader = descendantRootHeader
