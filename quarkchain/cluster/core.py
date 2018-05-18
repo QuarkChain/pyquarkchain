@@ -169,7 +169,7 @@ class RootBlockHeader(Serializable):
     def getHash(self):
         return sha3_256(self.serialize())
 
-    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
         createTime = self.createTime + 1 if createTime is None else createTime
         address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
@@ -180,7 +180,7 @@ class RootBlockHeader(Serializable):
                                  hashMerkleRoot=bytes(32),
                                  createTime=createTime,
                                  difficulty=difficulty,
-                                 nonce=0)
+                                 nonce=nonce)
         return RootBlock(header)
 
 
@@ -210,8 +210,12 @@ class RootBlock(Serializable):
         self.minorBlockHeaderList.extend(headerList)
         return self
 
-    def createBlockToAppend(self, createTime=None, difficulty=None, address=None):
-        return self.header.createBlockToAppend(createTime=createTime, difficulty=difficulty, address=address)
+    def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
+        return self.header.createBlockToAppend(
+            createTime=createTime,
+            difficulty=difficulty,
+            address=address,
+            nonce=nonce)
 
 
 class CrossShardTransactionDeposit(Serializable):

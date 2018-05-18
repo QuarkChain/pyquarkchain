@@ -265,3 +265,57 @@ class TestRootState(unittest.TestCase):
 
         recoveredState = RootState(env=env)
         self.assertEqual(recoveredState.tip, rB1.header)
+
+    def testAddRootBlockWithMinorBlockWithWrongRootBlockHash(self):
+        ''' Test for the following case
+                 +--+    +--+
+                 |r1|<---|r3|
+                /+--+    +--+
+               /   |      |
+        +--+  /  +--+    +--+
+        |r0|<----|m1|<---|m2|
+        +--+  \  +--+    +--+
+               \   |      |
+                \+--+     |
+                 |r2|<----+
+                 +--+
+
+        where r3 is invalid because m2 depends on r2, which is not in the r3 chain.
+        '''
+        env = get_test_env(shardSize=1)
+        rState, sStates = create_default_state(env)
+
+        rB0 = rState.getTipBlock()
+
+        m1 = sStates[0].getTip().createBlockToAppend()
+        add_minor_block_to_cluster(sStates, m1)
+
+        rState.addValidatedMinorBlockHash(m1.header.getHash())
+        rB1 = rB0.createBlockToAppend(nonce=0) \
+            .addMinorBlockHeader(m1.header) \
+            .finalize()
+        rB2 = rB0.createBlockToAppend(nonce=1) \
+            .addMinorBlockHeader(m1.header) \
+            .finalize()
+
+        self.assertTrue(rState.addBlock(rB1))
+        self.assertFalse(rState.addBlock(rB2))
+        self.assertTrue(sStates[0].addRootBlock(rB1))
+        self.assertFalse(sStates[0].addRootBlock(rB2))
+
+        m2 = m1.createBlockToAppend()
+        m2.header.hashPrevRootBlock = rB2.header.getHash()
+        add_minor_block_to_cluster(sStates, m2)
+
+        rState.addValidatedMinorBlockHash(m2.header.getHash())
+        rB3 = rB1.createBlockToAppend() \
+            .addMinorBlockHeader(m2.header) \
+            .finalize()
+
+        with self.assertRaises(ValueError):
+            rState.addBlock(rB3)
+
+        rB4 = rB2.createBlockToAppend() \
+            .addMinorBlockHeader(m2.header) \
+            .finalize()
+        self.assertTrue(rState.addBlock(rB4))

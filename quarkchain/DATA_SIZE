@@ -1,5 +1,5 @@
 RootBlockHeader: 120
 MinorBlockHeader: 120
 cluster.RootBlockHeader: 144
-cluster.MinorBlockHeader: 136
+cluster.MinorBlockHeader: 168
 Transaction: 162

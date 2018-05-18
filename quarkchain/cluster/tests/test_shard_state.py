@@ -575,4 +575,3 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(recoveredState.metaTip, blockMetas[10])
         self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[10])
         self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[10].hashEvmStateRoot)
-
