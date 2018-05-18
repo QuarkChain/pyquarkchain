@@ -232,7 +232,94 @@ class TestShardState(unittest.TestCase):
         state0.finalizeAndAddBlock(b2)
 
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888)
+        # Half collected by root
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)
+
+    def testXshardForTwoRootBlocks(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createRandomAccount()
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env0 = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        env1 = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state0 = create_default_shard_state(env=env0, shardId=0)
+        state1 = create_default_shard_state(env=env1, shardId=1)
+
+        # Add one block in shard 0
+        b0 = state0.createBlockToMine()
+        state0.finalizeAndAddBlock(b0)
+
+        b1 = state1.getTip().createBlockToAppend()
+        evmTx = create_transfer_transaction(
+            shardState=state1,
+            fromId=id1,
+            toAddress=acc2,
+            amount=0,
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gasPrice=2,
+            withdraw=888888,
+            withdrawTo=bytes(acc1.serialize()))
+        b1.addTx(evmTx)
+
+        # Add a x-shard tx from remote peer
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b1.header.getHash(),
+            txList=CrossShardTransactionList(txList=[
+                CrossShardTransactionDeposit(
+                    address=acc1,
+                    amount=888888,
+                    gasPrice=2)
+            ]))
+
+        # Create a root block containing the block with the x-shard tx
+        rB0 = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+        state0.addRootBlock(rB0)
+
+        b2 = state0.getTip().createBlockToAppend()
+        state0.finalizeAndAddBlock(b2)
+
+        b3 = b1.createBlockToAppend()
+        evmTx = create_transfer_transaction(
+            shardState=state1,
+            fromId=id1,
+            toAddress=acc2,
+            amount=0,
+            startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gasPrice=3,
+            withdraw=385723,
+            withdrawTo=bytes(acc1.serialize()))
+
+        # Add a x-shard tx from remote peer
+        state0.addCrossShardTxListByMinorBlockHash(
+            h=b3.header.getHash(),
+            txList=CrossShardTransactionList(txList=[
+                CrossShardTransactionDeposit(
+                    address=acc1,
+                    amount=385723,
+                    gasPrice=3)
+            ]))
+
+        rB1 = state0.rootTip.createBlockToAppend() \
+            .addMinorBlockHeader(b2.header) \
+            .addMinorBlockHeader(b3.header) \
+            .finalize()
+        state0.addRootBlock(rB1)
+
+        # Add b0 and make sure all x-shard tx's are added
+        b4 = state0.createBlockToMine(address=acc3)
+        state0.finalizeAndAddBlock(b4)
+
+        self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888 + 385723)
+        # Half collected by root
+        self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * (2 + 3) // 2)
 
     def testForkResolve(self):
         id1 = Identity.createRandomIdentity()
