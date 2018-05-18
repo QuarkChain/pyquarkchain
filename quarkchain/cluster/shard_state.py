@@ -785,7 +785,7 @@ class ShardState:
             if evmState.gas_used == evmState.gas_limit:
                 raise ValueError("gas consumed by cross-shard tx exceeding limit")
 
-            txList = self.__getCrossShardTxListByRootBlockHash(descendantRootHeader.getHash())
+            txList = self.__getCrossShardTxListByRootBlockHash(rHeader.getHash())
             for tx in txList:
                 evmState.delta_balance(tx.address.recipient, tx.amount)
                 evmState.gas_used = min(evmState.gas_used + opcodes.GTXXSHARDCOST, evmState.gas_limit)
