@@ -99,6 +99,27 @@ def bool_decoder(data):
     return data
 
 
+def root_block_encoder(block):
+    header = block.header
+
+    d = {
+        "id": data_encoder(header.getHash()),
+        "height": quantity_encoder(header.height),
+        "hash": data_encoder(header.getHash()),
+        "hashPrevBlock": data_encoder(header.hashPrevBlock),
+        "idPrevBlock": data_encoder(header.hashPrevBlock),
+        "nonce": quantity_encoder(header.nonce),
+        "hashMerkleRoot": data_encoder(header.hashMerkleRoot),
+        "miner": address_encoder(header.coinbaseAddress.serialize()),
+        "difficulty": quantity_encoder(header.difficulty),
+        "timestamp": quantity_encoder(header.createTime),
+        "size": quantity_encoder(len(block.serialize())),
+    }
+
+    d["minorBlockHeaders"] = [id_encoder(header.getHash(), header.branch) for header in block.minorBlockHeaderList]
+    return d
+
+
 def minor_block_encoder(block, include_transactions=False):
     """Encode a block as JSON object.
 
@@ -482,6 +503,23 @@ class JSONRPCServer:
     @methods.add
     async def getStats(self):
         return await self.master.getStats()
+
+    @methods.add
+    @decode_arg("blockId", data_decoder)
+    async def getRootBlockById(self, blockId):
+        if not self.master.rootState.containRootBlockByHash(blockId):
+            return None
+
+        block = self.master.rootState.getRootBlockByHash(blockId)
+        return root_block_encoder(block)
+
+    @methods.add
+    @decode_arg("height", quantity_decoder)
+    async def getRootBlockByHeight(self, height):
+        block = self.master.rootState.getRootBlockByHeight(height)
+        if not block:
+            return None
+        return root_block_encoder(block)
 
     @methods.add
     @decode_arg("blockId", data_decoder)
