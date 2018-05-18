@@ -117,6 +117,8 @@ def minor_block_encoder(block, include_transactions=False):
         'branch': quantity_encoder(header.branch.value),
         'shard': quantity_encoder(header.branch.getShardId()),
         'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
+        'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch),
+        'hashPrevRootBlock': data_encoder(meta.hashPrevRootBlock),
         'hashPrevRootBlock': data_encoder(meta.hashPrevRootBlock),
         'nonce': quantity_encoder(header.nonce),
         'hashMerkleRoot': data_encoder(meta.hashMerkleRoot),
