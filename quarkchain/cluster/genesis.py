@@ -9,8 +9,7 @@ def create_genesis_minor_block(env, shardId, evmState, hashRootBlock=bytes(32)):
     evmState.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
     evmState.commit()
 
-    meta = MinorBlockMeta(hashPrevRootBlock=hashRootBlock,
-                          hashMerkleRoot=bytes(32),
+    meta = MinorBlockMeta(hashMerkleRoot=bytes(32),
                           hashEvmStateRoot=evmState.trie.root_hash,
                           coinbaseAddress=env.config.GENESIS_ACCOUNT.addressInBranch(branch),
                           extraData=b'It was the best of times, it was the worst of times, ... - Charles Dickens')
@@ -18,6 +17,7 @@ def create_genesis_minor_block(env, shardId, evmState, hashRootBlock=bytes(32)):
                               height=0,
                               branch=branch,
                               hashPrevMinorBlock=bytes(32),
+                              hashPrevRootBlock=hashRootBlock,
                               hashMeta=sha3_256(meta.serialize()),
                               coinbaseAmount=env.config.GENESIS_MINOR_COIN,
                               createTime=env.config.GENESIS_CREATE_TIME,

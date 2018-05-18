@@ -480,9 +480,9 @@ class TestShardState(unittest.TestCase):
 
         b1 = state.getTip().createBlockToAppend()
         b2 = state.getTip().createBlockToAppend(nonce=1)
-        b2.meta.hashPrevRootBlock = rB.header.getHash()
+        b2.header.hashPrevRootBlock = rB.header.getHash()
         b3 = state.getTip().createBlockToAppend(nonce=2)
-        b3.meta.hashPrevRootBlock = rB.header.getHash()
+        b3.header.hashPrevRootBlock = rB.header.getHash()
 
         state.finalizeAndAddBlock(b1)
         self.assertEqual(state.headerTip, b1.header)
@@ -575,4 +575,3 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(recoveredState.metaTip, blockMetas[10])
         self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[10])
         self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[10].hashEvmStateRoot)
-

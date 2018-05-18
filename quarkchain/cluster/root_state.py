@@ -193,6 +193,15 @@ class RootState:
 
         return blockHash
 
+    def __isSameChain(self, longerBlockHeader, shorterBlockHeader):
+        if shorterBlockHeader.height > longerBlockHeader.height:
+            return False
+
+        header = longerBlockHeader
+        for i in range(longerBlockHeader.height - shorterBlockHeader.height):
+            header = self.db.getRootBlockHeaderByHash(header.hashPrevBlock)
+        return header == shorterBlockHeader
+
     def validateBlock(self, block, blockHash=None):
         if not self.db.containRootBlockByHash(block.header.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
@@ -219,6 +228,10 @@ class RootState:
                 if mHeader.createTime > block.header.createTime:
                     raise ValueError("minor block create time is too large {}>{}".format(
                         mHeader.createTime, block.header.createTime))
+                if not self.__isSameChain(
+                        self.db.getRootBlockHeaderByHash(block.header.hashPrevBlock),
+                        self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
+                    raise ValueError("minor block's prev root block must be in the same chain")
 
                 lastMinorBlockHeaderList.append(block.minorBlockHeaderList[idx - 1])
                 shardId += 1
@@ -239,6 +252,13 @@ class RootState:
             raise ValueError("fail to prove progress")
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             raise ValueError("fail to prove progress")
+        if mHeader.createTime > block.header.createTime:
+            raise ValueError("minor block create time is too large {}>{}".format(
+                mHeader.createTime, block.header.createTime))
+        if not self.__isSameChain(
+                self.db.getRootBlockHeaderByHash(block.header.hashPrevBlock),
+                self.db.getRootBlockHeaderByHash(mHeader.hashPrevRootBlock)):
+            raise ValueError("minor block's prev root block must be in the same chain")
         lastMinorBlockHeaderList.append(mHeader)
 
         return blockHash, lastMinorBlockHeaderList
