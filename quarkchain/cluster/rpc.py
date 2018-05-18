@@ -310,17 +310,28 @@ class GetAccountDataRequest(Serializable):
         self.address = address
 
 
-class GetAccountDataResponse(Serializable):
+class AccountBranchData(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("branch", Branch),
         ("transactionCount", uint256),
         ("balance", uint256),
     ]
 
-    def __init__(self, errorCode, transactionCount, balance):
-        self.errorCode = errorCode
+    def __init__(self, branch, transactionCount, balance):
+        self.branch = branch
         self.transactionCount = transactionCount
         self.balance = balance
+
+
+class GetAccountDataResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("accountBranchDataList", PreprendedSizeListSerializer(4, AccountBranchData)),
+    ]
+
+    def __init__(self, errorCode, accountBranchDataList):
+        self.errorCode = errorCode
+        self.accountBranchDataList = accountBranchDataList
 
 
 class AddTransactionRequest(Serializable):

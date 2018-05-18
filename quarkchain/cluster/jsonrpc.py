@@ -25,6 +25,8 @@ default_gasprice = 60 * denoms.shannon
 
 def quantity_decoder(data):
     """Decode `data` representing a quantity."""
+    if not data.isdigit():
+        return InvalidParams()
     try:
         return int(data, 10)
     except ValueError:
@@ -143,8 +145,16 @@ def tx_encoder(block, i):
     """
     tx = block.txList[i]
     evmTx = tx.code.getEvmTransaction()
-    to = evmTx.to if evmTx.withdraw == 0 else evmTx.withdrawTo
-    value = evmTx.value if evmTx.withdraw == 0 else evmTx.withdraw
+    branch = Branch(evmTx.branchValue)
+    if evmTx.withdraw == 0:
+        to = evmTx.to
+        value = evmTx.value
+        toShard = block.header.branch.getShardId()
+    else:
+        toAddr = Address.deserialize(evmTx.withdrawTo)
+        to = toAddr.recipient
+        value = evmTx.withdraw
+        toShard = toAddr.getShardId(branch.getShardSize())
     return {
         'id': id_encoder(tx.getHash(), block.header.branch),
         'hash': data_encoder(tx.getHash()),
@@ -155,12 +165,13 @@ def tx_encoder(block, i):
         'transactionIndex': quantity_encoder(i),
         'from': data_encoder(evmTx.sender),
         'to': data_encoder(to),
+        'toShard': quantity_encoder(toShard),
         'value': quantity_encoder(value),
         'gasPrice': quantity_encoder(evmTx.gasprice),
         'gas': quantity_encoder(evmTx.startgas),
         'data': data_encoder(evmTx.data),
-        'branch': quantity_encoder(evmTx.branchValue),
-        'shard': quantity_encoder(block.header.branch.getShardId()),
+        'branch': quantity_encoder(branch.value),
+        'shard': quantity_encoder(branch.getShardId()),
         # 'withdraw': quantity_encoder(evmTx.withdraw),
         # 'withdrawTo': data_encoder(evmTx.withdrawTo),
         'networkId': quantity_encoder(evmTx.networkId),
@@ -238,7 +249,9 @@ class JSONRPCServer:
     @methods.add
     @decode_arg("address", address_decoder)
     async def getTransactionCount(self, address):
-        branch, count = await self.master.getTransactionCount(Address.deserialize(address))
+        accountBranchData = await self.master.getPrimaryAccountData(Address.deserialize(address))
+        branch = accountBranchData.branch
+        count = accountBranchData.transactionCount
         return {
             "branch": quantity_encoder(branch.value),
             "count": quantity_encoder(count),
@@ -247,12 +260,33 @@ class JSONRPCServer:
     @methods.add
     @decode_arg("address", address_decoder)
     async def getBalance(self, address):
-        branch, balance = await self.master.getBalance(Address.deserialize(address))
+        accountBranchData = await self.master.getPrimaryAccountData(Address.deserialize(address))
+        branch = accountBranchData.branch
+        balance = accountBranchData.balance
         return {
             "branch": quantity_encoder(branch.value),
             "shard": quantity_encoder(branch.getShardId()),
             "balance": quantity_encoder(balance),
         }
+
+    @methods.add
+    @decode_arg("address", address_decoder)
+    async def getAccountData(self, address):
+        address = Address.deserialize(address)
+        branchToAccountBranchData = await self.master.getAccountData(address)
+        shardSize = self.master.getShardSize()
+
+        ret = []
+        for shard in range(shardSize):
+            branch = Branch.create(shardSize, shard)
+            accountBranchData = branchToAccountBranchData[branch]
+            ret.append({
+                "branch": quantity_encoder(accountBranchData.branch.value),
+                "shard": quantity_encoder(accountBranchData.branch.getShardId()),
+                "balance": quantity_encoder(accountBranchData.balance),
+                "transactionCount": quantity_encoder(accountBranchData.transactionCount),
+            })
+        return ret
 
     @methods.add
     async def sendUnsignedTransaction(self, **data):
@@ -292,7 +326,9 @@ class JSONRPCServer:
             value = 0
             withdrawTo = bytes(toAddr.serialize())
 
-        branch, nonce = await self.master.getTransactionCount(fromAddr)
+        accountData = await self.master.getPrimaryAccountData(fromAddr)
+        branch = accountData.branch
+        nonce = accountData.transactionCount
         evmTx = EvmTransaction(
             nonce, gasprice, startgas, toAddr.recipient, value, data_,
             branchValue=branch.value,
@@ -345,7 +381,9 @@ class JSONRPCServer:
             value = 0
             withdrawTo = bytes(toAddr.serialize())
 
-        branch, nonce = await self.master.getTransactionCount(fromAddr)
+        accountData = await self.master.getPrimaryAccountData(fromAddr)
+        branch = accountData.branch
+        nonce = accountData.transactionCount
         evmTx = EvmTransaction(
             nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
             branchValue=branch.value,

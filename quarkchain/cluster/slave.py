@@ -20,6 +20,7 @@ from quarkchain.cluster.rpc import (
     CreateClusterPeerConnectionResponse,
     GetStatsResponse, SyncMinorBlockListResponse,
     GetMinorBlockResponse, GetTransactionResponse,
+    AccountBranchData,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -386,18 +387,11 @@ class MasterConnection(ClusterConnection):
             headersInfoList=headersInfoList,
         )
 
-    async def handleAccountDataRequest(self, req):
-        count = self.slaveServer.getTransactionCount(req.address)
-        balance = self.slaveServer.getBalance(req.address)
-        errorCode = 0
-        if count is None or balance is None:
-            errorCode = errno.EBADMSG
-            count = -1
-            balance = -1
+    async def handleGetAccountDataRequest(self, req):
+        accountBranchDataList = self.slaveServer.getAccountData(req.address)
         return GetAccountDataResponse(
-            errorCode=errorCode,
-            transactionCount=count,
-            balance=balance,
+            errorCode=0,
+            accountBranchDataList=accountBranchDataList,
         )
 
     async def handleAddTransaction(self, req):
@@ -519,7 +513,7 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST:
         (ClusterOp.GET_UNCONFIRMED_HEADERS_RESPONSE, MasterConnection.handleGetUnconfirmedHeaderListRequest),
     ClusterOp.GET_ACCOUNT_DATA_REQUEST:
-        (ClusterOp.GET_ACCOUNT_DATA_RESPONSE, MasterConnection.handleAccountDataRequest),
+        (ClusterOp.GET_ACCOUNT_DATA_RESPONSE, MasterConnection.handleGetAccountDataRequest),
     ClusterOp.ADD_TRANSACTION_REQUEST:
         (ClusterOp.ADD_TRANSACTION_RESPONSE, MasterConnection.handleAddTransaction),
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST:
@@ -805,6 +799,16 @@ class SlaveServer():
         if branch.value not in self.shardStateMap:
             return None
         return self.shardStateMap[branch.value].getBalance(address.recipient)
+
+    def getAccountData(self, address):
+        results = []
+        for branchValue, shardState in self.shardStateMap.items():
+            results.append(AccountBranchData(
+                branch=Branch(branchValue),
+                transactionCount=shardState.getTransactionCount(address.recipient),
+                balance=shardState.getBalance(address.recipient),
+            ))
+        return results
 
     def getStats(self):
         shardStatsList = []
