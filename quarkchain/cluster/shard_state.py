@@ -241,6 +241,10 @@ class ShardState:
         self.txQueue = TransactionQueue()
         self.initialized = False
 
+        # assure ShardState is in good shape after constructor returns though we still
+        # rely on master calling initFromRootBlock to bring the cluster into consistency
+        self.__createGenesisBlocks(shardId)
+
     def initFromRootBlock(self, rootBlock):
         ''' Master will send its root chain tip when it connects to slaves.
         Shards will initialize its state based on the root block.
@@ -261,7 +265,6 @@ class ShardState:
             rootBlock.header.height, rootBlock.header.getHash()))
 
         if rootBlock.header.height == 0:
-            self.__createGenesisBlocks(self.shardId)
             Logger.info("Created genesis block")
             return
 
@@ -743,6 +746,8 @@ class ShardState:
             origBlock = self.db.getMinorBlockByHeight(shardHeader.height)
             if not origBlock or origBlock.header != shardHeader:
                 self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(shardHeader.getHash()))
+                # TODO: shardHeader might not be the tip of the longest chain
+                # need to switch to the tip of the longest chain
                 self.headerTip = shardHeader
                 self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
             return True
