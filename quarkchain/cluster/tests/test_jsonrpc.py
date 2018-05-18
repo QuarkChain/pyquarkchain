@@ -225,7 +225,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(response["isRootBlock"])
             block = RootBlock.deserialize(bytes.fromhex(response["blockData"]))
 
-            self.assertEqual(block.header.height, 1)
+            self.assertEqual(block.header.height, 2)
             self.assertEqual(len(block.minorBlockHeaderList), 2)
             self.assertEqual(block.minorBlockHeaderList[0], block1.header)
             self.assertEqual(block.minorBlockHeaderList[1], block2.header)
@@ -291,14 +291,14 @@ class TestJSONRPC(unittest.TestCase):
             self.assertIsNone(resp)
 
             # By height
-            resp = sendRequest("getMinorBlockByHeight", "0", "1", False)
+            resp = sendRequest("getMinorBlockByHeight", "0", "2", False)
             self.assertEqual(resp["transactions"][0], tx.getHash().hex() + "02")
-            resp = sendRequest("getMinorBlockByHeight", "0", "1", True)
+            resp = sendRequest("getMinorBlockByHeight", "0", "2", True)
             self.assertEqual(resp["transactions"][0]["hash"], tx.getHash().hex())
 
-            resp = sendRequest("getMinorBlockByHeight", "2", "2", False)
+            resp = sendRequest("getMinorBlockByHeight", "2", "3", False)
             self.assertIsNone(resp)
-            resp = sendRequest("getMinorBlockByHeight", "0", "4", False)
+            resp = sendRequest("getMinorBlockByHeight", "0", "5", False)
             self.assertIsNone(resp)
 
     def testGetTransactionById(self):
