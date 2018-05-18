@@ -353,7 +353,7 @@ class MasterConnection(ClusterConnection):
 
         block = self.shardStateMap[branchValue].createBlockToMine(
             address=req.address,
-            artificialTxCount=req.artificialTxCount,
+            artificialTxConfig=req.artificialTxConfig,
         )
         response = GetNextBlockToMineResponse(
             errorCode=0,

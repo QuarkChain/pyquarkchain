@@ -495,9 +495,8 @@ class JSONRPCServer:
         return await self.master.addRawMinorBlock(Branch(branch), blockData)
 
     @methods.add
-    @decode_arg("count", quantity_decoder)
-    async def setArtificialTxCount(self, count, seconds=60):
-        self.master.setArtificialTxCount(count, seconds)
+    async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds=60):
+        self.master.setArtificialTxConfig(numTxPerBlock, xShardTxPercent, seconds)
 
     @methods.add
     async def getStats(self):
