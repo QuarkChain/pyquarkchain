@@ -138,7 +138,6 @@ class ShardDb:
             mBlockHash = mBlock.header.getHash()
 
         self.db.put(b"mblock_" + mBlockHash, mBlock.serialize())
-        self.db.put(b"state_" + mBlockHash, evmState.trie.root_hash)
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
 
@@ -148,7 +147,10 @@ class ShardDb:
         return self.mHeaderPool.get(h)
 
     def getMinorBlockEvmRootHashByHash(self, h):
-        return self.db.get(b"state_" + h)
+        meta = self.mMetaPool[h]
+        if meta is None:
+            return None
+        return meta.hashEvmStateRoot
 
     def getMinorBlockMetaByHash(self, h):
         return self.mMetaPool.get(h)
@@ -214,7 +216,6 @@ class ShardDb:
 
     def get(self, key, default=None):
 
-        print(key)
         return self.db.get(key, default)
 
     def __getitem__(self, key):
@@ -293,17 +294,12 @@ class ShardState:
 
     def __createGenesisBlocks(self, shardId):
         genesisRootBlock = create_genesis_root_block(self.env)
+        self.evmState = self.__createEvmState()
         genesisMinorBlock = create_genesis_minor_block(
             env=self.env,
             shardId=shardId,
-            hashRootBlock=genesisRootBlock.header.getHash())
-
-        self.evmState = self.__createEvmState()
-        self.evmState.block_coinbase = genesisMinorBlock.meta.coinbaseAddress.recipient
-        self.evmState.delta_balance(
-            self.evmState.block_coinbase,
-            self.env.config.GENESIS_MINOR_COIN)
-        self.evmState.commit()
+            hashRootBlock=genesisRootBlock.header.getHash(),
+            evmState=self.evmState)
 
         self.branch = genesisMinorBlock.header.branch
         self.db.putMinorBlock(genesisMinorBlock, self.evmState)

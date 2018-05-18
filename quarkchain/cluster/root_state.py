@@ -5,6 +5,7 @@ from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesi
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Serializable, PreprendedSizeListSerializer
 from quarkchain.utils import Logger
+from quarkchain.evm.state import State as EvmState
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -125,11 +126,13 @@ class RootState:
     def __createGenesisBlocks(self):
         genesisRootBlock = create_genesis_root_block(self.env)
         genesisMinorBlockHeaderList = []
+        evmState = EvmState(env=self.env.evmEnv, db=self.rawDb)
         for shardId in range(self.env.config.SHARD_SIZE):
             genesisMinorBlockHeaderList.append(
                 create_genesis_minor_block(
                     env=self.env,
                     shardId=shardId,
+                    evmState=evmState.ephemeral_clone(),
                     hashRootBlock=genesisRootBlock.header.getHash()).header)
         self.db.putRootBlock(genesisRootBlock, genesisMinorBlockHeaderList)
         self.tip = genesisRootBlock.header
