@@ -50,7 +50,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(len(block1.txList), 1)
 
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
-            self.assertEqual(call_async(master.getBalance(acc2)), (Branch(0b10), 12345))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc2)).balance, 12345)
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
@@ -83,9 +83,9 @@ class TestCluster(unittest.TestCase):
 
             self.assertTrue(call_async(slaves[1].addBlock(block3)))
             # Expect withdrawTo is included in acc3's balance
-            self.assertEqual(call_async(master.getBalance(acc3)), (Branch(0b11), 54321))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc3)).balance, 54321)
 
-    def testGetTransactionCount(self):
+    def testGetPrimaryAccountData(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount(fullShardId=1)
@@ -95,7 +95,7 @@ class TestCluster(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 0))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,
@@ -107,9 +107,8 @@ class TestCluster(unittest.TestCase):
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
-            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 1))
-            branch1 = Branch.create(2, 1)
-            self.assertEqual(call_async(master.getTransactionCount(acc2)), (branch1, 0))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 1)
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc2)).transactionCount, 0)
 
     def testAddTransaction(self):
         id1 = Identity.createRandomIdentity()

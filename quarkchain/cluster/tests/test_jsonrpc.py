@@ -46,7 +46,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 0))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,
@@ -261,7 +261,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 0))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,
@@ -302,7 +302,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getTransactionCount(acc1)), (branch, 0))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,

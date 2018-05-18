@@ -229,15 +229,6 @@ class SlaveConnection(ClusterConnection):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().closeWithError(error)
 
-    async def getAccountData(self, address):
-        request = GetAccountDataRequest(address)
-        _, resp, _ = await self.writeRpcRequest(
-            ClusterOp.GET_ACCOUNT_DATA_REQUEST,
-            request,
-        )
-        check(resp.errorCode == 0)
-        return resp
-
     async def addTransaction(self, tx):
         request = AddTransactionRequest(tx)
         _, resp, _ = await self.writeRpcRequest(
@@ -537,18 +528,31 @@ class MasterServer():
         return (None, None) if not block else (False, block)
 
     async def getAccountData(self, address):
+        ''' Returns a dict where key is Branch and value is AccountBranchData '''
+        futures = []
+        for slave in self.slavePool:
+            request = GetAccountDataRequest(address)
+            futures.append(slave.writeRpcRequest(ClusterOp.GET_ACCOUNT_DATA_REQUEST, request))
+        responses = await asyncio.gather(*futures)
+
+        # Slaves may run multiple copies of the same branch
+        # We only need one AccountBranchData per branch
+        branchToAccountBranchData = dict()
+        for response in responses:
+            _, response, _ = response
+            check(response.errorCode == 0)
+            for accountBranchData in response.accountBranchDataList:
+                branchToAccountBranchData[accountBranchData.branch] = accountBranchData
+
+        check(len(branchToAccountBranchData) == self.__getShardSize())
+        return branchToAccountBranchData
+
+    async def getPrimaryAccountData(self, address):
+        # TODO: Only query the shard who has the address
         shardId = address.getShardId(self.__getShardSize())
         branch = Branch.create(self.__getShardSize(), shardId)
-        resp = await self.getSlaveConnection(branch).getAccountData(address)
-        return Branch.create(self.__getShardSize(), shardId), resp
-
-    async def getTransactionCount(self, address):
-        branch, resp = await self.getAccountData(address)
-        return branch, resp.transactionCount
-
-    async def getBalance(self, address):
-        branch, resp = await self.getAccountData(address)
-        return branch, resp.balance
+        branchToAccountBranchData = await self.getAccountData(address)
+        return branchToAccountBranchData.get(branch, None)
 
     async def addTransaction(self, tx):
         branch = Branch(tx.code.getEvmTransaction().branchValue)
