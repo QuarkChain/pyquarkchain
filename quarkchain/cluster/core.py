@@ -16,7 +16,6 @@ class MinorBlockMeta(Serializable):
     """ Meta data that are not included in root block
     """
     FIELDS = [
-        ("hashPrevRootBlock", hash256),
         ("hashMerkleRoot", hash256),
         ("hashEvmStateRoot", hash256),
         ("coinbaseAddress", Address),
@@ -26,7 +25,6 @@ class MinorBlockMeta(Serializable):
     ]
 
     def __init__(self,
-                 hashPrevRootBlock=bytes(Constant.HASH_LENGTH),
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
                  coinbaseAddress=Address.createEmptyAccount(),
@@ -53,6 +51,7 @@ class MinorBlockHeader(Serializable):
         ("height", uint64),
         ("coinbaseAmount", uint256),
         ("hashPrevMinorBlock", hash256),
+        ("hashPrevRootBlock", hash256),
         ("hashMeta", hash256),
         ("createTime", uint64),
         ("difficulty", uint64),
@@ -65,6 +64,7 @@ class MinorBlockHeader(Serializable):
                  branch=Branch.create(1, 0),
                  coinbaseAmount=0,
                  hashPrevMinorBlock=bytes(Constant.HASH_LENGTH),
+                 hashPrevRootBlock=bytes(Constant.HASH_LENGTH),
                  hashMeta=bytes(Constant.HASH_LENGTH),
                  createTime=0,
                  difficulty=0,
@@ -99,7 +99,7 @@ class MinorBlock(Serializable):
 
     def finalize(self, evmState, hashPrevRootBlock=None):
         if hashPrevRootBlock is not None:
-            self.meta.hashPrevRootBlock = hashPrevRootBlock
+            self.header.hashPrevRootBlock = hashPrevRootBlock
         self.meta.hashEvmStateRoot = evmState.trie.root_hash
         self.meta.evmGasUsed = evmState.gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
@@ -120,8 +120,7 @@ class MinorBlock(Serializable):
                             nonce=0):
         if address is None:
             address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
-        meta = MinorBlockMeta(hashPrevRootBlock=self.meta.hashPrevRootBlock,
-                              coinbaseAddress=address,
+        meta = MinorBlockMeta(coinbaseAddress=address,
                               evmGasLimit=self.meta.evmGasLimit,
                               extraData=extraData)
 
@@ -132,6 +131,7 @@ class MinorBlock(Serializable):
                                   branch=self.header.branch,
                                   coinbaseAmount=quarkash,
                                   hashPrevMinorBlock=self.header.getHash(),
+                                  hashPrevRootBlock=self.header.hashPrevRootBlock,
                                   createTime=createTime,
                                   difficulty=difficulty,
                                   nonce=nonce)

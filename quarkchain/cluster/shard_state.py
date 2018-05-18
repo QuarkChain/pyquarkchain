@@ -427,23 +427,23 @@ class ShardState:
             raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
-        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock)
+        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
         if rootBlockHeader is None:
             raise ValueError("cannot find root block for the minor block")
 
-        if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock).height:
+        if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock).height:
             raise ValueError("prev root block height must be non-decreasing")
 
     def runBlock(self, block, evmState=None):
         if evmState is None:
             evmState = self.__getEvmStateForNewBlock(block, ephemeral=False)
-        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock)
-        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
+        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
+        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
 
         self.__runCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=rootBlockHeader,
-            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock))
+            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock))
 
         for idx, tx in enumerate(block.txList):
             try:
@@ -545,8 +545,8 @@ class ShardState:
             if block.header.height > self.headerTip.height:
                 updateTip = True
             elif block.header.height == self.headerTip.height:
-                updateTip = self.db.getRootBlockHeaderByHash(block.meta.hashPrevRootBlock).height > \
-                    self.db.getRootBlockHeaderByHash(self.metaTip.hashPrevRootBlock).height
+                updateTip = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock).height > \
+                    self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock).height
 
         if updateTip:
             self.__rewriteBlockIndexTo(block)
@@ -647,15 +647,15 @@ class ShardState:
             address=address,
             difficulty=difficulty,
         )
-        block.meta.hashPrevRootBlock = self.rootTip.getHash()
+        block.header.hashPrevRootBlock = self.rootTip.getHash()
 
         evmState = self.__getEvmStateForNewBlock(block)
-        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
+        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
 
         self.__runCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=self.rootTip,
-            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevMeta.hashPrevRootBlock))
+            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock))
 
         while evmState.gas_used < evmState.gas_limit:
             evmTx = self.txQueue.pop_transaction(
