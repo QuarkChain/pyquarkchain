@@ -57,6 +57,11 @@ class TestRootState(unittest.TestCase):
 
         self.assertTrue(rState.addBlock(rB))
 
+        self.assertIsNone(rState.getRootBlockByHeight(2))
+        self.assertEqual(rState.getRootBlockByHeight(1), rB)
+        self.assertEqual(rState.getRootBlockByHeight(0),
+                         rState.getRootBlockByHash(rB.header.hashPrevBlock))
+
     def testRootStateAndShardStateAddBlock(self):
         env = get_test_env()
         rState, sStates = create_default_state(env)
