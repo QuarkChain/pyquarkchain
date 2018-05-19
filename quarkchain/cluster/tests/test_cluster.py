@@ -268,3 +268,44 @@ class TestCluster(unittest.TestCase):
 
             self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip,
                              clusters[0].slaveList[0].shardStateMap[0b10].headerTip)
+
+    def testAddDuplicatedMinorBlock(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createRandomAccount(fullShardId=0)
+        acc3 = Address.createRandomAccount(fullShardId=1)
+
+        with ClusterContext(1, acc1) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            tx = create_transfer_transaction(
+                shardState=slaves[0].shardStateMap[2 | 0],
+                fromId=id1,
+                toAddress=acc2,
+                amount=12345,
+                withdraw=54321,
+                withdrawTo=bytes(acc3.serialize()),
+                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            )
+            self.assertTrue(slaves[0].addTx(tx))
+
+            b1 = slaves[0].shardStateMap[2 | 0].createBlockToMine(address=acc1)
+            self.assertTrue(call_async(slaves[0].addBlock(b1)))
+
+            b2 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
+            self.assertTrue(call_async(slaves[1].addBlock(b2)))
+
+            isRoot, rB = call_async(master.getNextBlockToMine(address=acc1))
+            call_async(master.addRootBlock(rB))
+
+            # b3 should include the withdraw of tx
+            b3 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
+
+            # adding b1, b2 again shouldn't affect b3 to be added later
+            self.assertFalse(call_async(slaves[0].addBlock(b1)))
+            self.assertFalse(call_async(slaves[1].addBlock(b2)))
+
+            self.assertTrue(call_async(slaves[1].addBlock(b3)))
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc3)).balance, 54321)
+

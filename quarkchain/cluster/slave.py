@@ -767,14 +767,23 @@ class SlaveServer():
 
     async def addBlock(self, block):
         branchValue = block.header.branch.value
-        if branchValue not in self.shardStateMap:
+        shardState = self.shardStateMap.get(branchValue, None)
+
+        if not shardState:
             return False
+
+        # shortcut if block is known to the cluster.
+        # we don't want to broadcastXshardTxList with empty xshard_list
+        # TODO: we probably need a better interface for addBlock to make this more obvious
+        if shardState.db.containMinorBlockByHash(block.header.getHash()):
+            return False
+
         try:
-            updateTip = self.shardStateMap[branchValue].addBlock(block)
+            updateTip = shardState.addBlock(block)
         except Exception as e:
             Logger.errorException()
             return False
-        await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
+        await self.broadcastXshardTxList(block, shardState.evmState.xshard_list)
         await self.sendMinorBlockHeaderToMaster(block.header)
 
         if updateTip:
