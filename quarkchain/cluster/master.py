@@ -307,7 +307,8 @@ class MasterServer():
         self.isUpdatingRootBlock = False
         self.name = name
 
-        self.artificialTxConfig = ArtificialTxConfig(0, 0)
+        self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
+        self.artificialTxConfig = self.defaultArtificialTxConfig
         self.synchronizer = None
 
     def __getShardSize(self):
@@ -663,13 +664,16 @@ class MasterServer():
 
     def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds):
         ''' Do NOT revert if seconds <= 0 '''
-        async def revertLater(oldConfig):
+        async def revertLater():
             await asyncio.sleep(seconds)
-            self.artificialTxConfig = oldConfig
+            self.artificialTxConfig = self.defaultArtificialTxConfig
 
+        newConfig = ArtificialTxConfig(numTxPerBlock, xShardTxPercent)
         if seconds > 0:
-            asyncio.ensure_future(revertLater(self.artificialTxConfig))
-        self.artificialTxConfig = ArtificialTxConfig(numTxPerBlock, xShardTxPercent)
+            asyncio.ensure_future(revertLater())
+        else:
+            self.defaultArtificialTxConfig = newConfig
+        self.artificialTxConfig = newConfig
 
     async def getStats(self):
         futures = []
