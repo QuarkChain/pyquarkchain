@@ -521,7 +521,7 @@ class TestShardState(unittest.TestCase):
         for i in range(0, 2 ** 32):
             b0.header.nonce = i
             if int.from_bytes(b0.header.getHash(), byteorder="big") * env.config.GENESIS_MINOR_DIFFICULTY < 2 ** 256:
-                self.assertTrue(state.addBlock(b0))
+                self.assertEqual(state.addBlock(b0), [])
                 break
             else:
                 with self.assertRaises(ValueError):

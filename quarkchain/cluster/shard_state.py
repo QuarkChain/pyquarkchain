@@ -547,9 +547,12 @@ class ShardState:
 
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
+        Returns None if block is already added.
+        Returns a list of CrossShardTransactionDeposit from block.
+        Raises on any error.
         """
         if self.db.containMinorBlockByHash(block.header.getHash()):
-            return False
+            return None
 
         # Throw exception if fail to run
         self.__validateBlock(block)
@@ -591,7 +594,7 @@ class ShardState:
             self.headerTip = block.header
             self.metaTip = block.meta
 
-        return True
+        return evmState.xshard_list
 
     def getTip(self):
         return self.db.getMinorBlockByHash(self.headerTip.getHash())

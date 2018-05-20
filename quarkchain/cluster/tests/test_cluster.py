@@ -269,7 +269,8 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip,
                              clusters[0].slaveList[0].shardStateMap[0b10].headerTip)
 
-    def testAddDuplicatedMinorBlock(self):
+    def testBroadcastCrossShardTransactions(self):
+        ''' Test the cross shard transactions are broadcasted to the destination shards '''
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount(fullShardId=0)
@@ -279,7 +280,7 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
-            tx = create_transfer_transaction(
+            tx1 = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[2 | 0],
                 fromId=id1,
                 toAddress=acc2,
@@ -288,24 +289,55 @@ class TestCluster(unittest.TestCase):
                 withdrawTo=bytes(acc3.serialize()),
                 startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             )
-            self.assertTrue(slaves[0].addTx(tx))
+            self.assertTrue(slaves[0].addTx(tx1))
 
             b1 = slaves[0].shardStateMap[2 | 0].createBlockToMine(address=acc1)
+
+            tx2 = create_transfer_transaction(
+                shardState=slaves[0].shardStateMap[2 | 0],
+                fromId=id1,
+                toAddress=acc2,
+                amount=12345,
+                withdraw=99999,
+                withdrawTo=bytes(acc3.serialize()),
+                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            )
+            self.assertTrue(slaves[0].addTx(tx2))
+
+            b2 = slaves[0].shardStateMap[2 | 0].createBlockToMine(address=acc1)
+
             self.assertTrue(call_async(slaves[0].addBlock(b1)))
 
-            b2 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
-            self.assertTrue(call_async(slaves[1].addBlock(b2)))
+            # expect shard 1 got the CrossShardTransactionList of b1
+            xshardTxList = slaves[1].shardStateMap[2 | 1].db.getMinorBlockXshardTxList(b1.header.getHash())
+            self.assertEqual(len(xshardTxList.txList), 1)
+            self.assertEqual(xshardTxList.txList[0].amount, 54321)
+            self.assertEqual(xshardTxList.txList[0].address, acc3)
+
+            self.assertTrue(call_async(slaves[0].addBlock(b2)))
+            # b2 doesn't update tip
+            self.assertEqual(slaves[0].shardStateMap[2 | 0].headerTip, b1.header)
+
+            # expect shard 1 got the CrossShardTransactionList of b2
+            xshardTxList = slaves[1].shardStateMap[2 | 1].db.getMinorBlockXshardTxList(b2.header.getHash())
+            self.assertEqual(len(xshardTxList.txList), 1)
+            self.assertEqual(xshardTxList.txList[0].amount, 99999)
+            self.assertEqual(xshardTxList.txList[0].address, acc3)
+
+            b3 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
+            self.assertTrue(call_async(slaves[1].addBlock(b3)))
 
             isRoot, rB = call_async(master.getNextBlockToMine(address=acc1))
             call_async(master.addRootBlock(rB))
 
-            # b3 should include the withdraw of tx
-            b3 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
+            # b4 should include the withdraw of tx1
+            b4 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
 
-            # adding b1, b2 again shouldn't affect b3 to be added later
-            self.assertFalse(call_async(slaves[0].addBlock(b1)))
-            self.assertFalse(call_async(slaves[1].addBlock(b2)))
-
+            # adding b1, b2, b3 again shouldn't affect b4 to be added later
+            self.assertTrue(call_async(slaves[0].addBlock(b1)))
+            self.assertTrue(call_async(slaves[0].addBlock(b2)))
             self.assertTrue(call_async(slaves[1].addBlock(b3)))
+
+            self.assertTrue(call_async(slaves[1].addBlock(b4)))
             self.assertEqual(call_async(master.getPrimaryAccountData(acc3)).balance, 54321)
 
