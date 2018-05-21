@@ -477,8 +477,9 @@ class MasterConnection(ClusterConnection):
             blockHashList = req.minorBlockHashList
             while len(blockHashList) > 0:
                 blockChain = await __downloadBlocks(blockHashList[:100])
-                Logger.info("[{}] handling sync request from master ... downloaded {} blocks from peer".format(
-                    req.branch.getShardId(), len(blockChain)))
+                Logger.info("[{}] handling sync request from master, downloaded {} blocks with height {} - {}".format(
+                    req.branch.getShardId(), len(blockChain),
+                    blockChain[0].header.height, blockChain[-1].header.height))
                 check(len(blockChain) == len(blockHashList[:100]))
 
                 for block in blockChain:
@@ -620,6 +621,7 @@ class SlaveServer():
         self.slaveId = 0
 
         self.shardSynchronizerMap = dict()
+        self.addBlockFutures = dict()
 
     def __initShardStateMap(self):
         ''' branchValue -> ShardState mapping '''
@@ -766,19 +768,41 @@ class SlaveServer():
         check(all([response.errorCode == 0 for _, response, _ in responses]))
 
     async def addBlock(self, block):
+        ''' Returns true if block is successfully added. False on any error. '''
         branchValue = block.header.branch.value
-        if branchValue not in self.shardStateMap:
+        shardState = self.shardStateMap.get(branchValue, None)
+
+        if not shardState:
             return False
+
+        oldTip = shardState.tip()
         try:
-            updateTip = self.shardStateMap[branchValue].addBlock(block)
+            xShardList = shardState.addBlock(block)
         except Exception as e:
             Logger.errorException()
             return False
-        await self.broadcastXshardTxList(block, self.shardStateMap[branchValue].evmState.xshard_list)
+
+        # block already existed in local shard state
+        # but might not have been propagated to other shards and master
+        # let's make sure all the shards and master got it before return
+        if xShardList is None:
+            future = self.addBlockFutures.get(block.header.getHash(), None)
+            if future:
+                Logger.info("[{}] {} is being added ... waiting for it to finish".format(
+                    block.header.branch.getShardId(), block.header.height))
+                await future
+            return True
+
+        self.addBlockFutures[block.header.getHash()] = self.loop.create_future()
+
+        await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(block.header)
 
-        if updateTip:
+        if oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
+
+        self.addBlockFutures[block.header.getHash()].set_result(None)
+        del self.addBlockFutures[block.header.getHash()]
         return True
 
     def addTx(self, tx):

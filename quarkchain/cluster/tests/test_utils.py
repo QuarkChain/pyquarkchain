@@ -131,6 +131,9 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
 def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
     loop = asyncio.get_event_loop()
 
+    # allow pending RPCs to finish to avoid annoying connection reset error messages
+    loop.run_until_complete(asyncio.sleep(0.1))
+
     for cluster in clusterList:
         # Shutdown simple network first
         cluster.network.shutdown()
