@@ -147,9 +147,17 @@ class Peer(P2PConnection):
 
     async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
         if len(cmd.minorBlockHeaderList) != 0:
-            self.closeWithError("minor block header list must be empty")
-            return
+            return self.closeWithError("minor block header list must be empty")
 
+        if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
+            return self.closeWithError("root block height is decreasing {} < {}".format(
+                cmd.rootBlockHeader.height, self.bestRootBlockHeaderObserved.height))
+        if cmd.rootBlockHeader.height == self.bestRootBlockHeaderObserved.height:
+            if cmd.rootBlockHeader != self.bestRootBlockHeaderObserved:
+                return self.closeWithError("root block header changed with same height {}".format(
+                    self.bestRootBlockHeaderObserved.height))
+
+        self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
         self.masterServer.handleNewRootBlockHeader(cmd.rootBlockHeader, self)
 
     async def handleGetRootBlockHeaderListRequest(self, request):
@@ -179,7 +187,9 @@ class Peer(P2PConnection):
         return GetRootBlockListResponse(rBlockList)
 
     def sendUpdatedTip(self):
-        # TODO: compare best observed and skip sending the tip if the peer has newer one
+        if self.rootState.tip.height <= self.bestRootBlockHeaderObserved.height:
+            return
+
         self.writeCommand(
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))

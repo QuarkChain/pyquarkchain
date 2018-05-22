@@ -130,6 +130,9 @@ class ShardConnection(VirtualConnection):
         self.shardState = shardState
         self.masterConn = masterConn
         self.slaveServer = masterConn.slaveServer
+        self.synchronizer = None
+        self.bestRootBlockHeaderObserved = None
+        self.bestMinorBlockHeaderObserved = None
 
     def closeWithError(self, error):
         Logger.error("Closing shard connection with error {}".format(error))
@@ -168,7 +171,6 @@ class ShardConnection(VirtualConnection):
         return GetMinorBlockListResponse(mBlockList)
 
     async def handleNewMinorBlockHeaderListCommand(self, op, cmd, rpcId):
-        # TODO:  Make sure the minor block height and root is not decreasing
         # TODO: allow multiple headers if needed
         if len(cmd.minorBlockHeaderList) != 1:
             self.closeWithError("minor block header list must have only one header")
@@ -180,10 +182,43 @@ class ShardConnection(VirtualConnection):
                 self.closeWithError("incorrect branch")
                 return
 
-        await self.slaveServer.handleNewMinorBlockHeader(mHeader, self)
+        if self.bestRootBlockHeaderObserved:
+            # check root header is not decreasing
+            if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
+                return self.closeWithError("best observed root header height is decreasing {} < {}".format(
+                    cmd.rootBlockHeader.height, self.bestRootBlockHeaderObserved.height))
+            if cmd.rootBlockHeader.height == self.bestRootBlockHeaderObserved.height:
+                if cmd.rootBlockHeader != self.bestRootBlockHeaderObserved:
+                    return self.closeWithError("best observed root header changed with same height {}".format(
+                        self.bestRootBlockHeaderObserved.height))
+
+                # check minor header is not decreasing
+                if mHeader.height < self.bestMinorBlockHeaderObserved.height:
+                    return self.closeWithError("best observed minor header is decreasing {} < {}".format(
+                        mHeader.height, self.bestMinorBlockHeaderObserved.height))
+
+        self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
+        self.bestMinorBlockHeaderObserved = mHeader
+
+        if self.synchronizer:
+            # Only allow one synchronizer at a time
+            # TODO: queue the headers
+            return
+
+        self.synchronizer = Synchronizer(mHeader, self)
+        await self.synchronizer.sync()
+        self.synchronizer = None
 
     def broadcastNewTip(self):
-        # TODO: Compare local best observed and broadcast if the tip is latest
+        if self.bestRootBlockHeaderObserved:
+            if self.shardState.rootTip.height < self.bestRootBlockHeaderObserved.height:
+                return
+            if self.shardState.rootTip == self.bestRootBlockHeaderObserved:
+                if self.shardState.headerTip.height < self.bestMinorBlockHeaderObserved.height:
+                    return
+                if self.shardState.headerTip == self.bestMinorBlockHeaderObserved:
+                    return
+
         self.writeCommand(
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.shardState.rootTip, [self.shardState.headerTip]))
@@ -482,7 +517,7 @@ class MasterConnection(ClusterConnection):
                 check(len(blockChain) == len(blockHashList[:100]))
 
                 for block in blockChain:
-                    await self.slaveServer.addBlock(block)
+                    await self.slaveServer.addBlock(block, broadcast=False)
                     blockHashList.pop(0)
         except Exception as e:
             Logger.errorException()
@@ -619,7 +654,6 @@ class SlaveServer():
         self.shutdownInProgress = False
         self.slaveId = 0
 
-        self.shardSynchronizerMap = dict()
         self.addBlockFutures = dict()
 
     def __initShardStateMap(self):
@@ -718,19 +752,6 @@ class SlaveServer():
 
     # Blockchain functions
 
-    async def handleNewMinorBlockHeader(self, header, shardConn):
-
-        async def __sync():
-            ''' Only allow one synchronizer running at a time for a shard'''
-            if header.branch.value in self.shardSynchronizerMap:
-                return
-            synchronizer = Synchronizer(header, shardConn)
-            self.shardSynchronizerMap[header.branch.value] = synchronizer
-            await synchronizer.sync()
-            del self.shardSynchronizerMap[header.branch.value]
-
-        asyncio.ensure_future(__sync())
-
     async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
         ''' Update master that a minor block has been appended successfully '''
         request = AddMinorBlockHeaderRequest(minorBlockHeader)
@@ -766,7 +787,7 @@ class SlaveServer():
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for _, response, _ in responses]))
 
-    async def addBlock(self, block):
+    async def addBlock(self, block, broadcast=True):
         ''' Returns true if block is successfully added. False on any error. '''
         branchValue = block.header.branch.value
         shardState = self.shardStateMap.get(branchValue, None)
@@ -797,7 +818,7 @@ class SlaveServer():
         await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(block.header)
 
-        if oldTip != shardState.tip():
+        if broadcast and oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
 
         self.addBlockFutures[block.header.getHash()].set_result(None)
