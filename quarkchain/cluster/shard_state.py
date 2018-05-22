@@ -402,13 +402,22 @@ class ShardState:
         state.prev_headers = []                          # TODO: state.add_block_header(block.header)
         return state
 
-    def __isSameChain(self, longerBlockHeader, shorterBlockHeader):
+    def __isSameMinorChain(self, longerBlockHeader, shorterBlockHeader):
         if shorterBlockHeader.height > longerBlockHeader.height:
             return False
 
         header = longerBlockHeader
         for i in range(longerBlockHeader.height - shorterBlockHeader.height):
             header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+        return header == shorterBlockHeader
+
+    def __isSameRootChain(self, longerBlockHeader, shorterBlockHeader):
+        if shorterBlockHeader.height > longerBlockHeader.height:
+            return False
+
+        header = longerBlockHeader
+        for i in range(longerBlockHeader.height - shorterBlockHeader.height):
+            header = self.db.getRootBlockHeaderByHash(header.hashPrevBlock)
         return header == shorterBlockHeader
 
     def __validateBlock(self, block):
@@ -418,7 +427,6 @@ class ShardState:
             # TODO:  May put the block back to queue
             raise ValueError("prev block not found")
         prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
-        prevMeta = self.db.getMinorBlockMetaByHash(block.header.hashPrevMinorBlock)
 
         if block.header.height != prevHeader.height + 1:
             raise ValueError("height mismatch")
@@ -468,8 +476,13 @@ class ShardState:
         if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock).height:
             raise ValueError("prev root block height must be non-decreasing")
 
-        if not self.__isSameChain(prevHeader, self.db.getLastMinorBlockInRootBlock(block.header.hashPrevRootBlock)):
+        prevConfirmedMinorBlock = self.db.getLastMinorBlockInRootBlock(block.header.hashPrevRootBlock)
+        if not self.__isSameMinorChain(prevHeader, prevConfirmedMinorBlock):
             raise ValueError("prev root block's minor block is not in the same chain as the minor block")
+
+        if not self.__isSameRootChain(self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock),
+                                      self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
+            raise ValueError("prev root blocks are not on the same chain")
 
     def runBlock(self, block, evmState=None):
         if evmState is None:
@@ -579,7 +592,10 @@ class ShardState:
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
         updateTip = False
-        if block.header.hashPrevMinorBlock == self.headerTip.getHash():
+        if not self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)):
+            # Don't update tip if the block depends on a root block that is not rootTip or rootTip's ancestor
+            updateTip = False
+        elif block.header.hashPrevMinorBlock == self.headerTip.getHash():
             updateTip = True
         elif self.__isMinorBlockLinkedToRootTip(block):
             if block.header.height > self.headerTip.height:
@@ -593,6 +609,8 @@ class ShardState:
             self.evmState = evmState
             self.headerTip = block.header
             self.metaTip = block.meta
+
+        check(self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
 
         return evmState.xshard_list
 

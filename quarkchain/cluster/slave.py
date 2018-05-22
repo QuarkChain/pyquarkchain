@@ -365,7 +365,6 @@ class MasterConnection(ClusterConnection):
         try:
             block = MinorBlock.deserialize(req.minorBlockData)
         except Exception:
-            Logger.warning("!@#$!@#@!")
             return AddMinorBlockResponse(
                 errorCode=errno.EBADMSG,
             )

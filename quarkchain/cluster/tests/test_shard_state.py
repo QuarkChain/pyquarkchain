@@ -575,3 +575,57 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(recoveredState.metaTip, blockMetas[10])
         self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[10])
         self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[10].hashEvmStateRoot)
+
+    def testNotUpdateTipOnRootFork(self):
+        ''' block's hashPrevRootBlock must be on the same chain with rootTip to update tip.
+
+                 +--+
+              a. |r1|
+                /+--+
+               /   |
+        +--+  /  +--+    +--+
+        |r0|<----|m1|<---|m2| c.
+        +--+  \  +--+    +--+
+               \   |      |
+                \+--+     |
+              b. |r2|<----+
+                 +--+
+
+        Initial state: r0 <- m1
+        Then adding r1, r2, m2 should not make m2 the tip because r1 is the root tip and r2 and r1
+        are not on the same root chain.
+        '''
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        m1 = state.getTip().createBlockToAppend(address=acc1)
+        state.finalizeAndAddBlock(m1)
+
+        r1 = state.rootTip.createBlockToAppend()
+        r2 = state.rootTip.createBlockToAppend()
+        r1.minorBlockHeaderList.append(m1.header)
+        r1.finalize()
+
+        state.addRootBlock(r1)
+
+        r2.minorBlockHeaderList.append(m1.header)
+        r2.header.createTime = r1.header.createTime + 1  # make r2, r1 different
+        r2.finalize()
+        self.assertNotEqual(r1.header.getHash(), r2.header.getHash())
+
+        state.addRootBlock(r2)
+
+        self.assertEqual(state.rootTip, r1.header)
+
+        m2 = m1.createBlockToAppend(address=acc1)
+        m2.header.hashPrevRootBlock = r2.header.getHash()
+
+        state.finalizeAndAddBlock(m2)
+        # m2 is added
+        self.assertEqual(state.db.getMinorBlockByHash(m2.header.getHash()), m2)
+        # but m1 should still be the tip
+        self.assertEqual(state.headerTip, m1.header)
