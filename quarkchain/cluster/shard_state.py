@@ -133,6 +133,27 @@ class ShardDb:
             Logger.debug("Recovered root header height {} hash {}".format(
                 rootBlock.header.height, k[numBytesToSkip:]))
 
+    def pruneForks(self, rHeader, mHeader):
+        ''' When recovering from local database, we can only guarantee the consistency of the best chain.
+        Forking blocks can be in inconsistent state and thus should be pruned from the database
+        so that they can be retried in the future.
+        '''
+        rHeaderPool = {rHeader.getHash(): rHeader}
+        while rHeader.height > 0:
+            prevHash = rHeader.hashPrevBlock
+            prevHeader = self.rHeaderPool[prevHash]
+            rHeaderPool[prevHash] = prevHeader
+            rHeader = prevHeader
+        self.rHeaderPool = rHeaderPool
+
+        mHeaderPool = {mHeader.getHash(): mHeader}
+        while mHeader.height > 0:
+            prevHash = mHeader.hashPrevMinorBlock
+            prevHeader = self.mHeaderPool[prevHash]
+            mHeaderPool[prevHash] = prevHeader
+            mHeader = prevHeader
+        self.mHeaderPool = mHeaderPool
+
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rMinorHeader, rootBlockHash=None):
         ''' rMinorHeader: the minor header of the shard in the root block with largest height
@@ -145,15 +166,19 @@ class ShardDb:
         self.rMinorHeaderPool[rootBlockHash] = rMinorHeader
 
     def getRootBlockByHash(self, h):
+        if h not in self.rHeaderPool:
+            return None
         return RootBlock.deserialize(self.db.get(b"rblock_" + h))
 
     def getRootBlockHeaderByHash(self, h):
-        return self.rHeaderPool.get(h)
+        return self.rHeaderPool.get(h, None)
 
     def containRootBlockByHash(self, h):
         return h in self.rHeaderPool
 
     def getLastMinorBlockInRootBlock(self, h):
+        if h not in self.rHeaderPool:
+            return None
         return self.rMinorHeaderPool.get(h)
 
     # ------------------------- Minor block db operations --------------------------------
@@ -168,18 +193,21 @@ class ShardDb:
         self.txCounter60s.increment(len(mBlock.txList))
 
     def getMinorBlockHeaderByHash(self, h):
-        return self.mHeaderPool.get(h)
+        return self.mHeaderPool.get(h, None)
 
     def getMinorBlockEvmRootHashByHash(self, h):
-        meta = self.mMetaPool[h]
-        if meta is None:
+        if h not in self.mHeaderPool:
             return None
+        check(h in self.mMetaPool)
+        meta = self.mMetaPool[h]
         return meta.hashEvmStateRoot
 
     def getMinorBlockMetaByHash(self, h):
-        return self.mMetaPool.get(h)
+        return self.mMetaPool.get(h, None)
 
     def getMinorBlockByHash(self, h):
+        if h not in self.mHeaderPool:
+            return None
         return MinorBlock.deserialize(self.db.get(b"mblock_" + h))
 
     def containMinorBlockByHash(self, h):
@@ -311,6 +339,8 @@ class ShardState:
         self.evmState = self.__createEvmState()
         self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
         check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
+
+        self.db.pruneForks(self.rootTip, self.headerTip)
 
         self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()))
 
@@ -728,12 +758,15 @@ class ShardState:
         block.header.hashPrevRootBlock = self.rootTip.getHash()
 
         evmState = self.__getEvmStateForNewBlock(block)
-        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
+        prevHeader = self.headerTip
+
+        ancestorRootHeader = self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)
+        check(self.__isSameRootChain(self.rootTip, ancestorRootHeader))
 
         self.__runCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=self.rootTip,
-            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock))
+            ancestorRootHeader=ancestorRootHeader)
 
         while evmState.gas_used < evmState.gas_limit:
             evmTx = self.txQueue.pop_transaction(
@@ -811,6 +844,8 @@ class ShardState:
         check(shardHeader is not None)
 
         self.db.putRootBlock(rBlock, shardHeader)
+        check(self.__isSameRootChain(rBlock.header,
+                                     self.db.getRootBlockHeaderByHash(shardHeader.hashPrevRootBlock)))
 
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
