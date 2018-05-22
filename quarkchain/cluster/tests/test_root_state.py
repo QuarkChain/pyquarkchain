@@ -252,7 +252,20 @@ class TestRootState(unittest.TestCase):
             .addMinorBlockHeader(b1.header) \
             .finalize()
 
+        rB00 = rState.tip.createBlockToAppend() \
+            .addMinorBlockHeader(b0.header) \
+            .addMinorBlockHeader(b1.header) \
+            .finalize()
+
         self.assertTrue(rState.addBlock(rB0))
+
+        # create a fork
+        rB00.header.createTime += 1
+        rB00.finalize()
+        self.assertNotEqual(rB0.header.getHash(), rB00.header.getHash())
+
+        self.assertFalse(rState.addBlock(rB00))
+        self.assertEqual(rState.db.getRootBlockByHash(rB00.header.getHash()), rB00)
 
         b2 = sStates[0].getTip().createBlockToAppend()
         add_minor_block_to_cluster(sStates, b2)
@@ -270,6 +283,9 @@ class TestRootState(unittest.TestCase):
 
         recoveredState = RootState(env=env)
         self.assertEqual(recoveredState.tip, rB1.header)
+        self.assertEqual(recoveredState.db.getRootBlockByHeight(1), rB0)
+        # fork is pruned from recovered state
+        self.assertIsNone(recoveredState.db.getRootBlockByHash(rB00.header.getHash()))
 
     def testAddRootBlockWithMinorBlockWithWrongRootBlockHash(self):
         ''' Test for the following case

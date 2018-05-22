@@ -31,26 +31,21 @@ class RootDb:
         self.__recoverFromDb()
 
     def __recoverFromDb(self):
-        Logger.info("Recovering root state from local database...")
+        ''' Recover the best chain from local database '''
+        Logger.info("Recovering root chain from local database...")
 
-        # recover rHeaderPool
-        prefix = b"rblock_"
-        start = prefix
-        end = prefix + b"\xff" * 32
-        numBytesToSkip = len(prefix)
-        for k, v in self.db.rangeIter(start, end):
-            rootBlockHash = k[numBytesToSkip:]
-            rootBlock = RootBlock.deserialize(v)
-            self.rHeaderPool[rootBlockHash] = rootBlock.header
+        if b"tipHash" not in self.db:
+            return None
 
-        # recover mHashSet
-        prefix = b"mheader_"
-        start = prefix
-        end = prefix + b"\xff" * 32
-        numBytesToSkip = len(prefix)
-        for k, v in self.db.rangeIter(start, end):
-            mBlockHash = k[numBytesToSkip:]
-            self.mHashSet.add(mBlockHash)
+        rHash = self.db.get(b"tipHash")
+        while rHash:
+            rBlock = RootBlock.deserialize(self.db.get(b"rblock_" + rHash))
+            self.rHeaderPool[rHash] = rBlock.header
+            for mHeader in rBlock.minorBlockHeaderList:
+                self.mHashSet.add(mHeader.getHash())
+            rHash = rBlock.header.hashPrevBlock
+            if rBlock.header.height == 0:
+                return
 
     def getTipHeader(self):
         if b"tipHash" not in self.db:
@@ -74,12 +69,16 @@ class RootDb:
         self.db.put(b"tipHash", blockHash)
 
     def getRootBlockByHash(self, h):
+        if h not in self.rHeaderPool:
+            return None
         return RootBlock.deserialize(self.db.get(b"rblock_" + h))
 
     def getRootBlockHeaderByHash(self, h):
-        return self.rHeaderPool.get(h)
+        return self.rHeaderPool.get(h, None)
 
     def getRootBlockLastMinorBlockHeaderList(self, h):
+        if h not in self.rHeaderPool:
+            return None
         return LastMinorBlockHeaderList.deserialize(self.db.get(b"lastlist_" + h)).headerList
 
     def containRootBlockByHash(self, h):

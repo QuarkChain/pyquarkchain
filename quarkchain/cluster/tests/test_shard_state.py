@@ -544,6 +544,12 @@ class TestShardState(unittest.TestCase):
             blockHeaders.append(b.header)
             blockMetas.append(b.meta)
 
+        # add a fork
+        b1 = state.db.getMinorBlockByHeight(3)
+        b1.header.createTime += 1
+        state.finalizeAndAddBlock(b1)
+        self.assertEqual(state.db.getMinorBlockByHash(b1.header.getHash()), b1)
+
         rB = state.rootTip.createBlockToAppend()
         rB.minorBlockHeaderList = blockHeaders[:5]
         rB.finalize()
@@ -557,7 +563,11 @@ class TestShardState(unittest.TestCase):
         # Note that rB1 has not been added to the shard state
 
         recoveredState = ShardState(env=env, shardId=0)
+        self.assertEqual(recoveredState.db.getMinorBlockByHash(b1.header.getHash()), b1)
+
         recoveredState.initFromRootBlock(rB)
+        # forks are pruned
+        self.assertIsNone(recoveredState.db.getMinorBlockByHash(b1.header.getHash()))
 
         self.assertEqual(recoveredState.rootTip, rB.header)
         self.assertEqual(recoveredState.headerTip, blockHeaders[4])
