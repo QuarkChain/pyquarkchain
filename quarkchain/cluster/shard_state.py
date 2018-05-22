@@ -316,7 +316,7 @@ class ShardState:
         self.initialized = True
 
         Logger.info("Initializing shard state from root height {} hash {}".format(
-            rootBlock.header.height, rootBlock.header.getHash()))
+            rootBlock.header.height, rootBlock.header.getHash().hex()))
 
         if rootBlock.header.height == 0:
             Logger.info("Created genesis block")

@@ -64,6 +64,8 @@ class Peer(P2PConnection):
         self.ip = ipaddress.ip_address(cmd.peerIp)
         self.port = cmd.peerPort
 
+        Logger.info("Got HELLO from peer {} ({}:{})".format(self.id.hex(), self.ip, self.port))
+
         # Validate best root and minor blocks from peer
         # TODO: validate hash and difficulty through a helper function
         if cmd.rootBlockHeader.shardInfo.getShardSize() != self.env.config.SHARD_SIZE:
@@ -72,28 +74,28 @@ class Peer(P2PConnection):
 
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
 
-        # TODO handle root block header
         if self.id == self.network.selfId:
             # connect to itself, stop it
             return self.closeWithError("Cannot connect to itself")
 
         if self.id in self.network.activePeerPool:
-            return self.closeWithError("Peer %s already connected" % self.id)
-
-        self.network.activePeerPool[self.id] = self
-        self.network.clusterPeerPool[self.clusterPeerId] = self
-        Logger.info("Peer {} connected".format(self.id.hex()))
-
-        # Send cluster command to create such connection.
-        # This should be sent before hello ack to avoid race.
-        await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
+            return self.closeWithError("Peer {} already connected".format(self.id.hex()))
 
         # Send hello back
         if isServer:
             self.sendHello()
 
+        await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
+        Logger.info("Established virtual shard connections with peer {}".format(self.id.hex()))
+
         asyncio.ensure_future(self.activeAndLoopForever())
         await self.waitUntilActive()
+
+        # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
+        self.network.activePeerPool[self.id] = self
+        self.network.clusterPeerPool[self.clusterPeerId] = self
+        Logger.info("Peer {} added to active peer pool".format(self.id.hex()))
+
         self.masterServer.handleNewRootBlockHeader(self.bestRootBlockHeaderObserved, self)
         return None
 
