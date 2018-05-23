@@ -397,12 +397,27 @@ class MasterConnection(ClusterConnection):
         return response
 
     async def handleAddMinorBlockRequest(self, req):
+        ''' For local miner to submit mined blocks through master '''
         try:
             block = MinorBlock.deserialize(req.minorBlockData)
         except Exception:
             return AddMinorBlockResponse(
                 errorCode=errno.EBADMSG,
             )
+        branchValue = block.header.branch.value
+        shardState = self.slaveServer.shardStateMap.get(branchValue, None)
+        if not shardState:
+            return AddMinorBlockResponse(
+                errorCode=errno.EBADMSG,
+            )
+
+        if block.header.hashPrevMinorBlock != shardState.headerTip.getHash():
+            # Tip changed, don't bother creating a fork
+            # TODO: push block candidate to miners than letting them pull
+            Logger.info("[{}] dropped stale block {} mined locally".format(
+                block.header.branch.getShardId(), block.header.height))
+            return AddMinorBlockResponse(errorCode=0)
+
         success = await self.slaveServer.addBlock(block)
         return AddMinorBlockResponse(
             errorCode=0 if success else errno.EFAULT,
