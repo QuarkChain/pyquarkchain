@@ -116,7 +116,22 @@ def root_block_encoder(block):
         "size": quantity_encoder(len(block.serialize())),
     }
 
-    d["minorBlockHeaders"] = [id_encoder(header.getHash(), header.branch) for header in block.minorBlockHeaderList]
+    d["minorBlockHeaders"] = []
+    for header in block.minorBlockHeaderList:
+        h = {
+            'id': id_encoder(header.getHash(), header.branch),
+            'height': quantity_encoder(header.height),
+            'hash': data_encoder(header.getHash()),
+            'branch': quantity_encoder(header.branch.value),
+            'shard': quantity_encoder(header.branch.getShardId()),
+            'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
+            'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch),
+            'hashPrevRootBlock': data_encoder(header.hashPrevRootBlock),
+            'nonce': quantity_encoder(header.nonce),
+            'difficulty': quantity_encoder(header.difficulty),
+            'timestamp': quantity_encoder(header.createTime),
+        }
+        d["minorBlockHeaders"].append(h)
     return d
 
 
