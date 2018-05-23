@@ -32,8 +32,8 @@ from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.utils import set_logging_level, Logger, check
 
 
-class Synchronizer:
-    ''' Given a header and a peer, the synchronizer will synchronize the local state
+class SyncTask:
+    ''' Given a header and a peer, the task will synchronize the local state
     including root chain and shards with the peer up to the height of the header.
     '''
 
@@ -143,6 +143,27 @@ class Synchronizer:
             if result.errorCode != 0:
                 self.peer.closeWithError("Unable to download minor blocks from root block")
                 return
+
+
+class Synchronizer:
+    ''' Buffer the headers received from peer and sync one by one '''
+
+    def __init__(self):
+        self.queue = deque()
+        self.running = False
+
+    def addTask(self, header, peer):
+        self.queue.append((header, peer))
+        if not self.running:
+            self.running = True
+            asyncio.ensure_future(self.__run())
+
+    async def __run(self):
+        while len(self.queue) > 0:
+            header, peer = self.queue.popleft()
+            task = SyncTask(header, peer)
+            await task.sync()
+        self.running = False
 
 
 class ClusterConfig:
@@ -309,7 +330,7 @@ class MasterServer():
 
         self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
         self.artificialTxConfig = self.defaultArtificialTxConfig
-        self.synchronizer = None
+        self.synchronizer = Synchronizer()
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -572,16 +593,7 @@ class MasterServer():
         return all(results)
 
     def handleNewRootBlockHeader(self, header, peer):
-
-        async def __sync():
-            ''' Only allow one synchronizer running at a time '''
-            if self.synchronizer is not None:
-                return
-            self.synchronizer = Synchronizer(header, peer)
-            await self.synchronizer.sync()
-            self.synchronizer = None
-
-        asyncio.ensure_future(__sync())
+        self.synchronizer.addTask(header, peer)
 
     async def updateRooBlockAsync(self):
         ''' Add root block locally and broadcast root block to all shards and .
@@ -707,7 +719,7 @@ class MasterServer():
             "rootTimestamp": self.rootState.tip.createTime,
             "txCount60s": txCount60s,
             "pendingTxCount": pendingTxCount,
-            "syncing": self.synchronizer is not None,
+            "syncing": self.synchronizer.running,
             "shards": shards,
         }
 
