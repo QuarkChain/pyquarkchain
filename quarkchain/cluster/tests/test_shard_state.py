@@ -652,3 +652,62 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.db.getMinorBlockByHash(m2.header.getHash()), m2)
         # but m1 should still be the tip
         self.assertEqual(state.headerTip, m1.header)
+
+    def testAddRootBlockRevertHeaderTip(self):
+        ''' block's hashPrevRootBlock must be on the same chain with rootTip to update tip.
+
+                 +--+
+                 |r1|<-------------+
+                /+--+              |
+               /   |               |
+        +--+  /  +--+    +--+     +--+
+        |r0|<----|m1|<---|m2| <---|m3|
+        +--+  \  +--+    +--+     +--+
+               \   |       \
+                \+--+.     +--+
+                 |r2|<-----|r3| (r3 includes m2)
+                 +--+      +--+
+
+        Initial state: r0 <- m1 <- m2
+        Adding r1, r2, m3 makes r1 the rootTip, m3 the headerTip
+        Adding r3 should change the rootTip to r3, headerTip to m2
+        '''
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env, shardId=0)
+
+        m1 = state.getTip().createBlockToAppend(address=acc1)
+        state.finalizeAndAddBlock(m1)
+
+        m2 = state.getTip().createBlockToAppend(address=acc1)
+        state.finalizeAndAddBlock(m2)
+
+        r1 = state.rootTip.createBlockToAppend()
+        r2 = state.rootTip.createBlockToAppend()
+        r1.minorBlockHeaderList.append(m1.header)
+        r1.finalize()
+
+        state.addRootBlock(r1)
+
+        r2.minorBlockHeaderList.append(m1.header)
+        r2.header.createTime = r1.header.createTime + 1  # make r2, r1 different
+        r2.finalize()
+        self.assertNotEqual(r1.header.getHash(), r2.header.getHash())
+
+        state.addRootBlock(r2)
+
+        self.assertEqual(state.rootTip, r1.header)
+
+        m3 = state.createBlockToMine(address=acc1)
+        self.assertEqual(m3.header.hashPrevRootBlock, r1.header.getHash())
+        state.finalizeAndAddBlock(m3)
+
+        r3 = r2.createBlockToAppend(address=acc1)
+        r3.addMinorBlockHeader(m2.header)
+        r3.finalize()
+        state.addRootBlock(r3)
+        self.assertEqual(state.rootTip, r3.header)
+        self.assertEqual(state.headerTip, m2.header)

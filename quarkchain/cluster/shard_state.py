@@ -861,6 +861,13 @@ class ShardState:
                 # need to switch to the tip of the longest chain
                 self.headerTip = shardHeader
                 self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+            else:
+                # the current headerTip might point to a root block on a fork with rBlock
+                # we need to scan back until finding a minor block pointing to the same root chain rBlock is on.
+                # the worst case would be that we go all the way back to origBlock (shardHeader)
+                while not self.__isSameRootChain(
+                        self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)):
+                    self.headerTip = self.db.getMinorBlockHeaderByHash(self.headerTip.hashPrevMinorBlock)
             return True
 
         check(self.__isSameRootChain(self.rootTip,
