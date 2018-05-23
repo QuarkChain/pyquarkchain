@@ -861,6 +861,9 @@ class ShardState:
                 self.headerTip = shardHeader
                 self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
             return True
+
+        check(self.__isSameRootChain(self.rootTip,
+                                     self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
         return False
 
     def __isNeighbor(self, remoteBranch):
