@@ -18,7 +18,7 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockResponse, HeadersInfo, GetUnconfirmedHeadersResponse,
     GetAccountDataResponse, AddTransactionResponse,
     CreateClusterPeerConnectionResponse,
-    GetStatsResponse, SyncMinorBlockListResponse,
+    SyncMinorBlockListResponse,
     GetMinorBlockResponse, GetTransactionResponse,
     AccountBranchData,
 )
@@ -481,13 +481,6 @@ class MasterConnection(ClusterConnection):
 
             connMap[branch.value].broadcastNewTip()
 
-    async def handleGetStatsRequest(self, req):
-        resp = GetStatsResponse(
-            errorCode=0,
-            shardStatsList=self.slaveServer.getStats(),
-        )
-        return resp
-
     async def handleGetMinorBlockRequest(self, req):
         if req.minorBlockHash != bytes(32):
             block = self.slaveServer.getMinorBlockByHash(req.minorBlockHash, req.branch)
@@ -567,8 +560,6 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.ADD_TRANSACTION_RESPONSE, MasterConnection.handleAddTransaction),
     ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST:
         (ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_RESPONSE, MasterConnection.handleCreateClusterPeerConnectionRequest),
-    ClusterOp.GET_STATS_REQUEST:
-        (ClusterOp.GET_STATS_RESPONSE, MasterConnection.handleGetStatsRequest),
     ClusterOp.GET_MINOR_BLOCK_REQUEST:
         (ClusterOp.GET_MINOR_BLOCK_RESPONSE, MasterConnection.handleGetMinorBlockRequest),
     ClusterOp.GET_TRANSACTION_REQUEST:
@@ -767,9 +758,9 @@ class SlaveServer():
 
     # Blockchain functions
 
-    async def sendMinorBlockHeaderToMaster(self, minorBlockHeader):
+    async def sendMinorBlockHeaderToMaster(self, minorBlockHeader, shardStats):
         ''' Update master that a minor block has been appended successfully '''
-        request = AddMinorBlockHeaderRequest(minorBlockHeader)
+        request = AddMinorBlockHeaderRequest(minorBlockHeader, shardStats)
         _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
 
@@ -831,7 +822,7 @@ class SlaveServer():
         self.addBlockFutures[block.header.getHash()] = self.loop.create_future()
 
         await self.broadcastXshardTxList(block, xShardList)
-        await self.sendMinorBlockHeaderToMaster(block.header)
+        await self.sendMinorBlockHeaderToMaster(block.header, shardState.getShardStats())
 
         if broadcast and oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
@@ -867,12 +858,6 @@ class SlaveServer():
                 balance=shardState.getBalance(address.recipient),
             ))
         return results
-
-    def getStats(self):
-        shardStatsList = []
-        for branchValue, shardState in self.shardStateMap.items():
-            shardStatsList.append(shardState.getShardStats())
-        return shardStatsList
 
     def getMinorBlockByHash(self, blockHash, branch):
         if branch.value not in self.shardStateMap:
