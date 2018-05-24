@@ -324,8 +324,6 @@ class MasterServer():
 
         self.clusterActiveFuture = self.loop.create_future()
         self.shutdownFuture = self.loop.create_future()
-        self.rootBlockUpdateQueue = deque()
-        self.isUpdatingRootBlock = False
         self.name = name
 
         self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
@@ -595,25 +593,25 @@ class MasterServer():
     def handleNewRootBlockHeader(self, header, peer):
         self.synchronizer.addTask(header, peer)
 
-    async def updateRooBlockAsync(self):
+    async def addRootBlock(self, rBlock):
         ''' Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         '''
-        check(self.isUpdatingRootBlock)
+        self.rootState.validateBlock(rBlock)     # throw exception if failed
         updateTip = False
-        while len(self.rootBlockUpdateQueue) != 0:
-            rBlock = self.rootBlockUpdateQueue.popleft()
-            try:
-                updateTip = updateTip or self.rootState.addBlock(rBlock)
-            except ValueError:
-                continue
+        try:
+            updateTip = self.rootState.addBlock(rBlock)
+            success = True
+        except ValueError:
+            success = False
+
+        if success:
             futureList = self.broadcastRpc(
                 op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
                 req=AddRootBlockRequest(rBlock, False))
             resultList = await asyncio.gather(*futureList)
             check(all([resp.errorCode == 0 for _, resp, _ in resultList]))
 
-        self.isUpdatingRootBlock = False
         if updateTip and self.network is not None:
             for peer in self.network.iteratePeers():
                 peer.sendUpdatedTip()
@@ -627,12 +625,13 @@ class MasterServer():
         _, resp, _ = await self.getSlaveConnection(branch).writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
         return resp.errorCode == 0
 
-    async def addRootBlock(self, block):
-        self.rootState.validateBlock(block)     # throw exception if failed
-        self.rootBlockUpdateQueue.append(block)
-        if not self.isUpdatingRootBlock:
-            self.isUpdatingRootBlock = True
-            await self.updateRooBlockAsync()
+    async def addRootBlockFromMiner(self, block):
+        ''' Should only be called by miner '''
+        # TODO: push candidate block to miner
+        if block.header.hashPrevBlock != self.rootState.tip.getHash():
+            Logger.info("[R] dropped stale root block {} mined locally".format(block.header.height))
+            return False
+        await self.addRootBlock(block)
 
     def broadcastCommand(self, op, cmd):
         ''' Broadcast command to all slaves.

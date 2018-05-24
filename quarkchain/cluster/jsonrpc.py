@@ -506,7 +506,7 @@ class JSONRPCServer:
     async def addBlock(self, branch, blockData):
         if branch == 0:
             block = RootBlock.deserialize(blockData)
-            return await self.master.addRootBlock(block)
+            return await self.master.addRootBlockFromMiner(block)
         return await self.master.addRawMinorBlock(Branch(branch), blockData)
 
     @methods.add
