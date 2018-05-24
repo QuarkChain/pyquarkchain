@@ -30,6 +30,11 @@ def get_test_env(
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
     env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
     env.db = InMemoryDb()
+
+    env.setNetworkId(1234567890)
+
+    env.config.ACCOUNTS_TO_FUND = None
+    env.config.LOADTEST_ACCOUNTS = None
     return env
 
 

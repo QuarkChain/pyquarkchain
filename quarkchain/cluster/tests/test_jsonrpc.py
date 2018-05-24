@@ -86,8 +86,9 @@ class TestJSONRPC(unittest.TestCase):
                 withdraw=10,
                 withdrawSign=1,
                 withdrawTo=bytes(acc2.serialize()),
+                networkId=slaves[0].env.config.NETWORK_ID,
             )
-            evmTx.sign(id1.getKey(), DEFAULT_ENV.config.NETWORK_ID)
+            evmTx.sign(id1.getKey())
             request = dict(
                 to=acc1.serialize().hex(),
                 gasprice="6",
@@ -99,7 +100,8 @@ class TestJSONRPC(unittest.TestCase):
                 nonce="0",
                 branch="2",
                 withdraw="10",
-                withdrawTo=acc2.serialize().hex()
+                withdrawTo=acc2.serialize().hex(),
+                networkId=str(slaves[0].env.config.NETWORK_ID),
             )
             tx = Transaction(code=Code.createEvmCode(evmTx))
             response = sendRequest("sendTransaction", request)

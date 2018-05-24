@@ -199,6 +199,7 @@ class TestRootState(unittest.TestCase):
             cutoff=9,
             diffFactor=2048,
             minimumDiff=1)
+        env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
 
         rState, sStates = create_default_state(env)
         b0 = sStates[0].getTip().createBlockToAppend()
