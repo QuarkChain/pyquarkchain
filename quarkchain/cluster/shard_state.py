@@ -515,7 +515,9 @@ class ShardState:
                                       self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
             raise ValueError("prev root blocks are not on the same chain")
 
-    def runBlock(self, block, evmState=None):
+    def runBlock(self, block, evmState=None, evmTxIncluded=None):
+        if evmTxIncluded is None:
+            evmTxIncluded = []
         if evmState is None:
             evmState = self.__getEvmStateForNewBlock(block, ephemeral=False)
         rootBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
@@ -530,6 +532,7 @@ class ShardState:
             try:
                 evmTx = self.__validateTx(tx)
                 apply_transaction(evmState, evmTx)
+                evmTxIncluded.append(evmTx)
             except Exception as e:
                 Logger.debugException()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
@@ -598,9 +601,10 @@ class ShardState:
         if self.db.containMinorBlockByHash(block.header.getHash()):
             return None
 
+        evmTxIncluded = []
         # Throw exception if fail to run
         self.__validateBlock(block)
-        evmState = self.runBlock(block)
+        evmState = self.runBlock(block, evmTxIncluded=evmTxIncluded)
 
         # ------------------------ Validate ending result of the block --------------------
         if block.meta.hashEvmStateRoot != evmState.trie.root_hash:
@@ -619,6 +623,7 @@ class ShardState:
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block, evmState)
+        self.txQueue.diff(evmTxIncluded)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
@@ -675,13 +680,18 @@ class ShardState:
 
     def getNextBlockCoinbaseAmount(self):
         # TODO: add block reward
-        block = self.createBlockToMine()
-        # Add back the transactions that have been popped into block
-        # This actually lowers the priority of the popped tx if there are other tx with same gas price
-        # TODO: get a better data structure for txQueue
-        for tx in block.txList:
-            check(self.addTx(tx))
-        return block.header.coinbaseAmount
+        # TODO: the current calculation is bogus and just serves as a placeholder.
+        coinbase = 0
+        for txWrapper in self.txQueue.peek():
+            tx = txWrapper.tx
+            coinbase += tx.gasprice * tx.startgas
+
+        if self.rootTip.getHash() != self.headerTip.hashPrevRootBlock:
+            txs = self.__getCrossShardTxListByRootBlockHash(self.rootTip.getHash())
+            for tx in txs:
+                coinbase += tx.gasPrice * opcodes.GTXXSHARDCOST
+
+        return coinbase
 
     def getUnconfirmedHeadersCoinbaseAmount(self):
         amount = 0
