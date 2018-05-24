@@ -386,7 +386,8 @@ class ShardState:
 
         evmTx = tx.code.getEvmTransaction()
         if evmTx.networkId != self.env.config.NETWORK_ID:
-            raise RuntimeError("evm tx network id mismatch")
+            raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
+                self.env.config.NETWORK_ID, evmTx.networkId))
         if self.branch.value != evmTx.branchValue:
             raise RuntimeError("evm tx is not in the shard")
         if evmTx.getWithdraw() < 0:

@@ -2,6 +2,8 @@ import copy
 
 import quarkchain.db
 from quarkchain.core import Address
+from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
+from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
 from quarkchain.diff import MADifficultyCalculator, EthDifficultyCalculator
 import quarkchain.evm.config
@@ -10,6 +12,7 @@ import quarkchain.evm.config
 class NetworkId:
     MAINNET = 1
     TESTNET_FORD = 2
+    TESTNET_PORSCHE = 3
 
 
 class DefaultConfig:
@@ -61,7 +64,6 @@ class DefaultConfig:
             diffFactor=2048,
             minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
 
-        #  1 is mainnet
         self.NETWORK_ID = NetworkId.MAINNET
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
@@ -70,6 +72,12 @@ class DefaultConfig:
         self.TRANSACTION_LIMIT_PER_BLOCK = 4096
 
         self.BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
+
+        # testnet config
+        self.ACCOUNTS_TO_FUND = [Address.createFrom(item["address"]) for item in ACCOUNTS_TO_FUND]
+        self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
+        self.LOADTEST_ACCOUNTS = [Address.createFrom(item["address"]) for item in LOADTEST_ACCOUNTS]
+        self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
@@ -107,6 +115,10 @@ class Env:
         self.evmConfig["NETWORK_ID"] = self.config.NETWORK_ID
         self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
         self.clusterConfig = clusterConfig or DefaultClusterConfig()
+
+    def setNetworkId(self, networkId):
+        self.config.NETWORK_ID = networkId
+        self.evmConfig["NETWORK_ID"] = networkId
 
     def copy(self):
         return Env(self.db, self.config.copy(), dict(self.evmConfig), self.clusterConfig.copy())

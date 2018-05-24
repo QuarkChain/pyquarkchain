@@ -7,6 +7,16 @@ from quarkchain.utils import sha3_256
 def create_genesis_minor_block(env, shardId, evmState, hashRootBlock=bytes(32)):
     branch = Branch.create(env.config.SHARD_SIZE, shardId)
     evmState.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
+
+    if env.config.ACCOUNTS_TO_FUND:
+        for address in env.config.ACCOUNTS_TO_FUND:
+            if address.getShardId(env.config.SHARD_SIZE) == shardId:
+                evmState.delta_balance(address.recipient, env.config.ACCOUNTS_TO_FUND_COIN)
+
+    if env.config.LOADTEST_ACCOUNTS:
+        for address in env.config.LOADTEST_ACCOUNTS:
+            evmState.delta_balance(address.recipient, env.config.LOADTEST_ACCOUNTS_COIN)
+
     evmState.commit()
 
     meta = MinorBlockMeta(hashMerkleRoot=bytes(32),
@@ -41,14 +51,6 @@ def create_genesis_root_block(env):
         header=header,
         minorBlockHeaderList=[])
     return block
-
-
-def create_genesis_blocks(env):
-    rootBlock = create_genesis_root_block(env)
-    minorBlockList = [create_genesis_minor_block(
-        env, i, rootBlock.header.getHash()) for i in range(env.config.SHARD_SIZE)]
-    rootBlock.minorBlockHeaderList = [b.header for b in minorBlockList]
-    return (rootBlock, minorBlockList)
 
 
 def main():

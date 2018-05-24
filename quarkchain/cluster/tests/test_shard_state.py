@@ -516,7 +516,7 @@ class TestShardState(unittest.TestCase):
             cutoff=9,
             diffFactor=2048,
             minimumDiff=1)
-
+        env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
         state = create_default_shard_state(env=env, shardId=0)
 
         # Check new difficulty

@@ -465,6 +465,8 @@ class JSONRPCServer:
         withdraw = getDataDefault("withdraw", quantity_decoder, 0)
         withdrawTo = getDataDefault("withdrawTo", data_decoder, None)
 
+        networkId = getDataDefault("networkID", quantity_decoder, self.master.env.config.NETWORK_ID)
+
         if nonce is None:
             raise InvalidParams("Missing nonce")
         if not (v and r and s):
@@ -481,6 +483,7 @@ class JSONRPCServer:
             withdraw=withdraw,
             withdrawSign=1,
             withdrawTo=withdrawTo if withdrawTo else b"",
+            networkId=networkId,
         )
         tx = Transaction(code=Code.createEvmCode(evmTx))
         success = await self.master.addTransaction(tx)
