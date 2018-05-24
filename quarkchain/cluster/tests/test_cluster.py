@@ -114,29 +114,35 @@ class TestCluster(unittest.TestCase):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
-        with ClusterContext(1, acc1) as clusters:
+        with ClusterContext(2, acc1) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            tx = create_transfer_transaction(
+            tx1 = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,
                 toAddress=acc1,
                 amount=12345,
             )
-            self.assertTrue(call_async(master.addTransaction(tx)))
+            self.assertTrue(call_async(master.addTransaction(tx1)))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
 
-            tx = create_transfer_transaction(
+            # missing withdrawTo
+            tx2 = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 fromId=id1,
                 toAddress=acc1,
                 amount=12345,
                 withdraw=100,
             )
-            self.assertFalse(call_async(master.addTransaction(tx)))
+            self.assertFalse(call_async(master.addTransaction(tx2)))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+
+            # check the tx is received by the other cluster
+            txQueue = clusters[1].slaveList[0].shardStateMap[branch.value].txQueue
+            assert_true_with_timeout(lambda: len(txQueue) == 1)
+            self.assertEqual(txQueue.pop_transaction(), tx1.code.getEvmTransaction())
 
     def testAddMinorBlockRequestList(self):
         id1 = Identity.createRandomIdentity()

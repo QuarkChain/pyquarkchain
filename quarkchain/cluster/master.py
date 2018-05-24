@@ -579,7 +579,8 @@ class MasterServer():
         branchToAccountBranchData = await self.getAccountData(address)
         return branchToAccountBranchData.get(branch, None)
 
-    async def addTransaction(self, tx):
+    async def addTransaction(self, tx, fromPeer=None):
+        ''' Add transaction to the cluster and broadcast to peers '''
         branch = Branch(tx.code.getEvmTransaction().branchValue)
         if branch.value not in self.branchToSlaves:
             return False
@@ -588,11 +589,19 @@ class MasterServer():
         for slave in self.branchToSlaves[branch.value]:
             futures.append(slave.addTransaction(tx))
 
-        results = await asyncio.gather(*futures)
+        success = all(await asyncio.gather(*futures))
+        if not success:
+            return False
 
-        # TODO: broadcast tx to peers
-
-        return all(results)
+        if success and self.network is not None:
+            for peer in self.network.iteratePeers():
+                if peer == fromPeer:
+                    continue
+                try:
+                    peer.sendTransaction(tx)
+                except Exception:
+                    Logger.logException()
+        return True
 
     def handleNewRootBlockHeader(self, header, peer):
         self.synchronizer.addTask(header, peer)

@@ -12,7 +12,7 @@ from quarkchain.cluster.protocol import (
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
 from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
-from quarkchain.cluster.p2p_commands import GetRootBlockListResponse
+from quarkchain.cluster.p2p_commands import NewTransactionListCommand, GetRootBlockListResponse
 from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand, GetRootBlockHeaderListResponse, Direction
 from quarkchain.utils import set_logging_level, Logger
 
@@ -162,6 +162,11 @@ class Peer(P2PConnection):
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
         self.masterServer.handleNewRootBlockHeader(cmd.rootBlockHeader, self)
 
+    async def handleNewTransactionList(self, op, cmd, rpcId):
+        for tx in cmd.transactionList:
+            Logger.debug("Received tx {} from peer {}".format(tx.getHash().hex(), self.id.hex()))
+            await self.masterServer.addTransaction(tx, self)
+
     async def handleGetRootBlockHeaderListRequest(self, request):
         if request.limit <= 0:
             self.closeWithError("Bad limit")
@@ -196,11 +201,18 @@ class Peer(P2PConnection):
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))
 
+    def sendTransaction(self, tx):
+        Logger.warning("1312")
+        self.writeCommand(
+            op=CommandOp.NEW_TRANSACTION_LIST,
+            cmd=NewTransactionListCommand([tx]))
+
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
 OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handleError,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handleNewMinorBlockHeaderList,
+    CommandOp.NEW_TRANSACTION_LIST: Peer.handleNewTransactionList,
 }
 
 # For RPC request commands
