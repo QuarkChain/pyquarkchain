@@ -2,7 +2,7 @@ from enum import IntEnum
 
 from quarkchain.cluster.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
 from quarkchain.core import Serializable, PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
-from quarkchain.core import Branch, boolean, uint8, uint16, uint32, uint128, hash256
+from quarkchain.core import Branch, boolean, uint8, uint16, uint32, uint128, hash256, Transaction
 
 
 class HelloCommand(Serializable):
@@ -71,6 +71,16 @@ class NewMinorBlockHeaderListCommand(Serializable):
     def __init__(self, rootBlockHeader, minorBlockHeaderList):
         self.rootBlockHeader = rootBlockHeader
         self.minorBlockHeaderList = minorBlockHeaderList
+
+
+class NewTransactionListCommand(Serializable):
+    ''' Broadcast transactions '''
+    FIELDS = [
+        ("transactionList", PreprendedSizeListSerializer(4, Transaction))
+    ]
+
+    def __init__(self, transactionList=None):
+        self.transactionList = transactionList if transactionList is not None else []
 
 
 class Direction(IntEnum):
@@ -194,6 +204,7 @@ class CommandOp():
 OP_SERIALIZER_MAP = {
     CommandOp.HELLO: HelloCommand,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: NewMinorBlockHeaderListCommand,
+    CommandOp.NEW_TRANSACTION_LIST: NewTransactionListCommand,
     CommandOp.GET_PEER_LIST_REQUEST: GetPeerListRequest,
     CommandOp.GET_PEER_LIST_RESPONSE: GetPeerListResponse,
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST: GetRootBlockHeaderListRequest,
