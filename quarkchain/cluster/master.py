@@ -14,7 +14,7 @@ from quarkchain.cluster.rpc import (
     AddRootBlockRequest, AddMinorBlockRequest,
     CreateClusterPeerConnectionRequest,
     DestroyClusterPeerConnectionCommand,
-    GetStatsRequest, SyncMinorBlockListRequest,
+    SyncMinorBlockListRequest,
     GetMinorBlockRequest, GetTransactionRequest,
     ArtificialTxConfig,
 )
@@ -293,6 +293,7 @@ class SlaveConnection(ClusterConnection):
 
     async def handleAddMinorBlockHeaderRequest(self, req):
         self.masterServer.rootState.addValidatedMinorBlockHash(req.minorBlockHeader.getHash())
+        self.masterServer.updateShardStats(req.shardStats)
         return AddMinorBlockHeaderResponse(
             errorCode=0,
         )
@@ -331,6 +332,9 @@ class MasterServer():
         self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
         self.artificialTxConfig = self.defaultArtificialTxConfig
         self.synchronizer = Synchronizer()
+
+        # branch value -> ShardStats
+        self.branchToShardStats = dict()
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -687,32 +691,20 @@ class MasterServer():
             self.defaultArtificialTxConfig = newConfig
         self.artificialTxConfig = newConfig
 
+    def updateShardStats(self, shardStats):
+        self.branchToShardStats[shardStats.branch.value] = shardStats
+
     async def getStats(self):
-        futures = []
-        for slave in self.slavePool:
-            request = GetStatsRequest()
-            futures.append(slave.writeRpcRequest(ClusterOp.GET_STATS_REQUEST, request))
-        responses = await asyncio.gather(*futures)
-
-        branchValueToShardStats = dict()
-        for resp in responses:
-            _, resp, _ = resp
-            check(resp.errorCode == 0)
-            for shardStats in resp.shardStatsList:
-                branchValueToShardStats[shardStats.branch.value] = shardStats
-        # check we have stats from all shards
-        check(len(branchValueToShardStats) == self.__getShardSize())
-
         shards = [dict() for i in range(self.__getShardSize())]
-        for shardStats in branchValueToShardStats.values():
+        for shardStats in self.branchToShardStats.values():
             shardId = shardStats.branch.getShardId()
             shards[shardId]["height"] = shardStats.height
             shards[shardId]["timestamp"] = shardStats.timestamp
             shards[shardId]["txCount60s"] = shardStats.txCount60s
             shards[shardId]["pendingTxCount"] = shardStats.pendingTxCount
 
-        txCount60s = sum([shardStats.txCount60s for shardStats in branchValueToShardStats.values()])
-        pendingTxCount = sum([shardStats.pendingTxCount for shardStats in branchValueToShardStats.values()])
+        txCount60s = sum([shardStats.txCount60s for shardStats in self.branchToShardStats.values()])
+        pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
         return {
             "shardSize": self.__getShardSize(),
             "rootHeight": self.rootState.tip.height,
