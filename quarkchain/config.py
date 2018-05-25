@@ -64,7 +64,7 @@ class DefaultConfig:
             diffFactor=2048,
             minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
 
-        self.NETWORK_ID = NetworkId.MAINNET
+        self.NETWORK_ID = NetworkId.TESTNET_PORSCHE
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
         # Unlimited yet

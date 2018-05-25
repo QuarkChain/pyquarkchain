@@ -1,6 +1,7 @@
 import unittest
 from quarkchain.diff import MADifficultyCalculator
 from quarkchain.tests.test_utils import get_test_env
+from quarkchain.config import NetworkId
 from quarkchain.core import Identity, Address
 from quarkchain.chain import QuarkChainState
 
@@ -133,6 +134,7 @@ class TestMADifficulty(unittest.TestCase):
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
         env = get_test_env(acc1)
+        env.config.NETWORK_ID = NetworkId.MAINNET
         env.config.setShardSize(1)
         env.config.GENESIS_CREATE_TIME = 0
         env.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
