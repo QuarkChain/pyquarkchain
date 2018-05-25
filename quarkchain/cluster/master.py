@@ -489,14 +489,22 @@ class MasterServer():
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
         return response.block if response.errorCode == 0 else None
 
-    async def getNextBlockToMine(self, address, shardMaskValue=0, randomizeOutput=True):
+    async def getNextBlockToMine(self, address, shardMaskValue=0, preferRoot=False, randomizeOutput=True):
         ''' Returns (isRootBlock, block)
 
         shardMaskValue = 0 means considering root chain and all the shards
         '''
+        # Mining old blocks is useless
+        if self.synchronizer.running:
+            return None, None
+
+        if preferRoot and shardMaskValue == 0:
+            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
+
         shardMask = None if shardMaskValue == 0 else ShardMask(shardMaskValue)
         futures = []
 
+        # Collect EcoInfo from shards
         for slave in self.slavePool:
             if shardMask and not slave.hasOverlap(shardMask):
                 continue

@@ -512,12 +512,13 @@ class JSONRPCServer:
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)
     @decode_arg("shardMaskValue", quantity_decoder)
-    async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue):
+    async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue, preferRoot=False):
         address = Address.deserialize(coinbaseAddress)
-        isRootBlock, block = await self.master.getNextBlockToMine(address, shardMaskValue)
+        isRootBlock, block = await self.master.getNextBlockToMine(address, shardMaskValue, preferRoot=preferRoot)
+        blockData = data_encoder(block.serialize()) if block else ""
         return {
             "isRootBlock": isRootBlock,
-            "blockData": data_encoder(block.serialize()),
+            "blockData": blockData,
         }
 
     @methods.add
