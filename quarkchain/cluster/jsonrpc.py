@@ -378,6 +378,7 @@ class JSONRPCServer:
             withdraw=withdraw,
             withdrawSign=1,
             withdrawTo=withdrawTo,
+            networkId=self.master.env.config.NETWORK_ID,
         )
         return data_encoder(evmTx.hash_unsigned)
 
@@ -433,6 +434,7 @@ class JSONRPCServer:
             withdraw=withdraw,
             withdrawSign=1,
             withdrawTo=withdrawTo,
+            networkId=self.master.env.config.NETWORK_ID,
         )
 
         if evmTx.sender != fromAddr.recipient:
