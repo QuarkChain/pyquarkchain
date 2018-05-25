@@ -1,7 +1,9 @@
 import argparse
 import aiohttp
 import asyncio
+import logging
 import random
+import time
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from multiprocessing import Pool
@@ -91,15 +93,25 @@ async def run_account(account, branch, endpoint):
 
 
 def run_branch(branch):
+    print("[{}] started!".format(branch.getShardId()))
     accounts = []
     for item in LOADTEST_ACCOUNTS:
         account = Account(bytes.fromhex(item["address"])[:20], bytes.fromhex(item["key"]))
         accounts.append(account)
 
     endpoint = Endpoint("http://{}:{}".format(ARGS.host, ARGS.port))
+    start = time.time()
+    count = 0
     while True:
         for account in accounts:
             asyncio.get_event_loop().run_until_complete(run_account(account, branch, endpoint))
+            count += 1
+            elapse = time.time() - start
+            if elapse > 30:
+                tps = count / elapse
+                print("[{}] {:.2f} TPS".format(branch.getShardId(), tps))
+                count = 0
+                start = time.time()
 
 
 def main():
@@ -115,7 +127,15 @@ def main():
         "--host", default="localhost", type=str)
     parser.add_argument(
         "--port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
+    parser.add_argument(
+        "--log_jrpc", default=False, type=bool)
+    parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
+
+    if not args.log_jrpc:
+        logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
+        logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+
     num_processes = args.num_processes
     global ARGS
     ARGS = args

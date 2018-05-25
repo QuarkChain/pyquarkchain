@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import logging
 import unittest
 
 from contextlib import contextmanager
@@ -14,6 +15,11 @@ from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.evm import opcodes
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async
+
+
+# disable jsonrpcclient verbose logging
+logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
+logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 
 @contextmanager
