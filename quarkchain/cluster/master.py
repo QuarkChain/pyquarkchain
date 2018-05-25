@@ -736,6 +736,8 @@ class MasterServer():
             "txCount60s": txCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
+            "numTxPerBlock": self.artificialTxConfig.numTxPerBlock,
+            "xShardTxPercent": self.artificialTxConfig.xShardTxPercent,
             "shards": shards,
         }
 
