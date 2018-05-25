@@ -880,7 +880,7 @@ class SlaveServer():
             return None
 
         shardState = self.shardStateMap[branch.value]
-        return shardState.db.getTransactionByHash(txHash)
+        return shardState.getTransactionByHash(txHash)
 
 
 def parse_args():
