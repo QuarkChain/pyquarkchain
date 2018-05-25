@@ -42,6 +42,12 @@ class TestShardState(unittest.TestCase):
             toAddress=acc2,
             amount=12345)
         state.addTx(tx)
+
+        block, i = state.getTransactionByHash(tx.getHash())
+        self.assertEqual(block.txList[0], tx)
+        self.assertEqual(block.header.createTime, 0)
+        self.assertEqual(i, 0)
+
         b1 = state.createBlockToMine(address=acc3)
         self.assertEqual(len(b1.txList), 1)
 
@@ -52,7 +58,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
-        block, i = state.db.getTransactionByHash(tx.getHash())
+        block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
 
@@ -88,11 +94,11 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(acc2.recipient), 1234500 - 234500 - opcodes.GTXCOST)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST)
 
-        block, i = state.db.getTransactionByHash(b1.txList[0].getHash())
+        block, i = state.getTransactionByHash(b1.txList[0].getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
 
-        block, i = state.db.getTransactionByHash(b1.txList[1].getHash())
+        block, i = state.getTransactionByHash(b1.txList[1].getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 1)
 

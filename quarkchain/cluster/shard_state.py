@@ -3,7 +3,10 @@ import time
 
 from collections import deque
 
-from quarkchain.cluster.core import RootBlock, MinorBlock, CrossShardTransactionList, CrossShardTransactionDeposit
+from quarkchain.cluster.core import (
+    RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
+    CrossShardTransactionList, CrossShardTransactionDeposit,
+)
 from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
 from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
@@ -292,7 +295,8 @@ class ShardState:
         self.rawDb = db if db is not None else env.db
         self.branch = Branch.create(env.config.SHARD_SIZE, shardId)
         self.db = ShardDb(self.rawDb, self.branch)
-        self.txQueue = TransactionQueue()
+        self.txQueue = TransactionQueue()  # queue of EvmTransaction
+        self.txDict = dict()  # hash -> Transaction for explorer
         self.initialized = False
 
         # assure ShardState is in good shape after constructor returns though we still
@@ -405,6 +409,7 @@ class ShardState:
         try:
             evmTx = self.__validateTx(tx)
             self.txQueue.add_transaction(evmTx)
+            self.txDict[tx.getHash()] = tx
             return True
         except Exception as e:
             Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
@@ -624,6 +629,8 @@ class ShardState:
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block, evmState)
         self.txQueue = self.txQueue.diff(evmTxIncluded)
+        for tx in block.txList:
+            self.txDict.pop(tx.getHash(), None)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
@@ -969,6 +976,17 @@ class ShardState:
 
     def containRemoteMinorBlockHash(self, h):
         return self.db.containRemoteMinorBlockHash(h)
+
+    def getTransactionByHash(self, h):
+        ''' Returns (block, index) where index is the position of tx in the block '''
+        block, index = self.db.getTransactionByHash(h)
+        if block:
+            return block, index
+        if h in self.txDict:
+            block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
+            block.txList.append(self.txDict[h])
+            return block, 0
+        return None, None
 
     def getShardStats(self) -> ShardStats:
         return ShardStats(
