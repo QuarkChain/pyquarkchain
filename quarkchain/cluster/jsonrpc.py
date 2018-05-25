@@ -186,16 +186,18 @@ def tx_encoder(block, i):
     evmTx = tx.code.getEvmTransaction()
     branch = Branch(evmTx.branchValue)
     if evmTx.withdraw == 0:
+        # in-shard tx
         to = evmTx.to
         value = evmTx.value
-        toShard = block.header.branch.getShardId()
+        toShard = branch.getShardId()
     else:
+        # x-shard tx
         toAddr = Address.deserialize(evmTx.withdrawTo)
         to = toAddr.recipient
         value = evmTx.withdraw
         toShard = toAddr.getShardId(branch.getShardSize())
     return {
-        'id': id_encoder(tx.getHash(), block.header.branch),
+        'id': id_encoder(tx.getHash(), branch),
         'hash': data_encoder(tx.getHash()),
         'nonce': quantity_encoder(evmTx.nonce),
         'timestamp': quantity_encoder(block.header.createTime),
