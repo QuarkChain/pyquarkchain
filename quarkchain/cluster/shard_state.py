@@ -623,7 +623,7 @@ class ShardState:
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block, evmState)
-        self.txQueue.diff(evmTxIncluded)
+        self.txQueue = self.txQueue.diff(evmTxIncluded)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
@@ -780,6 +780,7 @@ class ShardState:
             descendantRootHeader=self.rootTip,
             ancestorRootHeader=ancestorRootHeader).getHash()
 
+        popedTxs = []
         while evmState.gas_used < evmState.gas_limit:
             evmTx = self.txQueue.pop_transaction(
                 max_gas=evmState.gas_limit - evmState.gas_used,
@@ -790,8 +791,13 @@ class ShardState:
             try:
                 apply_transaction(evmState, evmTx)
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
+                popedTxs.append(evmTx)
             except Exception as e:
                 Logger.errorException()
+
+        # We don't want to drop the transactions if the mined block failed to be appended
+        for evmTx in popedTxs:
+            self.txQueue.add_transaction(evmTx)
 
         if artificialTxConfig:
             self.__addArtificialTx(block, evmState, artificialTxConfig)

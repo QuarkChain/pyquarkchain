@@ -298,19 +298,9 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(slaves[0].addTx(tx1))
 
             b1 = slaves[0].shardStateMap[2 | 0].createBlockToMine(address=acc1)
-
-            tx2 = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[2 | 0],
-                fromId=id1,
-                toAddress=acc2,
-                amount=12345,
-                withdraw=99999,
-                withdrawTo=bytes(acc3.serialize()),
-                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-            )
-            self.assertTrue(slaves[0].addTx(tx2))
-
             b2 = slaves[0].shardStateMap[2 | 0].createBlockToMine(address=acc1)
+            b2.header.createTime += 1
+            self.assertNotEqual(b1.header.getHash(), b2.header.getHash())
 
             self.assertTrue(call_async(slaves[0].addBlock(b1)))
 
@@ -327,7 +317,7 @@ class TestCluster(unittest.TestCase):
             # expect shard 1 got the CrossShardTransactionList of b2
             xshardTxList = slaves[1].shardStateMap[2 | 1].db.getMinorBlockXshardTxList(b2.header.getHash())
             self.assertEqual(len(xshardTxList.txList), 1)
-            self.assertEqual(xshardTxList.txList[0].amount, 99999)
+            self.assertEqual(xshardTxList.txList[0].amount, 54321)
             self.assertEqual(xshardTxList.txList[0].address, acc3)
 
             b3 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
