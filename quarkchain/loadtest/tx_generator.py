@@ -104,7 +104,12 @@ def run_branch(branch):
     count = 0
     while True:
         for account in accounts:
-            asyncio.get_event_loop().run_until_complete(run_account(account, branch, endpoint))
+            try:
+                asyncio.get_event_loop().run_until_complete(run_account(account, branch, endpoint))
+            except Exception as e:
+                print("Failed to issue new tx: {}".format(e))
+                time.sleep(10)
+                continue
             count += 1
             elapse = time.time() - start
             if elapse > 30:
