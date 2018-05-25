@@ -2,6 +2,8 @@ import asyncio
 import inspect
 
 from aiohttp import web
+from async_armor import armor
+
 from decorator import decorator
 from ethereum.utils import (
     is_numeric, is_string, int_to_big_endian, big_endian_to_int,
@@ -242,7 +244,7 @@ def encode_res(encoder):
 class JSONRPCServer:
 
     def __init__(self, env, masterServer):
-        # Disable logging
+        # Disable jsonrpcserver logging
         config.log_requests = False
         config.log_responses = False
 
@@ -259,7 +261,9 @@ class JSONRPCServer:
 
     async def __handle(self, request):
         request = await request.text()
-        response = await self.handlers.dispatch(request)
+        # Use armor to prevent the handler from being cancelled when
+        # aiohttp server loses connection to client
+        response = await armor(self.handlers.dispatch(request))
         if response.is_notification:
             return web.Response()
         else:
@@ -491,6 +495,17 @@ class JSONRPCServer:
             raise ServerError("Failed to add transaction")
 
         return id_encoder(tx.getHash(), Branch(branch))
+
+    @methods.add
+    @decode_arg("txData", data_decoder)
+    async def sendRawTransaction(self, txData):
+        tx = Transaction.deserialize(txData)
+        success = await self.master.addTransaction(tx)
+        if not success:
+            raise ServerError("Failed to add transaction")
+
+        evmTx = tx.code.getEvmTransaction()
+        return id_encoder(tx.getHash(), Branch(evmTx.branchValue))
 
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)

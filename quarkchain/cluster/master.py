@@ -576,8 +576,16 @@ class MasterServer():
         # TODO: Only query the shard who has the address
         shardId = address.getShardId(self.__getShardSize())
         branch = Branch.create(self.__getShardSize(), shardId)
-        branchToAccountBranchData = await self.getAccountData(address)
-        return branchToAccountBranchData.get(branch, None)
+        slaves = self.branchToSlaves.get(branch.value, None)
+        if not slaves:
+            return None
+        slave = slaves[0]
+        request = GetAccountDataRequest(address)
+        _, resp, _ = await slave.writeRpcRequest(ClusterOp.GET_ACCOUNT_DATA_REQUEST, request)
+        for accountBranchData in resp.accountBranchDataList:
+            if accountBranchData.branch == branch:
+                return accountBranchData
+        return None
 
     async def addTransaction(self, tx, fromPeer=None):
         ''' Add transaction to the cluster and broadcast to peers '''

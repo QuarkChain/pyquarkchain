@@ -202,7 +202,6 @@ class Peer(P2PConnection):
             cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))
 
     def sendTransaction(self, tx):
-        Logger.warning("1312")
         self.writeCommand(
             op=CommandOp.NEW_TRANSACTION_LIST,
             cmd=NewTransactionListCommand([tx]))
