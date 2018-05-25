@@ -8,8 +8,8 @@ import jsonrpcclient
 from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import quantity_encoder
 
-from quarkchain.config import DEFAULT_ENV
-from quarkchain.utils import check, set_logging_level, Logger
+from quarkchain.config import DEFAULT_ENV, NetworkId
+from quarkchain.utils import set_logging_level, Logger
 
 
 class Endpoint:
@@ -17,8 +17,8 @@ class Endpoint:
     def __init__(self, port):
         self.port = port
 
-    def __sendRequest(self, *args):
-        return jsonrpcclient.request("http://localhost:{}".format(self.port), *args)
+    def __sendRequest(self, *args, **kwargs):
+        return jsonrpcclient.request("http://localhost:{}".format(self.port), *args, **kwargs)
 
     def setArtificialTxCount(self, count):
         ''' Keep trying until success.
@@ -32,7 +32,10 @@ class Endpoint:
             time.sleep(1)
 
     def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
-        resp = self.__sendRequest("getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue))
+        resp = self.__sendRequest(
+            "getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
+        if resp["blockData"] == "":
+            return None, None
         isRoot = resp["isRootBlock"]
         blockBytes = bytes.fromhex(resp["blockData"])
         blockClass = RootBlock if isRoot else MinorBlock
@@ -60,37 +63,51 @@ class Miner:
             expectedBlockTime = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
         else:
             expectedBlockTime = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
+
+        # 10% jitter
+        jitter = expectedBlockTime * random.uniform(-0.1, 0.1)
         elapsed = time.time() - startTime
-        delay = max(0, expectedBlockTime - elapsed + random.uniform(-1, 1))
+        # add 2 s jitter
+        delay = max(0, expectedBlockTime - elapsed + jitter)
         time.sleep(delay)
+
+    def __checkMetric(self, metric):
+        # Testnet does not check difficulty
+        if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
+            return True
+        return metric < 2 ** 256
+
+    def __logStatus(self, success):
+        shard = "R" if self.isRoot else self.block.header.branch.getShardId()
+        count = len(self.block.minorBlockHeaderList) if self.isRoot else len(self.block.txList)
+        status = "success" if success else "fail"
+        elapsed = time.time() - self.block.header.createTime
+
+        Logger.info("[{}] {} [{}] ({} {:.2f})".format(
+            shard, self.block.header.height, count, status, elapsed))
 
     def run(self):
         self.endpoint.setArtificialTxCount(self.artificialTxCount)
         while True:
             isRoot, block = self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
-            check(block is not None)
+            if not block:
+                time.sleep(1)
+                continue
 
             if self.block is None or self.block != block:
                 self.block = block
                 self.isRoot = isRoot
-
-            if self.isRoot:
-                Logger.info("Mining root block {} with {} minor headers".format(
-                    block.header.height, len(block.minorBlockHeaderList)))
-            else:
-                Logger.info("Mining minor block {}-{} with {} transactions".format(
-                    block.header.branch.getShardId(), block.header.height, len(self.block.txList)))
-            start = time.time()
             for i in range(1000000):
                 self.block.header.nonce += 1
                 metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
-                if metric < 2 ** 256:
-                    self.__simulatePowDelay(start)
+                if self.__checkMetric(metric):
+                    self.__simulatePowDelay(block.header.createTime)
                     try:
                         self.endpoint.addBlock(self.block)
+                        success = True
                     except Exception as e:
-                        Logger.info("Failed to add block")
-                    Logger.info("Successfully added block with nonce {}".format(self.block.header.nonce))
+                        success = False
+                    self.__logStatus(success)
                     self.block = None
                     break
 
