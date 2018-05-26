@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import psutil
 import random
 from collections import deque
 
@@ -742,6 +743,7 @@ class MasterServer():
             "numTxPerBlock": self.artificialTxConfig.numTxPerBlock,
             "xShardTxPercent": self.artificialTxConfig.xShardTxPercent,
             "shards": shards,
+            "cpus": psutil.cpu_percent(percpu=True),
         }
 
     async def getMinorBlockByHash(self, blockHash, branch):
