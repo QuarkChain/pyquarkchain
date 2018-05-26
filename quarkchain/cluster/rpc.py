@@ -392,14 +392,16 @@ class ShardStats(Serializable):
         ("timestamp", uint64),
         ("txCount60s", uint32),
         ("pendingTxCount", uint32),
+        ("blockCount60s", uint32),
     ]
 
-    def __init__(self, branch, height, timestamp, txCount60s, pendingTxCount):
+    def __init__(self, branch, height, timestamp, txCount60s, pendingTxCount, blockCount60s):
         self.branch = branch
         self.height = height
         self.timestamp = timestamp
         self.txCount60s = txCount60s
         self.pendingTxCount = pendingTxCount
+        self.blockCount60s = blockCount60s
 
 
 class AddMinorBlockHeaderRequest(Serializable):
