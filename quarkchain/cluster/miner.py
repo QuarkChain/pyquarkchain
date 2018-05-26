@@ -34,7 +34,7 @@ class Endpoint:
     def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
         resp = self.__sendRequest(
             "getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
-        if resp["blockData"] == "":
+        if not resp:
             return None, None
         isRoot = resp["isRootBlock"]
         blockBytes = bytes.fromhex(resp["blockData"])

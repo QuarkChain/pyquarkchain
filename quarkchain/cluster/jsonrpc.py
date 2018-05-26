@@ -443,7 +443,7 @@ class JSONRPCServer:
         tx = Transaction(code=Code.createEvmCode(evmTx))
         success = await self.master.addTransaction(tx)
         if not success:
-            raise ServerError("Failed to add transaction")
+            return None
 
         return id_encoder(tx.getHash(), branch)
 
@@ -496,7 +496,7 @@ class JSONRPCServer:
         tx = Transaction(code=Code.createEvmCode(evmTx))
         success = await self.master.addTransaction(tx)
         if not success:
-            raise ServerError("Failed to add transaction")
+            return None
 
         return id_encoder(tx.getHash(), Branch(branch))
 
@@ -506,7 +506,7 @@ class JSONRPCServer:
         tx = Transaction.deserialize(txData)
         success = await self.master.addTransaction(tx)
         if not success:
-            raise ServerError("Failed to add transaction")
+            return None
 
         evmTx = tx.code.getEvmTransaction()
         return id_encoder(tx.getHash(), Branch(evmTx.branchValue))
@@ -517,10 +517,11 @@ class JSONRPCServer:
     async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue, preferRoot=False):
         address = Address.deserialize(coinbaseAddress)
         isRootBlock, block = await self.master.getNextBlockToMine(address, shardMaskValue, preferRoot=preferRoot)
-        blockData = data_encoder(block.serialize()) if block else ""
+        if not block:
+            return None
         return {
             "isRootBlock": isRootBlock,
-            "blockData": blockData,
+            "blockData": data_encoder(block.serialize()),
         }
 
     @methods.add

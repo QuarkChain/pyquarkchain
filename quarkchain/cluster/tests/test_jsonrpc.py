@@ -117,7 +117,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[0].shardStateMap[branch.value].txQueue.pop_transaction(), evmTx)
 
     def testSendTransactionWithBadSignature(self):
-        ''' sendTransaction doesn't validate signature '''
+        ''' sendTransaction validates signature '''
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount(fullShardId=1)
@@ -139,8 +139,8 @@ class TestJSONRPC(unittest.TestCase):
                 withdraw="10",
                 withdrawTo=acc2.serialize().hex()
             )
-            sendRequest("sendTransaction", request)
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+            self.assertIsNone(sendRequest("sendTransaction", request))
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0)
 
     def testSendTransactionWithBadWithdrawTo(self):
         id1 = Identity.createRandomIdentity()
@@ -176,8 +176,8 @@ class TestJSONRPC(unittest.TestCase):
                 withdraw="10",
                 withdrawTo="ab",  # bad withdrawTo
             )
-            with self.assertRaises(ReceivedErrorResponse):
-                sendRequest("sendTransaction", request)
+
+            self.assertIsNone(sendRequest("sendTransaction", request))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0)
 
     def testGetNextBlockToMineAndAddBlock(self):
