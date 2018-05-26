@@ -720,12 +720,13 @@ class ShardState:
         return headerList
 
     def __addArtificialTx(self, block, evmState, artificialTxConfig):
-        for i in range(artificialTxConfig.numTxPerBlock):
+        numTx = max(0, int(artificialTxConfig.numTxPerBlock * random.uniform(0.8, 1.2)))
+        for i in range(numTx):
             if random.randint(1, 100) <= artificialTxConfig.xShardTxPercent:
                 # x-shard tx
                 toShard = random.randint(0, self.env.config.SHARD_SIZE - 1)
                 if toShard == self.branch.getShardId():
-                    continue
+                    toShard = (toShard + 1) % self.env.config.SHARD_SIZE
                 withdrawTo = evmState.block_coinbase + toShard.to_bytes(4, "big")
                 evmTx = EvmTransaction(
                     branchValue=self.branch.value,
