@@ -79,10 +79,9 @@ class TestShardState(unittest.TestCase):
             toAddress=acc2,
             amount=12345)
         self.assertTrue(state.addTx(tx))
-        self.assertTrue(state.addTx(tx))
-        self.assertTrue(state.addTx(tx))
+        self.assertFalse(state.addTx(tx))
 
-        self.assertEqual(len(state.txQueue), 3)
+        self.assertEqual(len(state.txQueue), 1)
 
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(len(block.txList), 1)

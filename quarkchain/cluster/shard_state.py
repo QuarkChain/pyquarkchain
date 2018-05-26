@@ -408,10 +408,13 @@ class ShardState:
         return evmTx
 
     def addTx(self, tx: Transaction):
+        txHash = tx.getHash()
+        if txHash in self.txDict:
+            return False
         try:
             evmTx = self.__validateTx(tx, self.evmState)
             self.txQueue.add_transaction(evmTx)
-            self.txDict[tx.getHash()] = tx
+            self.txDict[txHash] = tx
             return True
         except Exception as e:
             Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
