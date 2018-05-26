@@ -373,7 +373,7 @@ class ShardState:
         self.headerTip = genesisMinorBlock.header
         self.metaTip = genesisMinorBlock.meta
 
-    def __validateTx(self, tx: Transaction) -> EvmTransaction:
+    def __validateTx(self, tx: Transaction, evmState) -> EvmTransaction:
         # UTXOs are not supported now
         if len(tx.inList) != 0:
             raise RuntimeError("input list must be empty")
@@ -402,12 +402,17 @@ class ShardState:
             withdrawTo = Address.deserialize(evmTx.withdrawTo)
             if self.branch.isInShard(withdrawTo.fullShardId):
                 raise ValueError("withdraw address must not in the shard")
+
+        if evmState.get_nonce(evmTx.sender) != evmTx.nonce:
+            raise RuntimeError("Tx nonce doesn't match. expect: {} acutal:{}".format(
+                evmState.get_nonce(evmTx.sender), evmTx.nonce))
+
         # TODO: Neighborhood and xshard gas limit check
         return evmTx
 
     def addTx(self, tx: Transaction):
         try:
-            evmTx = self.__validateTx(tx)
+            evmTx = self.__validateTx(tx, self.evmState)
             self.txQueue.add_transaction(evmTx)
             self.txDict[tx.getHash()] = tx
             return True
@@ -416,12 +421,9 @@ class ShardState:
             return False
 
     def __getEvmStateForNewBlock(self, block, ephemeral=True):
-        if ephemeral:
-            state = self.evmState.ephemeral_clone()
-        else:
-            state = self.__createEvmState()
-
         state = self.__createEvmState()
+        if ephemeral:
+            state = state.ephemeral_clone()
         state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
         state.txindex = 0
         state.gas_used = 0
@@ -535,7 +537,7 @@ class ShardState:
 
         for idx, tx in enumerate(block.txList):
             try:
-                evmTx = self.__validateTx(tx)
+                evmTx = self.__validateTx(tx, evmState)
                 apply_transaction(evmState, evmTx)
                 evmTxIncluded.append(evmTx)
             except Exception as e:
