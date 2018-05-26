@@ -80,7 +80,6 @@ class ShardDb:
         self.xShardSet = set()
         self.rHeaderPool = dict()
         self.rMinorHeaderPool = dict()
-        self.txCounter60s = ExpiryCounter(60)
 
         self.__recoverFromDb()
 
@@ -192,8 +191,6 @@ class ShardDb:
         self.db.put(b"mblock_" + mBlockHash, mBlock.serialize())
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
-
-        self.txCounter60s.increment(len(mBlock.txList))
 
     def getMinorBlockHeaderByHash(self, h):
         return self.mHeaderPool.get(h, None)
@@ -991,10 +988,17 @@ class ShardState:
         return None, None
 
     def getShardStats(self) -> ShardStats:
+        cutoff = self.headerTip.createTime - 60
+        block = self.db.getMinorBlockByHash(self.headerTip.getHash())
+        count = 0
+        while block.header.height > 0 and block.header.createTime > cutoff:
+            count += len(block.txList)
+            block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
+
         return ShardStats(
             branch=self.branch,
             height=self.headerTip.height,
             timestamp=self.headerTip.createTime,
-            txCount60s=self.db.txCounter60s.getCount(),
+            txCount60s=count,
             pendingTxCount=len(self.txQueue),
         )
