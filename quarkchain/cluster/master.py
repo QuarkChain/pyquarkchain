@@ -329,7 +329,7 @@ class MasterServer():
         self.name = name
 
         self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
-        self.artificialTxConfig = self.defaultArtificialTxConfig
+        self.artificialTxConfig = None  # None means no loadtest running
         self.synchronizer = Synchronizer()
 
         # branch value -> ShardStats
@@ -484,7 +484,7 @@ class MasterServer():
         request = GetNextBlockToMineRequest(
             branch=branch,
             address=address.addressInBranch(branch),
-            artificialTxConfig=self.artificialTxConfig,
+            artificialTxConfig=self.artificialTxConfig if self.artificialTxConfig else self.defaultArtificialTxConfig,
         )
         slave = self.getSlaveConnection(branch)
         _, response, _ = await slave.writeRpcRequest(ClusterOp.GET_NEXT_BLOCK_TO_MINE_REQUEST, request)
@@ -704,17 +704,19 @@ class MasterServer():
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
     def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds):
-        ''' Do NOT revert if seconds <= 0 '''
+        ''' If seconds <= 0 udpate the default config and also cancel ongoing loadtest '''
         async def revertLater():
             await asyncio.sleep(seconds)
-            self.artificialTxConfig = self.defaultArtificialTxConfig
+            self.artificialTxConfig = None
 
         newConfig = ArtificialTxConfig(numTxPerBlock, xShardTxPercent)
         if seconds > 0:
-            asyncio.ensure_future(revertLater())
+            if not self.artificialTxConfig:
+                asyncio.ensure_future(revertLater())
+                self.artificialTxConfig = newConfig
         else:
             self.defaultArtificialTxConfig = newConfig
-        self.artificialTxConfig = newConfig
+            self.artificialTxConfig = None
 
     def updateShardStats(self, shardStats):
         self.branchToShardStats[shardStats.branch.value] = shardStats
@@ -732,7 +734,9 @@ class MasterServer():
         txCount60s = sum([shardStats.txCount60s for shardStats in self.branchToShardStats.values()])
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
+        artificialTxConfig = self.artificialTxConfig if self.artificialTxConfig else self.defaultArtificialTxConfig
         return {
+            "shardServerCount": len(self.slavePool),
             "shardSize": self.__getShardSize(),
             "rootHeight": self.rootState.tip.height,
             "rootTimestamp": self.rootState.tip.createTime,
@@ -740,8 +744,9 @@ class MasterServer():
             "blockCount60s": blockCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
-            "numTxPerBlock": self.artificialTxConfig.numTxPerBlock,
-            "xShardTxPercent": self.artificialTxConfig.xShardTxPercent,
+            "loadtesting": self.artificialTxConfig is not None,
+            "numTxPerBlock": artificialTxConfig.numTxPerBlock,
+            "xShardTxPercent": artificialTxConfig.xShardTxPercent,
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
         }
