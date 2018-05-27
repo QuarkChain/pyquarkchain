@@ -996,10 +996,13 @@ class ShardState:
         block = self.db.getMinorBlockByHash(self.headerTip.getHash())
         txCount = 0
         blockCount = 0
+        lastBlockTime = 0
         while block.header.height > 0 and block.header.createTime > cutoff:
             txCount += len(block.txList)
             blockCount += 1
             block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
+            if lastBlockTime == 0:
+                lastBlockTime = self.headerTip.createTime - block.header.createTime
 
         return ShardStats(
             branch=self.branch,
@@ -1008,4 +1011,5 @@ class ShardState:
             txCount60s=txCount,
             pendingTxCount=len(self.txQueue),
             blockCount60s=blockCount,
+            lastBlockTime=lastBlockTime,
         )

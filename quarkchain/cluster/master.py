@@ -730,16 +730,24 @@ class MasterServer():
             shards[shardId]["txCount60s"] = shardStats.txCount60s
             shards[shardId]["pendingTxCount"] = shardStats.pendingTxCount
             shards[shardId]["blockCount60s"] = shardStats.blockCount60s
+            shards[shardId]["lastBlockTime"] = shardStats.lastBlockTime
 
         txCount60s = sum([shardStats.txCount60s for shardStats in self.branchToShardStats.values()])
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
         artificialTxConfig = self.artificialTxConfig if self.artificialTxConfig else self.defaultArtificialTxConfig
+
+        rootLastBlockTime = 0
+        if self.rootState.tip.height >= 3:
+            prev = self.rootState.db.getRootBlockByHash(self.rootState.tip.hashPrevBlock)
+            rootLastBlockTime = self.rootState.tip.createTime - prev.header.createTime
+
         return {
             "shardServerCount": len(self.slavePool),
             "shardSize": self.__getShardSize(),
             "rootHeight": self.rootState.tip.height,
             "rootTimestamp": self.rootState.tip.createTime,
+            "rootLastBlockTime": rootLastBlockTime,
             "txCount60s": txCount60s,
             "blockCount60s": blockCount60s,
             "pendingTxCount": pendingTxCount,
