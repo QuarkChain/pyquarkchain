@@ -146,6 +146,26 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(block, b1)
         self.assertEqual(i, 1)
 
+    def testStaleBlockCount(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        b1 = state.createBlockToMine(address=acc3)
+        b2 = state.createBlockToMine(address=acc3)
+        b2.header.createTime += 1
+
+        state.finalizeAndAddBlock(b1)
+        self.assertEqual(state.db.getBlockCountByHeight(1), 1)
+
+        state.finalizeAndAddBlock(b2)
+        self.assertEqual(state.db.getBlockCountByHeight(1), 2)
+
     def testXshardTxSent(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=1)

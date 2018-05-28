@@ -393,16 +393,28 @@ class ShardStats(Serializable):
         ("txCount60s", uint32),
         ("pendingTxCount", uint32),
         ("blockCount60s", uint32),
+        ("staleBlockCount60s", uint32),
         ("lastBlockTime", uint32),
     ]
 
-    def __init__(self, branch, height, timestamp, txCount60s, pendingTxCount, blockCount60s, lastBlockTime):
+    def __init__(
+        self,
+        branch,
+        height,
+        timestamp,
+        txCount60s,
+        pendingTxCount,
+        blockCount60s,
+        staleBlockCount60s,
+        lastBlockTime,
+    ):
         self.branch = branch
         self.height = height
         self.timestamp = timestamp
         self.txCount60s = txCount60s
         self.pendingTxCount = pendingTxCount
         self.blockCount60s = blockCount60s
+        self.staleBlockCount60s = staleBlockCount60s
         self.lastBlockTime = lastBlockTime
 
 
