@@ -7,7 +7,7 @@ from quarkchain.cluster.core import (
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     CrossShardTransactionList, CrossShardTransactionDeposit,
 )
-from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
+from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Constant, Transaction
@@ -341,7 +341,7 @@ class ShardState:
             self.addRootBlock(rootBlock)
 
         shardSize = rootBlock.header.shardInfo.getShardSize()
-        self.branch = Branch.create(shardSize, self.shardId)
+        check(self.branch == Branch.create(shardSize, self.shardId))
         self.rootTip = rootBlock.header
         self.headerTip = __getHeaderTipFromRootBlock(self.branch)
         self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
@@ -359,26 +359,38 @@ class ShardState:
         return EvmState(env=self.env.evmEnv, db=self.rawDb)
 
     def __createGenesisBlocks(self, shardId):
-        genesisRootBlock = create_genesis_root_block(self.env)
-        self.evmState = self.__createEvmState()
-        genesisMinorBlock = create_genesis_minor_block(
-            env=self.env,
-            shardId=shardId,
-            hashRootBlock=genesisRootBlock.header.getHash(),
-            evmState=self.evmState)
+        evmList = create_genesis_evm_list(env=self.env, dbMap={self.shardId: self.rawDb})
+        genesisRootBlock0, genesisRootBlock1, gMinorBlockList0, gMinorBlockList1 = create_genesis_blocks(
+            env=self.env, evmList=evmList)
 
-        check(genesisMinorBlock.header.branch == self.branch)
-        self.db.putMinorBlock(genesisMinorBlock, self.evmState)
-        self.db.putMinorBlockIndex(genesisMinorBlock)
-        self.db.putRootBlock(genesisRootBlock, genesisMinorBlock.header)
+        # Add x-shard list to db
+        for mBlock1, evmState in zip(gMinorBlockList1, evmList):
+            if mBlock1.header.branch.getShardId() == shardId:
+                continue
+            self.addCrossShardTxListByMinorBlockHash(
+                mBlock1.header.getHash(), CrossShardTransactionList(txList=[]))
 
-        self.rootTip = genesisRootBlock.header
+        # Local helper variables
+        genesisMinorBlock0 = gMinorBlockList0[self.shardId]
+        genesisMinorBlock1 = gMinorBlockList1[self.shardId]
+        check(genesisMinorBlock1.header.branch.getShardId() == self.shardId)
+
+        check(genesisMinorBlock0.header.branch == self.branch)
+        self.evmState = evmList[self.shardId]
+        self.db.putMinorBlock(genesisMinorBlock0, self.evmState)
+        self.db.putMinorBlockIndex(genesisMinorBlock0)
+        self.db.putMinorBlock(genesisMinorBlock1, self.evmState)
+        self.db.putMinorBlockIndex(genesisMinorBlock1)
+        self.db.putRootBlock(genesisRootBlock0, genesisMinorBlock0.header)
+        self.db.putRootBlock(genesisRootBlock1, genesisMinorBlock1.header)
+
+        self.rootTip = genesisRootBlock1.header
         # Tips that are confirmed by root
-        self.confirmedHeaderTip = genesisMinorBlock.header
-        self.confirmedMetaTip = genesisMinorBlock.header
+        self.confirmedHeaderTip = genesisMinorBlock1.header
+        self.confirmedMetaTip = genesisMinorBlock1.header
         # Tips that are unconfirmed by root
-        self.headerTip = genesisMinorBlock.header
-        self.metaTip = genesisMinorBlock.meta
+        self.headerTip = genesisMinorBlock1.header
+        self.metaTip = genesisMinorBlock1.meta
 
     def __validateTx(self, tx: Transaction, evmState) -> EvmTransaction:
         # UTXOs are not supported now
@@ -471,6 +483,9 @@ class ShardState:
     def __validateBlock(self, block):
         ''' Validate a block before running evm transactions
         '''
+        if block.header.height <= 1:
+            raise ValueError("unexpected height")
+
         if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
             # TODO:  May put the block back to queue
             raise ValueError("prev block not found")
@@ -936,6 +951,16 @@ class ShardState:
                 gasPrice=0))
         return txList
 
+    def __runOneCrossShardTxListByRootBlockHash(self, rHash, evmState):
+        txList = self.__getCrossShardTxListByRootBlockHash(rHash)
+        for tx in txList:
+            evmState.delta_balance(tx.address.recipient, tx.amount)
+            evmState.gas_used = min(
+                evmState.gas_used + (opcodes.GTXXSHARDCOST if tx.gasPrice != 0 else 0),
+                evmState.gas_limit)
+            evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
+            evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
+
     def __includeCrossShardTxList(self, evmState, descendantRootHeader, ancestorRootHeader):
         ''' Include cross-shard transaction as much as possible by confirming root header as much as possible
         '''
@@ -952,13 +977,7 @@ class ShardState:
 
         # Add root headers.  Return if we run out of gas.
         for rHeader in reversed(headerList):
-            txList = self.__getCrossShardTxListByRootBlockHash(rHeader.getHash())
-            for tx in txList:
-                evmState.delta_balance(tx.address.recipient, tx.amount)
-                evmState.gas_used = min(evmState.gas_used + opcodes.GTXXSHARDCOST, evmState.gas_limit)
-                evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
-                evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
-
+            self.__runOneCrossShardTxListByRootBlockHash(rHeader.getHash(), evmState)
             if evmState.gas_used == evmState.gas_limit:
                 return rHeader
 
@@ -975,13 +994,9 @@ class ShardState:
             if evmState.gas_used == evmState.gas_limit:
                 raise ValueError("gas consumed by cross-shard tx exceeding limit")
 
-            txList = self.__getCrossShardTxListByRootBlockHash(rHeader.getHash())
-            for tx in txList:
-                evmState.delta_balance(tx.address.recipient, tx.amount)
-                evmState.gas_used = min(evmState.gas_used + opcodes.GTXXSHARDCOST, evmState.gas_limit)
-                evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
-                evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
+            self.__runOneCrossShardTxListByRootBlockHash(rHeader.getHash(), evmState)
 
+            # Move to next root block header
             rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
 
             # TODO: Check x-shard gas used is within limit

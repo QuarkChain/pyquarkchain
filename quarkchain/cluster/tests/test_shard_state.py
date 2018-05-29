@@ -13,7 +13,6 @@ def create_default_shard_state(env, shardId=0):
         env=env,
         shardId=shardId,
     )
-    shardState.initFromRootBlock(RootBlock(RootBlockHeader()))
     return shardState
 
 
@@ -22,8 +21,8 @@ class TestShardState(unittest.TestCase):
     def testShardStateSimple(self):
         env = get_test_env()
         state = create_default_shard_state(env)
-        self.assertEqual(state.rootTip.height, 0)
-        self.assertEqual(state.headerTip.height, 0)
+        self.assertEqual(state.rootTip.height, 1)
+        self.assertEqual(state.headerTip.height, 1)
 
     def testOneTx(self):
         id1 = Identity.createRandomIdentity()
@@ -189,6 +188,7 @@ class TestShardState(unittest.TestCase):
         b1 = state.createBlockToMine(address=acc3)
         self.assertEqual(len(b1.txList), 1)
 
+        self.assertEqual(state.evmState.gas_used, 0)
         # Should succeed
         state.finalizeAndAddBlock(b1)
         self.assertEqual(len(state.evmState.xshard_list), 1)
@@ -389,9 +389,9 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(b5.header.hashPrevRootBlock, rB0.header.getHash())
         b6 = state0.createBlockToMine(address=acc3, gasLimit=opcodes.GTXXSHARDCOST)
         self.assertEqual(b6.header.hashPrevRootBlock, rB0.header.getHash())
-        # There are two x-shard txs: one is root block coinbase, and anonther is from shard 1
+        # There are two x-shard txs: one is root block coinbase with zero gas, and anonther is from shard 1
         b7 = state0.createBlockToMine(address=acc3, gasLimit=2 * opcodes.GTXXSHARDCOST)
-        self.assertEqual(b7.header.hashPrevRootBlock, rB0.header.getHash())
+        self.assertEqual(b7.header.hashPrevRootBlock, rB1.header.getHash())
         b8 = state0.createBlockToMine(address=acc3, gasLimit=3 * opcodes.GTXXSHARDCOST)
         self.assertEqual(b8.header.hashPrevRootBlock, rB1.header.getHash())
 
@@ -521,8 +521,8 @@ class TestShardState(unittest.TestCase):
         b4 = b3.createBlockToAppend()
         state0.finalizeAndAddBlock(b4)
         self.assertEqual(state0.headerTip, b00.header)
-        self.assertEqual(state0.db.getMinorBlockByHeight(2), b00)
-        self.assertIsNone(state0.db.getMinorBlockByHeight(3))
+        self.assertEqual(state0.db.getMinorBlockByHeight(3), b00)
+        self.assertIsNone(state0.db.getMinorBlockByHeight(4))
 
         b5 = b1.createBlockToAppend()
         state0.addCrossShardTxListByMinorBlockHash(
@@ -540,8 +540,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.metaTip, b4.meta)
         self.assertEqual(state0.rootTip, rB2.header)
 
-        self.assertEqual(state0.db.getMinorBlockByHeight(2), b3)
-        self.assertEqual(state0.db.getMinorBlockByHeight(3), b4)
+        self.assertEqual(state0.db.getMinorBlockByHeight(3), b3)
+        self.assertEqual(state0.db.getMinorBlockByHeight(4), b4)
 
     def testShardStateForkResolveWithHigherRootChain(self):
         id1 = Identity.createRandomIdentity()

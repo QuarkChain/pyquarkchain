@@ -2,7 +2,7 @@ import unittest
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
-from quarkchain.cluster.core import CrossShardTransactionList, RootBlock, RootBlockHeader
+from quarkchain.cluster.core import CrossShardTransactionList
 import quarkchain.db
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.core import Address
@@ -10,17 +10,12 @@ from quarkchain.core import Address
 
 def create_default_state(env):
     rState = RootState(env=env)
-    sState0 = ShardState(
-        env=env,
-        shardId=0,
-        db=quarkchain.db.InMemoryDb())
-    sState0.initFromRootBlock(RootBlock(RootBlockHeader()))
-    sState1 = ShardState(
-        env=env,
-        shardId=1,
-        db=quarkchain.db.InMemoryDb())
-    sState1.initFromRootBlock(RootBlock(RootBlockHeader()))
-    return (rState, [sState0, sState1])
+    sStateList = [
+        ShardState(
+            env=env,
+            shardId=shardId,
+            db=quarkchain.db.InMemoryDb()) for shardId in range(env.config.SHARD_SIZE)]
+    return (rState, sStateList)
 
 
 def add_minor_block_to_cluster(sStates, block):
@@ -38,7 +33,7 @@ class TestRootState(unittest.TestCase):
     def testRootStateSimple(self):
         env = get_test_env()
         state = RootState(env=env)
-        self.assertEqual(state.tip.height, 0)
+        self.assertEqual(state.tip.height, 1)
 
     def testRootStateAddBlock(self):
         env = get_test_env()
@@ -57,9 +52,9 @@ class TestRootState(unittest.TestCase):
 
         self.assertTrue(rState.addBlock(rB))
 
-        self.assertIsNone(rState.getRootBlockByHeight(2))
-        self.assertEqual(rState.getRootBlockByHeight(1), rB)
-        self.assertEqual(rState.getRootBlockByHeight(0),
+        self.assertIsNone(rState.getRootBlockByHeight(3))
+        self.assertEqual(rState.getRootBlockByHeight(2), rB)
+        self.assertEqual(rState.getRootBlockByHeight(1),
                          rState.getRootBlockByHash(rB.header.hashPrevBlock))
 
     def testRootStateAndShardStateAddBlock(self):
@@ -284,7 +279,7 @@ class TestRootState(unittest.TestCase):
 
         recoveredState = RootState(env=env)
         self.assertEqual(recoveredState.tip, rB1.header)
-        self.assertEqual(recoveredState.db.getRootBlockByHeight(1), rB0)
+        self.assertEqual(recoveredState.db.getRootBlockByHeight(2), rB0)
         # fork is pruned from recovered state
         self.assertIsNone(recoveredState.db.getRootBlockByHash(rB00.header.getHash()))
 
@@ -399,4 +394,3 @@ class TestRootState(unittest.TestCase):
         sState0Recovered.initFromRootBlock(rB1)
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(sStates, m3)
-

@@ -45,7 +45,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 0 since it has one tx
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
-            self.assertEqual(block1.header.height, 1)
+            self.assertEqual(block1.header.height, 2)
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.txList), 1)
 
@@ -56,7 +56,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 1 due to proof-of-progress
             isRoot, block2 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
-            self.assertEqual(block2.header.height, 1)
+            self.assertEqual(block2.header.height, 2)
             self.assertEqual(block2.header.branch.value, 0b11)
             self.assertEqual(len(block2.txList), 0)
 
@@ -65,7 +65,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine root
             isRoot, block = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(isRoot)
-            self.assertEqual(block.header.height, 1)
+            self.assertEqual(block.header.height, 2)
             self.assertEqual(len(block.minorBlockHeaderList), 2)
             self.assertEqual(block.minorBlockHeaderList[0], block1.header)
             self.assertEqual(block.minorBlockHeaderList[1], block2.header)
@@ -77,7 +77,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 1 for the gas on xshard tx to acc3
             isRoot, block3 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertFalse(isRoot)
-            self.assertEqual(block3.header.height, 2)
+            self.assertEqual(block3.header.height, 3)
             self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.txList), 0)
 
@@ -215,7 +215,7 @@ class TestCluster(unittest.TestCase):
             assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header, 2)
 
             # Minor block is downloaded
-            self.assertEqual(b1.header.height, 13)
+            self.assertEqual(b1.header.height, 14)
             assert_true_with_timeout(
                 lambda: clusters[1].slaveList[0].shardStateMap[0b10].headerTip == b1.header)
 
@@ -240,7 +240,7 @@ class TestCluster(unittest.TestCase):
                 addResult = call_async(clusters[0].slaveList[0].addBlock(block))
                 self.assertTrue(addResult)
                 blockList.append(block)
-            self.assertEqual(clusters[0].slaveList[0].shardStateMap[0b10].headerTip.height, 13)
+            self.assertEqual(clusters[0].slaveList[0].shardStateMap[0b10].headerTip.height, 14)
 
             # cluster 1 has 12 blocks added
             for i in range(12):
@@ -249,7 +249,7 @@ class TestCluster(unittest.TestCase):
                 block.finalize(evmState=shardState0.runBlock(block))
                 addResult = call_async(clusters[1].slaveList[0].addBlock(block))
                 self.assertTrue(addResult)
-            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip.height, 12)
+            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip.height, 13)
 
             # reestablish cluster connection
             call_async(clusters[1].network.connect("127.0.0.1", 38000))

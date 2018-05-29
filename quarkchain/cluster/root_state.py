@@ -1,11 +1,10 @@
 import time
 
 from quarkchain.cluster.core import RootBlock, MinorBlockHeader
-from quarkchain.cluster.genesis import create_genesis_minor_block, create_genesis_root_block
+from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Serializable, PreprendedSizeListSerializer
 from quarkchain.utils import Logger
-from quarkchain.evm.state import State as EvmState
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -133,19 +132,19 @@ class RootState:
             Logger.info("Created genesis root block")
 
     def __createGenesisBlocks(self):
-        genesisRootBlock = create_genesis_root_block(self.env)
-        genesisMinorBlockHeaderList = []
-        evmState = EvmState(env=self.env.evmEnv, db=self.rawDb)
-        for shardId in range(self.env.config.SHARD_SIZE):
-            genesisMinorBlockHeaderList.append(
-                create_genesis_minor_block(
-                    env=self.env,
-                    shardId=shardId,
-                    evmState=evmState.ephemeral_clone(),
-                    hashRootBlock=genesisRootBlock.header.getHash()).header)
-        self.db.putRootBlock(genesisRootBlock, genesisMinorBlockHeaderList)
-        self.db.putRootBlockIndex(genesisRootBlock)
-        self.tip = genesisRootBlock.header
+        evmList = create_genesis_evm_list(env=self.env)
+        genesisRootBlock0, genesisRootBlock1, gMinorBlockList0, gMinorBlockList1 = create_genesis_blocks(
+            env=self.env, evmList=evmList)
+
+        self.db.putRootBlock(genesisRootBlock0, [b.header for b in gMinorBlockList0])
+        self.db.putRootBlockIndex(genesisRootBlock0)
+        self.db.putRootBlock(genesisRootBlock1, [b.header for b in gMinorBlockList1])
+        self.db.putRootBlockIndex(genesisRootBlock1)
+        self.tip = genesisRootBlock1.header
+        for b in gMinorBlockList0:
+            self.addValidatedMinorBlockHash(b.header.getHash())
+        for b in gMinorBlockList1:
+            self.addValidatedMinorBlockHash(b.header.getHash())
 
     def getTipBlock(self):
         return self.db.getRootBlockByHash(self.tip.getHash())
@@ -175,6 +174,9 @@ class RootState:
     def validateBlockHeader(self, blockHeader, blockHash=None):
         ''' Validate the block header.
         '''
+        if blockHeader.height <= 1:
+            raise ValueError("unexpected height")
+
         if not self.db.containRootBlockByHash(blockHeader.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
         prevBlockHeader = self.db.getRootBlockHeaderByHash(blockHeader.hashPrevBlock)
