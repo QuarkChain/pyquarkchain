@@ -160,10 +160,10 @@ class TestShardState(unittest.TestCase):
         b2.header.createTime += 1
 
         state.finalizeAndAddBlock(b1)
-        self.assertEqual(state.db.getBlockCountByHeight(1), 1)
+        self.assertEqual(state.db.getBlockCountByHeight(2), 1)
 
         state.finalizeAndAddBlock(b2)
-        self.assertEqual(state.db.getBlockCountByHeight(1), 2)
+        self.assertEqual(state.db.getBlockCountByHeight(2), 2)
 
     def testXshardTxSent(self):
         id1 = Identity.createRandomIdentity()
