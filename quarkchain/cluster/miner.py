@@ -1,6 +1,6 @@
 import argparse
 import logging
-import random
+import numpy
 import time
 
 import jsonrpcclient
@@ -64,11 +64,9 @@ class Miner:
         else:
             expectedBlockTime = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
 
-        # 10% jitter
-        jitter = expectedBlockTime * random.uniform(-0.1, 0.1)
+        blockTime = numpy.random.exponential(expectedBlockTime)
         elapsed = time.time() - startTime
-        # add 2 s jitter
-        delay = max(0, expectedBlockTime - elapsed + jitter)
+        delay = max(0, blockTime - elapsed)
         time.sleep(delay)
 
     def __checkMetric(self, metric):
