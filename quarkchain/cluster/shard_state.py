@@ -81,6 +81,9 @@ class ShardDb:
         self.rHeaderPool = dict()
         self.rMinorHeaderPool = dict()
 
+        # height -> set(minor block hash) for counting wasted blocks
+        self.heightToMinorBlockHashes = dict()
+
         self.__recoverFromDb()
 
     def __getLastMinorBlockInRootBlock(self, rootBlock):
@@ -109,6 +112,7 @@ class ShardDb:
             Logger.debug("Recovering shard block height {}".format(block.header.height))
             self.mHeaderPool[blockHash] = block.header
             self.mMetaPool[blockHash] = block.meta
+            self.heightToMinorBlockHashes.setdefault(block.header.height, set()).add(block.header.getHash())
 
         # recover xShardSet
         prefix = b"xShard_"
@@ -192,6 +196,8 @@ class ShardDb:
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
 
+        self.heightToMinorBlockHashes.setdefault(mBlock.header.height, set()).add(mBlock.header.getHash())
+
     def getMinorBlockHeaderByHash(self, h):
         return self.mHeaderPool.get(h, None)
 
@@ -225,6 +231,10 @@ class ShardDb:
             return None
         blockHash = self.db.get(key)
         return self.getMinorBlockByHash(blockHash)
+
+    def getBlockCountByHeight(self, height):
+        ''' Return the total number of blocks with the given height'''
+        return len(self.heightToMinorBlockHashes.setdefault(height, set()))
 
     # ------------------------- Transaction db operations --------------------------------
     def putTransactionIndex(self, txHash, blockHeight, index):
@@ -996,14 +1006,17 @@ class ShardState:
         block = self.db.getMinorBlockByHash(self.headerTip.getHash())
         txCount = 0
         blockCount = 0
+        staleBlockCount = 0
         lastBlockTime = 0
         while block.header.height > 0 and block.header.createTime > cutoff:
             txCount += len(block.txList)
             blockCount += 1
+            staleBlockCount += (self.db.getBlockCountByHeight(block.header.height) - 1)
             block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
             if lastBlockTime == 0:
                 lastBlockTime = self.headerTip.createTime - block.header.createTime
 
+        check(staleBlockCount >= 0)
         return ShardStats(
             branch=self.branch,
             height=self.headerTip.height,
@@ -1011,5 +1024,6 @@ class ShardState:
             txCount60s=txCount,
             pendingTxCount=len(self.txQueue),
             blockCount60s=blockCount,
+            staleBlockCount60s=staleBlockCount,
             lastBlockTime=lastBlockTime,
         )

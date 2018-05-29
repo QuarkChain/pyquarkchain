@@ -730,10 +730,12 @@ class MasterServer():
             shards[shardId]["txCount60s"] = shardStats.txCount60s
             shards[shardId]["pendingTxCount"] = shardStats.pendingTxCount
             shards[shardId]["blockCount60s"] = shardStats.blockCount60s
+            shards[shardId]["staleBlockCount60s"] = shardStats.staleBlockCount60s
             shards[shardId]["lastBlockTime"] = shardStats.lastBlockTime
 
         txCount60s = sum([shardStats.txCount60s for shardStats in self.branchToShardStats.values()])
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
+        staleBlockCount60s = sum([shardStats.staleBlockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
         artificialTxConfig = self.artificialTxConfig if self.artificialTxConfig else self.defaultArtificialTxConfig
 
@@ -750,6 +752,7 @@ class MasterServer():
             "rootLastBlockTime": rootLastBlockTime,
             "txCount60s": txCount60s,
             "blockCount60s": blockCount60s,
+            "staleBlockCount60s": staleBlockCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
             "loadtesting": self.artificialTxConfig is not None,
