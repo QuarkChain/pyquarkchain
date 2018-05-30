@@ -4,6 +4,7 @@ import ipaddress
 import json
 import psutil
 import random
+import time
 from collections import deque
 
 from quarkchain.config import DEFAULT_ENV
@@ -295,6 +296,7 @@ class SlaveConnection(ClusterConnection):
     async def handleAddMinorBlockHeaderRequest(self, req):
         self.masterServer.rootState.addValidatedMinorBlockHash(req.minorBlockHeader.getHash())
         self.masterServer.updateShardStats(req.shardStats)
+        self.masterServer.updateTxCountHistory(req.txCount, req.minorBlockHeader.createTime)
         return AddMinorBlockHeaderResponse(
             errorCode=0,
         )
@@ -334,6 +336,8 @@ class MasterServer():
 
         # branch value -> ShardStats
         self.branchToShardStats = dict()
+        # (epoch in minute, txCount in the minute)
+        self.txCountHistory = deque()
 
     def __getShardSize(self):
         # TODO: replace it with dynamic size
@@ -721,6 +725,19 @@ class MasterServer():
     def updateShardStats(self, shardStats):
         self.branchToShardStats[shardStats.branch.value] = shardStats
 
+    def updateTxCountHistory(self, txCount, timestamp):
+        ''' maintain a list of tuples of (epoch minute, tx count in that minute) of 6 hours window
+        Note that this is also counting transactions on forks and thus larger than if only couting the best chains. '''
+        minute = int(timestamp / 60) * 60
+        if len(self.txCountHistory) == 0 or self.txCountHistory[-1][0] < minute:
+            self.txCountHistory.append((minute, txCount))
+        else:
+            old = self.txCountHistory.pop()
+            self.txCountHistory.append((old[0], old[1] + txCount))
+
+        while len(self.txCountHistory) > 0 and self.txCountHistory[0][0] < time.time() - 3600 * 6:
+            self.txCountHistory.popleft()
+
     async def getStats(self):
         shards = [dict() for i in range(self.__getShardSize())]
         for shardStats in self.branchToShardStats.values():
@@ -744,6 +761,13 @@ class MasterServer():
             prev = self.rootState.db.getRootBlockByHash(self.rootState.tip.hashPrevBlock)
             rootLastBlockTime = self.rootState.tip.createTime - prev.header.createTime
 
+        txCountHistory = []
+        for item in self.txCountHistory:
+            txCountHistory.append({
+                "timestamp": item[0],
+                "txCount": item[1],
+            })
+
         return {
             "shardServerCount": len(self.slavePool),
             "shardSize": self.__getShardSize(),
@@ -760,6 +784,7 @@ class MasterServer():
             "xShardTxPercent": artificialTxConfig.xShardTxPercent,
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
+            "txCountHistory": txCountHistory,
         }
 
     async def getMinorBlockByHash(self, blockHash, branch):
