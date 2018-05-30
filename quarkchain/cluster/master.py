@@ -296,7 +296,7 @@ class SlaveConnection(ClusterConnection):
     async def handleAddMinorBlockHeaderRequest(self, req):
         self.masterServer.rootState.addValidatedMinorBlockHash(req.minorBlockHeader.getHash())
         self.masterServer.updateShardStats(req.shardStats)
-        self.masterServer.updateTxCountHistory(req.txCount, req.minorBlockHeader.createTime)
+        self.masterServer.updateTxCountHistory(req.txCount, req.xShardTxCount, req.minorBlockHeader.createTime)
         return AddMinorBlockHeaderResponse(
             errorCode=0,
         )
@@ -725,15 +725,15 @@ class MasterServer():
     def updateShardStats(self, shardStats):
         self.branchToShardStats[shardStats.branch.value] = shardStats
 
-    def updateTxCountHistory(self, txCount, timestamp):
-        ''' maintain a list of tuples of (epoch minute, tx count in that minute) of 6 hours window
+    def updateTxCountHistory(self, txCount, xShardTxCount, timestamp):
+        ''' maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 6 hours window
         Note that this is also counting transactions on forks and thus larger than if only couting the best chains. '''
         minute = int(timestamp / 60) * 60
         if len(self.txCountHistory) == 0 or self.txCountHistory[-1][0] < minute:
-            self.txCountHistory.append((minute, txCount))
+            self.txCountHistory.append((minute, txCount, xShardTxCount))
         else:
             old = self.txCountHistory.pop()
-            self.txCountHistory.append((old[0], old[1] + txCount))
+            self.txCountHistory.append((old[0], old[1] + txCount, old[2] + xShardTxCount))
 
         while len(self.txCountHistory) > 0 and self.txCountHistory[0][0] < time.time() - 3600 * 6:
             self.txCountHistory.popleft()
@@ -766,6 +766,7 @@ class MasterServer():
             txCountHistory.append({
                 "timestamp": item[0],
                 "txCount": item[1],
+                "xShardTxCount": item[2],
             })
 
         return {

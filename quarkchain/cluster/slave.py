@@ -758,9 +758,9 @@ class SlaveServer():
 
     # Blockchain functions
 
-    async def sendMinorBlockHeaderToMaster(self, minorBlockHeader, txCount, shardStats):
+    async def sendMinorBlockHeaderToMaster(self, minorBlockHeader, txCount, xShardTxCount, shardStats):
         ''' Update master that a minor block has been appended successfully '''
-        request = AddMinorBlockHeaderRequest(minorBlockHeader, txCount, shardStats)
+        request = AddMinorBlockHeaderRequest(minorBlockHeader, txCount, xShardTxCount, shardStats)
         _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
 
@@ -822,7 +822,8 @@ class SlaveServer():
         self.addBlockFutures[block.header.getHash()] = self.loop.create_future()
 
         await self.broadcastXshardTxList(block, xShardList)
-        await self.sendMinorBlockHeaderToMaster(block.header, len(block.txList), shardState.getShardStats())
+        await self.sendMinorBlockHeaderToMaster(
+            block.header, len(block.txList), len(xShardList), shardState.getShardStats())
 
         if broadcast and oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
