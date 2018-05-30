@@ -424,11 +424,13 @@ class AddMinorBlockHeaderRequest(Serializable):
     '''
     FIELDS = [
         ("minorBlockHeader", MinorBlockHeader),
+        ("txCount", uint32),  # the number of tx in the block
         ("shardStats", ShardStats),
     ]
 
-    def __init__(self, minorBlockHeader, shardStats):
+    def __init__(self, minorBlockHeader, txCount, shardStats):
         self.minorBlockHeader = minorBlockHeader
+        self.txCount = txCount
         self.shardStats = shardStats
 
 
