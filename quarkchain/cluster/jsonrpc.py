@@ -380,7 +380,10 @@ class JSONRPCServer:
             withdrawTo=withdrawTo,
             networkId=self.master.env.config.NETWORK_ID,
         )
-        return data_encoder(evmTx.hash_unsigned)
+        return {
+            "txHashUnsigned": data_encoder(evmTx.hash_unsigned),
+            "toShard": quantity_encoder(toShard),
+        }
 
     @methods.add
     async def sendSignedTransaction(self, **data):
