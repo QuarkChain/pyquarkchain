@@ -81,6 +81,7 @@ class TestShardState(unittest.TestCase):
         self.assertFalse(state.addTx(tx))
 
         self.assertEqual(len(state.txQueue), 1)
+        self.assertEqual(len(state.txDict), 1)
 
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(len(block.txList), 1)
@@ -104,6 +105,34 @@ class TestShardState(unittest.TestCase):
 
         # nonce is old
         self.assertFalse(state.addTx(tx))
+
+    def testInvalidTxRemovedAfterCreateBlockToMine(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        tx = create_transfer_transaction(
+            shardState=state,
+            fromId=id1,
+            toAddress=acc2,
+            amount=999999999999999999999)  # insane
+        state.addTx(tx)
+
+        block, i = state.getTransactionByHash(tx.getHash())
+        self.assertEqual(block.txList[0], tx)
+        self.assertEqual(block.header.createTime, 0)
+        self.assertEqual(i, 0)
+
+        b1 = state.createBlockToMine(address=acc3)
+        self.assertEqual(len(b1.txList), 0)
+        self.assertEqual(len(state.txQueue), 0)
+        self.assertEqual(len(state.txDict), 0)
 
     def testTwoTx(self):
         id1 = Identity.createRandomIdentity()
@@ -248,6 +277,7 @@ class TestShardState(unittest.TestCase):
         b1 = state.createBlockToMine(address=acc1)
         self.assertEqual(len(b1.txList), 0)
         self.assertEqual(len(state.txQueue), 0)
+        self.assertEqual(len(state.txDict), 0)
 
     def testXshardTxReceived(self):
         id1 = Identity.createRandomIdentity()

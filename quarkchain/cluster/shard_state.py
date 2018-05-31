@@ -829,6 +829,8 @@ class ShardState:
                 popedTxs.append(evmTx)
             except Exception as e:
                 Logger.errorException()
+                tx = Transaction(code=Code.createEvmCode(evmTx))
+                self.txDict.pop(tx.getHash(), None)
 
         # We don't want to drop the transactions if the mined block failed to be appended
         for evmTx in popedTxs:
