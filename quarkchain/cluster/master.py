@@ -637,6 +637,7 @@ class MasterServer():
             updateTip = self.rootState.addBlock(rBlock)
             success = True
         except ValueError:
+            Logger.logException()
             success = False
 
         if success:
