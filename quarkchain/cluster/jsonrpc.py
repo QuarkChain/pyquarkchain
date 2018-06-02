@@ -25,6 +25,11 @@ default_startgas = 500 * 1000
 default_gasprice = 60 * denoms.shannon
 
 
+# Allow 16 MB request for submitting big blocks
+# TODO: revisit this parameter
+JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
+
+
 def quantity_decoder(data):
     """Decode `data` representing a quantity."""
     if not data.isdigit():
@@ -272,7 +277,7 @@ class JSONRPCServer:
             return web.json_response(response, status=response.http_status)
 
     def start(self):
-        app = web.Application()
+        app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
         app.router.add_post("/", self.__handle)
         self.runner = web.AppRunner(app, access_log=None)
         self.loop.run_until_complete(self.runner.setup())
