@@ -44,6 +44,7 @@ class SyncTask:
         self.peer = peer
         self.masterServer = peer.masterServer
         self.rootState = peer.rootState
+        self.maxStaleness = self.rootState.env.config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
 
     async def sync(self):
         try:
@@ -58,12 +59,20 @@ class SyncTask:
 
         # descending height
         blockHeaderChain = [self.header]
-        blockHash = self.header.hashPrevBlock
 
-        # TODO: Stop if too many headers to revert
-        while not self.__hasBlockHash(blockHash):
+        while not self.__hasBlockHash(blockHeaderChain[-1].hashPrevBlock):
+            blockHash = blockHeaderChain[-1].hashPrevBlock
+            height = blockHeaderChain[-1].height - 1
+
+            # abort if we have to download super old blocks
+            if self.rootState.tip.height - height > self.maxStaleness:
+                Logger.warning("[R] abort syncing due to forking at super old block {} << {}".format(
+                    height, self.rootState.tip.height))
+                return
+
+            Logger.info("[R] downloading block header list from {} {}".format(height, blockHash.hex()))
             blockHeaderList = await self.__downloadBlockHeaders(blockHash)
-            Logger.info("[R] downloaded {} headers from peer".format(len(blockHeaderList)))
+            Logger.info("[R] downloaded headers from peer".format(len(blockHeaderList)))
             if not self.__validateBlockHeaders(blockHeaderList):
                 # TODO: tag bad peer
                 return self.peer.closeWithError("Bad peer sending discontinuing block headers")
@@ -71,11 +80,11 @@ class SyncTask:
                 if self.__hasBlockHash(header.getHash()):
                     break
                 blockHeaderChain.append(header)
-            blockHash = blockHeaderChain[-1].hashPrevBlock
 
         blockHeaderChain.reverse()
 
         while len(blockHeaderChain) > 0:
+            Logger.info("[R] syncing from {}".format(blockHeaderChain[0]))
             blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
             Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
             if len(blockChain) != len(blockHeaderChain[:100]):
@@ -102,7 +111,7 @@ class SyncTask:
     async def __downloadBlockHeaders(self, blockHash):
         request = GetRootBlockHeaderListRequest(
             blockHash=blockHash,
-            limit=10,
+            limit=100,
             direction=Direction.GENESIS,
         )
         op, resp, rpcId = await self.peer.writeRpcRequest(
@@ -366,6 +375,8 @@ class MasterServer():
 
     async def __connectToSlaves(self):
         ''' Master connects to all the slaves '''
+        futures = []
+        slaves = []
         for slaveInfo in self.clusterConfig.getSlaveInfoList():
             ip = str(ipaddress.ip_address(slaveInfo.ip))
             reader, writer = await self.__connect(ip, slaveInfo.port)
@@ -379,15 +390,20 @@ class MasterServer():
                 slaveInfo.shardMaskList,
                 name="{}_slave_{}".format(self.name, slaveInfo.id))
             await slave.waitUntilActive()
+            futures.append(slave.sendPing())
+            slaves.append(slave)
 
+        results = await asyncio.gather(*futures)
+
+        for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
-            id, shardMaskList = await slave.sendPing()
-            if id != slaveInfo.id:
-                Logger.error("Slave id does not match. expect {} got {}".format(slaveInfo.id, id))
+            id, shardMaskList = result
+            if id != slave.id:
+                Logger.error("Slave id does not match. expect {} got {}".format(slave.id, id))
                 self.shutdown()
-            if shardMaskList != slaveInfo.shardMaskList:
+            if shardMaskList != slave.shardMaskList:
                 Logger.error("Slave {} shard mask list does not match. expect {} got {}".format(
-                    slaveInfo.id, slaveInfo.shardMaskList, shardMaskList))
+                    slave.id, slave.shardMaskList, shardMaskList))
                 self.shutdown()
 
             self.slavePool.add(slave)

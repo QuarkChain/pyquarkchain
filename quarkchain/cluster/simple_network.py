@@ -177,7 +177,7 @@ class Peer(P2PConnection):
         blockHash = request.blockHash
         headerList = []
         for i in range(request.limit):
-            header = self.rootState.db.getRootBlockHeaderByHash(blockHash)
+            header = self.rootState.db.getRootBlockHeaderByHash(blockHash, consistencyCheck=False)
             headerList.append(header)
             if header.height == 0:
                 break
@@ -187,7 +187,7 @@ class Peer(P2PConnection):
     async def handleGetRootBlockListRequest(self, request):
         rBlockList = []
         for h in request.rootBlockHashList:
-            rBlock = self.rootState.getRootBlockByHash(h)
+            rBlock = self.rootState.db.getRootBlockByHash(h, consistencyCheck=False)
             if rBlock is None:
                 continue
             rBlockList.append(rBlock)

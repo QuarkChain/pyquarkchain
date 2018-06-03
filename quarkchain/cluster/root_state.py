@@ -18,41 +18,53 @@ class LastMinorBlockHeaderList(Serializable):
 
 class RootDb:
     """ Storage for all validated root blocks and minor blocks
+
+    On initialization it will try to recover the recent blocks (maxNumBlocksToRecover) of the best chain
+    from local database.
+    Block referenced by "tipHash" is skipped because it's consistency is not guaranteed within the cluster.
+    Note that we only recover the blocks on the best chain than including the forking blocks because
+    we don't save "tipHash"s for the forks and thus their consistency state is hard to reason about.
+    They can always be downloaded again from peers if they ever became the best chain.
+
     """
 
-    def __init__(self, db):
+    def __init__(self, db, maxNumBlocksToRecover):
+        # TODO: evict old blocks from memory
         self.db = db
-        # TODO: iterate db to recover pools or set
+        self.maxNumBlocksToRecover = maxNumBlocksToRecover
         # TODO: May store locally to save memory space (e.g., with LRU cache)
         self.mHashSet = set()
         self.rHeaderPool = dict()
+        self.tipHeader = None
 
         self.__recoverFromDb()
 
     def __recoverFromDb(self):
-        ''' Recover the best chain from local database '''
+        ''' Recover the best chain from local database.
+        '''
         Logger.info("Recovering root chain from local database...")
 
         if b"tipHash" not in self.db:
             return None
 
+        # The block referenced by tipHash might not have been fully propagated within the cluster
+        # when the cluster was down, but its parent is guaranteed to have been accepted by all shards.
+        # Therefore we use its parent as the new tip.
         rHash = self.db.get(b"tipHash")
-        while rHash:
+        rBlock = RootBlock.deserialize(self.db.get(b"rblock_" + rHash))
+        while rBlock.header.height >= 1 and len(self.rHeaderPool) < self.maxNumBlocksToRecover:
+            rHash = rBlock.header.hashPrevBlock
             rBlock = RootBlock.deserialize(self.db.get(b"rblock_" + rHash))
+
+            if self.tipHeader is None:
+                self.tipHeader = rBlock.header
+
             self.rHeaderPool[rHash] = rBlock.header
             for mHeader in rBlock.minorBlockHeaderList:
                 self.mHashSet.add(mHeader.getHash())
-            rHash = rBlock.header.hashPrevBlock
-            if rBlock.header.height == 0:
-                return
 
     def getTipHeader(self):
-        if b"tipHash" not in self.db:
-            return None
-
-        rBlockHash = self.db.get(b"tipHash")
-        rootBlock = self.getRootBlockByHash(rBlockHash)
-        return rootBlock.header
+        return self.tipHeader
 
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, lastMinorBlockHeaderList, rootBlockHash=None):
@@ -63,17 +75,27 @@ class RootDb:
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
         self.db.put(b"lastlist_" + rootBlockHash, lastList.serialize())
         self.rHeaderPool[rootBlockHash] = rootBlock.header
+        Logger.info("put root block {} {}".format(rootBlock.header.height, rootBlock.header.getHash().hex()))
 
     def updateTipHash(self, blockHash):
         self.db.put(b"tipHash", blockHash)
 
-    def getRootBlockByHash(self, h):
-        if h not in self.rHeaderPool:
+    def getRootBlockByHash(self, h, consistencyCheck=True):
+        if consistencyCheck and h not in self.rHeaderPool:
             return None
-        return RootBlock.deserialize(self.db.get(b"rblock_" + h))
 
-    def getRootBlockHeaderByHash(self, h):
-        return self.rHeaderPool.get(h, None)
+        rawBlock = self.db.get(b"rblock_" + h, None)
+        if not rawBlock:
+            return None
+        return RootBlock.deserialize(rawBlock)
+
+    def getRootBlockHeaderByHash(self, h, consistencyCheck=True):
+        header = self.rHeaderPool.get(h, None)
+        if not header and not consistencyCheck:
+            block = self.getRootBlockByHash(h, False)
+            if block:
+                header = block.header
+        return header
 
     def getRootBlockLastMinorBlockHeaderList(self, h):
         if h not in self.rHeaderPool:
@@ -91,7 +113,7 @@ class RootDb:
         if key not in self.db:
             return None
         blockHash = self.db.get(key)
-        return self.getRootBlockByHash(blockHash)
+        return self.getRootBlockByHash(blockHash, False)
 
     # ------------------------- Minor block db operations --------------------------------
     def containMinorBlockByHash(self, h):
@@ -121,7 +143,7 @@ class RootState:
         self.diffCalc = self.env.config.ROOT_DIFF_CALCULATOR
         self.diffHashFunc = self.env.config.DIFF_HASH_FUNC
         self.rawDb = env.db
-        self.db = RootDb(self.rawDb)
+        self.db = RootDb(self.rawDb, env.config.MAX_ROOT_BLOCK_IN_MEMORY)
 
         persistedTip = self.db.getTipHeader()
         if persistedTip:

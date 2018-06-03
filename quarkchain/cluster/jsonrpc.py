@@ -552,11 +552,11 @@ class JSONRPCServer:
     @methods.add
     @decode_arg("blockId", data_decoder)
     async def getRootBlockById(self, blockId):
-        if not self.master.rootState.containRootBlockByHash(blockId):
+        try:
+            block = self.master.rootState.db.getRootBlockByHash(blockId, False)
+            return root_block_encoder(block)
+        except Exception:
             return None
-
-        block = self.master.rootState.getRootBlockByHash(blockId)
-        return root_block_encoder(block)
 
     @methods.add
     @decode_arg("height", quantity_decoder)

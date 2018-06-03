@@ -35,6 +35,15 @@ class DefaultConfig:
         # TODO: Use ASIC-resistent hash algorithm
         self.DIFF_HASH_FUNC = sha3_256
 
+        # To ignore super old blocks from peers
+        # This means the network will fork permanently after a long partition
+        self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
+        self.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF = int(
+            self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * self.ROOT_BLOCK_INTERVAL_SEC / self.MINOR_BLOCK_INTERVAL_SEC)
+
+        self.MAX_ROOT_BLOCK_IN_MEMORY = self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * 2
+        self.MAX_MINOR_BLOCK_IN_MEMORY = self.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF * 2
+
         # Decimal level
         self.QUARKSH_TO_JIAOZI = 10 ** 18
         self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI

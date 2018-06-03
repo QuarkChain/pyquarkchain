@@ -71,7 +71,8 @@ class ExpiryCounter:
 
 
 class ShardDb:
-    def __init__(self, db, branch):
+    def __init__(self, db, env, branch):
+        self.env = env
         self.db = db
         self.branch = branch
         # TODO:  iterate db to recover pools and set
@@ -83,8 +84,6 @@ class ShardDb:
 
         # height -> set(minor block hash) for counting wasted blocks
         self.heightToMinorBlockHashes = dict()
-
-        self.__recoverFromDb()
 
     def __getLastMinorBlockInRootBlock(self, rootBlock):
         lHeader = None
@@ -98,67 +97,31 @@ class ShardDb:
         check(lHeader is not None)
         return lHeader
 
-    def __recoverFromDb(self):
-        Logger.info("Recovering shard state from local database...")
-
-        # recover mHeaderPool, mMetaPool
-        prefix = b"mblock_"
-        start = prefix
-        end = prefix + b"\xff" * 32
-        numBytesToSkip = len(prefix)
-        for k, v in self.db.rangeIter(start, end):
-            blockHash = k[numBytesToSkip:]
-            block = MinorBlock.deserialize(v)
-            Logger.debug("Recovering shard block height {}".format(block.header.height))
-            self.mHeaderPool[blockHash] = block.header
-            self.mMetaPool[blockHash] = block.meta
-            self.heightToMinorBlockHashes.setdefault(block.header.height, set()).add(block.header.getHash())
-
-        # recover xShardSet
-        prefix = b"xShard_"
-        start = prefix
-        end = prefix + b"\xff" * 32
-        numBytesToSkip = len(prefix)
-        Logger.info("Recovering xShardSet ...")
-        for k, v in self.db.rangeIter(start, end):
-            self.xShardSet.add(k[numBytesToSkip:])
-            Logger.debug("Recovered xShardSet height {}".format(k))
-
-        # recover rHeaderPool
-        prefix = b"rblock_"
-        start = prefix
-        end = prefix + b"\xff" * 32
-        numBytesToSkip = len(prefix)
-        Logger.info("Recovering rHeaderPool ...")
-        for k, v in self.db.rangeIter(start, end):
-            rootBlock = RootBlock.deserialize(v)
-            self.rHeaderPool[k[numBytesToSkip:]] = rootBlock.header
-            # TODO: genesis root block should contain minor header in future
-            if rootBlock.header.height != 0:
-                self.rMinorHeaderPool[k[numBytesToSkip:]] = self.__getLastMinorBlockInRootBlock(rootBlock)
-            Logger.debug("Recovered root header height {} hash {}".format(
-                rootBlock.header.height, k[numBytesToSkip:]))
-
-    def pruneForks(self, rHeader, mHeader):
+    def recoverState(self, rHeader, mHeader):
         ''' When recovering from local database, we can only guarantee the consistency of the best chain.
         Forking blocks can be in inconsistent state and thus should be pruned from the database
         so that they can be retried in the future.
         '''
-        rHeaderPool = {rHeader.getHash(): rHeader}
-        while rHeader.height > 0:
-            prevHash = rHeader.hashPrevBlock
-            prevHeader = self.rHeaderPool[prevHash]
-            rHeaderPool[prevHash] = prevHeader
-            rHeader = prevHeader
-        self.rHeaderPool = rHeaderPool
+        rHash = rHeader.getHash()
+        while len(self.rHeaderPool) < self.env.config.MAX_ROOT_BLOCK_IN_MEMORY:
+            block = RootBlock.deserialize(self.db.get(b"rblock_" + rHash))
+            self.rMinorHeaderPool[rHash] = self.__getLastMinorBlockInRootBlock(block)
+            self.rHeaderPool[rHash] = block.header
+            if block.header.height <= 0:
+                break
+            rHash = block.header.hashPrevBlock
 
-        mHeaderPool = {mHeader.getHash(): mHeader}
-        while mHeader.height > 0:
-            prevHash = mHeader.hashPrevMinorBlock
-            prevHeader = self.mHeaderPool[prevHash]
-            mHeaderPool[prevHash] = prevHeader
-            mHeader = prevHeader
-        self.mHeaderPool = mHeaderPool
+        mHash = mHeader.getHash()
+        while len(self.mHeaderPool) < self.env.config.MAX_MINOR_BLOCK_IN_MEMORY:
+            block = MinorBlock.deserialize(self.db.get(b"mblock_" + mHash))
+            self.mHeaderPool[mHash] = block.header
+            self.mMetaPool[mHash] = block.meta
+            if block.header.height <= 0:
+                break
+            mHash = block.header.hashPrevMinorBlock
+
+        Logger.info("[{}] recovered {} minor blocks and {} root blocks".format(
+            self.branch.getShardId(), len(self.mHeaderPool), len(self.rHeaderPool)))
 
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rMinorHeader, rootBlockHash=None):
@@ -198,8 +161,12 @@ class ShardDb:
 
         self.heightToMinorBlockHashes.setdefault(mBlock.header.height, set()).add(mBlock.header.getHash())
 
-    def getMinorBlockHeaderByHash(self, h):
-        return self.mHeaderPool.get(h, None)
+    def getMinorBlockHeaderByHash(self, h, consistencyCheck=True):
+        header = self.mHeaderPool.get(h, None)
+        if not header and not consistencyCheck:
+            block = self.getMinorBlockByHash(h, False)
+            header = block.header
+        return header
 
     def getMinorBlockEvmRootHashByHash(self, h):
         if h not in self.mHeaderPool:
@@ -211,8 +178,8 @@ class ShardDb:
     def getMinorBlockMetaByHash(self, h):
         return self.mMetaPool.get(h, None)
 
-    def getMinorBlockByHash(self, h):
-        if h not in self.mHeaderPool:
+    def getMinorBlockByHash(self, h, consistencyCheck=True):
+        if consistencyCheck and h not in self.mHeaderPool:
             return None
         return MinorBlock.deserialize(self.db.get(b"mblock_" + h))
 
@@ -230,7 +197,7 @@ class ShardDb:
         if key not in self.db:
             return None
         blockHash = self.db.get(key)
-        return self.getMinorBlockByHash(blockHash)
+        return self.getMinorBlockByHash(blockHash, False)
 
     def getBlockCountByHeight(self, height):
         ''' Return the total number of blocks with the given height'''
@@ -263,14 +230,15 @@ class ShardDb:
 
     # -------------------------- Cross-shard tx operations ----------------------------
     def putMinorBlockXshardTxList(self, h, txList: CrossShardTransactionList):
-        self.xShardSet.add(h)
+        # self.xShardSet.add(h)
         self.db.put(b"xShard_" + h, txList.serialize())
 
     def getMinorBlockXshardTxList(self, h) -> CrossShardTransactionList:
         return CrossShardTransactionList.deserialize(self.db.get(b"xShard_" + h))
 
     def containRemoteMinorBlockHash(self, h):
-        return h in self.xShardSet
+        key = b"xShard_" + h
+        return key in self.db
 
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
@@ -301,7 +269,7 @@ class ShardState:
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
         self.branch = Branch.create(env.config.SHARD_SIZE, shardId)
-        self.db = ShardDb(self.rawDb, self.branch)
+        self.db = ShardDb(self.rawDb, self.env, self.branch)
         self.txQueue = TransactionQueue()  # queue of EvmTransaction
         self.txDict = dict()  # hash -> Transaction for explorer
         self.initialized = False
@@ -329,29 +297,26 @@ class ShardState:
         Logger.info("Initializing shard state from root height {} hash {}".format(
             rootBlock.header.height, rootBlock.header.getHash().hex()))
 
-        if rootBlock.header.height == 0:
+        if rootBlock.header.height <= 1:
             Logger.info("Created genesis block")
             return
-
-        # It's possible that the root block is unknown to this shard since
-        # the shard could crash before the root block arrived
-        # TODO: the ShardState should have necessary data to add the root block,
-        # this may fail if data are not properly flushed/synced to persistent storage (e.g., OS crash)
-        if not self.db.containRootBlockByHash(rootBlock.header.getHash()):
-            self.addRootBlock(rootBlock)
 
         shardSize = rootBlock.header.shardInfo.getShardSize()
         check(self.branch == Branch.create(shardSize, self.shardId))
         self.rootTip = rootBlock.header
         self.headerTip = __getHeaderTipFromRootBlock(self.branch)
+
+        self.db.recoverState(self.rootTip, self.headerTip)
+        Logger.info("[{}] done recovery from db. shard tip {} {} root tip {} {}".format(
+            self.branch.getShardId(), self.headerTip.height, self.headerTip.getHash().hex(),
+            self.rootTip.height, self.rootTip.getHash().hex()))
+
         self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
         self.confirmedHeaderTip = self.headerTip
         self.confirmedMetaTip = self.metaTip
         self.evmState = self.__createEvmState()
         self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
         check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
-
-        self.db.pruneForks(self.rootTip, self.headerTip)
 
         self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()))
 
@@ -488,7 +453,7 @@ class ShardState:
 
         if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
             # TODO:  May put the block back to queue
-            raise ValueError("prev block not found")
+            raise ValueError("[{}] prev block not found, block height {} prev hash {}".format(self.branch.getShardId(), block.header.height, block.header.hashPrevMinorBlock.hex()))
         prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
 
         if block.header.height != prevHeader.height + 1:
@@ -630,6 +595,9 @@ class ShardState:
         Returns a list of CrossShardTransactionDeposit from block.
         Raises on any error.
         """
+        if self.headerTip.height - block.header.height > 700:
+            Logger.info("[{}] drop old block {} << {}".format(block.header.height, self.headerTip.height))
+            return None
         if self.db.containMinorBlockByHash(block.header.getHash()):
             return None
 
@@ -1028,7 +996,7 @@ class ShardState:
         while block.header.height > 0 and block.header.createTime > cutoff:
             txCount += len(block.txList)
             blockCount += 1
-            staleBlockCount += (self.db.getBlockCountByHeight(block.header.height) - 1)
+            staleBlockCount += max(0, (self.db.getBlockCountByHeight(block.header.height) - 1))
             block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
             if lastBlockTime == 0:
                 lastBlockTime = self.headerTip.createTime - block.header.createTime

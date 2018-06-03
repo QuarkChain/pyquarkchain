@@ -278,10 +278,13 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(rState.addBlock(rB1))
 
         recoveredState = RootState(env=env)
-        self.assertEqual(recoveredState.tip, rB1.header)
+        self.assertEqual(recoveredState.tip, rB0.header)
         self.assertEqual(recoveredState.db.getRootBlockByHeight(2), rB0)
         # fork is pruned from recovered state
         self.assertIsNone(recoveredState.db.getRootBlockByHash(rB00.header.getHash()))
+        self.assertEqual(
+            recoveredState.db.getRootBlockByHash(rB00.header.getHash(), consistencyCheck=False),
+            rB00)
 
     def testAddRootBlockWithMinorBlockWithWrongRootBlockHash(self):
         ''' Test for the following case
