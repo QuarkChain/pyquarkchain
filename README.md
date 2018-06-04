@@ -2,6 +2,8 @@
 
 ## Development Setup
 
+(Mac OS X) [install python3](http://docs.python-guide.org/en/latest/starting/install3/osx/)
+
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project.
 The packages installed later will only affect this environment.
 
@@ -54,7 +56,7 @@ python setup.py install; cd pydevp2p; python setup.py install; cd ..
 2. Run three or more pyquarkchain instance
 ```
 python quarkchain/p2pnetwork.py --i_am_seed=true
-python quarkchain/p2pnetwork.py --db_path=./db1 --enable_local_server=true --local_port=5858 
+python quarkchain/p2pnetwork.py --db_path=./db1 --enable_local_server=true --local_port=5858
 python quarkchain/p2pnetwork.py --db_path=./db2
 ```
 3. Run miner
