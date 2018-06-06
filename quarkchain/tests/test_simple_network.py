@@ -1,8 +1,7 @@
 import asyncio
-import time
 import unittest
 from quarkchain.chain import QuarkChainState
-from quarkchain.commands import *
+from quarkchain.commands import CommandOp, GetBlockHeaderListRequest
 from quarkchain.simple_network import Downloader, ForkResolverManager, SimpleNetwork
 from quarkchain.tests.test_utils import get_test_env
 from quarkchain.utils import set_logging_level, call_async, assert_true_with_timeout

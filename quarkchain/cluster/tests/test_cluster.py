@@ -1,7 +1,5 @@
 import unittest
 
-import asyncio
-import time
 
 from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
 from quarkchain.evm import opcodes

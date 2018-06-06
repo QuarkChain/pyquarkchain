@@ -16,7 +16,7 @@ from devp2p.utils import colors, COLOR_END
 from gevent.server import StreamServer
 from multiprocessing import Process
 from quarkchain.chain import QuarkChainState
-from quarkchain.commands import *
+from quarkchain.commands import NewMinorBlockHeaderListCommand, NewTransaction, NewTransactionListCommand
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import random_bytes
 from quarkchain.core import RootBlock, RootBlockHeader

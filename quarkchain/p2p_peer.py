@@ -1,5 +1,5 @@
 import asyncio
-from quarkchain.commands import *
+from quarkchain.commands import CommandOp, HelloCommand, OP_SERIALIZER_MAP, RootBlockHeader
 from quarkchain.p2pinterface_pb2 import QuarkMessage
 from quarkchain.utils import Logger
 
@@ -89,7 +89,8 @@ class P2PPeer:
                                        peerIp=0,
                                        peerPort=0,
                                        shardMaskList=[],
-                                       rootBlockHeader=RootBlockHeader())
+                                       rootBlockHeader=RootBlockHeader(),
+                                       minorBlockHeaderList=[])
                     cmdBlob = self.__serialize(CommandOp.HELLO, cmd)
                     self.__p2pSender(bytes(cmdBlob), False)
                     self.helloSent = True
