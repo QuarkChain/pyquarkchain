@@ -669,18 +669,13 @@ class TestShardState(unittest.TestCase):
 
         state.addRootBlock(rB)
 
-        rB1 = state.rootTip.createBlockToAppend()
-        rB1.minorBlockHeaderList = blockHeaders[5:11]
-        rB1.finalize()
-
-        # Note that rB1 has not been added to the shard state
-
         recoveredState = ShardState(env=env, shardId=0)
-        self.assertEqual(recoveredState.db.getMinorBlockByHash(b1.header.getHash()), b1)
+        self.assertEqual(recoveredState.headerTip.height, 1)
 
         recoveredState.initFromRootBlock(rB)
         # forks are pruned
         self.assertIsNone(recoveredState.db.getMinorBlockByHash(b1.header.getHash()))
+        self.assertEqual(recoveredState.db.getMinorBlockByHash(b1.header.getHash(), consistencyCheck=False), b1)
 
         self.assertEqual(recoveredState.rootTip, rB.header)
         self.assertEqual(recoveredState.headerTip, blockHeaders[4])
@@ -688,16 +683,6 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(recoveredState.metaTip, blockMetas[4])
         self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[4])
         self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[4].hashEvmStateRoot)
-
-        recoveredState = ShardState(env=env, shardId=0)
-        recoveredState.initFromRootBlock(rB1)
-
-        self.assertEqual(recoveredState.rootTip, rB1.header)
-        self.assertEqual(recoveredState.headerTip, blockHeaders[10])
-        self.assertEqual(recoveredState.confirmedHeaderTip, blockHeaders[10])
-        self.assertEqual(recoveredState.metaTip, blockMetas[10])
-        self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[10])
-        self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[10].hashEvmStateRoot)
 
     def testNotUpdateTipOnRootFork(self):
         ''' block's hashPrevRootBlock must be on the same chain with rootTip to update tip.

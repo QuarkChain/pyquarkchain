@@ -12,6 +12,9 @@ from quarkchain.config import DEFAULT_ENV, NetworkId
 from quarkchain.utils import set_logging_level, Logger
 
 
+NUM_MINERS = 2
+
+
 class Endpoint:
 
     def __init__(self, port):
@@ -64,7 +67,7 @@ class Miner:
         else:
             expectedBlockTime = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
 
-        blockTime = numpy.random.exponential(expectedBlockTime)
+        blockTime = numpy.random.exponential(expectedBlockTime * NUM_MINERS)
         elapsed = time.time() - startTime
         delay = max(0, blockTime - elapsed)
         time.sleep(delay)
@@ -104,6 +107,7 @@ class Miner:
                         self.endpoint.addBlock(self.block)
                         success = True
                     except Exception as e:
+                        Logger.logException()
                         success = False
                     self.__logStatus(success)
                     self.block = None

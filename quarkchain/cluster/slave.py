@@ -43,6 +43,7 @@ class Synchronizer:
         self.shardConn = shardConn
         self.shardState = shardConn.shardState
         self.slaveServer = shardConn.slaveServer
+        self.maxStaleness = self.shardState.env.config.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF
 
     async def sync(self):
         try:
@@ -57,10 +58,21 @@ class Synchronizer:
 
         # descending height
         blockHeaderChain = [self.header]
-        blockHash = self.header.hashPrevMinorBlock
 
         # TODO: Stop if too many headers to revert
-        while not self.__hasBlockHash(blockHash):
+        while not self.__hasBlockHash(blockHeaderChain[-1].hashPrevMinorBlock):
+            blockHash = blockHeaderChain[-1].hashPrevMinorBlock
+            height = blockHeaderChain[-1].height - 1
+
+            if self.shardState.headerTip.height - height > self.maxStaleness:
+                Logger.warning("[{}] abort syncing due to forking at very old block {} << {}".format(
+                    self.header.branch.getShardId(), height, self.shardState.headerTip.height))
+                return
+
+            if not self.shardState.db.containRootBlockByHash(blockHeaderChain[-1].hashPrevRootBlock):
+                return
+            Logger.info("[{}] downloading headers from {} {}".format(
+                self.shardState.branch.getShardId(), height, blockHash.hex()))
             blockHeaderList = await self.__downloadBlockHeaders(blockHash)
             Logger.info("[{}] downloaded {} headers from peer".format(
                 self.shardState.branch.getShardId(), len(blockHeaderList)))
@@ -71,7 +83,6 @@ class Synchronizer:
                 if self.__hasBlockHash(header.getHash()):
                     break
                 blockHeaderChain.append(header)
-            blockHash = blockHeaderChain[-1].hashPrevMinorBlock
 
         # ascending height
         blockHeaderChain.reverse()
@@ -150,7 +161,7 @@ class ShardConnection(VirtualConnection):
         blockHash = request.blockHash
         headerList = []
         for i in range(request.limit):
-            header = self.shardState.db.getMinorBlockHeaderByHash(blockHash)
+            header = self.shardState.db.getMinorBlockHeaderByHash(blockHash, consistencyCheck=False)
             headerList.append(header)
             if header.height == 0:
                 break
@@ -162,7 +173,7 @@ class ShardConnection(VirtualConnection):
     async def handleGetMinorBlockListRequest(self, request):
         mBlockList = []
         for mBlockHash in request.minorBlockHashList:
-            mBlock = self.shardState.getBlockByHash(mBlockHash)
+            mBlock = self.shardState.db.getMinorBlockByHash(mBlockHash, consistencyCheck=False)
             if mBlock is None:
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit
@@ -697,7 +708,7 @@ class SlaveServer():
             if slave.hasShard(shardId):
                 self.shardToSlaves[shardId].append(slave)
 
-        self.__logSummary()
+        # self.__logSummary()
 
     def __logSummary(self):
         for shardId, slaves in enumerate(self.shardToSlaves):
@@ -865,9 +876,10 @@ class SlaveServer():
             return None
 
         shardState = self.shardStateMap[branch.value]
-        if not shardState.containBlockByHash(blockHash):
+        try:
+            return shardState.db.getMinorBlockByHash(blockHash, False)
+        except Exception:
             return None
-        return shardState.getBlockByHash(blockHash)
 
     def getMinorBlockByHeight(self, height, branch):
         if branch.value not in self.shardStateMap:
