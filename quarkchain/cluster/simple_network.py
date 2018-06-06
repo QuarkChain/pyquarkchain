@@ -18,6 +18,10 @@ from quarkchain.utils import set_logging_level, Logger
 
 
 class Peer(P2PConnection):
+    """Endpoint for communication with other clusters
+
+    Note a Peer object exists in both parties of communication.
+    """
 
     def __init__(self, env, reader, writer, network, masterServer, clusterPeerId, name=None):
         if name is None:
@@ -226,6 +230,8 @@ OP_RPC_MAP = {
 
 
 class SimpleNetwork:
+    """Fully connected P2P network for inter-cluster communication
+    """
 
     def __init__(self, env, masterServer):
         self.loop = asyncio.get_event_loop()
@@ -350,33 +356,3 @@ class SimpleNetwork:
 
     def getPeerByClusterPeerId(self, clusterPeerId):
         return self.clusterPeerPool.get(clusterPeerId)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    # P2P port
-    parser.add_argument(
-        "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int)
-    # Local port for JSON-RPC, wallet, etc
-    parser.add_argument(
-        "--enable_local_server", default=False, type=bool)
-    # Seed host which provides the list of available peers
-    parser.add_argument(
-        "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST, type=str)
-    parser.add_argument(
-        "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int)
-    parser.add_argument("--in_memory_db", default=False)
-    parser.add_argument("--db_path", default="./db", type=str)
-    parser.add_argument("--log_level", default="info", type=str)
-    args = parser.parse_args()
-
-    set_logging_level(args.log_level)
-
-    env = DEFAULT_ENV.copy()
-    env.config.P2P_SERVER_PORT = args.server_port
-    env.config.P2P_SEED_HOST = args.seed_host
-    env.config.P2P_SEED_PORT = args.seed_port
-    if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=True)
-
-    return env
