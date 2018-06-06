@@ -57,6 +57,11 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
+        # Check receipts
+        self.assertEqual(len(state.evmState.receipts), 1)
+        self.assertEqual(state.evmState.receipts[0].state_root, b'\x01')
+        self.assertEqual(state.evmState.receipts[0].gas_used, 21000)
+
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
@@ -98,6 +103,11 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345)
         self.assertEqual(state.getBalance(acc2.recipient), 12345)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
+
+        # Check receipts
+        self.assertEqual(len(state.evmState.receipts), 1)
+        self.assertEqual(state.evmState.receipts[0].state_root, b'\x01')
+        self.assertEqual(state.evmState.receipts[0].gas_used, 21000)
 
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(block, b1)
@@ -165,6 +175,13 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - opcodes.GTXCOST - 1234500 + 234500)
         self.assertEqual(state.getBalance(acc2.recipient), 1234500 - 234500 - opcodes.GTXCOST)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST)
+
+        # Check receipts
+        self.assertEqual(len(state.evmState.receipts), 2)
+        self.assertEqual(state.evmState.receipts[0].state_root, b'\x01')
+        self.assertEqual(state.evmState.receipts[0].gas_used, 21000)
+        self.assertEqual(state.evmState.receipts[1].state_root, b'\x01')
+        self.assertEqual(state.evmState.receipts[1].gas_used, 42000)
 
         block, i = state.getTransactionByHash(b1.txList[0].getHash())
         self.assertEqual(block, b1)

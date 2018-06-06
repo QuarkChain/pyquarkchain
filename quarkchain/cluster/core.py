@@ -10,6 +10,16 @@ from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_r
 from quarkchain.core import Address, Branch, Constant, Transaction
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
+from quarkchain.db import InMemoryDb
+from quarkchain.evm import trie
+import rlp
+
+
+def mk_receipt_sha(receipts):
+    t = trie.Trie(InMemoryDb())
+    for i, receipt in enumerate(receipts):
+        t.update(rlp.encode(i), rlp.encode(receipt))
+    return t.root_hash
 
 
 class MinorBlockMeta(Serializable):
@@ -18,6 +28,7 @@ class MinorBlockMeta(Serializable):
     FIELDS = [
         ("hashMerkleRoot", hash256),
         ("hashEvmStateRoot", hash256),
+        ("hashEvmReceiptRoot", hash256),
         ("coinbaseAddress", Address),
         ("evmGasLimit", uint256),
         ("evmGasUsed", uint256),
@@ -27,6 +38,7 @@ class MinorBlockMeta(Serializable):
     def __init__(self,
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
+                 hashEvmReceiptRoot=bytes(Constant.HASH_LENGTH),
                  coinbaseAddress=Address.createEmptyAccount(),
                  evmGasLimit=100000000000,
                  evmGasUsed=0,
@@ -104,6 +116,7 @@ class MinorBlock(Serializable):
         self.meta.evmGasUsed = evmState.gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
         self.finalizeMerkleRoot()
+        self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts)
         self.header.hashMeta = self.meta.getHash()
         return self
 
