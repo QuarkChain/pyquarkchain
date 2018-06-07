@@ -13,7 +13,6 @@ from quarkchain.utils import is_p2
 IP = "127.0.0.1"
 PORT = 38000
 
-
 def dump_config_to_file(config):
     fd, filename = tempfile.mkstemp()
     with os.fdopen(fd, 'w') as tmp:

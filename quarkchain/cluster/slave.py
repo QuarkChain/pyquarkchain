@@ -11,7 +11,8 @@ from quarkchain.cluster.core import (
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
 )
-from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong
+from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong, \
+    ExecuteTransactionResponse
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
@@ -461,6 +462,13 @@ class MasterConnection(ClusterConnection):
             errorCode=0 if success else 1,
         )
 
+    async def handleExecuteTransaction(self, req):
+        res = self.slaveServer.executeTx(req.tx)
+        return ExecuteTransactionResponse(
+            errorCode=0 if res else 1,
+            result=res if res else b''
+        )
+
     async def handleDestroyClusterPeerConnectionCommand(self, op, cmd, rpcId):
         if cmd.clusterPeerId not in self.vConnMap:
             Logger.error("cannot find cluster peer connection to destroy {}".format(cmd.clusterPeerId))
@@ -581,6 +589,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.GET_TRANSACTION_RESPONSE, MasterConnection.handleGetTransactionRequest),
     ClusterOp.SYNC_MINOR_BLOCK_LIST_REQUEST:
         (ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE, MasterConnection.handleSyncMinorBlockListRequest),
+    ClusterOp.EXECUTE_TRANSACTION_REQUEST:
+        (ClusterOp.EXECUTE_TRANSACTION_RESPONSE, MasterConnection.handleExecuteTransaction),
 }
 
 
@@ -941,6 +951,12 @@ class SlaveServer():
         if evmTx.branchValue not in self.shardStateMap:
             return False
         return self.shardStateMap[evmTx.branchValue].addTx(tx)
+
+    def executeTx(self, tx):
+        evmTx = tx.code.getEvmTransaction()
+        if evmTx.branchValue not in self.shardStateMap:
+            return False
+        return self.shardStateMap[evmTx.branchValue].executeTx(tx)
 
     def getTransactionCount(self, address):
         branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))

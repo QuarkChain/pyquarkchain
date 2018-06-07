@@ -2,6 +2,7 @@ import random
 import time
 
 from collections import deque
+from typing import Union
 
 from quarkchain.cluster.core import (
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
@@ -388,7 +389,7 @@ class ShardState:
                 raise ValueError("withdraw address must not in the shard")
 
         if evmState.get_nonce(evmTx.sender) != evmTx.nonce:
-            raise RuntimeError("Tx nonce doesn't match. expect: {} acutal:{}".format(
+            raise RuntimeError("Tx nonce doesn't match. expect: {} actual:{}".format(
                 evmState.get_nonce(evmTx.sender), evmTx.nonce))
 
         # TODO: Neighborhood and xshard gas limit check
@@ -404,8 +405,20 @@ class ShardState:
             self.txDict[txHash] = tx
             return True
         except Exception as e:
-            Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
+            Logger.warningEverySec("failed to add transaction: {}".format(e), 1)
             return False
+
+    def executeTx(self, tx: Transaction):
+        txHash = tx.getHash()
+        if txHash in self.txDict:
+            return False
+        try:
+            evmTx = self.__validateTx(tx, self.evmState)
+            success, output = apply_transaction(self.evmState, evmTx)
+            return output if success else None
+        except Exception as e:
+            Logger.warningEverySec("failed to apply transaction: {}".format(e), 1)
+            return None
 
     def __getEvmStateForNewBlock(self, block, ephemeral=True):
         state = self.__createEvmState()
