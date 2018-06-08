@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import errno
 import ipaddress
+from typing import Optional
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
@@ -952,10 +953,10 @@ class SlaveServer():
             return False
         return self.shardStateMap[evmTx.branchValue].addTx(tx)
 
-    def executeTx(self, tx):
+    def executeTx(self, tx) -> Optional[bytes]:
         evmTx = tx.code.getEvmTransaction()
         if evmTx.branchValue not in self.shardStateMap:
-            return False
+            return None
         return self.shardStateMap[evmTx.branchValue].executeTx(tx)
 
     def getTransactionCount(self, address):

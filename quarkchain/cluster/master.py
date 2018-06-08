@@ -2,12 +2,12 @@ import argparse
 import asyncio
 import ipaddress
 import json
-from typing import Optional
 
 import psutil
 import random
 import time
 from collections import deque
+from typing import Optional
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction

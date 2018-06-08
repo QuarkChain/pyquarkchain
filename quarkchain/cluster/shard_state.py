@@ -2,7 +2,7 @@ import random
 import time
 
 from collections import deque
-from typing import Union
+from typing import Optional
 
 from quarkchain.cluster.core import (
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
@@ -405,10 +405,10 @@ class ShardState:
             self.txDict[txHash] = tx
             return True
         except Exception as e:
-            Logger.warningEverySec("failed to add transaction: {}".format(e), 1)
+            Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
             return False
 
-    def executeTx(self, tx: Transaction):
+    def executeTx(self, tx: Transaction) -> Optional[bytes]:
         state = self.evmState.ephemeral_clone()
         try:
             evmTx = self.__validateTx(tx, state)

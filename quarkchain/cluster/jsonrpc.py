@@ -57,7 +57,7 @@ def data_decoder(hexStr):
     try:
         return bytes.fromhex(hexStr[2:])
     except Exception:
-        raise InvalidParams("Invalid hexStr hex encoding", hexStr)
+        raise InvalidParams("Invalid hexStr hex encoding")
 
 
 def data_encoder(dataBytes):
@@ -686,7 +686,7 @@ class JSONRPCServer:
             networkId=self.master.env.config.NETWORK_ID,
         )
         if evmTx.sender != fromAddr.recipient:
-            raise InvalidParams("Transaction sender does not match the from address.")
+            raise InvalidParams("Sender does not match the from address.")
 
         tx = Transaction(code=Code.createEvmCode(evmTx))
         res = await self.master.executeTransaction(tx)
