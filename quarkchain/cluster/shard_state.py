@@ -727,8 +727,8 @@ class ShardState:
                 evmTx = EvmTransaction(
                     branchValue=self.branch.value,
                     nonce=evmState.get_nonce(evmState.block_coinbase),
-                    gasprice=1,
-                    startgas=500000,
+                    gasprice=3 * (10 ** 9),
+                    startgas=30000,
                     to=evmState.block_coinbase,
                     value=0,
                     data=b'',
@@ -740,7 +740,7 @@ class ShardState:
                 evmTx = EvmTransaction(
                     branchValue=self.branch.value,
                     nonce=evmState.get_nonce(evmState.block_coinbase),
-                    gasprice=1,
+                    gasprice=3 * (10 ** 9),
                     startgas=21000,
                     to=evmState.block_coinbase,
                     value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,

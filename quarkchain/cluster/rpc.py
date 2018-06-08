@@ -469,6 +469,24 @@ class AddXshardTxListResponse(Serializable):
         self.errorCode = errorCode
 
 
+class BatchAddXshardTxListRequest(Serializable):
+    FIELDS = [
+        ("addXshardTxListRequestList", PreprendedSizeListSerializer(4, AddXshardTxListRequest)),
+    ]
+
+    def __init__(self, addXshardTxListRequestList):
+        self.addXshardTxListRequestList = addXshardTxListRequestList
+
+
+class BatchAddXshardTxListResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32)
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -506,6 +524,8 @@ class ClusterOp():
     GET_MINOR_BLOCK_RESPONSE = 30 + CLUSTER_OP_BASE
     GET_TRANSACTION_REQUEST = 31 + CLUSTER_OP_BASE
     GET_TRANSACTION_RESPONSE = 32 + CLUSTER_OP_BASE
+    BATCH_ADD_XSHARD_TX_LIST_REQUEST = 33 + CLUSTER_OP_BASE
+    BATCH_ADD_XSHARD_TX_LIST_RESPONSE = 34 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -540,4 +560,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_MINOR_BLOCK_RESPONSE: GetMinorBlockResponse,
     ClusterOp.GET_TRANSACTION_REQUEST: GetTransactionRequest,
     ClusterOp.GET_TRANSACTION_RESPONSE: GetTransactionResponse,
+    ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST: BatchAddXshardTxListRequest,
+    ClusterOp.BATCH_ADD_XSHARD_TX_LIST_RESPONSE: BatchAddXshardTxListResponse,
 }
