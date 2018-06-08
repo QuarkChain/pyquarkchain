@@ -155,6 +155,9 @@ class SyncTask:
                 self.peer.closeWithError("Unable to download minor blocks from root block")
                 return
 
+        for mHeader in minorBlockHeaderList:
+            self.rootState.addValidatedMinorBlockHash(mHeader.getHash())
+
 
 class Synchronizer:
     ''' Buffer the headers received from peer and sync one by one '''

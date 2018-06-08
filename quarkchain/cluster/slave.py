@@ -21,6 +21,8 @@ from quarkchain.cluster.rpc import (
     SyncMinorBlockListResponse,
     GetMinorBlockResponse, GetTransactionResponse,
     AccountBranchData,
+    BatchAddXshardTxListRequest,
+    BatchAddXshardTxListResponse,
 )
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
@@ -526,18 +528,20 @@ class MasterConnection(ClusterConnection):
 
         vConn = self.vConnMap[req.clusterPeerId][req.branch.value]
 
+        BLOCK_BATCH_SIZE = 100
         try:
             blockHashList = req.minorBlockHashList
             while len(blockHashList) > 0:
-                blockChain = await __downloadBlocks(blockHashList[:100])
-                Logger.info("[{}] handling sync request from master, downloaded {} blocks with height {} - {}".format(
+                blocksToDownload = blockHashList[:BLOCK_BATCH_SIZE]
+                blockChain = await __downloadBlocks(blocksToDownload)
+                Logger.info("[{}] sync request from master, downloaded {} blocks ({} - {})".format(
                     req.branch.getShardId(), len(blockChain),
                     blockChain[0].header.height, blockChain[-1].header.height))
-                check(len(blockChain) == len(blockHashList[:100]))
+                check(len(blockChain) == len(blocksToDownload))
 
-                for block in blockChain:
-                    await self.slaveServer.addBlock(block, broadcast=False)
-                    blockHashList.pop(0)
+                await self.slaveServer.addBlockListForSync(blockChain)
+                blockHashList = blockHashList[BLOCK_BATCH_SIZE:]
+
         except Exception as e:
             Logger.errorException()
             return SyncMinorBlockListResponse(errorCode=1)
@@ -638,6 +642,13 @@ class SlaveConnection(Connection):
         self.shardStateMap[req.branch.value].addCrossShardTxListByMinorBlockHash(req.minorBlockHash, req.txList)
         return AddXshardTxListResponse(errorCode=0)
 
+    async def handleBatchAddXshardTxListRequest(self, batchRequest):
+        for request in batchRequest.addXshardTxListRequestList:
+            response = await self.handleAddXshardTxListRequest(request)
+            if response.errorCode != 0:
+                return BatchAddXshardTxListResponse(errorCode=response.errorCode)
+        return BatchAddXshardTxListResponse(errorCode=0)
+
 
 SLAVE_OP_NONRPC_MAP = {}
 
@@ -646,7 +657,9 @@ SLAVE_OP_RPC_MAP = {
     ClusterOp.PING:
         (ClusterOp.PONG, SlaveConnection.handlePing),
     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST:
-        (ClusterOp.ADD_XSHARD_TX_LIST_RESPONSE, SlaveConnection.handleAddXshardTxListRequest)
+        (ClusterOp.ADD_XSHARD_TX_LIST_RESPONSE, SlaveConnection.handleAddXshardTxListRequest),
+    ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST:
+        (ClusterOp.BATCH_ADD_XSHARD_TX_LIST_RESPONSE, SlaveConnection.handleBatchAddXshardTxListRequest)
 }
 
 
@@ -671,7 +684,10 @@ class SlaveServer():
         self.shutdownInProgress = False
         self.slaveId = 0
 
+        # block hash -> future (that will return when the block is fully propagated in the cluster)
+        # the block that has been added locally but not have been fully propagated will have an entry here
         self.addBlockFutures = dict()
+        # True if master is as
 
     def __initShardStateMap(self):
         ''' branchValue -> ShardState mapping '''
@@ -775,11 +791,10 @@ class SlaveServer():
         _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
 
-    async def broadcastXshardTxList(self, block, xshardTxList):
-        ''' Broadcast x-shard transactions to their recipient shards '''
+    def __getBranchToAddXshardTxListRequest(self, blockHash, xshardTxList):
+        branchToAddXshardTxListRequest = dict()
 
         xshardMap = dict()
-        # TODO: Only broadcast to neighbors
         for shardId in range(self.__getShardSize()):
             xshardMap[shardId + self.__getShardSize()] = []
 
@@ -788,18 +803,48 @@ class SlaveServer():
             branchValue = Branch.create(self.__getShardSize(), shardId).value
             xshardMap[branchValue].append(xshardTx)
 
-        blockHash = block.header.getHash()
-        rpcFutures = []
         for branchValue, txList in xshardMap.items():
             crossShardTxList = CrossShardTransactionList(txList)
-            if branchValue in self.shardStateMap:
-                self.shardStateMap[branchValue].addCrossShardTxListByMinorBlockHash(blockHash, crossShardTxList)
 
             branch = Branch(branchValue)
             request = AddXshardTxListRequest(branch, blockHash, crossShardTxList)
+            branchToAddXshardTxListRequest[branch] = request
+
+        return branchToAddXshardTxListRequest
+
+    async def broadcastXshardTxList(self, block, xshardTxList):
+        ''' Broadcast x-shard transactions to their recipient shards '''
+
+        blockHash = block.header.getHash()
+        branchToAddXshardTxListRequest = self.__getBranchToAddXshardTxListRequest(blockHash, xshardTxList)
+        rpcFutures = []
+        for branch, request in branchToAddXshardTxListRequest.items():
+            if branch.value in self.shardStateMap:
+                self.shardStateMap[branch.value].addCrossShardTxListByMinorBlockHash(blockHash, request.txList)
 
             for slaveConn in self.shardToSlaves[branch.getShardId()]:
                 future = slaveConn.writeRpcRequest(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
+                rpcFutures.append(future)
+        responses = await asyncio.gather(*rpcFutures)
+        check(all([response.errorCode == 0 for _, response, _ in responses]))
+
+    async def batchBroadcastXshardTxList(self, blockHashToXShardList):
+        branchToAddXshardTxListRequestList = dict()
+        for blockHash, xShardList in blockHashToXShardList.items():
+            branchToAddXshardTxListRequest = self.__getBranchToAddXshardTxListRequest(blockHash, xShardList)
+            for branch, request in branchToAddXshardTxListRequest.items():
+                branchToAddXshardTxListRequestList.setdefault(branch, []).append(request)
+
+        rpcFutures = []
+        for branch, requestList in branchToAddXshardTxListRequestList.items():
+            if branch.value in self.shardStateMap:
+                for request in requestList:
+                    self.shardStateMap[branch.value].addCrossShardTxListByMinorBlockHash(
+                        request.minorBlockHash, request.txList)
+
+            batchRequest = BatchAddXshardTxListRequest(requestList)
+            for slaveConn in self.shardToSlaves[branch.getShardId()]:
+                future = slaveConn.writeRpcRequest(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batchRequest)
                 rpcFutures.append(future)
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for _, response, _ in responses]))
@@ -841,6 +886,54 @@ class SlaveServer():
 
         self.addBlockFutures[block.header.getHash()].set_result(None)
         del self.addBlockFutures[block.header.getHash()]
+        return True
+
+    async def addBlockListForSync(self, blockList):
+        ''' Add blocks in batch to reduce RPCs. Will NOT broadcast to peers.
+
+        Returns true if blocks are successfully added. False on any error.
+        This function only adds blocks to local and propagate xshard list to other shards.
+        It does NOT notify master because the master should already have the minor header list,
+        and will add them once this function returns successfully.
+        '''
+        if not blockList:
+            return True
+
+        branchValue = blockList[0].header.branch.value
+        shardState = self.shardStateMap.get(branchValue, None)
+
+        if not shardState:
+            return False
+
+        existingAddBlockFutures = []
+        blockHashToXShardList = dict()
+        for block in blockList:
+            blockHash = block.header.getHash()
+            try:
+                xShardList = shardState.addBlock(block)
+            except Exception as e:
+                Logger.errorException()
+                return False
+
+            # block already existed in local shard state
+            # but might not have been propagated to other shards and master
+            # let's make sure all the shards and master got it before return
+            if xShardList is None:
+                future = self.addBlockFutures.get(blockHash, None)
+                if future:
+                    existingAddBlockFutures.append(future)
+            else:
+                blockHashToXShardList[blockHash] = xShardList
+                self.addBlockFutures[blockHash] = self.loop.create_future()
+
+        await self.batchBroadcastXshardTxList(blockHashToXShardList)
+
+        for blockHash in blockHashToXShardList.keys():
+            self.addBlockFutures[blockHash].set_result(None)
+            del self.addBlockFutures[blockHash]
+
+        await asyncio.gather(*existingAddBlockFutures)
+
         return True
 
     def addTx(self, tx):
