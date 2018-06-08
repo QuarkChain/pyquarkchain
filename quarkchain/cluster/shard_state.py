@@ -409,12 +409,10 @@ class ShardState:
             return False
 
     def executeTx(self, tx: Transaction):
-        txHash = tx.getHash()
-        if txHash in self.txDict:
-            return False
+        state = self.evmState.ephemeral_clone()
         try:
-            evmTx = self.__validateTx(tx, self.evmState)
-            success, output = apply_transaction(self.evmState, evmTx)
+            evmTx = self.__validateTx(tx, state)
+            success, output = apply_transaction(state, evmTx)
             return output if success else None
         except Exception as e:
             Logger.warningEverySec("failed to apply transaction: {}".format(e), 1)

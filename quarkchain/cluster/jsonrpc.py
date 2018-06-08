@@ -661,10 +661,8 @@ class JSONRPCServer:
 
         fromBytes = getDataDefault("from", address_decoder, None)
         to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, DEFAULT_STARTGAS)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, DEFAULT_GASPRICE)
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
         v = getDataDefault("v", quantity_decoder, 0)
@@ -687,7 +685,6 @@ class JSONRPCServer:
             branchValue=branch.value,
             networkId=self.master.env.config.NETWORK_ID,
         )
-
         if evmTx.sender != fromAddr.recipient:
             raise InvalidParams("Transaction sender does not match the from address.")
 
