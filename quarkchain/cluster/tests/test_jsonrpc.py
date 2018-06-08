@@ -297,7 +297,7 @@ class TestJSONRPC(unittest.TestCase):
             resp = sendRequest("getMinorBlockByHeight", "0x0", "0x2", True)
             self.assertEqual(resp["transactions"][0]["hash"], "0x" + tx.getHash().hex())
 
-            resp = sendRequest("getMinorBlockByHeight", "0x2", "0x3", False)
+            resp = sendRequest("getMinorBlockByHeight", "0x1", "0x3", False)
             self.assertIsNone(resp)
             resp = sendRequest("getMinorBlockByHeight", "0x0", "0x5", False)
             self.assertIsNone(resp)
