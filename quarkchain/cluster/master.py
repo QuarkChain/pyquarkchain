@@ -11,8 +11,14 @@ from typing import Optional
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction
-from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo, \
-    ExecuteTransactionRequest
+from quarkchain.cluster.rpc import (
+    ConnectToSlavesRequest,
+    ClusterOp,
+    CLUSTER_OP_SERIALIZER_MAP,
+    ExecuteTransactionRequest,
+    Ping,
+    SlaveInfo,
+)
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
