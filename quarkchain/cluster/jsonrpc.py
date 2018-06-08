@@ -616,7 +616,10 @@ class JSONRPCServer:
     @decode_arg("height", quantity_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockByHeight(self, shard, height, includeTransactions=False):
-        branch = Branch.create(self.master.getShardSize(), shard)
+        shardSize = self.master.getShardSize()
+        if shard >= shardSize:
+            raise InvalidParams("shard is larger than shard size {} > {}".format(shard, shardSize))
+        branch = Branch.create(shardSize, shard)
         block = await self.master.getMinorBlockByHeight(height, branch)
         if not block:
             return None
