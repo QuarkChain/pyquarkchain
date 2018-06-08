@@ -38,8 +38,7 @@ class TestShardState(unittest.TestCase):
             toAddress=acc2,
             amount=12345)
         res = state.executeTx(tx)
-        # FIXME: Not working. state.evmState.block_coinbase?
-        self.assertIsNone(res)
+        self.assertEqual(res, b'')
 
     def testOneTx(self):
         id1 = Identity.createRandomIdentity()
