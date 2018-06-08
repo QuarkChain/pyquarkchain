@@ -5,24 +5,22 @@ from aiohttp import web
 from async_armor import armor
 
 from decorator import decorator
-from ethereum.utils import (
-    is_numeric, is_string, int_to_big_endian, big_endian_to_int,
-    encode_hex, zpad, denoms, int32)
+from ethereum.utils import is_numeric, denoms
 
 from jsonrpcserver import config
 from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
-from jsonrpcserver.exceptions import InvalidParams, ServerError
+from jsonrpcserver.exceptions import InvalidParams
 
 from quarkchain.cluster.core import RootBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import Logger
+
 
 # defaults
-default_startgas = 500 * 1000
-default_gasprice = 60 * denoms.shannon
+DEFAULT_STARTGAS = 100 * 1000
+DEFAULT_GASPRICE = 10 * denoms.gwei
 
 
 # Allow 16 MB request for submitting big blocks
@@ -30,71 +28,82 @@ default_gasprice = 60 * denoms.shannon
 JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
 
 
-def quantity_decoder(data):
-    """Decode `data` representing a quantity."""
-    if not data.isdigit():
-        return InvalidParams()
-    try:
-        return int(data, 10)
-    except ValueError:
+def quantity_decoder(hexStr):
+    """Decode `hexStr` representing a quantity."""
+    # must start with "0x"
+    if not hexStr.startswith("0x") or len(hexStr) < 3:
         raise InvalidParams("Invalid quantity encoding")
+
+    # must not have leading zeros (except `0x0`)
+    if len(hexStr) > 3 and hexStr[2] == "0":
+        raise InvalidParams("Invalid quantity encoding")
+
+    try:
+        return int(hexStr, 16)
+    except ValueError:
+        raise InvalidParams('Invalid quantity encoding')
 
 
 def quantity_encoder(i):
     """Encode integer quantity `data`."""
     assert is_numeric(i)
-    return str(i)
+    return hex(i)
 
 
-def data_decoder(data):
-    """Decode `data` representing unformatted data."""
+def data_decoder(hexStr):
+    """Decode `hexStr` representing unformatted hexStr."""
+    if not hexStr.startswith("0x"):
+        raise InvalidParams("Invalid hexStr encoding")
     try:
-        return bytes.fromhex(data)
+        return bytes.fromhex(hexStr[2:])
     except Exception:
-        raise InvalidParams("Invalid data hex encoding", data)
+        raise InvalidParams("Invalid hexStr hex encoding", hexStr)
 
 
-def data_encoder(data):
-    """Encode unformatted binary `data`.
+def data_encoder(dataBytes):
+    """Encode unformatted binary `dataBytes`.
     """
-    return data.hex()
+    return "0x" + dataBytes.hex()
 
 
-def address_decoder(data):
+def address_decoder(hexStr):
     """Decode an address from hex with 0x prefix to 24 bytes."""
-    addr = data_decoder(data)
-    if len(addr) not in (24, 0):
+    addrBytes = data_decoder(hexStr)
+    if len(addrBytes) not in (24, 0):
         raise InvalidParams('Addresses must be 24 or 0 bytes long')
-    return addr
+    return addrBytes
 
 
-def address_encoder(address):
-    assert len(address) in (24, 0)
-    return address.hex()
+def address_encoder(addrBytes):
+    assert len(addrBytes) == 24
+    return data_encoder(addrBytes)
 
 
 def id_encoder(hashBytes, branch):
-    return hashBytes.hex() + branch.serialize().lstrip(b"\x00").hex()
+    """ Encode hash and branch into hex """
+    return data_encoder(hashBytes + branch.serialize().lstrip(b"\x00"))
 
 
-def id_decoder(data):
-    if len(data) <= 32:
-        raise InvalidParams()
-    pad = 36 - len(data)
-    return data[:32], Branch.deserialize(bytes(pad) + data[32:])
+def id_decoder(hexStr):
+    """ Decode an id to (hash, Branch) """
+    dataBytes = data_decoder(hexStr)
+    if len(dataBytes) <= 32:
+        raise InvalidParams("Invalid id encoding")
+    pad = 36 - len(dataBytes)
+    return dataBytes[:32], Branch.deserialize(bytes(pad) + dataBytes[32:])
 
 
-def block_hash_decoder(data):
+def block_hash_decoder(hexStr):
     """Decode a block hash."""
-    decoded = data_decoder(data)
+    decoded = data_decoder(hexStr)
     if len(decoded) != 32:
         raise InvalidParams("Block hashes must be 32 bytes long")
     return decoded
 
 
-def tx_hash_decoder(data):
+def tx_hash_decoder(hexStr):
     """Decode a transaction hash."""
-    decoded = data_decoder(data)
+    decoded = data_decoder(hexStr)
     if len(decoded) != 32:
         raise InvalidParams("Transaction hashes must be 32 bytes long")
     return decoded
@@ -289,9 +298,15 @@ class JSONRPCServer:
 
     # JSON RPC handlers
     @methods.add
+    @decode_arg("quantity", quantity_decoder)
+    @encode_res(quantity_encoder)
+    async def echoQuantity(self, quantity):
+        return quantity
+
+    @methods.add
     @decode_arg("data", data_decoder)
     @encode_res(data_encoder)
-    async def echo(self, data):
+    async def echoData(self, data):
         return data
 
     @methods.add
@@ -319,22 +334,44 @@ class JSONRPCServer:
 
     @methods.add
     @decode_arg("address", address_decoder)
-    async def getAccountData(self, address):
+    async def getAccountData(self, address, includeShards=False):
         address = Address.deserialize(address)
+        shards = []
+        if not includeShards:
+            accountBranchData = await self.master.getPrimaryAccountData(address)
+            branch = accountBranchData.branch
+            balance = accountBranchData.balance
+            count = accountBranchData.transactionCount
+            primary = {
+                "branch": quantity_encoder(branch.value),
+                "shard": quantity_encoder(branch.getShardId()),
+                "balance": quantity_encoder(balance),
+                "transactionCount": quantity_encoder(count),
+            }
+            return {"primary": primary}
+
         branchToAccountBranchData = await self.master.getAccountData(address)
         shardSize = self.master.getShardSize()
 
-        ret = []
+        shards = []
         for shard in range(shardSize):
             branch = Branch.create(shardSize, shard)
             accountBranchData = branchToAccountBranchData[branch]
-            ret.append({
+            data = {
                 "branch": quantity_encoder(accountBranchData.branch.value),
                 "shard": quantity_encoder(accountBranchData.branch.getShardId()),
                 "balance": quantity_encoder(accountBranchData.balance),
                 "transactionCount": quantity_encoder(accountBranchData.transactionCount),
-            })
-        return ret
+            }
+            shards.append(data)
+
+            if shard == address.getShardId(shardSize):
+                primary = data
+
+        return {
+            "primary": primary,
+            "shards": shards,
+        }
 
     @methods.add
     async def sendUnsignedTransaction(self, **data):
@@ -349,10 +386,8 @@ class JSONRPCServer:
 
         fromBytes = getDataDefault("from", address_decoder, None)
         to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
 
@@ -403,11 +438,10 @@ class JSONRPCServer:
 
         fromBytes = getDataDefault("from", address_decoder, None)
         to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
+
         data_ = getDataDefault("data", data_decoder, b"")
         v = getDataDefault("v", quantity_decoder, 0)
         r = getDataDefault("r", quantity_decoder, 0)
@@ -467,9 +501,9 @@ class JSONRPCServer:
 
         to = getDataDefault("to", address_decoder, None)
         gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
+        startgas = getDataDefault(gasKey, quantity_decoder, DEFAULT_STARTGAS)
         gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        gasprice = getDataDefault(gaspriceKey, quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
         v = getDataDefault("v", quantity_decoder, 0)
@@ -547,6 +581,7 @@ class JSONRPCServer:
 
     @methods.add
     async def getStats(self):
+        # This JRPC doesn't follow the standard encoding
         return await self.master.getStats()
 
     @methods.add
@@ -567,10 +602,10 @@ class JSONRPCServer:
         return root_block_encoder(block)
 
     @methods.add
-    @decode_arg("blockId", data_decoder)
+    @decode_arg("blockId", id_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockById(self, blockId, includeTransactions=False):
-        blockHash, branch = id_decoder(blockId)
+        blockHash, branch = blockId
         block = await self.master.getMinorBlockByHash(blockHash, branch)
         if not block:
             return None
@@ -588,9 +623,9 @@ class JSONRPCServer:
         return minor_block_encoder(block, includeTransactions)
 
     @methods.add
-    @decode_arg("txId", data_decoder)
+    @decode_arg("txId", id_decoder)
     async def getTransactionById(self, txId):
-        txHash, branch = id_decoder(txId)
+        txHash, branch = txId
         minorBlock, i = await self.master.getTransactionByHash(txHash, branch)
         if not minorBlock:
             return None

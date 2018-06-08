@@ -6,7 +6,7 @@ import time
 import jsonrpcclient
 
 from quarkchain.cluster.core import MinorBlock, RootBlock
-from quarkchain.cluster.jsonrpc import quantity_encoder
+from quarkchain.cluster.jsonrpc import address_encoder, data_encoder, quantity_encoder
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
 from quarkchain.utils import set_logging_level, Logger
@@ -40,14 +40,14 @@ class Endpoint:
         if not resp:
             return None, None
         isRoot = resp["isRootBlock"]
-        blockBytes = bytes.fromhex(resp["blockData"])
+        blockBytes = bytes.fromhex(resp["blockData"][2:])
         blockClass = RootBlock if isRoot else MinorBlock
         block = blockClass.deserialize(blockBytes)
         return isRoot, block
 
     def addBlock(self, block):
         branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
-        resp = self.__sendRequest("addBlock", quantity_encoder(branch), block.serialize().hex())
+        resp = self.__sendRequest("addBlock", quantity_encoder(branch), data_encoder(block.serialize()))
         return resp
 
 
@@ -119,7 +119,7 @@ def main():
     parser.add_argument(
         "--jrpc_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
     parser.add_argument(
-        "--miner_address", default=DEFAULT_ENV.config.GENESIS_ACCOUNT.serialize().hex(), type=str)
+        "--miner_address", default=address_encoder(DEFAULT_ENV.config.GENESIS_ACCOUNT.serialize()), type=str)
     parser.add_argument(
         "--shard_mask", default=0, type=int)
     parser.add_argument(
