@@ -665,7 +665,7 @@ class MasterServer():
         """ Execute transaction without persistence """
         branch = Branch(tx.code.getEvmTransaction().branchValue)
         if branch.value not in self.branchToSlaves:
-            return
+            return None
 
         futures = []
         for slave in self.branchToSlaves[branch.value]:
@@ -674,7 +674,7 @@ class MasterServer():
         # failed response will return as None
         success = all(r is not None for r in responses) and len(set(responses)) == 1
         if not success:
-            return
+            return None
 
         check(len(responses) >= 1)
         return responses[0]
