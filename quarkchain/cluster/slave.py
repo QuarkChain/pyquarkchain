@@ -465,9 +465,10 @@ class MasterConnection(ClusterConnection):
 
     async def handleExecuteTransaction(self, req):
         res = self.slaveServer.executeTx(req.tx)
+        fail = res is None
         return ExecuteTransactionResponse(
-            errorCode=0 if res else 1,
-            result=res if res else b''
+            errorCode=int(fail),
+            result=res if not fail else b''
         )
 
     async def handleDestroyClusterPeerConnectionCommand(self, op, cmd, rpcId):
