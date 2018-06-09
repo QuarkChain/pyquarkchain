@@ -16,8 +16,11 @@ except:
 log = slogging.get_logger('my_app')
 
 """
-Spawns 10 apps with discovery service on different ports, and print out peers.
+based on devp2p/examples/full_app.py
+Spawns 10 apps (gevent) with discovery service on different ports,
+and print out their peers periodically.
 """
+
 
 class ExampleProtocol(BaseProtocol):
     protocol_id = 1
@@ -44,7 +47,8 @@ class ExampleService(WiredService):
     def __init__(self, app):
         log.info('ExampleService init')
         self.config = app.config
-        self.address = privtopub_raw(decode_hex(self.config['node']['privkey_hex']))
+        self.address = privtopub_raw(decode_hex(
+            self.config['node']['privkey_hex']))
         super(ExampleService, self).__init__(app)
 
     def show_peers(self):
@@ -53,7 +57,7 @@ class ExampleService(WiredService):
             log.warning("I am {} I have {} peers: {}".format(
                 self.app.config['discovery']['listen_port'],
                 self.app.services.peermanager.num_peers(),
-                list(map(lambda p:p.ip_port, self.app.services.peermanager.peers))
+                list(map(lambda p: p.ip_port, self.app.services.peermanager.peers))
             ))
 
     def start(self):
@@ -74,5 +78,6 @@ class ExampleApp(BaseApp):
 
 
 if __name__ == '__main__':
-    apps = app_helper.setup_apps(ExampleApp, ExampleService, num_nodes=10, seed=0, min_peers=2, max_peers=10, random_port=False)
+    apps = app_helper.setup_apps(ExampleApp, ExampleService, num_nodes=10,
+                                 seed=0, min_peers=2, max_peers=10, random_port=False)
     app_helper.serve_until_stopped(apps)
