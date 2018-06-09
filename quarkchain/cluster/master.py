@@ -2,13 +2,23 @@ import argparse
 import asyncio
 import ipaddress
 import json
+
 import psutil
 import random
 import time
 from collections import deque
+from typing import Optional
 
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.cluster.rpc import ConnectToSlavesRequest, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, SlaveInfo
+from quarkchain.core import Transaction
+from quarkchain.cluster.rpc import (
+    ConnectToSlavesRequest,
+    ClusterOp,
+    CLUSTER_OP_SERIALIZER_MAP,
+    ExecuteTransactionRequest,
+    Ping,
+    SlaveInfo,
+)
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
@@ -272,6 +282,14 @@ class SlaveConnection(ClusterConnection):
             request,
         )
         return resp.errorCode == 0
+
+    async def executeTransaction(self, tx: Transaction):
+        request = ExecuteTransactionRequest(tx)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.EXECUTE_TRANSACTION_REQUEST,
+            request,
+        )
+        return resp.result if resp.errorCode == 0 else None
 
     async def getMinorBlockByHash(self, blockHash, branch):
         request = GetMinorBlockRequest(branch, minorBlockHash=blockHash)
@@ -633,7 +651,7 @@ class MasterServer():
         if not success:
             return False
 
-        if success and self.network is not None:
+        if self.network is not None:
             for peer in self.network.iteratePeers():
                 if peer == fromPeer:
                     continue
@@ -642,6 +660,24 @@ class MasterServer():
                 except Exception:
                     Logger.logException()
         return True
+
+    async def executeTransaction(self, tx: Transaction) -> Optional[bytes]:
+        """ Execute transaction without persistence """
+        branch = Branch(tx.code.getEvmTransaction().branchValue)
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        futures = []
+        for slave in self.branchToSlaves[branch.value]:
+            futures.append(slave.executeTransaction(tx))
+        responses = await asyncio.gather(*futures)
+        # failed response will return as None
+        success = all(r is not None for r in responses) and len(set(responses)) == 1
+        if not success:
+            return None
+
+        check(len(responses) >= 1)
+        return responses[0]
 
     def handleNewRootBlockHeader(self, header, peer):
         self.synchronizer.addTask(header, peer)

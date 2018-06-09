@@ -129,6 +129,25 @@ class GetTransactionResponse(Serializable):
         self.index = index
 
 
+class ExecuteTransactionRequest(Serializable):
+    FIELDS = [
+        ("tx", Transaction),
+    ]
+
+    def __init__(self, tx):
+        self.tx = tx
+
+
+class ExecuteTransactionResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("result", PreprendedSizeBytesSerializer(4))
+    ]
+
+    def __init__(self, errorCode, result):
+        self.errorCode = errorCode
+        self.result = result
+
 # RPCs to update blockchains
 
 # master -> slave
@@ -492,7 +511,7 @@ CLUSTER_OP_BASE = 128
 
 class ClusterOp():
 
-    # TODO: Remove cluster op base as cluster op should be indepedent to p2p op
+    # TODO: Remove cluster op base as cluster op should be independent to p2p op
     PING = 1 + CLUSTER_OP_BASE
     PONG = 2 + CLUSTER_OP_BASE
     CONNECT_TO_SLAVES_REQUEST = 3 + CLUSTER_OP_BASE
@@ -526,6 +545,8 @@ class ClusterOp():
     GET_TRANSACTION_RESPONSE = 32 + CLUSTER_OP_BASE
     BATCH_ADD_XSHARD_TX_LIST_REQUEST = 33 + CLUSTER_OP_BASE
     BATCH_ADD_XSHARD_TX_LIST_RESPONSE = 34 + CLUSTER_OP_BASE
+    EXECUTE_TRANSACTION_REQUEST = 35 + CLUSTER_OP_BASE
+    EXECUTE_TRANSACTION_RESPONSE = 36 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -562,4 +583,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_TRANSACTION_RESPONSE: GetTransactionResponse,
     ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST: BatchAddXshardTxListRequest,
     ClusterOp.BATCH_ADD_XSHARD_TX_LIST_RESPONSE: BatchAddXshardTxListResponse,
+    ClusterOp.EXECUTE_TRANSACTION_REQUEST: ExecuteTransactionRequest,
+    ClusterOp.EXECUTE_TRANSACTION_RESPONSE: ExecuteTransactionResponse,
 }

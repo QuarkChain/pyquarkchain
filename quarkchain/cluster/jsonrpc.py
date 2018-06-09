@@ -57,7 +57,7 @@ def data_decoder(hexStr):
     try:
         return bytes.fromhex(hexStr[2:])
     except Exception:
-        raise InvalidParams("Invalid hexStr hex encoding", hexStr)
+        raise InvalidParams("Invalid hexStr hex encoding")
 
 
 def data_encoder(dataBytes):
@@ -375,7 +375,7 @@ class JSONRPCServer:
 
     @methods.add
     async def sendUnsignedTransaction(self, **data):
-        ''' Returns the unsigned hash of the evm transaction '''
+        """ Returns the unsigned hash of the evm transaction """
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -391,20 +391,19 @@ class JSONRPCServer:
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
 
-        if not fromBytes or not to or value == 0:
+        if not fromBytes:
             raise InvalidParams("bad input")
 
         fromAddr = Address.deserialize(fromBytes)
-        toAddr = Address.deserialize(to)
+        toAddr = Address.deserialize(to) if to else b''
 
         shardSize = self.master.getShardSize()
         fromShard = fromAddr.getShardId(shardSize)
-        toShard = toAddr.getShardId(shardSize)
+        toShard = toAddr.getShardId(shardSize) if toAddr else None
 
-        if fromShard == toShard:
-            withdraw = 0
-            withdrawTo = b""
-        else:
+        withdraw = 0
+        withdrawTo = b""
+        if toShard is not None and fromShard != toShard:
             withdraw = value
             value = 0
             withdrawTo = bytes(toAddr.serialize())
@@ -413,7 +412,7 @@ class JSONRPCServer:
         branch = accountData.branch
         nonce = accountData.transactionCount
         evmTx = EvmTransaction(
-            nonce, gasprice, startgas, toAddr.recipient, value, data_,
+            nonce, gasprice, startgas, toAddr.recipient if toAddr else b'', value, data_,
             branchValue=branch.value,
             withdraw=withdraw,
             withdrawSign=1,
@@ -422,12 +421,12 @@ class JSONRPCServer:
         )
         return {
             "txHashUnsigned": data_encoder(evmTx.hash_unsigned),
-            "toShard": quantity_encoder(toShard),
+            "toShard": quantity_encoder(toShard) if toShard else None
         }
 
     @methods.add
     async def sendSignedTransaction(self, **data):
-        ''' Returns the unsigned hash of the evm transaction '''
+        """ Returns the signed hash of the evm transaction """
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -448,21 +447,20 @@ class JSONRPCServer:
         s = getDataDefault("s", quantity_decoder, 0)
 
         if not (v and r and s):
-            raise InvalidParams("Mising v, r, s")
-        if not fromBytes or not to or value == 0:
+            raise InvalidParams("Missing v, r, s")
+        if not fromBytes:
             raise InvalidParams("bad input")
 
         fromAddr = Address.deserialize(fromBytes)
-        toAddr = Address.deserialize(to)
+        toAddr = Address.deserialize(to) if to else b''
 
         shardSize = self.master.getShardSize()
         fromShard = fromAddr.getShardId(shardSize)
-        toShard = toAddr.getShardId(shardSize)
+        toShard = toAddr.getShardId(shardSize) if toAddr else None
 
-        if fromShard == toShard:
-            withdraw = 0
-            withdrawTo = b""
-        else:
+        withdraw = 0
+        withdrawTo = b""
+        if toShard is not None and fromShard != toShard:
             withdraw = value
             value = 0
             withdrawTo = bytes(toAddr.serialize())
@@ -471,7 +469,7 @@ class JSONRPCServer:
         branch = accountData.branch
         nonce = accountData.transactionCount
         evmTx = EvmTransaction(
-            nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
+            nonce, gasprice, startgas, toAddr.recipient if toAddr else b'', value, data_, v, r, s,
             branchValue=branch.value,
             withdraw=withdraw,
             withdrawSign=1,
@@ -491,6 +489,7 @@ class JSONRPCServer:
 
     @methods.add
     async def sendTransaction(self, **data):
+        """DEPRECATED"""
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -648,6 +647,50 @@ class JSONRPCServer:
         return {
             "peers": peerList,
         }
+
+    @methods.add
+    async def call(self, **data):
+        """ Returns the result of the transaction application without putting in block chain """
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def getDataDefault(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        fromBytes = getDataDefault("from", address_decoder, None)
+        to = getDataDefault("to", address_decoder, None)
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
+        value = getDataDefault("value", quantity_decoder, 0)
+        data_ = getDataDefault("data", data_decoder, b"")
+        v = getDataDefault("v", quantity_decoder, 0)
+        r = getDataDefault("r", quantity_decoder, 0)
+        s = getDataDefault("s", quantity_decoder, 0)
+
+        if not (v and r and s):
+            raise InvalidParams("Missing v, r, s")
+        if not fromBytes or not to:
+            raise InvalidParams("bad input")
+
+        fromAddr = Address.deserialize(fromBytes)
+        toAddr = Address.deserialize(to)
+
+        accountData = await self.master.getPrimaryAccountData(fromAddr)
+        branch = accountData.branch
+        nonce = accountData.transactionCount
+        evmTx = EvmTransaction(
+            nonce, gasprice, startgas, toAddr and toAddr.recipient, value, data_, v, r, s,
+            branchValue=branch.value,
+            networkId=self.master.env.config.NETWORK_ID,
+        )
+        if evmTx.sender != fromAddr.recipient:
+            raise InvalidParams("Sender does not match the from address.")
+
+        tx = Transaction(code=Code.createEvmCode(evmTx))
+        res = await self.master.executeTransaction(tx)
+        return data_encoder(res) if res is not None else None
 
 
 if __name__ == "__main__":

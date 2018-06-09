@@ -325,3 +325,78 @@ class TestJSONRPC(unittest.TestCase):
 
             resp = sendRequest("getTransactionById", "0x" + tx.getHash().hex() + branch.serialize().hex())
             self.assertEqual(resp["hash"], "0x" + tx.getHash().hex())
+
+    def testCallSuccess(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            evmTx = EvmTransaction(
+                branchValue=branch.value,
+                nonce=0,
+                gasprice=0,
+                startgas=21000,
+                to=acc1.recipient,
+                value=15,
+                data=b"",
+                networkId=slaves[0].env.config.NETWORK_ID,
+            )
+            evmTx.sign(id1.getKey())
+            request = {
+                "from": "0x" + acc1.serialize().hex(),
+                "to": "0x" + acc1.serialize().hex(),
+                "gas": "0x5208",  # 21000
+                "gasPrice": "0x0",
+                "value": "0xf",  # 15
+                "v": quantity_encoder(evmTx.v),
+                "r": quantity_encoder(evmTx.r),
+                "s": quantity_encoder(evmTx.s),
+                "nonce": "0x0",
+                "branch": "0x2",
+                "networkId": hex(slaves[0].env.config.NETWORK_ID),
+            }
+            response = sendRequest("call", request)
+
+            self.assertEqual(response, "0x")
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
+
+    def testCallFailure(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            # insufficient gas to start
+            evmTx = EvmTransaction(
+                branchValue=branch.value,
+                nonce=0,
+                gasprice=6,
+                startgas=0,
+                to=acc1.recipient,
+                value=15,
+                data=b'',
+                networkId=slaves[0].env.config.NETWORK_ID,
+            )
+            evmTx.sign(id1.getKey())
+            request = {
+                "from": "0x" + acc1.serialize().hex(),
+                "to": "0x" + acc1.serialize().hex(),
+                "gasPrice": "0x6",
+                "gas": "0x0",
+                "value": "0xf",  # 15
+                "v": quantity_encoder(evmTx.v),
+                "r": quantity_encoder(evmTx.r),
+                "s": quantity_encoder(evmTx.s),
+                "nonce": "0x0",
+                "branch": "0x2",
+                "networkId": hex(slaves[0].env.config.NETWORK_ID),
+            }
+            response = sendRequest("call", request)
+
+            self.assertIsNone(response, "failed tx should return None")
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")

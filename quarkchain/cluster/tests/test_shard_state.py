@@ -24,6 +24,22 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.rootTip.height, 1)
         self.assertEqual(state.headerTip.height, 1)
 
+    def testExecuteTx(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc2 = Address.createRandomAccount()
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env)
+        tx = create_transfer_transaction(
+            shardState=state,
+            fromId=id1,
+            toAddress=acc2,
+            amount=12345)
+        res = state.executeTx(tx)
+        self.assertEqual(res, b'')
+
     def testOneTx(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
