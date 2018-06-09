@@ -289,7 +289,7 @@ class SlaveConnection(ClusterConnection):
             ClusterOp.EXECUTE_TRANSACTION_REQUEST,
             request,
         )
-        return resp.result
+        return resp.result if resp.errorCode == 0 else None
 
     async def getMinorBlockByHash(self, blockHash, branch):
         request = GetMinorBlockRequest(branch, minorBlockHash=blockHash)
@@ -671,7 +671,8 @@ class MasterServer():
         for slave in self.branchToSlaves[branch.value]:
             futures.append(slave.executeTransaction(tx))
         responses = await asyncio.gather(*futures)
-        success = all(r != b'' for r in responses) and len(set(responses)) == 1
+        # failed response will return as None
+        success = all(r is not None for r in responses) and len(set(responses)) == 1
         if not success:
             return
 

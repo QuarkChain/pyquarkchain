@@ -690,7 +690,7 @@ class JSONRPCServer:
 
         tx = Transaction(code=Code.createEvmCode(evmTx))
         res = await self.master.executeTransaction(tx)
-        return data_encoder(res) if res else '0x'
+        return data_encoder(res) if res is not None else None
 
 
 if __name__ == "__main__":
