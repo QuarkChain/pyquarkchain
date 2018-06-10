@@ -71,7 +71,8 @@ class CallData(object):
 class Message(object):
 
     def __init__(self, sender, to, value=0, gas=1000000, data='', depth=0,
-                 code_address=None, is_create=False, transfers_value=True, static=False):
+                 code_address=None, is_create=False, transfers_value=True, static=False,
+                 toFullShardId=None):
         self.sender = sender
         self.to = to
         self.value = value
@@ -84,6 +85,10 @@ class Message(object):
         self.is_create = is_create
         self.transfers_value = transfers_value
         self.static = static
+        self.toFullShardId = toFullShardId
+
+    def isCrossShard(self):
+        return self.toFullShardId is not None
 
     def __repr__(self):
         return '<Message(to:%s...)>' % self.to[:8]

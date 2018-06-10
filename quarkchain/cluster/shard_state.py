@@ -14,7 +14,7 @@ from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Constant, Transaction
 from quarkchain.evm import opcodes
-from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.messages import apply_transaction, validate_transaction
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -375,23 +375,18 @@ class ShardState:
             raise RuntimeError("only evm transaction is supported now")
 
         evmTx = tx.code.getEvmTransaction()
+        evmTx.setShardSize(self.branch.getShardSize())
         if evmTx.networkId != self.env.config.NETWORK_ID:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
                 self.env.config.NETWORK_ID, evmTx.networkId))
-        if self.branch.value != evmTx.branchValue:
-            raise RuntimeError("evm tx is not in the shard")
-        if evmTx.getWithdraw() < 0:
-            raise RuntimeError("withdraw must be non-negative")
-        if evmTx.getWithdraw() != 0:
-            if len(evmTx.withdrawTo) != Constant.ADDRESS_LENGTH:
-                raise ValueError("withdraw to address length is incorrect")
-            withdrawTo = Address.deserialize(evmTx.withdrawTo)
-            if self.branch.isInShard(withdrawTo.fullShardId):
-                raise ValueError("withdraw address must not in the shard")
 
-        if evmState.get_nonce(evmTx.sender) != evmTx.nonce:
-            raise RuntimeError("Tx nonce doesn't match. expect: {} actual:{}".format(
-                evmState.get_nonce(evmTx.sender), evmTx.nonce))
+        if evmTx.fromShardId() != self.branch.getShardId():
+            raise RuntimeError("evm tx fromShardId mismatch. expect {} but got {}".format(
+                self.branch.getShardId(), evmTx.fromShardId(),
+            ))
+
+        # This will check signature, nonce, balance, gas limit
+        validate_transaction(evmState, evmTx)
 
         # TODO: Neighborhood and xshard gas limit check
         return evmTx
@@ -413,6 +408,7 @@ class ShardState:
         state = self.evmState.ephemeral_clone()
         try:
             evmTx = self.__validateTx(tx, state)
+            evmTx.setShardSize(self.branch.getShardSize())
             success, output = apply_transaction(state, evmTx)
             return output if success else None
         except Exception as e:
@@ -540,6 +536,7 @@ class ShardState:
         for idx, tx in enumerate(block.txList):
             try:
                 evmTx = self.__validateTx(tx, evmState)
+                evmTx.setShardSize(self.branch.getShardSize())
                 apply_transaction(evmState, evmTx)
                 evmTxIncluded.append(evmTx)
             except Exception as e:
@@ -736,39 +733,28 @@ class ShardState:
     def __addArtificialTx(self, block, evmState, artificialTxConfig):
         numTx = max(0, int(artificialTxConfig.numTxPerBlock * random.uniform(0.8, 1.2)))
         for i in range(numTx):
+            toShard = self.branch.getShardId()
+            gas = 21000
             if random.randint(1, 100) <= artificialTxConfig.xShardTxPercent:
                 # x-shard tx
+                gas = 30000
                 toShard = random.randint(0, self.env.config.SHARD_SIZE - 1)
                 if toShard == self.branch.getShardId():
                     toShard = (toShard + 1) % self.env.config.SHARD_SIZE
-                withdrawTo = evmState.block_coinbase + toShard.to_bytes(4, "big")
-                evmTx = EvmTransaction(
-                    branchValue=self.branch.value,
-                    nonce=evmState.get_nonce(evmState.block_coinbase),
-                    gasprice=3 * (10 ** 9),
-                    startgas=30000,
-                    to=evmState.block_coinbase,
-                    value=0,
-                    data=b'',
-                    withdrawSign=1,
-                    withdraw=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
-                    withdrawTo=withdrawTo,
-                    networkId=self.env.config.NETWORK_ID)
-            else:
-                evmTx = EvmTransaction(
-                    branchValue=self.branch.value,
-                    nonce=evmState.get_nonce(evmState.block_coinbase),
-                    gasprice=3 * (10 ** 9),
-                    startgas=21000,
-                    to=evmState.block_coinbase,
-                    value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
-                    data=b'',
-                    withdrawSign=1,
-                    withdraw=0,
-                    withdrawTo=b'',
-                    networkId=self.env.config.NETWORK_ID)
 
+            evmTx = EvmTransaction(
+                nonce=evmState.get_nonce(evmState.block_coinbase),
+                gasprice=3 * (10 ** 9),
+                startgas=gas,
+                to=evmState.block_coinbase,
+                value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
+                data=b'',
+                fromFullShardId=self.branch.getShardId(),
+                toFullShardId=toShard,
+                networkId=self.env.config.NETWORK_ID,
+            )
             evmTx.sign(key=self.env.config.GENESIS_KEY)
+            evmTx.setShardSize(self.branch.getShardSize())
             try:
                 apply_transaction(evmState, evmTx)
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
@@ -808,7 +794,7 @@ class ShardState:
             )
             if evmTx is None:
                 break
-
+            evmTx.setShardSize(self.branch.getShardSize())
             try:
                 apply_transaction(evmState, evmTx)
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))

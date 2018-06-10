@@ -58,9 +58,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
@@ -68,12 +69,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
             response = sendRequest("getTransactionCount", "0x" + acc1.serialize().hex())
-            self.assertEqual(response["branch"], "0x2")
-            self.assertEqual(response["count"], "0x1")
+            self.assertEqual(response, "0x1")
 
             response = sendRequest("getTransactionCount", "0x" + acc2.serialize().hex())
-            self.assertEqual(response["branch"], "0x3")
-            self.assertEqual(response["count"], "0x0")
+            self.assertEqual(response, "0x0")
 
     def testSendTransaction(self):
         id1 = Identity.createRandomIdentity()
@@ -85,37 +84,34 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             evmTx = EvmTransaction(
-                branchValue=branch.value,
                 nonce=0,
                 gasprice=6,
-                startgas=7,
-                to=acc1.recipient,
+                startgas=30000,
+                to=acc2.recipient,
                 value=15,
                 data=b"",
-                withdraw=10,
-                withdrawSign=1,
-                withdrawTo=bytes(acc2.serialize()),
+                fromFullShardId=acc1.fullShardId,
+                toFullShardId=acc2.fullShardId,
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
             evmTx.sign(id1.getKey())
             request = dict(
-                to="0x" + acc1.serialize().hex(),
-                gasprice="0x6",
-                startgas="0x7",
+                to="0x" + acc2.recipient.hex(),
+                gasPrice="0x6",
+                gas=hex(30000),
                 value="0xf",  # 15
                 v=quantity_encoder(evmTx.v),
                 r=quantity_encoder(evmTx.r),
                 s=quantity_encoder(evmTx.s),
                 nonce="0x0",
-                branch="0x2",
-                withdraw="0xa",  # 10
-                withdrawTo="0x" + acc2.serialize().hex(),
+                fromFullShardId="0x00000000",
+                toFullShardId="0x00000001",
                 networkId=hex(slaves[0].env.config.NETWORK_ID),
             )
             tx = Transaction(code=Code.createEvmCode(evmTx))
             response = sendRequest("sendTransaction", request)
 
-            self.assertEqual(response, "0x" + tx.getHash().hex() + "02")
+            self.assertEqual(response, "0x" + tx.getHash().hex() + "00000000")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
             self.assertEqual(slaves[0].shardStateMap[branch.value].txQueue.pop_transaction(), evmTx)
 
@@ -130,58 +126,38 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             request = dict(
-                to="0x" + acc1.serialize().hex(),
-                gasprice="0x6",
-                startgas="0x7",
+                to="0x" + acc2.recipient.hex(),
+                gasPrice="0x6",
+                gas=hex(30000),
                 value="0xf",
                 v="0x1",
                 r="0x2",
                 s="0x3",
                 nonce="0x0",
-                branch="0x2",
-                withdraw="0xa",
-                withdrawTo="0x" + acc2.serialize().hex()
+                fromFullShardId="0x00000000",
+                toFullShardId="0x00000001",
             )
             self.assertIsNone(sendRequest("sendTransaction", request))
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0)
 
-    def testSendTransactionWithBadWithdrawTo(self):
+    def testSendTransactionMissingFromFullShardId(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
 
         with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
-            slaves = clusters[0].slaveList
-
-            branch = Branch.create(2, 0)
-            evmTx = EvmTransaction(
-                branchValue=branch.value,
-                nonce=0,
-                gasprice=6,
-                startgas=7,
-                to=acc1.recipient,
-                value=15,
-                data=b"",
-                withdraw=10,
-                withdrawSign=1,
-                withdrawTo=b"ab",
-            )
-            evmTx.sign(id1.getKey(), DEFAULT_ENV.config.NETWORK_ID)
             request = dict(
-                to="0x" + acc1.serialize().hex(),
-                gasprice="0x6",
-                startgas="0x7",
+                to="0x" + acc1.recipient.hex(),
+                gasPrice="0x6",
+                gas=hex(30000),
                 value="0xf",
                 v="0x1",
                 r="0x2",
                 s="0x3",
                 nonce="0x0",
-                branch="0x2",
-                withdraw="0xa",
-                withdrawTo="0xab",  # bad withdrawTo
             )
 
-            self.assertIsNone(sendRequest("sendTransaction", request))
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0)
+            with self.assertRaises(Exception):
+                sendRequest("sendTransaction", request)
 
     def testGetNextBlockToMineAndAddBlock(self):
         id1 = Identity.createRandomIdentity()
@@ -194,12 +170,11 @@ class TestJSONRPC(unittest.TestCase):
 
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[2 | 0],
-                fromId=id1,
-                toAddress=acc2,
-                amount=13,
-                withdraw=14,
-                withdrawTo=bytes(acc3.serialize()),
-                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+                key=id1.getKey(),
+                fromAddress=acc1,
+                toAddress=acc3,
+                value=14,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
@@ -210,9 +185,6 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(block1.header.branch.value, 0b10)
 
             self.assertTrue(sendRequest("addBlock", "0x2", response["blockData"]))
-            resp = sendRequest("getBalance", "0x" + acc2.serialize().hex())
-            self.assertEqual(resp["branch"], "0x2")
-            self.assertEqual(resp["balance"], "0xd")
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
@@ -275,9 +247,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
@@ -286,10 +259,10 @@ class TestJSONRPC(unittest.TestCase):
 
             # By id
             resp = sendRequest("getMinorBlockById",
-                               "0x" + block1.header.getHash().hex() + branch.serialize().hex(), False)
-            self.assertEqual(resp["transactions"][0], "0x" + tx.getHash().hex() + "02")
+                               "0x" + block1.header.getHash().hex() + "0" * 8, False)
+            self.assertEqual(resp["transactions"][0], "0x" + tx.getHash().hex() + "0" * 8)
             resp = sendRequest("getMinorBlockById",
-                               "0x" + block1.header.getHash().hex() + branch.serialize().hex(), True)
+                               "0x" + block1.header.getHash().hex() + "0" * 8, True)
             self.assertEqual(resp["transactions"][0]["hash"], "0x" + tx.getHash().hex())
 
             resp = sendRequest("getMinorBlockById", "0x" + "ff" * 36, True)
@@ -297,7 +270,7 @@ class TestJSONRPC(unittest.TestCase):
 
             # By height
             resp = sendRequest("getMinorBlockByHeight", "0x0", "0x2", False)
-            self.assertEqual(resp["transactions"][0], "0x" + tx.getHash().hex() + "02")
+            self.assertEqual(resp["transactions"][0], "0x" + tx.getHash().hex() + "0" * 8)
             resp = sendRequest("getMinorBlockByHeight", "0x0", "0x2", True)
             self.assertEqual(resp["transactions"][0]["hash"], "0x" + tx.getHash().hex())
 
@@ -318,16 +291,17 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
-            resp = sendRequest("getTransactionById", "0x" + tx.getHash().hex() + branch.serialize().hex())
+            resp = sendRequest("getTransactionById", "0x" + tx.getHash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["hash"], "0x" + tx.getHash().hex())
 
     def testCallSuccess(self):
@@ -339,27 +313,27 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             evmTx = EvmTransaction(
-                branchValue=branch.value,
                 nonce=0,
                 gasprice=0,
                 startgas=21000,
                 to=acc1.recipient,
                 value=15,
                 data=b"",
+                fromFullShardId=acc1.fullShardId,
+                toFullShardId=acc1.fullShardId,
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
             evmTx.sign(id1.getKey())
             request = {
-                "from": "0x" + acc1.serialize().hex(),
-                "to": "0x" + acc1.serialize().hex(),
+                "nonce": "0x0",
+                "to": "0x" + acc1.recipient.hex(),
                 "gas": "0x5208",  # 21000
                 "gasPrice": "0x0",
                 "value": "0xf",  # 15
                 "v": quantity_encoder(evmTx.v),
                 "r": quantity_encoder(evmTx.r),
                 "s": quantity_encoder(evmTx.s),
-                "nonce": "0x0",
-                "branch": "0x2",
+                "fromFullShardId": "0x00000000",
                 "networkId": hex(slaves[0].env.config.NETWORK_ID),
             }
             response = sendRequest("call", request)
@@ -377,19 +351,19 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             # insufficient gas to start
             evmTx = EvmTransaction(
-                branchValue=branch.value,
                 nonce=0,
                 gasprice=6,
                 startgas=0,
                 to=acc1.recipient,
                 value=15,
                 data=b'',
+                fromFullShardId=acc1.fullShardId,
+                toFullShardId=acc1.fullShardId,
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
             evmTx.sign(id1.getKey())
             request = {
-                "from": "0x" + acc1.serialize().hex(),
-                "to": "0x" + acc1.serialize().hex(),
+                "to": "0x" + acc1.recipient.hex(),
                 "gasPrice": "0x6",
                 "gas": "0x0",
                 "value": "0xf",  # 15
@@ -397,7 +371,7 @@ class TestJSONRPC(unittest.TestCase):
                 "r": quantity_encoder(evmTx.r),
                 "s": quantity_encoder(evmTx.s),
                 "nonce": "0x0",
-                "branch": "0x2",
+                "fromFullShardId": "0x00000000",
                 "networkId": hex(slaves[0].env.config.NETWORK_ID),
             }
             response = sendRequest("call", request)
@@ -416,16 +390,18 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
-            resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
+            resp = sendRequest("getTransactionReceipt",
+                               "0x" + tx.getHash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
             self.assertEqual(resp['status'], '0x01')
             self.assertEqual(resp['cumulativeGasUsed'], '0x5208')
@@ -442,7 +418,8 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
