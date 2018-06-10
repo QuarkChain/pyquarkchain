@@ -1,11 +1,11 @@
 import unittest
-from quarkchain.cluster.core import RootBlock, RootBlockHeader
-from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
-from quarkchain.cluster.shard_state import ShardState
-from quarkchain.core import Identity, Address
-from quarkchain.evm import opcodes
+
 from quarkchain.cluster.core import CrossShardTransactionDeposit, CrossShardTransactionList
+from quarkchain.cluster.shard_state import ShardState
+from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
+from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
+from quarkchain.evm import opcodes
 
 
 def create_default_shard_state(env, shardId=0):
@@ -716,6 +716,24 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(recoveredState.metaTip, blockMetas[4])
         self.assertEqual(recoveredState.confirmedMetaTip, blockMetas[4])
         self.assertEqual(recoveredState.evmState.trie.root_hash, blockMetas[4].hashEvmStateRoot)
+
+    def testAddBlockReceiptRootNotMatch(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1)
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        b1 = state.createBlockToMine(address=acc3)
+
+        # Should succeed
+        state.finalizeAndAddBlock(b1)
+        b1.finalize(evmState=state.runBlock(b1))
+        b1.meta.hashEvmReceiptRoot = b'00' * 32
+        self.assertRaises(ValueError, state.addBlock(b1))
 
     def testNotUpdateTipOnRootFork(self):
         ''' block's hashPrevRootBlock must be on the same chain with rootTip to update tip.

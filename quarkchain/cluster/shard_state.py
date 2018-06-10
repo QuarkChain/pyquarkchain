@@ -1,10 +1,10 @@
 import random
 import time
-
 from collections import deque
 from typing import Optional
 
 from quarkchain.cluster.core import (
+    mk_receipt_sha,
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     CrossShardTransactionList, CrossShardTransactionDeposit,
 )
@@ -12,17 +12,17 @@ from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm
 from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Constant, Transaction
-from quarkchain.evm.state import State as EvmState
-from quarkchain.evm.messages import apply_transaction
-from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm import opcodes
+from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.state import State as EvmState
+from quarkchain.evm.transaction_queue import TransactionQueue
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check
 
 
 class ExpiryQueue:
-    ''' A queue only keeps the elements added in the past ttl seconds '''
+    """ A queue only keeps the elements added in the past ttl seconds """
 
     def __init__(self, ttlSec):
         self.__queue = deque()
@@ -99,10 +99,10 @@ class ShardDb:
         return lHeader
 
     def recoverState(self, rHeader, mHeader):
-        ''' When recovering from local database, we can only guarantee the consistency of the best chain.
+        """ When recovering from local database, we can only guarantee the consistency of the best chain.
         Forking blocks can be in inconsistent state and thus should be pruned from the database
         so that they can be retried in the future.
-        '''
+        """
         rHash = rHeader.getHash()
         while len(self.rHeaderPool) < self.env.config.MAX_ROOT_BLOCK_IN_MEMORY:
             block = RootBlock.deserialize(self.db.get(b"rblock_" + rHash))
@@ -126,8 +126,8 @@ class ShardDb:
 
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, rMinorHeader, rootBlockHash=None):
-        ''' rMinorHeader: the minor header of the shard in the root block with largest height
-        '''
+        """ rMinorHeader: the minor header of the shard in the root block with largest height
+        """
         if rootBlockHash is None:
             rootBlockHash = rootBlock.header.getHash()
 
@@ -201,7 +201,7 @@ class ShardDb:
         return self.getMinorBlockByHash(blockHash, False)
 
     def getBlockCountByHeight(self, height):
-        ''' Return the total number of blocks with the given height'''
+        """ Return the total number of blocks with the given height"""
         return len(self.heightToMinorBlockHashes.setdefault(height, set()))
 
     # ------------------------- Transaction db operations --------------------------------
@@ -280,9 +280,9 @@ class ShardState:
         self.__createGenesisBlocks(shardId)
 
     def initFromRootBlock(self, rootBlock):
-        ''' Master will send its root chain tip when it connects to slaves.
+        """ Master will send its root chain tip when it connects to slaves.
         Shards will initialize its state based on the root block.
-        '''
+        """
         def __getHeaderTipFromRootBlock(branch):
             headerTip = None
             for mHeader in rootBlock.minorBlockHeaderList:
@@ -457,8 +457,8 @@ class ShardState:
         return header == shorterBlockHeader
 
     def __validateBlock(self, block):
-        ''' Validate a block before running evm transactions
-        '''
+        """ Validate a block before running evm transactions
+        """
         if block.header.height <= 1:
             raise ValueError("unexpected height")
 
@@ -568,7 +568,7 @@ class ShardState:
         return header == self.confirmedHeaderTip
 
     def __rewriteBlockIndexTo(self, minorBlock):
-        ''' Find the common ancestor in the current chain and rewrite index till minorblock '''
+        """ Find the common ancestor in the current chain and rewrite index till minorblock """
         newChain = []
         oldChain = []
 
@@ -622,6 +622,12 @@ class ShardState:
             raise ValueError("State root mismatch: header %s computed %s" %
                              (block.meta.hashEvmStateRoot.hex(), evmState.trie.root_hash.hex()))
 
+        receiptRoot = mk_receipt_sha(evmState.receipts)
+        if block.meta.hashEvmReceiptRoot != receiptRoot:
+            raise ValueError("Receipt root mismatch: header {} computed {}".format(
+                block.meta.hashEvmReceiptRoot.hex(), receiptRoot.hex()
+            ))
+
         if evmState.gas_used != block.meta.evmGasUsed:
             raise ValueError("Gas used mismatch: header %d computed %d" %
                              (block.meta.evmGasUsed, evmState.gas_used))
@@ -629,7 +635,7 @@ class ShardState:
         # The rest fee goes to root block
         if evmState.block_fee // 2 != block.header.coinbaseAmount:
             raise ValueError("Coinbase reward incorrect")
-        # TODO: Check evm receipt and bloom
+        # TODO: Check evm bloom
 
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
@@ -667,7 +673,7 @@ class ShardState:
         return self.db.getMinorBlockByHash(self.headerTip.getHash())
 
     def tip(self):
-        ''' Called in diff.py '''
+        """ Called in diff.py """
         return self.headerTip
 
     def finalizeAndAddBlock(self, block):
@@ -716,7 +722,7 @@ class ShardState:
         return amount
 
     def getUnconfirmedHeaderList(self):
-        ''' height in ascending order '''
+        """ height in ascending order """
         headerList = []
         header = self.headerTip
         for i in range(header.height - self.confirmedHeaderTip.height):
@@ -829,8 +835,8 @@ class ShardState:
         return block
 
     def getBlockByHash(self, h):
-        ''' Return an validated block.  Return None if no such block exists in db
-        '''
+        """ Return an validated block.  Return None if no such block exists in db
+        """
         return self.db.getMinorBlockByHash(h)
 
     def containBlockByHash(self, h):
@@ -843,18 +849,18 @@ class ShardState:
     # ============================ Cross-shard transaction handling =============================
     #
     def addCrossShardTxListByMinorBlockHash(self, h, txList: CrossShardTransactionList):
-        ''' Add a cross shard tx list from remote shard
+        """ Add a cross shard tx list from remote shard
         The list should be validated by remote shard, however,
         it is better to diagnose some bugs in peer shard if we could check
         - x-shard gas limit exceeded
         - it is a neighor of current shard following our routing rule
-        '''
+        """
         self.db.putMinorBlockXshardTxList(h, txList)
 
     def addRootBlock(self, rBlock):
-        ''' Add a root block.
+        """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
-        '''
+        """
         if not self.db.containRootBlockByHash(rBlock.header.hashPrevBlock):
             raise ValueError("cannot find previous root block in pool")
 
@@ -943,8 +949,8 @@ class ShardState:
             evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
 
     def __includeCrossShardTxList(self, evmState, descendantRootHeader, ancestorRootHeader):
-        ''' Include cross-shard transaction as much as possible by confirming root header as much as possible
-        '''
+        """ Include cross-shard transaction as much as possible by confirming root header as much as possible
+        """
         if descendantRootHeader == ancestorRootHeader:
             return ancestorRootHeader
 
@@ -987,7 +993,7 @@ class ShardState:
         return self.db.containRemoteMinorBlockHash(h)
 
     def getTransactionByHash(self, h):
-        ''' Returns (block, index) where index is the position of tx in the block '''
+        """ Returns (block, index) where index is the position of tx in the block """
         block, index = self.db.getTransactionByHash(h)
         if block:
             return block, index
