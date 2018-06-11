@@ -74,10 +74,11 @@ class Receipt(rlp.Serializable):
         ('state_root', binary),
         ('gas_used', big_endian_int),
         ('bloom', int256),
-        ('logs', CountableList(Log))
+        ('logs', CountableList(Log)),
+        ('contract_address', utils.address)
     ]
 
-    def __init__(self, state_root, gas_used, logs, bloom=None):
+    def __init__(self, state_root, gas_used, logs, contract_address, bloom=None):
         # does not call super.__init__ as bloom should not be an attribute but
         # a property
         self.state_root = state_root
@@ -85,6 +86,7 @@ class Receipt(rlp.Serializable):
         self.logs = logs
         if bloom is not None and bloom != self.bloom:
             raise ValueError("Invalid bloom filter")
+        self.contract_address = contract_address
         self._cached_rlp = None
         self._mutable = True
 
@@ -94,12 +96,12 @@ class Receipt(rlp.Serializable):
         return bloom.bloom_from_list(utils.flatten(bloomables))
 
 
-def mk_receipt(state, success, logs):
+def mk_receipt(state, success, logs, contract_address):
     if state.is_METROPOLIS():
-        o = Receipt(b'\x01' if success else b'', state.gas_used, logs)
+        o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address)
         return o
     else:
-        return Receipt(state.trie.root_hash, state.gas_used, logs)
+        return Receipt(state.trie.root_hash, state.gas_used, logs, contract_address)
 
 
 def config_fork_specific_validation(config, blknum, tx):
@@ -217,10 +219,12 @@ def apply_transaction(state, tx):
     # MESSAGE
     ext = VMExt(state, tx)
 
+    contract_address = b''
     if tx.to != b'':
         result, gas_remained, data = apply_msg(ext, message)
     else:  # CREATE
         result, gas_remained, data = create_contract(ext, message)
+        contract_address = data
 
     assert gas_remained >= 0
 
@@ -285,8 +289,7 @@ def apply_transaction(state, tx):
         state.commit()
 
     # Construct a receipt
-    r = mk_receipt(state, success, state.logs)
-    # _logs = list(state.logs)
+    r = mk_receipt(state, success, state.logs, contract_address)
     state.logs = []
     state.add_receipt(r)
     state.set_param('bloom', state.bloom | r.bloom)

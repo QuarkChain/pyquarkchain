@@ -123,7 +123,7 @@ class Db:
             return 0
         return int.from_bytes(self.get(key), byteorder="big")
 
-    def close():
+    def close(self):
         pass
 
     def __getitem__(self, key):

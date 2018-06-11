@@ -319,7 +319,7 @@ class SlaveConnection(ClusterConnection):
         )
         if resp.errorCode != 0:
             return None, None
-        return (resp.minorBlock, resp.index)
+        return resp.minorBlock, resp.index
 
     # RPC handlers
 
@@ -859,7 +859,7 @@ class MasterServer():
         return await slave.getMinorBlockByHeight(height, branch)
 
     async def getTransactionByHash(self, txHash, branch):
-        ''' Returns (MinorBlock, i) where i is the index of the tx in the block txList '''
+        """ Returns (MinorBlock, i) where i is the index of the tx in the block txList """
         if branch.value not in self.branchToSlaves:
             return None
 

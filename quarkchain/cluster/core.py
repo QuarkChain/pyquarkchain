@@ -4,19 +4,17 @@
 
 import copy
 
-
 from quarkchain.utils import sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
-from quarkchain.db import InMemoryDb
 from quarkchain.evm import trie
 import rlp
 
 
-def mk_receipt_sha(receipts):
-    t = trie.Trie(InMemoryDb())
+def mk_receipt_sha(receipts, db):
+    t = trie.Trie(db)
     for i, receipt in enumerate(receipts):
         t.update(rlp.encode(i), rlp.encode(receipt))
     return t.root_hash
@@ -116,7 +114,7 @@ class MinorBlock(Serializable):
         self.meta.evmGasUsed = evmState.gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
         self.finalizeMerkleRoot()
-        self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts)
+        self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts, evmState.db)
         self.header.hashMeta = self.meta.getHash()
         return self
 
@@ -184,7 +182,6 @@ class RootBlockHeader(Serializable):
 
     def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
         createTime = self.createTime + 1 if createTime is None else createTime
-        address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = RootBlockHeader(version=self.version,
                                  height=self.height + 1,

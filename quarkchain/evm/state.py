@@ -132,7 +132,7 @@ class Account(rlp.Serializable):
 
 
 # from ethereum.state import State
-class State():
+class State:
 
     def __init__(self, root=b'', env=Env(), executing_on_head=False, db=None, **kwargs):
         if db is None:

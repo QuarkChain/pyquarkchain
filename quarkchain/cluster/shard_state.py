@@ -622,7 +622,7 @@ class ShardState:
             raise ValueError("State root mismatch: header %s computed %s" %
                              (block.meta.hashEvmStateRoot.hex(), evmState.trie.root_hash.hex()))
 
-        receiptRoot = mk_receipt_sha(evmState.receipts)
+        receiptRoot = mk_receipt_sha(evmState.receipts, evmState.db)
         if block.meta.hashEvmReceiptRoot != receiptRoot:
             raise ValueError("Receipt root mismatch: header {} computed {}".format(
                 block.meta.hashEvmReceiptRoot.hex(), receiptRoot.hex()

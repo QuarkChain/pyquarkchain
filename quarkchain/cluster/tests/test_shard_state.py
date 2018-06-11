@@ -1,11 +1,14 @@
 import unittest
 
+import rlp
+
 from quarkchain.cluster.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
-from quarkchain.evm import opcodes
+from quarkchain.evm import opcodes, trie
+from quarkchain.evm.messages import Receipt
 
 
 def create_default_shard_state(env, shardId=0):
@@ -82,6 +85,12 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
 
+        # Check receipts in storage
+        t = trie.Trie(state.evmState.db, block.meta.hashEvmReceiptRoot)
+        self.assertEqual(len(t), 1)
+        r = rlp.decode(t.get(rlp.encode(0)), Receipt)
+        self.assertEqual(r, state.evmState.receipts[0])
+
     def testDuplicatedTx(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1)
@@ -124,7 +133,6 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(state.evmState.receipts), 1)
         self.assertEqual(state.evmState.receipts[0].state_root, b'\x01')
         self.assertEqual(state.evmState.receipts[0].gas_used, 21000)
-
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
