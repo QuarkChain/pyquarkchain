@@ -54,19 +54,28 @@ class ExampleService(WiredService):
             self.config['node']['privkey_hex']))
         super(ExampleService, self).__init__(app)
 
+    def on_wire_protocol_stop(self, proto):
+        log.info(
+            'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
+            proto=proto)
+        self.show_peers()
+
+    def on_wire_protocol_start(self, proto):
+        log.info(
+            'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
+            proto=proto)
+        self.show_peers()
+
     def show_peers(self):
-        while(True):
-            gevent.sleep(10)
-            log.warning("I am {} I have {} peers: {}".format(
-                self.app.config['discovery']['listen_port'],
-                self.app.services.peermanager.num_peers(),
-                list(map(lambda p: p.ip_port, self.app.services.peermanager.peers))
-            ))
+        log.warning("I am {} I have {} peers: {}".format(
+            self.app.config['client_version_string'],
+            self.app.services.peermanager.num_peers(),
+            list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers))
+        ))
 
     def start(self):
         log.info('ExampleService start')
         super(ExampleService, self).start()
-        gevent.spawn(self.show_peers)
 
 
 class ExampleApp(BaseApp):
