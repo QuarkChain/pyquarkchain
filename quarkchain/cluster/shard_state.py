@@ -1,12 +1,13 @@
 import random
 import time
 from collections import deque
-from typing import Optional
+from typing import Optional, Tuple
 
 from quarkchain.cluster.core import (
     mk_receipt_sha,
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     CrossShardTransactionList, CrossShardTransactionDeposit,
+    TransactionReceipt,
 )
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.cluster.rpc import ShardStats
@@ -212,7 +213,7 @@ class ShardDb:
     def removeTransactionIndex(self, txHash):
         self.db.remove(b"txindex_" + txHash)
 
-    def getTransactionByHash(self, txHash):
+    def getTransactionByHash(self, txHash) -> Tuple[Optional[MinorBlock], Optional[int]]:
         result = self.db.get(b"txindex_" + txHash, None)
         if not result:
             return None, None
@@ -1002,6 +1003,12 @@ class ShardState:
             block.txList.append(self.txDict[h])
             return block, 0
         return None, None
+
+    def getTransactionReceipt(self, h) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
+        block, index = self.db.getTransactionByHash(h)
+        if not block:
+            return None
+        return block, index, block.getReceipt(self.evmState.db, index)
 
     def getShardStats(self) -> ShardStats:
         cutoff = self.headerTip.createTime - 60

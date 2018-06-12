@@ -1,14 +1,11 @@
 import unittest
 
-import rlp
-
 from quarkchain.cluster.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
-from quarkchain.evm import opcodes, trie
-from quarkchain.evm.messages import Receipt
+from quarkchain.evm import opcodes
 
 
 def create_default_shard_state(env, shardId=0):
@@ -86,10 +83,13 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(i, 0)
 
         # Check receipts in storage
-        t = trie.Trie(state.evmState.db, block.meta.hashEvmReceiptRoot)
-        self.assertEqual(len(t), 1)
-        r = rlp.decode(t.get(rlp.encode(0)), Receipt)
-        self.assertEqual(r, state.evmState.receipts[0])
+        resp = state.getTransactionReceipt(tx.getHash())
+        self.assertIsNotNone(resp)
+        block, i, r = resp
+        self.assertEqual(block, b1)
+        self.assertEqual(i, 0)
+        self.assertEqual(r.success, b'\x01')
+        self.assertEqual(r.gasUsed, 21000)
 
     def testDuplicatedTx(self):
         id1 = Identity.createRandomIdentity()

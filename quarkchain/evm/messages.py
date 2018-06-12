@@ -1,6 +1,9 @@
 # Modified from pyethereum under MIT license
 import rlp
 
+# to bypass circular imports
+import quarkchain.cluster.core
+
 from ethereum.utils import int256, safe_ord, bytearray_to_bytestr
 from rlp.sedes import big_endian_int, binary, CountableList
 from rlp.utils import decode_hex, encode_hex
@@ -14,7 +17,6 @@ from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTran
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
 from ethereum.slogging import get_logger
 from quarkchain.core import Constant, Address
-from quarkchain.cluster.core import CrossShardTransactionDeposit
 
 
 null_address = b'\xff' * 20
@@ -97,11 +99,8 @@ class Receipt(rlp.Serializable):
 
 
 def mk_receipt(state, success, logs, contract_address):
-    if state.is_METROPOLIS():
-        o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address)
-        return o
-    else:
-        return Receipt(state.trie.root_hash, state.gas_used, logs, contract_address)
+    o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address)
+    return o
 
 
 def config_fork_specific_validation(config, blknum, tx):
@@ -270,7 +269,7 @@ def apply_transaction(state, tx):
             # the xshard gas and fee is consumed by destination shard block
             state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST - tx.getWithdraw())
             state.xshard_list.append(
-                CrossShardTransactionDeposit(
+                quarkchain.cluster.core.CrossShardTransactionDeposit(
                     address=Address.deserialize(tx.withdrawTo),
                     amount=tx.getWithdraw(),
                     gasPrice=tx.gasprice))

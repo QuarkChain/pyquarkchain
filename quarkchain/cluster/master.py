@@ -18,6 +18,7 @@ from quarkchain.cluster.rpc import (
     ExecuteTransactionRequest,
     Ping,
     SlaveInfo,
+    GetTransactionReceiptRequest,
 )
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
@@ -321,6 +322,16 @@ class SlaveConnection(ClusterConnection):
             return None, None
         return resp.minorBlock, resp.index
 
+    async def getTransactionReceipt(self, txHash, branch):
+        request = GetTransactionReceiptRequest(txHash, branch)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_TRANSACTION_RECEIPT_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None
+        return resp.minorBlock, resp.index, resp.receipt
+
     # RPC handlers
 
     async def handleAddMinorBlockHeaderRequest(self, req):
@@ -581,7 +592,7 @@ class MasterServer():
             # TODO: Obtain block reward and tx fee
             eco = ecoInfo.coinbaseAmount / ecoInfo.difficulty
             if branchValueWithMaxEco is None or eco > maxEco or \
-               (eco == maxEco and branchValueWithMaxEco > 0 and blockHeight > ecoInfo.height):
+                    (eco == maxEco and branchValueWithMaxEco > 0 and blockHeight > ecoInfo.height):
                 branchValueWithMaxEco = branchValue
                 maxEco = eco
                 dupEcoCount = 1
@@ -686,7 +697,7 @@ class MasterServer():
         ''' Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         '''
-        self.rootState.validateBlock(rBlock)     # throw exception if failed
+        self.rootState.validateBlock(rBlock)  # throw exception if failed
         updateTip = False
         try:
             updateTip = self.rootState.addBlock(rBlock)
@@ -765,6 +776,7 @@ class MasterServer():
 
     def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds):
         ''' If seconds <= 0 udpate the default config and also cancel ongoing loadtest '''
+
         async def revertLater():
             await asyncio.sleep(seconds)
             self.artificialTxConfig = None
@@ -865,6 +877,13 @@ class MasterServer():
 
         slave = self.branchToSlaves[branch.value][0]
         return await slave.getTransactionByHash(txHash, branch)
+
+    async def getTransactionReceipt(self, txHash, branch):
+        if branch.value not in self.branchToSlaves:
+            return None
+
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getTransactionReceipt(txHash, branch)
 
 
 def parse_args():

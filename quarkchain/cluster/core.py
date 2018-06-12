@@ -4,6 +4,11 @@
 
 import copy
 
+from typing import Optional
+
+# to bypass circular imports
+import quarkchain.evm.messages
+
 from quarkchain.utils import sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
@@ -18,6 +23,27 @@ def mk_receipt_sha(receipts, db):
     for i, receipt in enumerate(receipts):
         t.update(rlp.encode(i), rlp.encode(receipt))
     return t.root_hash
+
+
+class TransactionReceipt(Serializable):
+    """ Wrapper over tx receipts from EVM """
+    FIELDS = [
+        ('success', PreprendedSizeBytesSerializer(1)),
+        ('gasUsed', uint32),
+        ('bloom', uint256),
+        # TODO: contract address could be in a different shard. may need a separate field
+        ('contractAddress', Address),
+    ]
+
+    def __init__(self, success=b'\x00', gasUsed=0, contractAddress=None, bloom=0):
+        self.success = success
+        self.gasUsed = gasUsed
+        self.contractAddress = (
+            contractAddress
+            if contractAddress
+            else Address.createEmptyAccount(fullShardId=0)
+        )
+        self.bloom = bloom
 
 
 class MinorBlockMeta(Serializable):
@@ -121,6 +147,20 @@ class MinorBlock(Serializable):
     def addTx(self, tx):
         self.txList.append(tx)
         return self
+
+    def getReceipt(self, db, i) -> Optional[TransactionReceipt]:
+        # ignore if no meta is set
+        if self.meta.hashEvmReceiptRoot == bytes(Constant.HASH_LENGTH):
+            return None
+
+        t = trie.Trie(db, self.meta.hashEvmReceiptRoot)
+        r = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
+        contractAddress = (
+            Address(r.contract_address, self.meta.coinbaseAddress.fullShardId)
+            if r.contract_address
+            else None
+        )
+        return TransactionReceipt(r.state_root, r.gas_used, contractAddress, r.bloom)
 
     def createBlockToAppend(self,
                             createTime=None,

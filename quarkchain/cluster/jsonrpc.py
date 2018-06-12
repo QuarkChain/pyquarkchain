@@ -12,7 +12,7 @@ from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
-from quarkchain.cluster.core import RootBlock
+from quarkchain.cluster.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -234,6 +234,25 @@ def tx_encoder(block, i):
         's': quantity_encoder(evmTx.s),
         'v': quantity_encoder(evmTx.v),
     }
+
+
+def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
+    tx = block.txList[i]
+    evmTx = tx.code.getEvmTransaction()
+    branch = Branch(evmTx.branchValue)
+    resp = {
+        'transactionId': id_encoder(tx.getHash(), branch),
+        'transactionHash': data_encoder(tx.getHash()),
+        'transactionIndex': quantity_encoder(i),
+        'blockId': id_encoder(block.header.getHash(), block.header.branch),
+        'blockHash': data_encoder(block.header.getHash()),
+        'blockHeight': quantity_encoder(block.header.height),
+        'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
+        'contractAddress': address_encoder(receipt.contractAddress.serialize()),
+        'status': data_encoder(receipt.success),
+    }
+    # TODO: `gasUsed` field needs to know the previous receipt
+    return resp
 
 
 def decode_arg(name, decoder):
@@ -691,6 +710,19 @@ class JSONRPCServer:
         tx = Transaction(code=Code.createEvmCode(evmTx))
         res = await self.master.executeTransaction(tx)
         return data_encoder(res) if res is not None else None
+
+    @methods.add
+    @decode_arg("txId", id_decoder)
+    async def getTransactionReceipt(self, txId):
+        txHash, branch = txId
+        resp = await self.master.getTransactionReceipt(txHash, branch)
+        if not resp:
+            return None
+        minorBlock, i, receipt = resp
+        if len(minorBlock.txList) <= i:
+            return None
+
+        return receipt_encoder(minorBlock, i, receipt)
 
 
 if __name__ == "__main__":

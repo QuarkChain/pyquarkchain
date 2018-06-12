@@ -2,18 +2,24 @@ import argparse
 import asyncio
 import errno
 import ipaddress
-from typing import Optional
+from typing import Optional, Tuple
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import (
-    CrossShardTransactionList, MinorBlock, MinorBlockHeader, MinorBlockMeta, RootBlock, RootBlockHeader
+    CrossShardTransactionList,
+    MinorBlock,
+    MinorBlockHeader,
+    MinorBlockMeta,
+    RootBlock,
+    RootBlockHeader,
+    TransactionReceipt,
 )
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
 )
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong, \
-    ExecuteTransactionResponse
+    ExecuteTransactionResponse, GetTransactionReceiptResponse
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
@@ -524,6 +530,17 @@ class MasterConnection(ClusterConnection):
 
         return GetTransactionResponse(errorCode=0, minorBlock=minorBlock, index=i)
 
+    async def handleGetTransactionReceiptRequest(self, req):
+        resp = self.slaveServer.getTransactionReceipt(req.txHash, req.branch)
+        if not resp:
+            emptyBlock = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
+            emptyReceipt = TransactionReceipt()
+            return GetTransactionReceiptResponse(
+                errorCode=1, minorBlock=emptyBlock, index=0, receipt=emptyReceipt)
+        minorBlock, i, receipt = resp
+        return GetTransactionReceiptResponse(
+            errorCode=0, minorBlock=minorBlock, index=i, receipt=receipt)
+
     async def handleSyncMinorBlockListRequest(self, req):
 
         async def __downloadBlocks(blockHashList):
@@ -593,6 +610,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.SYNC_MINOR_BLOCK_LIST_RESPONSE, MasterConnection.handleSyncMinorBlockListRequest),
     ClusterOp.EXECUTE_TRANSACTION_REQUEST:
         (ClusterOp.EXECUTE_TRANSACTION_RESPONSE, MasterConnection.handleExecuteTransaction),
+    ClusterOp.GET_TRANSACTION_RECEIPT_REQUEST:
+        (ClusterOp.GET_TRANSACTION_RECEIPT_RESPONSE, MasterConnection.handleGetTransactionReceiptRequest),
 }
 
 
@@ -1005,6 +1024,13 @@ class SlaveServer():
 
         shardState = self.shardStateMap[branch.value]
         return shardState.getTransactionByHash(txHash)
+
+    def getTransactionReceipt(self, txHash, branch) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
+        if branch.value not in self.shardStateMap:
+            return None
+
+        shardState = self.shardStateMap[branch.value]
+        return shardState.getTransactionReceipt(txHash)
 
 
 def parse_args():

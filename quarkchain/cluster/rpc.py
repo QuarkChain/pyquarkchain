@@ -3,11 +3,16 @@ from quarkchain.core import (
     Transaction,
     PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Address, Branch, ShardMask
 )
-
-from quarkchain.cluster.core import MinorBlock, MinorBlockHeader, RootBlock, CrossShardTransactionList
-
+from quarkchain.cluster.core import (
+    MinorBlock,
+    MinorBlockHeader,
+    RootBlock,
+    CrossShardTransactionList,
+    TransactionReceipt,
+)
 
 # RPCs to initialize a cluster
+
 
 class Ping(Serializable):
     FIELDS = [
@@ -147,6 +152,33 @@ class ExecuteTransactionResponse(Serializable):
     def __init__(self, errorCode, result):
         self.errorCode = errorCode
         self.result = result
+
+
+class GetTransactionReceiptRequest(Serializable):
+    FIELDS = [
+        ("txHash", hash256),
+        ("branch", Branch),
+    ]
+
+    def __init__(self, txHash, branch):
+        self.txHash = txHash
+        self.branch = branch
+
+
+class GetTransactionReceiptResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("minorBlock", MinorBlock),
+        ("index", uint32),
+        ("receipt", TransactionReceipt),
+    ]
+
+    def __init__(self, errorCode, minorBlock, index, receipt):
+        self.errorCode = errorCode
+        self.minorBlock = minorBlock
+        self.index = index
+        self.receipt = receipt
+
 
 # RPCs to update blockchains
 
@@ -509,7 +541,7 @@ class BatchAddXshardTxListResponse(Serializable):
 CLUSTER_OP_BASE = 128
 
 
-class ClusterOp():
+class ClusterOp:
 
     # TODO: Remove cluster op base as cluster op should be independent to p2p op
     PING = 1 + CLUSTER_OP_BASE
@@ -547,6 +579,8 @@ class ClusterOp():
     BATCH_ADD_XSHARD_TX_LIST_RESPONSE = 34 + CLUSTER_OP_BASE
     EXECUTE_TRANSACTION_REQUEST = 35 + CLUSTER_OP_BASE
     EXECUTE_TRANSACTION_RESPONSE = 36 + CLUSTER_OP_BASE
+    GET_TRANSACTION_RECEIPT_REQUEST = 37 + CLUSTER_OP_BASE
+    GET_TRANSACTION_RECEIPT_RESPONSE = 38 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -585,4 +619,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.BATCH_ADD_XSHARD_TX_LIST_RESPONSE: BatchAddXshardTxListResponse,
     ClusterOp.EXECUTE_TRANSACTION_REQUEST: ExecuteTransactionRequest,
     ClusterOp.EXECUTE_TRANSACTION_RESPONSE: ExecuteTransactionResponse,
+    ClusterOp.GET_TRANSACTION_RECEIPT_REQUEST: GetTransactionReceiptRequest,
+    ClusterOp.GET_TRANSACTION_RECEIPT_RESPONSE: GetTransactionReceiptResponse,
 }

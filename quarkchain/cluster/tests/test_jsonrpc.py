@@ -8,7 +8,11 @@ from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
-from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
+from quarkchain.cluster.tests.test_utils import (
+    create_transfer_transaction,
+    ClusterContext,
+    create_contract_creation_transaction,
+)
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.evm import opcodes
@@ -400,3 +404,54 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertIsNone(response, "failed tx should return None")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
+
+    def testGetTransactionReceiptOnTransfer(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            tx = create_transfer_transaction(
+                shardState=slaves[0].shardStateMap[branch.value],
+                fromId=id1,
+                toAddress=acc1,
+                amount=12345,
+            )
+            self.assertTrue(slaves[0].addTx(tx))
+
+            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
+            self.assertTrue(call_async(slaves[0].addBlock(block1)))
+
+            resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
+            self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
+            self.assertEqual(resp['status'], '0x01')
+            self.assertEqual(resp['cumulativeGasUsed'], '0x5208')
+            self.assertEqual(resp['contractAddress'], '0x' + '0' * 48)
+
+    def testGetTransactionReceiptOnContractCreation(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            tx = create_contract_creation_transaction(
+                shardState=slaves[0].shardStateMap[branch.value],
+                fromId=id1,
+            )
+            self.assertTrue(slaves[0].addTx(tx))
+
+            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
+            self.assertTrue(call_async(slaves[0].addBlock(block1)))
+
+            resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
+            self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
+            self.assertEqual(resp['status'], '0x01')
+            self.assertEqual(resp['cumulativeGasUsed'], '0x213eb')
+            self.assertNotEqual(resp['contractAddress'], '0x' + '0' * 48)
+

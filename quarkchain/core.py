@@ -158,7 +158,7 @@ class PreprendedSizeListSerializer():
         return [self.ser.deserialize(bb) for i in range(size)]
 
 
-class Serializable():
+class Serializable:
 
     def __init__(self, *args, **kwargs):
         for k, v in kwargs.items():
