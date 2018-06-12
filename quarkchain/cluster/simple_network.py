@@ -295,13 +295,6 @@ class SimpleNetwork:
 
         # TODO: Sync with total diff
 
-    def __broadcastCommand(self, op, cmd, sourcePeerId=None):
-        data = cmd.serialize()
-        for peerId, peer in self.activePeerPool.items():
-            if peerId == sourcePeerId:
-                continue
-            peer.writeRawCommand(op, data)
-
     def iteratePeers(self):
         return self.clusterPeerPool.values()
 
@@ -336,18 +329,6 @@ class SimpleNetwork:
 
         self.loop.create_task(
             self.connectSeed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
-
-    def startAndLoop(self):
-        self.start()
-
-        try:
-            self.loop.run_forever()
-        except KeyboardInterrupt:
-            pass
-
-        self.shutdown()
-        self.loop.close()
-        Logger.info("Server is shutdown")
 
     # ------------------------------- Cluster Peer Management --------------------------------
     def __getNextClusterPeerId(self):
