@@ -969,15 +969,21 @@ class SlaveServer():
 
     def addTx(self, tx):
         evmTx = tx.code.getEvmTransaction()
-        if evmTx.branchValue not in self.shardStateMap:
+        evmTx.setShardSize(self.__getShardSize())
+        branchValue = evmTx.fromShardId() | self.__getShardSize()
+        shardState = self.shardStateMap.get(branchValue, None)
+        if not shardState:
             return False
-        return self.shardStateMap[evmTx.branchValue].addTx(tx)
+        return shardState.addTx(tx)
 
     def executeTx(self, tx) -> Optional[bytes]:
         evmTx = tx.code.getEvmTransaction()
-        if evmTx.branchValue not in self.shardStateMap:
-            return None
-        return self.shardStateMap[evmTx.branchValue].executeTx(tx)
+        evmTx.setShardSize(self.__getShardSize())
+        branchValue = evmTx.fromShardId() | self.__getShardSize()
+        shardState = self.shardStateMap.get(branchValue, None)
+        if not shardState:
+            return False
+        return shardState.executeTx(tx)
 
     def getTransactionCount(self, address):
         branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))

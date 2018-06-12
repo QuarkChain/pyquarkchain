@@ -357,6 +357,13 @@ class State:
             return True
         return False
 
+    def deduct_value(self, from_addr, value):
+        assert value >= 0
+        if self.get_balance(from_addr) >= value:
+            self.delta_balance(from_addr, -value)
+            return True
+        return False
+
     def account_to_dict(self, address):
         return self.get_and_cache_account(
             utils.normalize_address(address)).to_dict()

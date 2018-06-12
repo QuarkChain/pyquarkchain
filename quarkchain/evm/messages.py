@@ -136,19 +136,16 @@ def validate_transaction(state, tx):
     if req_nonce != tx.nonce:
         raise InvalidNonce(rp(tx, 'nonce', tx.nonce, req_nonce))
 
-    if tx.getWithdraw() > 0 and len(tx.withdrawTo) != Constant.ADDRESS_LENGTH:
-            raise RuntimeError("evm withdraw address is incorrect")
-
     # (3) the gas limit is no smaller than the intrinsic gas,
     # g0, used by the transaction;
-    total_gas = tx.intrinsic_gas_used + (0 if tx.getWithdraw() <= 0 else opcodes.GTXXSHARDCOST)
+    total_gas = tx.intrinsic_gas_used + (opcodes.GTXXSHARDCOST if tx.isCrossShard() else 0)
     if tx.startgas < total_gas:
         raise InsufficientStartGas(
             rp(tx, 'startgas', tx.startgas, total_gas))
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
-    total_cost = tx.value + tx.gasprice * tx.startgas + tx.getWithdraw()
+    total_cost = tx.value + tx.gasprice * tx.startgas
 
     if state.get_balance(tx.sender) < total_cost:
         raise InsufficientBalance(
@@ -183,9 +180,6 @@ def apply_transaction(state, tx):
     state.refunds = 0
     validate_transaction(state, tx)
 
-    if tx.getWithdraw() < 0:
-        state.delta_balance(tx.sender, -tx.getWithdraw())
-
     intrinsic_gas = tx.intrinsic_gas_used
     if state.is_HOMESTEAD():
         assert tx.s * 2 < transactions.secpk1n
@@ -210,10 +204,11 @@ def apply_transaction(state, tx):
         tx.sender,
         tx.to,
         tx.value,
-        tx.startgas -
-        intrinsic_gas,
+        tx.startgas - intrinsic_gas,
         message_data,
-        code_address=tx.to)
+        code_address=tx.to,
+        toFullShardId=tx.toFullShardId if tx.isCrossShard() else None,
+    )
 
     # MESSAGE
     ext = VMExt(state, tx)
@@ -264,15 +259,10 @@ def apply_transaction(state, tx):
             output = data
         success = 1
 
-        if tx.getWithdraw() > 0:
-            # TODO: check if the destination address is correct, and consume xshard gas of the state
-            # the xshard gas and fee is consumed by destination shard block
-            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST - tx.getWithdraw())
-            state.xshard_list.append(
-                quarkchain.cluster.core.CrossShardTransactionDeposit(
-                    address=Address.deserialize(tx.withdrawTo),
-                    amount=tx.getWithdraw(),
-                    gasPrice=tx.gasprice))
+        # TODO: check if the destination address is correct, and consume xshard gas of the state
+        # the xshard gas and fee is consumed by destination shard block
+        if tx.isCrossShard():
+            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST)
 
     state.gas_used += gas_used
 
@@ -341,6 +331,8 @@ class VMExt():
         self.snapshot = state.snapshot
         self.revert = state.revert
         self.transfer_value = state.transfer_value
+        self.deduct_value = state.deduct_value
+        self.add_cross_shard_transaction_deposit = lambda deposit: state.xshard_list.append(deposit)
         self.reset_storage = state.reset_storage
         self.tx_origin = tx.sender if tx else b'\x00' * 20
         self.tx_gasprice = tx.gasprice if tx else 0
@@ -365,10 +357,23 @@ def _apply_msg(ext, msg, code):
     # Transfer value, instaquit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
-        if not ext.transfer_value(msg.sender, msg.to, msg.value):
+        if msg.isCrossShard():
+            if not ext.deduct_value(msg.sender, msg.value):
+                return 1, msg.gas, []
+            ext.add_cross_shard_transaction_deposit(
+                quarkchain.cluster.core.CrossShardTransactionDeposit(
+                    address=Address(msg.to, msg.toFullShardId),
+                    amount=msg.value,
+                    gasPrice=ext.tx_gasprice)
+            )
+        elif not ext.transfer_value(msg.sender, msg.to, msg.value):
             log_msg.debug('MSG TRANSFER FAILED', have=ext.get_balance(msg.to),
                           want=msg.value)
             return 1, msg.gas, []
+
+    if msg.isCrossShard():
+        # Cross shard contract call is not supported
+        return 1, msg.gas, []
 
     # Main loop
     if msg.code_address in ext.specials:
