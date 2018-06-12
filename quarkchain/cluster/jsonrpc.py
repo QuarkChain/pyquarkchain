@@ -342,6 +342,14 @@ class JSONRPCServer:
         return data
 
     @methods.add
+    async def networkInfo(self):
+        return {
+            "networkId": quantity_encoder(self.master.env.config.NETWORK_ID),
+            "shardSize": quantity_encoder(self.master.getShardSize()),
+            "syncing": self.master.isSyncing(),
+        }
+
+    @methods.add
     @decode_arg("address", address_decoder)
     @encode_res(quantity_encoder)
     async def getTransactionCount(self, address):

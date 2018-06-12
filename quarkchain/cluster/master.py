@@ -860,6 +860,9 @@ class MasterServer():
             "txCountHistory": txCountHistory,
         }
 
+    def isSyncing(self):
+        return self.synchronizer.running
+
     async def getMinorBlockByHash(self, blockHash, branch):
         if branch.value not in self.branchToSlaves:
             return None
