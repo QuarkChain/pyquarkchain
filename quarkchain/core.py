@@ -349,6 +349,9 @@ class Address(Serializable):
         bs = normalize_bytes(bs, 24)
         return Address(bs[0:20], int.from_bytes(bs[20:], byteorder="big"))
 
+    def isEmpty(self):
+        return set(self.recipient) == {0}
+
 
 class TransactionInput(Serializable):
     FIELDS = [

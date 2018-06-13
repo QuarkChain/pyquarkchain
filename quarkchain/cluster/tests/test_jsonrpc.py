@@ -414,7 +414,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
             self.assertEqual(resp["status"], "0x1")
             self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
-            self.assertEqual(resp["contractAddress"], "0x" + bytes(24).hex())
+            self.assertIsNone(resp["contractAddress"])
 
     def testGetTransactionReceiptOnContractCreation(self):
         id1 = Identity.createRandomIdentity()
@@ -471,5 +471,5 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
             self.assertEqual(resp["status"], "0x0")
             self.assertEqual(resp["cumulativeGasUsed"], "0x11a44")
-            self.assertEqual(resp["contractAddress"], "0x" + bytes(24).hex())
+            self.assertIsNone(resp["contractAddress"])
 

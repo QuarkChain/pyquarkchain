@@ -260,11 +260,14 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
         'blockId': id_encoder(block.header.getHash(), block.header.branch.getShardId()),
         'blockHash': data_encoder(block.header.getHash()),
         'blockHeight': quantity_encoder(block.header.height),
+        # TODO: `gasUsed` field needs to know the previous receipt
         'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
-        'contractAddress': address_encoder(receipt.contractAddress.serialize()),
         'status': quantity_encoder(1 if receipt.success == b"\x01" else 0),
+        'contractAddress': (
+            address_encoder(receipt.contractAddress.serialize())
+            if not receipt.contractAddress.isEmpty() else None
+        ),
     }
-    # TODO: `gasUsed` field needs to know the previous receipt
     return resp
 
 
@@ -372,7 +375,6 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     async def getAccountData(self, address, includeShards=False):
         address = Address.deserialize(address)
-        shards = []
         if not includeShards:
             accountBranchData = await self.master.getPrimaryAccountData(address)
             branch = accountBranchData.branch

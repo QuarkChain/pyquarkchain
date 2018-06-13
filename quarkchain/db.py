@@ -77,7 +77,7 @@ class Db:
             createTime = int.from_bytes(v, byteorder="big")
             yield (txHash, createTime)
             done += 1
-            if limit > 0 and done >= limit:
+            if 0 < limit <= done:
                 raise StopIteration()
 
     def getSpentTxHash(self, txIn):
@@ -193,7 +193,7 @@ class PersistentDb(Db):
         except KeyError:
             return False
 
-    def close():
+    def close(self):
         # No close option in leveldb?
         pass
 
