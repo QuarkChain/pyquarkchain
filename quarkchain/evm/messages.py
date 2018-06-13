@@ -223,7 +223,7 @@ def apply_transaction(state, tx):
         result, gas_remained, data = apply_msg(ext, message)
     else:  # CREATE
         result, gas_remained, data = create_contract(ext, message)
-        contract_address = data
+        contract_address = data if data else b''  # data could be [] when vm failed execution
 
     assert gas_remained >= 0
 
