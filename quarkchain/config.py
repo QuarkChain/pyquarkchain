@@ -23,6 +23,12 @@ class DefaultConfig:
         self.P2P_SERVER_PORT = 38291
         self.P2P_SEED_HOST = "127.0.0.1"
         self.P2P_SEED_PORT = self.P2P_SERVER_PORT
+        self.DEVP2P = False
+        self.DEVP2P_PORT = 29000
+        self.DEVP2P_BOOTSTRAP_HOST = "0.0.0.0"
+        self.DEVP2P_BOOTSTRAP_PORT = 29000
+        self.DEVP2P_MIN_PEERS = 2
+        self.DEVP2P_MAX_PEERS = 10
         self.LOCAL_SERVER_PORT = 38391
         self.LOCAL_SERVER_ENABLE = False
         self.SHARD_SIZE = 8

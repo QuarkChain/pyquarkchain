@@ -43,6 +43,7 @@ from quarkchain.db import PersistentDb
 from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.p2p.p2p_network import P2PNetwork
 from quarkchain.utils import set_logging_level, Logger, check
 
 
@@ -1029,7 +1030,7 @@ def main():
         master.defaultArtificialTxConfig = ArtificialTxConfig(10, 3)
         asyncio.ensure_future(master.startMining())
 
-    network = SimpleNetwork(env, master)
+    network = P2PNetwork(env, master) if env.config.DEVP2P else SimpleNetwork(env, master)
     network.start()
 
     jsonRpcServer = JSONRPCServer(env, master)
