@@ -430,6 +430,7 @@ class ShardState:
         state.block_number = block.header.height
         state.recent_uncles[state.block_number] = []  # TODO [x.hash for x in block.uncles]
         # TODO: Create a account with shard info if the account is not created
+        # Right now the fullShardId for coinbase actually comes from the first tx that got applied
         state.block_coinbase = block.meta.coinbaseAddress.recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
