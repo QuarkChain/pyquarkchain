@@ -1,3 +1,4 @@
+import os
 import random
 import time
 from collections import deque
@@ -732,6 +733,12 @@ class ShardState:
 
     def __addArtificialTx(self, block, evmState, artificialTxConfig):
         numTx = max(0, int(artificialTxConfig.numTxPerBlock * random.uniform(0.8, 1.2)))
+        if numTx <= 0:
+            return
+
+        shardMask = self.branch.getShardSize() - 1
+        fromFullShardId = evmState.get_full_shard_id(evmState.block_coinbase)
+        check(self.branch.getShardId() == fromFullShardId & shardMask)
         for i in range(numTx):
             toShard = self.branch.getShardId()
             gas = 21000
@@ -741,6 +748,7 @@ class ShardState:
                 toShard = random.randint(0, self.env.config.SHARD_SIZE - 1)
                 if toShard == self.branch.getShardId():
                     toShard = (toShard + 1) % self.env.config.SHARD_SIZE
+            toFullShardId = (fromFullShardId & (~shardMask)) | toShard
 
             evmTx = EvmTransaction(
                 nonce=evmState.get_nonce(evmState.block_coinbase),
@@ -749,8 +757,8 @@ class ShardState:
                 to=evmState.block_coinbase,
                 value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
                 data=b'',
-                fromFullShardId=self.branch.getShardId(),
-                toFullShardId=toShard,
+                fromFullShardId=fromFullShardId,
+                toFullShardId=toFullShardId,
                 networkId=self.env.config.NETWORK_ID,
             )
             evmTx.sign(key=self.env.config.GENESIS_KEY)

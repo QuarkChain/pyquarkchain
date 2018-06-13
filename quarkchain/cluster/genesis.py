@@ -68,15 +68,18 @@ def create_genesis_evm_list(env, dbMap=dict()):
         evmState = EvmState(
             env=env.evmEnv,
             db=dbMap[shardId] if shardId in dbMap else InMemoryDb())
+        evmState.full_shard_id = env.config.GENESIS_ACCOUNT.fullShardId & (~(env.config.SHARD_SIZE - 1)) | shardId
         evmState.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
 
         if env.config.ACCOUNTS_TO_FUND:
             for address in env.config.ACCOUNTS_TO_FUND:
                 if address.getShardId(env.config.SHARD_SIZE) == shardId:
+                    evmState.full_shard_id = address.fullShardId
                     evmState.delta_balance(address.recipient, env.config.ACCOUNTS_TO_FUND_COIN)
 
         if env.config.LOADTEST_ACCOUNTS:
             for address in env.config.LOADTEST_ACCOUNTS:
+                evmState.full_shard_id = address.fullShardId & (~(env.config.SHARD_SIZE - 1)) | shardId
                 evmState.delta_balance(address.recipient, env.config.LOADTEST_ACCOUNTS_COIN)
 
         evmState.commit()
