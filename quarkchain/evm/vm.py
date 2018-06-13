@@ -72,7 +72,7 @@ class Message(object):
 
     def __init__(self, sender, to, value=0, gas=1000000, data='', depth=0,
                  code_address=None, is_create=False, transfers_value=True, static=False,
-                 toFullShardId=None):
+                 is_cross_shard=False, to_full_shard_id=None):
         self.sender = sender
         self.to = to
         self.value = value
@@ -85,10 +85,8 @@ class Message(object):
         self.is_create = is_create
         self.transfers_value = transfers_value
         self.static = static
-        self.toFullShardId = toFullShardId
-
-    def isCrossShard(self):
-        return self.toFullShardId is not None
+        self.is_cross_shard = is_cross_shard
+        self.to_full_shard_id = to_full_shard_id
 
     def __repr__(self):
         return '<Message(to:%s...)>' % self.to[:8]

@@ -262,7 +262,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
         'blockHeight': quantity_encoder(block.header.height),
         'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
         'contractAddress': address_encoder(receipt.contractAddress.serialize()),
-        'status': data_encoder(receipt.success),
+        'status': quantity_encoder(1 if receipt.success == b"\x01" else 0),
     }
     # TODO: `gasUsed` field needs to know the previous receipt
     return resp
