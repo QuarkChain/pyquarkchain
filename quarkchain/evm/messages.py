@@ -5,7 +5,7 @@ import rlp
 import quarkchain.cluster.core
 
 from ethereum.utils import int256, safe_ord, bytearray_to_bytestr
-from rlp.sedes import big_endian_int, binary, CountableList
+from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.utils import decode_hex, encode_hex
 from ethereum import utils
 from ethereum import bloom
@@ -74,13 +74,14 @@ class Receipt(rlp.Serializable):
 
     fields = [
         ('state_root', binary),
-        ('gas_used', big_endian_int),
+        ('gas_used', big_endian_int),   # TODO: this is actually the cumulative gas used. fix it.
         ('bloom', int256),
         ('logs', CountableList(Log)),
-        ('contract_address', utils.address)
+        ('contract_address', utils.address),
+        ('contract_full_shard_id', BigEndianInt(4)),
     ]
 
-    def __init__(self, state_root, gas_used, logs, contract_address, bloom=None):
+    def __init__(self, state_root, gas_used, logs, contract_address, contract_full_shard_id, bloom=None):
         # does not call super.__init__ as bloom should not be an attribute but
         # a property
         self.state_root = state_root
@@ -89,6 +90,7 @@ class Receipt(rlp.Serializable):
         if bloom is not None and bloom != self.bloom:
             raise ValueError("Invalid bloom filter")
         self.contract_address = contract_address
+        self.contract_full_shard_id = contract_full_shard_id
         self._cached_rlp = None
         self._mutable = True
 
@@ -98,8 +100,8 @@ class Receipt(rlp.Serializable):
         return bloom.bloom_from_list(utils.flatten(bloomables))
 
 
-def mk_receipt(state, success, logs, contract_address):
-    o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address)
+def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
+    o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address, contract_full_shard_id)
     return o
 
 
@@ -180,8 +182,10 @@ def apply_transaction(state, tx):
     state.refunds = 0
     validate_transaction(state, tx)
 
+    state.full_shard_id = tx.toFullShardId
+
     intrinsic_gas = tx.intrinsic_gas_used
-    if state.is_HOMESTEAD():
+    if state.is_HOMESTEAD():  # TODO: delete this?
         assert tx.s * 2 < transactions.secpk1n
         if not tx.to or tx.to == CREATE_CONTRACT_ADDRESS:
             intrinsic_gas += opcodes.CREATE[3]
@@ -207,7 +211,8 @@ def apply_transaction(state, tx):
         tx.startgas - intrinsic_gas,
         message_data,
         code_address=tx.to,
-        toFullShardId=tx.toFullShardId if tx.isCrossShard() else None,
+        is_cross_shard=tx.isCrossShard(),
+        to_full_shard_id=tx.toFullShardId,
     )
 
     # MESSAGE
@@ -278,7 +283,7 @@ def apply_transaction(state, tx):
         state.commit()
 
     # Construct a receipt
-    r = mk_receipt(state, success, state.logs, contract_address)
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_id)
     state.logs = []
     state.add_receipt(r)
     state.set_param('bloom', state.bloom | r.bloom)
@@ -357,12 +362,12 @@ def _apply_msg(ext, msg, code):
     # Transfer value, instaquit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
-        if msg.isCrossShard():
+        if msg.is_cross_shard:
             if not ext.deduct_value(msg.sender, msg.value):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.cluster.core.CrossShardTransactionDeposit(
-                    address=Address(msg.to, msg.toFullShardId),
+                    address=Address(msg.to, msg.to_full_shard_id),
                     amount=msg.value,
                     gasPrice=ext.tx_gasprice)
             )
@@ -371,7 +376,7 @@ def _apply_msg(ext, msg, code):
                           want=msg.value)
             return 1, msg.gas, []
 
-    if msg.isCrossShard():
+    if msg.is_cross_shard:
         # Cross shard contract call is not supported
         return 1, msg.gas, []
 
@@ -394,8 +399,15 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
+def mk_contract_address(sender, full_shard_id, nonce):
+    return utils.sha3(rlp.encode([utils.normalize_address(sender), full_shard_id, nonce]))[12:]
+
+
 def create_contract(ext, msg):
     log_msg.debug('CONTRACT CREATION')
+
+    if msg.is_cross_shard:
+        return 0, msg.gas, b''
 
     code = msg.data.extract_all()
 
@@ -403,11 +415,11 @@ def create_contract(ext, msg):
         ext.increment_nonce(msg.sender)
 
     if ext.post_constantinople_hardfork() and msg.sender == null_address:
-        msg.to = utils.mk_contract_address(msg.sender, 0)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, 0)
         # msg.to = sha3(msg.sender + code)[12:]
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-        msg.to = utils.mk_contract_address(msg.sender, nonce)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, nonce)
 
     if ext.post_metropolis_hardfork() and (
             ext.get_nonce(msg.to) or len(ext.get_code(msg.to))):

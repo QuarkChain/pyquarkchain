@@ -29,21 +29,20 @@ class TransactionReceipt(Serializable):
     """ Wrapper over tx receipts from EVM """
     FIELDS = [
         ('success', PreprendedSizeBytesSerializer(1)),
-        ('gasUsed', uint32),
+        ('gasUsed', uint64),
         ('bloom', uint256),
-        # TODO: contract address could be in a different shard. may need a separate field
         ('contractAddress', Address),
     ]
 
-    def __init__(self, success=b'\x00', gasUsed=0, contractAddress=None, bloom=0):
+    def __init__(self, success, gasUsed, contractAddress, bloom):
         self.success = success
         self.gasUsed = gasUsed
-        self.contractAddress = (
-            contractAddress
-            if contractAddress
-            else Address.createEmptyAccount(fullShardId=0)
-        )
+        self.contractAddress = contractAddress
         self.bloom = bloom
+
+    @classmethod
+    def createEmptyReceipt(cls):
+        return cls(b'', 0, Address.createEmptyAccount(0), 0)
 
 
 class MinorBlockMeta(Serializable):
@@ -155,11 +154,10 @@ class MinorBlock(Serializable):
 
         t = trie.Trie(db, self.meta.hashEvmReceiptRoot)
         r = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
-        contractAddress = (
-            Address(r.contract_address, self.meta.coinbaseAddress.fullShardId)
-            if r.contract_address
-            else None
-        )
+        if r.contract_address != b'':
+            contractAddress = Address(r.contract_address, r.contract_full_shard_id)
+        else:
+            contractAddress = Address.createEmptyAccount(fullShardId=0)
         return TransactionReceipt(r.state_root, r.gas_used, contractAddress, r.bloom)
 
     def createBlockToAppend(self,

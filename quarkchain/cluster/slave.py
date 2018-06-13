@@ -534,7 +534,7 @@ class MasterConnection(ClusterConnection):
         resp = self.slaveServer.getTransactionReceipt(req.txHash, req.branch)
         if not resp:
             emptyBlock = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            emptyReceipt = TransactionReceipt()
+            emptyReceipt = TransactionReceipt.createEmptyReceipt()
             return GetTransactionReceiptResponse(
                 errorCode=1, minorBlock=emptyBlock, index=0, receipt=emptyReceipt)
         minorBlock, i, receipt = resp

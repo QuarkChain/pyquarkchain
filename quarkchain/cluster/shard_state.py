@@ -994,7 +994,11 @@ class ShardState:
         block, index = self.db.getTransactionByHash(h)
         if not block:
             return None
-        return block, index, block.getReceipt(self.evmState.db, index)
+        receipt = block.getReceipt(self.evmState.db, index)
+        if receipt.contractAddress != Address.createEmptyAccount(0):
+            address = receipt.contractAddress
+            check(address.fullShardId == self.evmState.get_full_shard_id(address.recipient))
+        return block, index, receipt
 
     def getShardStats(self) -> ShardStats:
         cutoff = self.headerTip.createTime - 60

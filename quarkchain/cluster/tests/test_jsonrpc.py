@@ -16,6 +16,7 @@ from quarkchain.cluster.tests.test_utils import (
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.evm import opcodes
+from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async
 
@@ -116,7 +117,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(slaves[0].shardStateMap[branch.value].txQueue.pop_transaction(), evmTx)
 
     def testSendTransactionWithBadSignature(self):
-        ''' sendTransaction validates signature '''
+        """ sendTransaction validates signature """
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
         acc2 = Address.createRandomAccount(fullShardId=1)
@@ -356,7 +357,7 @@ class TestJSONRPC(unittest.TestCase):
                 startgas=0,
                 to=acc1.recipient,
                 value=15,
-                data=b'',
+                data=b"",
                 fromFullShardId=acc1.fullShardId,
                 toFullShardId=acc1.fullShardId,
                 networkId=slaves[0].env.config.NETWORK_ID,
@@ -378,6 +379,14 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertIsNone(response, "failed tx should return None")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
+
+    def testGetTransactionReceiptNotExist(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            resp = sendRequest("getTransactionReceipt", "0x" + bytes(36).hex())
+            self.assertIsNone(resp)
 
     def testGetTransactionReceiptOnTransfer(self):
         id1 = Identity.createRandomIdentity()
@@ -403,9 +412,9 @@ class TestJSONRPC(unittest.TestCase):
             resp = sendRequest("getTransactionReceipt",
                                "0x" + tx.getHash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
-            self.assertEqual(resp['status'], '0x01')
-            self.assertEqual(resp['cumulativeGasUsed'], '0x5208')
-            self.assertEqual(resp['contractAddress'], '0x' + '0' * 48)
+            self.assertEqual(resp["status"], "0x1")
+            self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
+            self.assertEqual(resp["contractAddress"], "0x" + bytes(24).hex())
 
     def testGetTransactionReceiptOnContractCreation(self):
         id1 = Identity.createRandomIdentity()
@@ -416,10 +425,12 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
+            toFullShardId = acc1.fullShardId + 2
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 key=id1.getKey(),
                 fromAddress=acc1,
+                toFullShardId=toFullShardId
             )
             self.assertTrue(slaves[0].addTx(tx))
 
@@ -428,7 +439,37 @@ class TestJSONRPC(unittest.TestCase):
 
             resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
-            self.assertEqual(resp['status'], '0x01')
-            self.assertEqual(resp['cumulativeGasUsed'], '0x213eb')
-            self.assertNotEqual(resp['contractAddress'], '0x' + '0' * 48)
+            self.assertEqual(resp["status"], "0x1")
+            self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
+
+            contractAddress = mk_contract_address(acc1.recipient, toFullShardId, 0)
+            self.assertEqual(resp["contractAddress"],
+                             "0x" + contractAddress.hex() + toFullShardId.to_bytes(4, "big").hex())
+
+    def testGetTransactionReceiptOnContractCreationFailure(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            branch = Branch.create(2, 0)
+            toFullShardId = acc1.fullShardId + 1  # x-shard contract creation should fail
+            tx = create_contract_creation_transaction(
+                shardState=slaves[0].shardStateMap[branch.value],
+                key=id1.getKey(),
+                fromAddress=acc1,
+                toFullShardId=toFullShardId
+            )
+            self.assertTrue(slaves[0].addTx(tx))
+
+            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
+            self.assertTrue(call_async(slaves[0].addBlock(block1)))
+
+            resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
+            self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
+            self.assertEqual(resp["status"], "0x0")
+            self.assertEqual(resp["cumulativeGasUsed"], "0x11a44")
+            self.assertEqual(resp["contractAddress"], "0x" + bytes(24).hex())
 
