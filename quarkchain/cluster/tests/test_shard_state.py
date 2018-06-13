@@ -114,6 +114,9 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(r.success, b'\x01')
         self.assertEqual(r.gasUsed, 21000)
 
+        # Check Account has full_shard_id
+        self.assertEqual(state.evmState.get_full_shard_id(acc2.recipient), acc2.fullShardId)
+
     def testDuplicatedTx(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
@@ -212,11 +215,14 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.getBalance(acc2.recipient), 1000000)
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 
+        # Check Account has full_shard_id
+        self.assertEqual(state.evmState.get_full_shard_id(acc2.recipient), acc2.fullShardId)
+
         state.addTx(create_transfer_transaction(
             shardState=state,
             key=id1.getKey(),
             fromAddress=acc1,
-            toAddress=acc2,
+            toAddress=Address(acc2.recipient, acc2.fullShardId + 2),  # set a different full shard id
             value=12345,
         ))
         state.addTx(create_transfer_transaction(
@@ -250,6 +256,9 @@ class TestShardState(unittest.TestCase):
         block, i = state.getTransactionByHash(b1.txList[1].getHash())
         self.assertEqual(block, b1)
         self.assertEqual(i, 1)
+
+        # Check acc2 fullShardId doesn't change
+        self.assertEqual(state.evmState.get_full_shard_id(acc2.recipient), acc2.fullShardId)
 
     def testStaleBlockCount(self):
         id1 = Identity.createRandomIdentity()
