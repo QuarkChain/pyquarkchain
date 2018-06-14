@@ -54,17 +54,17 @@ coverage.xml
 *.mo
 *.pot
 
-# Django stuff:
+# Django stuff
 *.log
 .static_storage/
 .media/
 local_settings.py
 
-# Flask stuff:
+# Flask stuff
 instance/
 .webassets-cache
 
-# Scrapy stuff:
+# Scrapy stuff
 .scrapy
 
 # Sphinx documentation
@@ -108,3 +108,13 @@ venv.bak/
 .mypy_cache/
 
 *~
+
+# IDE
+.idea/
+
+# DB
+db_*/
+
+# IPython notebook
+*.ipynb
+

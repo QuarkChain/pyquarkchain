@@ -1,8 +1,11 @@
 # Modified from pyethereum under MIT license
 import rlp
 
+# to bypass circular imports
+import quarkchain.cluster.core
+
 from ethereum.utils import int256, safe_ord, bytearray_to_bytestr
-from rlp.sedes import big_endian_int, binary, CountableList
+from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.utils import decode_hex, encode_hex
 from ethereum import utils
 from ethereum import bloom
@@ -14,7 +17,6 @@ from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTran
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
 from ethereum.slogging import get_logger
 from quarkchain.core import Constant, Address
-from quarkchain.cluster.core import CrossShardTransactionDeposit
 
 
 null_address = b'\xff' * 20
@@ -72,12 +74,14 @@ class Receipt(rlp.Serializable):
 
     fields = [
         ('state_root', binary),
-        ('gas_used', big_endian_int),
+        ('gas_used', big_endian_int),   # TODO: this is actually the cumulative gas used. fix it.
         ('bloom', int256),
-        ('logs', CountableList(Log))
+        ('logs', CountableList(Log)),
+        ('contract_address', utils.address),
+        ('contract_full_shard_id', BigEndianInt(4)),
     ]
 
-    def __init__(self, state_root, gas_used, logs, bloom=None):
+    def __init__(self, state_root, gas_used, logs, contract_address, contract_full_shard_id, bloom=None):
         # does not call super.__init__ as bloom should not be an attribute but
         # a property
         self.state_root = state_root
@@ -85,6 +89,8 @@ class Receipt(rlp.Serializable):
         self.logs = logs
         if bloom is not None and bloom != self.bloom:
             raise ValueError("Invalid bloom filter")
+        self.contract_address = contract_address
+        self.contract_full_shard_id = contract_full_shard_id
         self._cached_rlp = None
         self._mutable = True
 
@@ -94,12 +100,9 @@ class Receipt(rlp.Serializable):
         return bloom.bloom_from_list(utils.flatten(bloomables))
 
 
-def mk_receipt(state, success, logs):
-    if state.is_METROPOLIS():
-        o = Receipt(b'\x01' if success else b'', state.gas_used, logs)
-        return o
-    else:
-        return Receipt(state.trie.root_hash, state.gas_used, logs)
+def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
+    o = Receipt(b'\x01' if success else b'', state.gas_used, logs, contract_address, contract_full_shard_id)
+    return o
 
 
 def config_fork_specific_validation(config, blknum, tx):
@@ -135,19 +138,16 @@ def validate_transaction(state, tx):
     if req_nonce != tx.nonce:
         raise InvalidNonce(rp(tx, 'nonce', tx.nonce, req_nonce))
 
-    if tx.getWithdraw() > 0 and len(tx.withdrawTo) != Constant.ADDRESS_LENGTH:
-            raise RuntimeError("evm withdraw address is incorrect")
-
     # (3) the gas limit is no smaller than the intrinsic gas,
     # g0, used by the transaction;
-    total_gas = tx.intrinsic_gas_used + (0 if tx.getWithdraw() <= 0 else opcodes.GTXXSHARDCOST)
+    total_gas = tx.intrinsic_gas_used + (opcodes.GTXXSHARDCOST if tx.isCrossShard() else 0)
     if tx.startgas < total_gas:
         raise InsufficientStartGas(
             rp(tx, 'startgas', tx.startgas, total_gas))
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
-    total_cost = tx.value + tx.gasprice * tx.startgas + tx.getWithdraw()
+    total_cost = tx.value + tx.gasprice * tx.startgas
 
     if state.get_balance(tx.sender) < total_cost:
         raise InsufficientBalance(
@@ -182,11 +182,10 @@ def apply_transaction(state, tx):
     state.refunds = 0
     validate_transaction(state, tx)
 
-    if tx.getWithdraw() < 0:
-        state.delta_balance(tx.sender, -tx.getWithdraw())
+    state.full_shard_id = tx.toFullShardId
 
     intrinsic_gas = tx.intrinsic_gas_used
-    if state.is_HOMESTEAD():
+    if state.is_HOMESTEAD():  # TODO: delete this?
         assert tx.s * 2 < transactions.secpk1n
         if not tx.to or tx.to == CREATE_CONTRACT_ADDRESS:
             intrinsic_gas += opcodes.CREATE[3]
@@ -209,18 +208,22 @@ def apply_transaction(state, tx):
         tx.sender,
         tx.to,
         tx.value,
-        tx.startgas -
-        intrinsic_gas,
+        tx.startgas - intrinsic_gas,
         message_data,
-        code_address=tx.to)
+        code_address=tx.to,
+        is_cross_shard=tx.isCrossShard(),
+        to_full_shard_id=tx.toFullShardId,
+    )
 
     # MESSAGE
     ext = VMExt(state, tx)
 
+    contract_address = b''
     if tx.to != b'':
         result, gas_remained, data = apply_msg(ext, message)
     else:  # CREATE
         result, gas_remained, data = create_contract(ext, message)
+        contract_address = data if data else b''  # data could be [] when vm failed execution
 
     assert gas_remained >= 0
 
@@ -261,15 +264,10 @@ def apply_transaction(state, tx):
             output = data
         success = 1
 
-        if tx.getWithdraw() > 0:
-            # TODO: check if the destination address is correct, and consume xshard gas of the state
-            # the xshard gas and fee is consumed by destination shard block
-            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST - tx.getWithdraw())
-            state.xshard_list.append(
-                CrossShardTransactionDeposit(
-                    address=Address.deserialize(tx.withdrawTo),
-                    amount=tx.getWithdraw(),
-                    gasPrice=tx.gasprice))
+        # TODO: check if the destination address is correct, and consume xshard gas of the state
+        # the xshard gas and fee is consumed by destination shard block
+        if tx.isCrossShard():
+            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST)
 
     state.gas_used += gas_used
 
@@ -285,8 +283,7 @@ def apply_transaction(state, tx):
         state.commit()
 
     # Construct a receipt
-    r = mk_receipt(state, success, state.logs)
-    # _logs = list(state.logs)
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_id)
     state.logs = []
     state.add_receipt(r)
     state.set_param('bloom', state.bloom | r.bloom)
@@ -339,6 +336,8 @@ class VMExt():
         self.snapshot = state.snapshot
         self.revert = state.revert
         self.transfer_value = state.transfer_value
+        self.deduct_value = state.deduct_value
+        self.add_cross_shard_transaction_deposit = lambda deposit: state.xshard_list.append(deposit)
         self.reset_storage = state.reset_storage
         self.tx_origin = tx.sender if tx else b'\x00' * 20
         self.tx_gasprice = tx.gasprice if tx else 0
@@ -363,10 +362,23 @@ def _apply_msg(ext, msg, code):
     # Transfer value, instaquit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
-        if not ext.transfer_value(msg.sender, msg.to, msg.value):
+        if msg.is_cross_shard:
+            if not ext.deduct_value(msg.sender, msg.value):
+                return 1, msg.gas, []
+            ext.add_cross_shard_transaction_deposit(
+                quarkchain.cluster.core.CrossShardTransactionDeposit(
+                    address=Address(msg.to, msg.to_full_shard_id),
+                    amount=msg.value,
+                    gasPrice=ext.tx_gasprice)
+            )
+        elif not ext.transfer_value(msg.sender, msg.to, msg.value):
             log_msg.debug('MSG TRANSFER FAILED', have=ext.get_balance(msg.to),
                           want=msg.value)
             return 1, msg.gas, []
+
+    if msg.is_cross_shard:
+        # Cross shard contract call is not supported
+        return 1, msg.gas, []
 
     # Main loop
     if msg.code_address in ext.specials:
@@ -387,8 +399,15 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
+def mk_contract_address(sender, full_shard_id, nonce):
+    return utils.sha3(rlp.encode([utils.normalize_address(sender), full_shard_id, nonce]))[12:]
+
+
 def create_contract(ext, msg):
     log_msg.debug('CONTRACT CREATION')
+
+    if msg.is_cross_shard:
+        return 0, msg.gas, b''
 
     code = msg.data.extract_all()
 
@@ -396,11 +415,11 @@ def create_contract(ext, msg):
         ext.increment_nonce(msg.sender)
 
     if ext.post_constantinople_hardfork() and msg.sender == null_address:
-        msg.to = utils.mk_contract_address(msg.sender, 0)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, 0)
         # msg.to = sha3(msg.sender + code)[12:]
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-        msg.to = utils.mk_contract_address(msg.sender, nonce)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, nonce)
 
     if ext.post_metropolis_hardfork() and (
             ext.get_nonce(msg.to) or len(ext.get_code(msg.to))):

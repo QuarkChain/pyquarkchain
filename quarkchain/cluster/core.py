@@ -4,12 +4,45 @@
 
 import copy
 
+from typing import Optional
+
+# to bypass circular imports
+import quarkchain.evm.messages
 
 from quarkchain.utils import sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
+from quarkchain.evm import trie
+import rlp
+
+
+def mk_receipt_sha(receipts, db):
+    t = trie.Trie(db)
+    for i, receipt in enumerate(receipts):
+        t.update(rlp.encode(i), rlp.encode(receipt))
+    return t.root_hash
+
+
+class TransactionReceipt(Serializable):
+    """ Wrapper over tx receipts from EVM """
+    FIELDS = [
+        ('success', PreprendedSizeBytesSerializer(1)),
+        ('gasUsed', uint64),
+        ('bloom', uint256),
+        ('contractAddress', Address),
+    ]
+
+    def __init__(self, success, gasUsed, contractAddress, bloom):
+        self.success = success
+        self.gasUsed = gasUsed
+        self.contractAddress = contractAddress
+        self.bloom = bloom
+
+    @classmethod
+    def createEmptyReceipt(cls):
+        return cls(b'', 0, Address.createEmptyAccount(0), 0)
 
 
 class MinorBlockMeta(Serializable):
@@ -18,6 +51,7 @@ class MinorBlockMeta(Serializable):
     FIELDS = [
         ("hashMerkleRoot", hash256),
         ("hashEvmStateRoot", hash256),
+        ("hashEvmReceiptRoot", hash256),
         ("coinbaseAddress", Address),
         ("evmGasLimit", uint256),
         ("evmGasUsed", uint256),
@@ -27,6 +61,7 @@ class MinorBlockMeta(Serializable):
     def __init__(self,
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
+                 hashEvmReceiptRoot=bytes(Constant.HASH_LENGTH),
                  coinbaseAddress=Address.createEmptyAccount(),
                  evmGasLimit=100000000000,
                  evmGasUsed=0,
@@ -104,12 +139,26 @@ class MinorBlock(Serializable):
         self.meta.evmGasUsed = evmState.gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
         self.finalizeMerkleRoot()
+        self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts, evmState.db)
         self.header.hashMeta = self.meta.getHash()
         return self
 
     def addTx(self, tx):
         self.txList.append(tx)
         return self
+
+    def getReceipt(self, db, i) -> Optional[TransactionReceipt]:
+        # ignore if no meta is set
+        if self.meta.hashEvmReceiptRoot == bytes(Constant.HASH_LENGTH):
+            return None
+
+        t = trie.Trie(db, self.meta.hashEvmReceiptRoot)
+        r = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
+        if r.contract_address != b'':
+            contractAddress = Address(r.contract_address, r.contract_full_shard_id)
+        else:
+            contractAddress = Address.createEmptyAccount(fullShardId=0)
+        return TransactionReceipt(r.state_root, r.gas_used, contractAddress, r.bloom)
 
     def createBlockToAppend(self,
                             createTime=None,
@@ -171,7 +220,6 @@ class RootBlockHeader(Serializable):
 
     def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
         createTime = self.createTime + 1 if createTime is None else createTime
-        address = Address.createEmptyAccount() if address is None else address
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = RootBlockHeader(version=self.version,
                                  height=self.height + 1,

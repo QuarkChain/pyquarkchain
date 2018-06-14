@@ -158,7 +158,7 @@ class PreprendedSizeListSerializer():
         return [self.ser.deserialize(bb) for i in range(size)]
 
 
-class Serializable():
+class Serializable:
 
     def __init__(self, *args, **kwargs):
         for k, v in kwargs.items():
@@ -348,6 +348,9 @@ class Address(Serializable):
     def createFrom(bs):
         bs = normalize_bytes(bs, 24)
         return Address(bs[0:20], int.from_bytes(bs[20:], byteorder="big"))
+
+    def isEmpty(self):
+        return set(self.recipient) == {0}
 
 
 class TransactionInput(Serializable):

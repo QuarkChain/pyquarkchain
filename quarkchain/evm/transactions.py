@@ -1,24 +1,20 @@
 # -*- coding: utf-8 -*-
 # Modified based on pyethereum under MIT license
 import rlp
-from rlp.sedes import big_endian_int, binary
-from rlp.utils import str_to_bytes, ascii_chr
-from ethereum.utils import encode_hex
-
-from ethereum.exceptions import InvalidTransaction
-from quarkchain.evm import opcodes
 from ethereum import utils
+from ethereum.exceptions import InvalidTransaction
 from ethereum.utils import TT256, mk_contract_address, ecsign, ecrecover_to_pub, normalize_key
-from quarkchain.utils import sha3_256
+from ethereum.utils import encode_hex
+from rlp.sedes import big_endian_int, binary, BigEndianInt
+from rlp.utils import str_to_bytes, ascii_chr
 
+from quarkchain.evm import opcodes
+from quarkchain.utils import sha3_256, is_p2, check
 
 # in the yellow paper it is specified that s should be smaller than
 # secpk1n (eq.205)
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 null_address = b'\xff' * 20
-
-
-UINT32_MAX = (2 ** 32) - 1
 
 
 class Transaction(rlp.Serializable):
@@ -39,6 +35,19 @@ class Transaction(rlp.Serializable):
     (i) the signature is well-formed (ie. 0 <= v <= 3, 0 <= r < P, 0 <= s < N,
         0 <= r < P - N if v >= 2), and
     (ii) the sending account has enough funds to pay the fee and the value.
+
+    There are 3 types of transactions:
+        1. Value transfer. In-shard transaction if fromFullShardId and toFullShardId
+        refer to the same shard, otherwise it is a cross-shard transaction.
+
+        2. Contract creation. 'to' must be empty. fromFullShardId and toFullShardId
+        must refer to the same shard id. The contract address will have the same
+        full shard id as toFullShardId. If the contract does not invoke other contract
+        normally the toFullShardId should be the same as fromFullShardId.
+
+        3. Contract call. fromFullShardId and toFullShardId must refer to the same
+        shard id based on the current number of shards in the network. It is possible
+        a reshard event would invalidate a tx that was valid before the reshard.
     """
 
     fields = [
@@ -48,10 +57,8 @@ class Transaction(rlp.Serializable):
         ('to', utils.address),
         ('value', big_endian_int),
         ('data', binary),
-        ('branchValue', big_endian_int),
-        ('withdraw', big_endian_int),
-        ('withdrawSign', big_endian_int),
-        ('withdrawTo', binary),
+        ('fromFullShardId', BigEndianInt(4)),
+        ('toFullShardId', BigEndianInt(4)),
         ('networkId', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
@@ -61,8 +68,14 @@ class Transaction(rlp.Serializable):
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas, to, value, data,
-                 v=0, r=0, s=0, branchValue=1, withdraw=0, withdrawSign=1, withdrawTo=b'', networkId=1):
+                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1):
         self.data = None
+        # When fromFullShardId is set shardSize is set to 0 so that
+        # setShardSize has to be called explicitly with a non-zero shard size.
+        # When fromFullShardId is 0 which is the case in the unit tests
+        # inherited from pyethereum we set shardSize to 0 to allow those tests
+        # to pass.
+        self.shardSize = 0 if fromFullShardId else 1
 
         to = utils.normalize_address(to, allow_blank=True)
 
@@ -75,19 +88,15 @@ class Transaction(rlp.Serializable):
             to,
             value,
             data,
-            branchValue,
-            withdraw,
-            withdrawSign,
-            withdrawTo,
+            fromFullShardId,
+            toFullShardId,
             networkId,
             v,
             r,
             s)
 
         if self.gasprice >= TT256 or self.startgas >= TT256 or \
-                self.value >= TT256 or self.nonce >= TT256 or \
-                self.withdraw >= TT256 or self.withdrawSign < 0 or \
-                self.withdrawSign >= 2 or self.branchValue > UINT32_MAX:
+                self.value >= TT256 or self.nonce >= TT256:
             raise InvalidTransaction("Values way too high!")
 
     @property
@@ -113,19 +122,6 @@ class Transaction(rlp.Serializable):
     @sender.setter
     def sender(self, value):
         self._sender = value
-
-    def getWithdraw(self):
-        if self.withdrawSign == 0:
-            return -self.withdraw
-        else:
-            return self.withdraw
-
-    def setWithdraw(self, value):
-        if value < 0:
-            self.withdrawSign = 0
-            self.withdraw = -value
-        else:
-            self.withdraw = value
 
     def sign(self, key, network_id=None):
         """Sign this transaction with a private key.
@@ -164,7 +160,7 @@ class Transaction(rlp.Serializable):
         num_zero_bytes = str_to_bytes(self.data).count(ascii_chr(0))
         num_non_zero_bytes = len(self.data) - num_zero_bytes
         return (opcodes.GTXCOST +
-                #         + (0 if self.to else opcodes.CREATE[3])
+                #         + (0 if self.to else opcodes.CREATE[3])  # TODO
                 opcodes.GTXDATAZERO * num_zero_bytes +
                 opcodes.GTXDATANONZERO * num_non_zero_bytes)
 
@@ -173,6 +169,25 @@ class Transaction(rlp.Serializable):
         "returns the address of a contract created by this tx"
         if self.to in (b'', '\0' * 20):
             return mk_contract_address(self.sender, self.nonce)
+
+    def setShardSize(self, shardSize):
+        check(is_p2(shardSize))
+        self.shardSize = shardSize
+
+    def fromShardId(self):
+        if self.shardSize == 0:
+            raise RuntimeError("shardSize is not set")
+        shardMask = self.shardSize - 1
+        return self.fromFullShardId & shardMask
+
+    def toShardId(self):
+        if self.shardSize == 0:
+            raise RuntimeError("shardSize is not set")
+        shardMask = self.shardSize - 1
+        return self.toFullShardId & shardMask
+
+    def isCrossShard(self):
+        return self.fromShardId() != self.toShardId()
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.hash == other.hash

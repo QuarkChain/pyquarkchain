@@ -1,95 +1,133 @@
 import asyncio
 import inspect
+import rlp
 
 from aiohttp import web
 from async_armor import armor
 
 from decorator import decorator
-from ethereum.utils import (
-    is_numeric, is_string, int_to_big_endian, big_endian_to_int,
-    encode_hex, zpad, denoms, int32)
+from ethereum.utils import is_numeric, denoms
 
 from jsonrpcserver import config
 from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
-from jsonrpcserver.exceptions import InvalidParams, ServerError
+from jsonrpcserver.exceptions import InvalidParams
 
-from quarkchain.cluster.core import RootBlock
+from quarkchain.cluster.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import Logger
+
 
 # defaults
-default_startgas = 500 * 1000
-default_gasprice = 60 * denoms.shannon
+DEFAULT_STARTGAS = 100 * 1000
+DEFAULT_GASPRICE = 10 * denoms.gwei
 
 
-def quantity_decoder(data):
-    """Decode `data` representing a quantity."""
-    if not data.isdigit():
-        return InvalidParams()
-    try:
-        return int(data, 10)
-    except ValueError:
+# Allow 16 MB request for submitting big blocks
+# TODO: revisit this parameter
+JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
+
+
+def quantity_decoder(hexStr):
+    """Decode `hexStr` representing a quantity."""
+    # must start with "0x"
+    if not hexStr.startswith("0x") or len(hexStr) < 3:
         raise InvalidParams("Invalid quantity encoding")
+
+    # must not have leading zeros (except `0x0`)
+    if len(hexStr) > 3 and hexStr[2] == "0":
+        raise InvalidParams("Invalid quantity encoding")
+
+    try:
+        return int(hexStr, 16)
+    except ValueError:
+        raise InvalidParams('Invalid quantity encoding')
 
 
 def quantity_encoder(i):
     """Encode integer quantity `data`."""
     assert is_numeric(i)
-    return str(i)
+    return hex(i)
 
 
-def data_decoder(data):
-    """Decode `data` representing unformatted data."""
+def data_decoder(hexStr):
+    """Decode `hexStr` representing unformatted hexStr."""
+    if not hexStr.startswith("0x"):
+        raise InvalidParams("Invalid hexStr encoding")
     try:
-        return bytes.fromhex(data)
+        return bytes.fromhex(hexStr[2:])
     except Exception:
-        raise InvalidParams("Invalid data hex encoding", data)
+        raise InvalidParams("Invalid hexStr hex encoding")
 
 
-def data_encoder(data):
-    """Encode unformatted binary `data`.
+def data_encoder(dataBytes):
+    """Encode unformatted binary `dataBytes`.
     """
-    return data.hex()
+    return "0x" + dataBytes.hex()
 
 
-def address_decoder(data):
+def address_decoder(hexStr):
     """Decode an address from hex with 0x prefix to 24 bytes."""
-    addr = data_decoder(data)
-    if len(addr) not in (24, 0):
+    addrBytes = data_decoder(hexStr)
+    if len(addrBytes) not in (24, 0):
         raise InvalidParams('Addresses must be 24 or 0 bytes long')
-    return addr
+    return addrBytes
 
 
-def address_encoder(address):
-    assert len(address) in (24, 0)
-    return address.hex()
+def address_encoder(addrBytes):
+    assert len(addrBytes) == 24
+    return data_encoder(addrBytes)
 
 
-def id_encoder(hashBytes, branch):
-    return hashBytes.hex() + branch.serialize().lstrip(b"\x00").hex()
+def recipient_decoder(hexStr):
+    """Decode an recipient from hex with 0x prefix to 20 bytes."""
+    recipientBytes = data_decoder(hexStr)
+    if len(recipientBytes) not in (20, 0):
+        raise InvalidParams('Addresses must be 20 or 0 bytes long')
+    return recipientBytes
 
 
-def id_decoder(data):
-    if len(data) <= 32:
-        raise InvalidParams()
-    pad = 36 - len(data)
-    return data[:32], Branch.deserialize(bytes(pad) + data[32:])
+def recipient_encoder(recipientBytes):
+    assert len(recipientBytes) == 20
+    return data_encoder(recipientBytes)
 
 
-def block_hash_decoder(data):
+def full_shard_id_decoder(hexStr):
+    b = data_decoder(hexStr)
+    if len(b) != 4:
+        raise InvalidParams("Full shard id must be 4 bytes")
+    return int.from_bytes(b, byteorder="big")
+
+
+def full_shard_id_encoder(fullShardId):
+    return data_encoder(fullShardId.to_bytes(4, byteorder="big"))
+
+
+def id_encoder(hashBytes, fullShardId):
+    """ Encode hash and fullShardId into hex """
+    return data_encoder(hashBytes + fullShardId.to_bytes(4, byteorder="big"))
+
+
+def id_decoder(hexStr):
+    """ Decode an id to (hash, fullShardId) """
+    dataBytes = data_decoder(hexStr)
+    if len(dataBytes) != 36:
+        raise InvalidParams("Invalid id encoding")
+    return dataBytes[:32], int.from_bytes(dataBytes[32:], byteorder="big")
+
+
+def block_hash_decoder(hexStr):
     """Decode a block hash."""
-    decoded = data_decoder(data)
+    decoded = data_decoder(hexStr)
     if len(decoded) != 32:
         raise InvalidParams("Block hashes must be 32 bytes long")
     return decoded
 
 
-def tx_hash_decoder(data):
+def tx_hash_decoder(hexStr):
     """Decode a transaction hash."""
-    decoded = data_decoder(data)
+    decoded = data_decoder(hexStr)
     if len(decoded) != 32:
         raise InvalidParams("Transaction hashes must be 32 bytes long")
     return decoded
@@ -121,13 +159,13 @@ def root_block_encoder(block):
     d["minorBlockHeaders"] = []
     for header in block.minorBlockHeaderList:
         h = {
-            'id': id_encoder(header.getHash(), header.branch),
+            'id': id_encoder(header.getHash(), header.branch.getShardId()),
             'height': quantity_encoder(header.height),
             'hash': data_encoder(header.getHash()),
             'branch': quantity_encoder(header.branch.value),
             'shard': quantity_encoder(header.branch.getShardId()),
             'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
-            'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch),
+            'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch.getShardId()),
             'hashPrevRootBlock': data_encoder(header.hashPrevRootBlock),
             'nonce': quantity_encoder(header.nonce),
             'difficulty': quantity_encoder(header.difficulty),
@@ -149,13 +187,13 @@ def minor_block_encoder(block, include_transactions=False):
     meta = block.meta
 
     d = {
-        'id': id_encoder(header.getHash(), header.branch),
+        'id': id_encoder(header.getHash(), header.branch.getShardId()),
         'height': quantity_encoder(header.height),
         'hash': data_encoder(header.getHash()),
         'branch': quantity_encoder(header.branch.value),
         'shard': quantity_encoder(header.branch.getShardId()),
         'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
-        'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch),
+        'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch.getShardId()),
         'hashPrevRootBlock': data_encoder(header.hashPrevRootBlock),
         'nonce': quantity_encoder(header.nonce),
         'hashMerkleRoot': data_encoder(meta.hashMerkleRoot),
@@ -173,7 +211,7 @@ def minor_block_encoder(block, include_transactions=False):
         for i, tx in enumerate(block.txList):
             d['transactions'].append(tx_encoder(block, i))
     else:
-        d['transactions'] = [id_encoder(tx.getHash(), block.header.branch) for tx in block.txList]
+        d['transactions'] = [id_encoder(tx.getHash(), block.header.branch.getShardId()) for tx in block.txList]
     return d
 
 
@@ -184,42 +222,53 @@ def tx_encoder(block, i):
     """
     tx = block.txList[i]
     evmTx = tx.code.getEvmTransaction()
-    branch = Branch(evmTx.branchValue)
-    if evmTx.withdraw == 0:
-        # in-shard tx
-        to = evmTx.to
-        value = evmTx.value
-        toShard = branch.getShardId()
-    else:
-        # x-shard tx
-        toAddr = Address.deserialize(evmTx.withdrawTo)
-        to = toAddr.recipient
-        value = evmTx.withdraw
-        toShard = toAddr.getShardId(branch.getShardSize())
+    # TODO: shardMask is wrong when the tx is pending and block is fake
+    shardMask = block.header.branch.getShardSize() - 1
     return {
-        'id': id_encoder(tx.getHash(), branch),
+        'id': id_encoder(tx.getHash(), evmTx.fromFullShardId),
         'hash': data_encoder(tx.getHash()),
         'nonce': quantity_encoder(evmTx.nonce),
         'timestamp': quantity_encoder(block.header.createTime),
-        'blockId': id_encoder(block.header.getHash(), block.header.branch),
+        'shard': quantity_encoder(block.header.branch.getShardId()),
+        'blockId': id_encoder(block.header.getHash(), block.header.branch.getShardId()),
         'blockHeight': quantity_encoder(block.header.height),
         'transactionIndex': quantity_encoder(i),
         'from': data_encoder(evmTx.sender),
-        'to': data_encoder(to),
-        'toShard': quantity_encoder(toShard),
-        'value': quantity_encoder(value),
+        'to': data_encoder(evmTx.to),
+        'fromFullShardId': full_shard_id_encoder(evmTx.fromFullShardId),
+        'toFullShardId': full_shard_id_encoder(evmTx.toFullShardId),
+        'fromShardId': quantity_encoder(evmTx.fromFullShardId & shardMask),
+        'toShardId': quantity_encoder(evmTx.toFullShardId & shardMask),
+        'value': quantity_encoder(evmTx.value),
         'gasPrice': quantity_encoder(evmTx.gasprice),
         'gas': quantity_encoder(evmTx.startgas),
         'data': data_encoder(evmTx.data),
-        'branch': quantity_encoder(branch.value),
-        'shard': quantity_encoder(branch.getShardId()),
-        # 'withdraw': quantity_encoder(evmTx.withdraw),
-        # 'withdrawTo': data_encoder(evmTx.withdrawTo),
         'networkId': quantity_encoder(evmTx.networkId),
         'r': quantity_encoder(evmTx.r),
         's': quantity_encoder(evmTx.s),
         'v': quantity_encoder(evmTx.v),
     }
+
+
+def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
+    tx = block.txList[i]
+    evmTx = tx.code.getEvmTransaction()
+    resp = {
+        'transactionId': id_encoder(tx.getHash(), evmTx.fromFullShardId),
+        'transactionHash': data_encoder(tx.getHash()),
+        'transactionIndex': quantity_encoder(i),
+        'blockId': id_encoder(block.header.getHash(), block.header.branch.getShardId()),
+        'blockHash': data_encoder(block.header.getHash()),
+        'blockHeight': quantity_encoder(block.header.height),
+        # TODO: `gasUsed` field needs to know the previous receipt
+        'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
+        'status': quantity_encoder(1 if receipt.success == b"\x01" else 0),
+        'contractAddress': (
+            address_encoder(receipt.contractAddress.serialize())
+            if not receipt.contractAddress.isEmpty() else None
+        ),
+    }
+    return resp
 
 
 def decode_arg(name, decoder):
@@ -272,7 +321,7 @@ class JSONRPCServer:
             return web.json_response(response, status=response.http_status)
 
     def start(self):
-        app = web.Application()
+        app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
         app.router.add_post("/", self.__handle)
         self.runner = web.AppRunner(app, access_log=None)
         self.loop.run_until_complete(self.runner.setup())
@@ -284,21 +333,31 @@ class JSONRPCServer:
 
     # JSON RPC handlers
     @methods.add
+    @decode_arg("quantity", quantity_decoder)
+    @encode_res(quantity_encoder)
+    async def echoQuantity(self, quantity):
+        return quantity
+
+    @methods.add
     @decode_arg("data", data_decoder)
     @encode_res(data_encoder)
-    async def echo(self, data):
+    async def echoData(self, data):
         return data
 
     @methods.add
+    async def networkInfo(self):
+        return {
+            "networkId": quantity_encoder(self.master.env.config.NETWORK_ID),
+            "shardSize": quantity_encoder(self.master.getShardSize()),
+            "syncing": self.master.isSyncing(),
+        }
+
+    @methods.add
     @decode_arg("address", address_decoder)
+    @encode_res(quantity_encoder)
     async def getTransactionCount(self, address):
         accountBranchData = await self.master.getPrimaryAccountData(Address.deserialize(address))
-        branch = accountBranchData.branch
-        count = accountBranchData.transactionCount
-        return {
-            "branch": quantity_encoder(branch.value),
-            "count": quantity_encoder(count),
-        }
+        return accountBranchData.transactionCount
 
     @methods.add
     @decode_arg("address", address_decoder)
@@ -314,80 +373,47 @@ class JSONRPCServer:
 
     @methods.add
     @decode_arg("address", address_decoder)
-    async def getAccountData(self, address):
+    async def getAccountData(self, address, includeShards=False):
         address = Address.deserialize(address)
+        if not includeShards:
+            accountBranchData = await self.master.getPrimaryAccountData(address)
+            branch = accountBranchData.branch
+            balance = accountBranchData.balance
+            count = accountBranchData.transactionCount
+            primary = {
+                "branch": quantity_encoder(branch.value),
+                "shard": quantity_encoder(branch.getShardId()),
+                "balance": quantity_encoder(balance),
+                "transactionCount": quantity_encoder(count),
+            }
+            return {"primary": primary}
+
         branchToAccountBranchData = await self.master.getAccountData(address)
         shardSize = self.master.getShardSize()
 
-        ret = []
+        shards = []
         for shard in range(shardSize):
             branch = Branch.create(shardSize, shard)
             accountBranchData = branchToAccountBranchData[branch]
-            ret.append({
+            data = {
                 "branch": quantity_encoder(accountBranchData.branch.value),
                 "shard": quantity_encoder(accountBranchData.branch.getShardId()),
                 "balance": quantity_encoder(accountBranchData.balance),
                 "transactionCount": quantity_encoder(accountBranchData.transactionCount),
-            })
-        return ret
+            }
+            shards.append(data)
 
-    @methods.add
-    async def sendUnsignedTransaction(self, **data):
-        ''' Returns the unsigned hash of the evm transaction '''
-        if not isinstance(data, dict):
-            raise InvalidParams("Transaction must be an object")
+            if shard == address.getShardId(shardSize):
+                primary = data
 
-        def getDataDefault(key, decoder, default=None):
-            if key in data:
-                return decoder(data[key])
-            return default
-
-        fromBytes = getDataDefault("from", address_decoder, None)
-        to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
-        value = getDataDefault("value", quantity_decoder, 0)
-        data_ = getDataDefault("data", data_decoder, b"")
-
-        if not fromBytes or not to or value == 0:
-            raise InvalidParams("bad input")
-
-        fromAddr = Address.deserialize(fromBytes)
-        toAddr = Address.deserialize(to)
-
-        shardSize = self.master.getShardSize()
-        fromShard = fromAddr.getShardId(shardSize)
-        toShard = toAddr.getShardId(shardSize)
-
-        if fromShard == toShard:
-            withdraw = 0
-            withdrawTo = b""
-        else:
-            withdraw = value
-            value = 0
-            withdrawTo = bytes(toAddr.serialize())
-
-        accountData = await self.master.getPrimaryAccountData(fromAddr)
-        branch = accountData.branch
-        nonce = accountData.transactionCount
-        evmTx = EvmTransaction(
-            nonce, gasprice, startgas, toAddr.recipient, value, data_,
-            branchValue=branch.value,
-            withdraw=withdraw,
-            withdrawSign=1,
-            withdrawTo=withdrawTo,
-            networkId=self.master.env.config.NETWORK_ID,
-        )
         return {
-            "txHashUnsigned": data_encoder(evmTx.hash_unsigned),
-            "toShard": quantity_encoder(toShard),
+            "primary": primary,
+            "shards": shards,
         }
 
     @methods.add
-    async def sendSignedTransaction(self, **data):
-        ''' Returns the unsigned hash of the evm transaction '''
+    async def sendUnsignedTransaction(self, **data):
+        """ Returns the unsigned hash of the evm transaction """
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -396,59 +422,43 @@ class JSONRPCServer:
                 return decoder(data[key])
             return default
 
-        fromBytes = getDataDefault("from", address_decoder, None)
-        to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        nonce = getDataDefault("nonce", quantity_decoder, None)
+        to = getDataDefault("to", recipient_decoder, b'')
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
-        v = getDataDefault("v", quantity_decoder, 0)
-        r = getDataDefault("r", quantity_decoder, 0)
-        s = getDataDefault("s", quantity_decoder, 0)
 
-        if not (v and r and s):
-            raise InvalidParams("Mising v, r, s")
-        if not fromBytes or not to or value == 0:
-            raise InvalidParams("bad input")
+        fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, None)
+        toFullShardId = getDataDefault("toFullShardId", full_shard_id_decoder, None)
 
-        fromAddr = Address.deserialize(fromBytes)
-        toAddr = Address.deserialize(to)
+        if nonce is None:
+            raise InvalidParams("nonce is missing")
+        if fromFullShardId is None:
+            raise InvalidParams("fromFullShardId is missing")
 
-        shardSize = self.master.getShardSize()
-        fromShard = fromAddr.getShardId(shardSize)
-        toShard = toAddr.getShardId(shardSize)
+        if toFullShardId is None:
+            toFullShardId = fromFullShardId
 
-        if fromShard == toShard:
-            withdraw = 0
-            withdrawTo = b""
-        else:
-            withdraw = value
-            value = 0
-            withdrawTo = bytes(toAddr.serialize())
-
-        accountData = await self.master.getPrimaryAccountData(fromAddr)
-        branch = accountData.branch
-        nonce = accountData.transactionCount
         evmTx = EvmTransaction(
-            nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
-            branchValue=branch.value,
-            withdraw=withdraw,
-            withdrawSign=1,
-            withdrawTo=withdrawTo,
+            nonce, gasprice, startgas, to, value, data_,
+            fromFullShardId=fromFullShardId,
+            toFullShardId=toFullShardId,
             networkId=self.master.env.config.NETWORK_ID,
         )
 
-        if evmTx.sender != fromAddr.recipient:
-            raise InvalidParams("Transaction sender does not match the from address.")
-
-        tx = Transaction(code=Code.createEvmCode(evmTx))
-        success = await self.master.addTransaction(tx)
-        if not success:
-            return None
-
-        return id_encoder(tx.getHash(), branch)
+        return {
+            "txHashUnsigned": data_encoder(evmTx.hash_unsigned),
+            "nonce": quantity_encoder(evmTx.nonce),
+            'to': data_encoder(evmTx.to),
+            'fromFullShardId': full_shard_id_encoder(evmTx.fromFullShardId),
+            'toFullShardId': full_shard_id_encoder(evmTx.toFullShardId),
+            'value': quantity_encoder(evmTx.value),
+            'gasPrice': quantity_encoder(evmTx.gasprice),
+            'gas': quantity_encoder(evmTx.startgas),
+            'data': data_encoder(evmTx.data),
+            'networkId': quantity_encoder(evmTx.networkId),
+        }
 
     @methods.add
     async def sendTransaction(self, **data):
@@ -460,11 +470,9 @@ class JSONRPCServer:
                 return decoder(data[key])
             return default
 
-        to = getDataDefault("to", address_decoder, None)
-        gasKey = "gas" if "gas" in data else "startgas"
-        startgas = getDataDefault(gasKey, quantity_decoder, default_startgas)
-        gaspriceKey = "gasPrice" if "gasPrice" in data else "gasprice"
-        gasprice = getDataDefault(gaspriceKey, quantity_decoder, default_gasprice)
+        to = getDataDefault("to", recipient_decoder, b'')
+        startgas = getDataDefault('gas', quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault('gasPrice', quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
         data_ = getDataDefault("data", data_decoder, b"")
         v = getDataDefault("v", quantity_decoder, 0)
@@ -472,28 +480,24 @@ class JSONRPCServer:
         s = getDataDefault("s", quantity_decoder, 0)
         nonce = getDataDefault("nonce", quantity_decoder, None)
 
-        branch = getDataDefault("branch", quantity_decoder, 0)
-        withdraw = getDataDefault("withdraw", quantity_decoder, 0)
-        withdrawTo = getDataDefault("withdrawTo", data_decoder, None)
-
+        toFullShardId = getDataDefault("toFullShardId", full_shard_id_decoder, None)
+        fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, None)
         networkId = getDataDefault("networkID", quantity_decoder, self.master.env.config.NETWORK_ID)
 
         if nonce is None:
             raise InvalidParams("Missing nonce")
         if not (v and r and s):
-            raise InvalidParams("Mising v, r, s")
-        if branch == 0:
-            raise InvalidParams("Missing branch")
-        if withdraw > 0 and withdrawTo is None:
-            raise InvalidParams("Missing withdrawTo")
+            raise InvalidParams("Missing v, r, s")
+        if fromFullShardId is None:
+            raise InvalidParams("Missing fromFullShardId")
 
-        toAddr = Address.deserialize(to)
+        if toFullShardId is None:
+            toFullShardId = fromFullShardId
+
         evmTx = EvmTransaction(
-            nonce, gasprice, startgas, toAddr.recipient, value, data_, v, r, s,
-            branchValue=branch,
-            withdraw=withdraw,
-            withdrawSign=1,
-            withdrawTo=withdrawTo if withdrawTo else b"",
+            nonce, gasprice, startgas, to, value, data_, v, r, s,
+            fromFullShardId=fromFullShardId,
+            toFullShardId=toFullShardId,
             networkId=networkId,
         )
         tx = Transaction(code=Code.createEvmCode(evmTx))
@@ -501,18 +505,17 @@ class JSONRPCServer:
         if not success:
             return None
 
-        return id_encoder(tx.getHash(), Branch(branch))
+        return id_encoder(tx.getHash(), fromFullShardId)
 
     @methods.add
     @decode_arg("txData", data_decoder)
     async def sendRawTransaction(self, txData):
-        tx = Transaction.deserialize(txData)
+        evmTx = rlp.decode(txData, EvmTransaction)
+        tx = Transaction(code=Code.createEvmCode(evmTx))
         success = await self.master.addTransaction(tx)
         if not success:
             return None
-
-        evmTx = tx.code.getEvmTransaction()
-        return id_encoder(tx.getHash(), Branch(evmTx.branchValue))
+        return id_encoder(tx.getHash(), evmTx.fromFullShardId)
 
     @methods.add
     @decode_arg("coinbaseAddress", address_decoder)
@@ -542,16 +545,17 @@ class JSONRPCServer:
 
     @methods.add
     async def getStats(self):
+        # This JRPC doesn't follow the standard encoding
         return await self.master.getStats()
 
     @methods.add
     @decode_arg("blockId", data_decoder)
     async def getRootBlockById(self, blockId):
-        if not self.master.rootState.containRootBlockByHash(blockId):
+        try:
+            block = self.master.rootState.db.getRootBlockByHash(blockId, False)
+            return root_block_encoder(block)
+        except Exception:
             return None
-
-        block = self.master.rootState.getRootBlockByHash(blockId)
-        return root_block_encoder(block)
 
     @methods.add
     @decode_arg("height", quantity_decoder)
@@ -562,10 +566,12 @@ class JSONRPCServer:
         return root_block_encoder(block)
 
     @methods.add
-    @decode_arg("blockId", data_decoder)
+    @decode_arg("blockId", id_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockById(self, blockId, includeTransactions=False):
-        blockHash, branch = id_decoder(blockId)
+        blockHash, fullShardId = blockId
+        shardSize = self.master.getShardSize()
+        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
         block = await self.master.getMinorBlockByHash(blockHash, branch)
         if not block:
             return None
@@ -576,16 +582,21 @@ class JSONRPCServer:
     @decode_arg("height", quantity_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockByHeight(self, shard, height, includeTransactions=False):
-        branch = Branch.create(self.master.getShardSize(), shard)
+        shardSize = self.master.getShardSize()
+        if shard >= shardSize:
+            raise InvalidParams("shard is larger than shard size {} > {}".format(shard, shardSize))
+        branch = Branch.create(shardSize, shard)
         block = await self.master.getMinorBlockByHeight(height, branch)
         if not block:
             return None
         return minor_block_encoder(block, includeTransactions)
 
     @methods.add
-    @decode_arg("txId", data_decoder)
+    @decode_arg("txId", id_decoder)
     async def getTransactionById(self, txId):
-        txHash, branch = id_decoder(txId)
+        txHash, fullShardId = txId
+        shardSize = self.master.getShardSize()
+        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
         minorBlock, i = await self.master.getTransactionByHash(txHash, branch)
         if not minorBlock:
             return None
@@ -605,6 +616,67 @@ class JSONRPCServer:
         return {
             "peers": peerList,
         }
+
+    @methods.add
+    async def call(self, **data):
+        """ Returns the result of the transaction application without putting in block chain """
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def getDataDefault(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        to = getDataDefault("to", recipient_decoder, None)
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
+        value = getDataDefault("value", quantity_decoder, 0)
+        data_ = getDataDefault("data", data_decoder, b"")
+        v = getDataDefault("v", quantity_decoder, 0)
+        r = getDataDefault("r", quantity_decoder, 0)
+        s = getDataDefault("s", quantity_decoder, 0)
+        nonce = getDataDefault("nonce", quantity_decoder, None)
+
+        toFullShardId = getDataDefault("toFullShardId", full_shard_id_decoder, None)
+        fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, None)
+        networkId = getDataDefault("networkID", quantity_decoder, self.master.env.config.NETWORK_ID)
+
+        if nonce is None:
+            raise InvalidParams("Missing nonce")
+        if not (v and r and s):
+            raise InvalidParams("Missing v, r, s")
+        if fromFullShardId is None:
+            raise InvalidParams("Missing fromFullShardId")
+
+        if toFullShardId is None:
+            toFullShardId = fromFullShardId
+
+        evmTx = EvmTransaction(
+            nonce, gasprice, startgas, to, value, data_, v, r, s,
+            fromFullShardId=fromFullShardId,
+            toFullShardId=toFullShardId,
+            networkId=networkId,
+        )
+
+        tx = Transaction(code=Code.createEvmCode(evmTx))
+        res = await self.master.executeTransaction(tx)
+        return data_encoder(res) if res is not None else None
+
+    @methods.add
+    @decode_arg("txId", id_decoder)
+    async def getTransactionReceipt(self, txId):
+        txHash, fullShardId = txId
+        shardSize = self.master.getShardSize()
+        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
+        resp = await self.master.getTransactionReceipt(txHash, branch)
+        if not resp:
+            return None
+        minorBlock, i, receipt = resp
+        if len(minorBlock.txList) <= i:
+            return None
+
+        return receipt_encoder(minorBlock, i, receipt)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ import rlp
 from ethereum.utils import hash32, trie_root, \
     big_endian_int, encode_hex, \
     big_endian_to_int, parse_as_bin, parse_as_int, \
-    decode_hex, sha3, is_string, is_numeric
+    decode_hex, sha3, is_string, is_numeric, BigEndianInt
 from ethereum import utils
 from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
@@ -32,7 +32,7 @@ STATE_DEFAULTS = {
     "gas_used": 0,
     "gas_limit": 3141592,
     "block_number": 0,
-    "block_coinbase": '\x00' * 20,
+    "block_coinbase": b'\x00' * 20,
     "block_difficulty": 1,
     "block_fee": 0,
     "timestamp": 0,
@@ -44,6 +44,7 @@ STATE_DEFAULTS = {
     "prev_headers": [],
     "refunds": 0,
     "xshard_list": [],
+    "full_shard_id": 0,  # should be updated before applying each tx
 }
 
 
@@ -53,17 +54,18 @@ class Account(rlp.Serializable):
         ('nonce', big_endian_int),
         ('balance', big_endian_int),
         ('storage', trie_root),
-        ('code_hash', hash32)
+        ('code_hash', hash32),
+        ('full_shard_id', BigEndianInt(4)),
     ]
 
-    def __init__(self, nonce, balance, storage, code_hash, env, address, db=None):
+    def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
         if db is None:
             db = env.db
         self.db = db
         assert isinstance(db, Db)
         self.env = env
         self.address = address
-        super(Account, self).__init__(nonce, balance, storage, code_hash)
+        super(Account, self).__init__(nonce, balance, storage, code_hash, full_shard_id)
         self.storage_cache = {}
         self.storage_trie = SecureTrie(Trie(RefcountedDb(db)))
         self.storage_trie.root_hash = self.storage
@@ -104,11 +106,11 @@ class Account(rlp.Serializable):
         self.storage_cache[key] = value
 
     @classmethod
-    def blank_account(cls, env, address, initial_nonce=0, db=None):
+    def blank_account(cls, env, address, full_shard_id, initial_nonce=0, db=None):
         if db is None:
             db = env.db
         db.put(BLANK_HASH, b'')
-        o = cls(initial_nonce, 0, trie.BLANK_ROOT, BLANK_HASH, env, address, db=db)
+        o = cls(initial_nonce, 0, trie.BLANK_ROOT, BLANK_HASH, full_shard_id, env, address, db=db)
         o.existent_at_start = False
         return o
 
@@ -132,7 +134,7 @@ class Account(rlp.Serializable):
 
 
 # from ethereum.state import State
-class State():
+class State:
 
     def __init__(self, root=b'', env=Env(), executing_on_head=False, db=None, **kwargs):
         if db is None:
@@ -181,7 +183,7 @@ class State():
             o = rlp.decode(rlpdata, Account, env=self.env, address=address, db=self.db)
         else:
             o = Account.blank_account(
-                self.env, address, self.config['ACCOUNT_INITIAL_NONCE'], db=self.db)
+                self.env, address, self.full_shard_id, self.config['ACCOUNT_INITIAL_NONCE'], db=self.db)
         self.cache[address] = o
         o._mutable = True
         o._cached_rlp = None
@@ -198,6 +200,10 @@ class State():
     def get_nonce(self, address):
         return self.get_and_cache_account(
             utils.normalize_address(address)).nonce
+
+    def get_full_shard_id(self, address):
+        return self.get_and_cache_account(
+            utils.normalize_address(address)).full_shard_id
 
     def set_and_journal(self, acct, param, val):
         # self.journal.append((acct, param, getattr(acct, param)))
@@ -354,6 +360,13 @@ class State():
         if self.get_balance(from_addr) >= value:
             self.delta_balance(from_addr, -value)
             self.delta_balance(to_addr, value)
+            return True
+        return False
+
+    def deduct_value(self, from_addr, value):
+        assert value >= 0
+        if self.get_balance(from_addr) >= value:
+            self.delta_balance(from_addr, -value)
             return True
         return False
 

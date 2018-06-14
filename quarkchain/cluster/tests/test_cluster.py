@@ -1,7 +1,5 @@
 import unittest
 
-import asyncio
-import time
 
 from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
 from quarkchain.evm import opcodes
@@ -33,28 +31,31 @@ class TestCluster(unittest.TestCase):
 
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[2 | 0],
-                fromId=id1,
-                toAddress=acc2,
-                amount=12345,
-                withdraw=54321,
-                withdrawTo=bytes(acc3.serialize()),
-                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+                key=id1.getKey(),
+                fromAddress=acc1,
+                toAddress=acc3,
+                value=54321,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+                gasPrice=3,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
             # Expect to mine shard 0 since it has one tx
-            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
+            isRoot, block1 = call_async(master.getNextBlockToMine(address=acc2))
             self.assertFalse(isRoot)
             self.assertEqual(block1.header.height, 2)
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.txList), 1)
 
+            originalBalanceAcc1 = call_async(master.getPrimaryAccountData(acc1)).balance
+            gasPaid = (opcodes.GTXXSHARDCOST + opcodes.GTXCOST) * 3
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc2)).balance, 12345)
+            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).balance,
+                             originalBalanceAcc1 - 54321 - gasPaid)
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
-            isRoot, block2 = call_async(master.getNextBlockToMine(address=acc1))
+            isRoot, block2 = call_async(master.getNextBlockToMine(address=acc2))
             self.assertFalse(isRoot)
             self.assertEqual(block2.header.height, 2)
             self.assertEqual(block2.header.branch.value, 0b11)
@@ -63,7 +64,7 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(slaves[1].addBlock(block2)))
 
             # Expect to mine root
-            isRoot, block = call_async(master.getNextBlockToMine(address=acc1))
+            isRoot, block = call_async(master.getNextBlockToMine(address=acc2))
             self.assertTrue(isRoot)
             self.assertEqual(block.header.height, 2)
             self.assertEqual(len(block.minorBlockHeaderList), 2)
@@ -75,7 +76,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(slaves[1].shardStateMap[3].getBalance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
-            isRoot, block3 = call_async(master.getNextBlockToMine(address=acc1))
+            isRoot, block3 = call_async(master.getNextBlockToMine(address=acc2))
             self.assertFalse(isRoot)
             self.assertEqual(block3.header.height, 3)
             self.assertEqual(block3.header.branch.value, 0b11)
@@ -98,9 +99,10 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(slaves[0].addTx(tx))
 
@@ -113,36 +115,43 @@ class TestCluster(unittest.TestCase):
     def testAddTransaction(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createFromIdentity(id1, fullShardId=1)
 
         with ClusterContext(2, acc1) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
-            branch = Branch.create(2, 0)
+            branch0 = Branch.create(2, 0)
             tx1 = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                shardState=slaves[0].shardStateMap[branch0.value],
+                key=id1.getKey(),
+                fromAddress=acc1,
                 toAddress=acc1,
-                amount=12345,
+                value=12345,
             )
             self.assertTrue(call_async(master.addTransaction(tx1)))
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+            self.assertEqual(len(slaves[0].shardStateMap[branch0.value].txQueue), 1)
 
-            # missing withdrawTo
+            branch1 = Branch.create(2, 1)
             tx2 = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
-                fromId=id1,
+                shardState=slaves[1].shardStateMap[branch1.value],
+                key=id1.getKey(),
+                fromAddress=acc2,
                 toAddress=acc1,
-                amount=12345,
-                withdraw=100,
+                value=12345,
+                gas=30000,
             )
-            self.assertFalse(call_async(master.addTransaction(tx2)))
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
+            self.assertTrue(call_async(master.addTransaction(tx2)))
+            self.assertEqual(len(slaves[1].shardStateMap[branch1.value].txQueue), 1)
 
             # check the tx is received by the other cluster
-            txQueue = clusters[1].slaveList[0].shardStateMap[branch.value].txQueue
+            txQueue = clusters[1].slaveList[0].shardStateMap[branch0.value].txQueue
             assert_true_with_timeout(lambda: len(txQueue) == 1)
             self.assertEqual(txQueue.pop_transaction(), tx1.code.getEvmTransaction())
+
+            txQueue = clusters[1].slaveList[1].shardStateMap[branch1.value].txQueue
+            assert_true_with_timeout(lambda: len(txQueue) == 1)
+            self.assertEqual(txQueue.pop_transaction(), tx2.code.getEvmTransaction())
 
     def testAddMinorBlockRequestList(self):
         id1 = Identity.createRandomIdentity()
@@ -288,12 +297,11 @@ class TestCluster(unittest.TestCase):
 
             tx1 = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[2 | 0],
-                fromId=id1,
-                toAddress=acc2,
-                amount=12345,
-                withdraw=54321,
-                withdrawTo=bytes(acc3.serialize()),
-                startgas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+                key=id1.getKey(),
+                fromAddress=acc1,
+                toAddress=acc3,
+                value=54321,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             )
             self.assertTrue(slaves[0].addTx(tx1))
 

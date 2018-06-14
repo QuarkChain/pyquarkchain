@@ -2,6 +2,8 @@
 
 ## Development Setup
 
+(Mac OS X) [install python3](http://docs.python-guide.org/en/latest/starting/install3/osx/)
+
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project.
 The packages installed later will only affect this environment.
 
