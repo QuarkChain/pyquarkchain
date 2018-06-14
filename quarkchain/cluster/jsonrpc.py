@@ -540,8 +540,8 @@ class JSONRPCServer:
         return await self.master.addRawMinorBlock(Branch(branch), blockData)
 
     @methods.add
-    async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, seconds=60):
-        self.master.setArtificialTxConfig(numTxPerBlock, xShardTxPercent, seconds)
+    async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, numMiners, seconds):
+        return await self.master.setArtificialTxConfig(numTxPerBlock, xShardTxPercent, numMiners, seconds)
 
     @methods.add
     async def getStats(self):

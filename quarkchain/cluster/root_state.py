@@ -75,7 +75,6 @@ class RootDb:
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
         self.db.put(b"lastlist_" + rootBlockHash, lastList.serialize())
         self.rHeaderPool[rootBlockHash] = rootBlock.header
-        Logger.info("put root block {} {}".format(rootBlock.header.height, rootBlock.header.getHash().hex()))
 
     def updateTipHash(self, blockHash):
         self.db.put(b"tipHash", blockHash)

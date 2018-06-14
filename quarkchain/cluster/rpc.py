@@ -86,6 +86,78 @@ class ConnectToSlavesResponse(Serializable):
         self.resultList = resultList
 
 
+class ArtificialTxConfig(Serializable):
+    FIELDS = [
+        ("numTxPerBlock", uint32),
+        ("xShardTxPercent", uint32),  # [0,100]
+        ("numMiners", uint32),
+    ]
+
+    def __init__(self, numTxPerBlock, xShardTxPercent, numMiners=0):
+        self.numTxPerBlock = numTxPerBlock
+        self.xShardTxPercent = xShardTxPercent
+        self.numMiners = numMiners
+
+
+class MineRequest(Serializable):
+    """Send mining instructions to slaves"""
+    FIELDS = [
+        ("artificialTxConfig", ArtificialTxConfig),
+        ("mining", boolean),  # False to halt mining
+    ]
+
+    def __init__(self, artificialTxConfig, mining):
+        self.artificialTxConfig = artificialTxConfig
+        self.mining = mining
+
+
+class MineResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
+# Virtual connection management
+
+
+class CreateClusterPeerConnectionRequest(Serializable):
+    ''' Broadcast to the cluster and announce that a peer connection is created
+    Assume always succeed.
+    '''
+    FIELDS = [
+        ("clusterPeerId", uint64)
+    ]
+
+    def __init__(self, clusterPeerId):
+        self.clusterPeerId = clusterPeerId
+
+
+class CreateClusterPeerConnectionResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32)
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
+
+
+class DestroyClusterPeerConnectionCommand(Serializable):
+    ''' Broadcast to the cluster and announce that a peer connection is lost
+    As a contract, the master will not send traffic after the command.
+    '''
+    FIELDS = [
+        ("clusterPeerId", uint64)
+    ]
+
+    def __init__(self, clusterPeerId):
+        self.clusterPeerId = clusterPeerId
+
+
+# RPCs to lookup data from shards (master -> slaves)
+
 class GetMinorBlockRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
@@ -244,17 +316,6 @@ class GetEcoInfoListResponse(Serializable):
         self.ecoInfoList = ecoInfoList
 
 
-class ArtificialTxConfig(Serializable):
-    FIELDS = [
-        ("numTxPerBlock", uint32),
-        ("xShardTxPercent", uint32),  # [0,100]
-    ]
-
-    def __init__(self, numTxPerBlock, xShardTxPercent):
-        self.numTxPerBlock = numTxPerBlock
-        self.xShardTxPercent = xShardTxPercent
-
-
 class GetNextBlockToMineRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
@@ -280,6 +341,7 @@ class GetNextBlockToMineResponse(Serializable):
 
 
 class AddMinorBlockRequest(Serializable):
+    """For adding blocks mined through JRPC"""
     FIELDS = [
         ("minorBlockData", PreprendedSizeBytesSerializer(4)),
     ]
@@ -309,6 +371,7 @@ class HeadersInfo(Serializable):
 
 
 class GetUnconfirmedHeadersRequest(Serializable):
+    """To collect minor block headers to build a new root block"""
     FIELDS = []
 
     def __init__(self):
@@ -399,40 +462,6 @@ class SyncMinorBlockListResponse(Serializable):
         self.errorCode = errorCode
 
 
-# Virtual connection management
-class CreateClusterPeerConnectionRequest(Serializable):
-    ''' Broadcast to the cluster and announce that a peer connection is created
-    Assume always succeed.
-    '''
-    FIELDS = [
-        ("clusterPeerId", uint64)
-    ]
-
-    def __init__(self, clusterPeerId):
-        self.clusterPeerId = clusterPeerId
-
-
-class CreateClusterPeerConnectionResponse(Serializable):
-    FIELDS = [
-        ("errorCode", uint32)
-    ]
-
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
-
-
-class DestroyClusterPeerConnectionCommand(Serializable):
-    ''' Broadcast to the cluster and announce that a peer connection is lost
-    As a contract, the master will not send traffic after the command.
-    '''
-    FIELDS = [
-        ("clusterPeerId", uint64)
-    ]
-
-    def __init__(self, clusterPeerId):
-        self.clusterPeerId = clusterPeerId
-
-
 # slave -> master
 
 
@@ -470,9 +499,9 @@ class ShardStats(Serializable):
 
 
 class AddMinorBlockHeaderRequest(Serializable):
-    ''' Notify master about a successfully added minro block.
+    """ Notify master about a successfully added minro block.
     Piggyback the ShardStats in the same request.
-    '''
+    """
     FIELDS = [
         ("minorBlockHeader", MinorBlockHeader),
         ("txCount", uint32),  # the total number of tx in the block
@@ -490,10 +519,12 @@ class AddMinorBlockHeaderRequest(Serializable):
 class AddMinorBlockHeaderResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
+        ("artificialTxConfig", ArtificialTxConfig),
     ]
 
-    def __init__(self, errorCode):
+    def __init__(self, errorCode, artificialTxConfig):
         self.errorCode = errorCode
+        self.artificialTxConfig = artificialTxConfig
 
 
 # slave -> slave
@@ -581,6 +612,8 @@ class ClusterOp:
     EXECUTE_TRANSACTION_RESPONSE = 36 + CLUSTER_OP_BASE
     GET_TRANSACTION_RECEIPT_REQUEST = 37 + CLUSTER_OP_BASE
     GET_TRANSACTION_RECEIPT_RESPONSE = 38 + CLUSTER_OP_BASE
+    MINE_REQUEST = 39 + CLUSTER_OP_BASE
+    MINE_RESPONSE = 40 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -621,4 +654,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.EXECUTE_TRANSACTION_RESPONSE: ExecuteTransactionResponse,
     ClusterOp.GET_TRANSACTION_RECEIPT_REQUEST: GetTransactionReceiptRequest,
     ClusterOp.GET_TRANSACTION_RECEIPT_RESPONSE: GetTransactionReceiptResponse,
+    ClusterOp.MINE_REQUEST: MineRequest,
+    ClusterOp.MINE_RESPONSE: MineResponse,
 }

@@ -212,7 +212,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(clusters[1].slaveList[1].shardStateMap[0b11].headerTip, b3.header)
 
             # reestablish cluster connection
-            call_async(clusters[1].network.connect("127.0.0.1", 38000))
+            call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
 
             rB1 = clusters[0].master.rootState.createBlockToMine(blockHeaderList, acc1)
             call_async(clusters[0].master.addRootBlock(rB1))
@@ -261,7 +261,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip.height, 13)
 
             # reestablish cluster connection
-            call_async(clusters[1].network.connect("127.0.0.1", 38000))
+            call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
 
             # a new block from cluster 0 will trigger sync in cluster 1
             shardState0 = clusters[0].slaveList[0].shardStateMap[0b10]

@@ -97,31 +97,38 @@ class Cluster:
         self.peer = peer
 
 
+# server.close() does not release the port sometimes even after server.wait_closed() is awaited.
+# we have to use unique ports for each test as a workaround.
+PORT_START = 38000
+
+
+def get_next_port():
+    global PORT_START
+    port = PORT_START
+    PORT_START += 1
+    return port
+
+
 def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()):
-    portStart = 38000
-    seedPort = portStart
+    seedPort = get_next_port()  # first cluster will listen on this port
     clusterList = []
     loop = asyncio.get_event_loop()
 
     for i in range(numCluster):
         env = get_test_env(genesisAccount, genesisMinorQuarkash=1000000)
 
-        p2pPort = portStart
         config = create_cluster_config(
             slaveCount=env.config.SHARD_SIZE,
             ip="127.0.0.1",
-            p2pPort=p2pPort,
-            jsonRpcPort=portStart + 1,
-            clusterPortStart=portStart + 2,
-            seedHost=env.config.P2P_SEED_HOST,
-            seedPort=env.config.P2P_SEED_PORT,
+            p2pPort=0,
+            jsonRpcPort=0,
+            clusterPortStart=get_next_port(),
+            seedHost="",
+            seedPort=0,
         )
-        portStart += (3 + env.config.SHARD_SIZE)
-
-        env.config.P2P_SERVER_PORT = p2pPort
-        env.config.P2P_SEED_PORT = seedPort
-        env.clusterConfig.ID = 0
-        env.clusterConfig.CONFIG = ClusterConfig(config)
+        for j in range(env.config.SHARD_SIZE):
+            # skip the ones used by create_cluster_config
+            get_next_port()
 
         slaveServerList = []
         for slave in range(env.config.SHARD_SIZE):
@@ -133,6 +140,11 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             slaveServer = SlaveServer(slaveEnv, name="cluster{}_slave{}".format(i, slave))
             slaveServer.start()
             slaveServerList.append(slaveServer)
+
+        env.config.P2P_SERVER_PORT = seedPort if i == 0 else get_next_port()
+        env.config.P2P_SEED_PORT = seedPort
+        env.clusterConfig.ID = 0
+        env.clusterConfig.CONFIG = ClusterConfig(config)
 
         rootState = RootState(env)
         masterServer = MasterServer(env, rootState, name="cluster{}_master".format(i))

@@ -1,144 +1,120 @@
-import argparse
-import logging
-import numpy
+import asyncio
+import multiprocessing
 import time
-
-import jsonrpcclient
-
-from quarkchain.cluster.core import MinorBlock, RootBlock
-from quarkchain.cluster.jsonrpc import address_encoder, data_encoder, quantity_encoder
+import numpy
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
-from quarkchain.utils import set_logging_level, Logger
-
-
-NUM_MINERS = 2
-
-
-class Endpoint:
-
-    def __init__(self, port):
-        self.port = port
-
-    def __sendRequest(self, *args, **kwargs):
-        return jsonrpcclient.request("http://localhost:{}".format(self.port), *args, **kwargs)
-
-    def setArtificialTxCount(self, count):
-        ''' Keep trying until success.
-        It might take a while for the cluster to recover state.
-        '''
-        while True:
-            try:
-                return self.__sendRequest("setArtificialTxConfig", count, 10, 0)
-            except Exception:
-                pass
-            time.sleep(1)
-
-    def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
-        resp = self.__sendRequest(
-            "getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
-        if not resp:
-            return None, None
-        isRoot = resp["isRootBlock"]
-        blockBytes = bytes.fromhex(resp["blockData"][2:])
-        blockClass = RootBlock if isRoot else MinorBlock
-        block = blockClass.deserialize(blockBytes)
-        return isRoot, block
-
-    def addBlock(self, block):
-        branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
-        resp = self.__sendRequest("addBlock", quantity_encoder(branch), data_encoder(block.serialize()))
-        return resp
+from quarkchain.cluster.core import RootBlock
+from quarkchain.utils import Logger
 
 
 class Miner:
+    def __init__(self, executor, createBlockAsyncFunc, addBlockAsyncFunc, getTargetBlockTimeFunc, simulate=True):
+        """Mining will happen on the executor
 
-    def __init__(self, endpoint, coinbaseAddressHex, shardMaskValue, artificialTxCount):
-        self.endpoint = endpoint
-        self.coinbaseAddressHex = coinbaseAddressHex
-        self.shardMaskValue = shardMaskValue
-        self.artificialTxCount = artificialTxCount
-        self.block = None
-        self.isRoot = False
+        createBlockAsyncFunc: takes no argument, returns a block (either RootBlock or MinorBlock)
+        addBlockAsyncFunc: takes a block
+        getTargetBlockTimeFunc: takes no argument, returns the target block time in second
+        """
+        self.executor = executor
+        self.createBlockAsyncFunc = createBlockAsyncFunc
+        self.addBlockAsyncFunc = addBlockAsyncFunc
+        self.getTargetBlockTimeFunc = getTargetBlockTimeFunc
+        self.queue = multiprocessing.Manager().Queue()
+        self.simulate = simulate
+        self.enabled = False
+        self.isMining = False
 
-    def __simulatePowDelay(self, startTime):
-        if self.isRoot:
-            expectedBlockTime = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
-        else:
-            expectedBlockTime = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
+    def enable(self):
+        self.enabled = True
 
-        blockTime = numpy.random.exponential(expectedBlockTime * NUM_MINERS)
-        elapsed = time.time() - startTime
-        delay = max(0, blockTime - elapsed)
-        time.sleep(delay)
+    def disable(self):
+        """Stop the mining process is there is one"""
+        self.enabled = False
 
-    def __checkMetric(self, metric):
+        if not self.isMining:
+            return
+        self.queue.put((None, None))
+
+    def mineNewBlockAsync(self):
+        if not self.enabled:
+            return False
+        asyncio.ensure_future(self.__mineNewBlock())
+
+    async def __mineNewBlock(self):
+        """Get a new block and start mining.
+        If a mining process has already been started, update the process to mine the new block.
+        """
+        targetBlockTime = self.getTargetBlockTimeFunc()
+        block = await self.createBlockAsyncFunc()
+        if self.isMining:
+            self.queue.put((block, targetBlockTime))
+            return
+
+        self.isMining = True
+        mineFunc = Miner.simulateMine if self.simulate else Miner.mine
+        block = await asyncio.get_event_loop().run_in_executor(
+            self.executor, mineFunc, block, targetBlockTime, self.queue)
+        self.isMining = False
+        if not block:
+            return
+        try:
+            await self.addBlockAsyncFunc(block)
+        except Exception:
+            Logger.logException()
+
+        self.mineNewBlockAsync()
+
+    @staticmethod
+    def __logStatus(block):
+        isRoot = isinstance(block, RootBlock)
+        shard = "R" if isRoot else block.header.branch.getShardId()
+        count = len(block.minorBlockHeaderList) if isRoot else len(block.txList)
+        elapsed = time.time() - block.header.createTime
+
+        Logger.info("[{}] {} [{}] ({:.2f}) {}".format(
+            shard, block.header.height, count, elapsed, block.header.getHash().hex()))
+
+    @staticmethod
+    def __checkMetric(metric):
         # Testnet does not check difficulty
         if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
             return True
         return metric < 2 ** 256
 
-    def __logStatus(self, success):
-        shard = "R" if self.isRoot else self.block.header.branch.getShardId()
-        count = len(self.block.minorBlockHeaderList) if self.isRoot else len(self.block.txList)
-        status = "success" if success else "fail"
-        elapsed = time.time() - self.block.header.createTime
-
-        Logger.info("[{}] {} [{}] ({} {:.2f})".format(
-            shard, self.block.header.height, count, status, elapsed))
-
-    def run(self):
-        self.endpoint.setArtificialTxCount(self.artificialTxCount)
+    @staticmethod
+    def mine(block, _, q):
+        """PoW"""
         while True:
-            isRoot, block = self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
-            if not block:
-                time.sleep(1)
-                continue
+            block.header.nonce += 1
+            metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
+            if Miner.__checkMetric(metric):
+                Miner.__logStatus(block)
+                return block
+            try:
+                block, _ = q.get_nowait()
+                if not block:
+                    return None
+            except Exception:
+                # got nothing from queue
+                pass
 
-            if self.block is None or self.block != block:
-                self.block = block
-                self.isRoot = isRoot
-            for i in range(1000000):
-                self.block.header.nonce += 1
-                metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
-                if self.__checkMetric(metric):
-                    self.__simulatePowDelay(block.header.createTime)
-                    try:
-                        self.endpoint.addBlock(self.block)
-                        success = True
-                    except Exception as e:
-                        Logger.logException()
-                        success = False
-                    self.__logStatus(success)
-                    self.block = None
-                    break
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--jrpc_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
-    parser.add_argument(
-        "--miner_address", default=address_encoder(DEFAULT_ENV.config.GENESIS_ACCOUNT.serialize()), type=str)
-    parser.add_argument(
-        "--shard_mask", default=0, type=int)
-    parser.add_argument(
-        "--tx_count", default=100, type=int)
-    parser.add_argument(
-        "--log_jrpc", default=False, type=bool)
-    parser.add_argument("--log_level", default="info", type=str)
-    args = parser.parse_args()
-
-    set_logging_level(args.log_level)
-
-    if not args.log_jrpc:
-        logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-        logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
-
-    endpoint = Endpoint(args.jrpc_port)
-    miner = Miner(endpoint, args.miner_address, args.shard_mask, args.tx_count)
-    miner.run()
+    @staticmethod
+    def simulateMine(block, targetBlockTime, q):
+        """Sleep until the target time"""
+        targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
+        while True:
+            time.sleep(0.1)
+            try:
+                block, targetBlockTime = q.get_nowait()
+                if not block:
+                    return None
+                targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
+            except Exception:
+                # got nothing from queue
+                pass
+            if time.time() > targetTime:
+                Miner.__logStatus(block)
+                return block
 
 
-if __name__ == '__main__':
-    main()
