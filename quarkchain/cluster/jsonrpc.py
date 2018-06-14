@@ -618,47 +618,10 @@ class JSONRPCServer:
         }
 
     @methods.add
-    async def call(self, **data):
+    @decode_arg("txData", data_decoder)
+    async def call(self, txData):
         """ Returns the result of the transaction application without putting in block chain """
-        if not isinstance(data, dict):
-            raise InvalidParams("Transaction must be an object")
-
-        def getDataDefault(key, decoder, default=None):
-            if key in data:
-                return decoder(data[key])
-            return default
-
-        to = getDataDefault("to", recipient_decoder, None)
-        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
-        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
-        value = getDataDefault("value", quantity_decoder, 0)
-        data_ = getDataDefault("data", data_decoder, b"")
-        v = getDataDefault("v", quantity_decoder, 0)
-        r = getDataDefault("r", quantity_decoder, 0)
-        s = getDataDefault("s", quantity_decoder, 0)
-        nonce = getDataDefault("nonce", quantity_decoder, None)
-
-        toFullShardId = getDataDefault("toFullShardId", full_shard_id_decoder, None)
-        fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, None)
-        networkId = getDataDefault("networkID", quantity_decoder, self.master.env.config.NETWORK_ID)
-
-        if nonce is None:
-            raise InvalidParams("Missing nonce")
-        if not (v and r and s):
-            raise InvalidParams("Missing v, r, s")
-        if fromFullShardId is None:
-            raise InvalidParams("Missing fromFullShardId")
-
-        if toFullShardId is None:
-            toFullShardId = fromFullShardId
-
-        evmTx = EvmTransaction(
-            nonce, gasprice, startgas, to, value, data_, v, r, s,
-            fromFullShardId=fromFullShardId,
-            toFullShardId=toFullShardId,
-            networkId=networkId,
-        )
-
+        evmTx = rlp.decode(txData, EvmTransaction)
         tx = Transaction(code=Code.createEvmCode(evmTx))
         res = await self.master.executeTransaction(tx)
         return data_encoder(res) if res is not None else None

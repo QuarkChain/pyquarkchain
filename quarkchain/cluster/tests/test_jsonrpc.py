@@ -4,6 +4,8 @@ import logging
 import unittest
 
 from contextlib import contextmanager
+
+import rlp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.core import MinorBlock, RootBlock
@@ -325,19 +327,7 @@ class TestJSONRPC(unittest.TestCase):
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
             evmTx.sign(id1.getKey())
-            request = {
-                "nonce": "0x0",
-                "to": "0x" + acc1.recipient.hex(),
-                "gas": "0x5208",  # 21000
-                "gasPrice": "0x0",
-                "value": "0xf",  # 15
-                "v": quantity_encoder(evmTx.v),
-                "r": quantity_encoder(evmTx.r),
-                "s": quantity_encoder(evmTx.s),
-                "fromFullShardId": "0x00000000",
-                "networkId": hex(slaves[0].env.config.NETWORK_ID),
-            }
-            response = sendRequest("call", request)
+            response = sendRequest("call", "0x" + rlp.encode(evmTx).hex())
 
             self.assertEqual(response, "0x")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
@@ -363,19 +353,7 @@ class TestJSONRPC(unittest.TestCase):
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
             evmTx.sign(id1.getKey())
-            request = {
-                "to": "0x" + acc1.recipient.hex(),
-                "gasPrice": "0x6",
-                "gas": "0x0",
-                "value": "0xf",  # 15
-                "v": quantity_encoder(evmTx.v),
-                "r": quantity_encoder(evmTx.r),
-                "s": quantity_encoder(evmTx.s),
-                "nonce": "0x0",
-                "fromFullShardId": "0x00000000",
-                "networkId": hex(slaves[0].env.config.NETWORK_ID),
-            }
-            response = sendRequest("call", request)
+            response = sendRequest("call", "0x" + rlp.encode(evmTx).hex())
 
             self.assertIsNone(response, "failed tx should return None")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
