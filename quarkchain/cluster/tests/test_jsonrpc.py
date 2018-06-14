@@ -6,8 +6,8 @@ import unittest
 from contextlib import contextmanager
 
 import rlp
-from jsonrpcclient.aiohttp_client import aiohttpClient
 
+from jsonrpcclient.aiohttp_client import aiohttpClient
 from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
 from quarkchain.cluster.tests.test_utils import (
@@ -21,7 +21,6 @@ from quarkchain.evm import opcodes
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async
-
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -304,7 +303,8 @@ class TestJSONRPC(unittest.TestCase):
             isRoot, block1 = call_async(master.getNextBlockToMine(address=acc1))
             self.assertTrue(call_async(slaves[0].addBlock(block1)))
 
-            resp = sendRequest("getTransactionById", "0x" + tx.getHash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
+            resp = sendRequest(
+                "getTransactionById", "0x" + tx.getHash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["hash"], "0x" + tx.getHash().hex())
 
     def testCallSuccess(self):
@@ -450,4 +450,3 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["status"], "0x0")
             self.assertEqual(resp["cumulativeGasUsed"], "0x11a44")
             self.assertIsNone(resp["contractAddress"])
-
