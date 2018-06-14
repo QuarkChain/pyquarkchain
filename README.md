@@ -79,19 +79,25 @@ docker run -d -P --name quarkchain -p 8000:80 -e ENVIRONMENT=development quarkch
 ```
 
 4. If you need to SSH into the container, you will need to add your SSH public key to ./dockers/webserver/ssh/authorized_keys. Then follow steps 2 and 3 again. You'll need to run:
-```docker port quarkchain```
-
+```
+docker port quarkchain
+```
 in order to find the port mapping for port 22. Then SSH using:
-
-```ssh -p <CONTAINER_SSH_PORT> root@localhost```
+```
+ssh -p <CONTAINER_SSH_PORT> root@localhost
+```
 
 5. To stop the container:
-```docker stop quarkchain```
+```
+docker stop quarkchain
+```
 
 6. To remove the container:
-```docker rm quarkchain```
+```
+docker rm quarkchain
+```
 
-7. You can run supervisor commands on the container without having to SSH, like so:
+p7. You can run supervisor commands on the container without having to SSH, like so:
 ```
 docker exec quarkchain supervisorctl restart uwsgi
 docker exec quarkchain supervisorctl restart all
