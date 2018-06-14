@@ -1,18 +1,18 @@
-aiohttp >= 3.1.3 
-async_armor >= 0.0.2
-coincurve >= 7.1.0
-devp2p
-Django >= 2.0.0
-django-extensions >= 2.0.0
-decorator >= 4.2.1
-ecdsa >= 0.13
+aiohttp==3.1.3
+async_armor==0.0.2
+coincurve==7.1.0
+devp2p==0.9.3
+Django==2.0.0
+django-extensions==2.0.0
+decorator==4.2.1
+ecdsa==0.13
 ethereum
-gitpython >=2.1.9
-jsonrpcclient >= 2.5.2
-jsonrpcserver >= 3.5.4
-leveldb >= 0.194
-numpy >= 1.14.0
-protobuf >= 3.5.0
-psutil >= 5.4.5
-pysha3 >= 1.0.2
-requests >= 2.18.4
+gitpython==2.1.9
+jsonrpcclient==2.5.2
+jsonrpcserver==3.5.4
+leveldb==0.194
+numpy==1.14.0
+protobuf==3.6.0
+psutil==5.4.5
+pysha3==1.0.2
+requests==2.18.4

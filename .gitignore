@@ -107,6 +107,8 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+*~
+
 # IDE
 .idea/
 
@@ -115,3 +117,4 @@ db_*/
 
 # IPython notebook
 *.ipynb
+
