@@ -8,6 +8,7 @@ import random
 import time
 from collections import deque
 from typing import Optional
+from threading import Thread
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction
@@ -43,7 +44,7 @@ from quarkchain.db import PersistentDb
 from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
-from quarkchain.p2p.p2p_network import P2PNetwork
+from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.utils import set_logging_level, Logger, check
 
 
@@ -999,6 +1000,12 @@ def parse_args():
     parser.add_argument("--db_path", default="./db", type=str)
     parser.add_argument("--clean", default=False, type=bool)
     parser.add_argument("--log_level", default="info", type=str)
+    parser.add_argument("--devp2p", default=False, type=bool)
+    parser.add_argument("--devp2p_port", default=29000, type=int)
+    parser.add_argument("--devp2p_bootstrap_host", default="0.0.0.0", type=str)
+    parser.add_argument("--devp2p_bootstrap_port", default=29000, type=int)
+    parser.add_argument("--devp2p_min_peers", default=2, type=int)
+    parser.add_argument("--devp2p_max_peers", default=10, type=int)
     args = parser.parse_args()
 
     set_logging_level(args.log_level)
@@ -1009,6 +1016,14 @@ def parse_args():
     env.config.P2P_SEED_PORT = args.seed_port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
+    print(args.devp2p)
+    env.config.DEVP2P = args.devp2p
+    env.config.DEVP2P_PORT = args.devp2p_port
+    env.config.DEVP2P_BOOTSTRAP_HOST = args.devp2p_bootstrap_host
+    env.config.DEVP2P_BOOTSTRAP_PORT = args.devp2p_bootstrap_port
+    env.config.DEVP2P_MIN_PEERS = args.devp2p_min_peers
+    env.config.DEVP2P_MAX_PEERS = args.devp2p_max_peers
+    env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
     if not args.in_memory_db:
         env.db = PersistentDb(path=args.db_path, clean=args.clean)
@@ -1032,6 +1047,11 @@ def main():
 
     network = P2PNetwork(env, master) if env.config.DEVP2P else SimpleNetwork(env, master)
     network.start()
+
+    print(env.config.DEVP2P)
+    if env.config.DEVP2P:
+        thread = Thread(target = devp2p_app, args = [env, network], daemon=True)
+        thread.start()
 
     jsonRpcServer = JSONRPCServer(env, master)
     jsonRpcServer.start()

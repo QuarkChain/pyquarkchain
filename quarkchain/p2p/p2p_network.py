@@ -13,7 +13,6 @@ from devp2p.protocol import BaseProtocol
 from devp2p.service import BaseService, WiredService
 from devp2p.crypto import privtopub as privtopub_raw, sha3
 from devp2p.utils import host_port_pubkey_to_uri, update_config_with_defaults
-from devp2p import app_helper
 from rlp.utils import decode_hex, encode_hex
 
 from quarkchain.core import random_bytes
@@ -30,19 +29,14 @@ try:
     slogging.configure(config_string=':info,p2p.protocol:info,p2p.peer:info')
 except:
     import devp2p.slogging as slogging
-log = slogging.get_logger('poc_app')
-
-"""
-Spawns 1 app connecting to bootstrap node.
-use poc_network.py for multiple apps in different processes.
-"""
+log = slogging.get_logger('devp2p_app')
 
 
-class ExampleProtocol(BaseProtocol):
+class Devp2pProtocol(BaseProtocol):
     protocol_id = 1
     network_id = 0
     max_cmd_id = 1  # Actually max id is 0, but 0 is the special value.
-    name = b'example'
+    name = b'devp2p'
     version = 1
 
     def __init__(self, peer, service):
@@ -51,32 +45,38 @@ class ExampleProtocol(BaseProtocol):
         BaseProtocol.__init__(self, peer, service)
 
 
-class ExampleService(WiredService):
+class Devp2pService(WiredService):
 
     # required by BaseService
-    name = 'exampleservice'
+    name = 'devp2pservice'
     default_config = dict(example=dict(num_participants=1))
 
     # required by WiredService
-    wire_protocol = ExampleProtocol  # create for each peer
+    wire_protocol = Devp2pProtocol  # create for each peer
 
     def __init__(self, app):
-        log.info('ExampleService init')
+        log.info('Devp2pService init')
         self.config = app.config
         self.address = privtopub_raw(decode_hex(
             self.config['node']['privkey_hex']))
-        super(ExampleService, self).__init__(app)
+        super(Devp2pService, self).__init__(app)
 
     def on_wire_protocol_stop(self, proto):
         log.info(
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
+        self.app.network.loop.create_task(
+            self.app.network.refreshConnections(list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+        )
         self.show_peers()
 
     def on_wire_protocol_start(self, proto):
         log.info(
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
+        self.app.network.loop.create_task(
+            self.app.network.refreshConnections(list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+        )
         self.show_peers()
 
     def show_peers(self):
@@ -87,12 +87,12 @@ class ExampleService(WiredService):
         ))
 
     def start(self):
-        log.info('ExampleService start')
-        super(ExampleService, self).start()
+        log.info('Devp2pService start')
+        super(Devp2pService, self).start()
 
 
-class ExampleApp(BaseApp):
-    client_name = 'exampleapp'
+class Devp2pApp(BaseApp):
+    client_name = 'devp2papp'
     version = '0.1'
     client_version = '%s/%s/%s' % (version, sys.platform,
                                    'py%d.%d.%d' % sys.version_info[:3])
@@ -101,27 +101,18 @@ class ExampleApp(BaseApp):
     default_config['client_version_string'] = client_version_string
     default_config['post_app_start_callback'] = None
 
+    def __init__(self, config, network):
+        self.network = network
+        super(Devp2pApp, self).__init__(config)
 
-def main():
+def serve_app(app):
+    app.start()
+    app.join()
+    app.stop()
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--bootstrap_host", default='0.0.0.0', type=str)
-    parser.add_argument(
-        "--bootstrap_port", default=29000, type=int)
-    # p2p port for this node
-    parser.add_argument(
-        "--node_port", default=29000, type=int)
-    parser.add_argument(
-        "--node_num", default=0, type=int)
-    parser.add_argument(
-        "--min_peers", default=2, type=int)
-    parser.add_argument(
-        "--max_peers", default=10, type=int)
+def devp2p_app(env, network):
+
     seed = 0
-
-    args = parser.parse_args()
-
     gevent.get_hub().SYSTEM_ERROR = BaseException
 
     # get bootstrap node (node0) enode
@@ -129,9 +120,9 @@ def main():
         '{}:udp:{}'.format(0, 0).encode('utf-8'))
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
     enode = host_port_pubkey_to_uri(
-        args.bootstrap_host, args.bootstrap_port, bootstrap_node_pubkey)
+        env.config.DEVP2P_BOOTSTRAP_HOST, env.config.DEVP2P_BOOTSTRAP_PORT, bootstrap_node_pubkey)
 
-    services = [NodeDiscovery, peermanager.PeerManager, ExampleService]
+    services = [NodeDiscovery, peermanager.PeerManager, Devp2pService]
 
     # prepare config
     base_config = dict()
@@ -140,9 +131,9 @@ def main():
 
     base_config['discovery']['bootstrap_nodes'] = [enode]
     base_config['seed'] = seed
-    base_config['base_port'] = args.node_port
-    base_config['min_peers'] = args.min_peers
-    base_config['max_peers'] = args.max_peers
+    base_config['base_port'] = env.config.DEVP2P_PORT
+    base_config['min_peers'] = env.config.DEVP2P_MIN_PEERS
+    base_config['max_peers'] = env.config.DEVP2P_MAX_PEERS
     log.info('run:', base_config=base_config)
 
     min_peers = base_config['min_peers']
@@ -150,19 +141,20 @@ def main():
 
     assert min_peers <= max_peers
     config = copy.deepcopy(base_config)
-    config['node_num'] = args.node_num
+    node_num = 0
+    config['node_num'] = env.config.DEVP2P_PORT
 
     # create this node priv_key
     config['node']['privkey_hex'] = encode_hex(sha3(
-        '{}:udp:{}'.format(seed, args.node_num).encode('utf-8')))
+        '{}:udp:{}'.format(seed, env.config.DEVP2P_PORT).encode('utf-8')))
     # set ports based on node
-    config['discovery']['listen_port'] = args.node_port
-    config['p2p']['listen_port'] = args.node_port
+    config['discovery']['listen_port'] = env.config.DEVP2P_PORT
+    config['p2p']['listen_port'] = env.config.DEVP2P_PORT
     config['p2p']['min_peers'] = min(10, min_peers)
     config['p2p']['max_peers'] = max_peers
-    config['client_version_string'] = 'NODE{}'.format(args.node_num)
+    config['client_version_string'] = 'NODE{}'.format(env.config.DEVP2P_PORT)
 
-    app = ExampleApp(config)
+    app = Devp2pApp(config, network)
     log.info('create_app', config=app.config)
     # register services
     for service in services:
@@ -171,13 +163,10 @@ def main():
             assert service.name not in app.services
             service.register_with_app(app)
             assert hasattr(app.services, service.name)
-
-    app_helper.serve_until_stopped([app])
+    serve_app(app)
 
 
 class P2PNetwork:
-    """Fully connected P2P network for inter-cluster communication
-    """
 
     def __init__(self, env, masterServer):
         self.loop = asyncio.get_event_loop()
@@ -204,6 +193,12 @@ class P2PNetwork:
             self.masterServer,
             self.__getNextClusterPeerId())
         await peer.start(isServer=True)
+
+    async def refreshConnections(self, peers):
+        Logger.info("Connecting to {} peers: {}".format(
+            len(peers),
+            peers
+        ))
 
     async def connect(self, ip, port):
         Logger.info("connecting {} {}".format(ip, port))
@@ -238,8 +233,6 @@ class P2PNetwork:
         for peerInfo in resp.peerInfoList:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
-
-        # TODO: Sync with total diff
 
     def iteratePeers(self):
         return self.clusterPeerPool.values()
