@@ -3,6 +3,8 @@ import asyncio
 import json
 import os
 import tempfile
+import signal
+import psutil
 
 from asyncio import subprocess
 
@@ -14,6 +16,22 @@ IP = "127.0.0.1"
 PORT = 38000
 
 
+def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+    """ Kill all the subprocesses recursively """
+    try:
+        parent = psutil.Process(parent_pid)
+    except psutil.NoSuchProcess:
+        return
+    children = parent.children(recursive=True)
+    print("================================ SHUTTING DOWN CLUSTER ================================")
+    for process in children:
+        try:
+            print("SIGTERM >>> " + " ".join(process.cmdline()[1:]))
+        except Exception:
+            pass
+        process.send_signal(sig)
+
+
 def dump_config_to_file(config):
     fd, filename = tempfile.mkstemp()
     with os.fdopen(fd, 'w') as tmp:
@@ -21,10 +39,12 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(port, configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, clean):
-    cmd = "python3 master.py --node_port={} --cluster_config={} --db_path={} " \
+async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean):
+    cmd = "python3 master.py --cluster_config={} --db_path={} " \
           "--server_port={} --local_port={} --seed_host={} --seed_port={}".format(
-              port, configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort)
+              configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort)
+    if mine:
+        cmd += " --mine=true"
     if clean:
         cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -38,11 +58,6 @@ async def run_slave(port, id, shardMaskList, dbPath, clean):
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_miner(shardMask, txCount, jrpcPort):
-    cmd = "python3 miner.py --shard_mask={} --tx_count={} --jrpc_port={}".format(shardMask, txCount, jrpcPort)
-    return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-
-
 async def print_output(prefix, stream):
     while True:
         line = await stream.readline()
@@ -53,14 +68,12 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, num_miners, tx_count, mineRoot, clean):
+    def __init__(self, config, configFilePath, mine, clean):
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
         self.shutdownCalled = False
-        self.num_miners = num_miners
-        self.tx_count = tx_count
-        self.mineRoot = mineRoot
+        self.mine = mine
         self.clean = clean
 
     async def waitAndShutdown(self, prefix, proc):
@@ -74,13 +87,13 @@ class Cluster:
 
     async def runMaster(self):
         master = await run_master(
-            port=self.config["master"]["port"],
             configFilePath=self.configFilePath,
             dbPath=self.config["master"]["db_path"],
             serverPort=self.config["master"]["server_port"],
             jsonRpcPort=self.config["master"]["json_rpc_port"],
             seedHost=self.config["master"]["seed_host"],
             seedPort=self.config["master"]["seed_port"],
+            mine=self.mine,
             clean=self.clean)
         asyncio.ensure_future(print_output("MASTER", master.stdout))
         self.procs.append(("MASTER", master))
@@ -97,47 +110,24 @@ class Cluster:
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
-    async def runMiners(self):
-        jrpcPort = self.config["master"]["json_rpc_port"]
-        # Create miners for shards
-        for i in range(self.num_miners):
-            miner = await run_miner(self.num_miners | i, self.tx_count, jrpcPort)
-            prefix = "MINER_{}".format(i)
-            asyncio.ensure_future(print_output(prefix, miner.stdout))
-            self.procs.append((prefix, miner))
-
-        if self.mineRoot:
-            # Create a miner that covers root chain
-            miner = await run_miner(0, self.tx_count, jrpcPort)
-            prefix = "MINER_R"
-            asyncio.ensure_future(print_output(prefix, miner.stdout))
-            self.procs.append((prefix, miner))
-
     async def run(self):
         await self.runMaster()
         await self.runSlaves()
-
-        # Give some time for the cluster to initiate
-        await asyncio.sleep(3)
-
-        await self.runMiners()
 
         await asyncio.gather(*[self.waitAndShutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
         self.shutdownCalled = True
-        for prefix, proc in self.procs:
-            try:
-                proc.terminate()
-            except Exception:
-                pass
-        await asyncio.gather(*[proc.wait() for prefix, proc in self.procs])
+        kill_child_processes(os.getpid())
 
     def startAndLoop(self):
         try:
             asyncio.get_event_loop().run_until_complete(self.run())
         except KeyboardInterrupt:
-            asyncio.get_event_loop().run_until_complete(self.shutdown())
+            try:
+                asyncio.get_event_loop().run_until_complete(self.shutdown())
+            except Exception:
+                pass
 
 
 def main():
@@ -147,11 +137,7 @@ def main():
     parser.add_argument(
         "--num_slaves", default=4, type=int)
     parser.add_argument(
-        "--num_miners", default=4, type=int)
-    parser.add_argument(
-        "--not_mine_root", default=False, type=bool)
-    parser.add_argument(
-        "--num_tx_per_block", default=100, type=int)
+        "--mine", default=False, type=bool)
     parser.add_argument(
         "--port_start", default=PORT, type=int)
     parser.add_argument(
@@ -187,11 +173,7 @@ def main():
             return -1
         filename = dump_config_to_file(config)
 
-    if not is_p2(args.num_miners):
-        print("--num_miners must be power of 2")
-        return -1
-
-    cluster = Cluster(config, filename, args.num_miners, args.num_tx_per_block, not args.not_mine_root, args.clean)
+    cluster = Cluster(config, filename, args.mine, args.clean)
     cluster.startAndLoop()
 
 

@@ -3,6 +3,9 @@ import asyncio
 import errno
 import ipaddress
 from typing import Optional, Tuple
+from functools import partial
+
+from concurrent.futures import ProcessPoolExecutor
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
@@ -31,7 +34,10 @@ from quarkchain.cluster.rpc import (
     AccountBranchData,
     BatchAddXshardTxListRequest,
     BatchAddXshardTxListResponse,
+    MineResponse,
 )
+
+from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.p2p_commands import (
@@ -371,6 +377,13 @@ class MasterConnection(ClusterConnection):
             resultList.append(bytes())
         return ConnectToSlavesResponse(resultList)
 
+    async def handleMineRequest(self, request):
+        if request.mining:
+            self.slaveServer.startMining(request.artificialTxConfig)
+        else:
+            self.slaveServer.stopMining()
+        return MineResponse(errorCode=0)
+
     # Blockchain RPC handlers
 
     async def handleAddRootBlockRequest(self, req):
@@ -381,6 +394,7 @@ class MasterConnection(ClusterConnection):
             try:
                 switched = shardState.addRootBlock(req.rootBlock)
             except ValueError:
+                Logger.logException()
                 # TODO: May be enum or Unix errno?
                 errorCode = errno.EBADMSG
                 break
@@ -582,10 +596,12 @@ MASTER_OP_NONRPC_MAP = {
 
 
 MASTER_OP_RPC_MAP = {
-    ClusterOp.CONNECT_TO_SLAVES_REQUEST:
-        (ClusterOp.CONNECT_TO_SLAVES_RESPONSE, MasterConnection.handleConnectToSlavesRequest),
     ClusterOp.PING:
         (ClusterOp.PONG, MasterConnection.handlePing),
+    ClusterOp.CONNECT_TO_SLAVES_REQUEST:
+        (ClusterOp.CONNECT_TO_SLAVES_RESPONSE, MasterConnection.handleConnectToSlavesRequest),
+    ClusterOp.MINE_REQUEST:
+        (ClusterOp.MINE_RESPONSE, MasterConnection.handleMineRequest),
     ClusterOp.ADD_ROOT_BLOCK_REQUEST:
         (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, MasterConnection.handleAddRootBlockRequest),
     ClusterOp.GET_ECO_INFO_LIST_REQUEST:
@@ -711,19 +727,21 @@ class SlaveServer():
         self.master = None
         self.name = name
 
-        self.__initShardStateMap()
+        self.artificialTxConfig = None
+        self.processPoolExecutor = ProcessPoolExecutor()  # to run miners
+        self.minerMap = dict()  # branchValue -> Miner
+        self.shardStateMap = dict()  # branchValue -> ShardState
+        self.__initShardStateMapAndMinerMap()
         self.shutdownInProgress = False
         self.slaveId = 0
 
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.addBlockFutures = dict()
-        # True if master is as
 
-    def __initShardStateMap(self):
+    def __initShardStateMapAndMinerMap(self):
         ''' branchValue -> ShardState mapping '''
         shardSize = self.__getShardSize()
-        self.shardStateMap = dict()
         branchValues = set()
         for shardMask in self.shardMaskList:
             for shardId in shardMask.iterate(shardSize):
@@ -739,11 +757,46 @@ class SlaveServer():
                     fullShardId=branchValue,
                 )
             )
+            self.__initMiner(branchValue)
+
+    def __initMiner(self, branchValue):
+        minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
+
+        async def __createBlock():
+            return self.shardStateMap[branchValue].createBlockToMine(
+                address=minerAddress, artificialTxConfig=self.artificialTxConfig)
+
+        def __getTargetBlockTime():
+            return self.env.config.MINOR_BLOCK_INTERVAL_SEC * max(1, self.artificialTxConfig.numMiners)
+
+        self.minerMap[branchValue] = Miner(
+            self.processPoolExecutor,
+            __createBlock,
+            self.addBlock,
+            __getTargetBlockTime,
+        )
 
     def initShardStates(self, rootTip):
         ''' Will be called when master connects to slaves '''
         for _, shardState in self.shardStateMap.items():
             shardState.initFromRootBlock(rootTip)
+
+    def startMining(self, artificialTxConfig):
+        self.artificialTxConfig = artificialTxConfig
+        for branchValue, miner in self.minerMap.items():
+            Logger.info("[{}] Received new mining config #tx={} xshard={}% #miners={}".format(
+                Branch(branchValue).getShardId(),
+                artificialTxConfig.numTxPerBlock,
+                artificialTxConfig.xShardTxPercent,
+                artificialTxConfig.numMiners,
+            ))
+            miner.enable()
+            miner.mineNewBlockAsync();
+
+    def stopMining(self):
+        for branchValue, miner in self.minerMap.items():
+            Logger.info("[{}] stop mining".format(Branch(branchValue).getShardId()))
+            miner.disable()
 
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
@@ -810,6 +863,7 @@ class SlaveServer():
         for slave in self.slaveConnections:
             slave.close()
         self.server.close()
+        self.processPoolExecutor.shutdown()
 
     def getShutdownFuture(self):
         return self.server.wait_closed()
@@ -821,6 +875,7 @@ class SlaveServer():
         request = AddMinorBlockHeaderRequest(minorBlockHeader, txCount, xShardTxCount, shardStats)
         _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
+        self.artificialTxConfig = resp.artificialTxConfig
 
     def __getBranchToAddXshardTxListRequest(self, blockHash, xshardTxList):
         branchToAddXshardTxListRequest = dict()
@@ -912,6 +967,8 @@ class SlaveServer():
         await self.sendMinorBlockHeaderToMaster(
             block.header, len(block.txList), len(xShardList), shardState.getShardStats())
 
+        self.minerMap[branchValue].mineNewBlockAsync()
+
         if broadcast and oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
 
@@ -964,6 +1021,8 @@ class SlaveServer():
             del self.addBlockFutures[blockHash]
 
         await asyncio.gather(*existingAddBlockFutures)
+
+        self.minerMap[branchValue].mineNewBlockAsync()
 
         return True
 
@@ -1090,16 +1149,11 @@ def parse_args():
 
 def main():
     env = parse_args()
-    env.NETWORK_ID = 1  # testnet
-
-    # qcState = QuarkChainState(env)
-    # network = SimpleNetwork(env, qcState)
-    # network.start()
 
     slaveServer = SlaveServer(env)
     slaveServer.startAndLoop()
 
-    Logger.info("Server is shutdown")
+    Logger.info("Slave server is shutdown")
 
 
 if __name__ == '__main__':

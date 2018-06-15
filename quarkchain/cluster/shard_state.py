@@ -874,7 +874,8 @@ class ShardState:
                 continue
 
             if not self.db.containRemoteMinorBlockHash(h):
-                raise ValueError("cannot find xShard tx list")
+                raise ValueError("cannot find xShard tx list for {}-{} {}".format(
+                    mHeader.branch.getShardId(), mHeader.height, h.hex()))
 
         # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
         check(shardHeader is not None)

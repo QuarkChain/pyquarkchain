@@ -9,7 +9,6 @@ def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort
     config = dict()
     config["master"] = {
         "ip": ip,
-        "port": clusterPortStart,
         "db_path": dbPrefix + "m",
         "server_port": p2pPort,
         "json_rpc_port": jsonRpcPort,
@@ -22,7 +21,7 @@ def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort
         config["slaves"].append({
             "id": "S{}".format(i),
             "ip": ip,
-            "port": clusterPortStart + i + 1,
+            "port": clusterPortStart + i,
             "shard_masks": [mask],
             "db_path": dbPrefix + str(i)
         })
