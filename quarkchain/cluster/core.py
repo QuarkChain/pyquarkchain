@@ -30,19 +30,21 @@ class TransactionReceipt(Serializable):
     FIELDS = [
         ('success', PreprendedSizeBytesSerializer(1)),
         ('gasUsed', uint64),
+        ('prevGasUsed', uint64),
         ('bloom', uint256),
         ('contractAddress', Address),
     ]
 
-    def __init__(self, success, gasUsed, contractAddress, bloom):
+    def __init__(self, success, gasUsed, prevGasUsed, contractAddress, bloom):
         self.success = success
         self.gasUsed = gasUsed
+        self.prevGasUsed = prevGasUsed
         self.contractAddress = contractAddress
         self.bloom = bloom
 
     @classmethod
     def createEmptyReceipt(cls):
-        return cls(b'', 0, Address.createEmptyAccount(0), 0)
+        return cls(b'', 0, 0, Address.createEmptyAccount(0), 0)
 
 
 class MinorBlockMeta(Serializable):
@@ -153,12 +155,18 @@ class MinorBlock(Serializable):
             return None
 
         t = trie.Trie(db, self.meta.hashEvmReceiptRoot)
-        r = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
-        if r.contract_address != b'':
-            contractAddress = Address(r.contract_address, r.contract_full_shard_id)
+        receipt = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
+        if receipt.contract_address != b'':
+            contractAddress = Address(receipt.contract_address, receipt.contract_full_shard_id)
         else:
             contractAddress = Address.createEmptyAccount(fullShardId=0)
-        return TransactionReceipt(r.state_root, r.gas_used, contractAddress, r.bloom)
+
+        prevGasUsed = 0
+        if i > 0:
+            prevReceipt = rlp.decode(t.get(rlp.encode(i - 1)), quarkchain.evm.messages.Receipt)
+            prevGasUsed = prevReceipt.gas_used
+
+        return TransactionReceipt(receipt.state_root, receipt.gas_used, prevGasUsed, contractAddress, receipt.bloom)
 
     def createBlockToAppend(self,
                             createTime=None,
