@@ -3,9 +3,6 @@ import asyncio
 import errno
 import ipaddress
 from typing import Optional, Tuple
-from functools import partial
-
-from concurrent.futures import ProcessPoolExecutor
 
 from quarkchain.core import Branch, ShardMask
 from quarkchain.config import DEFAULT_ENV
@@ -728,7 +725,6 @@ class SlaveServer():
         self.name = name
 
         self.artificialTxConfig = None
-        self.processPoolExecutor = ProcessPoolExecutor()  # to run miners
         self.minerMap = dict()  # branchValue -> Miner
         self.shardStateMap = dict()  # branchValue -> ShardState
         self.__initShardStateMapAndMinerMap()
@@ -770,7 +766,6 @@ class SlaveServer():
             return self.env.config.MINOR_BLOCK_INTERVAL_SEC * max(1, self.artificialTxConfig.numMiners)
 
         self.minerMap[branchValue] = Miner(
-            self.processPoolExecutor,
             __createBlock,
             self.addBlock,
             __getTargetBlockTime,
@@ -863,7 +858,6 @@ class SlaveServer():
         for slave in self.slaveConnections:
             slave.close()
         self.server.close()
-        self.processPoolExecutor.shutdown()
 
     def getShutdownFuture(self):
         return self.server.wait_closed()

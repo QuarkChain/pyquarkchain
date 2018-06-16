@@ -1,5 +1,5 @@
 import asyncio
-import multiprocessing
+from aioprocessing import AioProcess, AioQueue
 import time
 import numpy
 
@@ -9,21 +9,19 @@ from quarkchain.utils import Logger
 
 
 class Miner:
-    def __init__(self, executor, createBlockAsyncFunc, addBlockAsyncFunc, getTargetBlockTimeFunc, simulate=True):
-        """Mining will happen on the executor
+    def __init__(self, createBlockAsyncFunc, addBlockAsyncFunc, getTargetBlockTimeFunc, simulate=True):
+        """Mining will happen on a subprocess managed by this class
 
         createBlockAsyncFunc: takes no argument, returns a block (either RootBlock or MinorBlock)
         addBlockAsyncFunc: takes a block
         getTargetBlockTimeFunc: takes no argument, returns the target block time in second
         """
-        self.executor = executor
         self.createBlockAsyncFunc = createBlockAsyncFunc
         self.addBlockAsyncFunc = addBlockAsyncFunc
         self.getTargetBlockTimeFunc = getTargetBlockTimeFunc
-        self.queue = multiprocessing.Manager().Queue()
         self.simulate = simulate
         self.enabled = False
-        self.isMining = False
+        self.process = None
 
     def enable(self):
         self.enabled = True
@@ -32,9 +30,11 @@ class Miner:
         """Stop the mining process is there is one"""
         self.enabled = False
 
-        if not self.isMining:
+        if not self.process:
             return
-        self.queue.put((None, None))
+        self.input.put((None, None))
+        self.process.join()
+        self.process = None
 
     def mineNewBlockAsync(self):
         if not self.enabled:
@@ -47,23 +47,27 @@ class Miner:
         """
         targetBlockTime = self.getTargetBlockTimeFunc()
         block = await self.createBlockAsyncFunc()
-        if self.isMining:
-            self.queue.put((block, targetBlockTime))
+        if self.process:
+            self.input.put((block, targetBlockTime))
             return
 
-        self.isMining = True
         mineFunc = Miner.simulateMine if self.simulate else Miner.mine
-        block = await asyncio.get_event_loop().run_in_executor(
-            self.executor, mineFunc, block, targetBlockTime, self.queue)
-        self.isMining = False
-        if not block:
-            return
-        try:
-            await self.addBlockAsyncFunc(block)
-        except Exception:
-            Logger.logException()
+        self.input = AioQueue()
+        self.output = AioQueue()
+        self.process = AioProcess(target=mineFunc, args=(block, targetBlockTime, self.input, self.output))
+        self.process.start()
 
-        self.mineNewBlockAsync()
+        asyncio.ensure_future(self.__handleMinedBlock())
+
+    async def __handleMinedBlock(self):
+        while True:
+            block = await self.output.coro_get()
+            if not block:
+                return
+            try:
+                await self.addBlockAsyncFunc(block)
+            except Exception:
+                Logger.logException()
 
     @staticmethod
     def __logStatus(block):
@@ -83,38 +87,46 @@ class Miner:
         return metric < 2 ** 256
 
     @staticmethod
-    def mine(block, _, q):
+    def mine(block, _, input, output):
         """PoW"""
         while True:
             block.header.nonce += 1
             metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
             if Miner.__checkMetric(metric):
                 Miner.__logStatus(block)
-                return block
+                output.put(block)
+                block, _ = input.get()
             try:
-                block, _ = q.get_nowait()
-                if not block:
-                    return None
+                block, _ = input.get_nowait()
             except Exception:
                 # got nothing from queue
                 pass
+            if not block:
+                output.put(None)
+                return
 
     @staticmethod
-    def simulateMine(block, targetBlockTime, q):
+    def simulateMine(block, targetBlockTime, input, output):
         """Sleep until the target time"""
         targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
         while True:
             time.sleep(0.1)
             try:
-                block, targetBlockTime = q.get_nowait()
+                block, targetBlockTime = input.get_nowait()  # raises if queue is empty
                 if not block:
-                    return None
+                    output.put(None)
+                    return
                 targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
             except Exception:
                 # got nothing from queue
                 pass
             if time.time() > targetTime:
                 Miner.__logStatus(block)
-                return block
+                output.put(block)
+                block, targetBlockTime = input.get()  # blocking
+                if not block:
+                    output.put(None)
+                    return
+                targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
 
 

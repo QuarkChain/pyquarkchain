@@ -9,8 +9,6 @@ import time
 from collections import deque
 from typing import Optional
 
-from concurrent.futures import ProcessPoolExecutor
-
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Transaction
 from quarkchain.cluster.miner import Miner
@@ -401,7 +399,6 @@ class MasterServer():
             return self.env.config.ROOT_BLOCK_INTERVAL_SEC * max(1, self.getArtificialTxConfig().numMiners)
 
         self.rootMiner = Miner(
-            ProcessPoolExecutor(),
             __createBlock,
             self.addRootBlock,
             __getTargetBlockTime,
