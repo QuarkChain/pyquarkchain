@@ -1016,7 +1016,6 @@ def parse_args():
     env.config.P2P_SEED_PORT = args.seed_port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
-    print(args.devp2p)
     env.config.DEVP2P = args.devp2p
     env.config.DEVP2P_PORT = args.devp2p_port
     env.config.DEVP2P_BOOTSTRAP_HOST = args.devp2p_bootstrap_host
@@ -1048,7 +1047,6 @@ def main():
     network = P2PNetwork(env, master) if env.config.DEVP2P else SimpleNetwork(env, master)
     network.start()
 
-    print(env.config.DEVP2P)
     if env.config.DEVP2P:
         thread = Thread(target = devp2p_app, args = [env, network], daemon=True)
         thread.start()

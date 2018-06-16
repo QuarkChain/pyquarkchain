@@ -1,4 +1,3 @@
-import argparse
 import copy
 import sys
 import gevent
@@ -66,7 +65,8 @@ class Devp2pService(WiredService):
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
         self.app.network.loop.create_task(
-            self.app.network.refreshConnections(list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+            self.app.network.refreshConnections(list(
+                map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
         )
         self.show_peers()
 
@@ -75,7 +75,8 @@ class Devp2pService(WiredService):
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
         self.app.network.loop.create_task(
-            self.app.network.refreshConnections(list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+            self.app.network.refreshConnections(list(
+                map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
         )
         self.show_peers()
 
@@ -83,7 +84,8 @@ class Devp2pService(WiredService):
         log.warning("I am {} I have {} peers: {}".format(
             self.app.config['client_version_string'],
             self.app.services.peermanager.num_peers(),
-            list(map(lambda p: p.remote_client_version, self.app.services.peermanager.peers))
+            list(map(lambda p: p.remote_client_version,
+                     self.app.services.peermanager.peers))
         ))
 
     def start(self):
@@ -105,10 +107,12 @@ class Devp2pApp(BaseApp):
         self.network = network
         super(Devp2pApp, self).__init__(config)
 
+
 def serve_app(app):
     app.start()
     app.join()
     app.stop()
+
 
 def devp2p_app(env, network):
 
@@ -117,7 +121,7 @@ def devp2p_app(env, network):
 
     # get bootstrap node (node0) enode
     bootstrap_node_privkey = sha3(
-        '{}:udp:{}'.format(0, 0).encode('utf-8'))
+        '{}:udp:{}'.format(seed, env.config.DEVP2P_BOOTSTRAP_PORT).encode('utf-8'))
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
     enode = host_port_pubkey_to_uri(
         env.config.DEVP2P_BOOTSTRAP_HOST, env.config.DEVP2P_BOOTSTRAP_PORT, bootstrap_node_pubkey)
@@ -207,7 +211,8 @@ class P2PNetwork:
         except Exception as e:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
-        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__getNextClusterPeerId())
+        peer = Peer(self.env, reader, writer, self,
+                    self.masterServer, self.__getNextClusterPeerId())
         peer.sendHello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -276,6 +281,7 @@ class P2PNetwork:
 
     def getPeerByClusterPeerId(self, clusterPeerId):
         return self.clusterPeerPool.get(clusterPeerId)
+
 
 if __name__ == '__main__':
     main()
