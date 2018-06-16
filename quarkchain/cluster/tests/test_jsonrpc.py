@@ -448,5 +448,5 @@ class TestJSONRPC(unittest.TestCase):
             resp = sendRequest("getTransactionReceipt", "0x" + tx.getHash().hex() + branch.serialize().hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
             self.assertEqual(resp["status"], "0x0")
-            self.assertEqual(resp["cumulativeGasUsed"], "0x11a44")
+            self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
             self.assertIsNone(resp["contractAddress"])

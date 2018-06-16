@@ -315,7 +315,7 @@ class TestShardState(unittest.TestCase):
                 gasPrice=1))
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - 888888 - opcodes.GTXCOST - opcodes.GTXXSHARDCOST)
         # Make sure the xshard gas is not used by local block
-        self.assertEqual(state.evmState.gas_used, opcodes.GTXCOST)
+        self.assertEqual(state.evmState.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST)
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(state.getBalance(acc3.recipient), opcodes.GTXCOST // 2)
 

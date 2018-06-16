@@ -192,6 +192,8 @@ def apply_transaction(state, tx):
             if tx.startgas < intrinsic_gas:
                 raise InsufficientStartGas(
                     rp(tx, 'startgas', tx.startgas, intrinsic_gas))
+    if tx.isCrossShard():
+        intrinsic_gas += opcodes.GTXXSHARDCOST
 
     log_tx.debug('TX NEW', txdict=tx.to_dict())
 
@@ -256,8 +258,10 @@ def apply_transaction(state, tx):
             state.refunds = 0
         # sell remaining gas
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
-        state.delta_balance(state.block_coinbase, tx.gasprice * gas_used)
-        state.block_fee += tx.gasprice * gas_used
+        # if x-shard, reserve part of the gas for the target shard miner
+        fee = tx.gasprice * (gas_used - (opcodes.GTXXSHARDCOST if tx.isCrossShard() else 0))
+        state.delta_balance(state.block_coinbase, fee)
+        state.block_fee += fee
         if tx.to:
             output = bytearray_to_bytestr(data)
         else:
@@ -266,8 +270,6 @@ def apply_transaction(state, tx):
 
         # TODO: check if the destination address is correct, and consume xshard gas of the state
         # the xshard gas and fee is consumed by destination shard block
-        if tx.isCrossShard():
-            state.delta_balance(tx.sender, -tx.gasprice * opcodes.GTXXSHARDCOST)
 
     state.gas_used += gas_used
 
@@ -359,7 +361,7 @@ def _apply_msg(ext, msg, code):
             pre_storage=ext.log_storage(msg.to),
             static=msg.static, depth=msg.depth)
 
-    # Transfer value, instaquit if not enough
+    # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
         if msg.is_cross_shard:
