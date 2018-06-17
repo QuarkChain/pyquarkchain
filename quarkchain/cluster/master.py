@@ -365,7 +365,7 @@ class MasterServer():
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.rootState = rootState
-        self.network = None  # will be set by SimpleNetworkj
+        self.network = None  # will be set by SimpleNetwork
         self.clusterConfig = env.clusterConfig.CONFIG
 
         # branch value -> a list of slave running the shard

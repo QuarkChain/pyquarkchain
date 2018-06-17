@@ -125,6 +125,12 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             clusterPortStart=get_next_port(),
             seedHost="",
             seedPort=0,
+            devp2p=False,
+            devp2p_port=29000,
+            devp2p_bootstrap_host='0.0.0.0',
+            devp2p_bootstrap_port=29000,
+            devp2p_min_peers=2,
+            devp2p_max_peers=10,
         )
         for j in range(env.config.SHARD_SIZE):
             # skip the ones used by create_cluster_config
