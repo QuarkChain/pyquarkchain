@@ -1022,7 +1022,6 @@ def parse_args():
     env.config.DEVP2P_BOOTSTRAP_PORT = args.devp2p_bootstrap_port
     env.config.DEVP2P_MIN_PEERS = args.devp2p_min_peers
     env.config.DEVP2P_MAX_PEERS = args.devp2p_max_peers
-    env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
     if not args.in_memory_db:
         env.db = PersistentDb(path=args.db_path, clean=args.clean)

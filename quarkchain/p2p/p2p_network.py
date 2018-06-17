@@ -4,6 +4,7 @@ import gevent
 import asyncio
 import ipaddress
 import socket
+import random
 
 from devp2p import peermanager
 from devp2p.app import BaseApp
@@ -60,33 +61,41 @@ class Devp2pService(WiredService):
             self.config['node']['privkey_hex']))
         super(Devp2pService, self).__init__(app)
 
+    '''
+    does not follow style because of DevP2P requirement
+    '''
+
     def on_wire_protocol_stop(self, proto):
         log.info(
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
+        active_peers = self.getPeers()
         self.app.network.loop.create_task(
-            self.app.network.refreshConnections(list(
-                map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+            self.app.network.refreshConnections(active_peers)
         )
-        self.show_peers()
+
+    '''
+    does not follow style because of DevP2P requirement
+    '''
 
     def on_wire_protocol_start(self, proto):
         log.info(
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
+        active_peers = self.getPeers()
         self.app.network.loop.create_task(
-            self.app.network.refreshConnections(list(
-                map(lambda p: p.remote_client_version, self.app.services.peermanager.peers)))
+            self.app.network.refreshConnections(active_peers)
         )
-        self.show_peers()
 
-    def show_peers(self):
-        log.warning("I am {} I have {} peers: {}".format(
+    def getPeers(self):
+        ps = [p for p in self.app.services.peermanager.peers if p]
+        aps = [p for p in ps if not p.is_stopped]
+        log.info("I am {} I have {} peers: {}".format(
             self.app.config['client_version_string'],
-            self.app.services.peermanager.num_peers(),
-            list(map(lambda p: p.remote_client_version,
-                     self.app.services.peermanager.peers))
+            len(aps),
+            [p.remote_client_version for p in aps]
         ))
+        return [p.remote_client_version for p in aps]
 
     def start(self):
         log.info('Devp2pService start')
@@ -156,7 +165,10 @@ def devp2p_app(env, network):
     config['p2p']['listen_port'] = env.config.DEVP2P_PORT
     config['p2p']['min_peers'] = min(10, min_peers)
     config['p2p']['max_peers'] = max_peers
-    config['client_version_string'] = 'NODE{}'.format(env.config.DEVP2P_PORT)
+    ip = ipaddress.ip_address(
+        socket.gethostbyname(socket.gethostname()))
+    config['client_version_string'] = '{}:{}'.format(
+        ip, env.config.P2P_SERVER_PORT)
 
     app = Devp2pApp(config, network)
     log.info('create_app', config=app.config)
@@ -199,10 +211,32 @@ class P2PNetwork:
         await peer.start(isServer=True)
 
     async def refreshConnections(self, peers):
-        Logger.info("Connecting to {} peers: {}".format(
+        Logger.info("Refreshing connections to {} peers: {}".format(
             len(peers),
             peers
         ))
+        # 1. disconnect peers that are not in devp2p peer list
+        to_be_disconnected = []
+        for peerId, peer in self.activePeerPool.items():
+            ip_port = '{}:{}'.format(peer.ip, peer.port)
+            Logger.info(ip_port)
+            if ip_port not in peers:
+                to_be_disconnected.append(peer)
+        Logger.info("disconnecting peers not in devp2p discovery: {}".format(
+            to_be_disconnected
+        ))
+        for peer in to_be_disconnected:
+            peer.close()
+        # 2. connect to peers that are in devp2p peer list
+        await asyncio.sleep(random.uniform(0, 1))
+        active = ['{}:{}'.format(p.ip, p.port) for i,p in self.activePeerPool.items()]
+        to_be_connected = set(peers) - set(active)
+        Logger.info("connecting to peers from devp2p discovery: {}".format(
+            to_be_connected
+        ))
+        for ip_port in to_be_connected:
+            ip, port = ip_port.decode("utf-8").split(':')
+            asyncio.ensure_future(self.connect(ip, port))
 
     async def connect(self, ip, port):
         Logger.info("connecting {} {}".format(ip, port))
@@ -218,26 +252,6 @@ class P2PNetwork:
         if result is not None:
             return None
         return peer
-
-    async def connectSeed(self, ip, port):
-        peer = await self.connect(ip, port)
-        if peer is None:
-            # Fail to connect
-            return
-
-        # Make sure the peer is ready for incoming messages
-        await peer.waitUntilActive()
-        try:
-            op, resp, rpcId = await peer.writeRpcRequest(
-                CommandOp.GET_PEER_LIST_REQUEST, GetPeerListRequest(10))
-        except Exception as e:
-            Logger.logException()
-            return
-
-        Logger.info("connecting {} peers ...".format(len(resp.peerInfoList)))
-        for peerInfo in resp.peerInfoList:
-            asyncio.ensure_future(self.connect(
-                str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
 
     def iteratePeers(self):
         return self.clusterPeerPool.values()
@@ -270,9 +284,6 @@ class P2PNetwork:
             self.local_server = self.loop.run_until_complete(coro)
             Logger.info("Listening on {} for local".format(
                 self.local_server.sockets[0].getsockname()))
-
-        self.loop.create_task(
-            self.connectSeed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
 
     # ------------------------------- Cluster Peer Management --------------------------------
     def __getNextClusterPeerId(self):
