@@ -39,17 +39,17 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean,
-                     devp2p, devp2p_port, devp2p_bootstrap_host, devp2p_bootstrap_port, devp2p_min_peers, devp2p_max_peers):
+async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path={} " \
           "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
           "--devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
               configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort,
-              devp2p_port, devp2p_bootstrap_host, devp2p_bootstrap_port, devp2p_min_peers, devp2p_max_peers)
+              kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
+              kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
         cmd += " --mine=true"
-    if devp2p:
+    if kwargs['devp2p']:
         cmd += " --devp2p=true"
     if clean:
         cmd += " --clean=true"
