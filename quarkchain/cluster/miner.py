@@ -30,12 +30,6 @@ class Miner:
         """Stop the mining process is there is one"""
         self.enabled = False
 
-        if not self.process:
-            return
-        self.input.put((None, None))
-        self.process.join()
-        self.process = None
-
     def mineNewBlockAsync(self):
         if not self.enabled:
             return False

@@ -85,7 +85,7 @@ class DefaultConfig:
         # testnet config
         self.ACCOUNTS_TO_FUND = [Address.createFrom(item["address"]) for item in ACCOUNTS_TO_FUND]
         self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
-        self.LOADTEST_ACCOUNTS = []  # [Address.createFrom(item["address"]) for item in LOADTEST_ACCOUNTS]
+        self.LOADTEST_ACCOUNTS = [(Address.createFrom(item["address"]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
     def setShardSize(self, shardSize):
