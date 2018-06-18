@@ -97,7 +97,7 @@ class Devp2pService(WiredService):
             len(aps),
             [p.remote_client_version for p in aps]
         ))
-        return [p.remote_client_version for p in aps]
+        return [p.remote_client_version.decode("utf-8") for p in aps]
 
     def start(self):
         log.info('Devp2pService start')
@@ -167,10 +167,8 @@ def devp2p_app(env, network):
     config['p2p']['listen_port'] = env.config.DEVP2P_PORT
     config['p2p']['min_peers'] = min(10, min_peers)
     config['p2p']['max_peers'] = max_peers
-    ip = ipaddress.ip_address(
-        socket.gethostbyname(socket.gethostname()))
-    config['client_version_string'] = '{}:{}'.format(
-        ip, env.config.P2P_SERVER_PORT)
+    ip = network.ip
+    config['client_version_string'] = '{}:{}'.format(ip, network.port)
 
     app = Devp2pApp(config, network)
     log.info('create_app', config=app.config)
@@ -230,15 +228,22 @@ class P2PNetwork:
         for peer in to_be_disconnected:
             peer.close()
         # 2. connect to peers that are in devp2p peer list
-        await asyncio.sleep(random.uniform(0, 1))
+        # only initiate connections from smaller of ip_port,
+        # to avoid peers trying to connect each other at the same time
         active = ['{}:{}'.format(p.ip, p.port) for i,p in self.activePeerPool.items()]
         to_be_connected = set(peers) - set(active)
         Logger.info("connecting to peers from devp2p discovery: {}".format(
             to_be_connected
         ))
+        self_ip_port = '{}:{}'.format(self.ip, self.port)
         for ip_port in to_be_connected:
-            ip, port = ip_port.decode("utf-8").split(':')
-            asyncio.ensure_future(self.connect(ip, port))
+            if self_ip_port < ip_port:
+                ip, port = ip_port.split(':')
+                asyncio.ensure_future(self.connect(ip, port))
+            else:
+                Logger.info("skipping {} to prevent concurrent peer initialization".format(
+                    ip_port
+                ))
 
     async def connect(self, ip, port):
         Logger.info("connecting {} {}".format(ip, port))
