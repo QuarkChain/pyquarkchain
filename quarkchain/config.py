@@ -26,7 +26,7 @@ class DefaultConfig:
         self.LOCAL_SERVER_PORT = 38391
         self.LOCAL_SERVER_ENABLE = False
         self.SHARD_SIZE = 8
-        self.SHARD_SIZE_BITS = 2
+        self.SHARD_SIZE_BITS = int_left_most_bit(self.SHARD_SIZE) - 1
 
         # Difficulty related
         self.DIFF_MA_INTERVAL = 60

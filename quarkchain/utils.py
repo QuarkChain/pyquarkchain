@@ -1,6 +1,6 @@
 import asyncio
 import ctypes
-import sha3
+from ethereum.utils import sha3_256 as _sha3_256
 import logging
 import time
 import traceback
@@ -38,7 +38,7 @@ def sha3_256(x):
         x = bytes(x)
     if not isinstance(x, bytes):
         raise RuntimeError("sha3_256 only accepts bytes or bytearray")
-    return sha3.keccak_256(x).digest()
+    return _sha3_256(x)
 
 
 def check(condition):

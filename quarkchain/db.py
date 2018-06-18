@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import copy
-import leveldb
+import plyvel
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
 from functools import lru_cache
@@ -167,31 +167,25 @@ class PersistentDb(Db):
 
     def __init__(self, path="./db", clean=False):
         if clean:
-            leveldb.DestroyDB(path)
-        self.db = leveldb.LevelDB(path)
+            plyvel.destroy_db(path)
+        self.db = plyvel.DB(path, create_if_missing=True)
 
     def rangeIter(self, start, end):
-        for k, v in self.db.RangeIter(start, end):
+        for k, v in self.db.iterator(start, end):
             yield bytes(k), bytes(v)
 
     def get(self, key, default=None):
-        try:
-            return bytes(self.db.Get(key))
-        except KeyError:
-            return default
+        value = self.db.get(key)
+        return default if value is None else value
 
     def put(self, key, value):
-        self.db.Put(key, value)
+        self.db.put(key, value)
 
     def remove(self, key):
-        self.db.Delete(key)
+        self.db.delete(key)
 
     def __contains__(self, key):
-        try:
-            self.db.Get(key)
-            return True
-        except KeyError:
-            return False
+        return self.db.get(key) is not None
 
     def close(self):
         # No close option in leveldb?
