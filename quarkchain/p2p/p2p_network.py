@@ -70,7 +70,8 @@ class Devp2pService(WiredService):
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
         active_peers = self.getPeers()
-        self.app.network.loop.create_task(
+        self.app.network.loop.call_soon_threadsafe(
+            asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
         )
 
@@ -83,7 +84,8 @@ class Devp2pService(WiredService):
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
         active_peers = self.getPeers()
-        self.app.network.loop.create_task(
+        self.app.network.loop.call_soon_threadsafe(
+            asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
         )
 
