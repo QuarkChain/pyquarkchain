@@ -7,13 +7,23 @@ Django==2.0.0
 django-extensions==2.0.0
 decorator==4.2.1
 ecdsa==0.13
-ethereum==2.3.1
 gitpython==2.1.9
 jsonrpcclient==2.5.2
 jsonrpcserver==3.5.4
-leveldb==0.194
 numpy==1.14.0
+plyvel==1.0.4
 protobuf==3.6.0
 psutil==5.4.5
-pysha3==1.0.2
 requests==2.18.4
+
+# Dependencies pulled from pyethereum @87251ebce72e1f4b94c4671a1b7c4bcd64e459a7
+# We do this because ethereum depends on pysha3 which isn't supported in pypy.
+# And thus we pull in the source code directly and remove the dependency on pysha3.
+# TODO: remove dependencies on ethereum
+future
+pbkdf2
+py_ecc
+pycryptodome>=3.4.7
+PyYAML
+repoze.lru
+scrypt

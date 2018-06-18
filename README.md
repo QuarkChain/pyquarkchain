@@ -2,7 +2,9 @@
 
 ## Development Setup
 
-(Mac OS X) [install python3](http://docs.python-guide.org/en/latest/starting/install3/osx/)
+QuarkChain is configured to be run with [pypy](http://pypy.org/index.html) for better performance.
+
+To install pypy3 on Mac, first install [Homebrew](https://brew.sh/) and then ``` brew install pypy3```
 
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project.
 The packages installed later will only affect this environment.
@@ -10,25 +12,27 @@ The packages installed later will only affect this environment.
 To create a virtual environment
 ```
 mkdir ~/virtualenv
-python3 -m venv ~/virtualenv/qc
+pypy3 -m venv ~/virtualenv/qc
 ```
-As the virtual env is created with python3 once the env is activated all the python and pip commands will point to their python3 versions automatically.
+As the virtual env is created with pypy3 once the env is activated all the python and pip commands will point to their pypy3 versions automatically.
 
 To activate the virtual environment
 ```
 source ~/virtualenv/qc/bin/activate
 ```
-To install the required packages for the project. Under the same directory where setup.py is located.
+To install the required packages for the project. Under pyquarkchain dir where setup.py is located
 ```
 pip install -e .
 ```
 
-Running network
+Start running a cluster
 ```
-python simple_network.py
+cd quarkchain/cluster
+pypy3 cluster.py --mine=true
 ```
 
 ## Docker Deployment
+####TODO: update this section with pypy command
 First [install docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
 
 Build docker image

@@ -69,16 +69,14 @@ def test_perf_evm():
         fromId = idList[random.randint(0, IDN - 1)]
         toAddr = accList[random.randint(0, IDN - 1)]
         evmTx = EvmTransaction(
-            branchValue=1,
             nonce=0,
             gasprice=1,
             startgas=2,
             to=toAddr.recipient,
             value=3,
             data=b'',
-            withdrawSign=1,
-            withdraw=0,
-            withdrawTo=b'',
+            fromFullShardId=0,
+            toFullShardId=0,
             networkId=1)
         evmTx.sign(
             key=fromId.getKey())
