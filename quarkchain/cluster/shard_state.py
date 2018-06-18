@@ -1,4 +1,3 @@
-import os
 import random
 import time
 from collections import deque
@@ -13,7 +12,7 @@ from quarkchain.cluster.core import (
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.cluster.rpc import ShardStats
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Constant, Transaction
+from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Transaction
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
 from quarkchain.evm.state import State as EvmState
@@ -421,10 +420,6 @@ class ShardState:
         if ephemeral:
             state = state.ephemeral_clone()
         state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
-        state.txindex = 0
-        state.gas_used = 0
-        state.bloom = 0
-        state.receipts = []
         state.timestamp = block.header.createTime
         state.gas_limit = block.meta.evmGasLimit  # TODO
         state.block_number = block.header.height
@@ -631,6 +626,10 @@ class ShardState:
         if evmState.gas_used != block.meta.evmGasUsed:
             raise ValueError("Gas used mismatch: header %d computed %d" %
                              (block.meta.evmGasUsed, evmState.gas_used))
+
+        if evmState.xshard_receive_gas_used != block.meta.evmCrossShardReceiveGasUsed:
+            raise ValueError("X-shard gas used mismatch: header %d computed %d" %
+                             (block.meta.evmCrossShardReceiveGasUsed, evmState.xshard_receive_gas_used))
 
         # The rest fee goes to root block
         if evmState.block_fee // 2 != block.header.coinbaseAmount:
@@ -944,6 +943,7 @@ class ShardState:
                 evmState.gas_limit)
             evmState.block_fee += opcodes.GTXXSHARDCOST * tx.gasPrice
             evmState.delta_balance(evmState.block_coinbase, opcodes.GTXXSHARDCOST * tx.gasPrice)
+        evmState.xshard_receive_gas_used = evmState.gas_used
 
     def __includeCrossShardTxList(self, evmState, descendantRootHeader, ancestorRootHeader):
         """ Include cross-shard transaction as much as possible by confirming root header as much as possible
@@ -983,8 +983,8 @@ class ShardState:
             # Move to next root block header
             rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
 
-            # TODO: Check x-shard gas used is within limit
-            # TODO: Refill local x-shard gas
+        check(evmState.gas_used <= evmState.gas_limit)
+        # TODO: Refill local x-shard gas
 
     def containRemoteMinorBlockHash(self, h):
         return self.db.containRemoteMinorBlockHash(h)

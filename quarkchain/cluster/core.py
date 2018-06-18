@@ -57,6 +57,7 @@ class MinorBlockMeta(Serializable):
         ("coinbaseAddress", Address),
         ("evmGasLimit", uint256),
         ("evmGasUsed", uint256),
+        ("evmCrossShardReceiveGasUsed", uint256),
         ("extraData", PreprendedSizeBytesSerializer(2)),
     ]
 
@@ -67,6 +68,7 @@ class MinorBlockMeta(Serializable):
                  coinbaseAddress=Address.createEmptyAccount(),
                  evmGasLimit=100000000000,
                  evmGasUsed=0,
+                 evmCrossShardReceiveGasUsed=0,
                  extraData=b''):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
@@ -139,6 +141,7 @@ class MinorBlock(Serializable):
             self.header.hashPrevRootBlock = hashPrevRootBlock
         self.meta.hashEvmStateRoot = evmState.trie.root_hash
         self.meta.evmGasUsed = evmState.gas_used
+        self.meta.evmCrossShardReceiveGasUsed = evmState.xshard_receive_gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
         self.finalizeMerkleRoot()
         self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts, evmState.db)
@@ -161,10 +164,10 @@ class MinorBlock(Serializable):
         else:
             contractAddress = Address.createEmptyAccount(fullShardId=0)
 
-        prevGasUsed = 0
         if i > 0:
-            prevReceipt = rlp.decode(t.get(rlp.encode(i - 1)), quarkchain.evm.messages.Receipt)
-            prevGasUsed = prevReceipt.gas_used
+            prevGasUsed = rlp.decode(t.get(rlp.encode(i - 1)), quarkchain.evm.messages.Receipt).gas_used
+        else:
+            prevGasUsed = self.meta.evmCrossShardReceiveGasUsed
 
         return TransactionReceipt(receipt.state_root, receipt.gas_used, prevGasUsed, contractAddress, receipt.bloom)
 

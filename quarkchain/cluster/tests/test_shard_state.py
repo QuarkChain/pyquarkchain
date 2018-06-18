@@ -42,7 +42,7 @@ class TestShardState(unittest.TestCase):
         res = state.executeTx(tx)
         self.assertEqual(res, b'')
 
-    def testAddTxIncorrentFromShardId(self):
+    def testAddTxIncorrectFromShardId(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=1)
         acc2 = Address.createRandomAccount(fullShardId=1)
@@ -399,6 +399,10 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2)
 
+        # X-shard gas used
+        evmState0 = state0.evmState
+        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
     def testXshardForTwoRootBlocks(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
@@ -450,15 +454,6 @@ class TestShardState(unittest.TestCase):
         state0.finalizeAndAddBlock(b2)
 
         b3 = b1.createBlockToAppend()
-        evmTx = create_transfer_transaction(
-            shardState=state1,
-            key=id1.getKey(),
-            fromAddress=acc2,
-            toAddress=acc1,
-            value=385723,
-            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-            gasPrice=3,
-        )
 
         # Add a x-shard tx from remote peer
         state0.addCrossShardTxListByMinorBlockHash(
@@ -496,6 +491,10 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.getBalance(acc1.recipient), 10000000 + 888888 + 385723)
         # Half collected by root
         self.assertEqual(state0.getBalance(acc3.recipient), opcodes.GTXXSHARDCOST * (2 + 3) // 2)
+
+        # Check gas used for receiving x-shard tx
+        self.assertEqual(state0.evmState.gas_used, 18000)
+        self.assertEqual(state0.evmState.xshard_receive_gas_used, 18000)
 
     def testForkResolve(self):
         id1 = Identity.createRandomIdentity()

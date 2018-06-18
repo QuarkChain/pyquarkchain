@@ -394,6 +394,49 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
             self.assertIsNone(resp["contractAddress"])
 
+    def testGetTransactionReceiptOnXShardTransfer(self):
+        id1 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createFromIdentity(id1, fullShardId=1)
+
+        with ClusterContext(1, acc1) as clusters, JSONRPCServerContext(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slaveList
+
+            s1, s2 = slaves[0].shardStateMap[2], slaves[1].shardStateMap[3]
+            txGen = lambda s, f, t: create_transfer_transaction(
+                shardState=s,
+                key=id1.getKey(),
+                fromAddress=f,
+                toAddress=t,
+                gas=21000 if f == t else 30000,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].addTx(txGen(s1, acc1, acc2)))
+            _, b1 = call_async(master.getNextBlockToMine(address=acc1))
+            self.assertTrue(call_async(slaves[0].addBlock(b1)))
+            _, b2 = call_async(master.getNextBlockToMine(address=acc2))
+            self.assertTrue(call_async(slaves[1].addBlock(b2)))
+            _, rB = call_async(master.getNextBlockToMine(address=acc1, preferRoot=True))
+
+            call_async(master.addRootBlock(rB))
+
+            tx = txGen(s2, acc2, acc2)
+            self.assertTrue(slaves[1].addTx(tx))
+            _, b3 = call_async(master.getNextBlockToMine(address=acc2))
+            self.assertTrue(call_async(slaves[1].addBlock(b3)))
+
+            # in-shard tx 21000 + receiving x-shard tx 9000
+            self.assertEqual(s2.evmState.gas_used, 30000)
+            self.assertEqual(s2.evmState.xshard_receive_gas_used, 9000)
+            resp = sendRequest("getTransactionReceipt",
+                               "0x" + tx.getHash().hex() + acc2.fullShardId.to_bytes(4, "big").hex())
+            self.assertEqual(resp["transactionHash"], "0x" + tx.getHash().hex())
+            self.assertEqual(resp["status"], "0x1")
+            self.assertEqual(resp["cumulativeGasUsed"], hex(30000))
+            self.assertEqual(resp["gasUsed"], hex(21000))
+            self.assertIsNone(resp["contractAddress"])
+
     def testGetTransactionReceiptOnContractCreation(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
