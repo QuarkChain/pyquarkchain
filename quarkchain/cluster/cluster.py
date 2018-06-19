@@ -40,7 +40,7 @@ def dump_config_to_file(config):
 
 
 async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
-    cmd = "pypy3 master.py --cluster_config={} --db_path={} " \
+    cmd = "python master.py --cluster_config={} --db_path={} " \
           "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
           "--devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
@@ -57,7 +57,7 @@ async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, 
 
 
 async def run_slave(port, id, shardMaskList, dbPath, clean):
-    cmd = "pypy3 slave.py --node_port={} --shard_mask={} --node_id={} --db_path={}".format(
+    cmd = "python slave.py --node_port={} --shard_mask={} --node_id={} --db_path={}".format(
         port, shardMaskList[0], id, dbPath)
     if clean:
         cmd += " --clean=true"
