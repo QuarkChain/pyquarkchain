@@ -5,13 +5,12 @@ import sys
 import pyelliptic
 
 import bitcoin
-import sha3 as _sha3
 from rlp.utils import str_to_bytes, safe_ord, ascii_chr
 from hashlib import sha256
 import struct
 from coincurve import PrivateKey, PublicKey
 
-sha3_256 = lambda x: _sha3.keccak_256(x).digest()
+from ethereum.utils import sha3_256
 
 hmac_sha256 = pyelliptic.hmac_sha256
 

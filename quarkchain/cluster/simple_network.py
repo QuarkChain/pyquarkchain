@@ -1,4 +1,3 @@
-import argparse
 import asyncio
 import ipaddress
 import socket
@@ -49,9 +48,17 @@ class Peer(P2PConnection):
         self.writeCommand(CommandOp.HELLO, cmd)
 
     async def start(self, isServer=False):
+        '''
+        race condition may arise when two peers connecting each other at the same time
+        to resolve: 1. acquire asyncio lock (what if the corotine holding the lock failed?)
+        2. disconnect whenever duplicates are detected, right after await (what if both connections are disconnected?)
+        3. only initiate connection from one side, eg. from smaller of ip_port; in SimpleNetwork, from new nodes only
+        3 is the way to go
+        '''
         op, cmd, rpcId = await self.readCommand()
         if op is None:
             assert(self.state == ConnectionState.CLOSED)
+            Logger.info("Failed to read command, peer may have closed connection")
             return "Failed to read command"
 
         if op != CommandOp.HELLO:

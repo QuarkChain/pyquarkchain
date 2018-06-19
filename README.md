@@ -39,7 +39,13 @@ export CPPFLAGS="-I/usr/local/opt/openssl/include"
 Start running a cluster
 ```bash
 cd quarkchain/cluster
-pypy3 cluster.py --mine=true
+pypy3 cluster.py --mine=True
+```
+
+Running with P2P network: 1. bootstrap node; 2. another node
+```
+pypy3 cluster.py --devp2p=True (--mine=True)
+pypy3 cluster.py --devp2p=True --db_prefix=./dbx --port_start=39000 --p2p_port=39291 --json_rpc_port=39391 --devp2p_port=29001
 ```
 
 ## Docker Deployment
@@ -60,23 +66,6 @@ python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
 Run network outside docker
 ```
 docker run -t quarkchain python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
-```
-
-## Running with P2P Network
-
-1. install pydevp2p, pyquarkchain
-```
-python setup.py install; cd pydevp2p; python setup.py install; cd ..
-```
-2. Run three or more pyquarkchain instance
-```
-python quarkchain/p2pnetwork.py --i_am_seed=true
-python quarkchain/p2pnetwork.py --db_path=./db1 --enable_local_server=true --local_port=5858
-python quarkchain/p2pnetwork.py --db_path=./db2
-```
-3. Run miner
-```
-python quarkchain/miner.py --local_port=5858
 ```
 
 
@@ -117,6 +106,3 @@ p7. You can run supervisor commands on the container without having to SSH, like
 docker exec quarkchain supervisorctl restart uwsgi
 docker exec quarkchain supervisorctl restart all
 ```
-
-
-

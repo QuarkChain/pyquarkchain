@@ -39,12 +39,18 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean):
+async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path={} " \
-          "--server_port={} --local_port={} --seed_host={} --seed_port={}".format(
-              configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort)
+          "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
+          "--devp2p_port={} --devp2p_bootstrap_host={} " \
+          "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
+              configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort,
+              kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
+              kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
         cmd += " --mine=true"
+    if kwargs['devp2p']:
+        cmd += " --devp2p=true"
     if clean:
         cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -94,7 +100,13 @@ class Cluster:
             seedHost=self.config["master"]["seed_host"],
             seedPort=self.config["master"]["seed_port"],
             mine=self.mine,
-            clean=self.clean)
+            clean=self.clean,
+            devp2p=self.config["master"]["devp2p"],
+            devp2p_port=self.config["master"]["devp2p_port"],
+            devp2p_bootstrap_host=self.config["master"]["devp2p_bootstrap_host"],
+            devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
+            devp2p_min_peers=self.config["master"]["devp2p_min_peers"],
+            devp2p_max_peers=self.config["master"]["devp2p_max_peers"])
         asyncio.ensure_future(print_output("MASTER", master.stdout))
         self.procs.append(("MASTER", master))
 
@@ -152,6 +164,18 @@ def main():
         "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT)
     parser.add_argument(
         "--clean", default=False)
+    parser.add_argument(
+        "--devp2p", default=False, type=bool)
+    parser.add_argument(
+        "--devp2p_port", default=29000, type=int)
+    parser.add_argument(
+        "--devp2p_bootstrap_host", default='0.0.0.0', type=str)
+    parser.add_argument(
+        "--devp2p_bootstrap_port", default=29000, type=int)
+    parser.add_argument(
+        "--devp2p_min_peers", default=2, type=int)
+    parser.add_argument(
+        "--devp2p_max_peers", default=10, type=int)
 
     args = parser.parse_args()
 
@@ -168,6 +192,12 @@ def main():
             seedHost=args.seed_host,
             seedPort=args.seed_port,
             dbPrefix=args.db_prefix,
+            devp2p=args.devp2p,
+            devp2p_port=args.devp2p_port,
+            devp2p_bootstrap_host=args.devp2p_bootstrap_host,
+            devp2p_bootstrap_port=args.devp2p_bootstrap_port,
+            devp2p_min_peers=args.devp2p_min_peers,
+            devp2p_max_peers=args.devp2p_max_peers,
         )
         if not config:
             return -1
