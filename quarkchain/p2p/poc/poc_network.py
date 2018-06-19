@@ -10,7 +10,7 @@ PORT = 55000
 
 
 async def run_app(bootstrap_port, node_port, node_num, min_peers, max_peers):
-    cmd = "pypy3 poc_app.py --bootstrap_port={} --node_port={} "\
+    cmd = "python poc_app.py --bootstrap_port={} --node_port={} "\
           "--node_num={} --min_peers={} --max_peers={}".format(
               bootstrap_port, node_port, node_num, min_peers, max_peers)
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
