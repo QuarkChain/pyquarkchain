@@ -105,6 +105,9 @@ class Devp2pService(WiredService):
 
 
 class Devp2pApp(BaseApp):
+    '''
+    App running on top of DevP2P network, handles node discovery
+    '''
     client_name = 'devp2papp'
     version = '0.1'
     client_version = '%s/%s/%s' % (version, sys.platform,
