@@ -32,8 +32,8 @@ def get_test_env(
     env.db = InMemoryDb()
     env.setNetworkId(1234567890)
 
-    env.config.ACCOUNTS_TO_FUND = None
-    env.config.LOADTEST_ACCOUNTS = None
+    env.config.ACCOUNTS_TO_FUND = []
+    env.config.LOADTEST_ACCOUNTS = []
     return env
 
 

@@ -541,6 +541,12 @@ class JSONRPCServer:
 
     @methods.add
     async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, numMiners, seconds):
+        """This RPC can be used in a few ways (TODO: make this more explicit)
+        1. (*, *, 0, 0) will stop mining
+        2. (999, x, n, 1) will generate 12000 transactions for each shard where x is the percentage of cross-shard tx
+           n is the total number of miners of a shard / root chain
+        4. (*, *, n, *) will update the number of miners so that the block time can be simulated correctly
+        """
         return await self.master.setArtificialTxConfig(numTxPerBlock, xShardTxPercent, numMiners, seconds)
 
     @methods.add

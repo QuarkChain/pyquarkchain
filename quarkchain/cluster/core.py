@@ -66,7 +66,7 @@ class MinorBlockMeta(Serializable):
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmReceiptRoot=bytes(Constant.HASH_LENGTH),
                  coinbaseAddress=Address.createEmptyAccount(),
-                 evmGasLimit=100000000000,
+                 evmGasLimit=30000 * 400,  # 400 xshard tx
                  evmGasUsed=0,
                  evmCrossShardReceiveGasUsed=0,
                  extraData=b''):

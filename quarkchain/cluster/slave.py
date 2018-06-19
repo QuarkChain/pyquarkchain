@@ -35,11 +35,12 @@ from quarkchain.cluster.rpc import (
 )
 
 from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.p2p_commands import (
     CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse,
-    GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse,
+    GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse, NewTransactionListCommand
 )
 from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb, ShardedDb
@@ -247,6 +248,15 @@ class ShardConnection(VirtualConnection):
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.shardState.rootTip, [self.shardState.headerTip]))
 
+    async def handleNewTransactionListCommand(self, opCode, cmd, rpcId):
+        self.slaveServer.addTxList(cmd.transactionList, self)
+
+    def broadcastTxList(self, txList):
+        self.writeCommand(
+            op=CommandOp.NEW_TRANSACTION_LIST,
+            cmd=NewTransactionListCommand(txList),
+        )
+
     def getMetadataToWrite(self, metadata):
         ''' Override VirtualConnection.getMetadataToWrite()
         '''
@@ -256,6 +266,7 @@ class ShardConnection(VirtualConnection):
 # P2P command definitions
 OP_NONRPC_MAP = {
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: ShardConnection.handleNewMinorBlockHeaderListCommand,
+    CommandOp.NEW_TRANSACTION_LIST: ShardConnection.handleNewTransactionListCommand,
 }
 
 
@@ -420,7 +431,6 @@ class MasterConnection(ClusterConnection):
 
         block = self.shardStateMap[branchValue].createBlockToMine(
             address=req.address,
-            artificialTxConfig=req.artificialTxConfig,
         )
         response = GetNextBlockToMineResponse(
             errorCode=0,
@@ -520,6 +530,15 @@ class MasterConnection(ClusterConnection):
                 continue
 
             connMap[branch.value].broadcastNewTip()
+
+    def broadcastTxList(self, branch, txList, shardConn=None):
+        for clusterPeerId, connMap in self.vConnMap.items():
+            if branch.value not in connMap:
+                Logger.error("Cannot find branch {} in conn {}".format(branch.value, clusterPeerId))
+                continue
+            if shardConn == connMap[branch.value]:
+                continue
+            connMap[branch.value].broadcastTxList(txList)
 
     async def handleGetMinorBlockRequest(self, req):
         if req.minorBlockHash != bytes(32):
@@ -725,6 +744,7 @@ class SlaveServer():
         self.name = name
 
         self.artificialTxConfig = None
+        self.txGenMap = dict()
         self.minerMap = dict()  # branchValue -> Miner
         self.shardStateMap = dict()  # branchValue -> ShardState
         self.__initShardStateMapAndMinerMap()
@@ -754,13 +774,13 @@ class SlaveServer():
                 )
             )
             self.__initMiner(branchValue)
+            self.txGenMap[branchValue] = TransactionGenerator(Branch(branchValue), self)
 
     def __initMiner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
 
         async def __createBlock():
-            return self.shardStateMap[branchValue].createBlockToMine(
-                address=minerAddress, artificialTxConfig=self.artificialTxConfig)
+            return self.shardStateMap[branchValue].createBlockToMine(address=minerAddress)
 
         def __getTargetBlockTime():
             return self.env.config.MINOR_BLOCK_INTERVAL_SEC * max(1, self.artificialTxConfig.numMiners)
@@ -787,6 +807,10 @@ class SlaveServer():
             ))
             miner.enable()
             miner.mineNewBlockAsync();
+
+            # A magic number to trigger load test
+            if artificialTxConfig.numTxPerBlock == 999:
+                self.txGenMap[branchValue].generate(artificialTxConfig.xShardTxPercent)
 
     def stopMining(self):
         for branchValue, miner in self.minerMap.items():
@@ -1019,6 +1043,14 @@ class SlaveServer():
         self.minerMap[branchValue].mineNewBlockAsync()
 
         return True
+
+    def addTxList(self, txList, shardConn=None):
+        evmTx = txList[0].code.getEvmTransaction()
+        evmTx.setShardSize(self.__getShardSize())
+        branchValue = evmTx.fromShardId() | self.__getShardSize()
+        for tx in txList:
+            self.addTx(tx)
+        self.master.broadcastTxList(Branch(branchValue), txList, shardConn)
 
     def addTx(self, tx):
         evmTx = tx.code.getEvmTransaction()

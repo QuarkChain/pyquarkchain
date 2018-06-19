@@ -395,8 +395,11 @@ class ShardState:
         txHash = tx.getHash()
         if txHash in self.txDict:
             return False
+
+        evmState = self.evmState.ephemeral_clone()
+        evmState.gas_used = 0
         try:
-            evmTx = self.__validateTx(tx, self.evmState)
+            evmTx = self.__validateTx(tx, evmState)
             self.txQueue.add_transaction(evmTx)
             self.txDict[txHash] = tx
             return True
@@ -406,6 +409,7 @@ class ShardState:
 
     def executeTx(self, tx: Transaction) -> Optional[bytes]:
         state = self.evmState.ephemeral_clone()
+        state.gas_used = 0
         try:
             evmTx = self.__validateTx(tx, state)
             evmTx.setShardSize(self.branch.getShardSize())
@@ -429,7 +433,7 @@ class ShardState:
         state.block_coinbase = block.meta.coinbaseAddress.recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
-        state.prev_headers = []                          # TODO: state.add_block_header(block.header)
+        state.prev_headers = []  # TODO: state.add_block_header(block.header)
         return state
 
     def __isSameMinorChain(self, longerBlockHeader, shorterBlockHeader):
@@ -601,6 +605,7 @@ class ShardState:
         Returns a list of CrossShardTransactionDeposit from block.
         Raises on any error.
         """
+        startTime = time.time()
         if self.headerTip.height - block.header.height > 700:
             Logger.info("[{}] drop old block {} << {}".format(block.header.height, self.headerTip.height))
             return None
@@ -665,7 +670,11 @@ class ShardState:
             self.metaTip = block.meta
 
         check(self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
+        endTime = time.time()
 
+        Logger.debug("Add block took {} seconds for {} tx".format(
+            endTime - startTime, len(block.txList)
+        ))
         return evmState.xshard_list
 
     def getTip(self):
@@ -731,34 +740,24 @@ class ShardState:
         headerList.reverse()
         return headerList
 
-    def __addArtificialTx(self, block, evmState, artificialTxConfig):
-        numTx = max(0, int(artificialTxConfig.numTxPerBlock * random.uniform(0.8, 1.2)))
-        if numTx <= 0:
-            return
-
-        shardMask = self.branch.getShardSize() - 1
-        fromFullShardId = evmState.get_full_shard_id(evmState.block_coinbase)
-        check(self.branch.getShardId() == fromFullShardId & shardMask)
-        for i in range(numTx):
-            toShard = self.branch.getShardId()
+    def __addTransactionsToFundLoadtestAccounts(self, block, evmState):
+        height = block.header.height
+        startIndex = (height - 2) * 500
+        for i in range(500):
+            index = startIndex + i
+            if index >= len(self.env.config.LOADTEST_ACCOUNTS):
+                return
+            address, key = self.env.config.LOADTEST_ACCOUNTS[index]
             gas = 21000
-            if random.randint(1, 100) <= artificialTxConfig.xShardTxPercent:
-                # x-shard tx
-                gas = 30000
-                toShard = random.randint(0, self.env.config.SHARD_SIZE - 1)
-                if toShard == self.branch.getShardId():
-                    toShard = (toShard + 1) % self.env.config.SHARD_SIZE
-            toFullShardId = (fromFullShardId & (~shardMask)) | toShard
-
             evmTx = EvmTransaction(
                 nonce=evmState.get_nonce(evmState.block_coinbase),
                 gasprice=3 * (10 ** 9),
                 startgas=gas,
-                to=evmState.block_coinbase,
-                value=random.randint(1, 10000) * self.env.config.QUARKSH_TO_JIAOZI,
+                to=address.recipient,
+                value=10 * (10 ** 18),
                 data=b'',
-                fromFullShardId=fromFullShardId,
-                toFullShardId=toFullShardId,
+                fromFullShardId=self.branch.getShardId(),
+                toFullShardId=self.branch.getShardId(),
                 networkId=self.env.config.NETWORK_ID,
             )
             evmTx.sign(key=self.env.config.GENESIS_KEY)
@@ -770,9 +769,10 @@ class ShardState:
                 Logger.errorException()
                 return
 
-    def createBlockToMine(self, createTime=None, address=None, includeTx=True, artificialTxConfig=None, gasLimit=None):
+    def createBlockToMine(self, createTime=None, address=None, gasLimit=None):
         """ Create a block to append and include TXs to maximize rewards
         """
+        startTime = time.time()
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)
         difficulty = self.getNextBlockDifficulty(createTime)
@@ -783,13 +783,16 @@ class ShardState:
         )
 
         evmState = self.__getEvmStateForNewBlock(block)
-        prevHeader = self.headerTip
-
-        ancestorRootHeader = self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)
-        check(self.__isSameRootChain(self.rootTip, ancestorRootHeader))
         if gasLimit is not None:
             # Set gasLimit.  Since gas limit is auto adjusted between blocks, this is for test purpose only.
             evmState.gas_limit = gasLimit
+
+        self.__addTransactionsToFundLoadtestAccounts(block, evmState)
+
+        prevHeader = self.headerTip
+        ancestorRootHeader = self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)
+        check(self.__isSameRootChain(self.rootTip, ancestorRootHeader))
+
         block.header.hashPrevRootBlock = self.__includeCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=self.rootTip,
@@ -816,9 +819,6 @@ class ShardState:
         for evmTx in popedTxs:
             self.txQueue.add_transaction(evmTx)
 
-        if artificialTxConfig:
-            self.__addArtificialTx(block, evmState, artificialTxConfig)
-
         # Put only half of block fee to coinbase address
         check(evmState.get_balance(evmState.block_coinbase) >= evmState.block_fee)
         evmState.delta_balance(evmState.block_coinbase, -evmState.block_fee // 2)
@@ -827,6 +827,11 @@ class ShardState:
         evmState.commit()
 
         block.finalize(evmState=evmState)
+
+        endTime= time.time()
+        Logger.debug("Create block to mine took {} seconds for {} tx".format(
+            endTime - startTime, len(block.txList)
+        ))
         return block
 
     def getBlockByHash(self, h):
@@ -975,7 +980,7 @@ class ShardState:
                     "incorrect ancestor root header: expected {}, actual {}",
                     rHeader.getHash().hex(),
                     ancestorRootHeader.getHash().hex())
-            if evmState.gas_used == evmState.gas_limit:
+            if evmState.gas_used > evmState.gas_limit:
                 raise ValueError("gas consumed by cross-shard tx exceeding limit")
 
             self.__runOneCrossShardTxListByRootBlockHash(rHeader.getHash(), evmState)

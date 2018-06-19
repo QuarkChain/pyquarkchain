@@ -39,6 +39,7 @@ class TestShardState(unittest.TestCase):
             toAddress=acc2,
             value=12345,
         )
+        state.evmState.gas_used = state.evmState.gas_limit
         res = state.executeTx(tx)
         self.assertEqual(res, b'')
 
@@ -78,15 +79,21 @@ class TestShardState(unittest.TestCase):
             fromAddress=acc1,
             toAddress=acc2,
             value=12345,
+            gas=50000,
         )
-        state.addTx(tx)
+        state.evmState.gas_used = state.evmState.gas_limit
+        self.assertTrue(state.addTx(tx))
 
         block, i = state.getTransactionByHash(tx.getHash())
         self.assertEqual(block.txList[0], tx)
         self.assertEqual(block.header.createTime, 0)
         self.assertEqual(i, 0)
 
-        b1 = state.createBlockToMine(address=acc3)
+        # tx claims to use more gas than the limit and thus not included
+        b1 = state.createBlockToMine(address=acc3, gasLimit=49999)
+        self.assertEqual(len(b1.txList), 0)
+
+        b1 = state.createBlockToMine(address=acc3, gasLimit=50000)
         self.assertEqual(len(b1.txList), 1)
 
         # Should succeed
@@ -224,6 +231,7 @@ class TestShardState(unittest.TestCase):
             fromAddress=acc1,
             toAddress=Address(acc2.recipient, acc2.fullShardId + 2),  # set a different full shard id
             value=12345,
+            gas=50000,
         ))
         state.addTx(create_transfer_transaction(
             shardState=state,
@@ -231,8 +239,11 @@ class TestShardState(unittest.TestCase):
             fromAddress=acc2,
             toAddress=acc1,
             value=54321,
+            gas=40000,
         ))
-        b1 = state.createBlockToMine(address=acc3)
+        b1 = state.createBlockToMine(address=acc3, gasLimit=40000)
+        self.assertEqual(len(b1.txList), 1)
+        b1 = state.createBlockToMine(address=acc3, gasLimit=90000)
         self.assertEqual(len(b1.txList), 2)
 
         # Should succeed

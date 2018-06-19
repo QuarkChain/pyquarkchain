@@ -1026,7 +1026,7 @@ def main():
 
     # kick off mining
     if mine:
-        master.defaultArtificialTxConfig = ArtificialTxConfig(10, 3)
+        master.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
         asyncio.ensure_future(master.startMining())
 
     network = SimpleNetwork(env, master)
