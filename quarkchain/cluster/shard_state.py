@@ -783,20 +783,23 @@ class ShardState:
         )
 
         evmState = self.__getEvmStateForNewBlock(block)
+
         if gasLimit is not None:
             # Set gasLimit.  Since gas limit is auto adjusted between blocks, this is for test purpose only.
             evmState.gas_limit = gasLimit
-
-        self.__addTransactionsToFundLoadtestAccounts(block, evmState)
 
         prevHeader = self.headerTip
         ancestorRootHeader = self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)
         check(self.__isSameRootChain(self.rootTip, ancestorRootHeader))
 
+        # cross-shard receive must be handled before including tx from txQueue
         block.header.hashPrevRootBlock = self.__includeCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=self.rootTip,
             ancestorRootHeader=ancestorRootHeader).getHash()
+
+        # fund load test accounts
+        self.__addTransactionsToFundLoadtestAccounts(block, evmState)
 
         popedTxs = []
         while evmState.gas_used < evmState.gas_limit:
@@ -941,6 +944,7 @@ class ShardState:
 
     def __runOneCrossShardTxListByRootBlockHash(self, rHash, evmState):
         txList = self.__getCrossShardTxListByRootBlockHash(rHash)
+
         for tx in txList:
             evmState.delta_balance(tx.address.recipient, tx.amount)
             evmState.gas_used = min(

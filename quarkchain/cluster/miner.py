@@ -62,6 +62,7 @@ class Miner:
                 await self.addBlockAsyncFunc(block)
             except Exception:
                 Logger.logException()
+                self.mineNewBlockAsync()
 
     @staticmethod
     def __logStatus(block):
