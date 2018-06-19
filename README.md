@@ -35,7 +35,6 @@ Running with P2P network: 1. bootstrap node; 2. another node
 ```
 pypy3 cluster.py --devp2p=True (--mine=True)
 pypy3 cluster.py --devp2p=True --db_prefix=./dbx --port_start=39000 --p2p_port=39291 --json_rpc_port=39391 --devp2p_port=29001
-
 ```
 
 ## Docker Deployment
