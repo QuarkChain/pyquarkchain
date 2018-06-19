@@ -10,23 +10,34 @@ It's is highly recommended to use [virtual environment](https://docs.python.org/
 The packages installed later will only affect this environment.
 
 To create a virtual environment
-```
+```bash
 mkdir ~/virtualenv
 pypy3 -m venv ~/virtualenv/qc
 ```
 As the virtual env is created with pypy3 once the env is activated all the python and pip commands will point to their pypy3 versions automatically.
 
 To activate the virtual environment
-```
+```bash
 source ~/virtualenv/qc/bin/activate
 ```
 To install the required packages for the project. Under pyquarkchain dir where setup.py is located
-```
+```bash
 pip install -e .
+```
+You might see failure when installing plyvel which is a python interface for leveldb.
+The following commands should address the issue.
+```bash
+brew install leveldb
+CFLAGS='-mmacosx-version-min=10.7 -stdlib=libc++' pip install plyvel
+```
+If you see an error complaining missing ```'openssl/aes.h'```, export the following flags and try again.
+```bash
+export LDFLAGS="-L/usr/local/opt/openssl/lib"
+export CPPFLAGS="-I/usr/local/opt/openssl/include"
 ```
 
 Start running a cluster
-```
+```bash
 cd quarkchain/cluster
 pypy3 cluster.py --mine=true
 ```
