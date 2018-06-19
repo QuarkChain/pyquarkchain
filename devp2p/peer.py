@@ -149,7 +149,7 @@ class Peer(gevent.Greenlet):
         remote_services = dict()
         for name, version in capabilities:
             # Remove this for py3, the decode failed later lookup.
-            # if isinstance(name, bytes) and not isinstance(name, str):
+            #if isinstance(name, bytes) and not isinstance(name, str):
             #    name = name.decode('utf-8')
             if not name in remote_services:
                 remote_services[name] = []

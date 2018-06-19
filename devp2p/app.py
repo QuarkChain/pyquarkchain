@@ -2,8 +2,8 @@ try:
     from UserDict import IterableUserDict
 except ImportError:
     from collections import UserDict as IterableUserDict
-from devp2p.service import BaseService
-from devp2p.slogging import get_logger
+from .service import BaseService
+from .slogging import get_logger
 from devp2p import utils
 from devp2p import crypto
 from rlp.utils import decode_hex
@@ -56,8 +56,8 @@ def main():
     import sys
     import signal
     import gevent
-    from devp2p.peermanager import PeerManager
-    from devp2p.discovery import NodeDiscovery
+    from .peermanager import PeerManager
+    from .discovery import NodeDiscovery
     from devp2p import slogging
     log = slogging.get_logger('app')
 
@@ -74,7 +74,7 @@ discovery:
 
 p2p:
     num_peers: 10
-    
+
     listen_host: 0.0.0.0
     listen_port: 30303
 node:
