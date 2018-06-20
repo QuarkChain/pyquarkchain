@@ -2,6 +2,7 @@ import argparse
 import cluster as cl
 import asyncio
 import random
+from devp2p.utils import colors, COLOR_END
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -26,7 +27,7 @@ async def main():
     parser.add_argument(
         "--devp2p", default=True, type=bool)
     parser.add_argument(
-        "--devp2p_port", default=29000, type=int)
+        "--devp2p_start_port", default=29000, type=int)
     parser.add_argument(
         "--devp2p_bootstrap_host", default='0.0.0.0', type=str)
     parser.add_argument(
@@ -51,7 +52,7 @@ async def main():
             seedPort=args.seed_port,
             dbPrefix="{}C{}_".format(args.db_prefix, i),
             devp2p=args.devp2p,
-            devp2p_port=args.devp2p_port + i,
+            devp2p_port=args.devp2p_start_port + i,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,
             devp2p_min_peers=args.devp2p_min_peers,
@@ -61,10 +62,15 @@ async def main():
         if i == mine_i:
             mine = True
         filename = cl.dump_config_to_file(config)
-        clusters.append(cl.Cluster(config, filename, mine, args.clean, "C{}_".format(i)))
+        clusters.append(
+            cl.Cluster(
+                config, filename, mine, args.clean, "{}C{}{}_".format(colors[i % len(colors)],i, COLOR_END)
+        ))
 
     tasks = []
-    for cluster in clusters:
+    tasks.append(asyncio.ensure_future(clusters[0].run()))
+    await asyncio.sleep(3)
+    for cluster in clusters[1:]:
         tasks.append(asyncio.ensure_future(cluster.run()))
     try:
         await asyncio.gather(*tasks)
