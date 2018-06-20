@@ -1,10 +1,20 @@
 #!/usr/bin/python3
 import copy
-import plyvel
+#import plyvel
+import rocksdb
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
 from functools import lru_cache
 
+DATADIR = "/data"
+
+rocksdb_opts = rocksdb.Options()
+rocksdb_opts.create_if_missing = True
+rocksdb_opts.max_open_files = 100000 # ubuntu 16.04 max files descriptors 524288
+rocksdb_opts.write_buffer_size = 67108864 # 64 MiB
+rocksdb_opts.max_write_buffer_number = 3
+rocksdb_opts.target_file_size_base = 67108864
+rocksdb_opts.compression = rocksdb.CompressionType.lz4_compression
 
 class Db:
 
@@ -35,10 +45,10 @@ class Db:
             self.put(b'addr_' + addr.serialize() + timestampKey + txHash, timestampValue)
 
     def putTx(self, tx, block, rootBlockHeader=None, txHash=None, consumedUtxoList=None):
-        '''
+        """
         'block' is a root chain block if the tx is a root chain coinbase tx since such tx
         isn't included in any minor block. Otherwise it is always a minor block.
-        '''
+        """
         txHash = tx.getHash() if txHash is None else txHash
         self.put(b'tx_' + txHash,
                  block.header.createTime.to_bytes(4, byteorder="big") + tx.serialize())
@@ -52,9 +62,9 @@ class Db:
         self.__putTxToAccounts(tx, txHash, block.header.createTime, consumedUtxoList)
 
     def getTxAndTimestamp(self, txHash):
-        '''
+        """
         The timestamp returned is the createTime of the block that confirms the tx
-        '''
+        """
         value = self.get(b'tx_' + txHash)
         if not value:
             return None
@@ -168,7 +178,8 @@ class PersistentDb(Db):
     def __init__(self, path="./db", clean=False):
         if clean:
             plyvel.destroy_db(path)
-        self.db = plyvel.DB(path, create_if_missing=True)
+        #self.db = plyvel.DB(path, create_if_missing=True)
+        self.db = rocksdb.DB("")
 
     def rangeIter(self, start, end):
         for k, v in self.db.iterator(start, end):
@@ -285,7 +296,7 @@ class ShardedDb(Db):
 
 
 class OverlayDb(Db):
-    ''' Used for making temporary objects '''
+    """ Used for making temporary objects """
 
     def __init__(self, db):
         self.db = db

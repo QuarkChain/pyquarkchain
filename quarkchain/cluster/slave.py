@@ -349,9 +349,10 @@ class MasterConnection(ClusterConnection):
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
 
     async def handleConnectToSlavesRequest(self, connectToSlavesRequest):
-        ''' Master sends in the slave list. Let's connect to them.
+        """
+        Master sends in the slave list. Let's connect to them.
         Skip self and slaves already connected.
-        '''
+        """
         resultList = []
         for slaveInfo in connectToSlavesRequest.slaveInfoList:
             if slaveInfo.id == self.slaveServer.id or slaveInfo.id in self.slaveServer.slaveIds:
