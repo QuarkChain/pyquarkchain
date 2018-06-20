@@ -178,6 +178,8 @@ def main():
         "--devp2p_min_peers", default=2, type=int)
     parser.add_argument(
         "--devp2p_max_peers", default=10, type=int)
+    parser.add_argument(
+        "--cluster_id", default='', type=str)
 
     args = parser.parse_args()
 
@@ -205,7 +207,7 @@ def main():
             return -1
         filename = dump_config_to_file(config)
 
-    cluster = Cluster(config, filename, args.mine, args.clean)
+    cluster = Cluster(config, filename, args.mine, args.clean, args.cluster_id)
     cluster.startAndLoop()
 
 
