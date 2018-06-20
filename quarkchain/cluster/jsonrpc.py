@@ -35,10 +35,6 @@ def quantity_decoder(hexStr):
     if not hexStr.startswith("0x") or len(hexStr) < 3:
         raise InvalidParams("Invalid quantity encoding")
 
-    # must not have leading zeros (except `0x0`)
-    if len(hexStr) > 3 and hexStr[2] == "0":
-        raise InvalidParams("Invalid quantity encoding")
-
     try:
         return int(hexStr, 16)
     except ValueError:
