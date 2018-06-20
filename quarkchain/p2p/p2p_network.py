@@ -152,7 +152,6 @@ def devp2p_app(env, network):
     base_config['base_port'] = env.config.DEVP2P_PORT
     base_config['min_peers'] = env.config.DEVP2P_MIN_PEERS
     base_config['max_peers'] = env.config.DEVP2P_MAX_PEERS
-    log.info('run:', base_config=base_config)
 
     min_peers = base_config['min_peers']
     max_peers = base_config['max_peers']
