@@ -74,13 +74,14 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, mine, clean):
+    def __init__(self, config, configFilePath, mine, clean, clusterID=''):
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
         self.shutdownCalled = False
         self.mine = mine
         self.clean = clean
+        self.clusterID = clusterID
 
     async def waitAndShutdown(self, prefix, proc):
         ''' If one process terminates shutdown the entire cluster '''
@@ -107,8 +108,9 @@ class Cluster:
             devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
             devp2p_min_peers=self.config["master"]["devp2p_min_peers"],
             devp2p_max_peers=self.config["master"]["devp2p_max_peers"])
-        asyncio.ensure_future(print_output("MASTER", master.stdout))
-        self.procs.append(("MASTER", master))
+        prefix = "{}MASTER".format(self.clusterID)
+        asyncio.ensure_future(print_output(prefix, master.stdout))
+        self.procs.append((prefix, master))
 
     async def runSlaves(self):
         for slave in self.config["slaves"]:
@@ -118,7 +120,7 @@ class Cluster:
                 shardMaskList=slave["shard_masks"],
                 dbPath=slave["db_path"],
                 clean=self.clean)
-            prefix = "SLAVE_{}".format(slave["id"])
+            prefix = "{}SLAVE_{}".format(self.clusterID, slave["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
