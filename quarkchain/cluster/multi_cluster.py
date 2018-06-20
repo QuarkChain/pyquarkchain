@@ -37,11 +37,16 @@ async def main():
         "--devp2p_min_peers", default=2, type=int)
     parser.add_argument(
         "--devp2p_max_peers", default=5, type=int)
+    parser.add_argument(
+        "--mine", default=False, type=bool)
 
     args = parser.parse_args()
     clusters = []
     mine_i = random.randint(0, args.num_cluster - 1)
-    print("cluster {} will be mining".format(mine_i))
+    if args.mine:
+        print("cluster {} will be mining".format(mine_i))
+    else:
+        print("No one will be mining")
     for i in range(args.num_cluster):
         config = cl.create_cluster_config(
             slaveCount=args.num_slaves,
@@ -59,9 +64,7 @@ async def main():
             devp2p_min_peers=args.devp2p_min_peers,
             devp2p_max_peers=args.devp2p_max_peers,
         )
-        mine = False
-        if i == mine_i:
-            mine = True
+        mine = args.mine and i == mine_i
         filename = cl.dump_config_to_file(config)
         clusters.append(
             cl.Cluster(
