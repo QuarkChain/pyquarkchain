@@ -1,14 +1,14 @@
 #!/usr/bin/python3
 import copy
-#import plyvel
+import pathlib
 import rocksdb
+import shutil
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
-from functools import lru_cache
-from subprocess import call
 
 
 class DbOpsMixin:
+    """DEPRECATED. This was only used for the old UTXO based testnet."""
 
     MAX_TIMESTAMP = 2 ** 32 - 1
 
@@ -125,8 +125,8 @@ class DbOpsMixin:
             return 0
         return int.from_bytes(self.get(key), byteorder="big")
 
-    def close(self):
-        pass
+
+class Db:
 
     def __getitem__(self, key):
         value = self.get(key)
@@ -134,10 +134,8 @@ class DbOpsMixin:
             raise KeyError("cannot find {}".format(key))
         return value
 
-
-class Db:
-    # base
-    pass
+    def close(self):
+        pass
 
 
 class InMemoryDb(Db, DbOpsMixin):
@@ -170,11 +168,13 @@ class InMemoryDb(Db, DbOpsMixin):
         return key in self.kv
 
 
-class PersistentDb(Db, DbOpsMixin):
+class PersistentDb(Db):
     def __init__(self, db_path, clean=False):
         self.db_path = db_path
         if clean:
             self._destroy()
+        pathlib.Path(self.db_path).mkdir(parents=True, exist_ok=True)
+
 
         options = rocksdb.Options()
         options.create_if_missing = True
@@ -187,7 +187,7 @@ class PersistentDb(Db, DbOpsMixin):
         self._db = rocksdb.DB(db_path, options)
 
     def _destroy(self):
-        call(["rm", "-rf", self.db_path])
+        shutil.rmtree(self.db_path)
 
     def get(self, key, default=None):
         key = key.encode() if not isinstance(key, bytes) else key
@@ -236,20 +236,8 @@ class PersistentDb(Db, DbOpsMixin):
         return result
 
 
-@lru_cache(128)
-def add1(b):
-    v = int.from_bytes(b, byteorder="big")
-    return (v + 1).to_bytes(4, byteorder="big")
-
-
-@lru_cache(128)
-def sub1(b):
-    v = int.from_bytes(b, byteorder="big")
-    return (v - 1).to_bytes(4, byteorder="big")
-
-
-class OverlayDb(Db, DbOpsMixin):
-    """ Used for making temporary objects """
+class OverlayDb(Db):
+    """ Used for making temporary objects in EvmState.ephemeral_clone()"""
 
     def __init__(self, db):
         self._db = db
@@ -278,10 +266,9 @@ class OverlayDb(Db, DbOpsMixin):
     def __contains__(self, key):
         return self._has_key(key)
 
-### TODO: remove these later, leaving in for not breaking legacy tests
 
 class ShardedDb(Db, DbOpsMixin):
-
+    """DEPRECATED. TODO: remove these later, leaving in for not breaking legacy tests"""
     def __init__(self, db, fullShardId):
         self.db = db
         self.fullShardId = fullShardId
@@ -302,6 +289,3 @@ class ShardedDb(Db, DbOpsMixin):
     def rangeIter(self, start, end):
         for k, v in self.db.rangeIter(self.shardKey + start, self.shardKey + end):
             yield k[4:], v
-
-
-DB = InMemoryDb()

@@ -776,18 +776,19 @@ class SlaveServer():
             self.__initMiner(branchValue)
             self.txGenMap[branchValue] = TransactionGenerator(Branch(branchValue), self)
 
-    def __initShardDb(self, shard_id):
+    def __initShardDb(self, shardId):
         """
-        Given a shard_id (*not* full shard id), create a persistent (usually) DB
+        Given a shardId (*not* full shard id), create a PersistentDB or use the env.db if
+        DB_PATH_ROOT is not specified in the ClusterConfig.
         """
-        if getattr(self.env, "in_memory_db", None):
-            return
+        if self.env.clusterConfig.DB_PATH_ROOT is None:
+            return self.env.db
 
-        db_path = "{path}/shard-{shard_id}.db".format(
-            path=self.env.db_path_root,
-            shard_id=shard_id,
+        dbPath = "{path}/shard-{shardId}.db".format(
+            path=self.env.clusterConfig.DB_PATH_ROOT,
+            shardId=shardId,
         )
-        return PersistentDb(db_path, clean=self.env.db_clean)
+        return PersistentDb(dbPath, clean=self.env.clusterConfig.DB_CLEAN)
 
     def __initMiner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
@@ -1179,10 +1180,8 @@ def parse_args():
     env.clusterConfig.ID = bytes(args.node_id, "ascii")
     env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
-
-    env.in_memory_db = args.in_memory_db
-    env.db_path_root = args.db_path_root
-    env.db_clean = args.clean
+    env.clusterConfig.DB_PATH_ROOT = None if args.in_memory_db else args.db_path_root
+    env.clusterConfig.DB_CLEAN = args.clean
 
     return env
 

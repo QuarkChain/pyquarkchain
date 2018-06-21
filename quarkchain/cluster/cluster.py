@@ -40,11 +40,11 @@ def dump_config_to_file(config):
 
 
 async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
-    cmd = "python master.py --cluster_config={} --db_path_root={} " \
+    cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
           "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
           "--devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
-              configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort,
+              configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort,
               kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
               kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
@@ -155,7 +155,7 @@ def main():
     parser.add_argument(
         "--port_start", default=PORT, type=int)
     parser.add_argument(
-        "--db_path_root", default="./", type=str) # default to current dir
+        "--db_path_root", default="./db", type=str)
     parser.add_argument(
         "--p2p_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT)
     parser.add_argument(
