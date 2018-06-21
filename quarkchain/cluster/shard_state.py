@@ -72,7 +72,7 @@ class ExpiryCounter:
         return self.getCount() / self.window
 
 
-class ShardDb:
+class ShardDbOperator:
     def __init__(self, db, env, branch):
         self.env = env
         self.db = db
@@ -271,7 +271,7 @@ class ShardState:
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
         self.branch = Branch.create(env.config.SHARD_SIZE, shardId)
-        self.db = ShardDb(self.rawDb, self.env, self.branch)
+        self.db_operator = ShardDbOperator(self.rawDb, self.env, self.branch)
         self.txQueue = TransactionQueue()  # queue of EvmTransaction
         self.txDict = dict()  # hash -> Transaction for explorer
         self.initialized = False
@@ -308,19 +308,19 @@ class ShardState:
         self.rootTip = rootBlock.header
         self.headerTip = __getHeaderTipFromRootBlock(self.branch)
 
-        self.db.recoverState(self.rootTip, self.headerTip)
+        self.db_operator.recoverState(self.rootTip, self.headerTip)
         Logger.info("[{}] done recovery from db. shard tip {} {} root tip {} {}".format(
             self.branch.getShardId(), self.headerTip.height, self.headerTip.getHash().hex(),
             self.rootTip.height, self.rootTip.getHash().hex()))
 
-        self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+        self.metaTip = self.db_operator.getMinorBlockMetaByHash(self.headerTip.getHash())
         self.confirmedHeaderTip = self.headerTip
         self.confirmedMetaTip = self.metaTip
         self.evmState = self.__createEvmState()
         self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
-        check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
+        check(self.db_operator.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
 
-        self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()))
+        self.__rewriteBlockIndexTo(self.db_operator.getMinorBlockByHash(self.headerTip.getHash()))
 
     def __createEvmState(self):
         return EvmState(env=self.env.evmEnv, db=self.rawDb)
@@ -344,12 +344,12 @@ class ShardState:
 
         check(genesisMinorBlock0.header.branch == self.branch)
         self.evmState = evmList[self.shardId]
-        self.db.putMinorBlock(genesisMinorBlock0, self.evmState)
-        self.db.putMinorBlockIndex(genesisMinorBlock0)
-        self.db.putMinorBlock(genesisMinorBlock1, self.evmState)
-        self.db.putMinorBlockIndex(genesisMinorBlock1)
-        self.db.putRootBlock(genesisRootBlock0, genesisMinorBlock0.header)
-        self.db.putRootBlock(genesisRootBlock1, genesisMinorBlock1.header)
+        self.db_operator.putMinorBlock(genesisMinorBlock0, self.evmState)
+        self.db_operator.putMinorBlockIndex(genesisMinorBlock0)
+        self.db_operator.putMinorBlock(genesisMinorBlock1, self.evmState)
+        self.db_operator.putMinorBlockIndex(genesisMinorBlock1)
+        self.db_operator.putRootBlock(genesisRootBlock0, genesisMinorBlock0.header)
+        self.db_operator.putRootBlock(genesisRootBlock1, genesisMinorBlock1.header)
 
         self.rootTip = genesisRootBlock1.header
         # Tips that are confirmed by root
@@ -423,7 +423,7 @@ class ShardState:
         state = self.__createEvmState()
         if ephemeral:
             state = state.ephemeral_clone()
-        state.trie.root_hash = self.db.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
+        state.trie.root_hash = self.db_operator.getMinorBlockEvmRootHashByHash(block.header.hashPrevMinorBlock)
         state.timestamp = block.header.createTime
         state.gas_limit = block.meta.evmGasLimit  # TODO
         state.block_number = block.header.height
@@ -442,7 +442,7 @@ class ShardState:
 
         header = longerBlockHeader
         for i in range(longerBlockHeader.height - shorterBlockHeader.height):
-            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+            header = self.db_operator.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
         return header == shorterBlockHeader
 
     def __isSameRootChain(self, longerBlockHeader, shorterBlockHeader):
@@ -451,7 +451,7 @@ class ShardState:
 
         header = longerBlockHeader
         for i in range(longerBlockHeader.height - shorterBlockHeader.height):
-            header = self.db.getRootBlockHeaderByHash(header.hashPrevBlock)
+            header = self.db_operator.getRootBlockHeaderByHash(header.hashPrevBlock)
         return header == shorterBlockHeader
 
     def __validateBlock(self, block):
@@ -460,10 +460,10 @@ class ShardState:
         if block.header.height <= 1:
             raise ValueError("unexpected height")
 
-        if not self.db.containMinorBlockByHash(block.header.hashPrevMinorBlock):
+        if not self.db_operator.containMinorBlockByHash(block.header.hashPrevMinorBlock):
             # TODO:  May put the block back to queue
             raise ValueError("[{}] prev block not found, block height {} prev hash {}".format(self.branch.getShardId(), block.header.height, block.header.hashPrevMinorBlock.hex()))
-        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
+        prevHeader = self.db_operator.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
 
         if block.header.height != prevHeader.height + 1:
             raise ValueError("height mismatch")
@@ -506,19 +506,19 @@ class ShardState:
             raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
-        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
+        rootBlockHeader = self.db_operator.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
         if rootBlockHeader is None:
             raise ValueError("cannot find root block for the minor block")
 
-        if rootBlockHeader.height < self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock).height:
+        if rootBlockHeader.height < self.db_operator.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock).height:
             raise ValueError("prev root block height must be non-decreasing")
 
-        prevConfirmedMinorBlock = self.db.getLastMinorBlockInRootBlock(block.header.hashPrevRootBlock)
+        prevConfirmedMinorBlock = self.db_operator.getLastMinorBlockInRootBlock(block.header.hashPrevRootBlock)
         if not self.__isSameMinorChain(prevHeader, prevConfirmedMinorBlock):
             raise ValueError("prev root block's minor block is not in the same chain as the minor block")
 
-        if not self.__isSameRootChain(self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock),
-                                      self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
+        if not self.__isSameRootChain(self.db_operator.getRootBlockHeaderByHash(block.header.hashPrevRootBlock),
+                                      self.db_operator.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
             raise ValueError("prev root blocks are not on the same chain")
 
     def runBlock(self, block, evmState=None, evmTxIncluded=None):
@@ -526,13 +526,13 @@ class ShardState:
             evmTxIncluded = []
         if evmState is None:
             evmState = self.__getEvmStateForNewBlock(block, ephemeral=False)
-        rootBlockHeader = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
-        prevHeader = self.db.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
+        rootBlockHeader = self.db_operator.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)
+        prevHeader = self.db_operator.getMinorBlockHeaderByHash(block.header.hashPrevMinorBlock)
 
         self.__runCrossShardTxList(
             evmState=evmState,
             descendantRootHeader=rootBlockHeader,
-            ancestorRootHeader=self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock))
+            ancestorRootHeader=self.db_operator.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock))
 
         for idx, tx in enumerate(block.txList):
             try:
@@ -562,7 +562,7 @@ class ShardState:
 
         header = mBlock.header
         for i in range(mBlock.header.height - self.confirmedHeaderTip.height):
-            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+            header = self.db_operator.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
 
         return header == self.confirmedHeaderTip
 
@@ -575,7 +575,7 @@ class ShardState:
         # we should revert all the blocks above minorBlock height
         height = minorBlock.header.height + 1
         while True:
-            origBlock = self.db.getMinorBlockByHeight(height)
+            origBlock = self.db_operator.getMinorBlockByHeight(height)
             if not origBlock:
                 break
             oldChain.append(origBlock)
@@ -584,20 +584,20 @@ class ShardState:
         block = minorBlock
         # Find common ancestor and record the blocks that needs to be updated
         while block.header.height >= 0:
-            origBlock = self.db.getMinorBlockByHeight(block.header.height)
+            origBlock = self.db_operator.getMinorBlockByHeight(block.header.height)
             if origBlock and origBlock.header == block.header:
                 break
             newChain.append(block)
             if origBlock:
                 oldChain.append(origBlock)
-            block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
+            block = self.db_operator.getMinorBlockByHash(block.header.hashPrevMinorBlock)
 
         for block in oldChain:
-            self.db.removeTransactionIndexFromBlock(block)
-            self.db.removeMinorBlockIndex(block)
+            self.db_operator.removeTransactionIndexFromBlock(block)
+            self.db_operator.removeMinorBlockIndex(block)
         for block in newChain:
-            self.db.putTransactionIndexFromBlock(block)
-            self.db.putMinorBlockIndex(block)
+            self.db_operator.putTransactionIndexFromBlock(block)
+            self.db_operator.putMinorBlockIndex(block)
 
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
@@ -609,7 +609,7 @@ class ShardState:
         if self.headerTip.height - block.header.height > 700:
             Logger.info("[{}] drop old block {} << {}".format(block.header.height, self.headerTip.height))
             return None
-        if self.db.containMinorBlockByHash(block.header.getHash()):
+        if self.db_operator.containMinorBlockByHash(block.header.getHash()):
             return None
 
         evmTxIncluded = []
@@ -643,7 +643,7 @@ class ShardState:
 
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
-        self.db.putMinorBlock(block, evmState)
+        self.db_operator.putMinorBlock(block, evmState)
         self.txQueue = self.txQueue.diff(evmTxIncluded)
         for tx in block.txList:
             self.txDict.pop(tx.getHash(), None)
@@ -651,7 +651,7 @@ class ShardState:
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
         updateTip = False
-        if not self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)):
+        if not self.__isSameRootChain(self.rootTip, self.db_operator.getRootBlockHeaderByHash(block.header.hashPrevRootBlock)):
             # Don't update tip if the block depends on a root block that is not rootTip or rootTip's ancestor
             updateTip = False
         elif block.header.hashPrevMinorBlock == self.headerTip.getHash():
@@ -660,8 +660,8 @@ class ShardState:
             if block.header.height > self.headerTip.height:
                 updateTip = True
             elif block.header.height == self.headerTip.height:
-                updateTip = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock).height > \
-                    self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock).height
+                updateTip = self.db_operator.getRootBlockHeaderByHash(block.header.hashPrevRootBlock).height > \
+                    self.db_operator.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock).height
 
         if updateTip:
             self.__rewriteBlockIndexTo(block)
@@ -669,8 +669,12 @@ class ShardState:
             self.headerTip = block.header
             self.metaTip = block.meta
 
+<<<<<<< HEAD
         check(self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
         endTime = time.time()
+=======
+        check(self.__isSameRootChain(self.rootTip, self.db_operator.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
+>>>>>>> rocksdb support
 
         Logger.debug("Add block took {} seconds for {} tx".format(
             endTime - startTime, len(block.txList)
@@ -678,7 +682,7 @@ class ShardState:
         return evmState.xshard_list
 
     def getTip(self):
-        return self.db.getMinorBlockByHash(self.headerTip.getHash())
+        return self.db_operator.getMinorBlockByHash(self.headerTip.getHash())
 
     def tip(self):
         """ Called in diff.py """
@@ -725,7 +729,7 @@ class ShardState:
         header = self.headerTip
         for i in range(header.height - self.confirmedHeaderTip.height):
             amount += header.coinbaseAmount
-            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+            header = self.db_operator.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
         check(header == self.confirmedHeaderTip)
         return amount
 
@@ -735,7 +739,7 @@ class ShardState:
         header = self.headerTip
         for i in range(header.height - self.confirmedHeaderTip.height):
             headerList.append(header)
-            header = self.db.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
+            header = self.db_operator.getMinorBlockHeaderByHash(header.hashPrevMinorBlock)
         check(header == self.confirmedHeaderTip)
         headerList.reverse()
         return headerList
@@ -840,10 +844,10 @@ class ShardState:
     def getBlockByHash(self, h):
         """ Return an validated block.  Return None if no such block exists in db
         """
-        return self.db.getMinorBlockByHash(h)
+        return self.db_operator.getMinorBlockByHash(h)
 
     def containBlockByHash(self, h):
-        return self.db.containMinorBlockByHash(h)
+        return self.db_operator.containMinorBlockByHash(h)
 
     def getPendingTxSize(self):
         return self.transactionPool.size()
@@ -858,20 +862,20 @@ class ShardState:
         - x-shard gas limit exceeded
         - it is a neighor of current shard following our routing rule
         """
-        self.db.putMinorBlockXshardTxList(h, txList)
+        self.db_operator.putMinorBlockXshardTxList(h, txList)
 
     def addRootBlock(self, rBlock):
         """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
         """
-        if not self.db.containRootBlockByHash(rBlock.header.hashPrevBlock):
+        if not self.db_operator.containRootBlockByHash(rBlock.header.hashPrevBlock):
             raise ValueError("cannot find previous root block in pool")
 
         shardHeader = None
         for mHeader in rBlock.minorBlockHeaderList:
             h = mHeader.getHash()
             if mHeader.branch == self.branch:
-                if not self.db.containMinorBlockByHash(h):
+                if not self.db_operator.containMinorBlockByHash(h):
                     raise ValueError("cannot find minor block in local shard")
                 if shardHeader is None or shardHeader.height < mHeader.height:
                     shardHeader = mHeader
@@ -880,41 +884,41 @@ class ShardState:
             if not self.__isNeighbor(mHeader.branch):
                 continue
 
-            if not self.db.containRemoteMinorBlockHash(h):
+            if not self.db_operator.containRemoteMinorBlockHash(h):
                 raise ValueError("cannot find xShard tx list for {}-{} {}".format(
                     mHeader.branch.getShardId(), mHeader.height, h.hex()))
 
         # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
         check(shardHeader is not None)
 
-        self.db.putRootBlock(rBlock, shardHeader)
+        self.db_operator.putRootBlock(rBlock, shardHeader)
         check(self.__isSameRootChain(rBlock.header,
-                                     self.db.getRootBlockHeaderByHash(shardHeader.hashPrevRootBlock)))
+                                     self.db_operator.getRootBlockHeaderByHash(shardHeader.hashPrevRootBlock)))
 
         if rBlock.header.height > self.rootTip.height:
             # Switch to the longest root block
             self.rootTip = rBlock.header
             self.confirmedHeaderTip = shardHeader
-            self.confirmedMetaTip = self.db.getMinorBlockMetaByHash(shardHeader.getHash())
+            self.confirmedMetaTip = self.db_operator.getMinorBlockMetaByHash(shardHeader.getHash())
 
-            origBlock = self.db.getMinorBlockByHeight(shardHeader.height)
+            origBlock = self.db_operator.getMinorBlockByHeight(shardHeader.height)
             if not origBlock or origBlock.header != shardHeader:
-                self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(shardHeader.getHash()))
+                self.__rewriteBlockIndexTo(self.db_operator.getMinorBlockByHash(shardHeader.getHash()))
                 # TODO: shardHeader might not be the tip of the longest chain
                 # need to switch to the tip of the longest chain
                 self.headerTip = shardHeader
-                self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+                self.metaTip = self.db_operator.getMinorBlockMetaByHash(self.headerTip.getHash())
             else:
                 # the current headerTip might point to a root block on a fork with rBlock
                 # we need to scan back until finding a minor block pointing to the same root chain rBlock is on.
                 # the worst case would be that we go all the way back to origBlock (shardHeader)
                 while not self.__isSameRootChain(
-                        self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)):
-                    self.headerTip = self.db.getMinorBlockHeaderByHash(self.headerTip.hashPrevMinorBlock)
+                        self.rootTip, self.db_operator.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)):
+                    self.headerTip = self.db_operator.getMinorBlockHeaderByHash(self.headerTip.hashPrevMinorBlock)
             return True
 
         check(self.__isSameRootChain(self.rootTip,
-                                     self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
+                                     self.db_operator.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
         return False
 
     def __isNeighbor(self, remoteBranch):
@@ -922,7 +926,7 @@ class ShardState:
         return True
 
     def __getCrossShardTxListByRootBlockHash(self, h):
-        rBlock = self.db.getRootBlockByHash(h)
+        rBlock = self.db_operator.getRootBlockByHash(h)
         txList = []
         for mHeader in rBlock.minorBlockHeaderList:
             if mHeader.branch == self.branch:
@@ -932,7 +936,7 @@ class ShardState:
                 continue
 
             h = mHeader.getHash()
-            txList.extend(self.db.getMinorBlockXshardTxList(h).txList)
+            txList.extend(self.db_operator.getMinorBlockXshardTxList(h).txList)
 
         # Apply root block coinbase
         if self.branch.isInShard(rBlock.header.coinbaseAddress.fullShardId):
@@ -966,7 +970,7 @@ class ShardState:
         while rHeader != ancestorRootHeader:
             check(rHeader.height > ancestorRootHeader.height)
             headerList.append(rHeader)
-            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
+            rHeader = self.db_operator.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
 
         # Add root headers.  Return if we run out of gas.
         for rHeader in reversed(headerList):
@@ -990,17 +994,17 @@ class ShardState:
             self.__runOneCrossShardTxListByRootBlockHash(rHeader.getHash(), evmState)
 
             # Move to next root block header
-            rHeader = self.db.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
+            rHeader = self.db_operator.getRootBlockHeaderByHash(rHeader.hashPrevBlock)
 
         check(evmState.gas_used <= evmState.gas_limit)
         # TODO: Refill local x-shard gas
 
     def containRemoteMinorBlockHash(self, h):
-        return self.db.containRemoteMinorBlockHash(h)
+        return self.db_operator.containRemoteMinorBlockHash(h)
 
     def getTransactionByHash(self, h):
         """ Returns (block, index) where index is the position of tx in the block """
-        block, index = self.db.getTransactionByHash(h)
+        block, index = self.db_operator.getTransactionByHash(h)
         if block:
             return block, index
         if h in self.txDict:
@@ -1010,7 +1014,7 @@ class ShardState:
         return None, None
 
     def getTransactionReceipt(self, h) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
-        block, index = self.db.getTransactionByHash(h)
+        block, index = self.db_operator.getTransactionByHash(h)
         if not block:
             return None
         receipt = block.getReceipt(self.evmState.db, index)
@@ -1021,7 +1025,7 @@ class ShardState:
 
     def getShardStats(self) -> ShardStats:
         cutoff = self.headerTip.createTime - 60
-        block = self.db.getMinorBlockByHash(self.headerTip.getHash())
+        block = self.db_operator.getMinorBlockByHash(self.headerTip.getHash())
         txCount = 0
         blockCount = 0
         staleBlockCount = 0
@@ -1029,8 +1033,8 @@ class ShardState:
         while block.header.height > 0 and block.header.createTime > cutoff:
             txCount += len(block.txList)
             blockCount += 1
-            staleBlockCount += max(0, (self.db.getBlockCountByHeight(block.header.height) - 1))
-            block = self.db.getMinorBlockByHash(block.header.hashPrevMinorBlock)
+            staleBlockCount += max(0, (self.db_operator.getBlockCountByHeight(block.header.height) - 1))
+            block = self.db_operator.getMinorBlockByHash(block.header.hashPrevMinorBlock)
             if lastBlockTime == 0:
                 lastBlockTime = self.headerTip.createTime - block.header.createTime
 

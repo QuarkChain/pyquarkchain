@@ -748,7 +748,7 @@ class SlaveServer():
         self.txGenMap = dict()
         self.minerMap = dict()  # branchValue -> Miner
         self.shardStateMap = dict()  # branchValue -> ShardState
-        self.__initShardStateMapAndMinerMap()
+        self.__initShards()
         self.shutdownInProgress = False
         self.slaveId = 0
 
@@ -756,7 +756,7 @@ class SlaveServer():
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.addBlockFutures = dict()
 
-    def __initShardStateMapAndMinerMap(self):
+    def __initShards(self):
         ''' branchValue -> ShardState mapping '''
         shardSize = self.__getShardSize()
         branchValues = set()
@@ -766,16 +766,28 @@ class SlaveServer():
                 branchValues.add(branchValue)
 
         for branchValue in branchValues:
+            shardId = Branch(branchValue).getShardId()
+            db = self.__initShardDb(shardId)
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
-                shardId=Branch(branchValue).getShardId(),
-                db=ShardedDb(
-                    db=self.env.db,
-                    fullShardId=branchValue,
-                )
+                shardId=shardId,
+                db=db,
             )
             self.__initMiner(branchValue)
             self.txGenMap[branchValue] = TransactionGenerator(Branch(branchValue), self)
+
+    def __initShardDb(self, shard_id):
+        """
+        Given a shard_id (*not* full shard id), create a persistent (usually) DB
+        """
+        if getattr(self.env, "in_memory_db", None):
+            return
+
+        db_path = "{path}/shard-{shard_id}.db".format(
+            path=self.env.db_path_root,
+            shard_id=shard_id,
+        )
+        return PersistentDb(db_path, clean=self.env.db_clean)
 
     def __initMiner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
@@ -1151,7 +1163,7 @@ def parse_args():
         "--shard_mask", default=1, type=int)
     parser.add_argument("--in_memory_db", default=False)
     parser.add_argument("--clean", default=False)
-    parser.add_argument("--db_path", default="./db", type=str)
+    parser.add_argument("--db_path_root", default="./db", type=str)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
 
@@ -1168,8 +1180,9 @@ def parse_args():
     env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
 
-    if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=args.clean)
+    env.in_memory_db = args.in_memory_db
+    env.db_path_root = args.db_path_root
+    env.db_clean = args.clean
 
     return env
 
