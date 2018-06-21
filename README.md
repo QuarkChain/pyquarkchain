@@ -48,6 +48,11 @@ pypy3 cluster.py --devp2p=True (--mine=True)
 pypy3 cluster.py --devp2p=True --db_prefix=./dbx --port_start=39000 --p2p_port=39291 --json_rpc_port=39391 --devp2p_port=29001
 ```
 
+Running >1 clusters with P2P network: (--mine=True sets exactly 1 cluster to mine)
+```
+pypy3 multi_cluster.py --num_cluster=10 (--mine=True)
+```
+
 ## Docker Deployment
 ####TODO: update this section with pypy command
 First [install docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
