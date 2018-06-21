@@ -115,6 +115,7 @@ venv.bak/
 
 # DB
 db_*/
+*.db
 
 # IPython notebook
 *.ipynb
