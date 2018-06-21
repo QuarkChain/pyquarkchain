@@ -69,7 +69,7 @@ class Devp2pService(WiredService):
         log.info(
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
-        active_peers = self.getPeers()
+        active_peers = self.getConnectedPeers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
@@ -83,21 +83,21 @@ class Devp2pService(WiredService):
         log.info(
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
-        active_peers = self.getPeers()
+        active_peers = self.getConnectedPeers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
         )
 
-    def getPeers(self):
+    def getConnectedPeers(self):
         ps = [p for p in self.app.services.peermanager.peers if p]
         aps = [p for p in ps if not p.is_stopped]
         log.info("I am {} I have {} peers: {}".format(
             self.app.config['client_version_string'],
             len(aps),
-            [p.remote_client_version for p in aps]
+            [p.remote_client_version if p.remote_client_version != '' else 'Not Ready' for p in aps]
         ))
-        return [p.remote_client_version.decode("utf-8") for p in aps]
+        return [p.remote_client_version.decode("utf-8") for p in aps if p.remote_client_version != '']
 
     def start(self):
         log.info('Devp2pService start')
@@ -221,7 +221,6 @@ class P2PNetwork:
         to_be_disconnected = []
         for peerId, peer in self.activePeerPool.items():
             ip_port = '{}:{}'.format(peer.ip, peer.port)
-            Logger.info(ip_port)
             if ip_port not in peers:
                 to_be_disconnected.append(peer)
         Logger.info("disconnecting peers not in devp2p discovery: {}".format(
