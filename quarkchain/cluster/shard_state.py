@@ -816,7 +816,7 @@ class ShardState:
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
                 popedTxs.append(evmTx)
             except Exception as e:
-                Logger.errorException()
+                Logger.warningEverySec("Failed to include transaction: {}".format(e), 1)
                 tx = Transaction(code=Code.createEvmCode(evmTx))
                 self.txDict.pop(tx.getHash(), None)
 

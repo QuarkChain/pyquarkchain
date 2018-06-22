@@ -31,7 +31,7 @@ from quarkchain.cluster.rpc import (
     DestroyClusterPeerConnectionCommand,
     SyncMinorBlockListRequest,
     GetMinorBlockRequest, GetTransactionRequest,
-    ArtificialTxConfig, MineRequest,
+    ArtificialTxConfig, MineRequest, GenTxRequest,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
@@ -376,8 +376,10 @@ class MasterServer():
         self.shutdownFuture = self.loop.create_future()
         self.name = name
 
-        self.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
-        self.artificialTxConfig = None  # None means no loadtest running
+        self.artificialTxConfig = ArtificialTxConfig(
+            targetRootBlockTime=self.env.config.ROOT_BLOCK_INTERVAL_SEC,
+            targetMinorBlockTime=self.env.config.MINOR_BLOCK_INTERVAL_SEC,
+        )
         self.synchronizer = Synchronizer()
 
         # branch value -> ShardStats
@@ -398,7 +400,7 @@ class MasterServer():
                 await asyncio.sleep(1)
 
         def __getTargetBlockTime():
-            return self.env.config.ROOT_BLOCK_INTERVAL_SEC * max(1, self.getArtificialTxConfig().numMiners)
+            return self.getArtificialTxConfig().targetRootBlockTime
 
         self.rootMiner = Miner(
             __createBlock,
@@ -414,7 +416,7 @@ class MasterServer():
         return self.__getShardSize()
 
     def getArtificialTxConfig(self):
-        return self.artificialTxConfig if self.artificialTxConfig else self.defaultArtificialTxConfig
+        return self.artificialTxConfig
 
     def __hasAllShards(self):
         ''' Returns True if all the shards have been run by at least one node '''
@@ -495,10 +497,15 @@ class MasterServer():
         await self.__sendMiningConfigToSlaves(True)
         self.rootMiner.enable()
         self.rootMiner.mineNewBlockAsync()
+        Logger.warning("Mining started with root block time {} s, minor block time {} s".format(
+            self.getArtificialTxConfig().targetRootBlockTime,
+            self.getArtificialTxConfig().targetMinorBlockTime,
+        ))
 
     async def stopMining(self):
         await self.__sendMiningConfigToSlaves(False)
         self.rootMiner.disable()
+        Logger.warning("Mining stopped")
 
     def getSlaveConnection(self, branch):
         # TODO:  Support forwarding to multiple connections (for replication)
@@ -835,48 +842,29 @@ class MasterServer():
             op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
-    async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, numMiners, seconds):
-        """ If seconds <= 0 udpate the default config and also cancel ongoing loadtest
-        Setting both numMiners and seconds to 0 will STOP mining.
-        """
+    async def setTargetBlockTime(self, rootBlockTime, minorBlockTime):
+        rootBlockTime = rootBlockTime if rootBlockTime else self.artificialTxConfig.targetRootBlockTime
+        minorBlockTime = minorBlockTime if minorBlockTime else self.artificialTxConfig.targetMinorBlockTime
+        self.artificialTxConfig = ArtificialTxConfig(
+            targetRootBlockTime=rootBlockTime,
+            targetMinorBlockTime=minorBlockTime,
+        )
+        await self.startMining()
 
-        async def revertLater():
-            await asyncio.sleep(seconds)
-            if not self.artificialTxConfig:
-                # we got a new default config during the sleep
-                return
-            self.artificialTxConfig = None
+    async def setMining(self, mining):
+        if mining:
             await self.startMining()
-            c = self.getArtificialTxConfig()
-            Logger.info("Reverted mining config #tx={} xshard={}% #miners={}".format(
-                c.numTxPerBlock, c.xShardTxPercent, c.numMiners
-            ))
-
-        newConfig = ArtificialTxConfig(numTxPerBlock, xShardTxPercent, numMiners)
-        if seconds > 0:
-            if self.artificialTxConfig:
-                # have an ongoing loadtest already
-                return False
-
-            asyncio.ensure_future(revertLater())
-            self.artificialTxConfig = newConfig
-            await self.startMining()
-            Logger.info("Start loadtest #tx={} xshard={}% #miners={} for {} seconds".format(
-                numTxPerBlock, xShardTxPercent, numMiners, seconds
-            ))
         else:
-            self.defaultArtificialTxConfig = newConfig
-            self.artificialTxConfig = None
-            if numMiners == 0:
-                await self.stopMining()
-                Logger.warning("Mining stopped!")
-            else:
-                await self.startMining()
-                Logger.info("Updated mining config #tx={} xshard={}% #miners={}".format(
-                    numTxPerBlock, xShardTxPercent, numMiners
-                ))
+            await self.stopMining()
 
-        return True
+    async def createTransactions(self, numTxPerShard, xShardPercent):
+        """Create transactions and add to the network for loadtesting"""
+        futures = []
+        for slave in self.slavePool:
+            request = GenTxRequest(numTxPerShard, xShardPercent)
+            futures.append(slave.writeRpcRequest(ClusterOp.GEN_TX_REQUEST, request))
+        responses = await asyncio.gather(*futures)
+        check(all([resp.errorCode == 0 for _, resp, _ in responses]))
 
     def updateShardStats(self, shardStats):
         self.branchToShardStats[shardStats.branch.value] = shardStats
@@ -910,7 +898,7 @@ class MasterServer():
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
         staleBlockCount60s = sum([shardStats.staleBlockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
-        artificialTxConfig =self.getArtificialTxConfig()
+        artificialTxConfig = self.getArtificialTxConfig()
 
         rootLastBlockTime = 0
         if self.rootState.tip.height >= 3:
@@ -1045,7 +1033,6 @@ def main():
 
     # kick off mining
     if mine:
-        master.defaultArtificialTxConfig = ArtificialTxConfig(0, 0)
         asyncio.ensure_future(master.startMining())
 
     network = P2PNetwork(env, master) if env.config.DEVP2P else SimpleNetwork(env, master)
@@ -1055,8 +1042,8 @@ def main():
         thread = Thread(target = devp2p_app, args = [env, network], daemon=True)
         thread.start()
 
-    jsonRpcServer = JSONRPCServer(env, master)
-    jsonRpcServer.start()
+    publicJsonRpcServer = JSONRPCServer.startPublicServer(env, master)
+    privateJsonRpcServer = JSONRPCServer.startPrivateServer(env, master)
 
     loop = asyncio.get_event_loop()
     try:
@@ -1064,7 +1051,8 @@ def main():
     except KeyboardInterrupt:
         pass
 
-    jsonRpcServer.shutdown()
+    publicJsonRpcServer.shutdown()
+    privateJsonRpcServer.shutdown()
 
     Logger.info("Master server is shutdown")
 
