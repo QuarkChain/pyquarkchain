@@ -1,12 +1,12 @@
 import copy
 
 import quarkchain.db
+import quarkchain.evm.config
 from quarkchain.core import Address
+from quarkchain.diff import MADifficultyCalculator, EthDifficultyCalculator
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
-from quarkchain.diff import MADifficultyCalculator, EthDifficultyCalculator
-import quarkchain.evm.config
 
 
 class NetworkId:
@@ -82,8 +82,7 @@ class DefaultConfig:
         self.NETWORK_ID = NetworkId.TESTNET_PORSCHE
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
 
-        # Unlimited yet
-        self.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 2 ** 32
+        self.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 10000
         self.TRANSACTION_LIMIT_PER_BLOCK = 4096
 
         self.BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024

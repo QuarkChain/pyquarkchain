@@ -1,4 +1,3 @@
-import random
 import time
 from collections import deque
 from typing import Optional, Tuple
@@ -392,6 +391,10 @@ class ShardState:
         return evmTx
 
     def addTx(self, tx: Transaction):
+        if len(self.txQueue) > self.env.config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD:
+            # exceeding tx queue size limit
+            return False
+
         txHash = tx.getHash()
         if txHash in self.txDict:
             return False
