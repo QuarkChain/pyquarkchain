@@ -925,8 +925,6 @@ class MasterServer():
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
             "loadtesting": self.artificialTxConfig is not None,
-            "numTxPerBlock": artificialTxConfig.numTxPerBlock,
-            "xShardTxPercent": artificialTxConfig.xShardTxPercent,
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
             "txCountHistory": txCountHistory,
@@ -975,6 +973,8 @@ def parse_args():
         "--enable_local_server", default=False, type=bool)
     parser.add_argument(
         "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int)
+    parser.add_argument(
+        "--json_rpc_private_port", default=DEFAULT_ENV.config.PRIVATE_JSON_RPC_PORT, type=int)
     # Seed host which provides the list of available peers
     parser.add_argument(
         "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST, type=str)
@@ -1002,8 +1002,11 @@ def parse_args():
     env.config.P2P_SERVER_PORT = args.server_port
     env.config.P2P_SEED_HOST = args.seed_host
     env.config.P2P_SEED_PORT = args.seed_port
+    # TODO: cleanup local server port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
+    env.config.PUBLIC_JSON_RPC_PORT = args.local_port
+    env.config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
     env.config.DEVP2P = args.devp2p
     env.config.DEVP2P_PORT = args.devp2p_port
     env.config.DEVP2P_BOOTSTRAP_HOST = args.devp2p_bootstrap_host
