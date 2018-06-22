@@ -14,17 +14,19 @@ async def main():
     parser.add_argument(
         "--port_start", default=cl.PORT, type=int)
     parser.add_argument(
-        "--db_prefix", default="./db_", type=str)
+        "--db_path_root", default="./db", type=str)
     parser.add_argument(
         "--p2p_port", default=48291, type=int)
     parser.add_argument(
-        "--json_rpc_port", default=58291, type=int)
+        "--json_rpc_port", default=48391, type=int)
+    parser.add_argument(
+        "--json_rpc_private_port", default=48491, type=int)
     parser.add_argument(
         "--seed_host", default=cl.DEFAULT_ENV.config.P2P_SEED_HOST)
     parser.add_argument(
         "--seed_port", default=cl.DEFAULT_ENV.config.P2P_SEED_PORT)
     parser.add_argument(
-        "--clean", default=True)
+        "--clean", default=False)
     parser.add_argument(
         "--devp2p", default=True, type=bool)
     parser.add_argument(
@@ -54,9 +56,10 @@ async def main():
             p2pPort=args.p2p_port + i,
             clusterPortStart=args.port_start + i * 100,
             jsonRpcPort=args.json_rpc_port + i,
+            jsonRpcPrivatePort=args.json_rpc_private_port + i,
             seedHost=args.seed_host,
             seedPort=args.seed_port,
-            dbPrefix="{}C{}_".format(args.db_prefix, i),
+            dbPathRoot="{}_C{}".format(args.db_path_root, i),
             devp2p=args.devp2p,
             devp2p_port=args.devp2p_start_port + i,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,
