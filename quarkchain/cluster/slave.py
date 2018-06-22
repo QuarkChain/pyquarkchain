@@ -349,9 +349,10 @@ class MasterConnection(ClusterConnection):
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
 
     async def handleConnectToSlavesRequest(self, connectToSlavesRequest):
-        ''' Master sends in the slave list. Let's connect to them.
+        """
+        Master sends in the slave list. Let's connect to them.
         Skip self and slaves already connected.
-        '''
+        """
         resultList = []
         for slaveInfo in connectToSlavesRequest.slaveInfoList:
             if slaveInfo.id == self.slaveServer.id or slaveInfo.id in self.slaveServer.slaveIds:
@@ -747,7 +748,7 @@ class SlaveServer():
         self.txGenMap = dict()
         self.minerMap = dict()  # branchValue -> Miner
         self.shardStateMap = dict()  # branchValue -> ShardState
-        self.__initShardStateMapAndMinerMap()
+        self.__initShards()
         self.shutdownInProgress = False
         self.slaveId = 0
 
@@ -755,7 +756,7 @@ class SlaveServer():
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.addBlockFutures = dict()
 
-    def __initShardStateMapAndMinerMap(self):
+    def __initShards(self):
         ''' branchValue -> ShardState mapping '''
         shardSize = self.__getShardSize()
         branchValues = set()
@@ -765,16 +766,29 @@ class SlaveServer():
                 branchValues.add(branchValue)
 
         for branchValue in branchValues:
+            shardId = Branch(branchValue).getShardId()
+            db = self.__initShardDb(shardId)
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
-                shardId=Branch(branchValue).getShardId(),
-                db=ShardedDb(
-                    db=self.env.db,
-                    fullShardId=branchValue,
-                )
+                shardId=shardId,
+                db=db,
             )
             self.__initMiner(branchValue)
             self.txGenMap[branchValue] = TransactionGenerator(Branch(branchValue), self)
+
+    def __initShardDb(self, shardId):
+        """
+        Given a shardId (*not* full shard id), create a PersistentDB or use the env.db if
+        DB_PATH_ROOT is not specified in the ClusterConfig.
+        """
+        if self.env.clusterConfig.DB_PATH_ROOT is None:
+            return self.env.db
+
+        dbPath = "{path}/shard-{shardId}.db".format(
+            path=self.env.clusterConfig.DB_PATH_ROOT,
+            shardId=shardId,
+        )
+        return PersistentDb(dbPath, clean=self.env.clusterConfig.DB_CLEAN)
 
     def __initMiner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
@@ -1150,7 +1164,7 @@ def parse_args():
         "--shard_mask", default=1, type=int)
     parser.add_argument("--in_memory_db", default=False)
     parser.add_argument("--clean", default=False)
-    parser.add_argument("--db_path", default="./db", type=str)
+    parser.add_argument("--db_path_root", default="./db", type=str)
     parser.add_argument("--log_level", default="info", type=str)
     args = parser.parse_args()
 
@@ -1166,9 +1180,8 @@ def parse_args():
     env.clusterConfig.ID = bytes(args.node_id, "ascii")
     env.clusterConfig.NODE_PORT = args.node_port
     env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
-
-    if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=args.clean)
+    env.clusterConfig.DB_PATH_ROOT = None if args.in_memory_db else args.db_path_root
+    env.clusterConfig.DB_CLEAN = args.clean
 
     return env
 

@@ -1,12 +1,14 @@
 #!/usr/bin/python3
 import copy
-import plyvel
+import pathlib
+import rocksdb
+import shutil
 
 from quarkchain.core import Constant, MinorBlock, RootBlock, RootBlockHeader, Transaction
-from functools import lru_cache
 
 
-class Db:
+class DbOpsMixin:
+    """DEPRECATED. This was only used for the old UTXO based testnet."""
 
     MAX_TIMESTAMP = 2 ** 32 - 1
 
@@ -35,10 +37,10 @@ class Db:
             self.put(b'addr_' + addr.serialize() + timestampKey + txHash, timestampValue)
 
     def putTx(self, tx, block, rootBlockHeader=None, txHash=None, consumedUtxoList=None):
-        '''
+        """
         'block' is a root chain block if the tx is a root chain coinbase tx since such tx
         isn't included in any minor block. Otherwise it is always a minor block.
-        '''
+        """
         txHash = tx.getHash() if txHash is None else txHash
         self.put(b'tx_' + txHash,
                  block.header.createTime.to_bytes(4, byteorder="big") + tx.serialize())
@@ -52,9 +54,9 @@ class Db:
         self.__putTxToAccounts(tx, txHash, block.header.createTime, consumedUtxoList)
 
     def getTxAndTimestamp(self, txHash):
-        '''
+        """
         The timestamp returned is the createTime of the block that confirms the tx
-        '''
+        """
         value = self.get(b'tx_' + txHash)
         if not value:
             return None
@@ -123,8 +125,8 @@ class Db:
             return 0
         return int.from_bytes(self.get(key), byteorder="big")
 
-    def close(self):
-        pass
+
+class Db:
 
     def __getitem__(self, key):
         value = self.get(key)
@@ -132,8 +134,11 @@ class Db:
             raise KeyError("cannot find {}".format(key))
         return value
 
+    def close(self):
+        pass
 
-class InMemoryDb(Db):
+
+class InMemoryDb(Db, DbOpsMixin):
     """ A simple in-memory key-value database
     TODO: Need to support range operation (e.g., leveldb)
     """
@@ -164,34 +169,61 @@ class InMemoryDb(Db):
 
 
 class PersistentDb(Db):
-
-    def __init__(self, path="./db", clean=False):
+    def __init__(self, db_path, clean=False):
+        self.db_path = db_path
         if clean:
-            plyvel.destroy_db(path)
-        self.db = plyvel.DB(path, create_if_missing=True)
+            self._destroy()
+        pathlib.Path(self.db_path).mkdir(parents=True, exist_ok=True)
 
-    def rangeIter(self, start, end):
-        for k, v in self.db.iterator(start, end):
-            yield bytes(k), bytes(v)
+
+        options = rocksdb.Options()
+        options.create_if_missing = True
+        options.max_open_files = 100000 # ubuntu 16.04 max files descriptors 524288
+        options.write_buffer_size = 67108864 # 64 MiB
+        options.max_write_buffer_number = 3
+        options.target_file_size_base = 67108864
+        options.compression = rocksdb.CompressionType.lz4_compression
+
+        self._db = rocksdb.DB(db_path, options)
+
+    def _destroy(self):
+        shutil.rmtree(self.db_path)
 
     def get(self, key, default=None):
-        value = self.db.get(key)
+        key = key.encode() if not isinstance(key, bytes) else key
+        value = self._db.get(key)
         return default if value is None else value
 
+    def multi_get(self, keys):
+        keys = [k.encode() if not isinstance(k, bytes) else k for k in keys]
+        return self._db.multi_get(keys) # returns a dict with keys as keys
+
     def put(self, key, value):
-        self.db.put(key, value)
+        key = key.encode() if not isinstance(key, bytes) else key
+        value = bytes(value) if isinstance(value, bytearray) else value
+        return self._db.put(key, value)
+
+    def delete(self, key):
+        key = key.encode() if not isinstance(key, bytes) else key
+        return self._db.delete(key)
 
     def remove(self, key):
-        self.db.delete(key)
+        return self.delete(key)
 
     def __contains__(self, key):
-        return self.db.get(key) is not None
+        key = key.encode() if not isinstance(key, bytes) else key
+        return self._db.get(key) is not None
+
+    def rangeIter(self, start, end):
+        raise NotImplementedError
 
     def close(self):
-        # No close option in leveldb?
+        # No close() available for rocksdb
+        # see https://github.com/twmht/python-rocksdb/issues/10
         pass
 
     def __deepcopy__(self, memo):
+        raise NotImplementedError
         # LevelDB cannot be deep copied
         cls = self.__class__
         result = cls.__new__(cls)
@@ -204,64 +236,39 @@ class PersistentDb(Db):
         return result
 
 
-@lru_cache(128)
-def add1(b):
-    v = int.from_bytes(b, byteorder="big")
-    return (v + 1).to_bytes(4, byteorder="big")
-
-
-@lru_cache(128)
-def sub1(b):
-    v = int.from_bytes(b, byteorder="big")
-    return (v - 1).to_bytes(4, byteorder="big")
-
-
-class RefcountedDb(Db):
+class OverlayDb(Db):
+    """ Used for making temporary objects in EvmState.ephemeral_clone()"""
 
     def __init__(self, db):
-        self.db = db
+        self._db = db
         self.kv = None
+        self.overlay = {}
 
     def get(self, key):
-        return self.db.get(key)[4:]
-
-    def getRefcount(self, key):
-        try:
-            return int.from_bytes(self.db.get(key)[:4], byteorder="big")
-        except KeyError:
-            return 0
-
-    def rangeIter(self, start, end):
-        for k, v in self.db.rangeIter(start, end):
-            yield (k, v[4:])
+        if key in self.overlay:
+            return self.overlay[key]
+        return self._db.get(key)
 
     def put(self, key, value):
-        existing = self.db.get(key)
-        if existing is None:
-            self.db.put(key, (1).to_bytes(4, byteorder="big") + value)
-            return
-        assert existing[4:] == value
-        self.db.put(key, add1(existing[:4]) + value)
+        self.overlay[key] = value
 
-    def remove(self, key):
-        existing = self.db.get(key)
-        if existing[:4] == (1).to_bytes(4, byteorder="big"):
-            self.db.remove(key)
-        else:
-            self.db.put(key, sub1(existing[:4]) + existing[4:])
+    def delete(self, key):
+        self.overlay[key] = None
 
     def commit(self):
         pass
 
     def _has_key(self, key):
-        return key in self.db
+        if key in self.overlay:
+            return self.overlay[key] is not None
+        return self._db.get(key) is not None
 
     def __contains__(self, key):
         return self._has_key(key)
 
 
-class ShardedDb(Db):
-
+class ShardedDb(Db, DbOpsMixin):
+    """DEPRECATED. TODO: remove these later, leaving in for not breaking legacy tests"""
     def __init__(self, db, fullShardId):
         self.db = db
         self.fullShardId = fullShardId
@@ -282,37 +289,3 @@ class ShardedDb(Db):
     def rangeIter(self, start, end):
         for k, v in self.db.rangeIter(self.shardKey + start, self.shardKey + end):
             yield k[4:], v
-
-
-class OverlayDb(Db):
-    ''' Used for making temporary objects '''
-
-    def __init__(self, db):
-        self.db = db
-        self.kv = None
-        self.overlay = {}
-
-    def get(self, key):
-        if key in self.overlay:
-            return self.overlay[key]
-        return self.db.get(key)
-
-    def put(self, key, value):
-        self.overlay[key] = value
-
-    def delete(self, key):
-        self.overlay[key] = None
-
-    def commit(self):
-        pass
-
-    def _has_key(self, key):
-        if key in self.overlay:
-            return self.overlay[key] is not None
-        return key in self.db
-
-    def __contains__(self, key):
-        return self._has_key(key)
-
-
-DB = InMemoryDb()

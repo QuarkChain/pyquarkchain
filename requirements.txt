@@ -10,9 +10,9 @@ gitpython==2.1.9
 jsonrpcclient==2.5.2
 jsonrpcserver==3.5.4
 numpy==1.14.0
-plyvel==1.0.4
 protobuf==3.6.0
 psutil==5.4.5
+python-rocksdb==0.6.9
 requests==2.18.4
 
 # Dependencies pulled from pyethereum @87251ebce72e1f4b94c4671a1b7c4bcd64e459a7

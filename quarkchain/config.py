@@ -112,6 +112,8 @@ class DefaultClusterConfig:
         self.ID = ""
         self.CONFIG = None
         self.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
+        self.DB_PATH_ROOT = None
+        self.DB_CLEAN = False
 
     def copy(self):
         return copy.copy(self)

@@ -9,7 +9,7 @@ from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
-from quarkchain.db import Db, RefcountedDb, OverlayDb
+from quarkchain.db import Db, OverlayDb
 from quarkchain.evm.common import FakeHeader
 import copy
 
@@ -60,15 +60,13 @@ class Account(rlp.Serializable):
     ]
 
     def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
-        if db is None:
-            db = env.db
-        self.db = db
+        self.db = env.db if db is None else db
         assert isinstance(db, Db)
         self.env = env
         self.address = address
         super(Account, self).__init__(nonce, balance, storage, code_hash, full_shard_id)
         self.storage_cache = {}
-        self.storage_trie = SecureTrie(Trie(RefcountedDb(db)))
+        self.storage_trie = SecureTrie(Trie(self.db))
         self.storage_trie.root_hash = self.storage
         self.touched = False
         self.existent_at_start = True
@@ -142,7 +140,7 @@ class State:
             db = env.db
         self.env = env
         self.__db = db
-        self.trie = SecureTrie(Trie(RefcountedDb(self.db), root))
+        self.trie = SecureTrie(Trie(self.db, root))
         for k, v in STATE_DEFAULTS.items():
             setattr(self, k, kwargs.get(k, copy.copy(v)))
         self.journal = []

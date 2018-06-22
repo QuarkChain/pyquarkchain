@@ -72,7 +72,7 @@ class ExpiryCounter:
         return self.getCount() / self.window
 
 
-class ShardDb:
+class ShardDbOperator:
     def __init__(self, db, env, branch):
         self.env = env
         self.db = db
@@ -258,7 +258,7 @@ class ShardState:
     """  State of a shard, which includes
     - evm state
     - minor blockchain
-    - root blockchain and cross-shard transaction
+    - root blockchain and cross-shard transactiond
     TODO: Support
     - reshard by split
     """
@@ -271,7 +271,7 @@ class ShardState:
         self.rewardCalc = ConstMinorBlockRewardCalcultor(env)
         self.rawDb = db if db is not None else env.db
         self.branch = Branch.create(env.config.SHARD_SIZE, shardId)
-        self.db = ShardDb(self.rawDb, self.env, self.branch)
+        self.db = ShardDbOperator(self.rawDb, self.env, self.branch)
         self.txQueue = TransactionQueue()  # queue of EvmTransaction
         self.txDict = dict()  # hash -> Transaction for explorer
         self.initialized = False
@@ -661,7 +661,7 @@ class ShardState:
                 updateTip = True
             elif block.header.height == self.headerTip.height:
                 updateTip = self.db.getRootBlockHeaderByHash(block.header.hashPrevRootBlock).height > \
-                    self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock).height
+                            self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock).height
 
         if updateTip:
             self.__rewriteBlockIndexTo(block)
@@ -671,7 +671,6 @@ class ShardState:
 
         check(self.__isSameRootChain(self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)))
         endTime = time.time()
-
         Logger.debug("Add block took {} seconds for {} tx".format(
             endTime - startTime, len(block.txList)
         ))

@@ -84,7 +84,7 @@ docker build -t quarkchain .
 
 3. Run the Docker image that was just built as a container:
 ```
-docker run -d -P --name quarkchain -p 8000:80 -e ENVIRONMENT=development quarkchain
+docker run -d -P --name quarkchain -p 8000:80 -e ENVIRONMENT=development -v /PATH/TO/YOUR/pyquarkchain/root/:/code quarkchain
 ```
 
 4. If you need to SSH into the container, you will need to add your SSH public key to ./dockers/webserver/ssh/authorized_keys. Then follow steps 2 and 3 again. You'll need to run:

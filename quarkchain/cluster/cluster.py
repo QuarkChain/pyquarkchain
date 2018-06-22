@@ -39,12 +39,12 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
-    cmd = "python master.py --cluster_config={} --db_path={} " \
+async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
+    cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
           "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
           "--devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
-              configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, seedPort,
+              configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort,
               kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
               kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
@@ -56,9 +56,9 @@ async def run_master(configFilePath, dbPath, serverPort, jsonRpcPort, seedHost, 
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_slave(port, id, shardMaskList, dbPath, clean):
-    cmd = "python slave.py --node_port={} --shard_mask={} --node_id={} --db_path={}".format(
-        port, shardMaskList[0], id, dbPath)
+async def run_slave(port, id, shardMaskList, dbPathRoot, clean):
+    cmd = "pypy3 slave.py --node_port={} --shard_mask={} --node_id={} --db_path_root={}".format(
+        port, shardMaskList[0], id, dbPathRoot)
     if clean:
         cmd += " --clean=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -95,7 +95,7 @@ class Cluster:
     async def runMaster(self):
         master = await run_master(
             configFilePath=self.configFilePath,
-            dbPath=self.config["master"]["db_path"],
+            dbPathRoot=self.config["master"]["db_path_root"],
             serverPort=self.config["master"]["server_port"],
             jsonRpcPort=self.config["master"]["json_rpc_port"],
             seedHost=self.config["master"]["seed_host"],
@@ -118,7 +118,7 @@ class Cluster:
                 port=slave["port"],
                 id=slave["id"],
                 shardMaskList=slave["shard_masks"],
-                dbPath=slave["db_path"],
+                dbPathRoot=slave["db_path_root"],
                 clean=self.clean)
             prefix = "{}SLAVE_{}".format(self.clusterID, slave["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
@@ -155,7 +155,7 @@ def main():
     parser.add_argument(
         "--port_start", default=PORT, type=int)
     parser.add_argument(
-        "--db_prefix", default="./db_", type=str)
+        "--db_path_root", default="./db", type=str)
     parser.add_argument(
         "--p2p_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT)
     parser.add_argument(
@@ -193,7 +193,7 @@ def main():
             jsonRpcPort=args.json_rpc_port,
             seedHost=args.seed_host,
             seedPort=args.seed_port,
-            dbPrefix=args.db_prefix,
+            dbPathRoot = args.db_path_root,
             devp2p=args.devp2p,
             devp2p_port=args.devp2p_port,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,

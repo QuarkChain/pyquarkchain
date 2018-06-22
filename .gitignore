@@ -1,5 +1,5 @@
-# LevelDB dir
-db/
+# Database dirs
+*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -112,9 +112,6 @@ venv.bak/
 
 # IDE
 .idea/
-
-# DB
-db_*/
 
 # IPython notebook
 *.ipynb

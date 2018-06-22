@@ -997,7 +997,7 @@ def parse_args():
     parser.add_argument(
         "--mine", default=False, type=bool)
     parser.add_argument("--in_memory_db", default=False)
-    parser.add_argument("--db_path", default="./db", type=str)
+    parser.add_argument("--db_path_root", default="./db", type=str)
     parser.add_argument("--clean", default=False, type=bool)
     parser.add_argument("--log_level", default="info", type=str)
     parser.add_argument("--devp2p", default=False, type=bool)
@@ -1023,8 +1023,13 @@ def parse_args():
     env.config.DEVP2P_MIN_PEERS = args.devp2p_min_peers
     env.config.DEVP2P_MAX_PEERS = args.devp2p_max_peers
     env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
+
+    # initialize database
     if not args.in_memory_db:
-        env.db = PersistentDb(path=args.db_path, clean=args.clean)
+        env.db = PersistentDb(
+            "{path}/master.db".format(path=args.db_path_root),
+            clean=args.clean,
+        )
 
     return env, args.mine
 
