@@ -1,7 +1,7 @@
 from quarkchain.utils import is_p2
 
 
-def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort,
+def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort, jsonRpcPrivatePort,
                           seedHost, seedPort, dbPathRoot="", **kwargs):
     if slaveCount <= 0 or not is_p2(slaveCount):
         print("Slave count must be power of 2")
@@ -13,6 +13,7 @@ def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort
         "db_path_root": dbPathRoot,
         "server_port": p2pPort,
         "json_rpc_port": jsonRpcPort,
+        "json_rpc_private_port": jsonRpcPrivatePort,
         "seed_host": seedHost,
         "seed_port": seedPort,
         "devp2p": kwargs['devp2p'],

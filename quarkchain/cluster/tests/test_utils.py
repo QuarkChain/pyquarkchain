@@ -121,6 +121,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
             ip="127.0.0.1",
             p2pPort=0,
             jsonRpcPort=0,
+            jsonRpcPrivatePort=0,
             clusterPortStart=get_next_port(),
             seedHost="",
             seedPort=0,

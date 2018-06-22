@@ -31,7 +31,7 @@ from quarkchain.cluster.rpc import (
     AccountBranchData,
     BatchAddXshardTxListRequest,
     BatchAddXshardTxListResponse,
-    MineResponse,
+    MineResponse, GenTxResponse,
 )
 
 from quarkchain.cluster.miner import Miner
@@ -393,6 +393,10 @@ class MasterConnection(ClusterConnection):
             self.slaveServer.stopMining()
         return MineResponse(errorCode=0)
 
+    async def handleGenTxRequest(self, request):
+        self.slaveServer.createTransactions(request.numTxPerShard, request.xShardPercent)
+        return GenTxResponse(errorCode=0)
+
     # Blockchain RPC handlers
 
     async def handleAddRootBlockRequest(self, req):
@@ -619,6 +623,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.CONNECT_TO_SLAVES_RESPONSE, MasterConnection.handleConnectToSlavesRequest),
     ClusterOp.MINE_REQUEST:
         (ClusterOp.MINE_RESPONSE, MasterConnection.handleMineRequest),
+    ClusterOp.GEN_TX_REQUEST:
+        (ClusterOp.GEN_TX_RESPONSE, MasterConnection.handleGenTxRequest),
     ClusterOp.ADD_ROOT_BLOCK_REQUEST:
         (ClusterOp.ADD_ROOT_BLOCK_RESPONSE, MasterConnection.handleAddRootBlockRequest),
     ClusterOp.GET_ECO_INFO_LIST_REQUEST:
@@ -797,7 +803,7 @@ class SlaveServer():
             return self.shardStateMap[branchValue].createBlockToMine(address=minerAddress)
 
         def __getTargetBlockTime():
-            return self.env.config.MINOR_BLOCK_INTERVAL_SEC * max(1, self.artificialTxConfig.numMiners)
+            return self.artificialTxConfig.targetMinorBlockTime
 
         self.minerMap[branchValue] = Miner(
             __createBlock,
@@ -813,18 +819,16 @@ class SlaveServer():
     def startMining(self, artificialTxConfig):
         self.artificialTxConfig = artificialTxConfig
         for branchValue, miner in self.minerMap.items():
-            Logger.info("[{}] Received new mining config #tx={} xshard={}% #miners={}".format(
+            Logger.info("[{}] start mining with target minor block time {} seconds".format(
                 Branch(branchValue).getShardId(),
-                artificialTxConfig.numTxPerBlock,
-                artificialTxConfig.xShardTxPercent,
-                artificialTxConfig.numMiners,
+                artificialTxConfig.targetMinorBlockTime,
             ))
             miner.enable()
             miner.mineNewBlockAsync();
 
-            # A magic number to trigger load test
-            if artificialTxConfig.numTxPerBlock == 999:
-                self.txGenMap[branchValue].generate(artificialTxConfig.xShardTxPercent)
+    def createTransactions(self, numTxPerShard, xShardPercent):
+        for generator in self.txGenMap.values():
+            generator.generate(numTxPerShard, xShardPercent)
 
     def stopMining(self):
         for branchValue, miner in self.minerMap.items():

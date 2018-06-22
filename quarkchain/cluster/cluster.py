@@ -39,12 +39,12 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort, mine, clean, **kwargs):
+async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort, mine, clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
-          "--server_port={} --local_port={} --seed_host={} --seed_port={} " \
+          "--server_port={} --local_port={} --json_rpc_private_port={} --seed_host={} --seed_port={} " \
           "--devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
-              configFilePath, dbPathRoot, serverPort, jsonRpcPort, seedHost, seedPort,
+              configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort,
               kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
               kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
@@ -98,6 +98,7 @@ class Cluster:
             dbPathRoot=self.config["master"]["db_path_root"],
             serverPort=self.config["master"]["server_port"],
             jsonRpcPort=self.config["master"]["json_rpc_port"],
+            jsonRpcPrivatePort=self.config["master"]["json_rpc_private_port"],
             seedHost=self.config["master"]["seed_host"],
             seedPort=self.config["master"]["seed_port"],
             mine=self.mine,
@@ -161,6 +162,8 @@ def main():
     parser.add_argument(
         "--json_rpc_port", default=38391, type=int)
     parser.add_argument(
+        "--json_rpc_private_port", default=38491, type=int)
+    parser.add_argument(
         "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST)
     parser.add_argument(
         "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT)
@@ -191,6 +194,7 @@ def main():
             p2pPort=args.p2p_port,
             clusterPortStart=args.port_start,
             jsonRpcPort=args.json_rpc_port,
+            jsonRpcPrivatePort=args.json_rpc_private_port,
             seedHost=args.seed_host,
             seedPort=args.seed_port,
             dbPathRoot = args.db_path_root,

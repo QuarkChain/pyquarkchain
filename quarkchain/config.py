@@ -29,8 +29,11 @@ class DefaultConfig:
         self.DEVP2P_BOOTSTRAP_PORT = 29000
         self.DEVP2P_MIN_PEERS = 2
         self.DEVP2P_MAX_PEERS = 10
-        self.LOCAL_SERVER_PORT = 38391
-        self.LOCAL_SERVER_ENABLE = False
+        self.LOCAL_SERVER_PORT = 38391  # TODO: cleanup
+        self.LOCAL_SERVER_ENABLE = False  # TODO: cleanup
+        self.PUBLIC_JSON_RPC_PORT = 38391
+        self.PRIVATE_JSON_RPC_PORT = 38491
+
         self.SHARD_SIZE = 8
         self.SHARD_SIZE_BITS = int_left_most_bit(self.SHARD_SIZE) - 1
 

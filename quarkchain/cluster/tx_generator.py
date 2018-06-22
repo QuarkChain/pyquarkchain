@@ -35,7 +35,7 @@ class TransactionGenerator:
                 bytes.fromhex(item["key"]))
             self.accounts.append(account)
 
-    def generate(self, xShardPecent):
+    def generate(self, numTx, xShardPecent):
         """Generate a bunch of transactions in the network
         The total number of transactions generated each time
         """
@@ -43,30 +43,37 @@ class TransactionGenerator:
             return False
         shardState = self.slaveServer.shardStateMap[self.branch.value]
         if shardState.headerTip.height < len(LOADTEST_ACCOUNTS) / 500 + 2:
+            # to allow all the load test accounts to get funded
+            Logger.warning("Cannot generate transactions since not all the accounts have been funded")
             return False
 
         self.running = True
-        asyncio.ensure_future(self.__gen(xShardPecent))
+        asyncio.ensure_future(self.__gen(numTx, xShardPecent))
         return True
 
-    async def __gen(self, xShardPecent):
-        Logger.info("[{}] start generating {} transactions".format(
-            self.branch.getShardId(), len(self.accounts),
+    async def __gen(self, numTx, xShardPecent):
+        Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
+            self.branch.getShardId(), numTx, xShardPecent
         ))
         startTime = time.time()
         txList = []
+        total = 0
         for account in self.accounts:
             nonce = self.slaveServer.getTransactionCount(account.address)
             tx = self.createTransaction(account, nonce, xShardPecent)
             txList.append(tx)
-            if len(txList) >= 100:
+            total += 1
+            if len(txList) >= 100 or total >= numTx:
                 self.slaveServer.addTxList(txList)
                 txList = []
                 await asyncio.sleep(0)  # yield CPU so that other stuff won't be held for too long
 
+            if total >= numTx:
+                break
+
         endTime = time.time()
         Logger.info("[{}] generated {} transactions in {:.2f} seconds".format(
-            self.branch.getShardId(), len(self.accounts), endTime - startTime
+            self.branch.getShardId(), total, endTime - startTime
         ))
         self.running = False
 

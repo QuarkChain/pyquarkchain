@@ -88,15 +88,13 @@ class ConnectToSlavesResponse(Serializable):
 
 class ArtificialTxConfig(Serializable):
     FIELDS = [
-        ("numTxPerBlock", uint32),
-        ("xShardTxPercent", uint32),  # [0,100]
-        ("numMiners", uint32),
+        ("targetRootBlockTime", uint32),
+        ("targetMinorBlockTime", uint32),
     ]
 
-    def __init__(self, numTxPerBlock, xShardTxPercent, numMiners=0):
-        self.numTxPerBlock = numTxPerBlock
-        self.xShardTxPercent = xShardTxPercent
-        self.numMiners = numMiners
+    def __init__(self, targetRootBlockTime, targetMinorBlockTime):
+        self.targetRootBlockTime = targetRootBlockTime
+        self.targetMinorBlockTime = targetMinorBlockTime
 
 
 class MineRequest(Serializable):
@@ -119,6 +117,26 @@ class MineResponse(Serializable):
     def __init__(self, errorCode):
         self.errorCode = errorCode
 
+
+class GenTxRequest(Serializable):
+    """Generate transactions for loadtesting"""
+    FIELDS = [
+        ("numTxPerShard", uint32),
+        ("xShardPercent", uint32),  # [0, 100]
+    ]
+
+    def __init__(self, numTxPerShard, xShardPercent):
+        self.numTxPerShard = numTxPerShard
+        self.xShardPercent = xShardPercent
+
+
+class GenTxResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+    ]
+
+    def __init__(self, errorCode):
+        self.errorCode = errorCode
 
 # Virtual connection management
 
@@ -614,6 +632,8 @@ class ClusterOp:
     GET_TRANSACTION_RECEIPT_RESPONSE = 38 + CLUSTER_OP_BASE
     MINE_REQUEST = 39 + CLUSTER_OP_BASE
     MINE_RESPONSE = 40 + CLUSTER_OP_BASE
+    GEN_TX_REQUEST = 41 + CLUSTER_OP_BASE
+    GEN_TX_RESPONSE = 42 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -656,4 +676,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_TRANSACTION_RECEIPT_RESPONSE: GetTransactionReceiptResponse,
     ClusterOp.MINE_REQUEST: MineRequest,
     ClusterOp.MINE_RESPONSE: MineResponse,
+    ClusterOp.GEN_TX_REQUEST: GenTxRequest,
+    ClusterOp.GEN_TX_RESPONSE: GenTxResponse,
 }

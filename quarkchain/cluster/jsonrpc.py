@@ -9,7 +9,6 @@ from decorator import decorator
 from ethereum.utils import is_numeric, denoms
 
 from jsonrpcserver import config
-from jsonrpcserver.aio import methods
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
@@ -27,6 +26,11 @@ DEFAULT_GASPRICE = 10 * denoms.gwei
 # Allow 16 MB request for submitting big blocks
 # TODO: revisit this parameter
 JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
+
+
+# Disable jsonrpcserver logging
+config.log_requests = False
+config.log_responses = False
 
 
 def quantity_decoder(hexStr):
@@ -288,15 +292,38 @@ def encode_res(encoder):
     return new_f
 
 
+public_methods = AsyncMethods()
+private_methods = AsyncMethods()
+
+
 class JSONRPCServer:
 
-    def __init__(self, env, masterServer):
-        # Disable jsonrpcserver logging
-        config.log_requests = False
-        config.log_responses = False
+    @classmethod
+    def startPublicServer(cls, env, masterServer):
+        server = cls(env, masterServer, env.config.PUBLIC_JSON_RPC_PORT, public_methods)
+        server.start()
+        return server
 
+    @classmethod
+    def startPrivateServer(cls, env, masterServer):
+        server = cls(env, masterServer, env.config.PRIVATE_JSON_RPC_PORT, private_methods)
+        server.start()
+        return server
+
+    @classmethod
+    def startTestServer(cls, env, masterServer):
+        methods = AsyncMethods()
+        for method in public_methods.values():
+            methods.add(method)
+        for method in private_methods.values():
+            methods.add(method)
+        server = cls(env, masterServer, env.config.PUBLIC_JSON_RPC_PORT, methods)
+        server.start()
+        return server
+
+    def __init__(self, env, masterServer, port, methods: AsyncMethods):
         self.loop = asyncio.get_event_loop()
-        self.port = env.config.LOCAL_SERVER_PORT
+        self.port =port
         self.env = env
         self.master = masterServer
 
@@ -328,19 +355,19 @@ class JSONRPCServer:
         self.loop.run_until_complete(self.runner.cleanup())
 
     # JSON RPC handlers
-    @methods.add
+    @public_methods.add
     @decode_arg("quantity", quantity_decoder)
     @encode_res(quantity_encoder)
     async def echoQuantity(self, quantity):
         return quantity
 
-    @methods.add
+    @public_methods.add
     @decode_arg("data", data_decoder)
     @encode_res(data_encoder)
     async def echoData(self, data):
         return data
 
-    @methods.add
+    @public_methods.add
     async def networkInfo(self):
         return {
             "networkId": quantity_encoder(self.master.env.config.NETWORK_ID),
@@ -348,14 +375,14 @@ class JSONRPCServer:
             "syncing": self.master.isSyncing(),
         }
 
-    @methods.add
+    @public_methods.add
     @decode_arg("address", address_decoder)
     @encode_res(quantity_encoder)
     async def getTransactionCount(self, address):
         accountBranchData = await self.master.getPrimaryAccountData(Address.deserialize(address))
         return accountBranchData.transactionCount
 
-    @methods.add
+    @public_methods.add
     @decode_arg("address", address_decoder)
     async def getBalance(self, address):
         accountBranchData = await self.master.getPrimaryAccountData(Address.deserialize(address))
@@ -367,7 +394,7 @@ class JSONRPCServer:
             "balance": quantity_encoder(balance),
         }
 
-    @methods.add
+    @public_methods.add
     @decode_arg("address", address_decoder)
     async def getAccountData(self, address, includeShards=False):
         address = Address.deserialize(address)
@@ -407,7 +434,7 @@ class JSONRPCServer:
             "shards": shards,
         }
 
-    @methods.add
+    @public_methods.add
     async def sendUnsignedTransaction(self, **data):
         """ Returns the unsigned hash of the evm transaction """
         if not isinstance(data, dict):
@@ -456,7 +483,7 @@ class JSONRPCServer:
             'networkId': quantity_encoder(evmTx.networkId),
         }
 
-    @methods.add
+    @public_methods.add
     async def sendTransaction(self, **data):
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
@@ -503,7 +530,7 @@ class JSONRPCServer:
 
         return id_encoder(tx.getHash(), fromFullShardId)
 
-    @methods.add
+    @public_methods.add
     @decode_arg("txData", data_decoder)
     async def sendRawTransaction(self, txData):
         evmTx = rlp.decode(txData, EvmTransaction)
@@ -513,44 +540,7 @@ class JSONRPCServer:
             return None
         return id_encoder(tx.getHash(), evmTx.fromFullShardId)
 
-    @methods.add
-    @decode_arg("coinbaseAddress", address_decoder)
-    @decode_arg("shardMaskValue", quantity_decoder)
-    async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue, preferRoot=False):
-        address = Address.deserialize(coinbaseAddress)
-        isRootBlock, block = await self.master.getNextBlockToMine(address, shardMaskValue, preferRoot=preferRoot)
-        if not block:
-            return None
-        return {
-            "isRootBlock": isRootBlock,
-            "blockData": data_encoder(block.serialize()),
-        }
-
-    @methods.add
-    @decode_arg("branch", quantity_decoder)
-    @decode_arg("blockData", data_decoder)
-    async def addBlock(self, branch, blockData):
-        if branch == 0:
-            block = RootBlock.deserialize(blockData)
-            return await self.master.addRootBlockFromMiner(block)
-        return await self.master.addRawMinorBlock(Branch(branch), blockData)
-
-    @methods.add
-    async def setArtificialTxConfig(self, numTxPerBlock, xShardTxPercent, numMiners, seconds):
-        """This RPC can be used in a few ways (TODO: make this more explicit)
-        1. (*, *, 0, 0) will stop mining
-        2. (999, x, n, 1) will generate 12000 transactions for each shard where x is the percentage of cross-shard tx
-           n is the total number of miners of a shard / root chain
-        4. (*, *, n, *) will update the number of miners so that the block time can be simulated correctly
-        """
-        return await self.master.setArtificialTxConfig(numTxPerBlock, xShardTxPercent, numMiners, seconds)
-
-    @methods.add
-    async def getStats(self):
-        # This JRPC doesn't follow the standard encoding
-        return await self.master.getStats()
-
-    @methods.add
+    @public_methods.add
     @decode_arg("blockId", data_decoder)
     async def getRootBlockById(self, blockId):
         try:
@@ -559,7 +549,7 @@ class JSONRPCServer:
         except Exception:
             return None
 
-    @methods.add
+    @public_methods.add
     @decode_arg("height", quantity_decoder)
     async def getRootBlockByHeight(self, height):
         block = self.master.rootState.getRootBlockByHeight(height)
@@ -567,7 +557,7 @@ class JSONRPCServer:
             return None
         return root_block_encoder(block)
 
-    @methods.add
+    @public_methods.add
     @decode_arg("blockId", id_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockById(self, blockId, includeTransactions=False):
@@ -579,7 +569,7 @@ class JSONRPCServer:
             return None
         return minor_block_encoder(block, includeTransactions)
 
-    @methods.add
+    @public_methods.add
     @decode_arg("shard", quantity_decoder)
     @decode_arg("height", quantity_decoder)
     @decode_arg("includeTransactions", bool_decoder)
@@ -593,7 +583,7 @@ class JSONRPCServer:
             return None
         return minor_block_encoder(block, includeTransactions)
 
-    @methods.add
+    @public_methods.add
     @decode_arg("txId", id_decoder)
     async def getTransactionById(self, txId):
         txHash, fullShardId = txId
@@ -606,20 +596,7 @@ class JSONRPCServer:
             return None
         return tx_encoder(minorBlock, i)
 
-    @methods.add
-    async def getPeers(self):
-        peerList = []
-        for peerId, peer in self.master.network.activePeerPool.items():
-            peerList.append({
-                "id": data_encoder(peerId),
-                "ip": quantity_encoder(int(peer.ip)),
-                "port": quantity_encoder(peer.port),
-            })
-        return {
-            "peers": peerList,
-        }
-
-    @methods.add
+    @public_methods.add
     @decode_arg("txData", data_decoder)
     async def call(self, txData):
         """ Returns the result of the transaction application without putting in block chain """
@@ -628,7 +605,7 @@ class JSONRPCServer:
         res = await self.master.executeTransaction(tx)
         return data_encoder(res) if res is not None else None
 
-    @methods.add
+    @public_methods.add
     @decode_arg("txId", id_decoder)
     async def getTransactionReceipt(self, txId):
         txHash, fullShardId = txId
@@ -642,6 +619,63 @@ class JSONRPCServer:
             return None
 
         return receipt_encoder(minorBlock, i, receipt)
+
+######################## Private Methods ########################
+
+    @private_methods.add
+    @decode_arg("coinbaseAddress", address_decoder)
+    @decode_arg("shardMaskValue", quantity_decoder)
+    async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue, preferRoot=False):
+        address = Address.deserialize(coinbaseAddress)
+        isRootBlock, block = await self.master.getNextBlockToMine(address, shardMaskValue, preferRoot=preferRoot)
+        if not block:
+            return None
+        return {
+            "isRootBlock": isRootBlock,
+            "blockData": data_encoder(block.serialize()),
+        }
+
+    @private_methods.add
+    @decode_arg("branch", quantity_decoder)
+    @decode_arg("blockData", data_decoder)
+    async def addBlock(self, branch, blockData):
+        if branch == 0:
+            block = RootBlock.deserialize(blockData)
+            return await self.master.addRootBlockFromMiner(block)
+        return await self.master.addRawMinorBlock(Branch(branch), blockData)
+
+    @private_methods.add
+    async def getPeers(self):
+        peerList = []
+        for peerId, peer in self.master.network.activePeerPool.items():
+            peerList.append({
+                "id": data_encoder(peerId),
+                "ip": quantity_encoder(int(peer.ip)),
+                "port": quantity_encoder(peer.port),
+            })
+        return {
+            "peers": peerList,
+        }
+
+    @private_methods.add
+    async def getStats(self):
+        # This JRPC doesn't follow the standard encoding
+        return await self.master.getStats()
+
+    @private_methods.add
+    async def createTransactions(self, numTxPerShard, xShardPercent):
+        """Create transactions for load testing"""
+        return await self.master.createTransactions(numTxPerShard, xShardPercent)
+
+    @private_methods.add
+    async def setTargetBlockTime(self, rootBlockTime=0, minorBlockTime=0):
+        """0 will not update existing value"""
+        return await self.master.setTargetBlockTime(rootBlockTime, minorBlockTime)
+
+    @private_methods.add
+    async def setMining(self, mining):
+        """Turn on / off mining"""
+        return await self.master.setMining(mining)
 
 
 if __name__ == "__main__":

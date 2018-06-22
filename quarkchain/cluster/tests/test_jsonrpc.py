@@ -29,8 +29,7 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 @contextmanager
 def JSONRPCServerContext(master):
-    server = JSONRPCServer(DEFAULT_ENV, master)
-    server.start()
+    server = JSONRPCServer.startTestServer(DEFAULT_ENV, master)
     yield server
     server.shutdown()
 
