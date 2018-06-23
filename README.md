@@ -55,22 +55,11 @@ pypy3 multi_cluster.py --num_cluster=10 (--mine=True)
 
 ## Docker Deployment
 ####TODO: update this section with pypy command
-First [install docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/)
+First [install docker](https://docs.docker.com/docker-for-mac/install/)
 
 Build docker image
 ```
 docker build -t quarkchain .
-```
-
-Run network inside docker
-```
-docker run -it quarkchain /bin/bash
-python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
-```
-
-Run network outside docker
-```
-docker run -t quarkchain python3 -c "import quarkchain.simple_network; quarkchain.simple_network.main()"
 ```
 
 
