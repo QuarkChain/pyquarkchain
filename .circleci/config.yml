@@ -30,13 +30,11 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            pypy3 -m venv venv
-            . venv/bin/activate
-            pip3 install -e .
+            pip3 install -r requirements.txt
 
       - save_cache:
           paths:
-            - ./venv
+            - /opt
           key: v1-dependencies-{{ checksum "requirements.txt" }}
         
       # run tests!
@@ -50,7 +48,6 @@ jobs:
       - run:
           name: run tests
           command: |
-            . venv/bin/activate
             pypy3 -m unittest
             cat quarkchain/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/data_size.py check
 
