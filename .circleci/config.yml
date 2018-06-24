@@ -8,7 +8,7 @@ jobs:
     docker:
       # specify the version you desire here
       # use `-browsers` prefix for selenium tests, e.g. `3.6.1-browsers`
-      - image: circleci/python:3.6.1
+      - image: qcgg/circleci-pypy3-rocksdb:0.0.1
       
       # Specify service dependencies here if necessary
       # CircleCI maintains a library of pre-built images
@@ -30,9 +30,9 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            python3 -m venv venv
+            pypy3 -m venv venv
             . venv/bin/activate
-            pip3 install -r requirements.txt
+            pip3 install -e .
 
       - save_cache:
           paths:
@@ -51,8 +51,8 @@ jobs:
           name: run tests
           command: |
             . venv/bin/activate
-            python3 -m unittest
-            cat quarkchain/DATA_SIZE | PYTHONPATH=. python3 quarkchain/data_size.py check
+            pypy3 -m unittest
+            cat quarkchain/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/data_size.py check
 
       - store_artifacts:
           path: test-reports
