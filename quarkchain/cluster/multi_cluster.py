@@ -30,6 +30,8 @@ async def main():
     parser.add_argument(
         "--devp2p", default=True, type=bool)
     parser.add_argument(
+        "--devp2p_ip", default='', type=str)
+    parser.add_argument(
         "--devp2p_start_port", default=29000, type=int)
     parser.add_argument(
         "--devp2p_bootstrap_host", default='0.0.0.0', type=str)
@@ -61,7 +63,7 @@ async def main():
             seedPort=args.seed_port,
             dbPathRoot="{}_C{}".format(args.db_path_root, i),
             devp2p=args.devp2p,
-            devp2p_ip='',
+            devp2p_ip=args.devp2p_ip,
             devp2p_port=args.devp2p_start_port + i,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,
