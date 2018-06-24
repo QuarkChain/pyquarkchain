@@ -61,6 +61,7 @@ async def main():
             seedPort=args.seed_port,
             dbPathRoot="{}_C{}".format(args.db_path_root, i),
             devp2p=args.devp2p,
+            devp2p_ip='',
             devp2p_port=args.devp2p_start_port + i,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,

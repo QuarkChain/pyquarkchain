@@ -989,6 +989,7 @@ def parse_args():
     parser.add_argument("--clean", default=False, type=bool)
     parser.add_argument("--log_level", default="info", type=str)
     parser.add_argument("--devp2p", default=False, type=bool)
+    parser.add_argument("--devp2p_ip", default='', type=str)
     parser.add_argument("--devp2p_port", default=29000, type=int)
     parser.add_argument("--devp2p_bootstrap_host", default="0.0.0.0", type=str)
     parser.add_argument("--devp2p_bootstrap_port", default=29000, type=int)
@@ -1008,6 +1009,7 @@ def parse_args():
     env.config.PUBLIC_JSON_RPC_PORT = args.local_port
     env.config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
     env.config.DEVP2P = args.devp2p
+    env.config.DEVP2P_IP = args.devp2p_ip
     env.config.DEVP2P_PORT = args.devp2p_port
     env.config.DEVP2P_BOOTSTRAP_HOST = args.devp2p_bootstrap_host
     env.config.DEVP2P_BOOTSTRAP_PORT = args.devp2p_bootstrap_port

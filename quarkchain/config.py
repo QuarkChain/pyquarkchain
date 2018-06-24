@@ -24,6 +24,7 @@ class DefaultConfig:
         self.P2P_SEED_HOST = "127.0.0.1"
         self.P2P_SEED_PORT = self.P2P_SERVER_PORT
         self.DEVP2P = False
+        self.DEVP2P_IP = ''
         self.DEVP2P_PORT = 29000
         self.DEVP2P_BOOTSTRAP_HOST = "0.0.0.0"
         self.DEVP2P_BOOTSTRAP_PORT = 29000
