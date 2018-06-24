@@ -30,7 +30,8 @@ jobs:
       - run:
           name: install dependencies
           command: |
-            pip3 install -r requirements.txt
+            cd /opt/rocksdb && make clean && DEBUG_LEVEL=0 make shared_lib
+            cd ~/repo && pip3 install -e .
 
       - save_cache:
           paths:
@@ -48,6 +49,9 @@ jobs:
       - run:
           name: run tests
           command: |
+            cd /opt/rocksdb && make install-shared
+            cp /usr/local/lib/librocksdb.* /usr/lib/
+            cd ~/repo
             pypy3 -m unittest
             cat quarkchain/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/data_size.py check
 
