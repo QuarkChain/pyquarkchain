@@ -194,7 +194,7 @@ class P2PNetwork:
         self.masterServer = masterServer
         masterServer.network = self
         self.ip = ipaddress.ip_address(
-            socket.gethostbyname(socket.gethostname()))
+            env.config.DEVP2P_IP if env.config.DEVP2P_IP != '' else socket.gethostbyname(socket.gethostname()))
         self.port = self.env.config.P2P_SERVER_PORT
         self.localPort = self.env.config.LOCAL_SERVER_PORT
         # Internal peer id in the cluster, mainly for connection management

@@ -17,6 +17,7 @@ def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort
         "seed_host": seedHost,
         "seed_port": seedPort,
         "devp2p": kwargs['devp2p'],
+        "devp2p_ip": kwargs['devp2p_ip'],
         "devp2p_port": kwargs['devp2p_port'],
         "devp2p_bootstrap_host": kwargs['devp2p_bootstrap_host'],
         "devp2p_bootstrap_port": kwargs['devp2p_bootstrap_port'],

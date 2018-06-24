@@ -42,11 +42,11 @@ def dump_config_to_file(config):
 async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort, mine, clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
           "--server_port={} --local_port={} --json_rpc_private_port={} --seed_host={} --seed_port={} " \
-          "--devp2p_port={} --devp2p_bootstrap_host={} " \
+          "--devp2p_ip={} --devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
               configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort,
-              kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'], kwargs['devp2p_bootstrap_port'],
-              kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
+              kwargs['devp2p_ip'], kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'],
+              kwargs['devp2p_bootstrap_port'], kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
     if mine:
         cmd += " --mine=true"
     if kwargs['devp2p']:
@@ -104,6 +104,7 @@ class Cluster:
             mine=self.mine,
             clean=self.clean,
             devp2p=self.config["master"]["devp2p"],
+            devp2p_ip=self.config["master"]["devp2p_ip"],
             devp2p_port=self.config["master"]["devp2p_port"],
             devp2p_bootstrap_host=self.config["master"]["devp2p_bootstrap_host"],
             devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
@@ -171,6 +172,12 @@ def main():
         "--clean", default=False)
     parser.add_argument(
         "--devp2p", default=False, type=bool)
+    '''
+    set devp2p_ip so that peers can connect to this cluster
+    leave empty if you want to use `socket.gethostbyname()`, but it may cause this cluster to be unreachable by peers
+    '''
+    parser.add_argument(
+        "--devp2p_ip", default='', type=str)
     parser.add_argument(
         "--devp2p_port", default=29000, type=int)
     parser.add_argument(
@@ -199,6 +206,7 @@ def main():
             seedPort=args.seed_port,
             dbPathRoot = args.db_path_root,
             devp2p=args.devp2p,
+            devp2p_ip=args.devp2p_ip,
             devp2p_port=args.devp2p_port,
             devp2p_bootstrap_host=args.devp2p_bootstrap_host,
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,
