@@ -13,7 +13,7 @@ RUN apt-get install -y git build-essential wget pkg-config libgmp-dev libssl-dev
 RUN apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev
 RUN git clone https://github.com/facebook/rocksdb.git
 RUN cd rocksdb && DEBUG_LEVEL=0 make shared_lib install-shared
-RUN cp /usr/local/lib/librocksdb.* /usr/lib/
+RUN ln -fs /opt/rocksdb/librocksdb.so* /usr/lib/
 
 # intall pypy3
 RUN wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2

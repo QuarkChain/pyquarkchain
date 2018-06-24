@@ -6,54 +6,67 @@ version: 2
 jobs:
   build:
     docker:
-      # specify the version you desire here
-      # use `-browsers` prefix for selenium tests, e.g. `3.6.1-browsers`
       - image: qcgg/circleci-pypy3-rocksdb:0.0.1
-      
-      # Specify service dependencies here if necessary
-      # CircleCI maintains a library of pre-built images
-      # documented at https://circleci.com/docs/2.0/circleci-images/
-      # - image: circleci/postgres:9.4
 
     working_directory: ~/repo
 
     steps:
       - checkout
 
-      # Download and cache dependencies
+      # The librocksdb* that comes with the image does not work on circle ci :(
+      # Let's rebuild
+      - run:
+          name: Cleanup Prebuilt RocksDB
+          command: |
+            cd /opt/rocksdb
+            make clean
+            rm /usr/lib/librocksdb* /usr/local/lib/librocksdb*
+
+      # Build, install and cache librocksdb
       - restore_cache:
           keys:
-          - v1-dependencies-{{ checksum "requirements.txt" }}
-          # fallback to using the latest cache if no exact match is found
-          - v1-dependencies-
+          - rocksdb-v1
 
       - run:
-          name: install dependencies
+          name: Install RocksDB
           command: |
-            cd /opt/rocksdb && make clean && DEBUG_LEVEL=0 make shared_lib
-            cd ~/repo && pip3 install -e .
+            cd /opt/rocksdb && DEBUG_LEVEL=0 make shared_lib install-shared
+            ln -fs /opt/rocksdb/librocksdb.so* /usr/lib/
 
       - save_cache:
           paths:
-            - /opt
-          key: v1-dependencies-{{ checksum "requirements.txt" }}
-        
-      # run tests!
-      # this example uses Django's built-in test-runner
-      # other common Python testing frameworks include pytest and nose
-      # https://pytest.org
-      # https://nose.readthedocs.io
+            - /opt/rocksdb
+          key: rocksdb-v1
 
+      # Download and cache python modules
+      - restore_cache:
+          keys:
+          - pip-v1-{{ checksum "requirements.txt" }}
+          # fallback to using the latest cache if no exact match is found
+          - pip-v1-
+
+      - run:
+          name: Install Project Dependencies
+          command: |
+            pip3 install -e .
+
+      - save_cache:
+          paths:
+            - /opt/pypy3-v6.0.0-linux64
+          key: pip-v1-{{ checksum "requirements.txt" }}
+        
+      # Run tests!
       # TODO: PYTHONPATH=. python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
       # Tests are currently broken due to added 'full_shard_id' field in Account (evm/state.py)
       - run:
-          name: run tests
+          name: Check Data Size
           command: |
-            cd /opt/rocksdb && make install-shared
-            cp /usr/local/lib/librocksdb.* /usr/lib/
-            cd ~/repo
-            pypy3 -m unittest
             cat quarkchain/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/data_size.py check
+
+      - run:
+          name: Run Unit Tests
+          command: |
+            pypy3 -m unittest
 
       - store_artifacts:
           path: test-reports
