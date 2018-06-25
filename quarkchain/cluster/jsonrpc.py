@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+
 import rlp
 
 from aiohttp import web
@@ -571,10 +572,11 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("shard", quantity_decoder)
-    @decode_arg("height", quantity_decoder)
     @decode_arg("includeTransactions", bool_decoder)
-    async def getMinorBlockByHeight(self, shard, height, includeTransactions=False):
+    async def getMinorBlockByHeight(self, shard: int, height=None, includeTransactions=False):
         shardSize = self.master.getShardSize()
+        if height is not None:
+            height = quantity_decoder(height)
         if shard >= shardSize:
             raise InvalidParams("shard is larger than shard size {} > {}".format(shard, shardSize))
         branch = Branch.create(shardSize, shard)

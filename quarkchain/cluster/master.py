@@ -941,11 +941,13 @@ class MasterServer():
         slave = self.branchToSlaves[branch.value][0]
         return await slave.getMinorBlockByHash(blockHash, branch)
 
-    async def getMinorBlockByHeight(self, height, branch):
+    async def getMinorBlockByHeight(self, height: Optional[int], branch):
         if branch.value not in self.branchToSlaves:
             return None
 
         slave = self.branchToSlaves[branch.value][0]
+        # use latest height if not specified
+        height = height if height is not None else self.branchToShardStats[branch.value].height
         return await slave.getMinorBlockByHeight(height, branch)
 
     async def getTransactionByHash(self, txHash, branch):
