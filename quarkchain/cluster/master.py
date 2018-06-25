@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import socket
 
 import psutil
 import random
@@ -991,7 +992,7 @@ def parse_args():
     parser.add_argument("--devp2p", default=False, type=bool)
     parser.add_argument("--devp2p_ip", default='', type=str)
     parser.add_argument("--devp2p_port", default=29000, type=int)
-    parser.add_argument("--devp2p_bootstrap_host", default="0.0.0.0", type=str)
+    parser.add_argument("--devp2p_bootstrap_host", default=socket.gethostbyname(socket.gethostname()), type=str)
     parser.add_argument("--devp2p_bootstrap_port", default=29000, type=int)
     parser.add_argument("--devp2p_min_peers", default=2, type=int)
     parser.add_argument("--devp2p_max_peers", default=10, type=int)

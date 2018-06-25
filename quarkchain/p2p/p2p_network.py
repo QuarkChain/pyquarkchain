@@ -135,7 +135,7 @@ def devp2p_app(env, network):
 
     # get bootstrap node (node0) enode
     bootstrap_node_privkey = sha3(
-        '{}:udp:{}'.format(seed, env.config.DEVP2P_BOOTSTRAP_PORT).encode('utf-8'))
+        '{}:udp:{}:{}'.format(seed, env.config.DEVP2P_BOOTSTRAP_HOST, env.config.DEVP2P_BOOTSTRAP_PORT).encode('utf-8'))
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
     enode = host_port_pubkey_to_uri(
         env.config.DEVP2P_BOOTSTRAP_HOST, env.config.DEVP2P_BOOTSTRAP_PORT, bootstrap_node_pubkey)
@@ -163,7 +163,7 @@ def devp2p_app(env, network):
 
     # create this node priv_key
     config['node']['privkey_hex'] = encode_hex(sha3(
-        '{}:udp:{}'.format(seed, env.config.DEVP2P_PORT).encode('utf-8')))
+        '{}:udp:{}:{}'.format(seed, network.ip, env.config.DEVP2P_PORT).encode('utf-8')))
     # set ports based on node
     config['discovery']['listen_port'] = env.config.DEVP2P_PORT
     config['p2p']['listen_port'] = env.config.DEVP2P_PORT

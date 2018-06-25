@@ -5,6 +5,7 @@ import os
 import tempfile
 import signal
 import psutil
+import socket
 
 from asyncio import subprocess
 
@@ -181,7 +182,7 @@ def main():
     parser.add_argument(
         "--devp2p_port", default=29000, type=int)
     parser.add_argument(
-        "--devp2p_bootstrap_host", default='0.0.0.0', type=str)
+        "--devp2p_bootstrap_host", default=socket.gethostbyname(socket.gethostname()), type=str)
     parser.add_argument(
         "--devp2p_bootstrap_port", default=29000, type=int)
     parser.add_argument(

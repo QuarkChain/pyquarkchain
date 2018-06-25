@@ -4,6 +4,7 @@ from cluster import kill_child_processes
 import asyncio
 import random
 from devp2p.utils import colors, COLOR_END
+import socket
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -34,7 +35,7 @@ async def main():
     parser.add_argument(
         "--devp2p_start_port", default=29000, type=int)
     parser.add_argument(
-        "--devp2p_bootstrap_host", default='0.0.0.0', type=str)
+        "--devp2p_bootstrap_host", default=socket.gethostbyname(socket.gethostname()), type=str)
     parser.add_argument(
         "--devp2p_bootstrap_port", default=29000, type=int)
     parser.add_argument(
