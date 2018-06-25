@@ -9,6 +9,7 @@ ecdsa==0.13
 gitpython==2.1.9
 jsonrpcclient==2.5.2
 jsonrpcserver==3.5.4
+jsonrpc-async==0.6
 numpy==1.14.0
 protobuf==3.6.0
 psutil==5.4.5
