@@ -53,7 +53,7 @@ class TransactionGenerator:
         asyncio.ensure_future(self.__gen(numTx, xShardPercent, tx))
         return True
 
-    async def __gen(self, numTx, xShardPercent, tx: Transaction):
+    async def __gen(self, numTx, xShardPercent, sampleTx: Transaction):
         Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
             self.branch.getShardId(), numTx, xShardPercent
         ))
@@ -62,7 +62,7 @@ class TransactionGenerator:
         total = 0
         for account in self.accounts:
             nonce = self.slaveServer.getTransactionCount(account.address)
-            tx = self.createTransaction(account, nonce, xShardPercent, tx)
+            tx = self.createTransaction(account, nonce, xShardPercent, sampleTx)
             if not tx:
                 continue
             txList.append(tx)
