@@ -2,6 +2,8 @@ import asyncio
 import random
 import time
 
+from typing import Optional
+
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -35,7 +37,7 @@ class TransactionGenerator:
                 bytes.fromhex(item["key"]))
             self.accounts.append(account)
 
-    def generate(self, numTx, xShardPecent):
+    def generate(self, numTx, xShardPercent, tx: Transaction):
         """Generate a bunch of transactions in the network
         The total number of transactions generated each time
         """
@@ -48,19 +50,21 @@ class TransactionGenerator:
             return False
 
         self.running = True
-        asyncio.ensure_future(self.__gen(numTx, xShardPecent))
+        asyncio.ensure_future(self.__gen(numTx, xShardPercent, tx))
         return True
 
-    async def __gen(self, numTx, xShardPecent):
+    async def __gen(self, numTx, xShardPercent, tx: Transaction):
         Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
-            self.branch.getShardId(), numTx, xShardPecent
+            self.branch.getShardId(), numTx, xShardPercent
         ))
         startTime = time.time()
         txList = []
         total = 0
         for account in self.accounts:
             nonce = self.slaveServer.getTransactionCount(account.address)
-            tx = self.createTransaction(account, nonce, xShardPecent)
+            tx = self.createTransaction(account, nonce, xShardPercent, tx)
+            if not tx:
+                continue
             txList.append(tx)
             total += 1
             if len(txList) >= 100 or total >= numTx:
@@ -77,26 +81,35 @@ class TransactionGenerator:
         ))
         self.running = False
 
-    def createTransaction(self, account, nonce, xShardPecent):
+    def createTransaction(self, account, nonce, xShardPercent, sampleTx: Transaction) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
-        toAddress = random.choice(self.accounts).address
-        fromShard = self.branch.getShardId()
-        toShard = fromShard
         shardSize = self.branch.getShardSize()
-        if random.randint(1, 100) <= xShardPecent:
+        fromShard = self.branch.getShardId()
+
+        evmTx = sampleTx.code.getEvmTransaction()
+        # skip if from shard is specified and not matching current branch
+        # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
+        if evmTx.fromFullShardId and (evmTx.fromFullShardId & (shardSize - 1)) != fromShard:
+            return None
+
+        fromFullShardId = evmTx.fromFullShardId if evmTx.fromFullShardId else random_full_shard_id(shardSize, fromShard)
+        toFullShardId = fromFullShardId
+        recipient = evmTx.to if evmTx.to != b'' else random.choice(self.accounts).address.recipient
+        if random.randint(1, 100) <= xShardPercent:
             # x-shard tx
             toShard = random.randint(0, config.SHARD_SIZE - 1)
             if toShard == self.branch.getShardId():
                 toShard = (toShard + 1) % config.SHARD_SIZE
+            toFullShardId = random_full_shard_id(shardSize, toShard)
         evmTx = EvmTransaction(
             nonce=nonce,
             gasprice=random.randint(1, 10) * (10 ** 8),
             startgas=30000,
-            to=toAddress.recipient,
+            to=recipient,
             value=random.randint(1, 100) * (10 ** 15),
-            data=b'',
-            fromFullShardId=random_full_shard_id(shardSize, fromShard),
-            toFullShardId=random_full_shard_id(shardSize, toShard),
+            data=evmTx.data,
+            fromFullShardId=fromFullShardId,
+            toFullShardId=toFullShardId,
             networkId=config.NETWORK_ID)
         evmTx.sign(account.key)
         return Transaction(code=Code.createEvmCode(evmTx))

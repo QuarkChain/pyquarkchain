@@ -187,7 +187,7 @@ class PersistentDb(Db):
         self._db = rocksdb.DB(db_path, options)
 
     def _destroy(self):
-        shutil.rmtree(self.db_path)
+        shutil.rmtree(self.db_path, ignore_errors=True)
 
     def get(self, key, default=None):
         key = key.encode() if not isinstance(key, bytes) else key

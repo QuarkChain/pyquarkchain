@@ -858,11 +858,11 @@ class MasterServer():
         else:
             await self.stopMining()
 
-    async def createTransactions(self, numTxPerShard, xShardPercent):
+    async def createTransactions(self, numTxPerShard, xShardPercent, tx: Transaction):
         """Create transactions and add to the network for loadtesting"""
         futures = []
         for slave in self.slavePool:
-            request = GenTxRequest(numTxPerShard, xShardPercent)
+            request = GenTxRequest(numTxPerShard, xShardPercent, tx)
             futures.append(slave.writeRpcRequest(ClusterOp.GEN_TX_REQUEST, request))
         responses = await asyncio.gather(*futures)
         check(all([resp.errorCode == 0 for _, resp, _ in responses]))

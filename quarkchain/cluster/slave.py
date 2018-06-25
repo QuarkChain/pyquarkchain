@@ -4,7 +4,7 @@ import errno
 import ipaddress
 from typing import Optional, Tuple
 
-from quarkchain.core import Branch, ShardMask
+from quarkchain.core import Branch, ShardMask, Transaction
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import (
     CrossShardTransactionList,
@@ -394,7 +394,7 @@ class MasterConnection(ClusterConnection):
         return MineResponse(errorCode=0)
 
     async def handleGenTxRequest(self, request):
-        self.slaveServer.createTransactions(request.numTxPerShard, request.xShardPercent)
+        self.slaveServer.createTransactions(request.numTxPerShard, request.xShardPercent, request.tx)
         return GenTxResponse(errorCode=0)
 
     # Blockchain RPC handlers
@@ -826,9 +826,9 @@ class SlaveServer():
             miner.enable()
             miner.mineNewBlockAsync();
 
-    def createTransactions(self, numTxPerShard, xShardPercent):
+    def createTransactions(self, numTxPerShard, xShardPercent, tx: Transaction):
         for generator in self.txGenMap.values():
-            generator.generate(numTxPerShard, xShardPercent)
+            generator.generate(numTxPerShard, xShardPercent, tx)
 
     def stopMining(self):
         for branchValue, miner in self.minerMap.items():

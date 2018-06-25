@@ -123,12 +123,13 @@ class GenTxRequest(Serializable):
     FIELDS = [
         ("numTxPerShard", uint32),
         ("xShardPercent", uint32),  # [0, 100]
+        ("tx", Transaction),  # sample tx
     ]
 
-    def __init__(self, numTxPerShard, xShardPercent):
+    def __init__(self, numTxPerShard, xShardPercent, tx):
         self.numTxPerShard = numTxPerShard
         self.xShardPercent = xShardPercent
-
+        self.tx = tx
 
 class GenTxResponse(Serializable):
     FIELDS = [

@@ -493,7 +493,7 @@ class JSONRPCServer:
                 return decoder(data[key])
             return default
 
-        to = getDataDefault("to", recipient_decoder, b'')
+        to = getDataDefault("to", recipient_decoder, b"")
         startgas = getDataDefault('gas', quantity_decoder, DEFAULT_STARTGAS)
         gasprice = getDataDefault('gasPrice', quantity_decoder, DEFAULT_GASPRICE)
         value = getDataDefault("value", quantity_decoder, 0)
@@ -663,9 +663,20 @@ class JSONRPCServer:
         return await self.master.getStats()
 
     @private_methods.add
-    async def createTransactions(self, numTxPerShard, xShardPercent):
+    async def createTransactions(
+            self, numTxPerShard, xShardPercent, to=None, data=None, fromFullShardId=None):
         """Create transactions for load testing"""
-        return await self.master.createTransactions(numTxPerShard, xShardPercent)
+        to = recipient_decoder(to) if to else b""
+        data = data_decoder(data) if data else b""
+        # FIXME: can't support specifying full shard ID to 0. currently is regarded as not set
+        fromFullShardId = full_shard_id_decoder(fromFullShardId) if fromFullShardId else 0
+        # build sample tx
+        evmTxSample = EvmTransaction(
+            0, 0, 0, to, 0, data,
+            fromFullShardId=fromFullShardId,
+        )
+        tx = Transaction(code=Code.createEvmCode(evmTxSample))
+        return await self.master.createTransactions(numTxPerShard, xShardPercent, tx)
 
     @private_methods.add
     async def setTargetBlockTime(self, rootBlockTime=0, minorBlockTime=0):
