@@ -21,7 +21,7 @@ def fetch_peers(ip, jrpc_port):
 '''
 given ip and p2p_port, jrpc_port, recursively crawl the p2p network
 assumes (jrpc_port-p2p_port) are the same across all peers
-looks up peer ip from ip_map, allowing this code to be run from outside network
+looks up peer ip from ip_lookup, allowing this code to be run from outside network
 
 NOTE: run from within EC2 if you do not have ip_lookup
 '''
@@ -93,7 +93,7 @@ async def async_watch(clusters):
         await asyncio.sleep(1)
 
 
-def watch_network_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
+def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
     clusters = find_all_clusters(ip, p2p_port, jrpc_port, ip_lookup)
     print("=======================IDX MAPPING=======================")
     pprint.pprint(["idx={};host:json={}".format(idx, cluster) for idx, cluster in enumerate(clusters)])
@@ -105,9 +105,9 @@ def main():
     parser.add_argument(
         "--ip", default='54.186.3.84', type=str)
     parser.add_argument(
-        "--jrpc_port", default=48491, type=int)
+        "--jrpc_port", default=38491, type=int)
     parser.add_argument(
-        "--p2p_port", default=48291, type=int)
+        "--p2p_port", default=38291, type=int)
     parser.add_argument(
         "--command", default="print_all_clusters", type=str)
     parser.add_argument(
