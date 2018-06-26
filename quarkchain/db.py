@@ -184,6 +184,11 @@ class PersistentDb(Db):
         options.target_file_size_base = 67108864
         options.compression = rocksdb.CompressionType.lz4_compression
 
+        # bloom filter and 512MB LRU cache (default is 8MB)
+        options.table_factory = rocksdb.BlockBasedTableFactory(
+            filter_policy=rocksdb.BloomFilterPolicy(10),
+            block_cache=rocksdb.LRUCache((1024 ** 3)/2))
+
         self._db = rocksdb.DB(db_path, options)
 
     def _destroy(self):
