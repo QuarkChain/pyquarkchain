@@ -40,14 +40,17 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort, mine, clean, **kwargs):
+async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort, mine,
+                     clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
           "--server_port={} --local_port={} --json_rpc_private_port={} --seed_host={} --seed_port={} " \
           "--devp2p_ip={} --devp2p_port={} --devp2p_bootstrap_host={} " \
-          "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={}".format(
-              configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort,
-              kwargs['devp2p_ip'], kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'],
-              kwargs['devp2p_bootstrap_port'], kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'])
+          "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={} " \
+          "--devp2p_additional_bootstraps={}".format(
+        configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort,
+        kwargs['devp2p_ip'], kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'],
+        kwargs['devp2p_bootstrap_port'], kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'],
+        kwargs['devp2p_additional_bootstraps'])
     if mine:
         cmd += " --mine=true"
     if kwargs['devp2p']:
@@ -110,7 +113,8 @@ class Cluster:
             devp2p_bootstrap_host=self.config["master"]["devp2p_bootstrap_host"],
             devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
             devp2p_min_peers=self.config["master"]["devp2p_min_peers"],
-            devp2p_max_peers=self.config["master"]["devp2p_max_peers"])
+            devp2p_max_peers=self.config["master"]["devp2p_max_peers"],
+            devp2p_additional_bootstraps=self.config["master"]["devp2p_additional_bootstraps"])
         prefix = "{}MASTER".format(self.clusterID)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
@@ -189,6 +193,8 @@ def main():
         "--devp2p_min_peers", default=2, type=int)
     parser.add_argument(
         "--devp2p_max_peers", default=10, type=int)
+    parser.add_argument(
+        "--devp2p_additional_bootstraps", default='', type=str)
 
     args = parser.parse_args()
 
@@ -213,6 +219,7 @@ def main():
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,
             devp2p_min_peers=args.devp2p_min_peers,
             devp2p_max_peers=args.devp2p_max_peers,
+            devp2p_additional_bootstraps=args.devp2p_additional_bootstraps,
         )
         if not config:
             return -1

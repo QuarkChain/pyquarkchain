@@ -23,6 +23,7 @@ def create_cluster_config(slaveCount, ip, p2pPort, clusterPortStart, jsonRpcPort
         "devp2p_bootstrap_port": kwargs['devp2p_bootstrap_port'],
         "devp2p_min_peers": kwargs['devp2p_min_peers'],
         "devp2p_max_peers": kwargs['devp2p_max_peers'],
+        "devp2p_additional_bootstraps": kwargs['devp2p_additional_bootstraps'],
     }
     config["slaves"] = []
     for i in range(slaveCount):

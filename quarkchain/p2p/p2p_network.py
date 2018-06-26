@@ -128,6 +128,20 @@ def serve_app(app):
     app.stop()
 
 
+def parse_additional_bootstraps(bootstraps):
+    retv = []
+    if not bootstraps:
+        return retv
+    for p in bootstraps.split(","):
+        ip, port = p.split(":")
+        seed = 0
+        privkey = sha3('{}:udp:{}:{}'.format(seed, ip, port).encode('utf-8'))
+        pubkey = privtopub_raw(privkey)
+        enode = host_port_pubkey_to_uri(ip, port, pubkey)
+        retv.append(enode)
+    return retv
+
+
 def devp2p_app(env, network):
 
     seed = 0
@@ -147,7 +161,8 @@ def devp2p_app(env, network):
     for s in services:
         update_config_with_defaults(base_config, s.default_config)
 
-    base_config['discovery']['bootstrap_nodes'] = [enode]
+    base_config['discovery']['bootstrap_nodes'] = [enode] + parse_additional_bootstraps(
+        env.config.DEVP2P_ADDITIONAL_BOOTSTRAPS)
     base_config['seed'] = seed
     base_config['base_port'] = env.config.DEVP2P_PORT
     base_config['min_peers'] = env.config.DEVP2P_MIN_PEERS
