@@ -212,6 +212,10 @@ class ShardDbOperator:
     def removeTransactionIndex(self, txHash):
         self.db.remove(b"txindex_" + txHash)
 
+    def containTransactionHash(self, txHash):
+        key = b"txindex_" + txHash
+        return key in self.db
+
     def getTransactionByHash(self, txHash) -> Tuple[Optional[MinorBlock], Optional[int]]:
         result = self.db.get(b"txindex_" + txHash, None)
         if not result:
@@ -393,6 +397,9 @@ class ShardState:
     def addTx(self, tx: Transaction):
         if len(self.txQueue) > self.env.config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD:
             # exceeding tx queue size limit
+            return False
+
+        if self.db.containTransactionHash(tx.getHash()):
             return False
 
         txHash = tx.getHash()

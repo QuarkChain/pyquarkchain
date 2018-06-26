@@ -143,7 +143,7 @@ class TestShardState(unittest.TestCase):
             value=12345,
         )
         self.assertTrue(state.addTx(tx))
-        self.assertFalse(state.addTx(tx))
+        self.assertFalse(state.addTx(tx))  # already in txQueue
 
         self.assertEqual(len(state.txQueue), 1)
         self.assertEqual(len(state.txDict), 1)
@@ -172,7 +172,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(block, b1)
         self.assertEqual(i, 0)
 
-        # nonce is old
+        # tx already confirmed
+        self.assertTrue(state.db.containTransactionHash(tx.getHash()))
         self.assertFalse(state.addTx(tx))
 
     def testAddInvalidTxFail(self):
