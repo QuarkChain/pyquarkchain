@@ -399,12 +399,17 @@ class MasterServer():
                     return block
                 await asyncio.sleep(1)
 
+        async def __addBlock(block):
+            if self.rootState.tip.height >= block.header.height:
+                return
+            await self.addRootBlock(block)
+
         def __getTargetBlockTime():
             return self.getArtificialTxConfig().targetRootBlockTime
 
         self.rootMiner = Miner(
             __createBlock,
-            self.addRootBlock,
+            __addBlock,
             __getTargetBlockTime,
         )
 

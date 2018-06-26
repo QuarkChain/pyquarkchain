@@ -806,12 +806,18 @@ class SlaveServer():
         async def __createBlock():
             return self.shardStateMap[branchValue].createBlockToMine(address=minerAddress)
 
+        async def __addBlock(block):
+            # Do not add stale block
+            if self.shardStateMap[block.header.branch.value].headerTip.height >= block.header.height:
+                return
+            await self.addBlock(block)
+
         def __getTargetBlockTime():
             return self.artificialTxConfig.targetMinorBlockTime
 
         self.minerMap[branchValue] = Miner(
             __createBlock,
-            self.addBlock,
+            __addBlock,
             __getTargetBlockTime,
         )
 
@@ -1003,11 +1009,13 @@ class SlaveServer():
 
         self.addBlockFutures[block.header.getHash()] = self.loop.create_future()
 
+        # Start mining new one before propagating inside cluster
+        # The propagation should be done by the time the new block is mined
+        self.minerMap[branchValue].mineNewBlockAsync()
+
         await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(
             block.header, len(block.txList), len(xShardList), shardState.getShardStats())
-
-        self.minerMap[branchValue].mineNewBlockAsync()
 
         if broadcast and oldTip != shardState.tip():
             self.master.broadcastNewTip(block.header.branch)
@@ -1061,8 +1069,6 @@ class SlaveServer():
             del self.addBlockFutures[blockHash]
 
         await asyncio.gather(*existingAddBlockFutures)
-
-        self.minerMap[branchValue].mineNewBlockAsync()
 
         return True
 
