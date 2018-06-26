@@ -218,6 +218,8 @@ def main():
             return -1
         filename = dump_config_to_file(config)
 
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
     cluster = Cluster(config, filename, args.mine, args.clean)
     cluster.startAndLoop()
 
