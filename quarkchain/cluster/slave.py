@@ -1063,6 +1063,8 @@ class SlaveServer():
         return True
 
     def addTxList(self, txList, shardConn=None):
+        if not txList:
+            return
         evmTx = txList[0].code.getEvmTransaction()
         evmTx.setShardSize(self.__getShardSize())
         branchValue = evmTx.fromShardId() | self.__getShardSize()
@@ -1070,6 +1072,8 @@ class SlaveServer():
         for tx in txList:
             if self.addTx(tx):
                 validTxList.append(tx)
+        if not validTxList:
+            return
         self.master.broadcastTxList(Branch(branchValue), validTxList, shardConn)
 
     def addTx(self, tx):
