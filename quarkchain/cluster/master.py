@@ -69,6 +69,7 @@ class SyncTask:
             self.peer.closeWithError(str(e))
 
     async def __runSync(self):
+        """raise on any error so that sync() will close peer connection"""
         if self.__hasBlockHash(self.header.getHash()):
             return
 
@@ -90,7 +91,7 @@ class SyncTask:
             Logger.info("[R] downloaded headers from peer".format(len(blockHeaderList)))
             if not self.__validateBlockHeaders(blockHeaderList):
                 # TODO: tag bad peer
-                return self.peer.closeWithError("Bad peer sending discontinuing block headers")
+                raise RuntimeError("Bad peer sending discontinuing block headers")
             for header in blockHeaderList:
                 if self.__hasBlockHash(header.getHash()):
                     break
@@ -105,7 +106,7 @@ class SyncTask:
             Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
             if len(blockChain) != len(blockHeaderChain[:100]):
                 # TODO: tag bad peer
-                return self.peer.closeWithError("Bad peer missing blocks for headers they have")
+                raise RuntimeError("Bad peer missing blocks for headers they have")
 
             for block in blockChain:
                 await self.__addBlock(block)
@@ -163,13 +164,11 @@ class SyncTask:
         resultList = await asyncio.gather(*futureList)
         for result in resultList:
             if result is Exception:
-                self.peer.closeWithError(
+                raise RuntimeError(
                     "Unable to download minor blocks from root block with exception {}".format(result))
-                return
             _, result, _ = result
             if result.errorCode != 0:
-                self.peer.closeWithError("Unable to download minor blocks from root block")
-                return
+                raise RuntimeError("Unable to download minor blocks from root block")
 
         for mHeader in minorBlockHeaderList:
             self.rootState.addValidatedMinorBlockHash(mHeader.getHash())

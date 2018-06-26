@@ -518,6 +518,7 @@ class MasterConnection(ClusterConnection):
 
         connMap = dict()
         self.vConnMap[req.clusterPeerId] = connMap
+        activeFutures = []
         for branchValue, shardState in self.shardStateMap.items():
             conn = ShardConnection(
                 masterConn=self,
@@ -526,6 +527,9 @@ class MasterConnection(ClusterConnection):
                 name="{}_vconn_{}".format(self.name, req.clusterPeerId))
             asyncio.ensure_future(conn.activeAndLoopForever())
             connMap[branchValue] = conn
+            activeFutures.append(conn.activeFuture)
+        # wait for all the connections to become active before return
+        await asyncio.gather(*activeFutures)
         return CreateClusterPeerConnectionResponse(errorCode=0)
 
     def broadcastNewTip(self, branch):
