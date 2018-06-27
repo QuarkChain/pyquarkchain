@@ -103,10 +103,10 @@ class TransactionGenerator:
             toFullShardId = random_full_shard_id(shardSize, toShard)
         evmTx = EvmTransaction(
             nonce=nonce,
-            gasprice=random.randint(1, 10) * (10 ** 8),
-            startgas=30000,
+            gasprice=evmTx.gasprice,
+            startgas=evmTx.startgas,
             to=recipient,
-            value=random.randint(1, 100) * (10 ** 15),
+            value=evmTx.value,
             data=evmTx.data,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,

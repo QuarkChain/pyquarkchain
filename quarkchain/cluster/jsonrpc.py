@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import random
 
 import rlp
 
@@ -486,9 +487,6 @@ class JSONRPCServer:
 
     @public_methods.add
     async def sendTransaction(self, **data):
-        if not isinstance(data, dict):
-            raise InvalidParams("Transaction must be an object")
-
         def getDataDefault(key, decoder, default=None):
             if key in data:
                 return decoder(data[key])
@@ -665,16 +663,25 @@ class JSONRPCServer:
         return await self.master.getStats()
 
     @private_methods.add
-    async def createTransactions(
-            self, numTxPerShard, xShardPercent, to=None, data=None, fromFullShardId=None):
+    async def createTransactions(self, **loadTestData):
         """Create transactions for load testing"""
-        to = recipient_decoder(to) if to else b""
-        data = data_decoder(data) if data else b""
+        def getDataDefault(key, decoder, default=None):
+            if key in loadTestData:
+                return decoder(loadTestData[key])
+            return default
+
+        numTxPerShard = loadTestData["numTxPerShard"]
+        xShardPercent = loadTestData["xShardPercent"]
+        to = getDataDefault("to", recipient_decoder, b"")
+        startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
+        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
+        value = getDataDefault("value", quantity_decoder, random.randint(1, 100) * (10 ** 15))
+        data = getDataDefault("data", data_decoder, b"")
         # FIXME: can't support specifying full shard ID to 0. currently is regarded as not set
-        fromFullShardId = full_shard_id_decoder(fromFullShardId) if fromFullShardId else 0
+        fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, 0)
         # build sample tx
         evmTxSample = EvmTransaction(
-            0, 0, 0, to, 0, data,
+            0, gasprice, startgas, to, value, data,
             fromFullShardId=fromFullShardId,
         )
         tx = Transaction(code=Code.createEvmCode(evmTxSample))
