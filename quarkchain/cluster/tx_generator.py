@@ -57,6 +57,8 @@ class TransactionGenerator:
         Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
             self.branch.getShardId(), numTx, xShardPercent
         ))
+        if numTx <= 0:
+            return
         startTime = time.time()
         txList = []
         total = 0
