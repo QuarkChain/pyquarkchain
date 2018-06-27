@@ -903,7 +903,6 @@ class MasterServer():
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
         staleBlockCount60s = sum([shardStats.staleBlockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
-        artificialTxConfig = self.getArtificialTxConfig()
 
         rootLastBlockTime = 0
         if self.rootState.tip.height >= 3:
@@ -929,7 +928,6 @@ class MasterServer():
             "staleBlockCount60s": staleBlockCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
-            "loadtesting": self.artificialTxConfig is not None,
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
             "txCountHistory": txCountHistory,
