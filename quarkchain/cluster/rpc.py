@@ -422,12 +422,14 @@ class AccountBranchData(Serializable):
         ("branch", Branch),
         ("transactionCount", uint256),
         ("balance", uint256),
+        ("isContract", boolean),
     ]
 
-    def __init__(self, branch, transactionCount, balance):
+    def __init__(self, branch, transactionCount, balance, isContract):
         self.branch = branch
         self.transactionCount = transactionCount
         self.balance = balance
+        self.isContract = isContract
 
 
 class GetAccountDataResponse(Serializable):

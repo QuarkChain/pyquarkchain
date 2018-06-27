@@ -706,6 +706,9 @@ class ShardState:
     def getTransactionCount(self, recipient):
         return self.evmState.get_nonce(recipient)
 
+    def getCode(self, recipient):
+        return self.evmState.get_code(recipient)
+
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)

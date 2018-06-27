@@ -410,6 +410,7 @@ class JSONRPCServer:
                 "shard": quantity_encoder(branch.getShardId()),
                 "balance": quantity_encoder(balance),
                 "transactionCount": quantity_encoder(count),
+                "isContract": accountBranchData.isContract,
             }
             return {"primary": primary}
 
@@ -425,6 +426,7 @@ class JSONRPCServer:
                 "shard": quantity_encoder(accountBranchData.branch.getShardId()),
                 "balance": quantity_encoder(accountBranchData.balance),
                 "transactionCount": quantity_encoder(accountBranchData.transactionCount),
+                "isContract": accountBranchData.isContract,
             }
             shards.append(data)
 

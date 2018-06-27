@@ -1123,6 +1123,7 @@ class SlaveServer():
                 branch=Branch(branchValue),
                 transactionCount=shardState.getTransactionCount(address.recipient),
                 balance=shardState.getBalance(address.recipient),
+                isContract=len(shardState.getCode(address.recipient)) > 0,
             ))
         return results
 
