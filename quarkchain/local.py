@@ -4,7 +4,7 @@ import statistics
 import time
 
 from quarkchain.core import uint32, boolean, uint8
-from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
+from quarkchain.core import Serializable, PrependedSizeListSerializer, PrependedSizeBytesSerializer
 from quarkchain.core import Address, Branch, Code, Constant, RootBlock, RootBlockHeader, MinorBlock, MinorBlockHeader
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput
 from quarkchain.protocol import Connection
@@ -16,7 +16,7 @@ class GetBlockTemplateRequest(Serializable):
         ("address", Address),
         ("includeRoot", boolean),
         ("includeTx", boolean),
-        ("shardMaskList", PreprendedSizeListSerializer(
+        ("shardMaskList", PrependedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
     ]
 
@@ -31,7 +31,7 @@ class GetBlockTemplateRequest(Serializable):
 class GetBlockTemplateResponse(Serializable):
     FIELDS = [
         ("isRootBlock", boolean),
-        ("blockData", PreprendedSizeBytesSerializer(4)),
+        ("blockData", PrependedSizeBytesSerializer(4)),
         ("prevRootBlockHeader", RootBlockHeader),
     ]
 
@@ -44,7 +44,7 @@ class GetBlockTemplateResponse(Serializable):
 class SubmitNewBlockRequest(Serializable):
     FIELDS = [
         ("isRootBlock", boolean),
-        ("blockData", PreprendedSizeBytesSerializer(4))
+        ("blockData", PrependedSizeBytesSerializer(4))
     ]
 
     def __init__(self, isRootBlock, blockData):
@@ -55,7 +55,7 @@ class SubmitNewBlockRequest(Serializable):
 class SubmitNewBlockResponse(Serializable):
     FIELDS = [
         ("resultCode", uint8),
-        ("resultMessage", PreprendedSizeBytesSerializer(4))
+        ("resultMessage", PrependedSizeBytesSerializer(4))
     ]
 
     def __init__(self, resultCode, resultMessage=bytes(0)):
@@ -78,7 +78,7 @@ class NewTransaction(Serializable):
 
 class AddNewTransactionListRequest(Serializable):
     FIELDS = [
-        ("txList", PreprendedSizeListSerializer(4, NewTransaction)),
+        ("txList", PrependedSizeListSerializer(4, NewTransaction)),
     ]
 
     def __init__(self, txList):
@@ -96,7 +96,7 @@ class AddNewTransactionListResponse(Serializable):
 
 class JsonRpcRequest(Serializable):
     FIELDS = [
-        ("jrpcRequest", PreprendedSizeBytesSerializer(4)),
+        ("jrpcRequest", PrependedSizeBytesSerializer(4)),
     ]
 
     def __init__(self, jrpcRequest):
@@ -105,7 +105,7 @@ class JsonRpcRequest(Serializable):
 
 class JsonRpcResponse(Serializable):
     FIELDS = [
-        ("jrpcResponse", PreprendedSizeBytesSerializer(4)),
+        ("jrpcResponse", PrependedSizeBytesSerializer(4)),
     ]
 
     def __init__(self, jrpcResponse):
@@ -140,7 +140,7 @@ class UtxoItem(Serializable):
 
 class GetUtxoResponse(Serializable):
     FIELDS = [
-        ("utxoItemList", PreprendedSizeListSerializer(4, UtxoItem))
+        ("utxoItemList", PrependedSizeListSerializer(4, UtxoItem))
     ]
 
     def __init__(self, utxoItemList):

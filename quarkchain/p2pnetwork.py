@@ -20,7 +20,7 @@ from quarkchain.commands import NewMinorBlockHeaderListCommand, NewTransaction, 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import random_bytes
 from quarkchain.core import RootBlock, RootBlockHeader
-from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
+from quarkchain.core import Serializable, PrependedSizeListSerializer, PrependedSizeBytesSerializer
 from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
 from quarkchain.db import PersistentDb

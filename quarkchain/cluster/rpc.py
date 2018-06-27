@@ -1,7 +1,7 @@
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 from quarkchain.core import (
     Transaction,
-    PreprendedSizeBytesSerializer, PreprendedSizeListSerializer, Serializable, Address, Branch, ShardMask
+    PrependedSizeBytesSerializer, PrependedSizeListSerializer, Serializable, Address, Branch, ShardMask
 )
 from quarkchain.cluster.core import (
     MinorBlock,
@@ -16,8 +16,8 @@ from quarkchain.cluster.core import (
 
 class Ping(Serializable):
     FIELDS = [
-        ("id", PreprendedSizeBytesSerializer(4)),
-        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
+        ("id", PrependedSizeBytesSerializer(4)),
+        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
         ("rootTip", RootBlock),
     ]
 
@@ -33,8 +33,8 @@ class Ping(Serializable):
 
 class Pong(Serializable):
     FIELDS = [
-        ("id", PreprendedSizeBytesSerializer(4)),
-        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
+        ("id", PrependedSizeBytesSerializer(4)),
+        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
     ]
 
     def __init__(self, id, shardMaskList):
@@ -48,10 +48,10 @@ class Pong(Serializable):
 
 class SlaveInfo(Serializable):
     FIELDS = [
-        ("id", PreprendedSizeBytesSerializer(4)),
+        ("id", PrependedSizeBytesSerializer(4)),
         ("ip", uint128),
         ("port", uint16),
-        ("shardMaskList", PreprendedSizeListSerializer(4, ShardMask)),
+        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
     ]
 
     def __init__(self, id, ip, port, shardMaskList):
@@ -67,7 +67,7 @@ class SlaveInfo(Serializable):
 class ConnectToSlavesRequest(Serializable):
     ''' Master instructs a slave to connect to other slaves '''
     FIELDS = [
-        ("slaveInfoList", PreprendedSizeListSerializer(4, SlaveInfo)),
+        ("slaveInfoList", PrependedSizeListSerializer(4, SlaveInfo)),
     ]
 
     def __init__(self, slaveInfoList):
@@ -79,7 +79,7 @@ class ConnectToSlavesResponse(Serializable):
     Empty result means success otherwise it would a serialized error message.
     '''
     FIELDS = [
-        ("resultList", PreprendedSizeListSerializer(4, PreprendedSizeBytesSerializer(4))),
+        ("resultList", PrependedSizeListSerializer(4, PrependedSizeBytesSerializer(4))),
     ]
 
     def __init__(self, resultList):
@@ -237,7 +237,7 @@ class ExecuteTransactionRequest(Serializable):
 class ExecuteTransactionResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("result", PreprendedSizeBytesSerializer(4))
+        ("result", PrependedSizeBytesSerializer(4))
     ]
 
     def __init__(self, errorCode, result):
@@ -327,7 +327,7 @@ class GetEcoInfoListRequest(Serializable):
 class GetEcoInfoListResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("ecoInfoList", PreprendedSizeListSerializer(4, EcoInfo)),
+        ("ecoInfoList", PrependedSizeListSerializer(4, EcoInfo)),
     ]
 
     def __init__(self, errorCode, ecoInfoList):
@@ -362,7 +362,7 @@ class GetNextBlockToMineResponse(Serializable):
 class AddMinorBlockRequest(Serializable):
     """For adding blocks mined through JRPC"""
     FIELDS = [
-        ("minorBlockData", PreprendedSizeBytesSerializer(4)),
+        ("minorBlockData", PrependedSizeBytesSerializer(4)),
     ]
 
     def __init__(self, minorBlockData):
@@ -381,7 +381,7 @@ class AddMinorBlockResponse(Serializable):
 class HeadersInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("headerList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
+        ("headerList", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
     def __init__(self, branch, headerList):
@@ -400,7 +400,7 @@ class GetUnconfirmedHeadersRequest(Serializable):
 class GetUnconfirmedHeadersResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("headersInfoList", PreprendedSizeListSerializer(4, HeadersInfo)),
+        ("headersInfoList", PrependedSizeListSerializer(4, HeadersInfo)),
     ]
 
     def __init__(self, errorCode, headersInfoList):
@@ -433,7 +433,7 @@ class AccountBranchData(Serializable):
 class GetAccountDataResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("accountBranchDataList", PreprendedSizeListSerializer(4, AccountBranchData)),
+        ("accountBranchDataList", PrependedSizeListSerializer(4, AccountBranchData)),
     ]
 
     def __init__(self, errorCode, accountBranchDataList):
@@ -461,7 +461,7 @@ class AddTransactionResponse(Serializable):
 
 class SyncMinorBlockListRequest(Serializable):
     FIELDS = [
-        ("minorBlockHashList", PreprendedSizeListSerializer(4, hash256)),
+        ("minorBlockHashList", PrependedSizeListSerializer(4, hash256)),
         ("branch", Branch),
         ("clusterPeerId", uint64),
     ]
@@ -572,7 +572,7 @@ class AddXshardTxListResponse(Serializable):
 
 class BatchAddXshardTxListRequest(Serializable):
     FIELDS = [
-        ("addXshardTxListRequestList", PreprendedSizeListSerializer(4, AddXshardTxListRequest)),
+        ("addXshardTxListRequestList", PrependedSizeListSerializer(4, AddXshardTxListRequest)),
     ]
 
     def __init__(self, addXshardTxListRequestList):

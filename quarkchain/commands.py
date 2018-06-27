@@ -1,7 +1,7 @@
 from enum import IntEnum
 from quarkchain.core import Transaction, MinorBlockHeader, MinorBlock
 from quarkchain.core import RootBlock, RootBlockHeader
-from quarkchain.core import Serializable, PreprendedSizeListSerializer, PreprendedSizeBytesSerializer
+from quarkchain.core import Serializable, PrependedSizeListSerializer, PrependedSizeBytesSerializer
 from quarkchain.core import uint16, uint32, uint128, hash256, uint8, boolean
 
 
@@ -12,10 +12,10 @@ class HelloCommand(Serializable):
         ("peerId", hash256),
         ("peerIp", uint128),
         ("peerPort", uint16),
-        ("shardMaskList", PreprendedSizeListSerializer(
+        ("shardMaskList", PrependedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
         ("rootBlockHeader", RootBlockHeader),
-        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
+        ("minorBlockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
     def __init__(self,
@@ -36,7 +36,7 @@ class NewMinorBlockHeaderListCommand(Serializable):
     '''
     FIELDS = [
         ("rootBlockHeader", RootBlockHeader),
-        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader)),
+        ("minorBlockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
     def __init__(self, rootBlockHeader, minorBlockHeaderList):
@@ -59,7 +59,7 @@ class NewTransaction(Serializable):
 
 class NewTransactionListCommand(Serializable):
     FIELDS = [
-        ("transactionList", PreprendedSizeListSerializer(4, NewTransaction))
+        ("transactionList", PrependedSizeListSerializer(4, NewTransaction))
     ]
 
     def __init__(self, transactionList=None):
@@ -68,7 +68,7 @@ class NewTransactionListCommand(Serializable):
 
 class GetRootBlockListRequest(Serializable):
     FIELDS = [
-        ("rootBlockHashList", PreprendedSizeListSerializer(4, hash256))
+        ("rootBlockHashList", PrependedSizeListSerializer(4, hash256))
     ]
 
     def __init__(self, rootBlockHashList=None):
@@ -77,7 +77,7 @@ class GetRootBlockListRequest(Serializable):
 
 class GetRootBlockListResponse(Serializable):
     FIELDS = [
-        ("rootBlockList", PreprendedSizeListSerializer(4, RootBlock))
+        ("rootBlockList", PrependedSizeListSerializer(4, RootBlock))
     ]
 
     def __init__(self, rootBlockList=None):
@@ -86,7 +86,7 @@ class GetRootBlockListResponse(Serializable):
 
 class GetMinorBlockListRequest(Serializable):
     FIELDS = [
-        ("minorBlockHashList", PreprendedSizeListSerializer(4, hash256))
+        ("minorBlockHashList", PrependedSizeListSerializer(4, hash256))
     ]
 
     def __init__(self, minorBlockHashList=None):
@@ -95,7 +95,7 @@ class GetMinorBlockListRequest(Serializable):
 
 class GetMinorBlockListResponse(Serializable):
     FIELDS = [
-        ("minorBlockList", PreprendedSizeListSerializer(4, MinorBlock))
+        ("minorBlockList", PrependedSizeListSerializer(4, MinorBlock))
     ]
 
     def __init__(self, minorBlockList=None):
@@ -130,7 +130,7 @@ class GetBlockHeaderListResponse(Serializable):
     FIELDS = [
         ("rootTip", RootBlockHeader),
         ("shardTip", MinorBlockHeader),
-        ("blockHeaderList", PreprendedSizeListSerializer(4, PreprendedSizeBytesSerializer(4)))
+        ("blockHeaderList", PrependedSizeListSerializer(4, PrependedSizeBytesSerializer(4)))
     ]
 
     def __init__(self, rootTip, shardTip, blockHeaderList):
@@ -161,7 +161,7 @@ class PeerInfo(Serializable):
 
 class GetPeerListResponse(Serializable):
     FIELDS = [
-        ("peerInfoList", PreprendedSizeListSerializer(4, PeerInfo))
+        ("peerInfoList", PrependedSizeListSerializer(4, PeerInfo))
     ]
 
     def __init__(self, peerInfoList=None):

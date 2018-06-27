@@ -124,7 +124,7 @@ class FixedSizeBytesSerializer():
         return bb.getBytes(self.size)
 
 
-class PreprendedSizeBytesSerializer():
+class PrependedSizeBytesSerializer():
 
     def __init__(self, sizeBytes):
         self.sizeBytes = sizeBytes
@@ -141,7 +141,7 @@ class PreprendedSizeBytesSerializer():
         return bb.getBytes(size)
 
 
-class PreprendedSizeListSerializer():
+class PrependedSizeListSerializer():
 
     def __init__(self, sizeBytes, ser):
         self.sizeBytes = sizeBytes
@@ -444,7 +444,7 @@ class Code(Serializable):
     OP_ROOT_COINBASE = b'r'
     # TODO: Replace it with vary-size bytes serializer
     FIELDS = [
-        ("code", PreprendedSizeBytesSerializer(4))
+        ("code", PrependedSizeBytesSerializer(4))
     ]
 
     def __init__(self, code=OP_TRANSFER):
@@ -494,10 +494,10 @@ class Code(Serializable):
 
 class Transaction(Serializable):
     FIELDS = [
-        ("inList", PreprendedSizeListSerializer(1, TransactionInput)),
+        ("inList", PrependedSizeListSerializer(1, TransactionInput)),
         ("code", Code),
-        ("outList", PreprendedSizeListSerializer(1, TransactionOutput)),
-        ("signList", PreprendedSizeListSerializer(1, FixedSizeBytesSerializer(65)))
+        ("outList", PrependedSizeListSerializer(1, TransactionOutput)),
+        ("signList", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(65)))
     ]
 
     def __init__(self, inList=None, code=Code(), outList=None, signList=None):
@@ -629,7 +629,7 @@ class MinorBlockHeader(Serializable):
 class MinorBlock(Serializable):
     FIELDS = [
         ("header", MinorBlockHeader),
-        ("txList", PreprendedSizeListSerializer(4, Transaction))
+        ("txList", PrependedSizeListSerializer(4, Transaction))
     ]
 
     def __init__(self, header, txList=None):
@@ -745,7 +745,7 @@ class RootBlock(Serializable):
     FIELDS = [
         ("header", RootBlockHeader),
         ("coinbaseTx", Transaction),
-        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
+        ("minorBlockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader))
     ]
 
     def __init__(self, header, coinbaseTx, minorBlockHeaderList=None):

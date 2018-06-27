@@ -13,7 +13,7 @@ from quarkchain.utils import sha3_256
 from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
 from quarkchain.core import Serializable, ShardInfo
-from quarkchain.core import PreprendedSizeBytesSerializer, PreprendedSizeListSerializer
+from quarkchain.core import PrependedSizeBytesSerializer, PrependedSizeListSerializer
 from quarkchain.evm import trie
 import rlp
 
@@ -28,7 +28,7 @@ def mk_receipt_sha(receipts, db):
 class TransactionReceipt(Serializable):
     """ Wrapper over tx receipts from EVM """
     FIELDS = [
-        ('success', PreprendedSizeBytesSerializer(1)),
+        ('success', PrependedSizeBytesSerializer(1)),
         ('gasUsed', uint64),
         ('prevGasUsed', uint64),
         ('bloom', uint256),
@@ -58,7 +58,7 @@ class MinorBlockMeta(Serializable):
         ("evmGasLimit", uint256),
         ("evmGasUsed", uint256),
         ("evmCrossShardReceiveGasUsed", uint256),
-        ("extraData", PreprendedSizeBytesSerializer(2)),
+        ("extraData", PrependedSizeBytesSerializer(2)),
     ]
 
     def __init__(self,
@@ -119,7 +119,7 @@ class MinorBlock(Serializable):
     FIELDS = [
         ("header", MinorBlockHeader),
         ("meta", MinorBlockMeta),
-        ("txList", PreprendedSizeListSerializer(4, Transaction))
+        ("txList", PrependedSizeListSerializer(4, Transaction))
     ]
 
     def __init__(self, header, meta, txList=None):
@@ -246,7 +246,7 @@ class RootBlockHeader(Serializable):
 class RootBlock(Serializable):
     FIELDS = [
         ("header", RootBlockHeader),
-        ("minorBlockHeaderList", PreprendedSizeListSerializer(4, MinorBlockHeader))
+        ("minorBlockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader))
     ]
 
     def __init__(self, header, minorBlockHeaderList=None):
@@ -294,7 +294,7 @@ class CrossShardTransactionDeposit(Serializable):
 
 class CrossShardTransactionList(Serializable):
     FIELDS = [
-        ("txList", PreprendedSizeListSerializer(4, CrossShardTransactionDeposit))
+        ("txList", PrependedSizeListSerializer(4, CrossShardTransactionDeposit))
     ]
 
     def __init__(self, txList):
