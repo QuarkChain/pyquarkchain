@@ -4,7 +4,7 @@ import time
 import numpy
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
-from quarkchain.cluster.core import RootBlock
+from quarkchain.cluster.core import MinorBlock, RootBlock
 from quarkchain.utils import Logger
 
 
@@ -101,6 +101,17 @@ class Miner:
                 return
 
     @staticmethod
+    def __getBlockTime(block, targetBlockTime):
+        if isinstance(block, MinorBlock):
+            # Adjust the target block time to compensate computation time
+            gasUsedRatio = block.meta.evmGasUsed / block.meta.evmGasLimit
+            targetBlockTime = targetBlockTime * (1 - gasUsedRatio * 0.4)
+            Logger.debug("[{}] target block time {:.2f}".format(
+                block.header.branch.getShardId(), targetBlockTime))
+
+        return numpy.random.exponential(targetBlockTime)
+
+    @staticmethod
     def simulateMine(block, targetBlockTime, input, output):
         """Sleep until the target time"""
         targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
@@ -111,7 +122,7 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
+                targetTime = block.header.createTime + Miner.__getBlockTime(block, targetBlockTime)
             except Exception:
                 # got nothing from queue
                 pass
@@ -122,6 +133,6 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
+                targetTime = block.header.createTime + Miner.__getBlockTime(block, targetBlockTime)
 
 
