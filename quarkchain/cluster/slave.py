@@ -225,6 +225,10 @@ class ShardConnection(VirtualConnection):
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
         self.bestMinorBlockHeaderObserved = mHeader
 
+        # Do not download if the new header is not higher than the current tip
+        if self.shardState.headerTip.height >= mHeader.height:
+            return
+
         if self.synchronizer:
             # Only allow one synchronizer at a time
             # TODO: queue the headers
@@ -803,10 +807,20 @@ class SlaveServer():
     def __initMiner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
 
+        def __isSyncing():
+            return any([vs[branchValue].synchronizer is not None for vs in self.master.vConnMap.values()])
+
         async def __createBlock():
+            # hold off mining if the shard is syncing
+            while __isSyncing():
+                await asyncio.sleep(0.1)
+
             return self.shardStateMap[branchValue].createBlockToMine(address=minerAddress)
 
         async def __addBlock(block):
+            # Do not add block if there is a sync in progress
+            if __isSyncing():
+                return
             # Do not add stale block
             if self.shardStateMap[block.header.branch.value].headerTip.height >= block.header.height:
                 return
