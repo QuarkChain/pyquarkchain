@@ -70,6 +70,7 @@ async def main():
             devp2p_bootstrap_port=args.devp2p_bootstrap_port,
             devp2p_min_peers=args.devp2p_min_peers,
             devp2p_max_peers=args.devp2p_max_peers,
+            devp2p_additional_bootstraps='',
         )
         mine = args.mine and i == mine_i
         filename = cl.dump_config_to_file(config)

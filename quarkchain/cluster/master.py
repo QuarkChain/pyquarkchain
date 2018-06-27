@@ -1002,6 +1002,7 @@ def parse_args():
     parser.add_argument("--devp2p_bootstrap_port", default=29000, type=int)
     parser.add_argument("--devp2p_min_peers", default=2, type=int)
     parser.add_argument("--devp2p_max_peers", default=10, type=int)
+    parser.add_argument("--devp2p_additional_bootstraps", default='', type=str)
     args = parser.parse_args()
 
     set_logging_level(args.log_level)
@@ -1022,6 +1023,7 @@ def parse_args():
     env.config.DEVP2P_BOOTSTRAP_PORT = args.devp2p_bootstrap_port
     env.config.DEVP2P_MIN_PEERS = args.devp2p_min_peers
     env.config.DEVP2P_MAX_PEERS = args.devp2p_max_peers
+    env.config.DEVP2P_ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
     env.clusterConfig.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
 
     # initialize database
