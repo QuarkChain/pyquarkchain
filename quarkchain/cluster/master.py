@@ -400,8 +400,10 @@ class MasterServer():
                 await asyncio.sleep(1)
 
         async def __addBlock(block):
-            if self.rootState.tip.height >= block.header.height:
-                return
+            # Root block should include latest minor block headers while it's being mined
+            # This is a hack to get the latest minor block included since testnet does not check difficulty
+            # TODO: fix this as it will break real PoW
+            block = await __createBlock()
             await self.addRootBlock(block)
 
         def __getTargetBlockTime():
