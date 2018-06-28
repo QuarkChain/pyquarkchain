@@ -323,7 +323,7 @@ class ShardState:
         self.evmState.trie.root_hash = self.metaTip.hashEvmStateRoot
         check(self.db.getMinorBlockEvmRootHashByHash(self.headerTip.getHash()) == self.metaTip.hashEvmStateRoot)
 
-        self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()))
+        self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(self.headerTip.getHash()), addTxBackToQueue=False)
 
     def __createEvmState(self):
         return EvmState(env=self.env.evmEnv, db=self.rawDb)
@@ -576,12 +576,12 @@ class ShardState:
 
         return header == self.confirmedHeaderTip
 
-    def __rewriteBlockIndexTo(self, minorBlock):
+    def __rewriteBlockIndexTo(self, minorBlock, addTxBackToQueue=True):
         """ Find the common ancestor in the current chain and rewrite index till minorblock """
         newChain = []
         oldChain = []
 
-        # minorBlock height could be lower than the curren tip
+        # minorBlock height could be lower than the current tip
         # we should revert all the blocks above minorBlock height
         height = minorBlock.header.height + 1
         while True:
@@ -605,9 +605,24 @@ class ShardState:
         for block in oldChain:
             self.db.removeTransactionIndexFromBlock(block)
             self.db.removeMinorBlockIndex(block)
+            if addTxBackToQueue:
+                self.__addTransactionsFromBlock(block)
         for block in newChain:
             self.db.putTransactionIndexFromBlock(block)
             self.db.putMinorBlockIndex(block)
+            self.__removeTransactionsFromBlock(block)
+
+    def __addTransactionsFromBlock(self, block):
+        for tx in block.txList:
+            self.txDict[tx.getHash()] = tx
+            self.txQueue.add_transaction(tx.code.getEvmTransaction())
+
+    def __removeTransactionsFromBlock(self, block):
+        evmTxList = []
+        for tx in block.txList:
+            self.txDict.pop(tx.getHash(), None)
+            evmTxList.append(tx.code.getEvmTransaction())
+        self.txQueue = self.txQueue.diff(evmTxList)
 
     def addBlock(self, block):
         """  Add a block to local db.  Perform validate and update tip accordingly
@@ -654,9 +669,6 @@ class ShardState:
         # TODO: Add block reward to coinbase
         # self.rewardCalc.getBlockReward(self):
         self.db.putMinorBlock(block, evmState)
-        self.txQueue = self.txQueue.diff(evmTxIncluded)
-        for tx in block.txList:
-            self.txDict.pop(tx.getHash(), None)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
