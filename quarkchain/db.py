@@ -179,15 +179,10 @@ class PersistentDb(Db):
         options = rocksdb.Options()
         options.create_if_missing = True
         options.max_open_files = 100000 # ubuntu 16.04 max files descriptors 524288
-        options.write_buffer_size = 67108864 # 64 MiB
+        options.write_buffer_size = 128 * 1024 * 1024  # 128 MiB
         options.max_write_buffer_number = 3
         options.target_file_size_base = 67108864
         options.compression = rocksdb.CompressionType.lz4_compression
-
-        # bloom filter and 512MB LRU cache (default is 8MB)
-        options.table_factory = rocksdb.BlockBasedTableFactory(
-            filter_policy=rocksdb.BloomFilterPolicy(10),
-            block_cache=rocksdb.LRUCache((1024 ** 3)/2))
 
         self._db = rocksdb.DB(db_path, options)
 
