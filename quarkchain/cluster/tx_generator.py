@@ -72,7 +72,7 @@ class TransactionGenerator:
             if len(txList) >= 100 or total >= numTx:
                 self.slaveServer.addTxList(txList)
                 txList = []
-                await asyncio.sleep(0)  # yield CPU so that other stuff won't be held for too long
+                await asyncio.sleep(1)  # yield CPU so that other stuff won't be held for too long
 
             if total >= numTx:
                 break
