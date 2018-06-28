@@ -272,6 +272,91 @@ class TestShardState(unittest.TestCase):
         # Check acc2 fullShardId doesn't change
         self.assertEqual(state.evmState.get_full_shard_id(acc2.recipient), acc2.fullShardId)
 
+    def testForkDoesNotConfirmTx(self):
+        """Tx should only be confirmed and removed from tx queue by the best chain"""
+        id1 = Identity.createRandomIdentity()
+        id2 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createFromIdentity(id2, fullShardId=0)
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=2000000 + opcodes.GTXCOST)
+        state = create_default_shard_state(env=env)
+
+        state.addTx(create_transfer_transaction(
+            shardState=state,
+            key=id1.getKey(),
+            fromAddress=acc1,
+            toAddress=acc2,
+            value=1000000,
+        ))
+
+        b0 = state.createBlockToMine(address=acc3)
+        b1 = state.createBlockToMine(address=acc3)
+        b0.txList = []  # make b0 empty
+        state.finalizeAndAddBlock(b0)
+
+        self.assertEqual(len(state.txQueue), 1)
+
+        self.assertEqual(len(b1.txList), 1)
+        state.finalizeAndAddBlock(b1)
+        # b1 is a fork and does not remove the tx from queue
+        self.assertEqual(len(state.txQueue), 1)
+
+        b2 = state.createBlockToMine(address=acc3)
+        state.finalizeAndAddBlock(b2)
+        self.assertEqual(len(state.txQueue), 0)
+
+    def testRevertForkPutTxBackToQueue(self):
+        """Tx in the reverted chain should be put back to the queue"""
+        id1 = Identity.createRandomIdentity()
+        id2 = Identity.createRandomIdentity()
+        acc1 = Address.createFromIdentity(id1, fullShardId=0)
+        acc2 = Address.createFromIdentity(id2, fullShardId=0)
+        acc3 = Address.createRandomAccount(fullShardId=0)
+
+        env = get_test_env(
+            genesisAccount=acc1,
+            genesisMinorQuarkash=2000000 + opcodes.GTXCOST)
+        state = create_default_shard_state(env=env)
+
+        state.addTx(create_transfer_transaction(
+            shardState=state,
+            key=id1.getKey(),
+            fromAddress=acc1,
+            toAddress=acc2,
+            value=1000000,
+        ))
+
+        b0 = state.createBlockToMine(address=acc3)
+        b1 = state.createBlockToMine(address=acc3)
+        state.finalizeAndAddBlock(b0)
+
+        self.assertEqual(len(state.txQueue), 0)
+
+        b1.txList = []  # make b1 empty
+        state.finalizeAndAddBlock(b1)
+        self.assertEqual(len(state.txQueue), 0)
+
+        b2 = b1.createBlockToAppend()
+        state.finalizeAndAddBlock(b2)
+
+        # now b1-b2 becomes the best chain and we expect b0 to be reverted and put the tx back to queue
+        self.assertEqual(len(state.txQueue), 1)
+
+        b3 = b0.createBlockToAppend()
+        state.finalizeAndAddBlock(b3)
+        self.assertEqual(len(state.txQueue), 1)
+
+        b4 = b3.createBlockToAppend()
+        state.finalizeAndAddBlock(b4)
+
+        # b0-b3-b4 becomes the best chain
+        self.assertEqual(len(state.txQueue), 0)
+
+
     def testStaleBlockCount(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)
