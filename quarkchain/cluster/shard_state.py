@@ -423,7 +423,7 @@ class ShardState:
         try:
             evmTx = self.__validateTx(tx, state)
             evmTx.setShardSize(self.branch.getShardSize())
-            success, output = apply_transaction(state, evmTx)
+            success, output = apply_transaction(state, evmTx, tx_wrapper_hash=bytes(32))
             return output if success else None
         except Exception as e:
             Logger.warningEverySec("failed to apply transaction: {}".format(e), 1)
@@ -548,7 +548,7 @@ class ShardState:
             try:
                 evmTx = self.__validateTx(tx, evmState)
                 evmTx.setShardSize(self.branch.getShardSize())
-                apply_transaction(evmState, evmTx)
+                apply_transaction(evmState, evmTx, tx.getHash())
                 evmTxIncluded.append(evmTx)
             except Exception as e:
                 Logger.debugException()
@@ -787,7 +787,8 @@ class ShardState:
             evmTx.sign(key=self.env.config.GENESIS_KEY)
             evmTx.setShardSize(self.branch.getShardSize())
             try:
-                apply_transaction(evmState, evmTx)
+                # tx_wrapper_hash is not needed for in-shard tx
+                apply_transaction(evmState, evmTx, tx_wrapper_hash=bytes(32))
                 block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
             except Exception as e:
                 Logger.errorException()
@@ -834,8 +835,9 @@ class ShardState:
                 break
             evmTx.setShardSize(self.branch.getShardSize())
             try:
-                apply_transaction(evmState, evmTx)
-                block.addTx(Transaction(code=Code.createEvmCode(evmTx)))
+                tx = Transaction(code=Code.createEvmCode(evmTx))
+                apply_transaction(evmState, evmTx, tx.getHash())
+                block.addTx(tx)
                 popedTxs.append(evmTx)
             except Exception as e:
                 Logger.warningEverySec("Failed to include transaction: {}".format(e), 1)
@@ -961,8 +963,10 @@ class ShardState:
         # Apply root block coinbase
         if self.branch.isInShard(rBlock.header.coinbaseAddress.fullShardId):
             txList.append(CrossShardTransactionDeposit(
-                address=rBlock.header.coinbaseAddress,
-                amount=rBlock.header.coinbaseAmount,
+                txHash=bytes(32),
+                fromAddress=Address.createEmptyAccount(0),
+                toAddress=rBlock.header.coinbaseAddress,
+                value=rBlock.header.coinbaseAmount,
                 gasPrice=0))
         return txList
 
@@ -970,7 +974,7 @@ class ShardState:
         txList = self.__getCrossShardTxListByRootBlockHash(rHash)
 
         for tx in txList:
-            evmState.delta_balance(tx.address.recipient, tx.amount)
+            evmState.delta_balance(tx.toAddress.recipient, tx.value)
             evmState.gas_used = min(
                 evmState.gas_used + (opcodes.GTXXSHARDCOST if tx.gasPrice != 0 else 0),
                 evmState.gas_limit)

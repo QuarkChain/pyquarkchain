@@ -388,14 +388,15 @@ class TestShardState(unittest.TestCase):
             genesisMinorQuarkash=10000000)
         state = create_default_shard_state(env=env, shardId=0)
 
-        state.addTx(create_transfer_transaction(
+        tx = create_transfer_transaction(
             shardState=state,
             key=id1.getKey(),
             fromAddress=acc1,
             toAddress=acc2,
             value=888888,
             gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-        ))
+        )
+        state.addTx(tx)
 
         b1 = state.createBlockToMine(address=acc3)
         self.assertEqual(len(b1.txList), 1)
@@ -407,8 +408,10 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(
             state.evmState.xshard_list[0],
             CrossShardTransactionDeposit(
-                address=acc2,
-                amount=888888,
+                txHash=tx.getHash(),
+                fromAddress=acc1,
+                toAddress=acc2,
+                value=888888,
                 gasPrice=1))
         self.assertEqual(state.getBalance(id1.recipient), 10000000 - 888888 - opcodes.GTXCOST - opcodes.GTXXSHARDCOST)
         # Make sure the xshard gas is not used by local block
@@ -460,7 +463,7 @@ class TestShardState(unittest.TestCase):
         state0.finalizeAndAddBlock(b0)
 
         b1 = state1.getTip().createBlockToAppend()
-        evmTx = create_transfer_transaction(
+        tx = create_transfer_transaction(
             shardState=state1,
             key=id1.getKey(),
             fromAddress=acc2,
@@ -469,15 +472,17 @@ class TestShardState(unittest.TestCase):
             gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             gasPrice=2,
         )
-        b1.addTx(evmTx)
+        b1.addTx(tx)
 
         # Add a x-shard tx from remote peer
         state0.addCrossShardTxListByMinorBlockHash(
             h=b1.header.getHash(),
             txList=CrossShardTransactionList(txList=[
                 CrossShardTransactionDeposit(
-                    address=acc1,
-                    amount=888888,
+                    txHash=tx.getHash(),
+                    fromAddress=acc2,
+                    toAddress=acc1,
+                    value=888888,
                     gasPrice=2)
             ]))
 
@@ -520,7 +525,7 @@ class TestShardState(unittest.TestCase):
         state0.finalizeAndAddBlock(b0)
 
         b1 = state1.getTip().createBlockToAppend()
-        evmTx = create_transfer_transaction(
+        tx = create_transfer_transaction(
             shardState=state1,
             key=id1.getKey(),
             fromAddress=acc2,
@@ -528,15 +533,17 @@ class TestShardState(unittest.TestCase):
             value=888888,
             gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
         )
-        b1.addTx(evmTx)
+        b1.addTx(tx)
 
         # Add a x-shard tx from remote peer
         state0.addCrossShardTxListByMinorBlockHash(
             h=b1.header.getHash(),
             txList=CrossShardTransactionList(txList=[
                 CrossShardTransactionDeposit(
-                    address=acc1,
-                    amount=888888,
+                    txHash=tx.getHash(),
+                    fromAddress=acc2,
+                    toAddress=acc1,
+                    value=888888,
                     gasPrice=2)
             ]))
 
@@ -557,8 +564,10 @@ class TestShardState(unittest.TestCase):
             h=b3.header.getHash(),
             txList=CrossShardTransactionList(txList=[
                 CrossShardTransactionDeposit(
-                    address=acc1,
-                    amount=385723,
+                    txHash=bytes(32),
+                    fromAddress=acc2,
+                    toAddress=acc1,
+                    value=385723,
                     gasPrice=3)
             ]))
 
