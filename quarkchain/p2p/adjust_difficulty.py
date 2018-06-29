@@ -58,8 +58,9 @@ def main():
         "--p2p_port", default=38291, type=int)
     parser.add_argument(
         "--jrpc_port", default=38491, type=int)
+    # eg: '{"172.31.15.196": "54.186.3.84"}'
     parser.add_argument(
-        "--ip_lookup", default='{"172.31.15.196": "54.186.3.84"}', type=str)
+        "--ip_lookup", default='{}', type=str)
     parser.add_argument(
         "--interval", default=5, type=int)
     parser.add_argument(
