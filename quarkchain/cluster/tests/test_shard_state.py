@@ -124,6 +124,11 @@ class TestShardState(unittest.TestCase):
         # Check Account has full_shard_id
         self.assertEqual(state.evmState.get_full_shard_id(acc2.recipient), acc2.fullShardId)
 
+        txList, _ = state.db.getTransactionsByAddress(acc1)
+        self.assertEqual(txList[0].value, 12345)
+        txList, _ = state.db.getTransactionsByAddress(acc2)
+        self.assertEqual(txList[0].value, 12345)
+
     def testDuplicatedTx(self):
         id1 = Identity.createRandomIdentity()
         acc1 = Address.createFromIdentity(id1, fullShardId=0)

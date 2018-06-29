@@ -699,6 +699,37 @@ class JSONRPCServer:
         """Turn on / off mining"""
         return await self.master.setMining(mining)
 
+    @private_methods.add
+    @decode_arg("address", address_decoder)
+    @decode_arg("start", data_decoder)
+    @decode_arg("limit", quantity_decoder)
+    async def getTransactionsByAddress(self, address, start="0x", limit="0xa"):
+        """ "start" should be the "next" in the response for fetching next page.
+            "start" can also be "0x" to fetch from the beginning (i.e., latest).
+            "start" can be "0x00" to fetch the pending outgoing transactions.
+        """
+        address = Address.createFrom(address)
+        if limit > 20:
+            limit = 20
+        result = await self.master.getTransactionsByAddress(address, start, limit)
+        if not result:
+            return None
+        txList, next = result
+        txs = []
+        for tx in txList:
+            txs.append({
+                "txId": id_encoder(tx.txHash, tx.fromAddress.fullShardId),
+                "fromAddress": address_encoder(tx.fromAddress.serialize()),
+                "toAddress": address_encoder(tx.toAddress.serialize()) if tx.toAddress else "0x",
+                "value": quantity_encoder(tx.value),
+                "blockHeight": quantity_encoder(tx.blockHeight),
+                "timestamp": quantity_encoder(tx.timestamp),
+            })
+        return {
+            "txList": txs,
+            "next": data_encoder(next),
+        }
+
 
 if __name__ == "__main__":
     # web.run_app(app, port=5000)

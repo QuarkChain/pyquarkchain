@@ -1,6 +1,6 @@
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 from quarkchain.core import (
-    Transaction,
+    Transaction, Optional,
     PrependedSizeBytesSerializer, PrependedSizeListSerializer, Serializable, Address, Branch, ShardMask
 )
 from quarkchain.cluster.core import (
@@ -269,6 +269,51 @@ class GetTransactionReceiptResponse(Serializable):
         self.minorBlock = minorBlock
         self.index = index
         self.receipt = receipt
+
+
+class GetTransactionListByAddressRequest(Serializable):
+    FIELDS = [
+        ("address", Address),
+        ("start", PrependedSizeBytesSerializer(4)),
+        ("limit", uint32),
+    ]
+
+    def __init__(self, address, start, limit):
+        self.address = address
+        self.start = start
+        self.limit = limit
+
+
+class TransactionDetail(Serializable):
+    FIELDS = [
+        ("txHash", hash256),
+        ("fromAddress", Address),
+        ("toAddress", Optional(Address)),
+        ("value", uint256),
+        ("blockHeight", uint64),
+        ("timestamp", uint64),  # block timestamp
+    ]
+
+    def __init__(self, txHash, fromAddress, toAddress, value, blockHeight, timestamp):
+        self.txHash = txHash
+        self.fromAddress = fromAddress
+        self.toAddress = toAddress
+        self.value = value
+        self.blockHeight = blockHeight
+        self.timestamp = timestamp
+
+
+class GetTransactionListByAddressResponse(Serializable):
+    FIELDS = [
+        ("errorCode", uint32),
+        ("txList", PrependedSizeListSerializer(4, TransactionDetail)),
+        ("next", PrependedSizeBytesSerializer(4)),
+    ]
+
+    def __init__(self, errorCode, txList, next):
+        self.errorCode = errorCode
+        self.txList = txList
+        self.next = next
 
 
 # RPCs to update blockchains
@@ -637,6 +682,8 @@ class ClusterOp:
     MINE_RESPONSE = 40 + CLUSTER_OP_BASE
     GEN_TX_REQUEST = 41 + CLUSTER_OP_BASE
     GEN_TX_RESPONSE = 42 + CLUSTER_OP_BASE
+    GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST = 43 + CLUSTER_OP_BASE
+    GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE = 44 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -681,4 +728,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.MINE_RESPONSE: MineResponse,
     ClusterOp.GEN_TX_REQUEST: GenTxRequest,
     ClusterOp.GEN_TX_RESPONSE: GenTxResponse,
+    ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST: GetTransactionListByAddressRequest,
+    ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE: GetTransactionListByAddressResponse,
 }

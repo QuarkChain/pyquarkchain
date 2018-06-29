@@ -22,6 +22,7 @@ from quarkchain.cluster.rpc import (
     Ping,
     SlaveInfo,
     GetTransactionReceiptRequest,
+    GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
@@ -335,6 +336,17 @@ class SlaveConnection(ClusterConnection):
         if resp.errorCode != 0:
             return None
         return resp.minorBlock, resp.index, resp.receipt
+
+    async def getTransactionsByAddress(self, address, start, limit):
+        request = GetTransactionListByAddressRequest(address, start, limit)
+        _, resp, _ = await self.writeRpcRequest(
+            ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST,
+            request,
+        )
+        if resp.errorCode != 0:
+            return None
+        return resp.txList, resp.next
+
 
     # RPC handlers
 
@@ -968,6 +980,11 @@ class MasterServer():
 
         slave = self.branchToSlaves[branch.value][0]
         return await slave.getTransactionReceipt(txHash, branch)
+
+    async def getTransactionsByAddress(self, address, start, limit):
+        branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))
+        slave = self.branchToSlaves[branch.value][0]
+        return await slave.getTransactionsByAddress(address, start, limit)
 
 
 def parse_args():
