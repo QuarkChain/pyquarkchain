@@ -61,7 +61,11 @@ class TransactionQueue():
 
     def diff(self, txs):
         remove_hashes = [tx.hash for tx in txs]
-        keep = [item for item in self.txs if item.tx.hash not in remove_hashes]
+        keep_txs = [item for item in self.txs if item.tx.hash not in remove_hashes]
+        keep_aside = [item for item in self.aside if item.tx.hash not in remove_hashes]
         q = TransactionQueue()
-        q.txs = keep
+        q.txs = keep_txs
+        q.aside = keep_aside
+        heapq.heapify(q.txs)
+        heapq.heapify(q.aside)
         return q
