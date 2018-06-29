@@ -315,8 +315,10 @@ class TestCluster(unittest.TestCase):
             # expect shard 1 got the CrossShardTransactionList of b1
             xshardTxList = slaves[1].shardStateMap[2 | 1].db.getMinorBlockXshardTxList(b1.header.getHash())
             self.assertEqual(len(xshardTxList.txList), 1)
-            self.assertEqual(xshardTxList.txList[0].amount, 54321)
-            self.assertEqual(xshardTxList.txList[0].address, acc3)
+            self.assertEqual(xshardTxList.txList[0].txHash, tx1.getHash())
+            self.assertEqual(xshardTxList.txList[0].fromAddress, acc1)
+            self.assertEqual(xshardTxList.txList[0].toAddress, acc3)
+            self.assertEqual(xshardTxList.txList[0].value, 54321)
 
             self.assertTrue(call_async(slaves[0].addBlock(b2)))
             # b2 doesn't update tip
@@ -325,8 +327,10 @@ class TestCluster(unittest.TestCase):
             # expect shard 1 got the CrossShardTransactionList of b2
             xshardTxList = slaves[1].shardStateMap[2 | 1].db.getMinorBlockXshardTxList(b2.header.getHash())
             self.assertEqual(len(xshardTxList.txList), 1)
-            self.assertEqual(xshardTxList.txList[0].amount, 54321)
-            self.assertEqual(xshardTxList.txList[0].address, acc3)
+            self.assertEqual(xshardTxList.txList[0].txHash, tx1.getHash())
+            self.assertEqual(xshardTxList.txList[0].fromAddress, acc1)
+            self.assertEqual(xshardTxList.txList[0].toAddress, acc3)
+            self.assertEqual(xshardTxList.txList[0].value, 54321)
 
             b3 = slaves[1].shardStateMap[2 | 1].createBlockToMine(address=acc1.addressInShard(1))
             self.assertTrue(call_async(slaves[1].addBlock(b3)))

@@ -945,7 +945,7 @@ class SlaveServer():
             xshardMap[shardId + self.__getShardSize()] = []
 
         for xshardTx in xshardTxList:
-            shardId = xshardTx.address.getShardId(self.__getShardSize())
+            shardId = xshardTx.toAddress.getShardId(self.__getShardSize())
             branchValue = Branch.create(self.__getShardSize(), shardId).value
             xshardMap[branchValue].append(xshardTx)
 

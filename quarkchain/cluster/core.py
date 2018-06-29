@@ -281,14 +281,18 @@ class CrossShardTransactionDeposit(Serializable):
     """ Destination of x-shard tx
     """
     FIELDS = [
-        ("address", Address),
-        ("amount", uint256),
+        ("txHash", hash256),  # hash of quarkchain.core.Transaction
+        ("fromAddress", Address),
+        ("toAddress", Address),
+        ("value", uint256),
         ("gasPrice", uint256),
     ]
 
-    def __init__(self, address, amount, gasPrice):
-        self.address = address
-        self.amount = amount
+    def __init__(self, txHash, fromAddress, toAddress, value, gasPrice):
+        self.txHash = txHash
+        self.fromAddress = fromAddress
+        self.toAddress = toAddress
+        self.value = value
         self.gasPrice = gasPrice
 
 

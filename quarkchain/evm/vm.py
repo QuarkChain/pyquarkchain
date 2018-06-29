@@ -72,7 +72,7 @@ class Message(object):
 
     def __init__(self, sender, to, value=0, gas=1000000, data='', depth=0,
                  code_address=None, is_create=False, transfers_value=True, static=False,
-                 is_cross_shard=False, to_full_shard_id=None):
+                 is_cross_shard=False, from_full_shard_id=None, to_full_shard_id=None, tx_hash=None):
         self.sender = sender
         self.to = to
         self.value = value
@@ -86,7 +86,9 @@ class Message(object):
         self.transfers_value = transfers_value
         self.static = static
         self.is_cross_shard = is_cross_shard
+        self.from_full_shard_id = from_full_shard_id
         self.to_full_shard_id = to_full_shard_id
+        self.tx_hash = tx_hash  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
 
     def __repr__(self):
         return '<Message(to:%s...)>' % self.to[:8]

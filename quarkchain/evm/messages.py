@@ -176,7 +176,10 @@ def apply_message(state, msg=None, **kwargs):
     return bytearray_to_bytestr(data) if result else None
 
 
-def apply_transaction(state, tx):
+def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+    """tx_wrapper_hash is the hash for quarkchain.core.Transaction
+    TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
+    """
     state.logs = []
     state.suicides = []
     state.refunds = 0
@@ -214,7 +217,9 @@ def apply_transaction(state, tx):
         message_data,
         code_address=tx.to,
         is_cross_shard=tx.isCrossShard(),
+        from_full_shard_id=tx.fromFullShardId,
         to_full_shard_id=tx.toFullShardId,
+        tx_hash=tx_wrapper_hash,
     )
 
     # MESSAGE
@@ -369,8 +374,10 @@ def _apply_msg(ext, msg, code):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.cluster.core.CrossShardTransactionDeposit(
-                    address=Address(msg.to, msg.to_full_shard_id),
-                    amount=msg.value,
+                    txHash=msg.tx_hash,
+                    fromAddress=Address(msg.sender, msg.from_full_shard_id),
+                    toAddress=Address(msg.to, msg.to_full_shard_id),
+                    value=msg.value,
                     gasPrice=ext.tx_gasprice)
             )
         elif not ext.transfer_value(msg.sender, msg.to, msg.value):
