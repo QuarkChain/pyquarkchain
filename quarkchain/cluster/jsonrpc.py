@@ -676,8 +676,8 @@ class JSONRPCServer:
         xShardPercent = loadTestData["xShardPercent"]
         to = getDataDefault("to", recipient_decoder, b"")
         startgas = getDataDefault("gas", quantity_decoder, DEFAULT_STARTGAS)
-        gasprice = getDataDefault("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
-        value = getDataDefault("value", quantity_decoder, random.randint(1, 100) * (10 ** 15))
+        gasprice = getDataDefault("gasPrice", quantity_decoder, int(DEFAULT_GASPRICE / 10))
+        value = getDataDefault("value", quantity_decoder, 0)
         data = getDataDefault("data", data_decoder, b"")
         # FIXME: can't support specifying full shard ID to 0. currently is regarded as not set
         fromFullShardId = getDataDefault("fromFullShardId", full_shard_id_decoder, 0)
