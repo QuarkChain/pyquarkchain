@@ -10,6 +10,12 @@ import asyncio
 from jsonrpc_async import Server
 
 
+"""
+Given a node in P2P network, we'd like to be able to know what the entire network look like
+and be able to query stats or adjust mining difficulty on demand
+"""
+
+
 def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
@@ -80,9 +86,12 @@ def print_all_clusters(ip, p2p_port, jrpc_port, ip_lookup={}):
     pprint.pprint(find_all_clusters(ip, p2p_port, jrpc_port, ip_lookup))
 
 
+CONST_METRIC = "pendingTxCount"
+CONST_INTERVAL = 1
+
 async def async_stats(idx, server):
     response = await server.getStats()
-    print("idx={};pendingTxCount={}".format(idx, response["pendingTxCount"]))
+    print("idx={};{}={}".format(idx, CONST_METRIC, response[CONST_METRIC]))
 
 
 async def async_watch(clusters):
@@ -90,10 +99,18 @@ async def async_watch(clusters):
     while True:
         await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
         print("... as of {}".format(datetime.now()))
-        await asyncio.sleep(1)
+        await asyncio.sleep(CONST_INTERVAL)
 
 
 def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
+    """
+    :param ip:
+    :param p2p_port:
+    :param jrpc_port:
+    :param ip_lookup:
+    :return:
+    keep printing CONST_METRIC from all clusters
+    """
     clusters = find_all_clusters(ip, p2p_port, jrpc_port, ip_lookup)
     print("=======================IDX MAPPING=======================")
     pprint.pprint(["idx={};host:json={}".format(idx, cluster) for idx, cluster in enumerate(clusters)])
@@ -102,6 +119,7 @@ def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
 
 def main():
     parser = argparse.ArgumentParser()
+    # do not use "localhost", use the private ip if you run this from EC2
     parser.add_argument(
         "--ip", default="54.186.3.84", type=str)
     parser.add_argument(
