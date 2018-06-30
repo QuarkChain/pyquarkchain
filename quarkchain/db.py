@@ -149,9 +149,18 @@ class InMemoryDb(Db, DbOpsMixin):
     def rangeIter(self, start, end):
         keys = []
         for k in self.kv.keys():
-            if k >= start and k <= end:
+            if k >= start and k < end:
                 keys.append(k)
         keys.sort()
+        for k in keys:
+            yield k, self.kv[k]
+
+    def reversedRangeIter(self, start, end):
+        keys = []
+        for k in self.kv.keys():
+            if k <= start and k > end:
+                keys.append(k)
+        keys.sort(reverse=True)
         for k in keys:
             yield k, self.kv[k]
 
@@ -215,7 +224,25 @@ class PersistentDb(Db):
         return self._db.get(key) is not None
 
     def rangeIter(self, start, end):
-        raise NotImplementedError
+        """ A generator yielding (key, value) for keys in [start, end) ordered by key in ascending order"""
+        it = self._db.iteritems()
+        it.seek(start)
+        for item in it:
+            if item[0] < end:
+                yield item
+            else:
+                return
+
+    def reversedRangeIter(self, start, end):
+        """ A generator yielding (key, value) for keys in (end, start] ordered key in descending order"""
+        it = self._db.iteritems()
+        it.seek_for_prev(start)
+        it = reversed(it)
+        for item in it:
+            if item[0] > end:
+                yield item
+            else:
+                return
 
     def close(self):
         # No close() available for rocksdb

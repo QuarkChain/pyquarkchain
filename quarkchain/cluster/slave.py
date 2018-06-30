@@ -4,7 +4,7 @@ import errno
 import ipaddress
 from typing import Optional, Tuple
 
-from quarkchain.core import Branch, ShardMask, Transaction
+from quarkchain.core import Address, Branch, Code, ShardMask, Transaction
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import (
     CrossShardTransactionList,
@@ -31,7 +31,8 @@ from quarkchain.cluster.rpc import (
     AccountBranchData,
     BatchAddXshardTxListRequest,
     BatchAddXshardTxListResponse,
-    MineResponse, GenTxResponse,
+    MineResponse, GenTxResponse, GetTransactionListByAddressResponse,
+    TransactionDetail,
 )
 
 from quarkchain.cluster.miner import Miner
@@ -43,7 +44,7 @@ from quarkchain.cluster.p2p_commands import (
     GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse, NewTransactionListCommand
 )
 from quarkchain.protocol import Connection
-from quarkchain.db import PersistentDb, ShardedDb
+from quarkchain.db import PersistentDb
 from quarkchain.utils import check, set_logging_level, Logger
 
 
@@ -584,6 +585,20 @@ class MasterConnection(ClusterConnection):
         return GetTransactionReceiptResponse(
             errorCode=0, minorBlock=minorBlock, index=i, receipt=receipt)
 
+    async def handleGetTransactionListByAddressRequest(self, req):
+        result = self.slaveServer.getTransactionListByAddress(req.address, req.start, req.limit)
+        if not result:
+            return GetTransactionListByAddressResponse(
+                errorCode=1,
+                txList=[],
+                next=b"",
+            )
+        return GetTransactionListByAddressResponse(
+            errorCode=0,
+            txList=result[0],
+            next=result[1],
+        )
+
     async def handleSyncMinorBlockListRequest(self, req):
 
         async def __downloadBlocks(blockHashList):
@@ -659,6 +674,8 @@ MASTER_OP_RPC_MAP = {
         (ClusterOp.EXECUTE_TRANSACTION_RESPONSE, MasterConnection.handleExecuteTransaction),
     ClusterOp.GET_TRANSACTION_RECEIPT_REQUEST:
         (ClusterOp.GET_TRANSACTION_RECEIPT_RESPONSE, MasterConnection.handleGetTransactionReceiptRequest),
+    ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST:
+        (ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE, MasterConnection.handleGetTransactionListByAddressRequest)
 }
 
 
@@ -1171,6 +1188,28 @@ class SlaveServer():
 
         shardState = self.shardStateMap[branch.value]
         return shardState.getTransactionReceipt(txHash)
+
+    def getTransactionListByAddress(self, address, start, limit):
+        branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))
+        if branch.value not in self.shardStateMap:
+            return None
+        shardState = self.shardStateMap[branch.value]
+        if start == bytes(1):
+            txList = []
+            for orderableTx in shardState.txQueue.txs + shardState.txQueue.aside:
+                tx = orderableTx.tx
+                if Address(tx.sender, tx.fromFullShardId) == address:
+                    txList.append(TransactionDetail(
+                        Transaction(code=Code.createEvmCode(tx)).getHash(),
+                        address,
+                        Address(tx.to, tx.toFullShardId) if tx.to else None,
+                        tx.value,
+                        0,
+                        0,
+                    ))
+            return txList, b""
+
+        return shardState.db.getTransactionsByAddress(address, start, limit)
 
 
 def parse_args():
