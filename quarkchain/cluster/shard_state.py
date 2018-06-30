@@ -866,11 +866,14 @@ class ShardState:
     def __addTransactionsToFundLoadtestAccounts(self, block, evmState):
         height = block.header.height
         startIndex = (height - 2) * 500
+        shardMask = self.branch.getShardSize() - 1
         for i in range(500):
             index = startIndex + i
             if index >= len(self.env.config.LOADTEST_ACCOUNTS):
                 return
             address, key = self.env.config.LOADTEST_ACCOUNTS[index]
+            fromFullShardId = self.env.config.GENESIS_ACCOUNT.fullShardId & (~shardMask) | self.branch.getShardId()
+            toFullShardId = address.fullShardId & (~shardMask) | self.branch.getShardId()
             gas = 21000
             evmTx = EvmTransaction(
                 nonce=evmState.get_nonce(evmState.block_coinbase),
@@ -879,8 +882,8 @@ class ShardState:
                 to=address.recipient,
                 value=10 * (10 ** 18),
                 data=b'',
-                fromFullShardId=self.branch.getShardId(),
-                toFullShardId=self.branch.getShardId(),
+                fromFullShardId=fromFullShardId,
+                toFullShardId=toFullShardId,
                 networkId=self.env.config.NETWORK_ID,
             )
             evmTx.sign(key=self.env.config.GENESIS_KEY)

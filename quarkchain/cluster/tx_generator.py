@@ -33,7 +33,7 @@ class TransactionGenerator:
         self.accounts = []
         for item in LOADTEST_ACCOUNTS:
             account = Account(
-                Address(bytes.fromhex(item["address"])[:20], self.branch.getShardId()),
+                Address.createFrom(item["address"]),
                 bytes.fromhex(item["key"]))
             self.accounts.append(account)
 
@@ -62,9 +62,11 @@ class TransactionGenerator:
         startTime = time.time()
         txList = []
         total = 0
+        sampleEvmTx = sampleTx.code.getEvmTransaction()
         for account in self.accounts:
-            nonce = self.slaveServer.getTransactionCount(account.address)
-            tx = self.createTransaction(account, nonce, xShardPercent, sampleTx)
+            inShardAddress = Address(account.address.recipient, self.branch.getShardId())
+            nonce = self.slaveServer.getTransactionCount(inShardAddress)
+            tx = self.createTransaction(account, nonce, xShardPercent, sampleEvmTx)
             if not tx:
                 continue
             txList.append(tx)
@@ -83,36 +85,48 @@ class TransactionGenerator:
         ))
         self.running = False
 
-    def createTransaction(self, account, nonce, xShardPercent, sampleTx: Transaction) -> Optional[Transaction]:
+    def createTransaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
         shardSize = self.branch.getShardSize()
+        shardMask = shardSize - 1
         fromShard = self.branch.getShardId()
 
-        evmTx = sampleTx.code.getEvmTransaction()
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
-        if evmTx.fromFullShardId and (evmTx.fromFullShardId & (shardSize - 1)) != fromShard:
+        if sampleEvmTx.fromFullShardId and (sampleEvmTx.fromFullShardId & shardMask) != fromShard:
             return None
 
-        fromFullShardId = evmTx.fromFullShardId if evmTx.fromFullShardId else random_full_shard_id(shardSize, fromShard)
-        toFullShardId = fromFullShardId
-        recipient = evmTx.to if evmTx.to != b'' else random.choice(self.accounts).address.recipient
+        if sampleEvmTx.fromFullShardId:
+            fromFullShardId = sampleEvmTx.fromFullShardId
+        else:
+            fromFullShardId = account.address.fullShardId & (~shardMask) | fromShard
+
+        if not sampleEvmTx.to:
+            toAddress = random.choice(self.accounts).address
+            recipient = toAddress.recipient
+            toFullShardId = toAddress.fullShardId & (~shardMask) | fromShard
+        else:
+            recipient = sampleEvmTx.to
+            toFullShardId = fromFullShardId
+
         if random.randint(1, 100) <= xShardPercent:
             # x-shard tx
             toShard = random.randint(0, config.SHARD_SIZE - 1)
             if toShard == self.branch.getShardId():
                 toShard = (toShard + 1) % config.SHARD_SIZE
-            toFullShardId = random_full_shard_id(shardSize, toShard)
-        value = evmTx.value
-        if evmTx.data == b"":
+            toFullShardId = toFullShardId & (~shardMask) | toShard
+
+        value = sampleEvmTx.value
+        if not sampleEvmTx.data:
             value = random.randint(1, 100) * (10 ** 15)
+
         evmTx = EvmTransaction(
             nonce=nonce,
-            gasprice=evmTx.gasprice,
-            startgas=evmTx.startgas,
+            gasprice=sampleEvmTx.gasprice,
+            startgas=sampleEvmTx.startgas,
             to=recipient,
             value=value,
-            data=evmTx.data,
+            data=sampleEvmTx.data,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
             networkId=config.NETWORK_ID)
