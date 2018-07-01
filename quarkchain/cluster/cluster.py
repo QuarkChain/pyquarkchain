@@ -60,11 +60,13 @@ async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRp
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_slave(port, id, shardMaskList, dbPathRoot, clean):
+async def run_slave(port, id, shardMaskList, dbPathRoot, clean, enableTransactionHistory):
     cmd = "pypy3 slave.py --node_port={} --shard_mask={} --node_id={} --db_path_root={}".format(
         port, shardMaskList[0], id, dbPathRoot)
     if clean:
         cmd += " --clean=true"
+    if enableTransactionHistory:
+        cmd += " --enable_transaction_history=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -78,13 +80,14 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, mine, clean, clusterID=''):
+    def __init__(self, config, configFilePath, mine, clean, enableTransactionHistory, clusterID=''):
         self.config = config
         self.configFilePath = configFilePath
         self.procs = []
         self.shutdownCalled = False
         self.mine = mine
         self.clean = clean
+        self.enableTransactionHistory = enableTransactionHistory
         self.clusterID = clusterID
 
     async def waitAndShutdown(self, prefix, proc):
@@ -126,7 +129,8 @@ class Cluster:
                 id=slave["id"],
                 shardMaskList=slave["shard_masks"],
                 dbPathRoot=slave["db_path_root"],
-                clean=self.clean)
+                clean=self.clean,
+                enableTransactionHistory=self.enableTransactionHistory)
             prefix = "{}SLAVE_{}".format(self.clusterID, slave["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
@@ -169,6 +173,8 @@ def main():
         "--json_rpc_port", default=38391, type=int)
     parser.add_argument(
         "--json_rpc_private_port", default=38491, type=int)
+    parser.add_argument(
+        "--enable_transaction_history", default=False, type=bool)
     parser.add_argument(
         "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST)
     parser.add_argument(
@@ -227,7 +233,7 @@ def main():
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    cluster = Cluster(config, filename, args.mine, args.clean)
+    cluster = Cluster(config, filename, args.mine, args.clean, args.enable_transaction_history)
     cluster.startAndLoop()
 
 

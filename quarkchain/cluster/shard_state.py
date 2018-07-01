@@ -71,7 +71,117 @@ class ExpiryCounter:
         return self.getCount() / self.window
 
 
-class ShardDbOperator:
+class TransactionHistoryMixin:
+
+    def __encodeAddressTransactionKey(self, address, height, index):
+        return b"addr_" + address.serialize() + height.to_bytes(4, "big") + index.to_bytes(4, "big")
+
+    def putConfirmedCrossShardTransactionDepositList(self, minorBlockHash, crossShardTransactionDepositList):
+        """Stores a mapping from minor block to the list of CrossShardTransactionDeposit confirmed"""
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return
+
+        l = CrossShardTransactionList(crossShardTransactionDepositList)
+        self.db.put(b"xr_" + minorBlockHash, l.serialize())
+
+    def __getConfirmedCrossShardTransactionDepositList(self, mBlockHash):
+        data = self.db.get(b"xr_" + mBlockHash, None)
+        if not data:
+            return []
+        return CrossShardTransactionList.deserialize(data).txList
+
+    def __updateTransactionHistoryIndex(self, tx, blockHeight, index, func):
+        evmTx = tx.code.getEvmTransaction()
+        addr = Address(evmTx.sender, evmTx.fromFullShardId)
+        key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
+        func(key, b"")
+        # "to" can be empty for smart contract deployment
+        if evmTx.to and self.branch.isInShard(evmTx.toFullShardId):
+            addr = Address(evmTx.to, evmTx.toFullShardId)
+            key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
+            func(key, b"")
+
+    def putTransactionHistoryIndex(self, tx, blockHeight, index):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return
+        self.__updateTransactionHistoryIndex(tx, blockHeight, index, lambda k, v: self.db.put(k, v))
+
+    def removeTransactionHistoryIndex(self, tx, blockHeight, index):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return
+        self.__updateTransactionHistoryIndex(tx, blockHeight, index, lambda k, v: self.db.remove(k))
+
+    def __updateTransactionHistoryIndexFromBlock(self, minorBlock, func):
+        xShardReceiveTxList = self.__getConfirmedCrossShardTransactionDepositList(minorBlock.header.getHash())
+        for i, tx in enumerate(xShardReceiveTxList):
+            if tx.txHash == bytes(32):  # coinbase reward for root block miner
+                continue
+            key = self.__encodeAddressTransactionKey(tx.toAddress, minorBlock.header.height, i)
+            func(key, b"x")
+
+    def putTransactionHistoryIndexFromBlock(self, minorBlock):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return
+        self.__updateTransactionHistoryIndexFromBlock(minorBlock, lambda k, v: self.db.put(k, v))
+
+    def removeTransactionHistoryIndexFromBlock(self, minorBlock):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return
+        self.__updateTransactionHistoryIndexFromBlock(minorBlock, lambda k, v: self.db.remove(k))
+
+    def getTransactionsByAddress(self, address, start=b"", limit=10):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        serializedAddress = address.serialize()
+        end = b"addr_" + serializedAddress
+        originalStart = (int.from_bytes(end, byteorder="big") + 1).to_bytes(len(end), byteorder="big")
+        next = end
+        # reset start to the latest if start is not valid
+        if not start or start > originalStart:
+            start = originalStart
+
+        txList = []
+        for k, v in self.db.reversedRangeIter(start, end):
+            limit -= 1
+            if limit < 0:
+                break
+            height = int.from_bytes(k[5 + 24:5 + 24 + 4], "big")
+            index = int.from_bytes(k[5 + 24 + 4:], "big")
+            if v == b"x":  # cross shard receive
+                mBlock = self.getMinorBlockByHeight(height)
+                xShardReceiveTxList = self.__getConfirmedCrossShardTransactionDepositList(mBlock.header.getHash())
+                tx = xShardReceiveTxList[index]  # tx is CrossShardTransactionDeposit
+                txList.append(
+                    TransactionDetail(
+                        tx.txHash,
+                        tx.fromAddress,
+                        tx.toAddress,
+                        tx.value,
+                        height,
+                        mBlock.header.createTime,
+                    )
+                )
+            else:
+                mBlock = self.getMinorBlockByHeight(height)
+                tx = mBlock.txList[index]  # tx is Transaction
+                evmTx = tx.code.getEvmTransaction()
+                txList.append(
+                    TransactionDetail(
+                        tx.getHash(),
+                        Address(evmTx.sender, evmTx.fromFullShardId),
+                        Address(evmTx.to, evmTx.toFullShardId) if evmTx.to else None,
+                        evmTx.value,
+                        height,
+                        mBlock.header.createTime,
+                    )
+                )
+            next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(len(k), byteorder="big")
+
+        return txList, next
+
+
+class ShardDbOperator(TransactionHistoryMixin):
     def __init__(self, db, env, branch):
         self.env = env
         self.db = db
@@ -156,19 +266,13 @@ class ShardDbOperator:
         mBlockHash = mBlock.header.getHash()
 
         self.db.put(b"mblock_" + mBlockHash, mBlock.serialize())
-        l = CrossShardTransactionList(xShardReceiveTxList)
-        self.db.put(b"xr_" + mBlockHash, l.serialize())
 
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
 
         self.heightToMinorBlockHashes.setdefault(mBlock.header.height, set()).add(mBlock.header.getHash())
 
-    def getCrossShardReceiveTxList(self, mBlockHash):
-        data = self.db.get(b"xr_" + mBlockHash, None)
-        if not data:
-            return []
-        return CrossShardTransactionList.deserialize(data).txList
+        self.putConfirmedCrossShardTransactionDepositList(mBlockHash, xShardReceiveTxList)
 
     def getMinorBlockHeaderByHash(self, h, consistencyCheck=True):
         header = self.mHeaderPool.get(h, None)
@@ -213,37 +317,18 @@ class ShardDbOperator:
         return len(self.heightToMinorBlockHashes.setdefault(height, set()))
 
     # ------------------------- Transaction db operations --------------------------------
-    def __encodeAddressTransactionKey(self, address, height, index):
-        return b"addr_" + address.serialize() + height.to_bytes(4, "big") + index.to_bytes(4, "big")
-
     def putTransactionIndex(self, tx, blockHeight, index):
         txHash = tx.getHash()
         self.db.put(b"txindex_" + txHash,
                     blockHeight.to_bytes(4, "big") + index.to_bytes(4, "big"))
 
-        evmTx = tx.code.getEvmTransaction()
-        addr = Address(evmTx.sender, evmTx.fromFullShardId)
-        key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
-        self.db.put(key, b"")
-        # "to" can be empty for smart contract deployment
-        if evmTx.to and self.branch.isInShard(evmTx.toFullShardId):
-            addr = Address(evmTx.to, evmTx.toFullShardId)
-            key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
-            self.db.put(key, b"")
+        self.putTransactionHistoryIndex(tx, blockHeight, index)
 
     def removeTransactionIndex(self, tx, blockHeight, index):
         txHash = tx.getHash()
         self.db.remove(b"txindex_" + txHash)
 
-        evmTx = tx.code.getEvmTransaction()
-        addr = Address(evmTx.sender, evmTx.fromFullShardId)
-        key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
-        self.db.remove(key)
-        # "to" can be empty for smart contract deployment
-        if evmTx.to and self.branch.isInShard(evmTx.toFullShardId):
-            addr = Address(evmTx.to, evmTx.toFullShardId)
-            key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
-            self.db.remove(key)
+        self.removeTransactionHistoryIndex(tx, blockHeight, index)
 
     def containTransactionHash(self, txHash):
         key = b"txindex_" + txHash
@@ -262,72 +347,13 @@ class ShardDbOperator:
         for i, tx in enumerate(minorBlock.txList):
             self.putTransactionIndex(tx, minorBlock.header.height, i)
 
-        xShardReceiveTxList = self.getCrossShardReceiveTxList(minorBlock.header.getHash())
-        for i, tx in enumerate(xShardReceiveTxList):
-            if tx.txHash == bytes(32):  # coinbase reward for root block miner
-                continue
-            key = self.__encodeAddressTransactionKey(tx.toAddress, minorBlock.header.height, i)
-            self.db.put(key, b"x")
+        self.putTransactionHistoryIndexFromBlock(minorBlock)
 
     def removeTransactionIndexFromBlock(self, minorBlock):
         for i, tx in enumerate(minorBlock.txList):
             self.removeTransactionIndex(tx, minorBlock.header.height, i)
 
-        xShardReceiveTxList = self.getCrossShardReceiveTxList(minorBlock.header.getHash())
-        for i, tx in enumerate(xShardReceiveTxList):
-            if tx.txHash == bytes(32):  # coinbase reward for root block miner
-                continue
-            key = self.__encodeAddressTransactionKey(tx.toAddress, minorBlock.header.height, i)
-            self.db.remove(key)
-
-    # -------------------------- Address -> Tx operations ----------------------------
-    def getTransactionsByAddress(self, address, start=b"", limit=10):
-        serializedAddress = address.serialize()
-        end = b"addr_" + serializedAddress
-        originalStart = (int.from_bytes(end, byteorder="big") + 1).to_bytes(len(end), byteorder="big")
-        next = end
-        # reset start to the latest if start is not valid
-        if not start or start > originalStart:
-            start = originalStart
-
-        txList = []
-        for k, v in self.db.reversedRangeIter(start, end):
-            limit -= 1
-            if limit < 0:
-                break
-            height = int.from_bytes(k[5 + 24:5 + 24 + 4], "big")
-            index = int.from_bytes(k[5 + 24 + 4:], "big")
-            if v == b"x":
-                mBlock = self.getMinorBlockByHeight(height)
-                xShardReceiveTxList = self.getCrossShardReceiveTxList(mBlock.header.getHash())
-                tx = xShardReceiveTxList[index]
-                txList.append(
-                    TransactionDetail(
-                        tx.txHash,
-                        tx.fromAddress,
-                        tx.toAddress,
-                        tx.value,
-                        height,
-                        mBlock.header.createTime,
-                    )
-                )
-            else:
-                mBlock = self.getMinorBlockByHeight(height)
-                tx = mBlock.txList[index]
-                evmTx = tx.code.getEvmTransaction()
-                txList.append(
-                    TransactionDetail(
-                        tx.getHash(),
-                        Address(evmTx.sender, evmTx.fromFullShardId),
-                        Address(evmTx.to, evmTx.toFullShardId) if evmTx.to else None,
-                        evmTx.value,
-                        height,
-                        mBlock.header.createTime,
-                    )
-                )
-            next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(len(k), byteorder="big")
-
-        return txList, next
+        self.removeTransactionHistoryIndexFromBlock(minorBlock)
 
     # -------------------------- Cross-shard tx operations ----------------------------
     def putMinorBlockXshardTxList(self, h, txList: CrossShardTransactionList):
@@ -1153,6 +1179,27 @@ class ShardState:
             address = receipt.contractAddress
             check(address.fullShardId == self.evmState.get_full_shard_id(address.recipient))
         return block, index, receipt
+
+    def getTransactionListByAddress(self, address, start, limit):
+        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        if start == bytes(1):  # get pending tx
+            txList = []
+            for orderableTx in self.txQueue.txs + self.txQueue.aside:
+                tx = orderableTx.tx
+                if Address(tx.sender, tx.fromFullShardId) == address:
+                    txList.append(TransactionDetail(
+                        Transaction(code=Code.createEvmCode(tx)).getHash(),
+                        address,
+                        Address(tx.to, tx.toFullShardId) if tx.to else None,
+                        tx.value,
+                        0,
+                        0,
+                    ))
+            return txList, b""
+
+        return self.db.getTransactionsByAddress(address, start, limit)
 
     def getShardStats(self) -> ShardStats:
         cutoff = self.headerTip.createTime - 60

@@ -1194,22 +1194,7 @@ class SlaveServer():
         if branch.value not in self.shardStateMap:
             return None
         shardState = self.shardStateMap[branch.value]
-        if start == bytes(1):
-            txList = []
-            for orderableTx in shardState.txQueue.txs + shardState.txQueue.aside:
-                tx = orderableTx.tx
-                if Address(tx.sender, tx.fromFullShardId) == address:
-                    txList.append(TransactionDetail(
-                        Transaction(code=Code.createEvmCode(tx)).getHash(),
-                        address,
-                        Address(tx.to, tx.toFullShardId) if tx.to else None,
-                        tx.value,
-                        0,
-                        0,
-                    ))
-            return txList, b""
-
-        return shardState.db.getTransactionsByAddress(address, start, limit)
+        return shardState.getTransactionListByAddress(address, start, limit)
 
 
 def parse_args():
@@ -1236,6 +1221,8 @@ def parse_args():
     # TODO: support a list shard masks
     parser.add_argument(
         "--shard_mask", default=1, type=int)
+    parser.add_argument(
+        "--enable_transaction_history", default=False, type=bool)
     parser.add_argument("--in_memory_db", default=False)
     parser.add_argument("--clean", default=False)
     parser.add_argument("--db_path_root", default="./db", type=str)
@@ -1250,6 +1237,7 @@ def parse_args():
     env.config.P2P_SEED_PORT = args.seed_port
     env.config.LOCAL_SERVER_PORT = args.local_port
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
+    env.config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
     env.clusterConfig.ID = bytes(args.node_id, "ascii")
     env.clusterConfig.NODE_PORT = args.node_port
