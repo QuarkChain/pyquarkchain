@@ -98,6 +98,9 @@ class DefaultConfig:
         self.LOADTEST_ACCOUNTS = [(Address.createFrom(item["address"]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
+        # whether to index transaction by address
+        self.ENABLE_TRANSACTION_HISTORY = True
+
     def setShardSize(self, shardSize):
         assert(is_p2(shardSize))
         self.SHARD_SIZE = shardSize
