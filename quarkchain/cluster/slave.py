@@ -16,7 +16,8 @@ from quarkchain.cluster.core import (
     TransactionReceipt,
 )
 from quarkchain.cluster.protocol import (
-    ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection
+    ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection,
+    NULL_CONNECTION
 )
 from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong, \
     ExecuteTransactionResponse, GetTransactionReceiptResponse
@@ -317,13 +318,15 @@ class MasterConnection(ClusterConnection):
 
         connMap = self.vConnMap.get(metadata.clusterPeerId)
         if connMap is None:
-            self.closeWithError("cannot find cluster peer id in vConnMap")
-            return
+            # Master can close the peer connection at any time
+            # TODO: any way to avoid this race?
+            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId))
+            return NULL_CONNECTION
 
         return connMap[metadata.branch.value].getForwardingConnection()
 
     def validateConnection(self, connection):
-        return isinstance(connection, ForwardingVirtualConnection)
+        return connection == NULL_CONNECTION or isinstance(connection, ForwardingVirtualConnection)
 
     def __getShardSize(self):
         return self.env.config.SHARD_SIZE
