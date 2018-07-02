@@ -122,6 +122,17 @@ class Peer(P2PConnection):
 
         super().close()
 
+    def closeDeadPeer(self):
+        assert(self.id is not None)
+        if self.id in self.network.activePeerPool:
+            del self.network.activePeerPool[self.id]
+        if self.clusterPeerId in self.network.clusterPeerPool:
+            del self.network.clusterPeerPool[self.clusterPeerId]
+        Logger.info("Peer {} ({}:{}) disconnected, remaining {}".format(
+            self.id.hex(), self.ip, self.port, len(self.network.activePeerPool)))
+        self.masterServer.destroyPeerClusterConnections(self.clusterPeerId)
+        super().close()
+
     def closeWithError(self, error):
         Logger.info(
             "Closing peer %s with the following reason: %s" %
