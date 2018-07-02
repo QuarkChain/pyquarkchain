@@ -375,6 +375,8 @@ class JSONRPCServer:
             "networkId": quantity_encoder(self.master.env.config.NETWORK_ID),
             "shardSize": quantity_encoder(self.master.getShardSize()),
             "syncing": self.master.isSyncing(),
+            "mining": self.master.isMining(),
+            "shardServerCount": len(self.master.slavePool),
         }
 
     @public_methods.add

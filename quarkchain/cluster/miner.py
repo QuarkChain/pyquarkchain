@@ -23,6 +23,9 @@ class Miner:
         self.enabled = False
         self.process = None
 
+    def isEnabled(self):
+        return self.enabled
+
     def enable(self):
         self.enabled = True
 

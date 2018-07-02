@@ -942,6 +942,7 @@ class MasterServer():
             "staleBlockCount60s": staleBlockCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
+            "mining": self.rootMiner.isEnabled(),
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
             "txCountHistory": txCountHistory,
@@ -949,6 +950,9 @@ class MasterServer():
 
     def isSyncing(self):
         return self.synchronizer.running
+
+    def isMining(self):
+        return self.rootMiner.isEnabled()
 
     async def getMinorBlockByHash(self, blockHash, branch):
         if branch.value not in self.branchToSlaves:
