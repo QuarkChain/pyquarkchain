@@ -140,7 +140,7 @@ def validate_transaction(state, tx):
 
     # (3) the gas limit is no smaller than the intrinsic gas,
     # g0, used by the transaction;
-    total_gas = tx.intrinsic_gas_used + (opcodes.GTXXSHARDCOST if tx.isCrossShard() else 0)
+    total_gas = tx.intrinsic_gas_used
     if tx.startgas < total_gas:
         raise InsufficientStartGas(
             rp(tx, 'startgas', tx.startgas, total_gas))
@@ -188,16 +188,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     state.full_shard_id = tx.toFullShardId
 
     intrinsic_gas = tx.intrinsic_gas_used
-    if state.is_HOMESTEAD():  # TODO: delete this?
-        assert tx.s * 2 < transactions.secpk1n
-        if not tx.to or tx.to == CREATE_CONTRACT_ADDRESS:
-            intrinsic_gas += opcodes.CREATE[3]
-            if tx.startgas < intrinsic_gas:
-                raise InsufficientStartGas(
-                    rp(tx, 'startgas', tx.startgas, intrinsic_gas))
-    if tx.isCrossShard():
-        intrinsic_gas += opcodes.GTXXSHARDCOST
-
     log_tx.debug('TX NEW', txdict=tx.to_dict())
 
     # start transacting #################
