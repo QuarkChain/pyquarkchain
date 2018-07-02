@@ -238,19 +238,21 @@ class P2PNetwork:
             ip_port = '{}:{}'.format(peer.ip, peer.port)
             if ip_port not in peers:
                 to_be_disconnected.append(peer)
-        Logger.info("disconnecting peers not in devp2p discovery: {}".format(
-            to_be_disconnected
-        ))
+        if len(to_be_disconnected) > 0:
+            Logger.info("Disconnecting peers not in devp2p discovery: {}".format(
+                ['{}:{}'.format(peer.ip, peer.port) for peer in to_be_disconnected]
+            ))
         for peer in to_be_disconnected:
-            peer.close()
+            peer.closeDeadPeer()
         # 2. connect to peers that are in devp2p peer list
         # only initiate connections from smaller of ip_port,
         # to avoid peers trying to connect each other at the same time
         active = ['{}:{}'.format(p.ip, p.port) for i,p in self.activePeerPool.items()]
         to_be_connected = set(peers) - set(active)
-        Logger.info("connecting to peers from devp2p discovery: {}".format(
-            to_be_connected
-        ))
+        if len(to_be_connected) > 0:
+            Logger.info("Connecting to peers from devp2p discovery: {}".format(
+                to_be_connected
+            ))
         self_ip_port = '{}:{}'.format(self.ip, self.port)
         for ip_port in to_be_connected:
             if self_ip_port < ip_port:
