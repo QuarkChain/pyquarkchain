@@ -143,8 +143,13 @@ class SyncTask:
         return resp.rootBlockList
 
     async def __addBlock(self, rootBlock):
+        start = time.time()
         await self.__syncMinorBlocks(rootBlock.minorBlockHeaderList)
         await self.masterServer.addRootBlock(rootBlock)
+        elapse = time.time() - start
+        Logger.info("[R] syncing root block {} {} took {:.2f} seconds".format(
+            rootBlock.header.height, rootBlock.header.getHash().hex(), elapse,
+        ))
 
     async def __syncMinorBlocks(self, minorBlockHeaderList):
         minorBlockDownloadMap = dict()
