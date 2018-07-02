@@ -1051,6 +1051,7 @@ class ShardState:
             self.confirmedHeaderTip = shardHeader
             self.confirmedMetaTip = self.db.getMinorBlockMetaByHash(shardHeader.getHash())
 
+            origHeaderTip = self.headerTip
             origBlock = self.db.getMinorBlockByHeight(shardHeader.height)
             if not origBlock or origBlock.header != shardHeader:
                 self.__rewriteBlockIndexTo(self.db.getMinorBlockByHash(shardHeader.getHash()))
@@ -1058,6 +1059,8 @@ class ShardState:
                 # need to switch to the tip of the longest chain
                 self.headerTip = shardHeader
                 self.metaTip = self.db.getMinorBlockMetaByHash(self.headerTip.getHash())
+                Logger.info("[{}] (root confirms a fork) shard tip reset from {} to {} by root block {}".format(
+                    self.branch.getShardId(), origHeaderTip.height, self.headerTip.height, rBlock.header.height))
             else:
                 # the current headerTip might point to a root block on a fork with rBlock
                 # we need to scan back until finding a minor block pointing to the same root chain rBlock is on.
@@ -1065,6 +1068,9 @@ class ShardState:
                 while not self.__isSameRootChain(
                         self.rootTip, self.db.getRootBlockHeaderByHash(self.headerTip.hashPrevRootBlock)):
                     self.headerTip = self.db.getMinorBlockHeaderByHash(self.headerTip.hashPrevMinorBlock)
+                if self.headerTip != origHeaderTip:
+                    Logger.info("[{}] shard tip reset from {} to {} by root block {}".format(
+                        self.branch.getShardId(), origHeaderTip.height, self.headerTip.height, rBlock.header.height))
             return True
 
         check(self.__isSameRootChain(self.rootTip,
