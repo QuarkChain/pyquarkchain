@@ -76,7 +76,7 @@ async def main():
         filename = cl.dump_config_to_file(config)
         clusters.append(
             cl.Cluster(
-                config, filename, mine, args.clean, "{}C{}{}_".format(colors[i % len(colors)],i, COLOR_END)
+                config, filename, mine, args.clean, False, "{}C{}{}_".format(colors[i % len(colors)], i, COLOR_END)
         ))
 
     tasks = []
