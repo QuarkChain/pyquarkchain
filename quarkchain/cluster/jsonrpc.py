@@ -1,6 +1,6 @@
 import asyncio
 import inspect
-import random
+import json
 
 import rlp
 
@@ -328,6 +328,7 @@ class JSONRPCServer:
         self.port =port
         self.env = env
         self.master = masterServer
+        self.counters = dict()
 
         # Bind RPC handler functions to this instance
         self.handlers = AsyncMethods()
@@ -337,6 +338,17 @@ class JSONRPCServer:
 
     async def __handle(self, request):
         request = await request.text()
+
+        d = dict()
+        try:
+            d = json.loads(request)
+        except Exception:
+            pass
+        method = d.get("method", "null")
+        if method in self.counters:
+            self.counters[method] += 1
+        else:
+            self.counters[method] = 1
         # Use armor to prevent the handler from being cancelled when
         # aiohttp server loses connection to client
         response = await armor(self.handlers.dispatch(request))
@@ -624,6 +636,10 @@ class JSONRPCServer:
 
         return receipt_encoder(minorBlock, i, receipt)
 
+    @public_methods.add
+    async def getJrpcCalls(self):
+        return self.counters
+
 ######################## Private Methods ########################
 
     @private_methods.add
@@ -731,6 +747,10 @@ class JSONRPCServer:
             "txList": txs,
             "next": data_encoder(next),
         }
+
+    @private_methods.add
+    async def getJrpcCalls(self):
+        return self.counters
 
 
 if __name__ == "__main__":
