@@ -538,6 +538,7 @@ class ShardStats(Serializable):
         ("timestamp", uint64),
         ("txCount60s", uint32),
         ("pendingTxCount", uint32),
+        ("totalTxCount", uint32),
         ("blockCount60s", uint32),
         ("staleBlockCount60s", uint32),
         ("lastBlockTime", uint32),
@@ -550,6 +551,7 @@ class ShardStats(Serializable):
         timestamp,
         txCount60s,
         pendingTxCount,
+        totalTxCount,
         blockCount60s,
         staleBlockCount60s,
         lastBlockTime,
@@ -559,6 +561,7 @@ class ShardStats(Serializable):
         self.timestamp = timestamp
         self.txCount60s = txCount60s
         self.pendingTxCount = pendingTxCount
+        self.totalTxCount = totalTxCount
         self.blockCount60s = blockCount60s
         self.staleBlockCount60s = staleBlockCount60s
         self.lastBlockTime = lastBlockTime

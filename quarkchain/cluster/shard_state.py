@@ -266,6 +266,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         mBlockHash = mBlock.header.getHash()
 
         self.db.put(b"mblock_" + mBlockHash, mBlock.serialize())
+        self.putTotalTxCount(mBlock)
 
         self.mHeaderPool[mBlockHash] = mBlock.header
         self.mMetaPool[mBlockHash] = mBlock.meta
@@ -273,6 +274,19 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.heightToMinorBlockHashes.setdefault(mBlock.header.height, set()).add(mBlock.header.getHash())
 
         self.putConfirmedCrossShardTransactionDepositList(mBlockHash, xShardReceiveTxList)
+
+    def putTotalTxCount(self, mBlock):
+        prevCount = 0
+        if mBlock.header.height > 2:
+            prevCount = self.getTotalTxCount(mBlock.header.hashPrevMinorBlock)
+        count = prevCount + len(mBlock.txList)
+        self.db.put(b"txCount_"+ mBlock.header.getHash(), count.to_bytes(4, "big"))
+
+    def getTotalTxCount(self, mBlockHash):
+        countBytes = self.db.get(b"txCount_" + mBlockHash, None)
+        if not countBytes:
+            return 0
+        return int.from_bytes(countBytes, "big")
 
     def getMinorBlockHeaderByHash(self, h, consistencyCheck=True):
         header = self.mHeaderPool.get(h, None)
@@ -1229,6 +1243,7 @@ class ShardState:
             timestamp=self.headerTip.createTime,
             txCount60s=txCount,
             pendingTxCount=len(self.txQueue),
+            totalTxCount=self.db.getTotalTxCount(self.headerTip.getHash()),
             blockCount60s=blockCount,
             staleBlockCount60s=staleBlockCount,
             lastBlockTime=lastBlockTime,
