@@ -915,26 +915,16 @@ class MasterServer():
             shards[shardId]["txCount60s"] = shardStats.txCount60s
             shards[shardId]["pendingTxCount"] = shardStats.pendingTxCount
             shards[shardId]["blockCount60s"] = shardStats.blockCount60s
-            shards[shardId]["staleBlockCount60s"] = shardStats.staleBlockCount60s
             shards[shardId]["lastBlockTime"] = shardStats.lastBlockTime
 
         txCount60s = sum([shardStats.txCount60s for shardStats in self.branchToShardStats.values()])
         blockCount60s = sum([shardStats.blockCount60s for shardStats in self.branchToShardStats.values()])
-        staleBlockCount60s = sum([shardStats.staleBlockCount60s for shardStats in self.branchToShardStats.values()])
         pendingTxCount = sum([shardStats.pendingTxCount for shardStats in self.branchToShardStats.values()])
 
         rootLastBlockTime = 0
         if self.rootState.tip.height >= 3:
             prev = self.rootState.db.getRootBlockByHash(self.rootState.tip.hashPrevBlock)
             rootLastBlockTime = self.rootState.tip.createTime - prev.header.createTime
-
-        txCountHistory = []
-        for item in self.txCountHistory:
-            txCountHistory.append({
-                "timestamp": item[0],
-                "txCount": item[1],
-                "xShardTxCount": item[2],
-            })
 
         return {
             "shardServerCount": len(self.slavePool),
@@ -944,13 +934,11 @@ class MasterServer():
             "rootLastBlockTime": rootLastBlockTime,
             "txCount60s": txCount60s,
             "blockCount60s": blockCount60s,
-            "staleBlockCount60s": staleBlockCount60s,
             "pendingTxCount": pendingTxCount,
             "syncing": self.synchronizer.running,
             "mining": self.rootMiner.isEnabled(),
             "shards": shards,
             "cpus": psutil.cpu_percent(percpu=True),
-            "txCountHistory": txCountHistory,
         }
 
     def isSyncing(self):
