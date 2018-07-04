@@ -4,6 +4,8 @@ import errno
 import ipaddress
 from typing import Optional, Tuple
 
+from collections import deque
+
 from quarkchain.core import Address, Branch, Code, ShardMask, Transaction
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.core import (
@@ -49,7 +51,7 @@ from quarkchain.db import PersistentDb
 from quarkchain.utils import check, set_logging_level, Logger
 
 
-class Synchronizer:
+class SyncTask:
     ''' Given a header and a shard connection, the synchronizer will synchronize
     the shard state with the peer shard up to the height of the header.
     '''
@@ -147,6 +149,27 @@ class Synchronizer:
         return resp.minorBlockList
 
 
+class Synchronizer:
+    ''' Buffer the headers received from peer and sync one by one '''
+
+    def __init__(self):
+        self.queue = deque()
+        self.running = False
+
+    def addTask(self, header, shardConn):
+        self.queue.append((header, shardConn))
+        if not self.running:
+            self.running = True
+            asyncio.ensure_future(self.__run())
+
+    async def __run(self):
+        while len(self.queue) > 0:
+            header, shardConn = self.queue.popleft()
+            task = SyncTask(header, shardConn)
+            await task.sync()
+        self.running = False
+
+
 class ShardConnection(VirtualConnection):
     ''' A virtual connection between local shard and remote shard
     '''
@@ -157,7 +180,7 @@ class ShardConnection(VirtualConnection):
         self.shardState = shardState
         self.masterConn = masterConn
         self.slaveServer = masterConn.slaveServer
-        self.synchronizer = None
+        self.synchronizer = Synchronizer()
         self.bestRootBlockHeaderObserved = None
         self.bestMinorBlockHeaderObserved = None
 
@@ -231,14 +254,7 @@ class ShardConnection(VirtualConnection):
         if self.shardState.headerTip.height >= mHeader.height:
             return
 
-        if self.synchronizer:
-            # Only allow one synchronizer at a time
-            # TODO: queue the headers
-            return
-
-        self.synchronizer = Synchronizer(mHeader, self)
-        await self.synchronizer.sync()
-        self.synchronizer = None
+        self.synchronizer.addTask(mHeader, self)
 
     def broadcastNewTip(self):
         if self.bestRootBlockHeaderObserved:
@@ -828,7 +844,7 @@ class SlaveServer():
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.addressInBranch(Branch(branchValue))
 
         def __isSyncing():
-            return any([vs[branchValue].synchronizer is not None for vs in self.master.vConnMap.values()])
+            return any([vs[branchValue].synchronizer.running for vs in self.master.vConnMap.values()])
 
         async def __createBlock():
             # hold off mining if the shard is syncing
