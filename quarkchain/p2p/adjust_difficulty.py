@@ -66,6 +66,7 @@ async def adjust_imbalanced_hashpower(args):
 
         num_rich = int(num_nodes / 10)
         print("***********************************************")
+        print("num_nodes = ", num_nodes)
         print("num_rich = ", num_rich)
         clusters_rich = clusters[:num_rich]
         clusters_poor = clusters[num_rich:]
@@ -88,6 +89,7 @@ async def adjust_imbalanced_hashpower(args):
             rich_root,
             rich_minor,
             datetime.now()))
+        print("rich clusters: ", clusters_rich)
 
         await asyncio.gather(
             *[async_adjust(idx,
@@ -101,6 +103,7 @@ async def adjust_imbalanced_hashpower(args):
             poor_root,
             poor_minor,
             datetime.now()))
+        print("poor clusters: ", clusters_poor)
     except Exception as ex:
         print("Got Exception: {}".format(ex, args.interval))
         pass
@@ -110,7 +113,7 @@ def main():
     parser = argparse.ArgumentParser()
     # do not use "localhost", use the private ip if you run this from EC2
     parser.add_argument(
-        "--ip", default="54.201.248.108", type=str)
+        "--ip", default="54.213.57.24", type=str)
     parser.add_argument(
         "--p2p_port", default=38291, type=int)
     parser.add_argument(
