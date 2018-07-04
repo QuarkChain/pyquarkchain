@@ -601,6 +601,9 @@ class MasterServer():
                     check(height == 0 or height + 1 == header.height)
                     height = header.height
 
+                    if header.createTime > time.time() - 60:
+                        break
+
                     # Filter out the ones unknown to the master
                     if not self.rootState.isMinorBlockValidated(header.getHash()):
                         break
