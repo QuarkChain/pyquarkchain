@@ -1,5 +1,6 @@
 import asyncio
 from aioprocessing import AioProcess, AioQueue
+import random
 import time
 import numpy
 
@@ -131,6 +132,7 @@ class Miner:
                 pass
             if time.time() > targetTime:
                 Miner.__logStatus(block)
+                block.header.nonce = random.randint(0, 2 ** 32 - 1)
                 output.put(block)
                 block, targetBlockTime = input.get()  # blocking
                 if not block:
