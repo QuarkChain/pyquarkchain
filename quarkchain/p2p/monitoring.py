@@ -24,6 +24,50 @@ def fetch_peers(ip, jrpc_port):
             for p in peers["peers"]]
 
 
+async def fetch_peers_async(node):
+    """
+    :param node: tuple(ip, p2p_port, jrpc_port)
+    :return: list of tuple(ip, p2p_port, jrpc_port)
+    """
+    json_rpc_url = "http://{}:{}".format(node[0], node[2])
+    print("calling {}".format(json_rpc_url))
+    server = Server(json_rpc_url)
+    peers = await server.getPeers()
+    await server.session.close()
+    return [(str(ipaddress.ip_address(int(p["ip"], 16))),
+             int(p["port"], 16),
+             int(p["port"], 16) + node[2] - node[1])
+            for p in peers["peers"]]
+
+
+async def crawl_async(ip, p2p_port, jrpc_port):
+    """
+    use bfs to crawl the network
+    """
+    cache = {}
+    level = {(ip, p2p_port, jrpc_port)}
+    while len(level) > 0:
+        peer_result = await asyncio.gather(*[fetch_peers_async(node) for node in level])
+        next_level = set()
+        for idx, node in enumerate(level):
+            cache[node] = peer_result[idx]
+            next_level |= set(peer_result[idx])
+        next_level -= set(cache.keys())
+        level = next_level
+    return cache
+
+
+def crawl_bfs(ip, p2p_port, jrpc_port):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    cache = loop.run_until_complete(crawl_async(ip, p2p_port, jrpc_port))
+    res = {}
+    # we can avoid the loop, but it will look crazy
+    for k, v in cache.items():
+        res["{}:{}".format(k[0], k[1])] = ["{}:{}".format(p[0], p[1]) for p in v]
+    return res
+
+
 def crawl_recursive(cache, ip, p2p_port, jrpc_port, ip_lookup={}):
     """
     given ip and p2p_port, jrpc_port, recursively crawl the p2p network
