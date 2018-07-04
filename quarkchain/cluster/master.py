@@ -796,6 +796,13 @@ class MasterServer():
             Logger.logException()
             success = False
 
+        try:
+            if updateTip and self.network is not None:
+                for peer in self.network.iteratePeers():
+                    peer.sendUpdatedTip()
+        except Exception:
+            pass
+
         if success:
             futureList = self.broadcastRpc(
                 op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
@@ -805,9 +812,6 @@ class MasterServer():
 
             self.rootMiner.mineNewBlockAsync()
 
-        if updateTip and self.network is not None:
-            for peer in self.network.iteratePeers():
-                peer.sendUpdatedTip()
 
     async def addRawMinorBlock(self, branch, blockData):
         if branch.value not in self.branchToSlaves:

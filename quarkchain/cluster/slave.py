@@ -1031,7 +1031,7 @@ class SlaveServer():
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for _, response, _ in responses]))
 
-    async def addBlock(self, block, broadcast=True):
+    async def addBlock(self, block):
         ''' Returns true if block is successfully added. False on any error. '''
         branchValue = block.header.branch.value
         shardState = self.shardStateMap.get(branchValue, None)
@@ -1045,6 +1045,13 @@ class SlaveServer():
         except Exception as e:
             Logger.errorException()
             return False
+
+        # block has been added to local state and let's pass to peers
+        try:
+            if oldTip != shardState.tip():
+                self.master.broadcastNewTip(block.header.branch)
+        except Exception:
+            Logger.warningEverySec("broadcast tip failure")
 
         # block already existed in local shard state
         # but might not have been propagated to other shards and master
@@ -1066,9 +1073,6 @@ class SlaveServer():
         await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(
             block.header, len(block.txList), len(xShardList), shardState.getShardStats())
-
-        if broadcast and oldTip != shardState.tip():
-            self.master.broadcastNewTip(block.header.branch)
 
         self.addBlockFutures[block.header.getHash()].set_result(None)
         del self.addBlockFutures[block.header.getHash()]
