@@ -336,7 +336,7 @@ class MasterConnection(ClusterConnection):
         if connMap is None:
             # Master can close the peer connection at any time
             # TODO: any way to avoid this race?
-            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId))
+            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId), 1)
             return NULL_CONNECTION
 
         return connMap[metadata.branch.value].getForwardingConnection()
@@ -1051,7 +1051,7 @@ class SlaveServer():
             if oldTip != shardState.tip():
                 self.master.broadcastNewTip(block.header.branch)
         except Exception:
-            Logger.warningEverySec("broadcast tip failure")
+            Logger.warningEverySec("broadcast tip failure", 1)
 
         # block already existed in local shard state
         # but might not have been propagated to other shards and master
@@ -1068,7 +1068,8 @@ class SlaveServer():
 
         # Start mining new one before propagating inside cluster
         # The propagation should be done by the time the new block is mined
-        self.minerMap[branchValue].mineNewBlockAsync()
+        if oldTip != shardState.tip():
+            self.minerMap[branchValue].mineNewBlockAsync()
 
         await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(
