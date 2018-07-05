@@ -1068,8 +1068,7 @@ class SlaveServer():
 
         # Start mining new one before propagating inside cluster
         # The propagation should be done by the time the new block is mined
-        if oldTip != shardState.tip():
-            self.minerMap[branchValue].mineNewBlockAsync()
+        self.minerMap[branchValue].mineNewBlockAsync()
 
         await self.broadcastXshardTxList(block, xShardList)
         await self.sendMinorBlockHeaderToMaster(
