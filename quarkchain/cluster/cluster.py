@@ -174,7 +174,11 @@ def main():
     parser.add_argument(
         "--json_rpc_private_port", default=38491, type=int)
     parser.add_argument(
-        "--enable_transaction_history", default=False, type=bool)
+        "--enable_transaction_history",
+        action="store_true",
+        default=False,
+        dest="enable_transaction_history",
+    )
     parser.add_argument(
         "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST)
     parser.add_argument(
@@ -234,6 +238,9 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     cluster = Cluster(config, filename, args.mine, args.clean, args.enable_transaction_history)
+    if args.enable_transaction_history:
+        print("Starting cluster with transaction history enabled...")
+
     cluster.startAndLoop()
 
 
