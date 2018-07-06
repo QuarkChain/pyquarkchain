@@ -54,6 +54,9 @@ class Devp2pService(WiredService):
     # required by WiredService
     wire_protocol = Devp2pProtocol  # create for each peer
 
+    # refresh p2p connections periodically in case connections were not established by on_wire_protocol
+    REFRESH_INTERVAL = 300
+
     def __init__(self, app):
         log.info('Devp2pService init')
         self.config = app.config
@@ -99,9 +102,20 @@ class Devp2pService(WiredService):
         ))
         return [p.remote_client_version.decode("utf-8") for p in aps if p.remote_client_version != '']
 
+    def loop(self):
+        while True:
+            gevent.sleep(self.REFRESH_INTERVAL)
+            log.info('p2p periodic refresh')
+            active_peers = self.getConnectedPeers()
+            self.app.network.loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                self.app.network.refreshConnections(active_peers)
+            )
+
     def start(self):
         log.info('Devp2pService start')
         super(Devp2pService, self).start()
+        gevent.Greenlet.spawn(self.loop)
 
 
 class Devp2pApp(BaseApp):
