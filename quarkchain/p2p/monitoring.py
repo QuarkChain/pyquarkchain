@@ -60,7 +60,7 @@ async def crawl_async(ip, p2p_port, jrpc_port):
 def crawl_bfs(ip, p2p_port, jrpc_port):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    cache = loop.run_until_complete(crawl_async(ip, p2p_port, jrpc_port))
+    cache = loop.run_until_complete(asyncio.wait_for(crawl_async(ip, p2p_port, jrpc_port), 10))
     res = {}
     # we can avoid the loop, but it will look crazy
     for k, v in cache.items():
