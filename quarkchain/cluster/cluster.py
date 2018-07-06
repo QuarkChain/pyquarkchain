@@ -179,6 +179,7 @@ def main():
         default=False,
         dest="enable_transaction_history",
     )
+
     parser.add_argument(
         "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST)
     parser.add_argument(
