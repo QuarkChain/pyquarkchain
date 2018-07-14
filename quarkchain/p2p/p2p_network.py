@@ -196,6 +196,7 @@ def devp2p_app(env, network):
     # set ports based on node
     config['discovery']['listen_port'] = env.config.DEVP2P_PORT
     config['p2p']['listen_port'] = env.config.DEVP2P_PORT
+    config['p2p']['min_peers'] = min_peers
     config['p2p']['max_peers'] = max_peers
     ip = network.ip
     config['client_version_string'] = '{}:{}'.format(ip, network.port)
