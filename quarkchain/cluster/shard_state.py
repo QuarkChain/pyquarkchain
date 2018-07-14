@@ -160,10 +160,12 @@ class TransactionHistoryMixin:
                         tx.value,
                         height,
                         mBlock.header.createTime,
+                        True,
                     )
                 )
             else:
                 mBlock = self.getMinorBlockByHeight(height)
+                receipt = mBlock.getReceipt(self.db, index)
                 tx = mBlock.txList[index]  # tx is Transaction
                 evmTx = tx.code.getEvmTransaction()
                 txList.append(
@@ -174,6 +176,7 @@ class TransactionHistoryMixin:
                         evmTx.value,
                         height,
                         mBlock.header.createTime,
+                        receipt.success == b"\x01",
                     )
                 )
             next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(len(k), byteorder="big")
@@ -1214,8 +1217,9 @@ class ShardState:
                         address,
                         Address(tx.to, tx.toFullShardId) if tx.to else None,
                         tx.value,
-                        0,
-                        0,
+                        blockHeight=0,
+                        timestamp=0,
+                        success=False,
                     ))
             return txList, b""
 
