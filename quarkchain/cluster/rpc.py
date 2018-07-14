@@ -292,15 +292,17 @@ class TransactionDetail(Serializable):
         ("value", uint256),
         ("blockHeight", uint64),
         ("timestamp", uint64),  # block timestamp
+        ("success", boolean),
     ]
 
-    def __init__(self, txHash, fromAddress, toAddress, value, blockHeight, timestamp):
+    def __init__(self, txHash, fromAddress, toAddress, value, blockHeight, timestamp, success):
         self.txHash = txHash
         self.fromAddress = fromAddress
         self.toAddress = toAddress
         self.value = value
         self.blockHeight = blockHeight
         self.timestamp = timestamp
+        self.success = success
 
 
 class GetTransactionListByAddressResponse(Serializable):

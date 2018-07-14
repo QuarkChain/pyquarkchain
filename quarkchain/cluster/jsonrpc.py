@@ -742,6 +742,7 @@ class JSONRPCServer:
                 "value": quantity_encoder(tx.value),
                 "blockHeight": quantity_encoder(tx.blockHeight),
                 "timestamp": quantity_encoder(tx.timestamp),
+                "success": tx.success,
             })
         return {
             "txList": txs,
