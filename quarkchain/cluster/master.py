@@ -898,7 +898,7 @@ class MasterServer():
         self.branchToShardStats[shardStats.branch.value] = shardStats
 
     def updateTxCountHistory(self, txCount, xShardTxCount, timestamp):
-        ''' maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 6 hours window
+        ''' maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 12 hours window
         Note that this is also counting transactions on forks and thus larger than if only couting the best chains. '''
         minute = int(timestamp / 60) * 60
         if len(self.txCountHistory) == 0 or self.txCountHistory[-1][0] < minute:
@@ -907,7 +907,7 @@ class MasterServer():
             old = self.txCountHistory.pop()
             self.txCountHistory.append((old[0], old[1] + txCount, old[2] + xShardTxCount))
 
-        while len(self.txCountHistory) > 0 and self.txCountHistory[0][0] < time.time() - 3600 * 6:
+        while len(self.txCountHistory) > 0 and self.txCountHistory[0][0] < time.time() - 3600 * 12:
             self.txCountHistory.popleft()
 
     async def getStats(self):
