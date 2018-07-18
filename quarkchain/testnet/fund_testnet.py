@@ -3,6 +3,7 @@ import aiohttp
 import asyncio
 import logging
 import pickle
+import random
 import rlp
 from collections import defaultdict
 from jsonrpcclient.aiohttp_client import aiohttpClient
@@ -28,9 +29,9 @@ class Endpoint:
             try:
                 response = await client.request(*args)
                 break
-            except:
-                print("!timeout! retrying")
-                pass
+            except Exception as e:
+                print("{} !timeout! retrying {}".format(self.url, e))
+                await asyncio.sleep(1 + random.randint(0, 5))
         return response
 
     async def sendTransaction(self, tx):
