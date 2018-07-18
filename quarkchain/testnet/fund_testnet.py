@@ -23,7 +23,14 @@ class Endpoint:
 
     async def __sendRequest(self, *args):
         client = aiohttpClient(self.session, self.url)
-        response = await client.request(*args)
+        # manual retry since the library has hard-coded timeouts
+        while True:
+            try:
+                response = await client.request(*args)
+                break
+            except:
+                print("!timeout! retrying")
+                pass
         return response
 
     async def sendTransaction(self, tx):
@@ -97,7 +104,6 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 async def fund(endpoint, genesisId, addrByAmount):
     networkId = await endpoint.getNetworkId()
     shardSize = await endpoint.getShardSize()
-
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
         print(
@@ -105,7 +111,6 @@ async def fund(endpoint, genesisId, addrByAmount):
                 amount, len(addrs)
             )
         )
-
         # shard -> [addr]
         byShard = defaultdict(list)
         for addr in addrs:
@@ -143,7 +148,7 @@ async def fund(endpoint, genesisId, addrByAmount):
 
 
 def read_addr(filepath) -> Dict[int, List[str]]:
-    """ Every line is "<addr> <tqkc amount>" """
+    """ Every line is '<addr> <tqkc amount>' """
     with open(filepath) as f:
         tqkcMap = dict([line.split() for line in f.readlines()])
     byAmount = defaultdict(list)
