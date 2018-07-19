@@ -81,7 +81,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     txId = await endpoint.sendTransaction(tx)
     cnt = 0
     while True:
-        print("shard={} tx={} block=(pending)".format(shard, txId))
+        print("shard={} tx={} to={} block=(pending)".format(shard, txId, to.recipient))
         await asyncio.sleep(5)
         resp = await endpoint.getTransactionReceipt(txId)
         if resp:
@@ -143,9 +143,9 @@ async def fund(endpoint, genesisId, addrByAmount):
 
             results = await asyncio.gather(*futures)
             print("\n\n")
-            for shard, result in enumerate(results):
+            for idx, result in enumerate(results):
                 txId, height = result
-                print('[{}, "{}"],  // {}'.format(shard, height, txId))
+                print('[{}, "{}"],  // {}'.format(idx, height, txId))
 
 
 def read_addr(filepath) -> Dict[int, List[str]]:
