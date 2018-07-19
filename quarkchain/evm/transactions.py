@@ -70,12 +70,7 @@ class Transaction(rlp.Serializable):
     def __init__(self, nonce, gasprice, startgas, to, value, data,
                  v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1):
         self.data = None
-        # When fromFullShardId is set shardSize is set to 0 so that
-        # setShardSize has to be called explicitly with a non-zero shard size.
-        # When fromFullShardId is 0 which is the case in the unit tests
-        # inherited from pyethereum we set shardSize to 0 to allow those tests
-        # to pass.
-        self.shardSize = 0 if fromFullShardId else 1
+        self.shardSize = 0
 
         to = utils.normalize_address(to, allow_blank=True)
 
