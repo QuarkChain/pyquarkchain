@@ -81,7 +81,8 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     txId = await endpoint.sendTransaction(tx)
     cnt = 0
     while True:
-        print("shard={} tx={} to={} block=(pending)".format(shard, txId, to.recipient))
+        addr = "0x" + to.recipient.hex() + hex(to.fullShardId)[2:]
+        print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
         await asyncio.sleep(5)
         resp = await endpoint.getTransactionReceipt(txId)
         if resp:
