@@ -56,8 +56,6 @@ jobs:
           key: pip-v1-{{ checksum "requirements.txt" }}
         
       # Run tests!
-      # TODO: PYTHONPATH=. python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
-      # Tests are currently broken due to added 'full_shard_id' field in Account (evm/state.py)
       - run:
           name: Check Data Size
           command: |
@@ -67,6 +65,13 @@ jobs:
           name: Run Unit Tests
           command: |
             pypy3 -m unittest
+
+      - run:
+          name: Run EVM Tests
+          command: |
+            git format-patch -1 249e357a7bd92a68e4e78bd32003850aa0bb1126
+            git apply *.patch
+            pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
 
       - store_artifacts:
           path: test-reports

@@ -3,6 +3,7 @@ import aiohttp
 import asyncio
 import logging
 import pickle
+import random
 import rlp
 from collections import defaultdict
 from jsonrpcclient.aiohttp_client import aiohttpClient
@@ -23,7 +24,14 @@ class Endpoint:
 
     async def __sendRequest(self, *args):
         client = aiohttpClient(self.session, self.url)
-        response = await client.request(*args)
+        # manual retry since the library has hard-coded timeouts
+        while True:
+            try:
+                response = await client.request(*args)
+                break
+            except Exception as e:
+                print("{} !timeout! retrying {}".format(self.url, e))
+                await asyncio.sleep(1 + random.randint(0, 5))
         return response
 
     async def sendTransaction(self, tx):
@@ -73,7 +81,8 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     txId = await endpoint.sendTransaction(tx)
     cnt = 0
     while True:
-        print("shard={} tx={} block=(pending)".format(shard, txId))
+        addr = "0x" + to.recipient.hex() + hex(to.fullShardId)[2:]
+        print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
         await asyncio.sleep(5)
         resp = await endpoint.getTransactionReceipt(txId)
         if resp:
@@ -97,7 +106,6 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 async def fund(endpoint, genesisId, addrByAmount):
     networkId = await endpoint.getNetworkId()
     shardSize = await endpoint.getShardSize()
-
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
         print(
@@ -105,7 +113,6 @@ async def fund(endpoint, genesisId, addrByAmount):
                 amount, len(addrs)
             )
         )
-
         # shard -> [addr]
         byShard = defaultdict(list)
         for addr in addrs:
@@ -137,13 +144,13 @@ async def fund(endpoint, genesisId, addrByAmount):
 
             results = await asyncio.gather(*futures)
             print("\n\n")
-            for shard, result in enumerate(results):
+            for idx, result in enumerate(results):
                 txId, height = result
-                print('[{}, "{}"],  // {}'.format(shard, height, txId))
+                print('[{}, "{}"],  // {}'.format(idx, height, txId))
 
 
 def read_addr(filepath) -> Dict[int, List[str]]:
-    """ Every line is "<addr> <tqkc amount>" """
+    """ Every line is '<addr> <tqkc amount>' """
     with open(filepath) as f:
         tqkcMap = dict([line.split() for line in f.readlines()])
     byAmount = defaultdict(list)
