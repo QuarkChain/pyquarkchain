@@ -30,9 +30,12 @@ async def fetch_peers_async(node):
     :return: list of tuple(ip, p2p_port, jrpc_port)
     """
     json_rpc_url = "http://{}:{}".format(node[0], node[2])
-    print("calling {}".format(json_rpc_url))
     server = Server(json_rpc_url)
-    peers = await server.getPeers()
+    try:
+        peers = await asyncio.wait_for(server.getPeers(), 5)
+    except Exception:
+        print("Failed to get peers from {}".format(json_rpc_url))
+        peers = {"peers": []}
     await server.session.close()
     return [(str(ipaddress.ip_address(int(p["ip"], 16))),
              int(p["port"], 16),
@@ -60,7 +63,8 @@ async def crawl_async(ip, p2p_port, jrpc_port):
 def crawl_bfs(ip, p2p_port, jrpc_port):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    cache = loop.run_until_complete(asyncio.wait_for(crawl_async(ip, p2p_port, jrpc_port), 10))
+    cache = loop.run_until_complete(crawl_async(ip, p2p_port, jrpc_port))
+
     res = {}
     # we can avoid the loop, but it will look crazy
     for k, v in cache.items():
