@@ -73,8 +73,9 @@ class ExpiryCounter:
 
 class TransactionHistoryMixin:
 
-    def __encodeAddressTransactionKey(self, address, height, index):
-        return b"addr_" + address.serialize() + height.to_bytes(4, "big") + index.to_bytes(4, "big")
+    def __encodeAddressTransactionKey(self, address, height, index, crossShard):
+        crossShardByte = b"\x00" if crossShard else b"\x01"
+        return b"addr_" + address.serialize() + height.to_bytes(4, "big") + crossShardByte + index.to_bytes(4, "big")
 
     def putConfirmedCrossShardTransactionDepositList(self, minorBlockHash, crossShardTransactionDepositList):
         """Stores a mapping from minor block to the list of CrossShardTransactionDeposit confirmed"""
@@ -93,12 +94,12 @@ class TransactionHistoryMixin:
     def __updateTransactionHistoryIndex(self, tx, blockHeight, index, func):
         evmTx = tx.code.getEvmTransaction()
         addr = Address(evmTx.sender, evmTx.fromFullShardId)
-        key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
+        key = self.__encodeAddressTransactionKey(addr, blockHeight, index, False)
         func(key, b"")
         # "to" can be empty for smart contract deployment
         if evmTx.to and self.branch.isInShard(evmTx.toFullShardId):
             addr = Address(evmTx.to, evmTx.toFullShardId)
-            key = self.__encodeAddressTransactionKey(addr, blockHeight, index)
+            key = self.__encodeAddressTransactionKey(addr, blockHeight, index, False)
             func(key, b"")
 
     def putTransactionHistoryIndex(self, tx, blockHeight, index):
@@ -116,8 +117,8 @@ class TransactionHistoryMixin:
         for i, tx in enumerate(xShardReceiveTxList):
             if tx.txHash == bytes(32):  # coinbase reward for root block miner
                 continue
-            key = self.__encodeAddressTransactionKey(tx.toAddress, minorBlock.header.height, i)
-            func(key, b"x")
+            key = self.__encodeAddressTransactionKey(tx.toAddress, minorBlock.header.height, i, True)
+            func(key, b"")
 
     def putTransactionHistoryIndexFromBlock(self, minorBlock):
         if not self.env.config.ENABLE_TRANSACTION_HISTORY:
@@ -147,8 +148,9 @@ class TransactionHistoryMixin:
             if limit < 0:
                 break
             height = int.from_bytes(k[5 + 24:5 + 24 + 4], "big")
-            index = int.from_bytes(k[5 + 24 + 4:], "big")
-            if v == b"x":  # cross shard receive
+            crossShard = int(k[5 + 24 + 4]) == 0
+            index = int.from_bytes(k[5 + 24 + 4 + 1:], "big")
+            if crossShard:  # cross shard receive
                 mBlock = self.getMinorBlockByHeight(height)
                 xShardReceiveTxList = self.__getConfirmedCrossShardTransactionDepositList(mBlock.header.getHash())
                 tx = xShardReceiveTxList[index]  # tx is CrossShardTransactionDeposit
