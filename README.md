@@ -1,5 +1,7 @@
 # QuarkChain
 
+[![CircleCI](https://circleci.com/gh/QuarkChain/pyquarkchain/tree/master.svg?style=shield&circle-token=c17a071129e4ab6c0911154c955efc236b1a5015)](https://circleci.com/gh/QuarkChain/pyquarkchain/tree/master)
+
 ## Development Setup
 
 QuarkChain is configured to be run with [pypy](http://pypy.org/index.html) for better performance.
