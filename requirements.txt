@@ -16,6 +16,7 @@ protobuf==3.6.0
 psutil==5.4.5
 python-rocksdb==0.6.9
 requests==2.18.4
+aiohttp_cors==0.7.0
 
 # Dependencies pulled from pyethereum @87251ebce72e1f4b94c4671a1b7c4bcd64e459a7
 # We do this because ethereum depends on pysha3 which isn't supported in pypy.

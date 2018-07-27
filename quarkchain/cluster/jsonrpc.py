@@ -5,6 +5,7 @@ import json
 import rlp
 
 from aiohttp import web
+import aiohttp_cors
 from async_armor import armor
 
 from decorator import decorator
@@ -361,7 +362,16 @@ class JSONRPCServer:
 
     def start(self):
         app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
-        app.router.add_post("/", self.__handle)
+        cors = aiohttp_cors.setup(app)
+        route = app.router.add_post("/", self.__handle)
+        cors.add(route, {
+            "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers=("X-Custom-Server-Header",),
+                allow_methods=["POST", "PUT"],
+                allow_headers=("X-Requested-With", "Content-Type")
+            ),
+        })
         self.runner = web.AppRunner(app, access_log=None)
         self.loop.run_until_complete(self.runner.setup())
         site = web.TCPSite(self.runner, "0.0.0.0", self.port)
