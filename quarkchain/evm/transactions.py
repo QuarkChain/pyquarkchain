@@ -10,6 +10,7 @@ from rlp.utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
 from quarkchain.utils import sha3_256, is_p2, check
+from quarkchain.evm.abi import txToTypedData, typedSignatureHash
 
 # in the yellow paper it is specified that s should be smaller than
 # secpk1n (eq.205)
@@ -60,6 +61,7 @@ class Transaction(rlp.Serializable):
         ('fromFullShardId', BigEndianInt(4)),
         ('toFullShardId', BigEndianInt(4)),
         ('networkId', big_endian_int),
+        ('version', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
         ('s', big_endian_int),
@@ -68,7 +70,7 @@ class Transaction(rlp.Serializable):
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas, to, value, data,
-                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1):
+                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1, version=0):
         self.data = None
         self.shardSize = 0
 
@@ -86,6 +88,7 @@ class Transaction(rlp.Serializable):
             fromFullShardId,
             toFullShardId,
             networkId,
+            version,
             v,
             r,
             s)
@@ -103,7 +106,10 @@ class Transaction(rlp.Serializable):
             else:
                 if self.r >= secpk1n or self.s >= secpk1n or self.r == 0 or self.s == 0:
                     raise InvalidTransaction("Invalid signature values!")
-                pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
+                if self.version == 0:
+                    pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
+                if self.version == 1:
+                    pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
                 if pub == b'\x00' * 64:
                     raise InvalidTransaction(
                         "Invalid signature (zero privkey cannot sign)")
@@ -139,6 +145,10 @@ class Transaction(rlp.Serializable):
     @property
     def hash_unsigned(self):
         return sha3_256(rlp.encode(self, UnsignedTransaction))
+
+    @property
+    def hash_typed(self):
+        return bytes.fromhex(typedSignatureHash(txToTypedData(self))[2:])
 
     def to_dict(self):
         d = {}
@@ -217,4 +227,4 @@ class Transaction(rlp.Serializable):
             raise InvalidTransaction("Invalid signature S value!")
 
 
-UnsignedTransaction = Transaction.exclude(['v', 'r', 's'])
+UnsignedTransaction = Transaction.exclude(['v', 'r', 's', 'version'])
