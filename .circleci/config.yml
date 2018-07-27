@@ -69,7 +69,7 @@ jobs:
       - run:
           name: Run EVM Tests
           command: |
-            git format-patch -1 249e357a7bd92a68e4e78bd32003850aa0bb1126
+            git format-patch -1 0c9a06cf30f1058ec0fe0e549a95723119726e84
             git apply *.patch
             pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
 
