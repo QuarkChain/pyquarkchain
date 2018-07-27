@@ -148,10 +148,7 @@ class Transaction(rlp.Serializable):
 
     @property
     def hash_typed(self):
-        """
-        returns 0x prefixed hex str
-        """
-        return typedSignatureHash(txToTypedData(self))
+        return bytes.fromhex(typedSignatureHash(txToTypedData(self))[2:])
 
     def to_dict(self):
         d = {}
