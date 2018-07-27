@@ -18,6 +18,7 @@ from quarkchain.cluster.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.utils import sha3_256, Logger
 
 
 # defaults
@@ -338,6 +339,7 @@ class JSONRPCServer:
 
     async def __handle(self, request):
         request = await request.text()
+        Logger.info(request)
 
         d = dict()
         try:
@@ -613,12 +615,38 @@ class JSONRPCServer:
         return tx_encoder(minorBlock, i)
 
     @public_methods.add
-    @decode_arg("txData", data_decoder)
-    async def call(self, txData):
+    async def call(self, **data):
         """ Returns the result of the transaction application without putting in block chain """
-        evmTx = rlp.decode(txData, EvmTransaction)
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def getDataDefault(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        to = getDataDefault("to", address_decoder, None)
+        if to is None:
+            raise InvalidParams("Missing to")
+
+        toFullShardId = int.from_bytes(to[20:], "big")
+
+        gas = getDataDefault("gas", quantity_decoder, 1000000)
+        gasPrice = getDataDefault("gasPrice", quantity_decoder, 0)
+        value = getDataDefault("value", quantity_decoder, 0)
+        data_ = getDataDefault("data", data_decoder, b"")
+        sender = getDataDefault("from", address_decoder, b"\x00" * 20 + to[20:])
+        senderAddress = Address.createFrom(sender)
+
+        networkId = self.master.env.config.NETWORK_ID
+
+        nonce = 0  # slave will fill in the real nonce
+        evmTx = EvmTransaction(
+            nonce, gasPrice, gas, to[:20], value, data_,
+            fromFullShardId=senderAddress.fullShardId, toFullShardId=toFullShardId, networkId=networkId)
+
         tx = Transaction(code=Code.createEvmCode(evmTx))
-        res = await self.master.executeTransaction(tx)
+        res = await self.master.executeTransaction(tx, senderAddress)
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
@@ -640,7 +668,123 @@ class JSONRPCServer:
     async def getJrpcCalls(self):
         return self.counters
 
-######################## Private Methods ########################
+
+    ######################## Ethereum JSON RPC ########################
+
+    def block_id_decoder(data):
+        """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
+        if data in (None, 'latest', 'earliest', 'pending'):
+            return data
+        else:
+            return quantity_decoder(data)
+
+    def shard_id_decoder(data):
+        try:
+            return quantity_decoder(data)
+        except Exception:
+            return None
+
+    def eth_address_to_quarkchain_address_decoder(hexStr):
+        ethHex = hexStr[2:]
+        if len(ethHex) not in (40, 0):
+            raise InvalidParams('Addresses must be 40 or 0 bytes long')
+        fullShardIdHex = sha3_256(bytearray(ethHex, "utf-8")).hex()[0:8]
+        return address_decoder("0x" + ethHex + fullShardIdHex)
+
+    @public_methods.add
+    async def net_version(self):
+        """
+        """
+        return "888"
+
+    @public_methods.add
+    @encode_res(quantity_encoder)
+    async def eth_gasPrice(self):
+        """
+        """
+        return 1000000000
+
+    @public_methods.add
+    @decode_arg('block_id', block_id_decoder)
+    @decode_arg('include_transactions', bool_decoder)
+    async def eth_getBlockByNumber(self, block_id, include_transactions):
+        """
+        NOTE: only support block_id "latest" or hex
+        """
+
+        def block_transcoder(block):
+            """
+            QuarkChain Block => ETH Block
+            """
+            return {
+                **block,
+                'number': block['height'],
+                'parentHash': block['hashPrevMinorBlock'],
+                'sha3Uncles': '',
+                'logsBloom': '',
+                'transactionsRoot': block['hashMerkleRoot'],  # ?
+                'stateRoot': block['hashEvmStateRoot'],  # ?
+            }
+
+        height = None if block_id == "latest" else block_id
+        block = await self.master.getMinorBlockByHeight(height, Branch.create(self.master.getShardSize(), 0))
+        if block is None:
+            return None
+        return block_transcoder(minor_block_encoder(block))
+
+    @public_methods.add
+    @decode_arg("address", eth_address_to_quarkchain_address_decoder)
+    @decode_arg("shard", shard_id_decoder)
+    @encode_res(quantity_encoder)
+    async def eth_getBalance(self, address, shard=None):
+        address = Address.deserialize(address)
+        if shard is not None:
+            if shard >= self.master.getShardSize():
+                raise InvalidParams("shard is larger than the shard size")
+            address = Address(address.recipient, shard)
+        accountBranchData = await self.master.getPrimaryAccountData(address)
+        balance = accountBranchData.balance
+        return balance
+
+    @public_methods.add
+    @decode_arg("address", eth_address_to_quarkchain_address_decoder)
+    @decode_arg("shard", shard_id_decoder)
+    @encode_res(quantity_encoder)
+    async def eth_getTransactionCount(self, address, shard=None):
+        address = Address.deserialize(address)
+        if shard is not None:
+            if shard >= self.master.getShardSize():
+                raise InvalidParams("shard is larger than the shard size")
+            address = Address(address.recipient, shard)
+        accountBranchData = await self.master.getPrimaryAccountData(address)
+        return accountBranchData.transactionCount
+
+    @public_methods.add
+    @decode_arg('address', eth_address_to_quarkchain_address_decoder)
+    @encode_res(data_encoder)
+    async def eth_getCode(self, address, shard=None):
+        """TODO implement this
+        """
+        return bytes()
+
+
+    @public_methods.add
+    async def eth_call(self, data, _block_id):
+        """ Returns the result of the transaction application without putting in block chain """
+        return await self.call(**data)
+
+    @public_methods.add
+    @decode_arg("txData", data_decoder)
+    async def eth_sendRawTransaction(self, txData):
+        evmTx = rlp.decode(txData, EvmTransaction)
+        tx = Transaction(code=Code.createEvmCode(evmTx))
+        success = await self.master.addTransaction(tx)
+        if not success:
+            return None
+        return id_encoder(tx.getHash(), evmTx.fromFullShardId)
+
+
+    ######################## Private Methods ########################
 
     @private_methods.add
     @decode_arg("coinbaseAddress", address_decoder)

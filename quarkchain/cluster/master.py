@@ -294,8 +294,8 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.errorCode == 0
 
-    async def executeTransaction(self, tx: Transaction):
-        request = ExecuteTransactionRequest(tx)
+    async def executeTransaction(self, tx: Transaction, fromAddress):
+        request = ExecuteTransactionRequest(tx, fromAddress)
         _, resp, _ = await self.writeRpcRequest(
             ClusterOp.EXECUTE_TRANSACTION_REQUEST,
             request,
@@ -760,7 +760,7 @@ class MasterServer():
                     Logger.logException()
         return True
 
-    async def executeTransaction(self, tx: Transaction) -> Optional[bytes]:
+    async def executeTransaction(self, tx: Transaction, fromAddress) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evmTx = tx.code.getEvmTransaction()
         evmTx.setShardSize(self.__getShardSize())
@@ -770,7 +770,7 @@ class MasterServer():
 
         futures = []
         for slave in self.branchToSlaves[branch.value]:
-            futures.append(slave.executeTransaction(tx))
+            futures.append(slave.executeTransaction(tx, fromAddress))
         responses = await asyncio.gather(*futures)
         # failed response will return as None
         success = all(r is not None for r in responses) and len(set(responses)) == 1

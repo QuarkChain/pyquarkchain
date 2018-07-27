@@ -40,7 +40,7 @@ class TestShardState(unittest.TestCase):
             value=12345,
         )
         state.evmState.gas_used = state.evmState.gas_limit
-        res = state.executeTx(tx)
+        res = state.executeTx(tx, acc1)
         self.assertEqual(res, b'')
 
     def testAddTxIncorrectFromShardId(self):
@@ -60,7 +60,7 @@ class TestShardState(unittest.TestCase):
             value=12345,
         )
         self.assertFalse(state.addTx(tx))
-        self.assertIsNone(state.executeTx(tx))
+        self.assertIsNone(state.executeTx(tx, acc1))
 
     def testOneTx(self):
         id1 = Identity.createRandomIdentity()

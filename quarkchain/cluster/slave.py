@@ -520,7 +520,7 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handleExecuteTransaction(self, req):
-        res = self.slaveServer.executeTx(req.tx)
+        res = self.slaveServer.executeTx(req.tx, req.fromAddress)
         fail = res is None
         return ExecuteTransactionResponse(
             errorCode=int(fail),
@@ -1149,14 +1149,14 @@ class SlaveServer():
             return False
         return shardState.addTx(tx)
 
-    def executeTx(self, tx) -> Optional[bytes]:
+    def executeTx(self, tx, fromAddress) -> Optional[bytes]:
         evmTx = tx.code.getEvmTransaction()
         evmTx.setShardSize(self.__getShardSize())
         branchValue = evmTx.fromShardId() | self.__getShardSize()
         shardState = self.shardStateMap.get(branchValue, None)
         if not shardState:
             return False
-        return shardState.executeTx(tx)
+        return shardState.executeTx(tx, fromAddress)
 
     def getTransactionCount(self, address):
         branch = Branch.create(self.__getShardSize(), address.getShardId(self.__getShardSize()))

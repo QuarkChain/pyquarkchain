@@ -129,8 +129,8 @@ def validate_transaction(state, tx):
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
 
-    assert config_fork_specific_validation(
-        state.config, state.block_number, tx)
+    # assert config_fork_specific_validation(
+    #     state.config, state.block_number, tx)
 
     # (2) the transaction nonce is valid (equivalent to the
     #     sender account's current nonce);

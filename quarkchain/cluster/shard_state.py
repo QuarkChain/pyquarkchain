@@ -503,7 +503,8 @@ class ShardState:
         self.headerTip = genesisMinorBlock1.header
         self.metaTip = genesisMinorBlock1.meta
 
-    def __validateTx(self, tx: Transaction, evmState) -> EvmTransaction:
+    def __validateTx(self, tx: Transaction, evmState, fromAddress=None) -> EvmTransaction:
+        """fromAddress will be set for executeTx"""
         # UTXOs are not supported now
         if len(tx.inList) != 0:
             raise RuntimeError("input list must be empty")
@@ -519,7 +520,18 @@ class ShardState:
             raise RuntimeError("only evm transaction is supported now")
 
         evmTx = tx.code.getEvmTransaction()
+
+        if fromAddress:
+            check(evmTx.fromFullShardId == fromAddress.fullShardId)
+            nonce = evmState.get_nonce(fromAddress.recipient)
+            # have to create a new evmTx as nonce is immutable
+            evmTx = EvmTransaction(
+                nonce, evmTx.gasprice, evmTx.startgas, evmTx.to, evmTx.value, evmTx.data,
+                fromFullShardId=evmTx.fromFullShardId, toFullShardId=evmTx.toFullShardId, networkId=evmTx.networkId)
+            evmTx.sender = fromAddress.recipient
+
         evmTx.setShardSize(self.branch.getShardSize())
+
         if evmTx.networkId != self.env.config.NETWORK_ID:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
                 self.env.config.NETWORK_ID, evmTx.networkId))
@@ -558,12 +570,11 @@ class ShardState:
             Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
             return False
 
-    def executeTx(self, tx: Transaction) -> Optional[bytes]:
+    def executeTx(self, tx: Transaction, fromAddress) -> Optional[bytes]:
         state = self.evmState.ephemeral_clone()
         state.gas_used = 0
         try:
-            evmTx = self.__validateTx(tx, state)
-            evmTx.setShardSize(self.branch.getShardSize())
+            evmTx = self.__validateTx(tx, state, fromAddress)
             success, output = apply_transaction(state, evmTx, tx_wrapper_hash=bytes(32))
             return output if success else None
         except Exception as e:

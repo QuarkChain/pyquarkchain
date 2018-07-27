@@ -314,19 +314,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            evmTx = EvmTransaction(
-                nonce=0,
-                gasprice=0,
-                startgas=21000,
-                to=acc1.recipient,
-                value=15,
-                data=b"",
-                fromFullShardId=acc1.fullShardId,
-                toFullShardId=acc1.fullShardId,
-                networkId=slaves[0].env.config.NETWORK_ID,
-            )
-            evmTx.sign(id1.getKey())
-            response = sendRequest("call", "0x" + rlp.encode(evmTx).hex())
+            response = sendRequest("call", {"to": "0x" + acc1.serialize().hex()})
 
             self.assertEqual(response, "0x")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
@@ -339,20 +327,8 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            # insufficient gas to start
-            evmTx = EvmTransaction(
-                nonce=0,
-                gasprice=6,
-                startgas=0,
-                to=acc1.recipient,
-                value=15,
-                data=b"",
-                fromFullShardId=acc1.fullShardId,
-                toFullShardId=acc1.fullShardId,
-                networkId=slaves[0].env.config.NETWORK_ID,
-            )
-            evmTx.sign(id1.getKey())
-            response = sendRequest("call", "0x" + rlp.encode(evmTx).hex())
+            # insufficient gas
+            response = sendRequest("call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"})
 
             self.assertIsNone(response, "failed tx should return None")
             self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")

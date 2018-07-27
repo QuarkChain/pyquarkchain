@@ -228,10 +228,12 @@ class GetTransactionResponse(Serializable):
 class ExecuteTransactionRequest(Serializable):
     FIELDS = [
         ("tx", Transaction),
+        ("fromAddress", Address)
     ]
 
-    def __init__(self, tx):
+    def __init__(self, tx, fromAddress):
         self.tx = tx
+        self.fromAddress = fromAddress
 
 
 class ExecuteTransactionResponse(Serializable):
