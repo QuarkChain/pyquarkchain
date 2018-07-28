@@ -311,9 +311,12 @@ def shard_id_decoder(data):
 
 def eth_address_to_quarkchain_address_decoder(hexStr):
     ethHex = hexStr[2:]
-    if len(ethHex) not in (40, 0):
+    if len(ethHex) != 40:
         raise InvalidParams('Addresses must be 40 or 0 bytes long')
-    fullShardIdHex = sha3_256(bytearray(ethHex, "utf-8")).hex()[0:8]
+    fullShardIdHex = ""
+    for i in range(4):
+        index = i * 10
+        fullShardIdHex += ethHex[index:index + 2]
     return address_decoder("0x" + ethHex + fullShardIdHex)
 
 

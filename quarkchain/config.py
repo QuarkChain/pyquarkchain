@@ -93,9 +93,9 @@ class DefaultConfig:
         self.BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
         # testnet config
-        self.ACCOUNTS_TO_FUND = [Address.createFrom(item["address"]) for item in ACCOUNTS_TO_FUND]
+        self.ACCOUNTS_TO_FUND = [Address.createFrom(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]) for item in ACCOUNTS_TO_FUND]
         self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
-        self.LOADTEST_ACCOUNTS = [(Address.createFrom(item["address"]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
+        self.LOADTEST_ACCOUNTS = [(Address.createFrom(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
         # whether to index transaction by address
