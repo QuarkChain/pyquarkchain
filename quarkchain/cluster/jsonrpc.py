@@ -296,6 +296,27 @@ def encode_res(encoder):
     return new_f
 
 
+def block_id_decoder(data):
+    """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
+    if data in (None, 'latest', 'earliest', 'pending'):
+        return data
+    else:
+        return quantity_decoder(data)
+
+def shard_id_decoder(data):
+    try:
+        return quantity_decoder(data)
+    except Exception:
+        return None
+
+def eth_address_to_quarkchain_address_decoder(hexStr):
+    ethHex = hexStr[2:]
+    if len(ethHex) not in (40, 0):
+        raise InvalidParams('Addresses must be 40 or 0 bytes long')
+    fullShardIdHex = sha3_256(bytearray(ethHex, "utf-8")).hex()[0:8]
+    return address_decoder("0x" + ethHex + fullShardIdHex)
+
+
 public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
@@ -564,7 +585,7 @@ class JSONRPCServer:
         tx = Transaction(code=Code.createEvmCode(evmTx))
         success = await self.master.addTransaction(tx)
         if not success:
-            return None
+            return "0x" + bytes(32 + 4).hex()
         return id_encoder(tx.getHash(), evmTx.fromFullShardId)
 
     @public_methods.add
@@ -681,26 +702,6 @@ class JSONRPCServer:
 
     ######################## Ethereum JSON RPC ########################
 
-    def block_id_decoder(data):
-        """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
-        if data in (None, 'latest', 'earliest', 'pending'):
-            return data
-        else:
-            return quantity_decoder(data)
-
-    def shard_id_decoder(data):
-        try:
-            return quantity_decoder(data)
-        except Exception:
-            return None
-
-    def eth_address_to_quarkchain_address_decoder(hexStr):
-        ethHex = hexStr[2:]
-        if len(ethHex) not in (40, 0):
-            raise InvalidParams('Addresses must be 40 or 0 bytes long')
-        fullShardIdHex = sha3_256(bytearray(ethHex, "utf-8")).hex()[0:8]
-        return address_decoder("0x" + ethHex + fullShardIdHex)
-
     @public_methods.add
     async def net_version(self):
         """
@@ -749,8 +750,6 @@ class JSONRPCServer:
     async def eth_getBalance(self, address, shard=None):
         address = Address.deserialize(address)
         if shard is not None:
-            if shard >= self.master.getShardSize():
-                raise InvalidParams("shard is larger than the shard size")
             address = Address(address.recipient, shard)
         accountBranchData = await self.master.getPrimaryAccountData(address)
         balance = accountBranchData.balance
@@ -763,8 +762,6 @@ class JSONRPCServer:
     async def eth_getTransactionCount(self, address, shard=None):
         address = Address.deserialize(address)
         if shard is not None:
-            if shard >= self.master.getShardSize():
-                raise InvalidParams("shard is larger than the shard size")
             address = Address(address.recipient, shard)
         accountBranchData = await self.master.getPrimaryAccountData(address)
         return accountBranchData.transactionCount
@@ -779,19 +776,32 @@ class JSONRPCServer:
 
 
     @public_methods.add
-    async def eth_call(self, data, _block_id):
+    @decode_arg("shard", shard_id_decoder)
+    async def eth_call(self, data, shard):
         """ Returns the result of the transaction application without putting in block chain """
+        toAddress = Address.createFrom(eth_address_to_quarkchain_address_decoder(data["to"]))
+        if shard:
+            toAddress = Address(toAddress.recipient, shard)
+        data["to"] = "0x" + toAddress.serialize().hex()
+        if "from" in data:
+            fromAddress = Address.createFrom(eth_address_to_quarkchain_address_decoder(data["from"]))
+            if shard:
+                fromAddress = Address(fromAddress.recipient, shard)
+            data["from"] = "0x" + fromAddress.serialize().hex()
         return await self.call(**data)
 
     @public_methods.add
-    @decode_arg("txData", data_decoder)
     async def eth_sendRawTransaction(self, txData):
-        evmTx = rlp.decode(txData, EvmTransaction)
-        tx = Transaction(code=Code.createEvmCode(evmTx))
-        success = await self.master.addTransaction(tx)
-        if not success:
+        return await self.sendRawTransaction(txData)
+
+    @public_methods.add
+    async def eth_getTransactionReceipt(self, txId):
+        receipt = await self.getTransactionReceipt(txId)
+        if not receipt:
             return None
-        return id_encoder(tx.getHash(), evmTx.fromFullShardId)
+        if receipt["contractAddress"]:
+            receipt["contractAddress"] = receipt["contractAddress"][:42]
+        return receipt
 
 
     ######################## Private Methods ########################
