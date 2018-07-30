@@ -21,6 +21,9 @@ async def async_adjust(idx, server, root, minor, mining):
 
 
 async def async_adjust_difficulty(args):
+    """
+    loops forever
+    """
     ip_lookup = json.loads(args.ip_lookup)
     count = 0
     while True:
@@ -129,9 +132,14 @@ def main():
         "--base_minor", default=10, type=int)
     parser.add_argument(
         "--do_not_mine", default=False, type=bool)
+    parser.add_argument(
+        "--balanced", default=False, type=bool)
     args = parser.parse_args()
 
-    asyncio.get_event_loop().run_until_complete(adjust_imbalanced_hashpower(args))
+    if args.balanced:
+        asyncio.get_event_loop().run_until_complete(async_adjust_difficulty(args))
+    else:
+        asyncio.get_event_loop().run_until_complete(adjust_imbalanced_hashpower(args))
 
 
 if __name__ == "__main__":
