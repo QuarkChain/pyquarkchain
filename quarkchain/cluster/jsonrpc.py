@@ -709,14 +709,14 @@ class JSONRPCServer:
     async def net_version(self):
         """
         """
-        return "888"
+        return quantity_encoder(self.master.env.config.NETWORK_ID)
 
     @public_methods.add
     @encode_res(quantity_encoder)
     async def eth_gasPrice(self):
         """
         """
-        return 1000000000
+        return 10 ** 9
 
     @public_methods.add
     @decode_arg('block_id', block_id_decoder)
