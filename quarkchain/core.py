@@ -224,6 +224,7 @@ uint32 = UintSerializer(4)
 uint64 = UintSerializer(8)
 uint128 = UintSerializer(16)
 uint256 = UintSerializer(32)
+uint2048 = UintSerializer(2048)
 hash256 = FixedSizeBytesSerializer(32)
 boolean = BooleanSerializer()
 

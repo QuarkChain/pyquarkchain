@@ -10,7 +10,7 @@ from typing import Optional
 import quarkchain.evm.messages
 
 from quarkchain.utils import sha3_256
-from quarkchain.core import uint256, hash256, uint32, uint64, calculate_merkle_root
+from quarkchain.core import uint2048, uint256, hash256, uint32, uint64, calculate_merkle_root
 from quarkchain.core import Address, Branch, Constant, Transaction
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PrependedSizeBytesSerializer, PrependedSizeListSerializer
@@ -31,7 +31,7 @@ class TransactionReceipt(Serializable):
         ('success', PrependedSizeBytesSerializer(1)),
         ('gasUsed', uint64),
         ('prevGasUsed', uint64),
-        ('bloom', uint256),
+        ('bloom', uint2048),
         ('contractAddress', Address),
     ]
 
