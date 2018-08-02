@@ -34,8 +34,12 @@ class Scheduler:
     def __init__(self):
         self.ts = 0
         self.pq = heap.Heap(lambda task1, task2: task1.ts - task2.ts)
+        self.terminated = False
+        self.stopped = False
 
     def scheduleAfter(self, duration, callback, data):
+        if self.stopped:
+            return None
         task = Task(self, self.ts + duration, callback, data)
         self.pq.push(task)
         return task
@@ -43,8 +47,18 @@ class Scheduler:
     def cancel(self, task):
         self.pq.pop(task)
 
+    def terminate(self):
+        ''' Terminate the scheduler immediately
+        '''
+        self.terminated = True
+
+    def stop(self):
+        ''' Stop the scheduler.  scheduleAfter() will return None thereafter.
+        '''
+        self.stopped = True
+
     def loopUntilNoTask(self):
-        while not self.pq.isEmpty():
+        while not self.pq.isEmpty() and not self.terminated:
             task = self.pq.popTop()
             assert(task.ts >= self.ts)
             self.ts = task.ts
