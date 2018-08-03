@@ -15,7 +15,6 @@ from quarkchain.core import Address, Branch, Constant, Transaction, FixedSizeByt
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PrependedSizeBytesSerializer, PrependedSizeListSerializer
 from quarkchain.evm import trie
-from quarkchain.evm.messages import Log as EthLog
 import rlp
 
 
@@ -40,7 +39,7 @@ class Log(Serializable):
         self.data = data
 
     @classmethod
-    def createFromEthLog(cls, ethLog: EthLog):
+    def createFromEthLog(cls, ethLog):
         recipient = ethLog.address
         data = ethLog.data
 
