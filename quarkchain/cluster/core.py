@@ -11,10 +11,11 @@ import quarkchain.evm.messages
 
 from quarkchain.utils import sha3_256
 from quarkchain.core import uint2048, uint256, hash256, uint32, uint64, calculate_merkle_root
-from quarkchain.core import Address, Branch, Constant, Transaction
+from quarkchain.core import Address, Branch, Constant, Transaction, FixedSizeBytesSerializer
 from quarkchain.core import Serializable, ShardInfo
 from quarkchain.core import PrependedSizeBytesSerializer, PrependedSizeListSerializer
 from quarkchain.evm import trie
+from quarkchain.evm.messages import Log as EthLog
 import rlp
 
 
@@ -25,6 +26,37 @@ def mk_receipt_sha(receipts, db):
     return t.root_hash
 
 
+class Log(Serializable):
+
+    FIELDS = [
+        ("recipient", FixedSizeBytesSerializer(20)),
+        ("topics", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(32))),
+        ("data", PrependedSizeBytesSerializer(4)),
+    ]
+
+    def __init__(self, recipient, topics, data):
+        self.recipient = recipient
+        self.topics = topics
+        self.data = data
+
+    @classmethod
+    def createFromEthLog(cls, ethLog: EthLog):
+        recipient = ethLog.address
+        data = ethLog.data
+
+        topics = []
+        for topic in ethLog.topics:
+            topics.append(topic.to_bytes(32, "big"))
+        return Log(recipient, topics, data)
+
+    def to_dict(self):
+        return {
+            "recipient": self.recipient.hex(),
+            "topics": [t.hex() for t in self.topics],
+            "data": self.data.hex(),
+        }
+
+
 class TransactionReceipt(Serializable):
     """ Wrapper over tx receipts from EVM """
     FIELDS = [
@@ -33,18 +65,20 @@ class TransactionReceipt(Serializable):
         ('prevGasUsed', uint64),
         ('bloom', uint2048),
         ('contractAddress', Address),
+        ("logs", PrependedSizeListSerializer(4, Log)),
     ]
 
-    def __init__(self, success, gasUsed, prevGasUsed, contractAddress, bloom):
+    def __init__(self, success, gasUsed, prevGasUsed, contractAddress, bloom, logs):
         self.success = success
         self.gasUsed = gasUsed
         self.prevGasUsed = prevGasUsed
         self.contractAddress = contractAddress
         self.bloom = bloom
+        self.logs = logs
 
     @classmethod
     def createEmptyReceipt(cls):
-        return cls(b'', 0, 0, Address.createEmptyAccount(0), 0)
+        return cls(b'', 0, 0, Address.createEmptyAccount(0), 0, [])
 
 
 class MinorBlockMeta(Serializable):
@@ -169,7 +203,16 @@ class MinorBlock(Serializable):
         else:
             prevGasUsed = self.meta.evmCrossShardReceiveGasUsed
 
-        return TransactionReceipt(receipt.state_root, receipt.gas_used, prevGasUsed, contractAddress, receipt.bloom)
+        logs = [Log.createFromEthLog(ethLog) for ethLog in receipt.logs]
+
+        return TransactionReceipt(
+            receipt.state_root,
+            receipt.gas_used,
+            prevGasUsed,
+            contractAddress,
+            receipt.bloom,
+            logs,
+        )
 
     def createBlockToAppend(self,
                             createTime=None,

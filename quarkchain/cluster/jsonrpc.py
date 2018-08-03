@@ -254,6 +254,29 @@ def tx_encoder(block, i):
     }
 
 
+def loglist_encoder(loglist):
+    """Encode a list of log"""
+    # l = []
+    # if len(loglist) > 0 and loglist[0] is None:
+    #     assert all(element is None for element in l)
+    #     return l
+    result = []
+    for l in loglist:
+        result.append({
+            'logIndex': quantity_encoder(l['log_idx']),
+            'transactionIndex': quantity_encoder(l['tx_idx']),
+            'transactionHash': data_encoder(l['txhash']),
+            'blockHash': data_encoder(l['block'].header.getHash()),
+            'blockNumber': quantity_encoder(l['block'].header.height),
+            'blockHeight': quantity_encoder(l['block'].header.height),
+            'address': data_encoder(l['log'].recipient),
+            'recipient': data_encoder(l['log'].recipient),
+            'data': data_encoder(l['log'].data),
+            'topics': [data_encoder(topic) for topic in l['log'].topics],
+        })
+    return result
+
+
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     tx = block.txList[i]
     evmTx = tx.code.getEvmTransaction()
@@ -264,6 +287,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
         'blockId': id_encoder(block.header.getHash(), block.header.branch.getShardId()),
         'blockHash': data_encoder(block.header.getHash()),
         'blockHeight': quantity_encoder(block.header.height),
+        'blockNumber': quantity_encoder(block.header.height),
         'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
         'gasUsed': quantity_encoder(receipt.gasUsed - receipt.prevGasUsed),
         'status': quantity_encoder(1 if receipt.success == b"\x01" else 0),
@@ -272,6 +296,17 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
             if not receipt.contractAddress.isEmpty() else None
         ),
     }
+    logs = []
+    for j, log in enumerate(receipt.logs):
+        logs.append({
+            'log': log,
+            'log_idx': j,
+            'block': block,
+            'txhash': tx.getHash(),
+            'tx_idx': i,
+        })
+    resp['logs'] = loglist_encoder(logs)
+
     return resp
 
 
