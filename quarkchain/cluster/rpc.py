@@ -3,13 +3,14 @@ from quarkchain.core import (
     Transaction, Optional,
     PrependedSizeBytesSerializer, PrependedSizeListSerializer, Serializable, Address, Branch, ShardMask
 )
-from quarkchain.cluster.core import (
+from quarkchain.core import (
+    CrossShardTransactionList,
     MinorBlock,
     MinorBlockHeader,
     RootBlock,
-    CrossShardTransactionList,
     TransactionReceipt,
 )
+
 
 # RPCs to initialize a cluster
 

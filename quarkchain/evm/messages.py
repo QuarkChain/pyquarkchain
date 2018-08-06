@@ -2,7 +2,7 @@
 import rlp
 
 # to bypass circular imports
-import quarkchain.cluster.core
+import quarkchain.core
 
 from ethereum.utils import int256, safe_ord, bytearray_to_bytestr
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
@@ -16,7 +16,6 @@ from ethereum.specials import specials as default_specials
 from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
 from ethereum.slogging import get_logger
-from quarkchain.core import Constant, Address
 
 
 null_address = b'\xff' * 20
@@ -363,10 +362,10 @@ def _apply_msg(ext, msg, code):
             if not ext.deduct_value(msg.sender, msg.value):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
-                quarkchain.cluster.core.CrossShardTransactionDeposit(
+                quarkchain.core.CrossShardTransactionDeposit(
                     txHash=msg.tx_hash,
-                    fromAddress=Address(msg.sender, msg.from_full_shard_id),
-                    toAddress=Address(msg.to, msg.to_full_shard_id),
+                    fromAddress=quarkchain.core.Address(msg.sender, msg.from_full_shard_id),
+                    toAddress=quarkchain.core.Address(msg.to, msg.to_full_shard_id),
                     value=msg.value,
                     gasPrice=ext.tx_gasprice)
             )

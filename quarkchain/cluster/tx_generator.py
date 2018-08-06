@@ -5,7 +5,7 @@ import time
 from typing import Optional
 
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import Address, Branch, Code, Transaction
+from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger

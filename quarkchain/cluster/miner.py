@@ -5,7 +5,7 @@ import time
 import numpy
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
-from quarkchain.cluster.core import MinorBlock, RootBlock
+from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.utils import Logger
 
 

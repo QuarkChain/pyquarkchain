@@ -5,7 +5,7 @@ import time
 
 import jsonrpcclient
 
-from quarkchain.cluster.core import MinorBlock, RootBlock
+from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import address_encoder, data_encoder, quantity_encoder
 
 from quarkchain.config import DEFAULT_ENV, NetworkId

@@ -5,10 +5,8 @@ import unittest
 
 from contextlib import contextmanager
 
-import rlp
-
 from jsonrpcclient.aiohttp_client import aiohttpClient
-from quarkchain.cluster.core import MinorBlock, RootBlock
+from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,

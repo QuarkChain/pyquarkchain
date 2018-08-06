@@ -11,7 +11,6 @@ from asyncio import subprocess
 
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.cluster.utils import create_cluster_config
-from quarkchain.utils import is_p2
 
 IP = "127.0.0.1"
 PORT = 38000

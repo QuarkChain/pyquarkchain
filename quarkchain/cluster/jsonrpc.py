@@ -15,11 +15,11 @@ from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
-from quarkchain.cluster.core import RootBlock, TransactionReceipt, MinorBlock
+from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import sha3_256, Logger
+from quarkchain.utils import Logger
 
 
 # defaults

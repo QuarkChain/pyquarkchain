@@ -2,7 +2,7 @@ import unittest
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
-from quarkchain.cluster.core import CrossShardTransactionList
+from quarkchain.core import CrossShardTransactionList
 import quarkchain.db
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.core import Address

@@ -8,7 +8,7 @@ from collections import deque
 
 from quarkchain.core import Address, Branch, Code, ShardMask, Transaction
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.cluster.core import (
+from quarkchain.core import (
     CrossShardTransactionList,
     MinorBlock,
     MinorBlockHeader,
