@@ -1,7 +1,6 @@
 import asyncio
 import random
 import time
-
 from typing import Optional
 
 from quarkchain.config import DEFAULT_ENV

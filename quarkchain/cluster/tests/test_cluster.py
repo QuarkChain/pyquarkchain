@@ -1,9 +1,8 @@
 import unittest
 
-
 from quarkchain.cluster.tests.test_utils import create_transfer_transaction, ClusterContext
-from quarkchain.evm import opcodes
 from quarkchain.core import Address, Branch, Identity
+from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
 
 

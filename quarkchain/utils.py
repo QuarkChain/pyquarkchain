@@ -1,9 +1,10 @@
 import asyncio
 import ctypes
-from ethereum.utils import sha3_256 as _sha3_256
 import logging
 import time
 import traceback
+
+from ethereum.utils import sha3_256 as _sha3_256
 
 
 def int_left_most_bit(v):

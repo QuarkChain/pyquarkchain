@@ -2,28 +2,24 @@ import argparse
 import asyncio
 import ipaddress
 import json
-import socket
-
-import psutil
 import random
+import socket
 import time
 from collections import deque
-from typing import Optional
 from threading import Thread
+from typing import Optional
 
-from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import Transaction
+import psutil
+
+from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.miner import Miner
-from quarkchain.cluster.rpc import (
-    ConnectToSlavesRequest,
-    ClusterOp,
-    CLUSTER_OP_SERIALIZER_MAP,
-    ExecuteTransactionRequest,
-    Ping,
-    SlaveInfo,
-    GetTransactionReceiptRequest,
-    GetTransactionListByAddressRequest,
+from quarkchain.cluster.p2p_commands import (
+    CommandOp, Direction, GetRootBlockHeaderListRequest, GetRootBlockListRequest,
 )
+from quarkchain.cluster.protocol import (
+    ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
+)
+from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse, GetEcoInfoListRequest,
     GetNextBlockToMineRequest, GetUnconfirmedHeadersRequest,
@@ -35,17 +31,21 @@ from quarkchain.cluster.rpc import (
     GetMinorBlockRequest, GetTransactionRequest,
     ArtificialTxConfig, MineRequest, GenTxRequest,
 )
-from quarkchain.cluster.protocol import (
-    ClusterMetadata, ClusterConnection, P2PConnection, ROOT_BRANCH, NULL_CONNECTION,
+from quarkchain.cluster.rpc import (
+    ConnectToSlavesRequest,
+    ClusterOp,
+    CLUSTER_OP_SERIALIZER_MAP,
+    ExecuteTransactionRequest,
+    Ping,
+    SlaveInfo,
+    GetTransactionReceiptRequest,
+    GetTransactionListByAddressRequest,
 )
-from quarkchain.cluster.p2p_commands import (
-    CommandOp, Direction, GetRootBlockHeaderListRequest, GetRootBlockListRequest,
-)
-from quarkchain.core import Branch, ShardMask
-from quarkchain.db import PersistentDb
-from quarkchain.cluster.jsonrpc import JSONRPCServer
-from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.config import DEFAULT_ENV
+from quarkchain.core import Branch, ShardMask
+from quarkchain.core import Transaction
+from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.utils import set_logging_level, Logger, check
 

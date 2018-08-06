@@ -1,8 +1,9 @@
 import asyncio
-from aioprocessing import AioProcess, AioQueue
 import random
 import time
+
 import numpy
+from aioprocessing import AioProcess, AioQueue
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
 from quarkchain.core import MinorBlock, RootBlock

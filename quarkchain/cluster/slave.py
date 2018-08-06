@@ -2,27 +2,18 @@ import argparse
 import asyncio
 import errno
 import ipaddress
+from collections import deque
 from typing import Optional, Tuple
 
-from collections import deque
-
-from quarkchain.core import Address, Branch, Code, ShardMask, Transaction
-from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import (
-    CrossShardTransactionList,
-    MinorBlock,
-    MinorBlockHeader,
-    MinorBlockMeta,
-    RootBlock,
-    RootBlockHeader,
-    TransactionReceipt,
+from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.p2p_commands import (
+    CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse,
+    GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse, NewTransactionListCommand
 )
 from quarkchain.cluster.protocol import (
     ClusterConnection, VirtualConnection, ClusterMetadata, ForwardingVirtualConnection,
     NULL_CONNECTION
 )
-from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong, \
-    ExecuteTransactionResponse, GetTransactionReceiptResponse
 from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse, EcoInfo, GetEcoInfoListResponse, GetNextBlockToMineResponse,
@@ -35,19 +26,25 @@ from quarkchain.cluster.rpc import (
     BatchAddXshardTxListRequest,
     BatchAddXshardTxListResponse,
     MineResponse, GenTxResponse, GetTransactionListByAddressResponse,
-    TransactionDetail,
 )
-
-from quarkchain.cluster.miner import Miner
-from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.rpc import AddXshardTxListRequest, AddXshardTxListResponse
+from quarkchain.cluster.rpc import ConnectToSlavesResponse, ClusterOp, CLUSTER_OP_SERIALIZER_MAP, Ping, Pong, \
+    ExecuteTransactionResponse, GetTransactionReceiptResponse
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.cluster.p2p_commands import (
-    CommandOp, OP_SERIALIZER_MAP, NewMinorBlockHeaderListCommand, GetMinorBlockListRequest, GetMinorBlockListResponse,
-    GetMinorBlockHeaderListRequest, Direction, GetMinorBlockHeaderListResponse, NewTransactionListCommand
+from quarkchain.cluster.tx_generator import TransactionGenerator
+from quarkchain.config import DEFAULT_ENV
+from quarkchain.core import Branch, ShardMask, Transaction
+from quarkchain.core import (
+    CrossShardTransactionList,
+    MinorBlock,
+    MinorBlockHeader,
+    MinorBlockMeta,
+    RootBlock,
+    RootBlockHeader,
+    TransactionReceipt,
 )
-from quarkchain.protocol import Connection
 from quarkchain.db import PersistentDb
+from quarkchain.protocol import Connection
 from quarkchain.utils import check, set_logging_level, Logger
 
 

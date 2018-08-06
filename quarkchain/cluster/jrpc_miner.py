@@ -1,16 +1,14 @@
 import argparse
 import logging
-import numpy
 import time
 
 import jsonrpcclient
+import numpy
 
-from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.cluster.jsonrpc import address_encoder, data_encoder, quantity_encoder
-
 from quarkchain.config import DEFAULT_ENV, NetworkId
+from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.utils import set_logging_level, Logger
-
 
 NUM_MINERS = 2
 

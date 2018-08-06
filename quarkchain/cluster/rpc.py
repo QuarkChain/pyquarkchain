@@ -1,8 +1,3 @@
-from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
-from quarkchain.core import (
-    Transaction, Optional,
-    PrependedSizeBytesSerializer, PrependedSizeListSerializer, Serializable, Address, Branch, ShardMask
-)
 from quarkchain.core import (
     CrossShardTransactionList,
     MinorBlock,
@@ -10,6 +5,11 @@ from quarkchain.core import (
     RootBlock,
     TransactionReceipt,
 )
+from quarkchain.core import (
+    Transaction, Optional,
+    PrependedSizeBytesSerializer, PrependedSizeListSerializer, Serializable, Address, Branch, ShardMask
+)
+from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
 
 # RPCs to initialize a cluster

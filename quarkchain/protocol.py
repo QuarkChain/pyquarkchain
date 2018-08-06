@@ -4,7 +4,6 @@ from enum import Enum
 from quarkchain.core import Serializable
 from quarkchain.utils import Logger
 
-
 ROOT_SHARD_ID = 0
 
 

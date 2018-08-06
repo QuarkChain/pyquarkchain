@@ -2,11 +2,10 @@ import asyncio
 import unittest
 from unittest.mock import call, MagicMock
 
+from quarkchain.cluster.protocol import ClusterConnection, P2PConnection
+from quarkchain.cluster.protocol import ClusterMetadata, P2PMetadata
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import uint32, Branch, Serializable
-from quarkchain.cluster.protocol import ClusterMetadata, P2PMetadata
-from quarkchain.cluster.protocol import ClusterConnection, P2PConnection
-
 
 FORWARD_BRANCH = Branch(123)
 EMPTY_BRANCH = Branch(456)
