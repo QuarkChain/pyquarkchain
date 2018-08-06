@@ -3,7 +3,7 @@ import copy
 import quarkchain.db
 import quarkchain.evm.config
 from quarkchain.core import Address
-from quarkchain.diff import MADifficultyCalculator, EthDifficultyCalculator
+from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
 from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
@@ -11,7 +11,7 @@ from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
 
 class NetworkId:
     MAINNET = 1
-    TESTNET_FORD = 2
+    # TESTNET_FORD = 2
     TESTNET_PORSCHE = 3
 
 
@@ -149,13 +149,3 @@ class Env:
 
 
 DEFAULT_ENV = Env()
-
-FORD_ENV = Env()
-FORD_ENV.config.ROOT_DIFF_CALCULATOR = MADifficultyCalculator(
-    maSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC,
-    targetIntervalSec=FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC,
-    bootstrapSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.ROOT_BLOCK_INTERVAL_SEC)
-FORD_ENV.config.MINOR_DIFF_CALCULATOR = MADifficultyCalculator(
-    maSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC,
-    targetIntervalSec=FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC,
-    bootstrapSamples=FORD_ENV.config.DIFF_MA_INTERVAL // FORD_ENV.config.MINOR_BLOCK_INTERVAL_SEC)
