@@ -59,7 +59,7 @@ jobs:
       - run:
           name: Check Data Size
           command: |
-            cat quarkchain/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/data_size.py check
+            cat quarkchain/tests/DATA_SIZE | PYTHONPATH=. pypy3 quarkchain/tests/data_size.py check
 
       - run:
           name: Run Unit Tests
