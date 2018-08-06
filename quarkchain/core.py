@@ -6,17 +6,16 @@
 
 import argparse
 import copy
-import ecdsa
 import random
+
+import ecdsa
 import rlp
 
-from ethereum import utils
-
-from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.evm import trie
-from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check, masks_have_overlap
-
 import quarkchain.evm.messages
+from ethereum import utils
+from quarkchain.evm import trie
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check, masks_have_overlap
 
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 

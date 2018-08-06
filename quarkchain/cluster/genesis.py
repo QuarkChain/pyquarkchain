@@ -1,10 +1,11 @@
-from quarkchain.core import RootBlockHeader, RootBlock
-from quarkchain.core import MinorBlockMeta, MinorBlockHeader, MinorBlock, Branch, ShardInfo
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.utils import sha3_256
+from quarkchain.core import MinorBlockMeta, MinorBlockHeader, MinorBlock, Branch, ShardInfo
+from quarkchain.core import RootBlockHeader, RootBlock
 from quarkchain.core import calculate_merkle_root
-from quarkchain.evm.state import State as EvmState
 from quarkchain.db import InMemoryDb
+from quarkchain.evm.state import State as EvmState
+from quarkchain.utils import sha3_256
+
 
 # Structure of genesis blocks
 #

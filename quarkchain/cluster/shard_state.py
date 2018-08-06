@@ -2,16 +2,16 @@ import time
 from collections import deque
 from typing import Optional, Tuple
 
+from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
+from quarkchain.cluster.rpc import ShardStats, TransactionDetail
+from quarkchain.config import NetworkId
+from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Transaction
 from quarkchain.core import (
     mk_receipt_sha,
     CrossShardTransactionList, CrossShardTransactionDeposit,
     RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     TransactionReceipt,
 )
-from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
-from quarkchain.cluster.rpc import ShardStats, TransactionDetail
-from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Transaction
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
 from quarkchain.evm.state import State as EvmState

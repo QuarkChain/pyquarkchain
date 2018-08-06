@@ -2,15 +2,15 @@ import asyncio
 import ipaddress
 import socket
 
-from quarkchain.core import random_bytes
-from quarkchain.protocol import ConnectionState
+from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
+from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
+from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand, GetRootBlockHeaderListResponse, Direction
+from quarkchain.cluster.p2p_commands import NewTransactionListCommand, GetRootBlockListResponse
 from quarkchain.cluster.protocol import (
     P2PConnection, ROOT_SHARD_ID,
 )
-from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
-from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
-from quarkchain.cluster.p2p_commands import NewTransactionListCommand, GetRootBlockListResponse
-from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand, GetRootBlockHeaderListResponse, Direction
+from quarkchain.core import random_bytes
+from quarkchain.protocol import ConnectionState
 from quarkchain.utils import Logger
 
 

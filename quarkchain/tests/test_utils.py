@@ -1,6 +1,7 @@
 
-from quarkchain.core import Address, Transaction, TransactionInput, TransactionOutput, Code, random_bytes
 import random
+
+from quarkchain.core import Address, Transaction, TransactionInput, TransactionOutput, Code, random_bytes
 
 
 def create_test_transaction(

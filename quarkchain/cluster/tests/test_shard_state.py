@@ -1,8 +1,8 @@
 import unittest
 
-from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env, create_transfer_transaction
+from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes

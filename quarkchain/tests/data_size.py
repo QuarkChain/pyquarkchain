@@ -1,7 +1,8 @@
-from quarkchain.core import Code, Address, Identity
-from quarkchain.core import Transaction, TransactionInput, TransactionOutput
-from quarkchain.core import RootBlockHeader, MinorBlockHeader
 import sys
+
+from quarkchain.core import Code, Address, Identity
+from quarkchain.core import RootBlockHeader, MinorBlockHeader
+from quarkchain.core import Transaction, TransactionInput, TransactionOutput
 
 size_list = [
     ("RootBlockHeader", RootBlockHeader()),

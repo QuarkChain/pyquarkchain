@@ -10,8 +10,8 @@ from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import call_async, check
 from quarkchain.protocol import AbstractConnection
+from quarkchain.utils import call_async, check
 
 
 def get_test_env(

@@ -1,8 +1,9 @@
 #!/usr/bin/python3
 import copy
 import pathlib
-import rocksdb
 import shutil
+
+import rocksdb
 
 
 class Db:

@@ -1,10 +1,13 @@
 import argparse
-import cluster as cl
-from cluster import kill_child_processes
 import asyncio
 import random
-from devp2p.utils import colors, COLOR_END
 import socket
+
+import cluster as cl
+from cluster import kill_child_processes
+
+from devp2p.utils import colors, COLOR_END
+
 
 async def main():
     parser = argparse.ArgumentParser()

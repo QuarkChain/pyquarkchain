@@ -1,12 +1,11 @@
-import aiohttp
 import asyncio
 import logging
 import unittest
-
 from contextlib import contextmanager
 
+import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
-from quarkchain.core import MinorBlock, RootBlock
+
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -15,6 +14,7 @@ from quarkchain.cluster.tests.test_utils import (
 )
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
+from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction

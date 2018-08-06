@@ -2,15 +2,15 @@ import argparse
 import asyncio
 import json
 import os
-import tempfile
 import signal
-import psutil
 import socket
-
+import tempfile
 from asyncio import subprocess
 
-from quarkchain.config import DEFAULT_ENV
+import psutil
+
 from quarkchain.cluster.utils import create_cluster_config
+from quarkchain.config import DEFAULT_ENV
 
 IP = "127.0.0.1"
 PORT = 38000

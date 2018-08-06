@@ -1,11 +1,12 @@
 import unittest
+
+import quarkchain.db
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
-from quarkchain.core import CrossShardTransactionList
-import quarkchain.db
-from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.core import Address
+from quarkchain.core import CrossShardTransactionList
+from quarkchain.diff import EthDifficultyCalculator
 
 
 def create_default_state(env):

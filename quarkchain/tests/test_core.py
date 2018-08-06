@@ -1,13 +1,12 @@
 #!/usr/bin/python3
 
-from quarkchain.core import Identity, Address
-from quarkchain.core import Transaction, ByteBuffer, random_bytes
-from quarkchain.core import calculate_merkle_root, Branch, ShardInfo
-
-import time
 import unittest
-from quarkchain.tests.test_utils import create_random_test_transaction
+
+from quarkchain.core import Branch, ShardInfo
+from quarkchain.core import Identity, Address
 from quarkchain.core import ShardMask, Optional, Serializable, uint32
+from quarkchain.core import Transaction, ByteBuffer
+from quarkchain.tests.test_utils import create_random_test_transaction
 
 
 class TestTransaction(unittest.TestCase):
