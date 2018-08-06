@@ -1,11 +1,11 @@
 from quarkchain.core import Code, Address, Identity
 from quarkchain.core import Transaction, TransactionInput, TransactionOutput
-from quarkchain.cluster import core
+from quarkchain.core import RootBlockHeader, MinorBlockHeader
 import sys
 
 size_list = [
-    ("cluster.RootBlockHeader", core.RootBlockHeader()),
-    ("cluster.MinorBlockHeader", core.MinorBlockHeader()),
+    ("RootBlockHeader", RootBlockHeader()),
+    ("MinorBlockHeader", MinorBlockHeader()),
 ]
 
 

@@ -3,7 +3,6 @@ import ipaddress
 import socket
 
 from quarkchain.core import random_bytes
-from quarkchain.config import DEFAULT_ENV
 from quarkchain.protocol import ConnectionState
 from quarkchain.cluster.protocol import (
     P2PConnection, ROOT_SHARD_ID,
@@ -12,7 +11,7 @@ from quarkchain.cluster.p2p_commands import CommandOp, OP_SERIALIZER_MAP
 from quarkchain.cluster.p2p_commands import HelloCommand, GetPeerListRequest, GetPeerListResponse, PeerInfo
 from quarkchain.cluster.p2p_commands import NewTransactionListCommand, GetRootBlockListResponse
 from quarkchain.cluster.p2p_commands import NewMinorBlockHeaderListCommand, GetRootBlockHeaderListResponse, Direction
-from quarkchain.utils import set_logging_level, Logger
+from quarkchain.utils import Logger
 
 
 class Peer(P2PConnection):

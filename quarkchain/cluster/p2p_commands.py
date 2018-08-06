@@ -1,8 +1,8 @@
 from enum import IntEnum
 
-from quarkchain.cluster.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
-from quarkchain.core import Serializable, PrependedSizeBytesSerializer, PrependedSizeListSerializer
-from quarkchain.core import Branch, boolean, uint8, uint16, uint32, uint128, hash256, Transaction
+from quarkchain.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
+from quarkchain.core import Serializable, PrependedSizeListSerializer
+from quarkchain.core import Branch, uint8, uint16, uint32, uint128, hash256, Transaction
 
 
 class HelloCommand(Serializable):

@@ -1,6 +1,6 @@
 import time
 
-from quarkchain.cluster.core import RootBlock, MinorBlockHeader
+from quarkchain.core import RootBlock, MinorBlockHeader
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.config import NetworkId
 from quarkchain.core import calculate_merkle_root, Serializable, PrependedSizeListSerializer

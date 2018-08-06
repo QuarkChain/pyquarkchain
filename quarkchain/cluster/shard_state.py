@@ -2,10 +2,10 @@ import time
 from collections import deque
 from typing import Optional, Tuple
 
-from quarkchain.cluster.core import (
+from quarkchain.core import (
     mk_receipt_sha,
-    RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     CrossShardTransactionList, CrossShardTransactionDeposit,
+    RootBlock, MinorBlock, MinorBlockHeader, MinorBlockMeta,
     TransactionReceipt,
 )
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
