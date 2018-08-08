@@ -4,18 +4,19 @@ import rlp
 # to bypass circular imports
 import quarkchain.core
 
-from ethereum.utils import int256, safe_ord, bytearray_to_bytestr
+from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
+from rlp.sedes.binary import Binary
 from rlp.utils import decode_hex, encode_hex
-from ethereum import utils
-from ethereum import bloom
+from quarkchain.evm import utils  # FIXME: use eth_utils
+from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
 from quarkchain.evm import opcodes
 from quarkchain.evm import vm
-from ethereum.specials import specials as default_specials
-from ethereum.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
+from quarkchain.evm.specials import specials as default_specials
+from quarkchain.evm.exceptions import InvalidNonce, InsufficientStartGas, UnsignedTransaction, \
     BlockGasLimitReached, InsufficientBalance, InvalidTransaction
-from ethereum.slogging import get_logger
+from quarkchain.evm.slogging import get_logger
 
 
 null_address = b'\xff' * 20
@@ -41,8 +42,8 @@ class Log(rlp.Serializable):
     # TODO: original version used zpad (here replaced by int32.serialize); had
     # comment "why zpad"?
     fields = [
-        ('address', utils.address),
-        ('topics', CountableList(utils.int32)),
+        ('address', Binary.fixed_length(20, allow_empty=True)),
+        ('topics', CountableList(BigEndianInt(32))),
         ('data', binary)
     ]
 
@@ -53,7 +54,7 @@ class Log(rlp.Serializable):
         super(Log, self).__init__(address, topics, data)
 
     def bloomables(self):
-        return [self.address] + [utils.int32.serialize(x) for x in self.topics]
+        return [self.address] + [BigEndianInt(32).serialize(x) for x in self.topics]
 
     def to_dict(self):
         return {
@@ -76,7 +77,7 @@ class Receipt(rlp.Serializable):
         ('gas_used', big_endian_int),   # TODO: this is actually the cumulative gas used. fix it.
         ('bloom', int256),
         ('logs', CountableList(Log)),
-        ('contract_address', utils.address),
+        ('contract_address', Binary.fixed_length(20, allow_empty=True)),
         ('contract_full_shard_id', BigEndianInt(4)),
     ]
 

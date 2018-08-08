@@ -1,12 +1,10 @@
 import sys
 import rlp
-from ethereum.utils import ( 
+from quarkchain.evm.utils import (
     int_to_big_endian,
     big_endian_to_int,
     safe_ord,
-    to_string,
 )
-from ethereum import db
 
 
 def _encode_optimized(item):
@@ -105,34 +103,3 @@ else:
     # rlp does not implement a decode_raw function.
     # decode_optimized = rlp.codec.decode_raw
     decode_optimized = _decode_optimized
-
-
-def main():
-    import trie
-    import time
-
-    def run():
-        st = time.time()
-        x = trie.Trie(db.EphemDB())
-        for i in range(10000):
-            x.update(to_string(i), to_string(i**3))
-        print('elapsed', time.time() - st)
-        return x.root_hash
-
-    trie.rlp_encode = _encode_optimized
-    print('trie.rlp_encode = encode_optimized')
-    r3 = run()
-
-    trie.rlp_encode = rlp.codec.encode_raw
-    print('trie.rlp_encode = rlp.codec.encode_raw')
-    r2 = run()
-    assert r2 == r3
-
-    trie.rlp_encode = rlp.encode
-    print('trie.rlp_encode = rlp.encode')
-    r = run()
-    assert r == r2
-
-
-if __name__ == '__main__':
-    main()

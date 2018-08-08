@@ -1,10 +1,10 @@
 # Modified based on pyethereum under MIT license
 import rlp
-from ethereum.utils import hash32, trie_root, \
+from quarkchain.evm.utils import hash32, trie_root, \
     big_endian_int, encode_hex, \
     big_endian_to_int, parse_as_bin, parse_as_int, \
     decode_hex, sha3, is_string, is_numeric, BigEndianInt
-from ethereum import utils
+from quarkchain.evm import utils
 from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie

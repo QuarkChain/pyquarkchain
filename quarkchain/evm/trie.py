@@ -3,7 +3,7 @@
 # use rlp to encode/decode a node as the original code
 import rlp
 from quarkchain import utils
-from ethereum.fast_rlp import encode_optimized
+from quarkchain.evm.fast_rlp import encode_optimized
 rlp_encode = encode_optimized
 
 bin_to_nibbles_cache = {}

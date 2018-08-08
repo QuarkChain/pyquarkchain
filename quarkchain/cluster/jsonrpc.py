@@ -11,7 +11,7 @@ from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
-from ethereum.utils import is_numeric, denoms
+from quarkchain.evm.utils import is_numeric, denoms
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock

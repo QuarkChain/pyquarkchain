@@ -16,18 +16,7 @@ requests==2.18.4
 aiohttp_cors==0.7.0
 eth-utils==1.0.3
 eth-keys==0.2.0b3
-
-# Dependencies pulled from pyethereum @87251ebce72e1f4b94c4671a1b7c4bcd64e459a7
-# We do this because ethereum depends on pysha3 which isn't supported in pypy.
-# And thus we pull in the source code directly and remove the dependency on pysha3.
-# TODO: remove dependencies on ethereum
-future
-pbkdf2
-py_ecc
-pycryptodome>=3.4.7
-PyYAML
-repoze.lru
-scrypt
+eth-bloom==1.0.0
 
 # Dependencies pulled from pydevp2p
 # TODO: make pydevp2p submodule, or remove dependencies

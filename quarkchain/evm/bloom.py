@@ -1,6 +1,5 @@
-from ethereum import utils
-from ethereum.utils import safe_ord
-from ethereum.abi import is_numeric
+from quarkchain.utils import sha3_256
+from quarkchain.evm import utils
 """
 Blooms are the 3-point, 2048-bit (11-bits/point) Bloom filter of each
 component (except data) of each log entry of each transaction.
@@ -21,12 +20,19 @@ blooms in this module are of type 'int'
 BUCKETS_PER_VAL = 3
 
 
+def safe_ord(value):
+    if isinstance(value, int):
+        return value
+    else:
+        return ord(value)
+
+
 def bloom(val):
     return bloom_insert(0, val)
 
 
 def bloom_insert(bloom, val):
-    h = utils.sha3(val)
+    h = sha3_256(val)
 #   print('bloom_insert', bloom_bits(val), repr(val))
     for i in range(0, BUCKETS_PER_VAL * 2, 2):
         bloom |= 1 << ((safe_ord(h[i + 1]) + (safe_ord(h[i]) << 8)) & 2047)
@@ -34,13 +40,13 @@ def bloom_insert(bloom, val):
 
 
 def bloom_bits(val):
-    h = utils.sha3(val)
+    h = sha3_256(val)
     return [bits_in_number(1 << ((safe_ord(h[i + 1]) + (safe_ord(h[i]) << 8)) & 2047))
             for i in range(0, BUCKETS_PER_VAL * 2, 2)]
 
 
 def bits_in_number(val):
-    assert is_numeric(val)
+    assert isinstance(val, int)
     return [n for n in range(2048) if (1 << n) & val]
 
 

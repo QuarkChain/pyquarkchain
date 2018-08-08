@@ -3,8 +3,8 @@ from py_ecc.secp256k1 import privtopub, ecdsa_raw_recover, N as secp256k1n
 import hashlib
 from rlp.utils import ascii_chr
 
-from ethereum import utils, opcodes
-from ethereum.utils import safe_ord, decode_hex, encode_int32
+from quarkchain.evm import utils, opcodes
+from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
 
 
 ZERO_PRIVKEY_ADDR = decode_hex('3f17f1962b36e491b30a40b2405849e597ba5fb5')

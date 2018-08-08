@@ -1,17 +1,10 @@
-try:
-    from Crypto.Hash import keccak
-
-    def sha3_256(x): return keccak.new(digest_bits=256, data=x).digest()
-except ImportError:
-    import sha3 as _sha3
-
-    def sha3_256(x): return _sha3.keccak_256(x).digest()
 from py_ecc.secp256k1 import privtopub, ecdsa_raw_sign, ecdsa_raw_recover
 import sys
 import rlp
 from rlp.sedes import big_endian_int, BigEndianInt, Binary
 from rlp.utils import decode_hex, encode_hex, ascii_chr, str_to_bytes
 import random
+from quarkchain.utils import sha3_256 as sha3
 
 
 try:
@@ -185,12 +178,6 @@ def int_to_32bytearray(i):
         i >>= 8
     return o
 
-# sha3_count = [0]
-
-
-def sha3(seed):
-    return sha3_256(to_string(seed))
-
 
 assert encode_hex(
     sha3(b'')) == 'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
@@ -206,7 +193,7 @@ def privtoaddr(k):
 def checksum_encode(addr):  # Takes a 20-byte binary address as input
     addr = normalize_address(addr)
     o = ''
-    v = big_endian_to_int(sha3(encode_hex(addr)))
+    v = big_endian_to_int(sha3(addr))
     for i, c in enumerate(encode_hex(addr)):
         if c in '0123456789':
             o += c

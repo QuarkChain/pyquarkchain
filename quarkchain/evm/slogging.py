@@ -3,7 +3,7 @@ import json
 import textwrap
 from json.encoder import JSONEncoder
 from logging import StreamHandler, Formatter, FileHandler
-from ethereum.utils import bcolors, is_numeric
+from quarkchain.evm.utils import bcolors, is_numeric
 import sys
 
 
