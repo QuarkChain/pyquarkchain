@@ -20,7 +20,7 @@ def get_test_env(
         genesisMinorQuarkash=0,
         shardSize=2):
     env = DEFAULT_ENV.copy()
-    env.config.setShardSize(shardSize)
+    env.config.set_shard_size(shardSize)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.config.SKIP_MINOR_COINBASE_CHECK = False
@@ -30,7 +30,7 @@ def get_test_env(
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
     env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
     env.db = InMemoryDb()
-    env.setNetworkId(1234567890)
+    env.set_network_id(1234567890)
 
     env.config.ACCOUNTS_TO_FUND = []
     env.config.LOADTEST_ACCOUNTS = []

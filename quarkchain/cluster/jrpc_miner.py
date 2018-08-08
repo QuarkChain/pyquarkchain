@@ -105,7 +105,7 @@ class Miner:
                         self.endpoint.addBlock(self.block)
                         success = True
                     except Exception as e:
-                        Logger.logException()
+                        Logger.log_exception()
                         success = False
                     self.__logStatus(success)
                     self.block = None

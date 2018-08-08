@@ -66,7 +66,7 @@ class Miner:
             try:
                 await self.addBlockAsyncFunc(block)
             except Exception:
-                Logger.logException()
+                Logger.log_exception()
                 self.mineNewBlockAsync()
 
     @staticmethod

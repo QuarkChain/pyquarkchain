@@ -26,7 +26,7 @@ class InMemoryDb(Db):
     def __init__(self):
         self.kv = dict()
 
-    def rangeIter(self, start, end):
+    def range_iter(self, start, end):
         keys = []
         for k in self.kv.keys():
             if k >= start and k < end:
@@ -35,7 +35,7 @@ class InMemoryDb(Db):
         for k in keys:
             yield k, self.kv[k]
 
-    def reversedRangeIter(self, start, end):
+    def reversed_range_iter(self, start, end):
         keys = []
         for k in self.kv.keys():
             if k <= start and k > end:
@@ -103,7 +103,7 @@ class PersistentDb(Db):
         key = key.encode() if not isinstance(key, bytes) else key
         return self._db.get(key) is not None
 
-    def rangeIter(self, start, end):
+    def range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in [start, end) ordered by key in ascending order"""
         it = self._db.iteritems()
         it.seek(start)
@@ -113,7 +113,7 @@ class PersistentDb(Db):
             else:
                 return
 
-    def reversedRangeIter(self, start, end):
+    def reversed_range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in (end, start] ordered key in descending order"""
         it = self._db.iteritems()
         it.seek_for_prev(start)

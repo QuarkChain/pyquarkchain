@@ -64,8 +64,8 @@ class SyncTask:
         try:
             await self.__runSync()
         except Exception as e:
-            Logger.logException()
-            self.shardConn.closeWithError(str(e))
+            Logger.log_exception()
+            self.shardConn.close_with_error(str(e))
 
     async def __runSync(self):
         if self.__hasBlockHash(self.header.get_hash()):
@@ -93,7 +93,7 @@ class SyncTask:
                 self.shardState.branch.get_shard_id(), len(blockHeaderList)))
             if not self.__validateBlockHeaders(blockHeaderList):
                 # TODO: tag bad peer
-                return self.shardConn.closeWithError("Bad peer sending discontinuing block headers")
+                return self.shardConn.close_with_error("Bad peer sending discontinuing block headers")
             for header in blockHeaderList:
                 if self.__hasBlockHash(header.get_hash()):
                     break
@@ -135,13 +135,13 @@ class SyncTask:
             limit=100,
             direction=Direction.GENESIS,
         )
-        op, resp, rpcId = await self.shardConn.writeRpcRequest(
+        op, resp, rpcId = await self.shardConn.write_rpc_request(
             CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST, request)
         return resp.blockHeaderList
 
     async def __downloadBlocks(self, blockHeaderList):
         blockHashList = [b.get_hash() for b in blockHeaderList]
-        op, resp, rpcId = await self.shardConn.writeRpcRequest(
+        op, resp, rpcId = await self.shardConn.write_rpc_request(
             CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
         return resp.minorBlockList
 
@@ -181,18 +181,18 @@ class ShardConnection(VirtualConnection):
         self.bestRootBlockHeaderObserved = None
         self.bestMinorBlockHeaderObserved = None
 
-    def closeWithError(self, error):
+    def close_with_error(self, error):
         Logger.error("Closing shard connection with error {}".format(error))
-        return super().closeWithError(error)
+        return super().close_with_error(error)
 
     async def handleGetMinorBlockHeaderListRequest(self, request):
         if request.branch != self.shardState.branch:
-            self.closeWithError("Wrong branch from peer")
+            self.close_with_error("Wrong branch from peer")
         if request.limit <= 0:
-            self.closeWithError("Bad limit")
+            self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
-            self.closeWithError("Bad direction")
+            self.close_with_error("Bad direction")
 
         blockHash = request.blockHash
         headerList = []
@@ -220,28 +220,28 @@ class ShardConnection(VirtualConnection):
     async def handleNewMinorBlockHeaderListCommand(self, op, cmd, rpcId):
         # TODO: allow multiple headers if needed
         if len(cmd.minorBlockHeaderList) != 1:
-            self.closeWithError("minor block header list must have only one header")
+            self.close_with_error("minor block header list must have only one header")
             return
         for mHeader in cmd.minorBlockHeaderList:
             Logger.info("[{}] received new header with height {}".format(
                 mHeader.branch.get_shard_id(), mHeader.height))
             if mHeader.branch != self.shardState.branch:
-                self.closeWithError("incorrect branch")
+                self.close_with_error("incorrect branch")
                 return
 
         if self.bestRootBlockHeaderObserved:
             # check root header is not decreasing
             if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
-                return self.closeWithError("best observed root header height is decreasing {} < {}".format(
+                return self.close_with_error("best observed root header height is decreasing {} < {}".format(
                     cmd.rootBlockHeader.height, self.bestRootBlockHeaderObserved.height))
             if cmd.rootBlockHeader.height == self.bestRootBlockHeaderObserved.height:
                 if cmd.rootBlockHeader != self.bestRootBlockHeaderObserved:
-                    return self.closeWithError("best observed root header changed with same height {}".format(
+                    return self.close_with_error("best observed root header changed with same height {}".format(
                         self.bestRootBlockHeaderObserved.height))
 
                 # check minor header is not decreasing
                 if mHeader.height < self.bestMinorBlockHeaderObserved.height:
-                    return self.closeWithError("best observed minor header is decreasing {} < {}".format(
+                    return self.close_with_error("best observed minor header is decreasing {} < {}".format(
                         mHeader.height, self.bestMinorBlockHeaderObserved.height))
 
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
@@ -263,7 +263,7 @@ class ShardConnection(VirtualConnection):
                 if self.shardState.headerTip == self.bestMinorBlockHeaderObserved:
                     return
 
-        self.writeCommand(
+        self.write_command(
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.shardState.rootTip, [self.shardState.headerTip]))
 
@@ -271,7 +271,7 @@ class ShardConnection(VirtualConnection):
         self.slaveServer.add_txList(cmd.transactionList, self)
 
     def broadcastTxList(self, txList):
-        self.writeCommand(
+        self.write_command(
             op=CommandOp.NEW_TRANSACTION_LIST,
             cmd=NewTransactionListCommand(txList),
         )
@@ -326,14 +326,14 @@ class MasterConnection(ClusterConnection):
             return None
 
         if metadata.branch.value not in self.shardStateMap:
-            self.closeWithError("incorrect forwarding branch")
+            self.close_with_error("incorrect forwarding branch")
             return
 
         connMap = self.vConnMap.get(metadata.clusterPeerId)
         if connMap is None:
             # Master can close the peer connection at any time
             # TODO: any way to avoid this race?
-            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId), 1)
+            Logger.warning_every_sec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId), 1)
             return NULL_CONNECTION
 
         return connMap[metadata.branch.value].getForwardingConnection()
@@ -352,9 +352,9 @@ class MasterConnection(ClusterConnection):
         Logger.info("Lost connection with master")
         return super().close()
 
-    def closeWithError(self, error):
+    def close_with_error(self, error):
         Logger.info("Closing connection with master: {}".format(error))
-        return super().closeWithError(error)
+        return super().close_with_error(error)
 
     def closeConnection(self, conn):
         ''' TODO: Notify master that the connection is closed by local.
@@ -428,7 +428,7 @@ class MasterConnection(ClusterConnection):
             try:
                 switched = shardState.addRootBlock(req.rootBlock)
             except ValueError:
-                Logger.logException()
+                Logger.log_exception()
                 # TODO: May be enum or Unix errno?
                 errorCode = errno.EBADMSG
                 break
@@ -618,7 +618,7 @@ class MasterConnection(ClusterConnection):
     async def handleSyncMinorBlockListRequest(self, req):
 
         async def __downloadBlocks(blockHashList):
-            op, resp, rpcId = await vConn.writeRpcRequest(
+            op, resp, rpcId = await vConn.write_rpc_request(
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
             return resp.minorBlockList
 
@@ -644,7 +644,7 @@ class MasterConnection(ClusterConnection):
                 blockHashList = blockHashList[BLOCK_BATCH_SIZE:]
 
         except Exception as e:
-            Logger.errorException()
+            Logger.error_exception()
             return SyncMinorBlockListResponse(errorCode=1)
 
         return SyncMinorBlockListResponse(errorCode=0)
@@ -715,14 +715,14 @@ class SlaveConnection(Connection):
                 return True
         return False
 
-    def closeWithError(self, error):
+    def close_with_error(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
-        return super().closeWithError(error)
+        return super().close_with_error(error)
 
     async def sendPing(self):
         # TODO: Send real root tip and allow shards to confirm each other
         req = Ping(self.slaveServer.id, self.slaveServer.shardMaskList, RootBlock(RootBlockHeader()))
-        op, resp, rpcId = await self.writeRpcRequest(ClusterOp.PING, req)
+        op, resp, rpcId = await self.write_rpc_request(ClusterOp.PING, req)
         return (resp.id, resp.shardMaskList)
 
     # Cluster RPC handlers
@@ -733,7 +733,7 @@ class SlaveConnection(Connection):
             self.shardMaskList = ping.shardMaskList
             self.slaveServer.addSlaveConnection(self)
         if len(self.shardMaskList) == 0:
-            return self.closeWithError("Empty shard mask list from slave {}".format(self.id))
+            return self.close_with_error("Empty shard mask list from slave {}".format(self.id))
 
         return Pong(self.slaveServer.id, self.slaveServer.shardMaskList)
 
@@ -966,7 +966,7 @@ class SlaveServer():
     async def sendMinorBlockHeaderToMaster(self, minorBlockHeader, txCount, xShardTxCount, shardStats):
         ''' Update master that a minor block has been appended successfully '''
         request = AddMinorBlockHeaderRequest(minorBlockHeader, txCount, xShardTxCount, shardStats)
-        _, resp, _ = await self.master.writeRpcRequest(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
+        _, resp, _ = await self.master.write_rpc_request(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
         check(resp.errorCode == 0)
         self.artificialTxConfig = resp.artificialTxConfig
 
@@ -1002,7 +1002,7 @@ class SlaveServer():
                 self.shardStateMap[branch.value].addCrossShardTxListByMinorBlockHash(blockHash, request.txList)
 
             for slaveConn in self.shardToSlaves[branch.get_shard_id()]:
-                future = slaveConn.writeRpcRequest(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
+                future = slaveConn.write_rpc_request(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
                 rpcFutures.append(future)
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for _, response, _ in responses]))
@@ -1023,7 +1023,7 @@ class SlaveServer():
 
             batchRequest = BatchAddXshardTxListRequest(requestList)
             for slaveConn in self.shardToSlaves[branch.get_shard_id()]:
-                future = slaveConn.writeRpcRequest(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batchRequest)
+                future = slaveConn.write_rpc_request(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batchRequest)
                 rpcFutures.append(future)
         responses = await asyncio.gather(*rpcFutures)
         check(all([response.errorCode == 0 for _, response, _ in responses]))
@@ -1040,7 +1040,7 @@ class SlaveServer():
         try:
             xShardList = shardState.addBlock(block)
         except Exception as e:
-            Logger.errorException()
+            Logger.error_exception()
             return False
 
         # block has been added to local state and let's pass to peers
@@ -1048,7 +1048,7 @@ class SlaveServer():
             if oldTip != shardState.tip():
                 self.master.broadcastNewTip(block.header.branch)
         except Exception:
-            Logger.warningEverySec("broadcast tip failure", 1)
+            Logger.warning_every_sec("broadcast tip failure", 1)
 
         # block already existed in local shard state
         # but might not have been propagated to other shards and master
@@ -1099,7 +1099,7 @@ class SlaveServer():
             try:
                 xShardList = shardState.addBlock(block)
             except Exception as e:
-                Logger.errorException()
+                Logger.error_exception()
                 return False
 
             # block already existed in local shard state
@@ -1127,7 +1127,7 @@ class SlaveServer():
         if not txList:
             return
         evmTx = txList[0].code.get_evm_transaction()
-        evmTx.setShardSize(self.__get_shard_size())
+        evmTx.set_shard_size(self.__get_shard_size())
         branchValue = evmTx.fromShardId() | self.__get_shard_size()
         validTxList = []
         for tx in txList:
@@ -1139,7 +1139,7 @@ class SlaveServer():
 
     def add_tx(self, tx):
         evmTx = tx.code.get_evm_transaction()
-        evmTx.setShardSize(self.__get_shard_size())
+        evmTx.set_shard_size(self.__get_shard_size())
         branchValue = evmTx.fromShardId() | self.__get_shard_size()
         shardState = self.shardStateMap.get(branchValue, None)
         if not shardState:
@@ -1148,7 +1148,7 @@ class SlaveServer():
 
     def executeTx(self, tx, fromAddress) -> Optional[bytes]:
         evmTx = tx.code.get_evm_transaction()
-        evmTx.setShardSize(self.__get_shard_size())
+        evmTx.set_shard_size(self.__get_shard_size())
         branchValue = evmTx.fromShardId() | self.__get_shard_size()
         shardState = self.shardStateMap.get(branchValue, None)
         if not shardState:

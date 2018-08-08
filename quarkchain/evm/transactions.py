@@ -178,7 +178,7 @@ class Transaction(rlp.Serializable):
         if self.to in (b'', '\0' * 20):
             return mk_contract_address(self.sender, self.nonce)
 
-    def setShardSize(self, shardSize):
+    def set_shard_size(self, shardSize):
         check(is_p2(shardSize))
         self.shardSize = shardSize
 

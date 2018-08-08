@@ -101,7 +101,7 @@ class DefaultConfig:
         # whether to index transaction by address
         self.ENABLE_TRANSACTION_HISTORY = True
 
-    def setShardSize(self, shardSize):
+    def set_shard_size(self, shardSize):
         assert(is_p2(shardSize))
         self.SHARD_SIZE = shardSize
         self.SHARD_SIZE_BITS = int_left_most_bit(shardSize) - 1
@@ -140,7 +140,7 @@ class Env:
         self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
         self.clusterConfig = clusterConfig or DefaultClusterConfig()
 
-    def setNetworkId(self, networkId):
+    def set_network_id(self, networkId):
         self.config.NETWORK_ID = networkId
         self.evmConfig["NETWORK_ID"] = networkId
 

@@ -21,7 +21,7 @@ class Metadata(Serializable):
         pass
 
     @staticmethod
-    def getByteSize():
+    def get_byte_size():
         ''' Returns the size (in bytes) of the serialized object '''
         return 0
 
@@ -55,7 +55,7 @@ class AbstractConnection:
     async def readMetadataAndRawData(self):
         raise NotImplementedError()
 
-    def writeRawData(self, metadata, rawData):
+    def write_raw_data(self, metadata, rawData):
         raise NotImplementedError()
 
     def __parseCommand(self, rawData):
@@ -72,26 +72,26 @@ class AbstractConnection:
             if metadata is None:
                 return (None, None, None)
         except Exception as e:
-            self.closeWithError("Error reading command: {}".format(e))
+            self.close_with_error("Error reading command: {}".format(e))
             return (None, None, None)
         op, cmd, rpcId = self.__parseCommand(rawData)
 
         # we don't return the metadata to not break the existing code
         return (op, cmd, rpcId)
 
-    def writeRawCommand(self, op, cmdData, rpcId=0, metadata=None):
+    def write_raw_command(self, op, cmdData, rpcId=0, metadata=None):
         metadata = metadata if metadata else self.metadataClass()
         ba = bytearray()
         ba.append(op)
         ba.extend(rpcId.to_bytes(8, byteorder="big"))
         ba.extend(cmdData)
-        self.writeRawData(metadata, ba)
+        self.write_raw_data(metadata, ba)
 
-    def writeCommand(self, op, cmd, rpcId=0, metadata=None):
+    def write_command(self, op, cmd, rpcId=0, metadata=None):
         data = cmd.serialize()
-        self.writeRawCommand(op, data, rpcId, metadata)
+        self.write_raw_command(op, data, rpcId, metadata)
 
-    def writeRpcRequest(self, op, cmd, metadata=None):
+    def write_rpc_request(self, op, cmd, metadata=None):
         rpcFuture = asyncio.Future()
 
         if self.state != ConnectionState.ACTIVE:
@@ -102,11 +102,11 @@ class AbstractConnection:
         self.rpcId += 1
         rpcId = self.rpcId
         self.rpcFutureMap[rpcId] = rpcFuture
-        self.writeCommand(op, cmd, rpcId, metadata)
+        self.write_command(op, cmd, rpcId, metadata)
         return rpcFuture
 
     def __writeRpcResponse(self, op, cmd, rpcId, metadata):
-        self.writeCommand(op, cmd, rpcId, metadata)
+        self.write_command(op, cmd, rpcId, metadata)
 
     async def __handleRequest(self, op, request):
         handler = self.opNonRpcMap[op]
@@ -118,7 +118,7 @@ class AbstractConnection:
         resp = await handler(self, request)
         self.__writeRpcResponse(respOp, resp, rpcId, metadata)
 
-    def validateAndUpdatePeerRpcId(self, metadata, rpcId):
+    def validate_and_update_peer_rpc_id(self, metadata, rpcId):
         if rpcId <= self.peerRpcId:
             raise RuntimeError("incorrect rpc request id sequence")
         self.peerRpcId = rpcId
@@ -136,7 +136,7 @@ class AbstractConnection:
             await self.__handleRequest(op, cmd)
         elif op in self.opRpcMap:
             # Check if it is a valid RPC request
-            self.validateAndUpdatePeerRpcId(metadata, rpcId)
+            self.validate_and_update_peer_rpc_id(metadata, rpcId)
 
             await self.__handleRpcRequest(op, cmd, rpcId, metadata)
         else:
@@ -151,8 +151,8 @@ class AbstractConnection:
         try:
             await self.handleMetadataAndRawData(metadata, rawData)
         except Exception as e:
-            Logger.logException()
-            self.closeWithError("{}: error processing request: {}".format(self.name, e))
+            Logger.log_exception()
+            self.close_with_error("{}: error processing request: {}".format(self.name, e))
 
     async def loopOnce(self):
         try:
@@ -162,8 +162,8 @@ class AbstractConnection:
                 self.close()
                 return
         except Exception as e:
-            Logger.logException()
-            self.closeWithError("{}: error reading request: {}".format(self.name, e))
+            Logger.log_exception()
+            self.close_with_error("{}: error reading request: {}".format(self.name, e))
             return
 
         asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
@@ -194,14 +194,14 @@ class AbstractConnection:
             self.state = ConnectionState.CLOSED
             self.closeFuture.set_result(None)
 
-    def closeWithError(self, error):
+    def close_with_error(self, error):
         self.close()
         return error
 
-    def isActive(self):
+    def is_active(self):
         return self.state == ConnectionState.ACTIVE
 
-    def isClosed(self):
+    def is_closed(self):
         return self.state == ConnectionState.CLOSED
 
 
@@ -252,14 +252,14 @@ class Connection(AbstractConnection):
         if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
             raise RuntimeError("{}: command package exceed limit".format(self.name))
 
-        metadataBytes = await self.__readFully(self.metadataClass.getByteSize())
+        metadataBytes = await self.__readFully(self.metadataClass.get_byte_size())
         metadata = self.metadataClass.deserialize(metadataBytes)
 
         rawDataWithoutSize = await self.__readFully(1 + 8 + size)
         return metadata, rawDataWithoutSize
 
-    def writeRawData(self, metadata, rawData):
-        ''' Override AbstractConnection.writeRawData()
+    def write_raw_data(self, metadata, rawData):
+        ''' Override AbstractConnection.write_raw_data()
         '''
         cmdLengthBytes = (len(rawData) - 8 - 1).to_bytes(4, byteorder="big")
         self.writer.write(cmdLengthBytes)

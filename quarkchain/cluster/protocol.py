@@ -62,7 +62,7 @@ class ProxyConnection(Connection):
         forwardConn = self.getConnectionToForward(metadata)
         if forwardConn:
             check(self.validateConnection(forwardConn))
-            return forwardConn.writeRawData(self.getMetadataToForward(metadata), rawData)
+            return forwardConn.write_raw_data(self.getMetadataToForward(metadata), rawData)
         await super().handleMetadataAndRawData(metadata, rawData)
 
 
@@ -73,14 +73,14 @@ class ForwardingVirtualConnection():
     def __init__(self, vConn):
         self.vConn = vConn
 
-    def writeRawData(self, metadata, rawData):
+    def write_raw_data(self, metadata, rawData):
         self.vConn.readDeque.append((metadata, rawData))
         if not self.vConn.readEvent.is_set():
             self.vConn.readEvent.set()
 
     def close(self):
         # Write EOF
-        self.writeRawData(None, None)
+        self.write_raw_data(None, None)
 
 
 class VirtualConnection(AbstractConnection):
@@ -102,8 +102,8 @@ class VirtualConnection(AbstractConnection):
         metadata, rawDataWithoutSize = self.readDeque.popleft()
         return metadata, rawDataWithoutSize
 
-    def writeRawData(self, metadata, rawData):
-        self.proxyConn.writeRawData(
+    def write_raw_data(self, metadata, rawData):
+        self.proxyConn.write_raw_data(
             self.getMetadataToWrite(metadata),
             rawData)
 
@@ -121,7 +121,7 @@ class NullConnection(AbstractConnection):
     def __init__(self):
         super().__init__(dict(), dict(), dict(), None, Metadata, name="NULL_CONNECTION")
 
-    def writeRawData(self, metadata, rawData):
+    def write_raw_data(self, metadata, rawData):
         pass
 
 
@@ -138,7 +138,7 @@ class P2PMetadata(Metadata):
         self.branch = branch if branch else Branch(ROOT_SHARD_ID)
 
     @staticmethod
-    def getByteSize():
+    def get_byte_size():
         return 4
 
 
@@ -154,7 +154,7 @@ class ClusterMetadata(Metadata):
         self.clusterPeerId = clusterPeerId
 
     @staticmethod
-    def getByteSize():
+    def get_byte_size():
         return 12
 
 

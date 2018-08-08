@@ -143,7 +143,7 @@ class TransactionHistoryMixin:
             start = originalStart
 
         txList = []
-        for k, v in self.db.reversedRangeIter(start, end):
+        for k, v in self.db.reversed_range_iter(start, end):
             limit -= 1
             if limit < 0:
                 break
@@ -530,7 +530,7 @@ class ShardState:
                 fromFullShardId=evmTx.fromFullShardId, toFullShardId=evmTx.toFullShardId, networkId=evmTx.networkId)
             evmTx.sender = fromAddress.recipient
 
-        evmTx.setShardSize(self.branch.get_shard_size())
+        evmTx.set_shard_size(self.branch.get_shard_size())
 
         if evmTx.networkId != self.env.config.NETWORK_ID:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
@@ -567,7 +567,7 @@ class ShardState:
             self.txDict[txHash] = tx
             return True
         except Exception as e:
-            Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
+            Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
             return False
 
     def executeTx(self, tx: Transaction, fromAddress) -> Optional[bytes]:
@@ -578,7 +578,7 @@ class ShardState:
             success, output = apply_transaction(state, evmTx, tx_wrapper_hash=bytes(32))
             return output if success else None
         except Exception as e:
-            Logger.warningEverySec("failed to apply transaction: {}".format(e), 1)
+            Logger.warning_every_sec("failed to apply transaction: {}".format(e), 1)
             return None
 
     def __getEvmStateForNewBlock(self, block, ephemeral=True):
@@ -655,7 +655,7 @@ class ShardState:
         # Check difficulty
         if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.diffCalc.calculateDiffWithParent(prevHeader, block.header.createTime)
+                diff = self.diffCalc.calculate_diffWithParent(prevHeader, block.header.createTime)
                 if diff != block.header.difficulty:
                     raise ValueError("incorrect difficulty")
                 metric = diff * int.from_bytes(block.header.get_hash(), byteorder="big")
@@ -701,11 +701,11 @@ class ShardState:
         for idx, tx in enumerate(block.txList):
             try:
                 evmTx = self.__validateTx(tx, evmState)
-                evmTx.setShardSize(self.branch.get_shard_size())
+                evmTx.set_shard_size(self.branch.get_shard_size())
                 apply_transaction(evmState, evmTx, tx.get_hash())
                 evmTxIncluded.append(evmTx)
             except Exception as e:
-                Logger.debugException()
+                Logger.debug_exception()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
                     tx.get_hash().hex(), idx, e))
                 raise e
@@ -822,7 +822,7 @@ class ShardState:
         # TODO: Check evm bloom
 
         # TODO: Add block reward to coinbase
-        # self.rewardCalc.getBlockReward(self):
+        # self.rewardCalc.get_block_reward(self):
         self.db.putMinorBlock(block, xShardReceiveTxList)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
@@ -879,10 +879,10 @@ class ShardState:
     def getNextBlockDifficulty(self, createTime=None):
         if not createTime:
             createTime = max(int(time.time()), self.headerTip.createTime + 1)
-        return self.diffCalc.calculateDiffWithParent(self.headerTip, createTime)
+        return self.diffCalc.calculate_diffWithParent(self.headerTip, createTime)
 
     def getNextBlockReward(self):
-        return self.rewardCalc.getBlockReward(self)
+        return self.rewardCalc.get_block_reward(self)
 
     def getNextBlockCoinbaseAmount(self):
         # TODO: add block reward
@@ -943,13 +943,13 @@ class ShardState:
                 networkId=self.env.config.NETWORK_ID,
             )
             evmTx.sign(key=self.env.config.GENESIS_KEY)
-            evmTx.setShardSize(self.branch.get_shard_size())
+            evmTx.set_shard_size(self.branch.get_shard_size())
             try:
                 # tx_wrapper_hash is not needed for in-shard tx
                 apply_transaction(evmState, evmTx, tx_wrapper_hash=bytes(32))
                 block.add_tx(Transaction(code=Code.create_evm_code(evmTx)))
             except Exception as e:
-                Logger.errorException()
+                Logger.error_exception()
                 return
 
     def createBlockToMine(self, createTime=None, address=None, gasLimit=None):
@@ -991,14 +991,14 @@ class ShardState:
             )
             if evmTx is None:
                 break
-            evmTx.setShardSize(self.branch.get_shard_size())
+            evmTx.set_shard_size(self.branch.get_shard_size())
             try:
                 tx = Transaction(code=Code.create_evm_code(evmTx))
                 apply_transaction(evmState, evmTx, tx.get_hash())
                 block.add_tx(tx)
                 popedTxs.append(evmTx)
             except Exception as e:
-                Logger.warningEverySec("Failed to include transaction: {}".format(e), 1)
+                Logger.warning_every_sec("Failed to include transaction: {}".format(e), 1)
                 tx = Transaction(code=Code.create_evm_code(evmTx))
                 self.txDict.pop(tx.get_hash(), None)
 

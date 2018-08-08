@@ -81,15 +81,15 @@ class Logger:
     logger = logging.getLogger()
 
     @classmethod
-    def isEnableForDebug(cls):
+    def is_enable_for_debug(cls):
         return cls.logger.isEnabledFor(logging.DEBUG)
 
     @classmethod
-    def isEnableForInfo(cls):
+    def is_enable_for_info(cls):
         return cls.logger.isEnabledFor(logging.INFO)
 
     @classmethod
-    def isEnableForWarning(cls):
+    def is_enable_for_warning(cls):
         return cls.logger.isEnabledFor(logging.WARNING)
 
     @staticmethod
@@ -97,7 +97,7 @@ class Logger:
         logging.debug(msg, *args, **kwargs)
 
     @classmethod
-    def debugEverySec(cls, msg, duration):
+    def debug_every_sec(cls, msg, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
             Logger.debug(msg)
@@ -113,7 +113,7 @@ class Logger:
         logging.info(msg)
 
     @classmethod
-    def infoEverySec(cls, msg, duration):
+    def info_every_sec(cls, msg, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
             Logger.info(msg)
@@ -129,7 +129,7 @@ class Logger:
         logging.warning(msg)
 
     @classmethod
-    def warningEverySec(cls, msg, duration):
+    def warning_every_sec(cls, msg, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
             Logger.warning(msg)
@@ -145,7 +145,7 @@ class Logger:
         logging.error(msg)
 
     @classmethod
-    def errorEverySec(cls, msg, duration):
+    def error_every_sec(cls, msg, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
             Logger.error(msg)
@@ -157,27 +157,27 @@ class Logger:
             cls.lastErrorTimeMap[key] = time.time()
 
     @staticmethod
-    def errorException():
+    def error_exception():
         Logger.error(traceback.format_exc())
 
     @staticmethod
-    def logException():
-        Logger.errorException()
+    def log_exception():
+        Logger.error_exception()
 
     @classmethod
-    def errorExceptionEverySec(cls, duration):
+    def error_exceptionEverySec(cls, duration):
         stackList = traceback.format_stack()
         if len(stackList) <= 1:
-            cls.errorException()
+            cls.error_exception()
             return
         key = stackList[-2]
 
         if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
-            cls.errorException()
+            cls.error_exception()
             cls.lastErrorTimeMap[key] = time.time()
 
     @staticmethod
-    def debugException():
+    def debug_exception():
         Logger.debug(traceback.format_exc())
 
     @staticmethod
@@ -186,7 +186,7 @@ class Logger:
         crash()
 
     @staticmethod
-    def fatalException(msg):
+    def fatal_exception(msg):
         Logger.fatal(traceback.format_exc())
 
 
@@ -223,10 +223,10 @@ def main():
     set_logging_level("debug")
 
     for i in range(100):
-        Logger.debugEverySec("log every 1s", 1)
-        Logger.infoEverySec("log every 2s", 2)
-        Logger.warningEverySec("log every 3s", 3)
-        Logger.errorEverySec("log every 4s", 4)
+        Logger.debug_every_sec("log every 1s", 1)
+        Logger.info_every_sec("log every 2s", 2)
+        Logger.warning_every_sec("log every 3s", 3)
+        Logger.error_every_sec("log every 4s", 4)
         time.sleep(0.1)
 
 
