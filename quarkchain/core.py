@@ -10,9 +10,9 @@ import random
 
 import ecdsa
 import rlp
+from eth_keys import KeyAPI
 
 import quarkchain.evm.messages
-from ethereum import utils
 from quarkchain.evm import trie
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import int_left_most_bit, is_p2, sha3_256, check, masks_have_overlap
@@ -530,9 +530,11 @@ class Transaction(Serializable):
         """
         signList = []
         for key in keys:
-            v, r, s = utils.ecsign(self.getHashUnsigned(), key)
+            sig = KeyAPI.PrivateKey(key).sign_msg(self.getHashUnsigned())
             signList.append(
-                v.to_bytes(1, byteorder="big") + r.to_bytes(32, byteorder="big") + s.to_bytes(32, byteorder="big"))
+                sig.r.to_bytes(32, byteorder="big") +
+                sig.s.to_bytes(32, byteorder="big") +
+                sig.v.to_bytes(1, byteorder="big"))
         self.signList = signList
         return self
 
@@ -544,15 +546,9 @@ class Transaction(Serializable):
             return False
 
         for i in range(len(recipients)):
-            bb = ByteBuffer(self.signList[i])
-            v = bb.getUint8()
-            r = bb.getUint256()
-            s = bb.getUint256()
-            if r >= secpk1n or s >= secpk1n or r == 0 or s == 0:
-                return False
-            pub = utils.ecrecover_to_pub(
-                self.getHashUnsigned(), v, r, s)
-            if sha3_256(pub)[-20:] != recipients[i]:
+            sig = KeyAPI.Signature(signature_bytes=self.signList[i])
+            pub = sig.recover_public_key_from_msg(self.getHashUnsigned())
+            if pub.to_canonical_address() != recipients[i]:
                 return False
         return True
 
@@ -930,9 +926,9 @@ class CrossShardTransactionList(Serializable):
 
 
 def test():
-    rec = utils.privtoaddr(
-        "208065a247edbe5df4d86fbdc0171303f23a76961be9f6013850dd2bdc759bbb")
-    assert rec == b'\x0b\xedz\xbda$v5\xc1\x97>\xb3\x84t\xa2Qn\xd1\xd8\x84'
+    priv = KeyAPI.PrivateKey(bytes.fromhex("208065a247edbe5df4d86fbdc0171303f23a76961be9f6013850dd2bdc759bbb"))
+    addr = priv.public_key.to_canonical_address()
+    assert addr == b'\x0b\xedz\xbda$v5\xc1\x97>\xb3\x84t\xa2Qn\xd1\xd8\x84'
 
 
 def main():

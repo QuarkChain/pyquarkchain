@@ -4,7 +4,7 @@ import logging
 import time
 import traceback
 
-from ethereum.utils import sha3_256 as _sha3_256
+from eth_utils import keccak
 
 
 def int_left_most_bit(v):
@@ -39,7 +39,8 @@ def sha3_256(x):
         x = bytes(x)
     if not isinstance(x, bytes):
         raise RuntimeError("sha3_256 only accepts bytes or bytearray")
-    return _sha3_256(x)
+    # TODO: keccak accepts more types than bytes
+    return keccak(x)
 
 
 def check(condition):
