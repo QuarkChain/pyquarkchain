@@ -12,13 +12,13 @@ def create_test_transaction(
         remaining=100,
         shardId=0,
         outputIndex=0,
-        code=Code.getTransferCode()):
-    acc1 = Address.createFromIdentity(fromId, shardId)
+        code=Code.get_transfer_code()):
+    acc1 = Address.create_from_identity(fromId, shardId)
     tx = Transaction(
         inList=[TransactionInput(fromTxId, outputIndex)],
         code=code,
         outList=[TransactionOutput(acc1, remaining), TransactionOutput(toAddress, amount)])
-    tx.sign([fromId.getKey()])
+    tx.sign([fromId.get_key()])
     return tx
 
 

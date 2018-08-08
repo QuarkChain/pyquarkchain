@@ -162,7 +162,7 @@ class State:
         if self.block_number < n or n > 256 or n < 0:
             o = b'\x00' * 32
         else:
-            o = self.prev_headers[n].getHash() if self.prev_headers[n] else b'\x00' * 32
+            o = self.prev_headers[n].get_hash() if self.prev_headers[n] else b'\x00' * 32
         return o
 
     def add_block_header(self, block_header):

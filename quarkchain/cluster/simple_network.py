@@ -77,7 +77,7 @@ class Peer(P2PConnection):
 
         # Validate best root and minor blocks from peer
         # TODO: validate hash and difficulty through a helper function
-        if cmd.rootBlockHeader.shardInfo.getShardSize() != self.env.config.SHARD_SIZE:
+        if cmd.rootBlockHeader.shardInfo.get_shard_size() != self.env.config.SHARD_SIZE:
             return self.closeWithError(
                 "Shard size from root block header does not match local")
 
@@ -184,7 +184,7 @@ class Peer(P2PConnection):
 
     async def handleNewTransactionList(self, op, cmd, rpcId):
         for tx in cmd.transactionList:
-            Logger.debug("Received tx {} from peer {}".format(tx.getHash().hex(), self.id.hex()))
+            Logger.debug("Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex()))
             await self.masterServer.addTransaction(tx, self)
 
     async def handleGetRootBlockHeaderListRequest(self, request):

@@ -77,7 +77,7 @@ class Miner:
         return metric < 2 ** 256
 
     def __logStatus(self, success):
-        shard = "R" if self.isRoot else self.block.header.branch.getShardId()
+        shard = "R" if self.isRoot else self.block.header.branch.get_shard_id()
         count = len(self.block.minorBlockHeaderList) if self.isRoot else len(self.block.txList)
         status = "success" if success else "fail"
         elapsed = time.time() - self.block.header.createTime
@@ -98,7 +98,7 @@ class Miner:
                 self.isRoot = isRoot
             for i in range(1000000):
                 self.block.header.nonce += 1
-                metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
+                metric = int.from_bytes(self.block.header.get_hash(), byteorder="big") * self.block.header.difficulty
                 if self.__checkMetric(metric):
                     self.__simulatePowDelay(block.header.createTime)
                     try:

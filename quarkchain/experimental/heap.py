@@ -90,7 +90,7 @@ class Heap:
     def size(self):
         return self.heapSize
 
-    def isEmpty(self):
+    def is_empty(self):
         return self.heapSize == 0
 
     def __str__(self):

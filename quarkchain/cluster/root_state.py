@@ -61,7 +61,7 @@ class RootDb:
 
             self.rHeaderPool[rHash] = rBlock.header
             for mHeader in rBlock.minorBlockHeaderList:
-                self.mHashSet.add(mHeader.getHash())
+                self.mHashSet.add(mHeader.get_hash())
 
     def getTipHeader(self):
         return self.tipHeader
@@ -69,7 +69,7 @@ class RootDb:
     # ------------------------- Root block db operations --------------------------------
     def putRootBlock(self, rootBlock, lastMinorBlockHeaderList, rootBlockHash=None):
         if rootBlockHash is None:
-            rootBlockHash = rootBlock.header.getHash()
+            rootBlockHash = rootBlock.header.get_hash()
 
         lastList = LastMinorBlockHeaderList(headerList=lastMinorBlockHeaderList)
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
@@ -105,7 +105,7 @@ class RootDb:
         return h in self.rHeaderPool
 
     def putRootBlockIndex(self, block):
-        self.db.put(b"ri_%d" % block.header.height, block.header.getHash())
+        self.db.put(b"ri_%d" % block.header.height, block.header.get_hash())
 
     def getRootBlockByHeight(self, height):
         key = b"ri_%d" % height
@@ -163,12 +163,12 @@ class RootState:
         self.db.putRootBlockIndex(genesisRootBlock1)
         self.tip = genesisRootBlock1.header
         for b in gMinorBlockList0:
-            self.addValidatedMinorBlockHash(b.header.getHash())
+            self.addValidatedMinorBlockHash(b.header.get_hash())
         for b in gMinorBlockList1:
-            self.addValidatedMinorBlockHash(b.header.getHash())
+            self.addValidatedMinorBlockHash(b.header.get_hash())
 
     def getTipBlock(self):
-        return self.db.getRootBlockByHash(self.tip.getHash())
+        return self.db.getRootBlockByHash(self.tip.get_hash())
 
     def addValidatedMinorBlockHash(self, h):
         self.db.putMinorBlockHash(h)
@@ -182,7 +182,7 @@ class RootState:
         if createTime is None:
             createTime = max(self.tip.createTime + 1, int(time.time()))
         difficulty = self.diffCalc.calculateDiffWithParent(self.tip, createTime)
-        block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficulty=difficulty)
+        block = self.tip.create_block_to_append(createTime=createTime, address=address, difficulty=difficulty)
         block.minorBlockHeaderList = mHeaderList
 
         coinbaseAmount = 0
@@ -210,7 +210,7 @@ class RootState:
                 blockHeader.createTime, prevBlockHeader.createTime))
 
         if blockHash is None:
-            blockHash = blockHeader.getHash()
+            blockHash = blockHeader.get_hash()
 
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
@@ -253,8 +253,8 @@ class RootState:
         lastMinorBlockHeaderList = []
         blockCountInShard = 0
         for idx, mHeader in enumerate(block.minorBlockHeaderList):
-            if mHeader.branch.getShardId() != shardId:
-                if mHeader.branch.getShardId() != shardId + 1:
+            if mHeader.branch.get_shard_id() != shardId:
+                if mHeader.branch.get_shard_id() != shardId + 1:
                     raise ValueError("shard id must be ordered")
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     raise ValueError("fail to prove progress")
@@ -271,17 +271,17 @@ class RootState:
                 blockCountInShard = 0
                 prevHeader = prevLastMinorBlockHeaderList[shardId]
 
-            if not self.db.containMinorBlockByHash(mHeader.getHash()):
+            if not self.db.containMinorBlockByHash(mHeader.get_hash()):
                 raise ValueError("minor block is not validated. {}-{}".format(
-                    mHeader.branch.getShardId(), mHeader.height))
+                    mHeader.branch.get_shard_id(), mHeader.height))
 
-            if mHeader.hashPrevMinorBlock != prevHeader.getHash():
+            if mHeader.hashPrevMinorBlock != prevHeader.get_hash():
                 raise ValueError("minor block doesn't link to previous minor block")
             blockCountInShard += 1
             prevHeader = mHeader
             # TODO: Add coinbase
 
-        if shardId != block.header.shardInfo.getShardSize() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
+        if shardId != block.header.shardInfo.get_shard_size() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
             raise ValueError("fail to prove progress")
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             raise ValueError("fail to prove progress")
