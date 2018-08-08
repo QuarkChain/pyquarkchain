@@ -10,7 +10,7 @@ from hashlib import sha256
 import struct
 from coincurve import PrivateKey, PublicKey
 
-from ethereum.utils import sha3_256
+from quarkchain.utils import sha3_256
 
 hmac_sha256 = pyelliptic.hmac_sha256
 

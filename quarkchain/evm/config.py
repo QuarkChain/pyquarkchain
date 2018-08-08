@@ -1,8 +1,7 @@
 from rlp.utils import decode_hex
 
-from ethereum import utils
+from quarkchain.evm import utils
 from quarkchain.db import InMemoryDb, Db
-from ethereum.child_dao_list import L as child_dao_list
 import copy
 
 
@@ -75,7 +74,6 @@ default_config = dict(
     DAO_FORK_BLKHASH=decode_hex(
         '4985f5ca3d2afbec36529aa96f74de3cc10a2a4a6c44f2157a57d2c6059a11bb'),
     DAO_FORK_BLKEXTRA=decode_hex('64616f2d686172642d666f726b'),
-    CHILD_DAO_LIST=list(map(utils.normalize_address, child_dao_list)),
     DAO_WITHDRAWER=utils.normalize_address(
         '0xbf4ed7b27f1d666546e30d74d50d173d20bca754'),
     # Anti-DoS fork

@@ -1,9 +1,8 @@
 import json
 import sys
-import quarkchain.evm.tests.new_statetest_utils as new_statetest_utils
-import ethereum.tools.testutils as testutils
+from quarkchain.evm.tests import new_statetest_utils, testutils
 
-from ethereum.slogging import get_logger, configure_logging
+from quarkchain.evm.slogging import get_logger, configure_logging
 logger = get_logger()
 # customize VM log output to your needs
 # hint: use 'py.test' with the '-s' option to dump logs to the console

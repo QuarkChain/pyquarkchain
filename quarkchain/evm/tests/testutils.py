@@ -1,44 +1,8 @@
-from ethereum import abi
-import time
 import os
 import json
-from ethereum.utils import encode_hex, str_to_bytes
 
-FILL = 1
-VERIFY = 2
-TIME = 3
 
 fixture_path = os.path.join(os.path.dirname(__file__), '../..', 'fixtures')
-
-
-def fill_abi_test(params): return run_abi_test(params, FILL)
-
-
-def check_abi_test(params): return run_abi_test(params, VERIFY)
-
-
-def bytesify(li):
-    return [str_to_bytes(x) if isinstance(x, str) else x for x in li]
-
-
-def run_abi_test(params, mode):
-    types, args = params['types'], params['args']
-    out = abi.encode_abi(types, args)
-    assert bytesify(abi.decode_abi(types, out)) == bytesify(args)
-    if mode == FILL:
-        params['result'] = encode_hex(out)
-        return params
-    elif mode == VERIFY:
-        assert params['result'] == encode_hex(out)
-    elif mode == TIME:
-        x = time.time()
-        abi.encode_abi(types, args)
-        y = time.time()
-        abi.decode_abi(out, args)
-        return {
-            'encoding': y - x,
-            'decoding': time.time() - y
-        }
 
 
 def generate_test_params(testsource, metafunc,

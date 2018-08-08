@@ -1,6 +1,6 @@
 import re
 from typing import Iterable
-from ethereum import utils
+from quarkchain.utils import sha3_256
 
 
 def intToBytes(n: int):
@@ -110,7 +110,7 @@ def soliditySHA3(types: Iterable, values: Iterable):
     """
     returns 0x hex str
     """
-    return "0x{}".format(utils.sha3(solidityPack(types, values)).hex())
+    return "0x{}".format(sha3_256(solidityPack(types, values)).hex())
 
 
 def typedSignatureHash(tx):

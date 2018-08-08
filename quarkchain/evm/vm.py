@@ -2,10 +2,10 @@
 import sys
 import copy
 from rlp.utils import encode_hex, ascii_chr
-from ethereum import utils
+from quarkchain.evm import utils
 from quarkchain.evm import opcodes
-from ethereum.slogging import get_logger
-from ethereum.utils import to_string, bytearray_to_bytestr, safe_ord
+from quarkchain.evm.slogging import get_logger
+from quarkchain.evm.utils import to_string, bytearray_to_bytestr, safe_ord
 from functools import lru_cache
 
 # ###### dev hack flags ###############

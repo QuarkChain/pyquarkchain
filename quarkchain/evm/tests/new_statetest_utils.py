@@ -1,10 +1,10 @@
 from quarkchain.evm.state import State
 from quarkchain.evm.common import FakeHeader
-from ethereum.utils import decode_hex, parse_int_or_hex, sha3, to_string, \
+from quarkchain.evm.utils import decode_hex, parse_int_or_hex, sha3, to_string, \
     remove_0x_head, encode_hex, big_endian_to_int
 from quarkchain.evm.config import default_config, Env
 from quarkchain.config import get_default_evm_config
-from ethereum.exceptions import InvalidTransaction
+from quarkchain.evm.exceptions import InvalidTransaction
 import quarkchain.evm.transactions as transactions
 from quarkchain.evm.messages import apply_transaction
 import copy
