@@ -75,7 +75,7 @@ class Network:
                 pass
         await asyncio.gather(*[proc.wait() for prefix, proc in self.procs])
 
-    def startAndLoop(self):
+    def start_and_loop(self):
         try:
             asyncio.get_event_loop().run_until_complete(self.run())
         except KeyboardInterrupt:
@@ -124,7 +124,7 @@ def main():
     )
 
     network = Network(config)
-    network.startAndLoop()
+    network.start_and_loop()
 
 
 if __name__ == '__main__':

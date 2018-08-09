@@ -37,7 +37,7 @@ class Scheduler:
         self.terminated = False
         self.stopped = False
 
-    def scheduleAfter(self, duration, callback, data):
+    def schedule_after(self, duration, callback, data):
         if self.stopped:
             return None
         task = Task(self, self.ts + duration, callback, data)
@@ -53,13 +53,13 @@ class Scheduler:
         self.terminated = True
 
     def stop(self):
-        ''' Stop the scheduler.  scheduleAfter() will return None thereafter.
+        ''' Stop the scheduler.  schedule_after() will return None thereafter.
         '''
         self.stopped = True
 
-    def loopUntilNoTask(self):
-        while not self.pq.isEmpty() and not self.terminated:
-            task = self.pq.popTop()
+    def loop_until_no_task(self):
+        while not self.pq.is_empty() and not self.terminated:
+            task = self.pq.pop_top()
             assert(task.ts >= self.ts)
             self.ts = task.ts
             task.run()

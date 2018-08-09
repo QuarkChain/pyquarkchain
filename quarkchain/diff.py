@@ -10,10 +10,10 @@ class EthDifficultyCalculator:
         self.minimumDiff = minimumDiff
         self.checkUncle = checkUncle
 
-    def calculateDiff(self, chain, createTime=None):
+    def calculate_diff(self, chain, createTime=None):
         raise NotImplementedError()
 
-    def calculateDiffWithParent(self, parent, createTime):
+    def calculate_diff_with_parent(self, parent, createTime):
         # TODO: support uncle
         check(not self.checkUncle)
         check(parent.createTime < createTime)

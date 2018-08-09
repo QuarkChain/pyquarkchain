@@ -206,7 +206,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         tx.startgas - intrinsic_gas,
         message_data,
         code_address=tx.to,
-        is_cross_shard=tx.isCrossShard(),
+        is_cross_shard=tx.is_cross_shard(),
         from_full_shard_id=tx.fromFullShardId,
         to_full_shard_id=tx.toFullShardId,
         tx_hash=tx_wrapper_hash,
@@ -254,7 +254,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         # sell remaining gas
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
         # if x-shard, reserve part of the gas for the target shard miner
-        fee = tx.gasprice * (gas_used - (opcodes.GTXXSHARDCOST if tx.isCrossShard() else 0))
+        fee = tx.gasprice * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard() else 0))
         state.delta_balance(state.block_coinbase, fee)
         state.block_fee += fee
         if tx.to:

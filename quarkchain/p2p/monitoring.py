@@ -19,7 +19,7 @@ and be able to query stats or adjust mining difficulty on demand
 def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
-    peers = jsonrpcclient.request(json_rpc_url, "getPeers")
+    peers = jsonrpcclient.request(json_rpc_url, "get_peers")
     return ["{}:{}".format(ipaddress.ip_address(int(p["ip"], 16)), int(p["port"], 16))
             for p in peers["peers"]]
 
@@ -32,7 +32,7 @@ async def fetch_peers_async(node):
     json_rpc_url = "http://{}:{}".format(node[0], node[2])
     server = Server(json_rpc_url)
     try:
-        peers = await asyncio.wait_for(server.getPeers(), 5)
+        peers = await asyncio.wait_for(server.get_peers(), 5)
     except Exception:
         print("Failed to get peers from {}".format(json_rpc_url))
         peers = {"peers": []}

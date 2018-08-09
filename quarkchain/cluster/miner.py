@@ -11,21 +11,21 @@ from quarkchain.utils import Logger
 
 
 class Miner:
-    def __init__(self, createBlockAsyncFunc, addBlockAsyncFunc, getTargetBlockTimeFunc, simulate=True):
+    def __init__(self, createBlockAsyncFunc, add_blockAsyncFunc, getTargetBlockTimeFunc, simulate=True):
         """Mining will happen on a subprocess managed by this class
 
         createBlockAsyncFunc: takes no argument, returns a block (either RootBlock or MinorBlock)
-        addBlockAsyncFunc: takes a block
+        add_blockAsyncFunc: takes a block
         getTargetBlockTimeFunc: takes no argument, returns the target block time in second
         """
         self.createBlockAsyncFunc = createBlockAsyncFunc
-        self.addBlockAsyncFunc = addBlockAsyncFunc
+        self.add_blockAsyncFunc = add_blockAsyncFunc
         self.getTargetBlockTimeFunc = getTargetBlockTimeFunc
         self.simulate = simulate
         self.enabled = False
         self.process = None
 
-    def isEnabled(self):
+    def is_enabled(self):
         return self.enabled
 
     def enable(self):
@@ -35,7 +35,7 @@ class Miner:
         """Stop the mining process is there is one"""
         self.enabled = False
 
-    def mineNewBlockAsync(self):
+    def mine_new_block_async(self):
         if not self.enabled:
             return False
         asyncio.ensure_future(self.__mineNewBlock())
@@ -50,7 +50,7 @@ class Miner:
             self.input.put((block, targetBlockTime))
             return
 
-        mineFunc = Miner.simulateMine if self.simulate else Miner.mine
+        mineFunc = Miner.simulate_mine if self.simulate else Miner.mine
         self.input = AioQueue()
         self.output = AioQueue()
         self.process = AioProcess(target=mineFunc, args=(block, targetBlockTime, self.input, self.output))
@@ -64,20 +64,20 @@ class Miner:
             if not block:
                 return
             try:
-                await self.addBlockAsyncFunc(block)
+                await self.add_blockAsyncFunc(block)
             except Exception:
                 Logger.logException()
-                self.mineNewBlockAsync()
+                self.mine_new_block_async()
 
     @staticmethod
     def __logStatus(block):
         isRoot = isinstance(block, RootBlock)
-        shard = "R" if isRoot else block.header.branch.getShardId()
+        shard = "R" if isRoot else block.header.branch.get_shard_id()
         count = len(block.minorBlockHeaderList) if isRoot else len(block.txList)
         elapsed = time.time() - block.header.createTime
 
         Logger.info("[{}] {} [{}] ({:.2f}) {}".format(
-            shard, block.header.height, count, elapsed, block.header.getHash().hex()))
+            shard, block.header.height, count, elapsed, block.header.get_hash().hex()))
 
     @staticmethod
     def __checkMetric(metric):
@@ -91,7 +91,7 @@ class Miner:
         """PoW"""
         while True:
             block.header.nonce += 1
-            metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
+            metric = int.from_bytes(block.header.get_hash(), byteorder="big") * block.header.difficulty
             if Miner.__checkMetric(metric):
                 Miner.__logStatus(block)
                 output.put(block)
@@ -112,12 +112,12 @@ class Miner:
             gasUsedRatio = block.meta.evmGasUsed / block.meta.evmGasLimit
             targetBlockTime = targetBlockTime * (1 - gasUsedRatio * 0.4)
             Logger.debug("[{}] target block time {:.2f}".format(
-                block.header.branch.getShardId(), targetBlockTime))
+                block.header.branch.get_shard_id(), targetBlockTime))
 
         return numpy.random.exponential(targetBlockTime)
 
     @staticmethod
-    def simulateMine(block, targetBlockTime, input, output):
+    def simulate_mine(block, targetBlockTime, input, output):
         """Sleep until the target time"""
         targetTime = block.header.createTime + numpy.random.exponential(targetBlockTime)
         while True:

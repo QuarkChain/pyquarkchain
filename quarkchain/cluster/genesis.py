@@ -30,7 +30,7 @@ def create_genesis_minor_block(env, shardId, evmState):
 
     meta = MinorBlockMeta(hashMerkleRoot=bytes(32),
                           hashEvmStateRoot=evmState.trie.root_hash,
-                          coinbaseAddress=env.config.GENESIS_ACCOUNT.addressInBranch(branch),
+                          coinbaseAddress=env.config.GENESIS_ACCOUNT.address_in_branch(branch),
                           extraData=b'It was the best of times, it was the worst of times, ... - Charles Dickens')
     header = MinorBlockHeader(version=0,
                               height=0,
@@ -74,7 +74,7 @@ def create_genesis_evm_list(env, dbMap=dict()):
 
         if env.config.ACCOUNTS_TO_FUND:
             for address in env.config.ACCOUNTS_TO_FUND:
-                if address.getShardId(env.config.SHARD_SIZE) == shardId:
+                if address.get_shard_id(env.config.SHARD_SIZE) == shardId:
                     evmState.full_shard_id = address.fullShardId
                     evmState.delta_balance(address.recipient, env.config.ACCOUNTS_TO_FUND_COIN)
 
@@ -100,13 +100,13 @@ def create_genesis_blocks(env, evmList):
     genesisMinorBlockList1 = []
     for shardId, block in enumerate(genesisMinorBlockList0):
         genesisMinorBlockList1.append(
-            block.createBlockToAppend().finalize(
+            block.create_block_to_append().finalize(
                 evmState=evmList[shardId],
-                hashPrevRootBlock=genesisRootBlock0.header.getHash()))
+                hashPrevRootBlock=genesisRootBlock0.header.get_hash()))
 
     genesisRootBlock1 = genesisRootBlock0   \
-        .createBlockToAppend()              \
-        .extendMinorBlockHeaderList([b.header for b in genesisMinorBlockList1]) \
+        .create_block_to_append()              \
+        .extend_minor_block_header_list([b.header for b in genesisMinorBlockList1]) \
         .finalize()
 
     return genesisRootBlock0, genesisRootBlock1, genesisMinorBlockList0, genesisMinorBlockList1

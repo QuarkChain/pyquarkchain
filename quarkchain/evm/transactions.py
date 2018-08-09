@@ -10,7 +10,7 @@ from rlp.utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
 from quarkchain.utils import sha3_256, is_p2, check
-from quarkchain.evm.abi import txToTypedData, typedSignatureHash
+from quarkchain.evm.abi import tx_to_typed_data, typed_signature_hash
 
 # in the yellow paper it is specified that s should be smaller than
 # secpk1n (eq.205)
@@ -148,7 +148,7 @@ class Transaction(rlp.Serializable):
 
     @property
     def hash_typed(self):
-        return bytes.fromhex(typedSignatureHash(txToTypedData(self))[2:])
+        return bytes.fromhex(typed_signature_hash(tx_to_typed_data(self))[2:])
 
     def to_dict(self):
         d = {}
@@ -169,7 +169,7 @@ class Transaction(rlp.Serializable):
                 (opcodes.CREATE[3] if not self.to else 0) +
                 opcodes.GTXDATAZERO * num_zero_bytes +
                 opcodes.GTXDATANONZERO * num_non_zero_bytes +
-                (opcodes.GTXXSHARDCOST if self.isCrossShard() else 0)
+                (opcodes.GTXXSHARDCOST if self.is_cross_shard() else 0)
         )
 
     @property
@@ -178,24 +178,24 @@ class Transaction(rlp.Serializable):
         if self.to in (b'', '\0' * 20):
             return mk_contract_address(self.sender, self.nonce)
 
-    def setShardSize(self, shardSize):
+    def set_shard_size(self, shardSize):
         check(is_p2(shardSize))
         self.shardSize = shardSize
 
-    def fromShardId(self):
+    def from_shard_id(self):
         if self.shardSize == 0:
             raise RuntimeError("shardSize is not set")
         shardMask = self.shardSize - 1
         return self.fromFullShardId & shardMask
 
-    def toShardId(self):
+    def to_shard_id(self):
         if self.shardSize == 0:
             raise RuntimeError("shardSize is not set")
         shardMask = self.shardSize - 1
         return self.toFullShardId & shardMask
 
-    def isCrossShard(self):
-        return self.fromShardId() != self.toShardId()
+    def is_cross_shard(self):
+        return self.from_shard_id() != self.to_shard_id()
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.hash == other.hash

@@ -44,10 +44,10 @@ class DummyP2PConnection(P2PConnection):
         self.mockClusterConnection = MagicMock()
         self.mockClusterConnection.__class__ = ClusterConnection
 
-    def getClusterPeerId(self):
+    def get_cluster_peer_id(self):
         return CLUSTER_PEER_ID
 
-    def getConnectionToForward(self, metadata):
+    def get_connection_to_forward(self, metadata):
         if metadata.branch == FORWARD_BRANCH:
             return self.mockClusterConnection
         return None
@@ -60,7 +60,7 @@ class DummyClusterConnection(ClusterConnection):
         self.mockP2PConnection = MagicMock()
         self.mockP2PConnection.__class__ = P2PConnection
 
-    def getConnectionToForward(self, metadata):
+    def get_connection_to_forward(self, metadata):
         if metadata.branch == FORWARD_BRANCH:
             return self.mockP2PConnection
         return None
@@ -68,7 +68,7 @@ class DummyClusterConnection(ClusterConnection):
 
 class TestP2PConnection(unittest.TestCase):
 
-    def testForward(self):
+    def test_forward(self):
         meta = P2PMetadata(FORWARD_BRANCH)
         metaBytes = meta.serialize()
         request = DummyPackage(999)
@@ -86,10 +86,10 @@ class TestP2PConnection(unittest.TestCase):
         conn = DummyP2PConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
-        conn.mockClusterConnection.writeRawData.assert_called_once_with(
+        conn.mockClusterConnection.write_raw_data.assert_called_once_with(
             ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID), rawData)
 
-    def testNoForward(self):
+    def test_no_forward(self):
         meta = P2PMetadata(EMPTY_BRANCH)
         metaBytes = meta.serialize()
         request = DummyPackage(999)
@@ -107,13 +107,13 @@ class TestP2PConnection(unittest.TestCase):
         conn = DummyP2PConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
-        conn.mockClusterConnection.writeRawData.assert_not_called()
+        conn.mockClusterConnection.write_raw_data.assert_not_called()
         writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
 
 
 class TestClusterConnection(unittest.TestCase):
 
-    def testForward(self):
+    def test_forward(self):
         meta = ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID)
         metaBytes = meta.serialize()
         request = DummyPackage(999)
@@ -131,10 +131,10 @@ class TestClusterConnection(unittest.TestCase):
         conn = DummyClusterConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
-        conn.mockP2PConnection.writeRawData.assert_called_once_with(
+        conn.mockP2PConnection.write_raw_data.assert_called_once_with(
             P2PMetadata(FORWARD_BRANCH), rawData)
 
-    def testNoForward(self):
+    def test_no_forward(self):
         meta = ClusterMetadata(EMPTY_BRANCH)
         metaBytes = meta.serialize()
         request = DummyPackage(999)
@@ -152,5 +152,5 @@ class TestClusterConnection(unittest.TestCase):
         conn = DummyClusterConnection(DEFAULT_ENV, reader, writer)
         asyncio.get_event_loop().run_until_complete(conn.loopOnce())
 
-        conn.mockP2PConnection.writeRawData.assert_not_called()
+        conn.mockP2PConnection.write_raw_data.assert_not_called()
         writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
