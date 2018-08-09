@@ -26,27 +26,27 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("send_raw_transaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
     async def get_contract_address(self, txId):
         """txId should be '0x.....' """
-        resp = await self.__send_request("get_transaction_receipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", txId)
         if not resp:
             return None
         return resp["contractAddress"]
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__send_request("get_transaction_count", addressHex)
+        resp = await self.__send_request("getTransactionCount", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("network_info")
+        resp = await self.__send_request("networkInfo")
         return int(resp["shardSize"], 16)
 
     async def get_network_id(self):
-        resp = await self.__send_request("network_info")
+        resp = await self.__send_request("networkInfo")
         return int(resp["networkId"], 16)
 
 
