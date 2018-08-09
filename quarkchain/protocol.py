@@ -52,7 +52,7 @@ class AbstractConnection:
             name = "conn_{}".format(self.__getNextConnectionId())
         self.name = name
 
-    async def readMetadataAndRawData(self):
+    async def read_metadata_and_raw_data(self):
         raise NotImplementedError()
 
     def write_raw_data(self, metadata, rawData):
@@ -65,10 +65,10 @@ class AbstractConnection:
         cmd = ser.deserialize(rawData[9:])
         return op, cmd, rpcId
 
-    async def readCommand(self):
+    async def read_command(self):
         # TODO: distinguish clean disconnect or unexpected disconnect
         try:
-            metadata, rawData = await self.readMetadataAndRawData()
+            metadata, rawData = await self.read_metadata_and_raw_data()
             if metadata is None:
                 return (None, None, None)
         except Exception as e:
@@ -123,7 +123,7 @@ class AbstractConnection:
             raise RuntimeError("incorrect rpc request id sequence")
         self.peerRpcId = rpcId
 
-    async def handleMetadataAndRawData(self, metadata, rawData):
+    async def handle_metadata_and_raw_data(self, metadata, rawData):
         ''' Subclass can override this to provide customized handler '''
         op, cmd, rpcId = self.__parseCommand(rawData)
 
@@ -149,14 +149,14 @@ class AbstractConnection:
 
     async def __internalHandleMetadataAndRawData(self, metadata, rawData):
         try:
-            await self.handleMetadataAndRawData(metadata, rawData)
+            await self.handle_metadata_and_raw_data(metadata, rawData)
         except Exception as e:
             Logger.logException()
             self.close_with_error("{}: error processing request: {}".format(self.name, e))
 
-    async def loopOnce(self):
+    async def loop_once(self):
         try:
-            metadata, rawData = await self.readMetadataAndRawData()
+            metadata, rawData = await self.read_metadata_and_raw_data()
             if metadata is None:
                 # Hit EOF
                 self.close()
@@ -168,12 +168,12 @@ class AbstractConnection:
 
         asyncio.ensure_future(self.__internalHandleMetadataAndRawData(metadata, rawData))
 
-    async def activeAndLoopForever(self):
+    async def active_and_loop_forever(self):
         if self.state == ConnectionState.CONNECTING:
             self.state = ConnectionState.ACTIVE
             self.activeFuture.set_result(None)
         while self.state == ConnectionState.ACTIVE:
-            await self.loopOnce()
+            await self.loop_once()
 
         assert(self.state == ConnectionState.CLOSED)
 
@@ -183,10 +183,10 @@ class AbstractConnection:
         AbstractConnection.abortedRpcCount += len(self.rpcFutureMap)
         self.rpcFutureMap.clear()
 
-    async def waitUntilActive(self):
+    async def wait_until_active(self):
         await self.activeFuture
 
-    async def waitUntilClosed(self):
+    async def wait_until_closed(self):
         await self.closeFuture
 
     def close(self):
@@ -240,8 +240,8 @@ class Connection(AbstractConnection):
             ba.extend(bs)
         return ba
 
-    async def readMetadataAndRawData(self):
-        ''' Override AbstractConnection.readMetadataAndRawData()
+    async def read_metadata_and_raw_data(self):
+        ''' Override AbstractConnection.read_metadata_and_raw_data()
         '''
         sizeBytes = await self.__readFully(4, allowEOF=True)
         if sizeBytes is None:

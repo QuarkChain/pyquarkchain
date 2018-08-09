@@ -313,7 +313,7 @@ class MasterConnection(ClusterConnection):
         self.slaveServer = slaveServer
         self.shardStateMap = slaveServer.shardStateMap
 
-        asyncio.ensure_future(self.activeAndLoopForever())
+        asyncio.ensure_future(self.active_and_loop_forever())
 
         # clusterPeerId -> {branchValue -> ShardConn}
         self.vConnMap = dict()
@@ -391,7 +391,7 @@ class MasterConnection(ClusterConnection):
                 continue
 
             slave = SlaveConnection(self.env, reader, writer, self.slaveServer, slaveInfo.id, slaveInfo.shardMaskList)
-            await slave.waitUntilActive()
+            await slave.wait_until_active()
             # Tell the remote slave who I am
             id, shardMaskList = await slave.sendPing()
             # Verify that remote slave indeed has the id and shard mask list advertised by the master
@@ -546,7 +546,7 @@ class MasterConnection(ClusterConnection):
                 clusterPeerId=req.clusterPeerId,
                 shardState=shardState,
                 name="{}_vconn_{}".format(self.name, req.clusterPeerId))
-            asyncio.ensure_future(conn.activeAndLoopForever())
+            asyncio.ensure_future(conn.active_and_loop_forever())
             connMap[branchValue] = conn
             activeFutures.append(conn.activeFuture)
         # wait for all the connections to become active before return
@@ -704,7 +704,7 @@ class SlaveConnection(Connection):
         self.shardMaskList = shardMaskList
         self.shardStateMap = self.slaveServer.shardStateMap
 
-        asyncio.ensure_future(self.activeAndLoopForever())
+        asyncio.ensure_future(self.active_and_loop_forever())
 
     def __get_shard_size(self):
         return self.slaveServer.env.config.SHARD_SIZE

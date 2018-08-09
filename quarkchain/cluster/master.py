@@ -224,7 +224,7 @@ class SlaveConnection(ClusterConnection):
         self.shardMaskList = shardMaskList
         check(len(shardMaskList) > 0)
 
-        asyncio.ensure_future(self.activeAndLoopForever())
+        asyncio.ensure_future(self.active_and_loop_forever())
 
     def get_connection_to_forward(self, metadata):
         ''' Override ProxyConnection.get_connection_to_forward()
@@ -476,7 +476,7 @@ class MasterServer():
                 slaveInfo.id,
                 slaveInfo.shardMaskList,
                 name="{}_slave_{}".format(self.name, slaveInfo.id))
-            await slave.waitUntilActive()
+            await slave.wait_until_active()
             futures.append(slave.sendPing())
             slaves.append(slave)
 
@@ -504,7 +504,7 @@ class MasterServer():
         Retries until success.
         '''
         for slave in self.slavePool:
-            await slave.waitUntilActive()
+            await slave.wait_until_active()
             success = await slave.sendConnectToSlaves(self.clusterConfig.get_slave_info_list())
             if not success:
                 self.shutdown()

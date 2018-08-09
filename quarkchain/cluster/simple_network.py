@@ -53,7 +53,7 @@ class Peer(P2PConnection):
         3. only initiate connection from one side, eg. from smaller of ip_port; in SimpleNetwork, from new nodes only
         3 is the way to go
         '''
-        op, cmd, rpcId = await self.readCommand()
+        op, cmd, rpcId = await self.read_command()
         if op is None:
             assert(self.state == ConnectionState.CLOSED)
             Logger.info("Failed to read command, peer may have closed connection")
@@ -97,8 +97,8 @@ class Peer(P2PConnection):
         await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
         Logger.info("Established virtual shard connections with peer {}".format(self.id.hex()))
 
-        asyncio.ensure_future(self.activeAndLoopForever())
-        await self.waitUntilActive()
+        asyncio.ensure_future(self.active_and_loop_forever())
+        await self.wait_until_active()
 
         # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
         self.network.activePeerPool[self.id] = self
@@ -296,7 +296,7 @@ class SimpleNetwork:
             return
 
         # Make sure the peer is ready for incoming messages
-        await peer.waitUntilActive()
+        await peer.wait_until_active()
         try:
             op, resp, rpcId = await peer.write_rpc_request(
                 CommandOp.GET_PEER_LIST_REQUEST, GetPeerListRequest(10))
