@@ -19,7 +19,7 @@ and be able to query stats or adjust mining difficulty on demand
 def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
-    peers = jsonrpcclient.request(json_rpc_url, "get_peers")
+    peers = jsonrpcclient.request(json_rpc_url, "getPeers")
     return ["{}:{}".format(ipaddress.ip_address(int(p["ip"], 16)), int(p["port"], 16))
             for p in peers["peers"]]
 
@@ -134,7 +134,7 @@ def print_all_clusters(ip, p2p_port, jrpc_port, ip_lookup={}):
     pprint.pprint(find_all_clusters(ip, p2p_port, jrpc_port, ip_lookup))
 
 
-CONST_METRIC = "pendingTxCount"
+CONST_METRIC = "pending_tx_count"
 CONST_INTERVAL = 1
 
 async def async_stats(idx, server):

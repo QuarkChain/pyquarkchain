@@ -38,15 +38,15 @@ class Transaction(rlp.Serializable):
     (ii) the sending account has enough funds to pay the fee and the value.
 
     There are 3 types of transactions:
-        1. Value transfer. In-shard transaction if fromFullShardId and toFullShardId
+        1. Value transfer. In-shard transaction if from_full_shard_id and to_full_shard_id
         refer to the same shard, otherwise it is a cross-shard transaction.
 
-        2. Contract creation. 'to' must be empty. fromFullShardId and toFullShardId
+        2. Contract creation. 'to' must be empty. from_full_shard_id and to_full_shard_id
         must refer to the same shard id. The contract address will have the same
-        full shard id as toFullShardId. If the contract does not invoke other contract
-        normally the toFullShardId should be the same as fromFullShardId.
+        full shard id as to_full_shard_id. If the contract does not invoke other contract
+        normally the to_full_shard_id should be the same as from_full_shard_id.
 
-        3. Contract call. fromFullShardId and toFullShardId must refer to the same
+        3. Contract call. from_full_shard_id and to_full_shard_id must refer to the same
         shard id based on the current number of shards in the network. It is possible
         a reshard event would invalidate a tx that was valid before the reshard.
     """
@@ -58,9 +58,9 @@ class Transaction(rlp.Serializable):
         ('to', utils.address),
         ('value', big_endian_int),
         ('data', binary),
-        ('fromFullShardId', BigEndianInt(4)),
-        ('toFullShardId', BigEndianInt(4)),
-        ('networkId', big_endian_int),
+        ('from_full_shard_id', BigEndianInt(4)),
+        ('to_full_shard_id', BigEndianInt(4)),
+        ('network_id', big_endian_int),
         ('version', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
@@ -70,9 +70,9 @@ class Transaction(rlp.Serializable):
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas, to, value, data,
-                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1, version=0):
+                 v=0, r=0, s=0, from_full_shard_id=0, to_full_shard_id=0, network_id=1, version=0):
         self.data = None
-        self.shardSize = 0
+        self.shard_size = 0
 
         to = utils.normalize_address(to, allow_blank=True)
 
@@ -85,9 +85,9 @@ class Transaction(rlp.Serializable):
             to,
             value,
             data,
-            fromFullShardId,
-            toFullShardId,
-            networkId,
+            from_full_shard_id,
+            to_full_shard_id,
+            network_id,
             version,
             v,
             r,
@@ -116,10 +116,6 @@ class Transaction(rlp.Serializable):
                 self._sender = sha3_256(pub)[-20:]
         return self._sender
 
-    @property
-    def network_id(self):
-        return self.networkId
-
     @sender.setter
     def sender(self, value):
         self._sender = value
@@ -130,7 +126,7 @@ class Transaction(rlp.Serializable):
         A potentially already existing signature would be overridden.
         """
         if network_id is not None:
-            self.networkId = network_id
+            self.network_id = network_id
         key = normalize_key(key)
 
         self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
@@ -178,21 +174,21 @@ class Transaction(rlp.Serializable):
         if self.to in (b'', '\0' * 20):
             return mk_contract_address(self.sender, self.nonce)
 
-    def set_shard_size(self, shardSize):
-        check(is_p2(shardSize))
-        self.shardSize = shardSize
+    def set_shard_size(self, shard_size):
+        check(is_p2(shard_size))
+        self.shard_size = shard_size
 
     def from_shard_id(self):
-        if self.shardSize == 0:
-            raise RuntimeError("shardSize is not set")
-        shardMask = self.shardSize - 1
-        return self.fromFullShardId & shardMask
+        if self.shard_size == 0:
+            raise RuntimeError("shard_size is not set")
+        shard_mask = self.shard_size - 1
+        return self.from_full_shard_id & shard_mask
 
     def to_shard_id(self):
-        if self.shardSize == 0:
-            raise RuntimeError("shardSize is not set")
-        shardMask = self.shardSize - 1
-        return self.toFullShardId & shardMask
+        if self.shard_size == 0:
+            raise RuntimeError("shard_size is not set")
+        shard_mask = self.shard_size - 1
+        return self.to_full_shard_id & shard_mask
 
     def is_cross_shard(self):
         return self.from_shard_id() != self.to_shard_id()

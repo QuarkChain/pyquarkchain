@@ -285,76 +285,76 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("send_raw_transaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_transaction_receipt(self, txId):
+    async def get_transaction_receipt(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("get_transaction_receipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         return resp
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__send_request("get_transaction_count", addressHex)
+        resp = await self.__send_request("getTransactionCount", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["shardSize"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["networkId"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, to, data, networkId) -> EvmTransaction:
-    evmTx = EvmTransaction(
+def create_transaction(address, key, nonce, to, data, network_id) -> EvmTransaction:
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=to.recipient,
         value=1000000 * (10 ** 18),
         data=data,
-        fromFullShardId=address.fullShardId,
-        toFullShardId=to.fullShardId,
-        networkId=networkId,
+        from_full_shard_id=address.full_shard_id,
+        to_full_shard_id=to.full_shard_id,
+        network_id=network_id,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
-async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
+async def fund_shard(endpoint, genesisId, to, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, to, data, networkId)
-    txId = await endpoint.send_transaction(tx)
+    tx = create_transaction(address, genesisId.get_key(), nonce, to, data, network_id)
+    tx_id = await endpoint.send_transaction(tx)
     while True:
-        print("shard={} tx={} block=(pending)".format(shard, txId))
+        print("shard={} tx={} block=(pending)".format(shard, tx_id))
         await asyncio.sleep(5)
-        resp = await endpoint.get_transaction_receipt(txId)
+        resp = await endpoint.get_transaction_receipt(tx_id)
         if resp:
             break
 
-    height = int(resp["blockHeight"], 16)
+    height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
-    print("shard={} tx={} block={} status={}".format(shard, txId, height, status))
-    return txId, height
+    print("shard={} tx={} block={} status={}".format(shard, tx_id, height, status))
+    return tx_id, height
 
 
 async def fund(endpoint, genesisId, data):
-    networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    network_id = await endpoint.get_network_id()
+    shard_size = await endpoint.get_shard_size()
     futures = []
     for e in GAME_ADDRESSES:
         shard = e[0]
         to = Address.create_from(e[1][2:])
-        futures.append(fund_shard(endpoint, genesisId, to, data, networkId, shard))
+        futures.append(fund_shard(endpoint, genesisId, to, data, network_id, shard))
 
     results = await asyncio.gather(*futures)
     print("\n\n")
     for shard, result in enumerate(results):
-        txId, height = result
-        print("[{}, \"{}\"],  // {}".format(shard, height, txId))
+        tx_id, height = result
+        print("[{}, \"{}\"],  // {}".format(shard, height, tx_id))
 
 
 def main():

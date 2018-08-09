@@ -1,10 +1,10 @@
 import argparse
 import asyncio
+import os
 import random
 import socket
 
-import cluster as cl
-from cluster import kill_child_processes
+from quarkchain.cluster import cluster as cl
 
 from devp2p.utils import colors, COLOR_END
 
@@ -57,15 +57,15 @@ async def main():
         print("No one will be mining")
     for i in range(args.num_cluster):
         config = cl.create_cluster_config(
-            slaveCount=args.num_slaves,
+            slave_count=args.num_slaves,
             ip=cl.IP,
-            p2pPort=args.p2p_port + i,
-            clusterPortStart=args.port_start + i * 100,
-            jsonRpcPort=args.json_rpc_port + i,
-            jsonRpcPrivatePort=args.json_rpc_private_port + i,
-            seedHost=args.seed_host,
-            seedPort=args.seed_port,
-            dbPathRoot="{}_C{}".format(args.db_path_root, i),
+            p2p_port=args.p2p_port + i,
+            cluster_port_start=args.port_start + i * 100,
+            json_rpc_port=args.json_rpc_port + i,
+            json_rpc_private_port=args.json_rpc_private_port + i,
+            seed_host=args.seed_host,
+            seed_port=args.seed_port,
+            db_path_root="{}_C{}".format(args.db_path_root, i),
             devp2p=args.devp2p,
             devp2p_ip=args.devp2p_ip,
             devp2p_port=args.devp2p_start_port + i,
@@ -82,7 +82,7 @@ async def main():
                 config, filename, mine, args.clean, False, "{}C{}{}_".format(colors[i % len(colors)], i, COLOR_END)
         ))
 
-    tasks = []
+    tasks = list()
     tasks.append(asyncio.ensure_future(clusters[0].run()))
     await asyncio.sleep(3)
     for cluster in clusters[1:]:
@@ -103,7 +103,7 @@ if __name__ == '__main__':
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         try:
-            kill_child_processes(os.getpid())
+            cl.kill_child_processes(os.getpid())
         except Exception:
             pass
     finally:

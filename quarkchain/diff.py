@@ -2,21 +2,21 @@ from quarkchain.utils import check
 
 
 class EthDifficultyCalculator:
-    ''' Using metropolis or homestead algorithm (checkUncle=True or False)'''
+    ''' Using metropolis or homestead algorithm (check_uncle=True or False)'''
 
-    def __init__(self, cutoff, diffFactor, minimumDiff=1, checkUncle=False):
+    def __init__(self, cutoff, diff_factor, minimum_diff=1, check_uncle=False):
         self.cutoff = cutoff
-        self.diffFactor = diffFactor
-        self.minimumDiff = minimumDiff
-        self.checkUncle = checkUncle
+        self.diff_factor = diff_factor
+        self.minimum_diff = minimum_diff
+        self.check_uncle = check_uncle
 
-    def calculate_diff(self, chain, createTime=None):
+    def calculate_diff(self, chain, create_time=None):
         raise NotImplementedError()
 
-    def calculate_diff_with_parent(self, parent, createTime):
+    def calculate_diff_with_parent(self, parent, create_time):
         # TODO: support uncle
-        check(not self.checkUncle)
-        check(parent.createTime < createTime)
-        sign = max(1 - (createTime - parent.createTime) // self.cutoff, -99)
-        offset = parent.difficulty // self.diffFactor
-        return int(max(parent.difficulty + offset * sign, self.minimumDiff))
+        check(not self.check_uncle)
+        check(parent.create_time < create_time)
+        sign = max(1 - (create_time - parent.create_time) // self.cutoff, -99)
+        offset = parent.difficulty // self.diff_factor
+        return int(max(parent.difficulty + offset * sign, self.minimum_diff))

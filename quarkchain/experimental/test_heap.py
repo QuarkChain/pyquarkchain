@@ -10,7 +10,7 @@ class TestItem:
 
     def __init__(self, value):
         self.value = value
-        self.heapIndex = 0
+        self.heap_index = 0
 
     def __str__(self):
         return str(self.value)

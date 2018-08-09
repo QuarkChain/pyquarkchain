@@ -36,76 +36,76 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("send_raw_transaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_transaction_receipt(self, txId):
+    async def get_transaction_receipt(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("get_transaction_receipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         return resp
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__send_request("get_transaction_count", addressHex)
+        resp = await self.__send_request("getTransactionCount", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["shardSize"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["networkId"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransaction:
-    evmTx = EvmTransaction(
+def create_transaction(address, key, nonce, to, network_id, amount) -> EvmTransaction:
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=to.recipient,
         value=int(amount) * (10 ** 18),
         data=b"",
-        fromFullShardId=address.fullShardId,
-        toFullShardId=to.fullShardId,
-        networkId=networkId,
+        from_full_shard_id=address.full_shard_id,
+        to_full_shard_id=to.full_shard_id,
+        network_id=network_id,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
-async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
+async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, to, networkId, amount)
-    txId = await endpoint.send_transaction(tx)
+    tx = create_transaction(address, genesisId.get_key(), nonce, to, network_id, amount)
+    tx_id = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
-        addr = "0x" + to.recipient.hex() + hex(to.fullShardId)[2:]
-        print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
+        addr = "0x" + to.recipient.hex() + hex(to.full_shard_id)[2:]
+        print("shard={} tx={} to={} block=(pending)".format(shard, tx_id, addr))
         await asyncio.sleep(5)
-        resp = await endpoint.get_transaction_receipt(txId)
+        resp = await endpoint.get_transaction_receipt(tx_id)
         if resp:
             break
         cnt += 1
         if cnt == 10:
             cnt = 0
-            print("retry tx={}".format(txId))
+            print("retry tx={}".format(tx_id))
             await endpoint.send_transaction(tx)
 
-    height = int(resp["blockHeight"], 16)
+    height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
     print(
         "shard={} tx={} block={} status={} amount={}".format(
-            shard, txId, height, status, amount
+            shard, tx_id, height, status, amount
         )
     )
-    return txId, height
+    return tx_id, height
 
 
 async def fund(endpoint, genesisId, addrByAmount):
-    networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    network_id = await endpoint.get_network_id()
+    shard_size = await endpoint.get_shard_size()
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
         print(
@@ -116,7 +116,7 @@ async def fund(endpoint, genesisId, addrByAmount):
         # shard -> [addr]
         byShard = defaultdict(list)
         for addr in addrs:
-            shard = int(addr[-8:], 16) & (shardSize - 1)
+            shard = int(addr[-8:], 16) & (shard_size - 1)
             byShard[shard].append(addr)
 
         while True:
@@ -130,7 +130,7 @@ async def fund(endpoint, genesisId, addrByAmount):
 
             futures = []
             for addr in toFund:
-                shard = int(addr[-8:], 16) & (shardSize - 1)
+                shard = int(addr[-8:], 16) & (shard_size - 1)
                 try:
                     # sorry but this is user input
                     to = Address.create_from(addr[2:])
@@ -139,14 +139,14 @@ async def fund(endpoint, genesisId, addrByAmount):
                     continue
                 await asyncio.sleep(0.1)  # slight delay for each call
                 futures.append(
-                    fund_shard(endpoint, genesisId, to, networkId, shard, amount)
+                    fund_shard(endpoint, genesisId, to, network_id, shard, amount)
                 )
 
             results = await asyncio.gather(*futures)
             print("\n\n")
             for idx, result in enumerate(results):
-                txId, height = result
-                print('[{}, "{}"],  // {}'.format(idx, height, txId))
+                tx_id, height = result
+                print('[{}, "{}"],  // {}'.format(idx, height, tx_id))
 
 
 def read_addr(filepath) -> Dict[int, List[str]]:

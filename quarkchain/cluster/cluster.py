@@ -39,14 +39,14 @@ def dump_config_to_file(config):
     return filename
 
 
-async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort, mine,
-                     clean, **kwargs):
+async def run_master(config_file_path, db_path_root, server_port, json_rpc_port, json_rpc_private_port, seed_host,
+                     seed_port, mine, clean, **kwargs):
     cmd = "pypy3 master.py --cluster_config={} --db_path_root={} " \
           "--server_port={} --local_port={} --json_rpc_private_port={} --seed_host={} --seed_port={} " \
           "--devp2p_ip={} --devp2p_port={} --devp2p_bootstrap_host={} " \
           "--devp2p_bootstrap_port={} --devp2p_min_peers={} --devp2p_max_peers={} " \
           "--devp2p_additional_bootstraps={}".format(
-        configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRpcPrivatePort, seedHost, seedPort,
+        config_file_path, db_path_root, server_port, json_rpc_port, json_rpc_private_port, seed_host, seed_port,
         kwargs['devp2p_ip'], kwargs['devp2p_port'], kwargs['devp2p_bootstrap_host'],
         kwargs['devp2p_bootstrap_port'], kwargs['devp2p_min_peers'], kwargs['devp2p_max_peers'],
         kwargs['devp2p_additional_bootstraps'])
@@ -59,12 +59,12 @@ async def run_master(configFilePath, dbPathRoot, serverPort, jsonRpcPort, jsonRp
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
-async def run_slave(port, id, shardMaskList, dbPathRoot, clean, enableTransactionHistory):
+async def run_slave(port, id, shard_mask_list, db_path_root, clean, enable_transaction_history):
     cmd = "pypy3 slave.py --node_port={} --shard_mask={} --node_id={} --db_path_root={}".format(
-        port, shardMaskList[0], id, dbPathRoot)
+        port, shard_mask_list[0], id, db_path_root)
     if clean:
         cmd += " --clean=true"
-    if enableTransactionHistory:
+    if enable_transaction_history:
         cmd += " --enable_transaction_history=true"
     return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -79,58 +79,50 @@ async def print_output(prefix, stream):
 
 class Cluster:
 
-    def __init__(self, config, configFilePath, mine, clean, enableTransactionHistory, clusterID=''):
+    def __init__(self, config, config_file_path, mine, clean, enable_transaction_history, cluster_id=''):
         self.config = config
-        self.configFilePath = configFilePath
+        self.config_file_path = config_file_path
         self.procs = []
-        self.shutdownCalled = False
+        self.shutdown_called = False
         self.mine = mine
         self.clean = clean
-        self.enableTransactionHistory = enableTransactionHistory
-        self.clusterID = clusterID
+        self.enable_transaction_history = enable_transaction_history
+        self.cluster_id = cluster_id
 
     async def wait_and_shutdown(self, prefix, proc):
         ''' If one process terminates shutdown the entire cluster '''
         await proc.wait()
-        if self.shutdownCalled:
+        if self.shutdown_called:
             return
 
         print("{} is dead. Shutting down the cluster...".format(prefix))
         await self.shutdown()
 
     async def run_master(self):
-        master = await run_master(
-            configFilePath=self.configFilePath,
-            dbPathRoot=self.config["master"]["db_path_root"],
-            serverPort=self.config["master"]["server_port"],
-            jsonRpcPort=self.config["master"]["json_rpc_port"],
-            jsonRpcPrivatePort=self.config["master"]["json_rpc_private_port"],
-            seedHost=self.config["master"]["seed_host"],
-            seedPort=self.config["master"]["seed_port"],
-            mine=self.mine,
-            clean=self.clean,
-            devp2p=self.config["master"]["devp2p"],
-            devp2p_ip=self.config["master"]["devp2p_ip"],
-            devp2p_port=self.config["master"]["devp2p_port"],
-            devp2p_bootstrap_host=self.config["master"]["devp2p_bootstrap_host"],
-            devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
-            devp2p_min_peers=self.config["master"]["devp2p_min_peers"],
-            devp2p_max_peers=self.config["master"]["devp2p_max_peers"],
-            devp2p_additional_bootstraps=self.config["master"]["devp2p_additional_bootstraps"])
-        prefix = "{}MASTER".format(self.clusterID)
+        master = await run_master(config_file_path=self.config_file_path,
+                                  db_path_root=self.config["master"]["db_path_root"],
+                                  server_port=self.config["master"]["server_port"],
+                                  json_rpc_port=self.config["master"]["json_rpc_port"],
+                                  json_rpc_private_port=self.config["master"]["json_rpc_private_port"],
+                                  seed_host=self.config["master"]["seed_host"],
+                                  seed_port=self.config["master"]["seed_port"], mine=self.mine, clean=self.clean,
+                                  devp2p=self.config["master"]["devp2p"], devp2p_ip=self.config["master"]["devp2p_ip"],
+                                  devp2p_port=self.config["master"]["devp2p_port"],
+                                  devp2p_bootstrap_host=self.config["master"]["devp2p_bootstrap_host"],
+                                  devp2p_bootstrap_port=self.config["master"]["devp2p_bootstrap_port"],
+                                  devp2p_min_peers=self.config["master"]["devp2p_min_peers"],
+                                  devp2p_max_peers=self.config["master"]["devp2p_max_peers"],
+                                  devp2p_additional_bootstraps=self.config["master"]["devp2p_additional_bootstraps"])
+        prefix = "{}MASTER".format(self.cluster_id)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
 
     async def run_slaves(self):
         for slave in self.config["slaves"]:
-            s = await run_slave(
-                port=slave["port"],
-                id=slave["id"],
-                shardMaskList=slave["shard_masks"],
-                dbPathRoot=slave["db_path_root"],
-                clean=self.clean,
-                enableTransactionHistory=self.enableTransactionHistory)
-            prefix = "{}SLAVE_{}".format(self.clusterID, slave["id"])
+            s = await run_slave(port=slave["port"], id=slave["id"], shard_mask_list=slave["shard_masks"],
+                                db_path_root=slave["db_path_root"], clean=self.clean,
+                                enable_transaction_history=self.enable_transaction_history)
+            prefix = "{}SLAVE_{}".format(self.cluster_id, slave["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
@@ -141,7 +133,7 @@ class Cluster:
         await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
-        self.shutdownCalled = True
+        self.shutdown_called = True
         kill_child_processes(os.getpid())
 
     def start_and_loop(self):
@@ -213,15 +205,15 @@ def main():
         filename = args.cluster_config
     else:
         config = create_cluster_config(
-            slaveCount=args.num_slaves,
+            slave_count=args.num_slaves,
             ip=IP,
-            p2pPort=args.p2p_port,
-            clusterPortStart=args.port_start,
-            jsonRpcPort=args.json_rpc_port,
-            jsonRpcPrivatePort=args.json_rpc_private_port,
-            seedHost=args.seed_host,
-            seedPort=args.seed_port,
-            dbPathRoot = args.db_path_root,
+            p2p_port=args.p2p_port,
+            cluster_port_start=args.port_start,
+            json_rpc_port=args.json_rpc_port,
+            json_rpc_private_port=args.json_rpc_private_port,
+            seed_host=args.seed_host,
+            seed_port=args.seed_port,
+            db_path_root = args.db_path_root,
             devp2p=args.devp2p,
             devp2p_ip=args.devp2p_ip,
             devp2p_port=args.devp2p_port,

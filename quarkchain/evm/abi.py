@@ -10,7 +10,7 @@ def int_to_bytes(n: int):
     return n.to_bytes((n.bit_length() + 7) // 8, 'big')
 
 
-def tx_to_typed_data(rawTx):
+def tx_to_typed_data(raw_tx):
     """
     see UnsignedTransaction, exludes ['v', 'r', 's', 'version']
     """
@@ -18,47 +18,47 @@ def tx_to_typed_data(rawTx):
       {
         "type": "uint256",
         "name": "nonce",
-        "value": "0x{}".format(int_to_bytes(rawTx.nonce).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.nonce).hex())
       },
       {
         "type": "uint256",
         "name": "gasPrice",
-        "value": "0x{}".format(int_to_bytes(rawTx.gasprice).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.gasprice).hex())
       },
       {
         "type": "uint256",
         "name": "gasLimit",
-        "value": "0x{}".format(int_to_bytes(rawTx.startgas).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.startgas).hex())
       },
       {
         "type": "uint160",
         "name": "to",
-        "value": "0x{}".format(rawTx.to.hex())
+        "value": "0x{}".format(raw_tx.to.hex())
       },
       {
         "type": "uint256",
         "name": "value",
-        "value": "0x{}".format(int_to_bytes(rawTx.value).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.value).hex())
       },
       {
         "type": "bytes",
         "name": "data",
-        "value": "0x{}".format(rawTx.data.hex())
+        "value": "0x{}".format(raw_tx.data.hex())
       },
       {
         "type": "uint32",
         "name": "fromFullShardId",
-        "value": "0x{}".format(int_to_bytes(rawTx.fromFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.from_full_shard_id).hex())
       },
       {
         "type": "uint32",
         "name": "toFullShardId",
-        "value": "0x{}".format(int_to_bytes(rawTx.toFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.to_full_shard_id).hex())
       },
       {
         "type": "uint256",
         "name": "networkId",
-        "value": "0x{}".format(int_to_bytes(rawTx.networkId).hex())
+        "value": "0x{}".format(int_to_bytes(raw_tx.network_id).hex())
       },
       {
         "type": "string",
@@ -70,7 +70,7 @@ def tx_to_typed_data(rawTx):
 
 def solidity_pack(types: Iterable, values: Iterable):
     """
-    Port of ABI.solidityPack
+    Port of ABI.solidity_pack
     https://github.com/ethereumjs/ethereumjs-abi/blob/00ba8463a7f7a67fcad737ff9c2ebd95643427f7/lib/index.js#L441
     Serialize values according to types
     returns bytes

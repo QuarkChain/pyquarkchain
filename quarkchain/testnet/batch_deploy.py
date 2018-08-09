@@ -26,73 +26,73 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("send_raw_transaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_contract_address(self, txId):
+    async def get_contract_address(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("get_transaction_receipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         if not resp:
             return None
-        return resp["contractAddress"]
+        return resp["contract_address"]
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__send_request("get_transaction_count", addressHex)
+        resp = await self.__send_request("getTransactionCount", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["shardSize"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
-        resp = await self.__send_request("network_info")
-        return int(resp["networkId"], 16)
+        resp = await self.__send_request("networkInfo")
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, data, networkId) -> EvmTransaction:
-    evmTx = EvmTransaction(
+def create_transaction(address, key, nonce, data, network_id) -> EvmTransaction:
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=b'',
         value=0,
         data=data,
-        fromFullShardId=address.fullShardId,
-        toFullShardId=address.fullShardId,
-        networkId=networkId,
+        from_full_shard_id=address.full_shard_id,
+        to_full_shard_id=address.full_shard_id,
+        network_id=network_id,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
-async def deploy_shard(endpoint, genesisId, data, networkId, shard):
+async def deploy_shard(endpoint, genesisId, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, data, networkId)
-    txId = await endpoint.send_transaction(tx)
+    tx = create_transaction(address, genesisId.get_key(), nonce, data, network_id)
+    tx_id = await endpoint.send_transaction(tx)
     while True:
-        print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
+        print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, tx_id))
         await asyncio.sleep(5)
-        contractAddress = await endpoint.get_contract_address(txId)
-        if contractAddress:
+        contract_address = await endpoint.get_contract_address(tx_id)
+        if contract_address:
             break
-    print("shard={} tx={} contract={}".format(shard, txId, contractAddress))
-    return txId, contractAddress
+    print("shard={} tx={} contract={}".format(shard, tx_id, contract_address))
+    return tx_id, contract_address
 
 
 async def deploy(endpoint, genesisId, data):
-    networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    network_id = await endpoint.get_network_id()
+    shard_size = await endpoint.get_shard_size()
     futures = []
-    for i in range(shardSize):
-        futures.append(deploy_shard(endpoint, genesisId, data, networkId, i))
+    for i in range(shard_size):
+        futures.append(deploy_shard(endpoint, genesisId, data, network_id, i))
 
     results = await asyncio.gather(*futures)
     print("\n\n")
     for shard, result in enumerate(results):
-        txId, contractAddress = result
-        print("[{}, \"{}\"],  // {}".format(shard, contractAddress, txId))
+        tx_id, contract_address = result
+        print("[{}, \"{}\"],  // {}".format(shard, contract_address, tx_id))
 
 
 def main():

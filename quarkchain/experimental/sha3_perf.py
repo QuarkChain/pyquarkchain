@@ -15,12 +15,12 @@ import profile
 
 def test_perf():
     N = 20000
-    startTime = time.time()
-    mHeader = MinorBlockHeader()
+    start_time = time.time()
+    m_header = MinorBlockHeader()
     for i in range(N):
-        mHeader.nonce = i
-        mHeader.get_hash()
-    duration = time.time() - startTime
+        m_header.nonce = i
+        m_header.get_hash()
+    duration = time.time() - start_time
     print("TPS: %.2f" % (N / duration))
 
 

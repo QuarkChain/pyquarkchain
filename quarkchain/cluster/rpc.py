@@ -18,33 +18,33 @@ from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, b
 class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
-        ("rootTip", RootBlock),
+        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
+        ("root_tip", RootBlock),
     ]
 
-    def __init__(self, id, shardMaskList, rootTip):
-        """ Empty shardMaskList means root """
+    def __init__(self, id, shard_mask_list, root_tip):
+        """ Empty shard_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.shardMaskList = shardMaskList
-        self.rootTip = rootTip
+        self.shard_mask_list = shard_mask_list
+        self.root_tip = root_tip
 
 
 class Pong(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
+        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
     ]
 
-    def __init__(self, id, shardMaskList):
-        """ Empty slaveId and shardMaskList means root """
+    def __init__(self, id, shard_mask_list):
+        """ Empty slave_id and shard_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.shardMaskList = shardMaskList
+        self.shard_mask_list = shard_mask_list
 
 
 class SlaveInfo(Serializable):
@@ -52,93 +52,93 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("ip", uint128),
         ("port", uint16),
-        ("shardMaskList", PrependedSizeListSerializer(4, ShardMask)),
+        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
     ]
 
-    def __init__(self, id, ip, port, shardMaskList):
+    def __init__(self, id, ip, port, shard_mask_list):
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
         self.ip = ip
         self.port = port
-        self.shardMaskList = shardMaskList
+        self.shard_mask_list = shard_mask_list
 
 
 class ConnectToSlavesRequest(Serializable):
     ''' Master instructs a slave to connect to other slaves '''
     FIELDS = [
-        ("slaveInfoList", PrependedSizeListSerializer(4, SlaveInfo)),
+        ("slave_info_list", PrependedSizeListSerializer(4, SlaveInfo)),
     ]
 
-    def __init__(self, slaveInfoList):
-        self.slaveInfoList = slaveInfoList
+    def __init__(self, slave_info_list):
+        self.slave_info_list = slave_info_list
 
 
 class ConnectToSlavesResponse(Serializable):
-    ''' resultList must have the same size as salveInfoList in the request.
+    ''' result_list must have the same size as salve_info_list in the request.
     Empty result means success otherwise it would a serialized error message.
     '''
     FIELDS = [
-        ("resultList", PrependedSizeListSerializer(4, PrependedSizeBytesSerializer(4))),
+        ("result_list", PrependedSizeListSerializer(4, PrependedSizeBytesSerializer(4))),
     ]
 
-    def __init__(self, resultList):
-        self.resultList = resultList
+    def __init__(self, result_list):
+        self.result_list = result_list
 
 
 class ArtificialTxConfig(Serializable):
     FIELDS = [
-        ("targetRootBlockTime", uint32),
-        ("targetMinorBlockTime", uint32),
+        ("target_root_block_time", uint32),
+        ("target_minor_block_time", uint32),
     ]
 
-    def __init__(self, targetRootBlockTime, targetMinorBlockTime):
-        self.targetRootBlockTime = targetRootBlockTime
-        self.targetMinorBlockTime = targetMinorBlockTime
+    def __init__(self, target_root_block_time, target_minor_block_time):
+        self.target_root_block_time = target_root_block_time
+        self.target_minor_block_time = target_minor_block_time
 
 
 class MineRequest(Serializable):
     """Send mining instructions to slaves"""
     FIELDS = [
-        ("artificialTxConfig", ArtificialTxConfig),
+        ("artificial_tx_config", ArtificialTxConfig),
         ("mining", boolean),  # False to halt mining
     ]
 
-    def __init__(self, artificialTxConfig, mining):
-        self.artificialTxConfig = artificialTxConfig
+    def __init__(self, artificial_tx_config, mining):
+        self.artificial_tx_config = artificial_tx_config
         self.mining = mining
 
 
 class MineResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 class GenTxRequest(Serializable):
     """Generate transactions for loadtesting"""
     FIELDS = [
-        ("numTxPerShard", uint32),
-        ("xShardPercent", uint32),  # [0, 100]
+        ("num_tx_per_shard", uint32),
+        ("x_shard_percent", uint32),  # [0, 100]
         ("tx", Transaction),  # sample tx
     ]
 
-    def __init__(self, numTxPerShard, xShardPercent, tx):
-        self.numTxPerShard = numTxPerShard
-        self.xShardPercent = xShardPercent
+    def __init__(self, num_tx_per_shard, x_shard_percent, tx):
+        self.num_tx_per_shard = num_tx_per_shard
+        self.x_shard_percent = x_shard_percent
         self.tx = tx
 
 class GenTxResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 # Virtual connection management
 
@@ -148,20 +148,20 @@ class CreateClusterPeerConnectionRequest(Serializable):
     Assume always succeed.
     '''
     FIELDS = [
-        ("clusterPeerId", uint64)
+        ("cluster_peer_id", uint64)
     ]
 
-    def __init__(self, clusterPeerId):
-        self.clusterPeerId = clusterPeerId
+    def __init__(self, cluster_peer_id):
+        self.cluster_peer_id = cluster_peer_id
 
 
 class CreateClusterPeerConnectionResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32)
+        ("error_code", uint32)
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 class DestroyClusterPeerConnectionCommand(Serializable):
@@ -169,11 +169,11 @@ class DestroyClusterPeerConnectionCommand(Serializable):
     As a contract, the master will not send traffic after the command.
     '''
     FIELDS = [
-        ("clusterPeerId", uint64)
+        ("cluster_peer_id", uint64)
     ]
 
-    def __init__(self, clusterPeerId):
-        self.clusterPeerId = clusterPeerId
+    def __init__(self, cluster_peer_id):
+        self.cluster_peer_id = cluster_peer_id
 
 
 # RPCs to lookup data from shards (master -> slaves)
@@ -181,95 +181,95 @@ class DestroyClusterPeerConnectionCommand(Serializable):
 class GetMinorBlockRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("minorBlockHash", hash256),
+        ("minor_block_hash", hash256),
         ("height", uint64),
     ]
 
-    def __init__(self, branch, minorBlockHash=None, height=0):
+    def __init__(self, branch, minor_block_hash=None, height=0):
         self.branch = branch
-        self.minorBlockHash = minorBlockHash if minorBlockHash else bytes(32)
+        self.minor_block_hash = minor_block_hash if minor_block_hash else bytes(32)
         self.height = height
 
 
 class GetMinorBlockResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("minorBlock", MinorBlock),
+        ("error_code", uint32),
+        ("minor_block", MinorBlock),
     ]
 
-    def __init__(self, errorCode, minorBlock):
-        self.errorCode = errorCode
-        self.minorBlock = minorBlock
+    def __init__(self, error_code, minor_block):
+        self.error_code = error_code
+        self.minor_block = minor_block
 
 
 class GetTransactionRequest(Serializable):
     FIELDS = [
-        ("txHash", hash256),
+        ("tx_hash", hash256),
         ("branch", Branch),
     ]
 
-    def __init__(self, txHash, branch):
-        self.txHash = txHash
+    def __init__(self, tx_hash, branch):
+        self.tx_hash = tx_hash
         self.branch = branch
 
 
 class GetTransactionResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("minorBlock", MinorBlock),
+        ("error_code", uint32),
+        ("minor_block", MinorBlock),
         ("index", uint32)
     ]
 
-    def __init__(self, errorCode, minorBlock, index):
-        self.errorCode = errorCode
-        self.minorBlock = minorBlock
+    def __init__(self, error_code, minor_block, index):
+        self.error_code = error_code
+        self.minor_block = minor_block
         self.index = index
 
 
 class ExecuteTransactionRequest(Serializable):
     FIELDS = [
         ("tx", Transaction),
-        ("fromAddress", Address)
+        ("from_address", Address)
     ]
 
-    def __init__(self, tx, fromAddress):
+    def __init__(self, tx, from_address):
         self.tx = tx
-        self.fromAddress = fromAddress
+        self.from_address = from_address
 
 
 class ExecuteTransactionResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
         ("result", PrependedSizeBytesSerializer(4))
     ]
 
-    def __init__(self, errorCode, result):
-        self.errorCode = errorCode
+    def __init__(self, error_code, result):
+        self.error_code = error_code
         self.result = result
 
 
 class GetTransactionReceiptRequest(Serializable):
     FIELDS = [
-        ("txHash", hash256),
+        ("tx_hash", hash256),
         ("branch", Branch),
     ]
 
-    def __init__(self, txHash, branch):
-        self.txHash = txHash
+    def __init__(self, tx_hash, branch):
+        self.tx_hash = tx_hash
         self.branch = branch
 
 
 class GetTransactionReceiptResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("minorBlock", MinorBlock),
+        ("error_code", uint32),
+        ("minor_block", MinorBlock),
         ("index", uint32),
         ("receipt", TransactionReceipt),
     ]
 
-    def __init__(self, errorCode, minorBlock, index, receipt):
-        self.errorCode = errorCode
-        self.minorBlock = minorBlock
+    def __init__(self, error_code, minor_block, index, receipt):
+        self.error_code = error_code
+        self.minor_block = minor_block
         self.index = index
         self.receipt = receipt
 
@@ -289,35 +289,35 @@ class GetTransactionListByAddressRequest(Serializable):
 
 class TransactionDetail(Serializable):
     FIELDS = [
-        ("txHash", hash256),
-        ("fromAddress", Address),
-        ("toAddress", Optional(Address)),
+        ("tx_hash", hash256),
+        ("from_address", Address),
+        ("to_address", Optional(Address)),
         ("value", uint256),
-        ("blockHeight", uint64),
+        ("block_height", uint64),
         ("timestamp", uint64),  # block timestamp
         ("success", boolean),
     ]
 
-    def __init__(self, txHash, fromAddress, toAddress, value, blockHeight, timestamp, success):
-        self.txHash = txHash
-        self.fromAddress = fromAddress
-        self.toAddress = toAddress
+    def __init__(self, tx_hash, from_address, to_address, value, block_height, timestamp, success):
+        self.tx_hash = tx_hash
+        self.from_address = from_address
+        self.to_address = to_address
         self.value = value
-        self.blockHeight = blockHeight
+        self.block_height = block_height
         self.timestamp = timestamp
         self.success = success
 
 
 class GetTransactionListByAddressResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("txList", PrependedSizeListSerializer(4, TransactionDetail)),
+        ("error_code", uint32),
+        ("tx_list", PrependedSizeListSerializer(4, TransactionDetail)),
         ("next", PrependedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, errorCode, txList, next):
-        self.errorCode = errorCode
-        self.txList = txList
+    def __init__(self, error_code, tx_list, next):
+        self.error_code = error_code
+        self.tx_list = tx_list
         self.next = next
 
 
@@ -329,23 +329,23 @@ class AddRootBlockRequest(Serializable):
     ''' Add root block to each slave
     '''
     FIELDS = [
-        ("rootBlock", RootBlock),
-        ("expectSwitch", boolean),
+        ("root_block", RootBlock),
+        ("expect_switch", boolean),
     ]
 
-    def __init__(self, rootBlock, expectSwitch):
-        self.rootBlock = rootBlock
-        self.expectSwitch = expectSwitch
+    def __init__(self, root_block, expect_switch):
+        self.root_block = root_block
+        self.expect_switch = expect_switch
 
 
 class AddRootBlockResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
         ("switched", boolean),
     ]
 
-    def __init__(self, errorCode, switched):
-        self.errorCode = errorCode
+    def __init__(self, error_code, switched):
+        self.error_code = error_code
         self.switched = switched
 
 
@@ -354,17 +354,17 @@ class EcoInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("height", uint64),
-        ("coinbaseAmount", uint256),
+        ("coinbase_amount", uint256),
         ("difficulty", uint64),
-        ("unconfirmedHeadersCoinbaseAmount", uint256)
+        ("unconfirmed_headers_coinbase_amount", uint256)
     ]
 
-    def __init__(self, branch, height, coinbaseAmount, difficulty, unconfirmedHeadersCoinbaseAmount):
+    def __init__(self, branch, height, coinbase_amount, difficulty, unconfirmed_headers_coinbase_amount):
         self.branch = branch
         self.height = height
-        self.coinbaseAmount = coinbaseAmount
+        self.coinbase_amount = coinbase_amount
         self.difficulty = difficulty
-        self.unconfirmedHeadersCoinbaseAmount = unconfirmedHeadersCoinbaseAmount
+        self.unconfirmed_headers_coinbase_amount = unconfirmed_headers_coinbase_amount
 
 
 class GetEcoInfoListRequest(Serializable):
@@ -376,67 +376,67 @@ class GetEcoInfoListRequest(Serializable):
 
 class GetEcoInfoListResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("ecoInfoList", PrependedSizeListSerializer(4, EcoInfo)),
+        ("error_code", uint32),
+        ("eco_info_list", PrependedSizeListSerializer(4, EcoInfo)),
     ]
 
-    def __init__(self, errorCode, ecoInfoList):
-        self.errorCode = errorCode
-        self.ecoInfoList = ecoInfoList
+    def __init__(self, error_code, eco_info_list):
+        self.error_code = error_code
+        self.eco_info_list = eco_info_list
 
 
 class GetNextBlockToMineRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("address", Address),
-        ("artificialTxConfig", ArtificialTxConfig),
+        ("artificial_tx_config", ArtificialTxConfig),
     ]
 
-    def __init__(self, branch, address, artificialTxConfig):
+    def __init__(self, branch, address, artificial_tx_config):
         self.branch = branch
         self.address = address
-        self.artificialTxConfig = artificialTxConfig
+        self.artificial_tx_config = artificial_tx_config
 
 
 class GetNextBlockToMineResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
         ("block", MinorBlock),
     ]
 
-    def __init__(self, errorCode, block):
-        self.errorCode = errorCode
+    def __init__(self, error_code, block):
+        self.error_code = error_code
         self.block = block
 
 
 class AddMinorBlockRequest(Serializable):
     """For adding blocks mined through JRPC"""
     FIELDS = [
-        ("minorBlockData", PrependedSizeBytesSerializer(4)),
+        ("minor_block_data", PrependedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, minorBlockData):
-        self.minorBlockData = minorBlockData
+    def __init__(self, minor_block_data):
+        self.minor_block_data = minor_block_data
 
 
 class AddMinorBlockResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 class HeadersInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("headerList", PrependedSizeListSerializer(4, MinorBlockHeader)),
+        ("header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
-    def __init__(self, branch, headerList):
+    def __init__(self, branch, header_list):
         self.branch = branch
-        self.headerList = headerList
+        self.header_list = header_list
 
 
 class GetUnconfirmedHeadersRequest(Serializable):
@@ -449,13 +449,13 @@ class GetUnconfirmedHeadersRequest(Serializable):
 
 class GetUnconfirmedHeadersResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("headersInfoList", PrependedSizeListSerializer(4, HeadersInfo)),
+        ("error_code", uint32),
+        ("headers_info_list", PrependedSizeListSerializer(4, HeadersInfo)),
     ]
 
-    def __init__(self, errorCode, headersInfoList):
-        self.errorCode = errorCode
-        self.headersInfoList = headersInfoList
+    def __init__(self, error_code, headers_info_list):
+        self.error_code = error_code
+        self.headers_info_list = headers_info_list
 
 
 class GetAccountDataRequest(Serializable):
@@ -470,27 +470,27 @@ class GetAccountDataRequest(Serializable):
 class AccountBranchData(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("transactionCount", uint256),
+        ("transaction_count", uint256),
         ("balance", uint256),
-        ("isContract", boolean),
+        ("is_contract", boolean),
     ]
 
-    def __init__(self, branch, transactionCount, balance, isContract):
+    def __init__(self, branch, transaction_count, balance, is_contract):
         self.branch = branch
-        self.transactionCount = transactionCount
+        self.transaction_count = transaction_count
         self.balance = balance
-        self.isContract = isContract
+        self.is_contract = is_contract
 
 
 class GetAccountDataResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("accountBranchDataList", PrependedSizeListSerializer(4, AccountBranchData)),
+        ("error_code", uint32),
+        ("account_branch_data_list", PrependedSizeListSerializer(4, AccountBranchData)),
     ]
 
-    def __init__(self, errorCode, accountBranchDataList):
-        self.errorCode = errorCode
-        self.accountBranchDataList = accountBranchDataList
+    def __init__(self, error_code, account_branch_data_list):
+        self.error_code = error_code
+        self.account_branch_data_list = account_branch_data_list
 
 
 class AddTransactionRequest(Serializable):
@@ -504,33 +504,33 @@ class AddTransactionRequest(Serializable):
 
 class AddTransactionResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 class SyncMinorBlockListRequest(Serializable):
     FIELDS = [
-        ("minorBlockHashList", PrependedSizeListSerializer(4, hash256)),
+        ("minor_block_hash_list", PrependedSizeListSerializer(4, hash256)),
         ("branch", Branch),
-        ("clusterPeerId", uint64),
+        ("cluster_peer_id", uint64),
     ]
 
-    def __init__(self, minorBlockHashList, branch, clusterPeerId):
-        self.minorBlockHashList = minorBlockHashList
+    def __init__(self, minor_block_hash_list, branch, cluster_peer_id):
+        self.minor_block_hash_list = minor_block_hash_list
         self.branch = branch
-        self.clusterPeerId = clusterPeerId
+        self.cluster_peer_id = cluster_peer_id
 
 
 class SyncMinorBlockListResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
+        ("error_code", uint32),
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 # slave -> master
@@ -541,12 +541,12 @@ class ShardStats(Serializable):
         ("branch", Branch),
         ("height", uint64),
         ("timestamp", uint64),
-        ("txCount60s", uint32),
-        ("pendingTxCount", uint32),
-        ("totalTxCount", uint32),
-        ("blockCount60s", uint32),
-        ("staleBlockCount60s", uint32),
-        ("lastBlockTime", uint32),
+        ("tx_count60s", uint32),
+        ("pending_tx_count", uint32),
+        ("total_tx_count", uint32),
+        ("block_count60s", uint32),
+        ("stale_block_count60s", uint32),
+        ("last_block_time", uint32),
     ]
 
     def __init__(
@@ -554,22 +554,22 @@ class ShardStats(Serializable):
         branch,
         height,
         timestamp,
-        txCount60s,
-        pendingTxCount,
-        totalTxCount,
-        blockCount60s,
-        staleBlockCount60s,
-        lastBlockTime,
+        tx_count60s,
+        pending_tx_count,
+        total_tx_count,
+        block_count60s,
+        stale_block_count60s,
+        last_block_time,
     ):
         self.branch = branch
         self.height = height
         self.timestamp = timestamp
-        self.txCount60s = txCount60s
-        self.pendingTxCount = pendingTxCount
-        self.totalTxCount = totalTxCount
-        self.blockCount60s = blockCount60s
-        self.staleBlockCount60s = staleBlockCount60s
-        self.lastBlockTime = lastBlockTime
+        self.tx_count60s = tx_count60s
+        self.pending_tx_count = pending_tx_count
+        self.total_tx_count = total_tx_count
+        self.block_count60s = block_count60s
+        self.stale_block_count60s = stale_block_count60s
+        self.last_block_time = last_block_time
 
 
 class AddMinorBlockHeaderRequest(Serializable):
@@ -577,28 +577,28 @@ class AddMinorBlockHeaderRequest(Serializable):
     Piggyback the ShardStats in the same request.
     """
     FIELDS = [
-        ("minorBlockHeader", MinorBlockHeader),
-        ("txCount", uint32),  # the total number of tx in the block
-        ("xShardTxCount", uint32),  # the number of xshard tx in the block
-        ("shardStats", ShardStats),
+        ("minor_block_header", MinorBlockHeader),
+        ("tx_count", uint32),  # the total number of tx in the block
+        ("x_shard_tx_count", uint32),  # the number of xshard tx in the block
+        ("shard_stats", ShardStats),
     ]
 
-    def __init__(self, minorBlockHeader, txCount, xShardTxCount, shardStats):
-        self.minorBlockHeader = minorBlockHeader
-        self.txCount = txCount
-        self.xShardTxCount = xShardTxCount
-        self.shardStats = shardStats
+    def __init__(self, minor_block_header, tx_count, x_shard_tx_count, shard_stats):
+        self.minor_block_header = minor_block_header
+        self.tx_count = tx_count
+        self.x_shard_tx_count = x_shard_tx_count
+        self.shard_stats = shard_stats
 
 
 class AddMinorBlockHeaderResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32),
-        ("artificialTxConfig", ArtificialTxConfig),
+        ("error_code", uint32),
+        ("artificial_tx_config", ArtificialTxConfig),
     ]
 
-    def __init__(self, errorCode, artificialTxConfig):
-        self.errorCode = errorCode
-        self.artificialTxConfig = artificialTxConfig
+    def __init__(self, error_code, artificial_tx_config):
+        self.error_code = error_code
+        self.artificial_tx_config = artificial_tx_config
 
 
 # slave -> slave
@@ -606,41 +606,41 @@ class AddMinorBlockHeaderResponse(Serializable):
 class AddXshardTxListRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("minorBlockHash", hash256),
-        ("txList", CrossShardTransactionList),
+        ("minor_block_hash", hash256),
+        ("tx_list", CrossShardTransactionList),
     ]
 
-    def __init__(self, branch, minorBlockHash, txList):
+    def __init__(self, branch, minor_block_hash, tx_list):
         self.branch = branch
-        self.minorBlockHash = minorBlockHash
-        self.txList = txList
+        self.minor_block_hash = minor_block_hash
+        self.tx_list = tx_list
 
 
 class AddXshardTxListResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32)
+        ("error_code", uint32)
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 class BatchAddXshardTxListRequest(Serializable):
     FIELDS = [
-        ("addXshardTxListRequestList", PrependedSizeListSerializer(4, AddXshardTxListRequest)),
+        ("add_xshard_tx_list_request_list", PrependedSizeListSerializer(4, AddXshardTxListRequest)),
     ]
 
-    def __init__(self, addXshardTxListRequestList):
-        self.addXshardTxListRequestList = addXshardTxListRequestList
+    def __init__(self, add_xshard_tx_list_request_list):
+        self.add_xshard_tx_list_request_list = add_xshard_tx_list_request_list
 
 
 class BatchAddXshardTxListResponse(Serializable):
     FIELDS = [
-        ("errorCode", uint32)
+        ("error_code", uint32)
     ]
 
-    def __init__(self, errorCode):
-        self.errorCode = errorCode
+    def __init__(self, error_code):
+        self.error_code = error_code
 
 
 CLUSTER_OP_BASE = 128

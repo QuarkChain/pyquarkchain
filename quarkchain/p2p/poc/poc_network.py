@@ -29,11 +29,11 @@ class Network:
     def __init__(self, config):
         self.config = config
         self.procs = []
-        self.shutdownCalled = False
+        self.shutdown_called = False
 
     async def wait_and_shutdown(self, prefix, proc):
         await proc.wait()
-        if self.shutdownCalled:
+        if self.shutdown_called:
             return
 
     async def run_apps(self):
@@ -67,7 +67,7 @@ class Network:
         await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
-        self.shutdownCalled = True
+        self.shutdown_called = True
         for prefix, proc in self.procs:
             try:
                 proc.terminate()
@@ -83,18 +83,18 @@ class Network:
             asyncio.get_event_loop().run_until_complete(self.shutdown())
 
 
-def create_app_config(appCount, networkPortStart, min_peers, max_peers):
-    if appCount <= 0:
+def create_app_config(app_count, network_port_start, min_peers, max_peers):
+    if app_count <= 0:
         print("App count must greater than 0")
         return None
 
     config = dict()
     config["apps"] = []
-    for i in range(appCount):
+    for i in range(app_count):
         config["apps"].append({
             "id": "{:03}".format(i),
-            "bootstrap_port": networkPortStart,  # use first host as bootstrap
-            "node_port": networkPortStart + i,
+            "bootstrap_port": network_port_start,  # use first host as bootstrap
+            "node_port": network_port_start + i,
             "node_num": i,
             "min_peers": min_peers,
             "max_peers": max_peers,
@@ -117,8 +117,8 @@ def main():
     args = parser.parse_args()
 
     config = create_app_config(
-        appCount=args.num_apps,
-        networkPortStart=args.port_start,
+        app_count=args.num_apps,
+        network_port_start=args.port_start,
         min_peers=args.min_peers,
         max_peers=args.max_peers,
     )

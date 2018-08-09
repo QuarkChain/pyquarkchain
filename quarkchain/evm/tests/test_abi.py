@@ -6,15 +6,15 @@ from quarkchain.evm.transactions import Transaction
 class TestTypedSignature(unittest.TestCase):
 
 
-    rawTx = Transaction(nonce=0x0d,
+    raw_tx = Transaction(nonce=0x0d,
                         gasprice=0x02540be400,
                         startgas=0x7530,
                         to=bytes.fromhex('314b2cd22c6d26618ce051a58c65af1253aecbb8'),
                         value=0x056bc75e2d63100000,
                         data=b'',
-                        fromFullShardId=0xc47decfd,
-                        toFullShardId=0xc49c1950,
-                        networkId=0x03)
+                        from_full_shard_id=0xc47decfd,
+                        to_full_shard_id=0xc49c1950,
+                        network_id=0x03)
 
 
     tx = [
@@ -72,7 +72,7 @@ class TestTypedSignature(unittest.TestCase):
 
 
     def test_typed(self):
-        assert tx_to_typed_data(self.rawTx) == self.tx
+        assert tx_to_typed_data(self.raw_tx) == self.tx
 
 
     def test_solidity_pack(self):
@@ -93,8 +93,8 @@ class TestTypedSignature(unittest.TestCase):
     def test_recover(self):
         """
         """
-        self.rawTx.version = 1
-        self.rawTx.r = 0xb5145678e43df2b7ea8e0e969e51dbf72c956dd52e234c95393ad68744394855
-        self.rawTx.s = 0x44515b465dbbf746a484239c11adb98f967e35347e17e71b84d850d8e5c38a6a
-        self.rawTx.v = 0x1b
-        assert self.rawTx.sender == bytes.fromhex('8b74a79290a437aa9589be3227d9bb81b22beff1')
+        self.raw_tx.version = 1
+        self.raw_tx.r = 0xb5145678e43df2b7ea8e0e969e51dbf72c956dd52e234c95393ad68744394855
+        self.raw_tx.s = 0x44515b465dbbf746a484239c11adb98f967e35347e17e71b84d850d8e5c38a6a
+        self.raw_tx.v = 0x1b
+        assert self.raw_tx.sender == bytes.fromhex('8b74a79290a437aa9589be3227d9bb81b22beff1')

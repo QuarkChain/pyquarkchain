@@ -75,14 +75,10 @@ class DefaultConfig:
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
-        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=45,
-            diffFactor=2048,
-            minimumDiff=self.GENESIS_DIFFICULTY)
-        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9,
-            diffFactor=2048,
-            minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
+        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=45, diff_factor=2048,
+                                                            minimum_diff=self.GENESIS_DIFFICULTY)
+        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=9, diff_factor=2048,
+                                                             minimum_diff=self.GENESIS_MINOR_DIFFICULTY)
 
         self.NETWORK_ID = NetworkId.TESTNET_PORSCHE
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
@@ -101,10 +97,10 @@ class DefaultConfig:
         # whether to index transaction by address
         self.ENABLE_TRANSACTION_HISTORY = True
 
-    def set_shard_size(self, shardSize):
-        assert(is_p2(shardSize))
-        self.SHARD_SIZE = shardSize
-        self.SHARD_SIZE_BITS = int_left_most_bit(shardSize) - 1
+    def set_shard_size(self, shard_size):
+        assert(is_p2(shard_size))
+        self.SHARD_SIZE = shard_size
+        self.SHARD_SIZE_BITS = int_left_most_bit(shard_size) - 1
 
     def copy(self):
         return copy.copy(self)
@@ -132,20 +128,20 @@ def get_default_evm_config():
 
 class Env:
 
-    def __init__(self, db=None, config=None, evmConfig=None, clusterConfig=None):
+    def __init__(self, db=None, config=None, evm_config=None, cluster_config=None):
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
-        self.evmConfig = evmConfig or get_default_evm_config()
-        self.evmConfig["NETWORK_ID"] = self.config.NETWORK_ID
-        self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
-        self.clusterConfig = clusterConfig or DefaultClusterConfig()
+        self.evm_config = evm_config or get_default_evm_config()
+        self.evm_config["NETWORK_ID"] = self.config.NETWORK_ID
+        self.evm_env = quarkchain.evm.config.Env(db=self.db, config=self.evm_config)
+        self.cluster_config = cluster_config or DefaultClusterConfig()
 
-    def set_network_id(self, networkId):
-        self.config.NETWORK_ID = networkId
-        self.evmConfig["NETWORK_ID"] = networkId
+    def set_network_id(self, network_id):
+        self.config.NETWORK_ID = network_id
+        self.evm_config["NETWORK_ID"] = network_id
 
     def copy(self):
-        return Env(self.db, self.config.copy(), dict(self.evmConfig), self.clusterConfig.copy())
+        return Env(self.db, self.config.copy(), dict(self.evm_config), self.cluster_config.copy())
 
 
 DEFAULT_ENV = Env()

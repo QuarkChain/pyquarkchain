@@ -5,32 +5,32 @@
 
 class MADifficultyCalculator:
 
-    def __init__(self, maSamples=16, targetIntervalSec=1, bootstrapSamples=0, slideSize=1):
-        self.maSamples = maSamples
-        self.targetIntervalSec = targetIntervalSec
-        self.bootstrapSamples = bootstrapSamples
-        self.slideSize = slideSize
+    def __init__(self, ma_samples=16, target_interval_sec=1, bootstrap_samples=0, slide_size=1):
+        self.ma_samples = ma_samples
+        self.target_interval_sec = target_interval_sec
+        self.bootstrap_samples = bootstrap_samples
+        self.slide_size = slide_size
 
     # Obtain the difficulty required for the next block
     def calculate_diff(self, chain):
         assert(len(chain) >= 1)
-        gensisDiff = chain[0].get_required_diff()
-        chain = chain[:len(chain) // self.slideSize * self.slideSize]
-        if len(chain) <= self.bootstrapSamples + 1:
-            return gensisDiff
+        gensis_diff = chain[0].get_required_diff()
+        chain = chain[:len(chain) // self.slide_size * self.slide_size]
+        if len(chain) <= self.bootstrap_samples + 1:
+            return gensis_diff
 
-        samples = self.maSamples
+        samples = self.ma_samples
         if len(chain) < samples + 1:
             samples = len(chain) - 1
 
-        workDone = 0
+        work_done = 0
         for block in chain[-samples:]:
-            workDone = workDone + 1 / block.get_required_diff()
+            work_done = work_done + 1 / block.get_required_diff()
 
-        timeUsedSec = chain[-1].get_create_time_sec() - \
+        time_used_sec = chain[-1].get_create_time_sec() - \
             chain[-1 - samples].get_create_time_sec()
 
-        return timeUsedSec / self.targetIntervalSec / workDone
+        return time_used_sec / self.target_interval_sec / work_done
 
 
 class FixedDifficultyCalculator:

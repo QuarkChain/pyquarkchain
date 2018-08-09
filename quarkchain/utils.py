@@ -26,8 +26,8 @@ def masks_have_overlap(m1, m2):
 
     i1 = int_left_most_bit(m1)
     i2 = int_left_most_bit(m2)
-    bitMask = (1 << ((min(i1, i2) - 1))) - 1
-    return (m1 & bitMask) == (m2 & bitMask)
+    bit_mask = (1 << ((min(i1, i2) - 1))) - 1
+    return (m1 & bit_mask) == (m2 & bit_mask)
 
 
 def is_p2(v):
@@ -74,110 +74,110 @@ def assert_true_with_timeout(f, duration=1):
 
 
 class Logger:
-    lastDebugTimeMap = dict()
-    lastInfoTimeMap = dict()
-    lastWarningTimeMap = dict()
-    lastErrorTimeMap = dict()
+    last_debug_time_map = dict()
+    last_info_time_map = dict()
+    last_warning_time_map = dict()
+    last_error_time_map = dict()
     logger = logging.getLogger()
 
     @classmethod
-    def isEnableForDebug(cls):
-        return cls.logger.isEnabledFor(logging.DEBUG)
+    def is_enable_for_debug(cls):
+        return cls.logger.is_enabled_for(logging.DEBUG)
 
     @classmethod
-    def isEnableForInfo(cls):
-        return cls.logger.isEnabledFor(logging.INFO)
+    def is_enable_for_info(cls):
+        return cls.logger.is_enabled_for(logging.INFO)
 
     @classmethod
-    def isEnableForWarning(cls):
-        return cls.logger.isEnabledFor(logging.WARNING)
+    def is_enable_for_warning(cls):
+        return cls.logger.is_enabled_for(logging.WARNING)
 
     @staticmethod
     def debug(msg, *args, **kwargs):
         logging.debug(msg, *args, **kwargs)
 
     @classmethod
-    def debugEverySec(cls, msg, duration):
-        stackList = traceback.format_stack()
-        if len(stackList) <= 1:
+    def debug_every_sec(cls, msg, duration):
+        stack_list = traceback.format_stack()
+        if len(stack_list) <= 1:
             Logger.debug(msg)
             return
-        key = stackList[-2]
+        key = stack_list[-2]
 
-        if key not in cls.lastDebugTimeMap or time.time() - cls.lastDebugTimeMap[key] > duration:
+        if key not in cls.last_debug_time_map or time.time() - cls.last_debug_time_map[key] > duration:
             Logger.debug(msg)
-            cls.lastDebugTimeMap[key] = time.time()
+            cls.last_debug_time_map[key] = time.time()
 
     @staticmethod
     def info(msg):
         logging.info(msg)
 
     @classmethod
-    def infoEverySec(cls, msg, duration):
-        stackList = traceback.format_stack()
-        if len(stackList) <= 1:
+    def info_every_sec(cls, msg, duration):
+        stack_list = traceback.format_stack()
+        if len(stack_list) <= 1:
             Logger.info(msg)
             return
-        key = stackList[-2]
+        key = stack_list[-2]
 
-        if key not in cls.lastInfoTimeMap or time.time() - cls.lastInfoTimeMap[key] > duration:
+        if key not in cls.last_info_time_map or time.time() - cls.last_info_time_map[key] > duration:
             Logger.info(msg)
-            cls.lastInfoTimeMap[key] = time.time()
+            cls.last_info_time_map[key] = time.time()
 
     @staticmethod
     def warning(msg):
         logging.warning(msg)
 
     @classmethod
-    def warningEverySec(cls, msg, duration):
-        stackList = traceback.format_stack()
-        if len(stackList) <= 1:
+    def warning_every_sec(cls, msg, duration):
+        stack_list = traceback.format_stack()
+        if len(stack_list) <= 1:
             Logger.warning(msg)
             return
-        key = stackList[-2]
+        key = stack_list[-2]
 
-        if key not in cls.lastWarningTimeMap or time.time() - cls.lastWarningTimeMap[key] > duration:
+        if key not in cls.last_warning_time_map or time.time() - cls.last_warning_time_map[key] > duration:
             Logger.warning(msg)
-            cls.lastWarningTimeMap[key] = time.time()
+            cls.last_warning_time_map[key] = time.time()
 
     @staticmethod
     def error(msg):
         logging.error(msg)
 
     @classmethod
-    def errorEverySec(cls, msg, duration):
-        stackList = traceback.format_stack()
-        if len(stackList) <= 1:
+    def error_every_sec(cls, msg, duration):
+        stack_list = traceback.format_stack()
+        if len(stack_list) <= 1:
             Logger.error(msg)
             return
-        key = stackList[-2]
+        key = stack_list[-2]
 
-        if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
+        if key not in cls.last_error_time_map or time.time() - cls.last_error_time_map[key] > duration:
             Logger.error(msg)
-            cls.lastErrorTimeMap[key] = time.time()
+            cls.last_error_time_map[key] = time.time()
 
     @staticmethod
-    def errorException():
+    def error_exception():
         Logger.error(traceback.format_exc())
 
     @staticmethod
-    def logException():
-        Logger.errorException()
+    def log_exception():
+        Logger.error_exception()
 
     @classmethod
-    def errorExceptionEverySec(cls, duration):
-        stackList = traceback.format_stack()
-        if len(stackList) <= 1:
-            cls.errorException()
+    def error_exception_every_sec(cls, duration):
+        stack_list = traceback.format_stack()
+        if len(stack_list) <= 1:
+            cls.error_exception()
             return
-        key = stackList[-2]
+        key = stack_list[-2]
 
-        if key not in cls.lastErrorTimeMap or time.time() - cls.lastErrorTimeMap[key] > duration:
-            cls.errorException()
-            cls.lastErrorTimeMap[key] = time.time()
+        if key not in cls.last_error_time_map or time.time() - cls.last_error_time_map[key] > duration:
+            cls.error_exception()
+            cls.last_error_time_map[key] = time.time()
 
     @staticmethod
-    def debugException():
+    def debug_exception():
         Logger.debug(traceback.format_exc())
 
     @staticmethod
@@ -186,7 +186,7 @@ class Logger:
         crash()
 
     @staticmethod
-    def fatalException(msg):
+    def fatal_exception(msg):
         Logger.fatal(traceback.format_exc())
 
 
@@ -200,7 +200,7 @@ BOLD_SEQ = "\033[1m"
 
 
 def set_logging_level(level):
-    levelMap = {
+    level_map = {
         "DEBUG": logging.DEBUG,
         "INFO": logging.INFO,
         "WARNING": logging.WARNING,
@@ -208,7 +208,7 @@ def set_logging_level(level):
         "CRITICAL": logging.CRITICAL
     }
     level = level.upper()
-    if level not in levelMap:
+    if level not in level_map:
         raise RuntimeError("invalid level {}".format(level))
 
     logging.addLevelName(logging.DEBUG, "\033[1;33m%s\033[1;0m" % logging.getLevelName(logging.DEBUG))
@@ -216,17 +216,17 @@ def set_logging_level(level):
     logging.addLevelName(logging.ERROR, "\033[1;31m%s\033[1;0m" % logging.getLevelName(logging.ERROR))
     logging.addLevelName(logging.CRITICAL, "\033[1;41m%s\033[1;0m" % logging.getLevelName(logging.CRITICAL))
 
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=levelMap[level])
+    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=level_map[level])
 
 
 def main():
     set_logging_level("debug")
 
     for i in range(100):
-        Logger.debugEverySec("log every 1s", 1)
-        Logger.infoEverySec("log every 2s", 2)
-        Logger.warningEverySec("log every 3s", 3)
-        Logger.errorEverySec("log every 4s", 4)
+        Logger.debug_every_sec("log every 1s", 1)
+        Logger.info_every_sec("log every 2s", 2)
+        Logger.warning_every_sec("log every 3s", 3)
+        Logger.error_every_sec("log every 4s", 4)
         time.sleep(0.1)
 
 
