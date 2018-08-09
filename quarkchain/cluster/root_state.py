@@ -176,12 +176,12 @@ class RootState:
     def getNextBlockDifficulty(self, createTime=None):
         if createTime is None:
             createTime = max(self.tip.createTime + 1, int(time.time()))
-        return self.diffCalc.calculateDiffWithParent(self.tip, createTime)
+        return self.diffCalc.calculate_diff_with_parent(self.tip, createTime)
 
     def createBlockToMine(self, mHeaderList, address, createTime=None):
         if createTime is None:
             createTime = max(self.tip.createTime + 1, int(time.time()))
-        difficulty = self.diffCalc.calculateDiffWithParent(self.tip, createTime)
+        difficulty = self.diffCalc.calculate_diff_with_parent(self.tip, createTime)
         block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficulty=difficulty)
         block.minorBlockHeaderList = mHeaderList
 
@@ -215,7 +215,7 @@ class RootState:
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.diffCalc.calculateDiffWithParent(prevBlockHeader, blockHeader.createTime)
+                diff = self.diffCalc.calculate_diff_with_parent(prevBlockHeader, blockHeader.createTime)
                 if diff != blockHeader.difficulty:
                     raise ValueError("incorrect difficulty")
                 metric = diff * int.from_bytes(blockHash, byteorder="big")

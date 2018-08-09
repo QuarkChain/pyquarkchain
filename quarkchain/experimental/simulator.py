@@ -210,7 +210,7 @@ class MinorBlockChain:
             nBranch=self.shardId,
             height=self.bestChain[-1].header.height + 1,
             hashPrevMinorBlock=self.bestChain[-1].getHash())
-        header.requiredDiff = self.diffCalc.calculateDiff(self.bestChain)
+        header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MinorBlock(header)
 
 
@@ -263,7 +263,7 @@ class MajorBlockChain:
             nShard=self.shardSize,
             height=self.bestChain[-1].header.height + 1,
             hashPrevBlock=self.bestChain[-1].getHash())
-        header.requiredDiff = self.diffCalc.calculateDiff(self.bestChain)
+        header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MajorBlock(header, copy.copy(self.pendingMinorBlockMap))
 
 

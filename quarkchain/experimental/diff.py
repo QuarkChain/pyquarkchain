@@ -12,7 +12,7 @@ class MADifficultyCalculator:
         self.slideSize = slideSize
 
     # Obtain the difficulty required for the next block
-    def calculateDiff(self, chain):
+    def calculate_diff(self, chain):
         assert(len(chain) >= 1)
         gensisDiff = chain[0].getRequiredDiff()
         chain = chain[:len(chain) // self.slideSize * self.slideSize]
@@ -38,5 +38,5 @@ class FixedDifficultyCalculator:
     def __init__(self, diff):
         self.diff = diff
 
-    def calculateDiff(self, chain):
+    def calculate_diff(self, chain):
         return self.diff

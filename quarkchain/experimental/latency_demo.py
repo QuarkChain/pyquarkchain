@@ -156,7 +156,7 @@ class Miner:
             return
 
         block = self.getBlockToMine()
-        timeToMine = self.pow.mine(self.diffCalc.calculateDiff(self.chain))
+        timeToMine = self.pow.mine(self.diffCalc.calculate_diff(self.chain))
         self.mineTask = self.scheduler.scheduleAfter(
             timeToMine, self.mined, block)
 
