@@ -397,7 +397,7 @@ class Node:
     def start(self):
         self.mineOneChain()
 
-    def getPeers(self):
+    def get_peers(self):
         return self.peers
 
     def rpcGetMajorBlock(self, majorBlock):

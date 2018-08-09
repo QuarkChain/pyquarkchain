@@ -82,15 +82,15 @@ class Logger:
 
     @classmethod
     def isEnableForDebug(cls):
-        return cls.logger.isEnabledFor(logging.DEBUG)
+        return cls.logger.is_enabledFor(logging.DEBUG)
 
     @classmethod
     def isEnableForInfo(cls):
-        return cls.logger.isEnabledFor(logging.INFO)
+        return cls.logger.is_enabledFor(logging.INFO)
 
     @classmethod
     def isEnableForWarning(cls):
-        return cls.logger.isEnabledFor(logging.WARNING)
+        return cls.logger.is_enabledFor(logging.WARNING)
 
     @staticmethod
     def debug(msg, *args, **kwargs):

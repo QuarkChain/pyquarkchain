@@ -19,34 +19,34 @@ class Endpoint:
     async def __createSession(self):
         self.session = aiohttp.ClientSession()
 
-    async def __sendRequest(self, *args):
+    async def __send_request(self, *args):
         client = aiohttpClient(self.session, self.url)
         response = await client.request(*args)
         return response
 
-    async def sendTransaction(self, tx):
+    async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__sendRequest("sendRawTransaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
     async def getContractAddress(self, txId):
         """txId should be '0x.....' """
-        resp = await self.__sendRequest("getTransactionReceipt", txId)
+        resp = await self.__send_request("get_transaction_receipt", txId)
         if not resp:
             return None
         return resp["contractAddress"]
 
     async def getNonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__sendRequest("getTransactionCount", addressHex)
+        resp = await self.__send_request("get_transaction_count", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__sendRequest("networkInfo")
+        resp = await self.__send_request("networkInfo")
         return int(resp["shardSize"], 16)
 
     async def getNetworkId(self):
-        resp = await self.__sendRequest("networkInfo")
+        resp = await self.__send_request("networkInfo")
         return int(resp["networkId"], 16)
 
 
@@ -70,7 +70,7 @@ async def deploy_shard(endpoint, genesisId, data, networkId, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.getNonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, data, networkId)
-    txId = await endpoint.sendTransaction(tx)
+    txId = await endpoint.send_transaction(tx)
     while True:
         print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
         await asyncio.sleep(5)

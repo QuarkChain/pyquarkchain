@@ -34,7 +34,7 @@ class Peer(P2PConnection):
         self.bestRootBlockHeaderObserved = None
         self.clusterPeerId = clusterPeerId
 
-    def sendHello(self):
+    def send_hello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
                            networkId=self.env.config.NETWORK_ID,
                            peerId=self.network.selfId,
@@ -92,7 +92,7 @@ class Peer(P2PConnection):
 
         # Send hello back
         if isServer:
-            self.sendHello()
+            self.send_hello()
 
         await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
         Logger.info("Established virtual shard connections with peer {}".format(self.id.hex()))
@@ -105,7 +105,7 @@ class Peer(P2PConnection):
         self.network.clusterPeerPool[self.clusterPeerId] = self
         Logger.info("Peer {} added to active peer pool".format(self.id.hex()))
 
-        self.masterServer.handleNewRootBlockHeader(self.bestRootBlockHeaderObserved, self)
+        self.masterServer.handle_new_root_block_header(self.bestRootBlockHeaderObserved, self)
         return None
 
     def close(self):
@@ -117,11 +117,11 @@ class Peer(P2PConnection):
                 del self.network.clusterPeerPool[self.clusterPeerId]
             Logger.info("Peer {} disconnected, remaining {}".format(
                 self.id.hex(), len(self.network.activePeerPool)))
-            self.masterServer.destroyPeerClusterConnections(self.clusterPeerId)
+            self.masterServer.destroy_peer_cluster_connections(self.clusterPeerId)
 
         super().close()
 
-    def closeDeadPeer(self):
+    def close_dead_peer(self):
         assert(self.id is not None)
         if self.id in self.network.activePeerPool:
             del self.network.activePeerPool[self.id]
@@ -129,7 +129,7 @@ class Peer(P2PConnection):
             del self.network.clusterPeerPool[self.clusterPeerId]
         Logger.info("Peer {} ({}:{}) disconnected, remaining {}".format(
             self.id.hex(), self.ip, self.port, len(self.network.activePeerPool)))
-        self.masterServer.destroyPeerClusterConnections(self.clusterPeerId)
+        self.masterServer.destroy_peer_cluster_connections(self.clusterPeerId)
         super().close()
 
     def close_with_error(self, error):
@@ -152,18 +152,18 @@ class Peer(P2PConnection):
         return resp
 
     # ------------------------ Operations for forwarding ---------------------
-    def getClusterPeerId(self):
-        ''' Override P2PConnection.getClusterPeerId()
+    def get_cluster_peer_id(self):
+        ''' Override P2PConnection.get_cluster_peer_id()
         '''
         return self.clusterPeerId
 
-    def getConnectionToForward(self, metadata):
-        ''' Override P2PConnection.getConnectionToForward()
+    def get_connection_to_forward(self, metadata):
+        ''' Override P2PConnection.get_connection_to_forward()
         '''
         if metadata.branch.value == ROOT_SHARD_ID:
             return None
 
-        return self.masterServer.getSlaveConnection(metadata.branch)
+        return self.masterServer.get_slave_connection(metadata.branch)
 
     # ----------------------- RPC handlers ---------------------------------
 
@@ -180,7 +180,7 @@ class Peer(P2PConnection):
                     self.bestRootBlockHeaderObserved.height))
 
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
-        self.masterServer.handleNewRootBlockHeader(cmd.rootBlockHeader, self)
+        self.masterServer.handle_new_root_block_header(cmd.rootBlockHeader, self)
 
     async def handleNewTransactionList(self, op, cmd, rpcId):
         for tx in cmd.transactionList:
@@ -197,7 +197,7 @@ class Peer(P2PConnection):
         blockHash = request.blockHash
         headerList = []
         for i in range(request.limit):
-            header = self.rootState.db.getRootBlockHeaderByHash(blockHash, consistencyCheck=False)
+            header = self.rootState.db.get_root_block_header_by_hash(blockHash, consistencyCheck=False)
             headerList.append(header)
             if header.height == 0:
                 break
@@ -207,13 +207,13 @@ class Peer(P2PConnection):
     async def handleGetRootBlockListRequest(self, request):
         rBlockList = []
         for h in request.rootBlockHashList:
-            rBlock = self.rootState.db.getRootBlockByHash(h, consistencyCheck=False)
+            rBlock = self.rootState.db.get_root_block_by_hash(h, consistencyCheck=False)
             if rBlock is None:
                 continue
             rBlockList.append(rBlock)
         return GetRootBlockListResponse(rBlockList)
 
-    def sendUpdatedTip(self):
+    def send_updated_tip(self):
         if self.rootState.tip.height <= self.bestRootBlockHeaderObserved.height:
             return
 
@@ -221,7 +221,7 @@ class Peer(P2PConnection):
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))
 
-    def sendTransaction(self, tx):
+    def send_transaction(self, tx):
         self.write_command(
             op=CommandOp.NEW_TRANSACTION_LIST,
             cmd=NewTransactionListCommand([tx]))
@@ -283,7 +283,7 @@ class SimpleNetwork:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
         peer = Peer(self.env, reader, writer, self, self.masterServer, self.__getNextClusterPeerId())
-        peer.sendHello()
+        peer.send_hello()
         result = await peer.start(isServer=False)
         if result is not None:
             return None
@@ -311,16 +311,16 @@ class SimpleNetwork:
 
         # TODO: Sync with total diff
 
-    def iteratePeers(self):
+    def iterate_peers(self):
         return self.clusterPeerPool.values()
 
-    def shutdownPeers(self):
+    def shutdown_peers(self):
         activePeerPool = self.activePeerPool
         self.activePeerPool = dict()
         for peerId, peer in activePeerPool.items():
             peer.close()
 
-    def startServer(self):
+    def start_server(self):
         coro = asyncio.start_server(
             self.newPeer, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
@@ -329,12 +329,12 @@ class SimpleNetwork:
             self.server.sockets[0].getsockname()))
 
     def shutdown(self):
-        self.shutdownPeers()
+        self.shutdown_peers()
         self.server.close()
         self.loop.run_until_complete(self.server.wait_closed())
 
     def start(self):
-        self.startServer()
+        self.start_server()
 
         if self.env.config.LOCAL_SERVER_ENABLE:
             coro = asyncio.start_server(
@@ -351,5 +351,5 @@ class SimpleNetwork:
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 
-    def getPeerByClusterPeerId(self, clusterPeerId):
+    def get_peer_by_cluster_peer_id(self, clusterPeerId):
         return self.clusterPeerPool.get(clusterPeerId)

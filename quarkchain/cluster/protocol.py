@@ -23,7 +23,7 @@ class ProxyConnection(Connection):
             metadataClass=metadataClass,
             name=name)
 
-    def getConnectionToForward(self, metadata):
+    def get_connection_to_forward(self, metadata):
         ''' Returns the Connection object to forward a request for metadata.
         Returns None if the request should not be forwarded for metadata.
 
@@ -48,21 +48,21 @@ class ProxyConnection(Connection):
         '''
         return None
 
-    def validateConnection(self, connection):
+    def validate_connection(self, connection):
         ''' Subclass can override this to validate the connection '''
         return True
 
-    def getMetadataToForward(self, metadata):
+    def get_metadata_to_forward(self, metadata):
         return metadata
 
-    def closeConnection(self, conn):
+    def close_connection(self, conn):
         pass
 
     async def handleMetadataAndRawData(self, metadata, rawData):
-        forwardConn = self.getConnectionToForward(metadata)
+        forwardConn = self.get_connection_to_forward(metadata)
         if forwardConn:
-            check(self.validateConnection(forwardConn))
-            return forwardConn.write_raw_data(self.getMetadataToForward(metadata), rawData)
+            check(self.validate_connection(forwardConn))
+            return forwardConn.write_raw_data(self.get_metadata_to_forward(metadata), rawData)
         await super().handleMetadataAndRawData(metadata, rawData)
 
 
@@ -104,13 +104,13 @@ class VirtualConnection(AbstractConnection):
 
     def write_raw_data(self, metadata, rawData):
         self.proxyConn.write_raw_data(
-            self.getMetadataToWrite(metadata),
+            self.get_metadata_to_write(metadata),
             rawData)
 
-    def getForwardingConnection(self):
+    def get_forwarding_connection(self):
         return self.forwardConn
 
-    def getMetadataToWrite(self, metadata):
+    def get_metadata_to_write(self, metadata):
         ''' Metadata when a forwarding conn write back to the proxy connection
         '''
         raise NotImplementedError()
@@ -162,18 +162,18 @@ class P2PConnection(ProxyConnection):
     def __init__(self, env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop=None, name=None):
         super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, P2PMetadata, name=name)
 
-    def getClusterPeerId(self):
+    def get_cluster_peer_id(self):
         ''' To be implemented by subclass '''
         raise NotImplementedError()
 
-    def getConnectionToForward(self, metadata):
+    def get_connection_to_forward(self, metadata):
         ''' To be implemented by subclass '''
         raise NotImplementedError()
 
-    def getMetadataToForward(self, metadata):
-        return ClusterMetadata(metadata.branch, self.getClusterPeerId())
+    def get_metadata_to_forward(self, metadata):
+        return ClusterMetadata(metadata.branch, self.get_cluster_peer_id())
 
-    def validateConnection(self, connection):
+    def validate_connection(self, connection):
         return isinstance(connection, ClusterConnection)
 
 
@@ -182,8 +182,8 @@ class ClusterConnection(ProxyConnection):
         super().__init__(env, reader, writer, opSerMap, opNonRpcMap, opRpcMap, loop, ClusterMetadata, name=name)
         self.peerRpcIds = dict()
 
-    def getConnectionToForward(self, metadata):
+    def get_connection_to_forward(self, metadata):
         raise NotImplementedError()
 
-    def getMetadataToForward(self, metadata):
+    def get_metadata_to_forward(self, metadata):
         return P2PMetadata(metadata.branch)

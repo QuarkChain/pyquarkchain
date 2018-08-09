@@ -391,7 +391,7 @@ class Node:
         while True:
             await self.mineOneChain()
 
-    def getPeers(self):
+    def get_peers(self):
         return self.peers
 
     def rpcGetMajorBlock(self, majorBlock):

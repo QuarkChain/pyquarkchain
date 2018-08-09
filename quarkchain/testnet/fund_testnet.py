@@ -22,7 +22,7 @@ class Endpoint:
     async def __createSession(self):
         self.session = aiohttp.ClientSession()
 
-    async def __sendRequest(self, *args):
+    async def __send_request(self, *args):
         client = aiohttpClient(self.session, self.url)
         # manual retry since the library has hard-coded timeouts
         while True:
@@ -34,27 +34,27 @@ class Endpoint:
                 await asyncio.sleep(1 + random.randint(0, 5))
         return response
 
-    async def sendTransaction(self, tx):
+    async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__sendRequest("sendRawTransaction", txHex)
+        resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def getTransactionReceipt(self, txId):
+    async def get_transaction_receipt(self, txId):
         """txId should be '0x.....' """
-        resp = await self.__sendRequest("getTransactionReceipt", txId)
+        resp = await self.__send_request("get_transaction_receipt", txId)
         return resp
 
     async def getNonce(self, account):
         addressHex = "0x" + account.serialize().hex()
-        resp = await self.__sendRequest("getTransactionCount", addressHex)
+        resp = await self.__send_request("get_transaction_count", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__sendRequest("networkInfo")
+        resp = await self.__send_request("networkInfo")
         return int(resp["shardSize"], 16)
 
     async def getNetworkId(self):
-        resp = await self.__sendRequest("networkInfo")
+        resp = await self.__send_request("networkInfo")
         return int(resp["networkId"], 16)
 
 
@@ -78,20 +78,20 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.getNonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, to, networkId, amount)
-    txId = await endpoint.sendTransaction(tx)
+    txId = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
         addr = "0x" + to.recipient.hex() + hex(to.fullShardId)[2:]
         print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
         await asyncio.sleep(5)
-        resp = await endpoint.getTransactionReceipt(txId)
+        resp = await endpoint.get_transaction_receipt(txId)
         if resp:
             break
         cnt += 1
         if cnt == 10:
             cnt = 0
             print("retry tx={}".format(txId))
-            await endpoint.sendTransaction(tx)
+            await endpoint.send_transaction(tx)
 
     height = int(resp["blockHeight"], 16)
     status = int(resp["status"], 16)

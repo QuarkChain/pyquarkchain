@@ -18,23 +18,23 @@ class Endpoint:
     def __init__(self, port):
         self.port = port
 
-    def __sendRequest(self, *args, **kwargs):
+    def __send_request(self, *args, **kwargs):
         return jsonrpcclient.request("http://localhost:{}".format(self.port), *args, **kwargs)
 
-    def setArtificialTxCount(self, count):
+    def set_artificial_tx_count(self, count):
         ''' Keep trying until success.
         It might take a while for the cluster to recover state.
         '''
         while True:
             try:
-                return self.__sendRequest("setArtificialTxConfig", count, 10, 0)
+                return self.__send_request("setArtificialTxConfig", count, 10, 0)
             except Exception:
                 pass
             time.sleep(1)
 
-    def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
-        resp = self.__sendRequest(
-            "getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
+    def get_next_block_to_mine(self, coinbaseAddressHex, shardMaskValue):
+        resp = self.__send_request(
+            "get_next_block_to_mine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
         if not resp:
             return None, None
         isRoot = resp["isRootBlock"]
@@ -43,9 +43,9 @@ class Endpoint:
         block = blockClass.deserialize(blockBytes)
         return isRoot, block
 
-    def addBlock(self, block):
+    def add_block(self, block):
         branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
-        resp = self.__sendRequest("addBlock", quantity_encoder(branch), data_encoder(block.serialize()))
+        resp = self.__send_request("add_block", quantity_encoder(branch), data_encoder(block.serialize()))
         return resp
 
 
@@ -86,9 +86,9 @@ class Miner:
             shard, self.block.header.height, count, status, elapsed))
 
     def run(self):
-        self.endpoint.setArtificialTxCount(self.artificialTxCount)
+        self.endpoint.set_artificial_tx_count(self.artificialTxCount)
         while True:
-            isRoot, block = self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
+            isRoot, block = self.endpoint.get_next_block_to_mine(self.coinbaseAddressHex, self.shardMaskValue)
             if not block:
                 time.sleep(1)
                 continue
@@ -102,7 +102,7 @@ class Miner:
                 if self.__checkMetric(metric):
                     self.__simulatePowDelay(block.header.createTime)
                     try:
-                        self.endpoint.addBlock(self.block)
+                        self.endpoint.add_block(self.block)
                         success = True
                     except Exception as e:
                         Logger.logException()

@@ -144,7 +144,7 @@ class Cluster:
         self.shutdownCalled = True
         kill_child_processes(os.getpid())
 
-    def startAndLoop(self):
+    def start_and_loop(self):
         try:
             asyncio.get_event_loop().run_until_complete(self.run())
         except KeyboardInterrupt:
@@ -241,7 +241,7 @@ def main():
     if args.enable_transaction_history:
         print("Starting cluster with transaction history enabled...")
 
-    cluster.startAndLoop()
+    cluster.start_and_loop()
 
 
 if __name__ == '__main__':

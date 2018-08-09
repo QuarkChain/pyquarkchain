@@ -50,7 +50,7 @@ def create_transfer_transaction(
     """ Create an in-shard xfer tx
     """
     evmTx = EvmTransaction(
-        nonce=shardState.getTransactionCount(fromAddress.recipient) if nonce is None else nonce,
+        nonce=shardState.get_transaction_count(fromAddress.recipient) if nonce is None else nonce,
         gasprice=gasPrice,
         startgas=gas,
         to=toAddress.recipient,
@@ -69,7 +69,7 @@ def create_transfer_transaction(
 
 def create_contract_creation_transaction(shardState, key, fromAddress, toFullShardId):
     evmTx = EvmTransaction(
-        nonce=shardState.getTransactionCount(fromAddress.recipient),
+        nonce=shardState.get_transaction_count(fromAddress.recipient),
         gasprice=1,
         startgas=1000000,
         value=0,
@@ -163,7 +163,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, masterServer)
-        network.startServer()
+        network.start_server()
         if i != 0:
             peer = call_async(network.connect("127.0.0.1", seedPort))
         else:
@@ -190,10 +190,10 @@ def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
     for cluster in clusterList:
         for slave in cluster.slaveList:
             slave.shutdown()
-            loop.run_until_complete(slave.getShutdownFuture())
+            loop.run_until_complete(slave.get_shutdown_future())
 
         cluster.master.shutdown()
-        loop.run_until_complete(cluster.master.getShutdownFuture())
+        loop.run_until_complete(cluster.master.get_shutdown_future())
 
     check(expectAbortedRpcCount == AbstractConnection.abortedRpcCount)
 

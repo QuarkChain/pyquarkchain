@@ -64,14 +64,14 @@ class TransactionGenerator:
         sampleEvmTx = sampleTx.code.get_evm_transaction()
         for account in self.accounts:
             inShardAddress = Address(account.address.recipient, self.branch.get_shard_id())
-            nonce = self.slaveServer.getTransactionCount(inShardAddress)
-            tx = self.createTransaction(account, nonce, xShardPercent, sampleEvmTx)
+            nonce = self.slaveServer.get_transaction_count(inShardAddress)
+            tx = self.create_transaction(account, nonce, xShardPercent, sampleEvmTx)
             if not tx:
                 continue
             txList.append(tx)
             total += 1
             if len(txList) >= 600 or total >= numTx:
-                self.slaveServer.add_txList(txList)
+                self.slaveServer.add_tx_list(txList)
                 txList = []
                 await asyncio.sleep(random.uniform(8, 12))  # yield CPU so that other stuff won't be held for too long
 
@@ -84,7 +84,7 @@ class TransactionGenerator:
         ))
         self.running = False
 
-    def createTransaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
+    def create_transaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
         shardSize = self.branch.get_shard_size()
         shardMask = shardSize - 1
