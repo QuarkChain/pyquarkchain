@@ -58,7 +58,7 @@ class Scheduler:
         self.stopped = True
 
     def loopUntilNoTask(self):
-        while not self.pq.isEmpty() and not self.terminated:
+        while not self.pq.is_empty() and not self.terminated:
             task = self.pq.popTop()
             assert(task.ts >= self.ts)
             self.ts = task.ts

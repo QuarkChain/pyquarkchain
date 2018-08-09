@@ -49,7 +49,7 @@ class Endpoint:
         resp = await self.__sendRequest("getTransactionCount", addressHex)
         return int(resp, 16)
 
-    async def getShardSize(self):
+    async def get_shard_size(self):
         resp = await self.__sendRequest("networkInfo")
         return int(resp["shardSize"], 16)
 
@@ -75,9 +75,9 @@ def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransac
 
 
 async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
-    address = Address.createFromIdentity(genesisId, shard)
+    address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.getNonce(address)
-    tx = create_transaction(address, genesisId.getKey(), nonce, to, networkId, amount)
+    tx = create_transaction(address, genesisId.get_key(), nonce, to, networkId, amount)
     txId = await endpoint.sendTransaction(tx)
     cnt = 0
     while True:
@@ -105,7 +105,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 
 async def fund(endpoint, genesisId, addrByAmount):
     networkId = await endpoint.getNetworkId()
-    shardSize = await endpoint.getShardSize()
+    shardSize = await endpoint.get_shard_size()
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
         print(
@@ -133,7 +133,7 @@ async def fund(endpoint, genesisId, addrByAmount):
                 shard = int(addr[-8:], 16) & (shardSize - 1)
                 try:
                     # sorry but this is user input
-                    to = Address.createFrom(addr[2:])
+                    to = Address.create_from(addr[2:])
                 except:
                     print("addr format invalid {}".format(addr))
                     continue
@@ -171,7 +171,7 @@ def main():
         logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
         logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
-    genesisId = Identity.createFromKey(DEFAULT_ENV.config.GENESIS_KEY)
+    genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
     endpoint = Endpoint("http://" + args.jrpc_endpoint)
     addrByAmount = read_addr(args.tqkc_file)

@@ -41,7 +41,7 @@ class Endpoint:
         resp = await self.__sendRequest("getTransactionCount", addressHex)
         return int(resp, 16)
 
-    async def getShardSize(self):
+    async def get_shard_size(self):
         resp = await self.__sendRequest("networkInfo")
         return int(resp["shardSize"], 16)
 
@@ -67,9 +67,9 @@ def create_transaction(address, key, nonce, data, networkId) -> EvmTransaction:
 
 
 async def deploy_shard(endpoint, genesisId, data, networkId, shard):
-    address = Address.createFromIdentity(genesisId, shard)
+    address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.getNonce(address)
-    tx = create_transaction(address, genesisId.getKey(), nonce, data, networkId)
+    tx = create_transaction(address, genesisId.get_key(), nonce, data, networkId)
     txId = await endpoint.sendTransaction(tx)
     while True:
         print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
@@ -83,7 +83,7 @@ async def deploy_shard(endpoint, genesisId, data, networkId, shard):
 
 async def deploy(endpoint, genesisId, data):
     networkId = await endpoint.getNetworkId()
-    shardSize = await endpoint.getShardSize()
+    shardSize = await endpoint.get_shard_size()
     futures = []
     for i in range(shardSize):
         futures.append(deploy_shard(endpoint, genesisId, data, networkId, i))
@@ -114,7 +114,7 @@ def main():
         logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
     data = bytes.fromhex(args.data)
-    genesisId = Identity.createFromKey(DEFAULT_ENV.config.GENESIS_KEY)
+    genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
     endpoint = Endpoint("http://" + args.jrpc_endpoint)
     asyncio.get_event_loop().run_until_complete(deploy(endpoint, genesisId, data))

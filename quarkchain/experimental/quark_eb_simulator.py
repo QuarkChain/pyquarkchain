@@ -80,10 +80,10 @@ class MinorBlock:
     def __init__(self, header):
         self.header = header
 
-    def getShardId(self):
+    def get_shard_id(self):
         return self.header.nBranch
 
-    def getHash(self):
+    def get_hash(self):
         return self.header.hash
 
     def getRequiredDiff(self):
@@ -138,7 +138,7 @@ class MajorBlock:
             blockReward += block.header.blockReward
         self.header.blockReward = blockReward
 
-    def getHash(self):
+    def get_hash(self):
         return self.header.hash
 
     def getRequiredDiff(self):
@@ -151,7 +151,7 @@ class MajorBlock:
         return self.header.getMiningEco()
 
     def addMinorBlock(self, minorBlock):
-        self.minorBlockMap[minorBlock.getHash()] = minorBlock
+        self.minorBlockMap[minorBlock.get_hash()] = minorBlock
 
 
 # hash before 1024 are used for genesis block
@@ -207,8 +207,8 @@ class MinorBlockChain:
             hash=getGlobalHash(),
             nBranch=self.shardId,
             height=self.bestChain[-1].header.height + 1,
-            hashPrevMinorBlock=self.bestChain[-1].getHash())
-        header.requiredDiff = self.diffCalc.calculateDiff(self.bestChain)
+            hashPrevMinorBlock=self.bestChain[-1].get_hash())
+        header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MinorBlock(header)
 
 
@@ -260,8 +260,8 @@ class MajorBlockChain:
             hash=getGlobalHash(),
             nShard=self.shardSize,
             height=self.bestChain[-1].header.height + 1,
-            hashPrevBlock=self.bestChain[-1].getHash())
-        header.requiredDiff = self.diffCalc.calculateDiff(self.bestChain)
+            hashPrevBlock=self.bestChain[-1].get_hash())
+        header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MajorBlock(header, copy.copy(self.pendingMinorBlockMap))
 
 
@@ -295,7 +295,7 @@ class DynamicChainSelector:
         if bestChainId == 0 and MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS != 0:
             blockCountInShard = {x: 0 for x in range(majorChain.shardSize)}
             for block in majorChain.pendingMinorBlockMap.values():
-                blockCountInShard[block.getShardId()] += 1
+                blockCountInShard[block.get_shard_id()] += 1
             for i in range(majorChain.shardSize):
                 if blockCountInShard[i] < MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS:
                     block = minorChainList[i].getBlockToMine()
@@ -368,9 +368,9 @@ class Node:
                 self.broadcastMajorBlock(bestBlock)
                 self.rewards += bestBlock.header.blockReward
         else:
-            if self.minorChainList[bestBlock.getShardId()].tryAppendBlock(bestBlock):
+            if self.minorChainList[bestBlock.get_shard_id()].tryAppendBlock(bestBlock):
                 # print("Node %d mined minor block height %d on minor chain %d, used time %.2f" %
-                #       (self.nodeId, bestBlock.header.height, bestBlock.getShardId(), mineTime))
+                #       (self.nodeId, bestBlock.header.height, bestBlock.get_shard_id(), mineTime))
                 self.majorChain.addMinorBlockToConfirm(bestBlock)
                 self.broadcastMinorBlock(bestBlock)
                 self.rewards += bestBlock.header.blockReward
@@ -407,10 +407,10 @@ class Node:
 
     def rpcGetMinorBlock(self, minorBlock):
         assert(self.minorChainList[
-               minorBlock.getShardId()].tryAppendBlock(minorBlock))
+               minorBlock.get_shard_id()].tryAppendBlock(minorBlock))
         self.majorChain.addMinorBlockToConfirm(minorBlock)
         # TODO cancel mining on major if minor eco is smaller
-        if self.mineChainId - 1 == minorBlock.getShardId() or self.mineChainId == 0:
+        if self.mineChainId - 1 == minorBlock.get_shard_id() or self.mineChainId == 0:
             self.cancelMiningAndReschedule()
 
     def broadcastMajorBlock(self, majorBlock):

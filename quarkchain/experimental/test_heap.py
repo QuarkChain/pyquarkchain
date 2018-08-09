@@ -32,7 +32,7 @@ class TestHeap(unittest.TestCase):
         for i in range(N):
             self.assertEqual(h.popTop().value, i)
             self.assertTrue(h.checkIntegrity())
-        self.assertTrue(h.isEmpty())
+        self.assertTrue(h.is_empty())
 
     def testHeapRandomPop(self):
         N = 100
@@ -46,4 +46,4 @@ class TestHeap(unittest.TestCase):
         for d in data:
             h.pop(d)
             self.assertTrue(h.checkIntegrity())
-        self.assertTrue(h.isEmpty())
+        self.assertTrue(h.is_empty())

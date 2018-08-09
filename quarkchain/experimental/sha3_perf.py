@@ -19,7 +19,7 @@ def test_perf():
     mHeader = MinorBlockHeader()
     for i in range(N):
         mHeader.nonce = i
-        mHeader.getHash()
+        mHeader.get_hash()
     duration = time.time() - startTime
     print("TPS: %.2f" % (N / duration))
 

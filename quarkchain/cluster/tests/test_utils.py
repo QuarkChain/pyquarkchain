@@ -15,7 +15,7 @@ from quarkchain.utils import call_async, check
 
 
 def get_test_env(
-        genesisAccount=Address.createEmptyAccount(),
+        genesisAccount=Address.create_empty_account(),
         genesisQuarkash=0,
         genesisMinorQuarkash=0,
         shardSize=2):
@@ -63,7 +63,7 @@ def create_transfer_transaction(
     evmTx.sign(key=key)
     return Transaction(
         inList=[],
-        code=Code.createEvmCode(evmTx),
+        code=Code.create_evm_code(evmTx),
         outList=[])
 
 
@@ -83,7 +83,7 @@ def create_contract_creation_transaction(shardState, key, fromAddress, toFullSha
     evmTx.sign(key)
     return Transaction(
         inList=[],
-        code=Code.createEvmCode(evmTx),
+        code=Code.create_evm_code(evmTx),
         outList=[])
 
 
@@ -108,7 +108,7 @@ def get_next_port():
     return port
 
 
-def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()):
+def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account()):
     seedPort = get_next_port()  # first cluster will listen on this port
     clusterList = []
     loop = asyncio.get_event_loop()
@@ -200,7 +200,7 @@ def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
 
 class ClusterContext(ContextDecorator):
 
-    def __init__(self, numCluster, genesisAccount=Address.createEmptyAccount()):
+    def __init__(self, numCluster, genesisAccount=Address.create_empty_account()):
         self.numCluster = numCluster
         self.genesisAccount = genesisAccount
 

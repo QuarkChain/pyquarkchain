@@ -23,19 +23,19 @@ class TestMADifficulty(unittest.TestCase):
         chain = [Block(0, 0.1)]
         diffCalc = diff.MADifficultyCalculator(
             maSamples=2, targetIntervalSec=5.0)
-        self.assertEqual(diffCalc.calculateDiff(chain), 0.1)
+        self.assertEqual(diffCalc.calculate_diff(chain), 0.1)
 
     def testOneSample(self):
         chain = [Block(0, 0.1), Block(4.0, 0.1)]
         diffCalc = diff.MADifficultyCalculator(
             maSamples=2, targetIntervalSec=5.0)
-        self.assertEqual(diffCalc.calculateDiff(chain), 0.08)
+        self.assertEqual(diffCalc.calculate_diff(chain), 0.08)
 
     def testTwoSample(self):
         chain = [Block(0, 0.1), Block(4.0, 0.1), Block(10, 0.08)]
         diffCalc = diff.MADifficultyCalculator(
             maSamples=2, targetIntervalSec=5.0)
-        self.assertEqual(diffCalc.calculateDiff(chain), 1 / 11.25)
+        self.assertEqual(diffCalc.calculate_diff(chain), 1 / 11.25)
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
     p = proof_of_work.PoW(hashPower)
 
     for i in range(1000):
-        requiredDiff = diffCalc.calculateDiff(chain)
+        requiredDiff = diffCalc.calculate_diff(chain)
         cTime = cTime + p.mine(requiredDiff)
         block = Block(cTime, requiredDiff)
         usedTime = block.nTime - chain[-1].nTime

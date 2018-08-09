@@ -43,7 +43,7 @@ class Peer(P2PConnection):
                            shardMaskList=[],
                            rootBlockHeader=self.rootState.tip)
         # Send hello request
-        self.writeCommand(CommandOp.HELLO, cmd)
+        self.write_command(CommandOp.HELLO, cmd)
 
     async def start(self, isServer=False):
         '''
@@ -60,13 +60,13 @@ class Peer(P2PConnection):
             return "Failed to read command"
 
         if op != CommandOp.HELLO:
-            return self.closeWithError("Hello must be the first command")
+            return self.close_with_error("Hello must be the first command")
 
         if cmd.version != self.env.config.P2P_PROTOCOL_VERSION:
-            return self.closeWithError("incompatible protocol version")
+            return self.close_with_error("incompatible protocol version")
 
         if cmd.networkId != self.env.config.NETWORK_ID:
-            return self.closeWithError("incompatible network id")
+            return self.close_with_error("incompatible network id")
 
         self.id = cmd.peerId
         self.shardMaskList = cmd.shardMaskList
@@ -77,18 +77,18 @@ class Peer(P2PConnection):
 
         # Validate best root and minor blocks from peer
         # TODO: validate hash and difficulty through a helper function
-        if cmd.rootBlockHeader.shardInfo.getShardSize() != self.env.config.SHARD_SIZE:
-            return self.closeWithError(
+        if cmd.rootBlockHeader.shardInfo.get_shard_size() != self.env.config.SHARD_SIZE:
+            return self.close_with_error(
                 "Shard size from root block header does not match local")
 
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
 
         if self.id == self.network.selfId:
             # connect to itself, stop it
-            return self.closeWithError("Cannot connect to itself")
+            return self.close_with_error("Cannot connect to itself")
 
         if self.id in self.network.activePeerPool:
-            return self.closeWithError("Peer {} already connected".format(self.id.hex()))
+            return self.close_with_error("Peer {} already connected".format(self.id.hex()))
 
         # Send hello back
         if isServer:
@@ -132,14 +132,14 @@ class Peer(P2PConnection):
         self.masterServer.destroyPeerClusterConnections(self.clusterPeerId)
         super().close()
 
-    def closeWithError(self, error):
+    def close_with_error(self, error):
         Logger.info(
             "Closing peer %s with the following reason: %s" %
             (self.id.hex() if self.id is not None else "unknown", error))
-        return super().closeWithError(error)
+        return super().close_with_error(error)
 
     async def handleError(self, op, cmd, rpcId):
-        self.closeWithError("Unexpected op {}".format(op))
+        self.close_with_error("Unexpected op {}".format(op))
 
     async def handleGetPeerListRequest(self, request):
         resp = GetPeerListResponse()
@@ -169,14 +169,14 @@ class Peer(P2PConnection):
 
     async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
         if len(cmd.minorBlockHeaderList) != 0:
-            return self.closeWithError("minor block header list must be empty")
+            return self.close_with_error("minor block header list must be empty")
 
         if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
-            return self.closeWithError("root block height is decreasing {} < {}".format(
+            return self.close_with_error("root block height is decreasing {} < {}".format(
                 cmd.rootBlockHeader.height, self.bestRootBlockHeaderObserved.height))
         if cmd.rootBlockHeader.height == self.bestRootBlockHeaderObserved.height:
             if cmd.rootBlockHeader != self.bestRootBlockHeaderObserved:
-                return self.closeWithError("root block header changed with same height {}".format(
+                return self.close_with_error("root block header changed with same height {}".format(
                     self.bestRootBlockHeaderObserved.height))
 
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
@@ -184,15 +184,15 @@ class Peer(P2PConnection):
 
     async def handleNewTransactionList(self, op, cmd, rpcId):
         for tx in cmd.transactionList:
-            Logger.debug("Received tx {} from peer {}".format(tx.getHash().hex(), self.id.hex()))
+            Logger.debug("Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex()))
             await self.masterServer.addTransaction(tx, self)
 
     async def handleGetRootBlockHeaderListRequest(self, request):
         if request.limit <= 0:
-            self.closeWithError("Bad limit")
+            self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
-            self.closeWithError("Bad direction")
+            self.close_with_error("Bad direction")
 
         blockHash = request.blockHash
         headerList = []
@@ -217,12 +217,12 @@ class Peer(P2PConnection):
         if self.rootState.tip.height <= self.bestRootBlockHeaderObserved.height:
             return
 
-        self.writeCommand(
+        self.write_command(
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.rootState.tip, []))
 
     def sendTransaction(self, tx):
-        self.writeCommand(
+        self.write_command(
             op=CommandOp.NEW_TRANSACTION_LIST,
             cmd=NewTransactionListCommand([tx]))
 
@@ -298,7 +298,7 @@ class SimpleNetwork:
         # Make sure the peer is ready for incoming messages
         await peer.waitUntilActive()
         try:
-            op, resp, rpcId = await peer.writeRpcRequest(
+            op, resp, rpcId = await peer.write_rpc_request(
                 CommandOp.GET_PEER_LIST_REQUEST, GetPeerListRequest(10))
         except Exception as e:
             Logger.logException()

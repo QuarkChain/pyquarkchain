@@ -20,18 +20,18 @@ def main():
     args = parse_args()
     result = []
     while True:
-        identity = Identity.createRandomIdentity()
-        address = Address.createFromIdentity(identity)
+        identity = Identity.create_random_identity()
+        address = Address.create_from_identity(identity)
         if args.shard > -1:
             # Follow the same algorithm in testnet web
             fullShard = int.from_bytes(sha3_256(address.recipient.hex().encode("utf-8"))[:4], "big")
             shard = fullShard & (args.shard_size - 1)
             if shard != args.shard:
                 continue
-            address = Address.createFromIdentity(identity, fullShard)
+            address = Address.create_from_identity(identity, fullShard)
         result.append({
-            "address": "0x" + address.toHex(),
-            "key": "0x" + identity.getKey().hex(),
+            "address": "0x" + address.to_hex(),
+            "key": "0x" + identity.get_key().hex(),
         })
         args.num_accounts -= 1
         if args.num_accounts == 0:

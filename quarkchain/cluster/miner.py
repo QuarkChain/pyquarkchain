@@ -72,12 +72,12 @@ class Miner:
     @staticmethod
     def __logStatus(block):
         isRoot = isinstance(block, RootBlock)
-        shard = "R" if isRoot else block.header.branch.getShardId()
+        shard = "R" if isRoot else block.header.branch.get_shard_id()
         count = len(block.minorBlockHeaderList) if isRoot else len(block.txList)
         elapsed = time.time() - block.header.createTime
 
         Logger.info("[{}] {} [{}] ({:.2f}) {}".format(
-            shard, block.header.height, count, elapsed, block.header.getHash().hex()))
+            shard, block.header.height, count, elapsed, block.header.get_hash().hex()))
 
     @staticmethod
     def __checkMetric(metric):
@@ -91,7 +91,7 @@ class Miner:
         """PoW"""
         while True:
             block.header.nonce += 1
-            metric = int.from_bytes(block.header.getHash(), byteorder="big") * block.header.difficulty
+            metric = int.from_bytes(block.header.get_hash(), byteorder="big") * block.header.difficulty
             if Miner.__checkMetric(metric):
                 Miner.__logStatus(block)
                 output.put(block)
@@ -112,7 +112,7 @@ class Miner:
             gasUsedRatio = block.meta.evmGasUsed / block.meta.evmGasLimit
             targetBlockTime = targetBlockTime * (1 - gasUsedRatio * 0.4)
             Logger.debug("[{}] target block time {:.2f}".format(
-                block.header.branch.getShardId(), targetBlockTime))
+                block.header.branch.get_shard_id(), targetBlockTime))
 
         return numpy.random.exponential(targetBlockTime)
 
