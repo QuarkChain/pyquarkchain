@@ -1128,7 +1128,7 @@ class SlaveServer():
             return
         evmTx = txList[0].code.get_evm_transaction()
         evmTx.set_shard_size(self.__get_shard_size())
-        branchValue = evmTx.fromShardId() | self.__get_shard_size()
+        branchValue = evmTx.from_shard_id() | self.__get_shard_size()
         validTxList = []
         for tx in txList:
             if self.add_tx(tx):
@@ -1140,7 +1140,7 @@ class SlaveServer():
     def add_tx(self, tx):
         evmTx = tx.code.get_evm_transaction()
         evmTx.set_shard_size(self.__get_shard_size())
-        branchValue = evmTx.fromShardId() | self.__get_shard_size()
+        branchValue = evmTx.from_shard_id() | self.__get_shard_size()
         shardState = self.shardStateMap.get(branchValue, None)
         if not shardState:
             return False
@@ -1149,7 +1149,7 @@ class SlaveServer():
     def execute_tx(self, tx, fromAddress) -> Optional[bytes]:
         evmTx = tx.code.get_evm_transaction()
         evmTx.set_shard_size(self.__get_shard_size())
-        branchValue = evmTx.fromShardId() | self.__get_shard_size()
+        branchValue = evmTx.from_shard_id() | self.__get_shard_size()
         shardState = self.shardStateMap.get(branchValue, None)
         if not shardState:
             return False

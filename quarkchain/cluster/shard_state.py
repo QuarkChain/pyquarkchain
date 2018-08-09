@@ -536,9 +536,9 @@ class ShardState:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
                 self.env.config.NETWORK_ID, evmTx.networkId))
 
-        if evmTx.fromShardId() != self.branch.get_shard_id():
-            raise RuntimeError("evm tx fromShardId mismatch. expect {} but got {}".format(
-                self.branch.get_shard_id(), evmTx.fromShardId(),
+        if evmTx.from_shard_id() != self.branch.get_shard_id():
+            raise RuntimeError("evm tx from_shard_id mismatch. expect {} but got {}".format(
+                self.branch.get_shard_id(), evmTx.from_shard_id(),
             ))
 
         # This will check signature, nonce, balance, gas limit
