@@ -72,7 +72,7 @@ class Devp2pService(WiredService):
         log.info(
             'NODE{} on_wire_protocol_stop'.format(self.config['node_num']),
             proto=proto)
-        active_peers = self.getConnectedPeers()
+        active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
@@ -86,13 +86,13 @@ class Devp2pService(WiredService):
         log.info(
             'NODE{} on_wire_protocol_start'.format(self.config['node_num']),
             proto=proto)
-        active_peers = self.getConnectedPeers()
+        active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
             self.app.network.refreshConnections(active_peers)
         )
 
-    def getConnectedPeers(self):
+    def get_connected_peers(self):
         ps = [p for p in self.app.services.peermanager.peers if p]
         aps = [p for p in ps if not p.is_stopped]
         log.info("I am {} I have {} peers: {}".format(
@@ -106,7 +106,7 @@ class Devp2pService(WiredService):
         while True:
             gevent.sleep(self.REFRESH_INTERVAL)
             log.info('p2p periodic refresh')
-            active_peers = self.getConnectedPeers()
+            active_peers = self.get_connected_peers()
             self.app.network.loop.call_soon_threadsafe(
                 asyncio.ensure_future,
                 self.app.network.refreshConnections(active_peers)
