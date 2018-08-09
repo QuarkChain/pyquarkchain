@@ -44,42 +44,42 @@ class ByteBuffer:
         self.bytes = bytes(data)
         self.position = 0
 
-    def __checkSpace(self, space):
+    def __check_space(self, space):
         if space > len(self.bytes) - self.position:
             raise RuntimeError("no enough space")
 
-    def getUint(self, size):
-        self.__checkSpace(size)
+    def get_uint(self, size):
+        self.__check_space(size)
         value = int.from_bytes(
             self.bytes[self.position:self.position + size], byteorder="big")
         self.position += size
         return value
 
-    def getUint8(self):
-        return self.getUint(1)
+    def get_uint8(self):
+        return self.get_uint(1)
 
-    def getUint16(self):
-        return self.getUint(2)
+    def get_uint16(self):
+        return self.get_uint(2)
 
-    def getUint32(self):
-        return self.getUint(4)
+    def get_uint32(self):
+        return self.get_uint(4)
 
-    def getUint64(self):
-        return self.getUint(8)
+    def get_uint64(self):
+        return self.get_uint(8)
 
-    def getUint256(self):
-        return self.getUint(32)
+    def get_uint256(self):
+        return self.get_uint(32)
 
-    def getBytes(self, size):
-        self.__checkSpace(size)
+    def get_bytes(self, size):
+        self.__check_space(size)
         value = self.bytes[self.position:self.position + size]
         self.position += size
         return value
 
-    def getVarBytes(self):
+    def get_var_bytes(self):
         # TODO: Only support 1 byte len
-        size = self.getUint8()
-        return self.getBytes(size)
+        size = self.get_uint8()
+        return self.get_bytes(size)
 
     def remaining(self):
         return len(self.bytes) - self.position
@@ -95,7 +95,7 @@ class UintSerializer():
         return barray
 
     def deserialize(self, bb):
-        return bb.getUint(self.size)
+        return bb.get_uint(self.size)
 
 
 class BooleanSerializer():
@@ -108,7 +108,7 @@ class BooleanSerializer():
         return barray
 
     def deserialize(self, bb):
-        return bool(bb.getUint8())
+        return bool(bb.get_uint8())
 
 
 class FixedSizeBytesSerializer():
@@ -123,7 +123,7 @@ class FixedSizeBytesSerializer():
         return barray
 
     def deserialize(self, bb):
-        return bb.getBytes(self.size)
+        return bb.get_bytes(self.size)
 
 
 class PrependedSizeBytesSerializer():
@@ -139,8 +139,8 @@ class PrependedSizeBytesSerializer():
         return barray
 
     def deserialize(self, bb):
-        size = bb.getUint(self.sizeBytes)
-        return bb.getBytes(size)
+        size = bb.get_uint(self.sizeBytes)
+        return bb.get_bytes(size)
 
 
 class PrependedSizeListSerializer():
@@ -156,7 +156,7 @@ class PrependedSizeListSerializer():
         return barray
 
     def deserialize(self, bb):
-        size = bb.getUint(self.sizeBytes)
+        size = bb.get_uint(self.sizeBytes)
         return [self.ser.deserialize(bb) for i in range(size)]
 
 
@@ -172,7 +172,7 @@ class Serializable:
             ser.serialize(getattr(self, name), barray)
         return barray
 
-    def serializeWithout(self, excludeList, barray: bytearray = None):
+    def serialize_without(self, excludeList, barray: bytearray = None):
         barray = bytearray() if barray is None else barray
         for name, ser in self.FIELDS:
             if name not in excludeList:
@@ -214,7 +214,7 @@ class Optional:
         self.serializer.serialize(obj, barray)
 
     def deserialize(self, bb):
-        hasData = bb.getUint8()
+        hasData = bb.get_uint8()
         if hasData == 0:
             return None
         return self.serializer.deserialize(bb)
@@ -243,7 +243,7 @@ def serialize_list(l: list, barray: bytearray, serializer=None) -> None:
 
 
 def deserialize_list(bb, der):
-    size = bb.getUint8()
+    size = bb.get_uint8()
     ret = list()
     for i in range(size):
         ret.append(der(bb))
@@ -272,14 +272,14 @@ def normalize_bytes(data, size):
 class Identity:
 
     @staticmethod
-    def createRandomIdentity():
+    def create_random_identity():
         sk = ecdsa.SigningKey.generate(curve=ecdsa.SECP256k1)
         key = sk.to_string()
         recipient = sha3_256(sk.verifying_key.to_string())[-20:]
         return Identity(recipient, key)
 
     @staticmethod
-    def createFromKey(key):
+    def create_from_key(key):
         sk = ecdsa.SigningKey.from_string(key, curve=ecdsa.SECP256k1)
         recipient = sha3_256(sk.verifying_key.to_string())[-20:]
         return Identity(recipient, key)
@@ -288,12 +288,12 @@ class Identity:
         self.recipient = recipient
         self.key = key
 
-    def getRecipient(self):
+    def get_recipient(self):
         """ Get the recipient.  It is 40 bytes.
         """
         return self.recipient
 
-    def getKey(self):
+    def get_key(self):
         """ Get the private key for sign.  It is 32 bytes and return none if it
         is unknown
         """
@@ -314,45 +314,45 @@ class Address(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def toHex(self):
+    def to_hex(self):
         return self.serialize().hex()
 
-    def getShardId(self, shardSize):
+    def get_shard_id(self, shardSize):
         if not is_p2(shardSize):
             raise RuntimeError("Invalid shard size {}".format(shardSize))
         return self.fullShardId & (shardSize - 1)
 
-    def addressInShard(self, fullShardId):
+    def address_in_shard(self, fullShardId):
         return Address(self.recipient, fullShardId)
 
-    def addressInBranch(self, branch):
-        return Address(self.recipient, (self.fullShardId & ~(branch.getShardSize() - 1)) + branch.getShardId())
+    def address_in_branch(self, branch):
+        return Address(self.recipient, (self.fullShardId & ~(branch.get_shard_size() - 1)) + branch.get_shard_id())
 
     @staticmethod
-    def createFromIdentity(identity: Identity, fullShardId=None):
+    def create_from_identity(identity: Identity, fullShardId=None):
         if fullShardId is None:
             fullShardId = random.randint(0, (2 ** 32) - 1)
-        return Address(identity.getRecipient(), fullShardId)
+        return Address(identity.get_recipient(), fullShardId)
 
     @staticmethod
-    def createRandomAccount(fullShardId=None):
+    def create_random_account(fullShardId=None):
         """ An account is a special address with default shard that the
         account should be in.
         """
         if fullShardId is None:
             fullShardId = random.randint(0, (2 ** 32) - 1)
-        return Address(Identity.createRandomIdentity().getRecipient(), fullShardId)
+        return Address(Identity.create_random_identity().get_recipient(), fullShardId)
 
     @staticmethod
-    def createEmptyAccount(fullShardId=0):
+    def create_empty_account(fullShardId=0):
         return Address(bytes(20), fullShardId)
 
     @staticmethod
-    def createFrom(bs):
+    def create_from(bs):
         bs = normalize_bytes(bs, 24)
         return Address(bs[0:20], int.from_bytes(bs[20:], byteorder="big"))
 
-    def isEmpty(self):
+    def is_empty(self):
         return set(self.recipient) == {0}
 
 
@@ -366,7 +366,7 @@ class TransactionInput(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def getHashHex(self):
+    def get_hash_hex(self):
         return self.hash.hex()
 
 
@@ -380,7 +380,7 @@ class TransactionOutput(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def getAddressHex(self):
+    def get_address_hex(self):
         return self.address.serialize().hex()
 
 
@@ -392,14 +392,14 @@ class Branch(Serializable):
     def __init__(self, value):
         self.value = value
 
-    def getShardSize(self):
+    def get_shard_size(self):
         return 1 << (int_left_most_bit(self.value) - 1)
 
-    def getShardId(self):
-        return self.value ^ self.getShardSize()
+    def get_shard_id(self):
+        return self.value ^ self.get_shard_size()
 
-    def isInShard(self, fullShardId):
-        return (fullShardId & (self.getShardSize() - 1)) == self.getShardId()
+    def is_in_shard(self, fullShardId):
+        return (fullShardId & (self.get_shard_size() - 1)) == self.get_shard_id()
 
     @staticmethod
     def create(shardSize, shardId):
@@ -422,14 +422,14 @@ class ShardMask(Serializable):
         check(value != 0)
         self.value = value
 
-    def containShardId(self, shardId):
+    def contain_shard_id(self, shardId):
         bitMask = (1 << (int_left_most_bit(self.value) - 1)) - 1
         return (bitMask & shardId) == (self.value & bitMask)
 
-    def containBranch(self, branch):
-        return self.containShardId(branch.getShardId())
+    def contain_branch(self, branch):
+        return self.contain_shard_id(branch.get_shard_id())
 
-    def hasOverlap(self, shardMask):
+    def has_overlap(self, shardMask):
         return masks_have_overlap(self.value, shardMask.value)
 
     def iterate(self, shardSize):
@@ -455,43 +455,43 @@ class Code(Serializable):
         super(type(self), self).__init__(**fields)
 
     @classmethod
-    def getTransferCode(cls):
+    def get_transfer_code(cls):
         ''' Transfer quarkash from input list to output list
         If evm is None, then no balance is withdrawn from evm account.
         '''
         return Code(code=cls.OP_TRANSFER)
 
     @classmethod
-    def createMinorBlockCoinbaseCode(cls, height, branch):
+    def create_minor_block_coinbase_code(cls, height, branch):
         return Code(code=cls.OP_SHARD_COINBASE + height.to_bytes(4, byteorder="big") + branch.serialize())
 
     @classmethod
-    def createRootBlockCoinbaseCode(cls, height):
+    def create_root_block_coinbase_code(cls, height):
         return Code(code=cls.OP_ROOT_COINBASE + height.to_bytes(4, byteorder="big"))
 
     @classmethod
-    def createEvmCode(cls, evmTx):
+    def create_evm_code(cls, evmTx):
         return Code(cls.OP_EVM + rlp.encode(evmTx))
 
-    def isValidOp(self):
+    def is_valid_op(self):
         if len(self.code) == 0:
             return False
-        return self.isTransfer() or self.isShardCoinbase() or self.isRootCoinbase() or self.isEvm()
+        return self.is_transfer() or self.is_shard_coinbase() or self.is_root_coinbase() or self.is_evm()
 
-    def isTransfer(self):
+    def is_transfer(self):
         return self.code[:1] == self.OP_TRANSFER
 
-    def isShardCoinbase(self):
+    def is_shard_coinbase(self):
         return self.code[:1] == self.OP_SHARD_COINBASE
 
-    def isRootCoinbase(self):
+    def is_root_coinbase(self):
         return self.code[:1] == self.OP_ROOT_COINBASE
 
-    def isEvm(self):
+    def is_evm(self):
         return self.code[:1] == self.OP_EVM
 
-    def getEvmTransaction(self):
-        assert(self.isEvm())
+    def get_evm_transaction(self):
+        assert(self.is_evm())
         return rlp.decode(self.code[1:], EvmTransaction)
 
 
@@ -511,18 +511,18 @@ class Transaction(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def serializeUnsigned(self, barray: bytearray = None) -> bytearray:
+    def serialize_unsigned(self, barray: bytearray = None) -> bytearray:
         barray = barray if barray is not None else bytearray()
-        return self.serializeWithout(["signList"], barray)
+        return self.serialize_without(["signList"], barray)
 
-    def getHash(self):
+    def get_hash(self):
         return sha3_256(self.serialize())
 
-    def getHashHex(self):
-        return self.getHash().hex()
+    def get_hash_hex(self):
+        return self.get_hash().hex()
 
-    def getHashUnsigned(self):
-        return sha3_256(self.serializeUnsigned())
+    def get_hash_unsigned(self):
+        return sha3_256(self.serialize_unsigned())
 
     def sign(self, keys):
         """ Sign the transaction with keys.  It doesn't mean the transaction is valid in the chain since it doesn't
@@ -530,7 +530,7 @@ class Transaction(Serializable):
         """
         signList = []
         for key in keys:
-            sig = KeyAPI.PrivateKey(key).sign_msg(self.getHashUnsigned())
+            sig = KeyAPI.PrivateKey(key).sign_msg(self.get_hash_unsigned())
             signList.append(
                 sig.r.to_bytes(32, byteorder="big") +
                 sig.s.to_bytes(32, byteorder="big") +
@@ -538,7 +538,7 @@ class Transaction(Serializable):
         self.signList = signList
         return self
 
-    def verifySignature(self, recipients):
+    def verify_signature(self, recipients):
         """ Verify whether the signatures are from a list of recipients.  Doesn't verify if the transaction is valid on
         the chain
         """
@@ -547,7 +547,7 @@ class Transaction(Serializable):
 
         for i in range(len(recipients)):
             sig = KeyAPI.Signature(signature_bytes=self.signList[i])
-            pub = sig.recover_public_key_from_msg(self.getHashUnsigned())
+            pub = sig.recover_public_key_from_msg(self.get_hash_unsigned())
             if pub.to_canonical_address() != recipients[i]:
                 return False
         return True
@@ -583,10 +583,10 @@ class ShardInfo(Serializable):
     def __init__(self, value):
         self.value = value
 
-    def getShardSize(self):
+    def get_shard_size(self):
         return 1 << (self.value & 31)
 
-    def getReshardVote(self):
+    def get_reshard_vote(self):
         return (self.value & (1 << 31)) != 0
 
     @staticmethod
@@ -617,7 +617,7 @@ class Log(Serializable):
         self.data = data
 
     @classmethod
-    def createFromEthLog(cls, ethLog):
+    def create_fromEthLog(cls, ethLog):
         recipient = ethLog.address
         data = ethLog.data
 
@@ -654,8 +654,8 @@ class TransactionReceipt(Serializable):
         self.logs = logs
 
     @classmethod
-    def createEmptyReceipt(cls):
-        return cls(b'', 0, 0, Address.createEmptyAccount(0), 0, [])
+    def create_empty_receipt(cls):
+        return cls(b'', 0, 0, Address.create_empty_account(0), 0, [])
 
 
 class MinorBlockMeta(Serializable):
@@ -676,7 +676,7 @@ class MinorBlockMeta(Serializable):
                  hashMerkleRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmStateRoot=bytes(Constant.HASH_LENGTH),
                  hashEvmReceiptRoot=bytes(Constant.HASH_LENGTH),
-                 coinbaseAddress=Address.createEmptyAccount(),
+                 coinbaseAddress=Address.create_empty_account(),
                  evmGasLimit=30000 * 400,  # 400 xshard tx
                  evmGasUsed=0,
                  evmCrossShardReceiveGasUsed=0,
@@ -684,7 +684,7 @@ class MinorBlockMeta(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def getHash(self):
+    def get_hash(self):
         return sha3_256(self.serialize())
 
 
@@ -722,7 +722,7 @@ class MinorBlockHeader(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def getHash(self):
+    def get_hash(self):
         return sha3_256(self.serialize())
 
 
@@ -738,13 +738,13 @@ class MinorBlock(Serializable):
         self.meta = meta
         self.txList = [] if txList is None else txList
 
-    def calculateMerkleRoot(self):
+    def calculate_merkle_root(self):
         return calculate_merkle_root(self.txList)
 
-    def finalizeMerkleRoot(self):
+    def finalize_merkle_root(self):
         """ Compute merkle root hash and put it in the field
         """
-        self.meta.hashMerkleRoot = self.calculateMerkleRoot()
+        self.meta.hashMerkleRoot = self.calculate_merkle_root()
         return self
 
     def finalize(self, evmState, hashPrevRootBlock=None):
@@ -754,16 +754,16 @@ class MinorBlock(Serializable):
         self.meta.evmGasUsed = evmState.gas_used
         self.meta.evmCrossShardReceiveGasUsed = evmState.xshard_receive_gas_used
         self.header.coinbaseAmount = evmState.block_fee // 2
-        self.finalizeMerkleRoot()
+        self.finalize_merkle_root()
         self.meta.hashEvmReceiptRoot = mk_receipt_sha(evmState.receipts, evmState.db)
-        self.header.hashMeta = self.meta.getHash()
+        self.header.hashMeta = self.meta.get_hash()
         return self
 
-    def addTx(self, tx):
+    def add_tx(self, tx):
         self.txList.append(tx)
         return self
 
-    def getReceipt(self, db, i):
+    def get_receipt(self, db, i):
         # ignore if no meta is set
         if self.meta.hashEvmReceiptRoot == bytes(Constant.HASH_LENGTH):
             return None
@@ -773,14 +773,14 @@ class MinorBlock(Serializable):
         if receipt.contract_address != b'':
             contractAddress = Address(receipt.contract_address, receipt.contract_full_shard_id)
         else:
-            contractAddress = Address.createEmptyAccount(fullShardId=0)
+            contractAddress = Address.create_empty_account(fullShardId=0)
 
         if i > 0:
             prevGasUsed = rlp.decode(t.get(rlp.encode(i - 1)), quarkchain.evm.messages.Receipt).gas_used
         else:
             prevGasUsed = self.meta.evmCrossShardReceiveGasUsed
 
-        logs = [Log.createFromEthLog(ethLog) for ethLog in receipt.logs]
+        logs = [Log.create_fromEthLog(ethLog) for ethLog in receipt.logs]
 
         return TransactionReceipt(
             receipt.state_root,
@@ -791,7 +791,7 @@ class MinorBlock(Serializable):
             logs,
         )
 
-    def createBlockToAppend(self,
+    def create_block_to_append(self,
                             createTime=None,
                             address=None,
                             quarkash=0,
@@ -799,7 +799,7 @@ class MinorBlock(Serializable):
                             extraData=b'',
                             nonce=0):
         if address is None:
-            address = Address.createEmptyAccount(fullShardId=self.meta.coinbaseAddress.fullShardId)
+            address = Address.create_empty_account(fullShardId=self.meta.coinbaseAddress.fullShardId)
         meta = MinorBlockMeta(coinbaseAddress=address,
                               evmGasLimit=self.meta.evmGasLimit,
                               extraData=extraData)
@@ -810,7 +810,7 @@ class MinorBlock(Serializable):
                                   height=self.header.height + 1,
                                   branch=self.header.branch,
                                   coinbaseAmount=quarkash,
-                                  hashPrevMinorBlock=self.header.getHash(),
+                                  hashPrevMinorBlock=self.header.get_hash(),
                                   hashPrevRootBlock=self.header.hashPrevRootBlock,
                                   createTime=createTime,
                                   difficulty=difficulty,
@@ -838,7 +838,7 @@ class RootBlockHeader(Serializable):
                  shardInfo=ShardInfo.create(1, False),
                  hashPrevBlock=bytes(32),
                  hashMerkleRoot=bytes(32),
-                 coinbaseAddress=Address.createEmptyAccount(),
+                 coinbaseAddress=Address.create_empty_account(),
                  coinbaseAmount=0,
                  createTime=0,
                  difficulty=0,
@@ -846,16 +846,16 @@ class RootBlockHeader(Serializable):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
 
-    def getHash(self):
+    def get_hash(self):
         return sha3_256(self.serialize())
 
-    def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
+    def create_block_to_append(self, createTime=None, difficulty=None, address=None, nonce=0):
         createTime = self.createTime + 1 if createTime is None else createTime
         difficulty = difficulty if difficulty is not None else self.difficulty
         header = RootBlockHeader(version=self.version,
                                  height=self.height + 1,
                                  shardInfo=copy.copy(self.shardInfo),
-                                 hashPrevBlock=self.getHash(),
+                                 hashPrevBlock=self.get_hash(),
                                  hashMerkleRoot=bytes(32),
                                  createTime=createTime,
                                  difficulty=difficulty,
@@ -873,7 +873,7 @@ class RootBlock(Serializable):
         self.header = header
         self.minorBlockHeaderList = [] if minorBlockHeaderList is None else minorBlockHeaderList
 
-    def finalize(self, quarkash=0, coinbaseAddress=Address.createEmptyAccount()):
+    def finalize(self, quarkash=0, coinbaseAddress=Address.create_empty_account()):
         self.header.hashMerkleRoot = calculate_merkle_root(
             self.minorBlockHeaderList)
 
@@ -881,16 +881,16 @@ class RootBlock(Serializable):
         self.header.coinbaseAddress = coinbaseAddress
         return self
 
-    def addMinorBlockHeader(self, header):
+    def add_minor_block_header(self, header):
         self.minorBlockHeaderList.append(header)
         return self
 
-    def extendMinorBlockHeaderList(self, headerList):
+    def extend_minor_block_header_list(self, headerList):
         self.minorBlockHeaderList.extend(headerList)
         return self
 
-    def createBlockToAppend(self, createTime=None, difficulty=None, address=None, nonce=0):
-        return self.header.createBlockToAppend(
+    def create_block_to_append(self, createTime=None, difficulty=None, address=None, nonce=0):
+        return self.header.create_block_to_append(
             createTime=createTime,
             difficulty=difficulty,
             address=address,
@@ -937,9 +937,9 @@ def main():
     args = parser.parse_args()
 
     if args.cmd == "create_account":
-        iden = Identity.createRandomIdentity()
-        addr = Address.createFromIdentity(iden)
-        print("Key: %s" % iden.getKey().hex())
+        iden = Identity.create_random_identity()
+        addr = Address.create_from_identity(iden)
+        print("Key: %s" % iden.get_key().hex())
         print("Account: %s" % addr.serialize().hex())
 
 

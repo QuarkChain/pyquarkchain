@@ -17,5 +17,5 @@ class FakeHeader():
         self.gas_used = gas_used
         self.uncles_hash = uncles_hash
 
-    def getHash(self):
+    def get_hash(self):
         return self.hash

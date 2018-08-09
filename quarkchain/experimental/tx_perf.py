@@ -23,11 +23,11 @@ def test_perf():
     print("Creating %d identities" % IDN)
     idList = []
     for i in range(IDN):
-        idList.append(Identity.createRandomIdentity())
+        idList.append(Identity.create_random_identity())
 
     accList = []
     for i in range(IDN):
-        accList.append(Address.createFromIdentity(idList[i]))
+        accList.append(Address.create_from_identity(idList[i]))
 
     print("Creating %d transactions..." % N)
     startTime = time.time()
@@ -37,14 +37,14 @@ def test_perf():
         fromId = idList[random.randint(0, IDN - 1)]
         toAddr = accList[random.randint(0, IDN - 1)]
         txList.append(create_random_test_transaction(fromId, toAddr))
-        recList.append(fromId.getRecipient())
+        recList.append(fromId.get_recipient())
     duration = time.time() - startTime
     print("Creations PS: %.2f" % (N / duration))
 
     print("Verifying transactions")
     startTime = time.time()
     for i in range(N):
-        assert(txList[i].verifySignature([recList[i]]))
+        assert(txList[i].verify_signature([recList[i]]))
     duration = time.time() - startTime
     print("Verifications PS: %.2f" % (N / duration))
 
@@ -55,11 +55,11 @@ def test_perf_evm():
     print("Creating %d identities" % IDN)
     idList = []
     for i in range(IDN):
-        idList.append(Identity.createRandomIdentity())
+        idList.append(Identity.create_random_identity())
 
     accList = []
     for i in range(IDN):
-        accList.append(Address.createFromIdentity(idList[i]))
+        accList.append(Address.create_from_identity(idList[i]))
 
     print("Creating %d transactions..." % N)
     startTime = time.time()
@@ -79,9 +79,9 @@ def test_perf_evm():
             toFullShardId=0,
             networkId=1)
         evmTx.sign(
-            key=fromId.getKey())
+            key=fromId.get_key())
         txList.append(evmTx)
-        fromList.append(fromId.getRecipient())
+        fromList.append(fromId.get_recipient())
     duration = time.time() - startTime
     print("Creations PS: %.2f" % (N / duration))
 

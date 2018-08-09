@@ -15,12 +15,12 @@ from quarkchain.utils import call_async, check
 
 
 def get_test_env(
-        genesisAccount=Address.createEmptyAccount(),
+        genesisAccount=Address.create_empty_account(),
         genesisQuarkash=0,
         genesisMinorQuarkash=0,
         shardSize=2):
     env = DEFAULT_ENV.copy()
-    env.config.setShardSize(shardSize)
+    env.config.set_shard_size(shardSize)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.config.SKIP_MINOR_COINBASE_CHECK = False
@@ -30,7 +30,7 @@ def get_test_env(
     env.config.TESTNET_MASTER_ACCOUNT = genesisAccount
     env.clusterConfig.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
     env.db = InMemoryDb()
-    env.setNetworkId(1234567890)
+    env.set_network_id(1234567890)
 
     env.config.ACCOUNTS_TO_FUND = []
     env.config.LOADTEST_ACCOUNTS = []
@@ -50,7 +50,7 @@ def create_transfer_transaction(
     """ Create an in-shard xfer tx
     """
     evmTx = EvmTransaction(
-        nonce=shardState.getTransactionCount(fromAddress.recipient) if nonce is None else nonce,
+        nonce=shardState.get_transaction_count(fromAddress.recipient) if nonce is None else nonce,
         gasprice=gasPrice,
         startgas=gas,
         to=toAddress.recipient,
@@ -63,13 +63,13 @@ def create_transfer_transaction(
     evmTx.sign(key=key)
     return Transaction(
         inList=[],
-        code=Code.createEvmCode(evmTx),
+        code=Code.create_evm_code(evmTx),
         outList=[])
 
 
 def create_contract_creation_transaction(shardState, key, fromAddress, toFullShardId):
     evmTx = EvmTransaction(
-        nonce=shardState.getTransactionCount(fromAddress.recipient),
+        nonce=shardState.get_transaction_count(fromAddress.recipient),
         gasprice=1,
         startgas=1000000,
         value=0,
@@ -83,7 +83,7 @@ def create_contract_creation_transaction(shardState, key, fromAddress, toFullSha
     evmTx.sign(key)
     return Transaction(
         inList=[],
-        code=Code.createEvmCode(evmTx),
+        code=Code.create_evm_code(evmTx),
         outList=[])
 
 
@@ -108,7 +108,7 @@ def get_next_port():
     return port
 
 
-def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()):
+def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account()):
     seedPort = get_next_port()  # first cluster will listen on this port
     clusterList = []
     loop = asyncio.get_event_loop()
@@ -163,7 +163,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.createEmptyAccount()
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, masterServer)
-        network.startServer()
+        network.start_server()
         if i != 0:
             peer = call_async(network.connect("127.0.0.1", seedPort))
         else:
@@ -190,17 +190,17 @@ def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
     for cluster in clusterList:
         for slave in cluster.slaveList:
             slave.shutdown()
-            loop.run_until_complete(slave.getShutdownFuture())
+            loop.run_until_complete(slave.get_shutdown_future())
 
         cluster.master.shutdown()
-        loop.run_until_complete(cluster.master.getShutdownFuture())
+        loop.run_until_complete(cluster.master.get_shutdown_future())
 
     check(expectAbortedRpcCount == AbstractConnection.abortedRpcCount)
 
 
 class ClusterContext(ContextDecorator):
 
-    def __init__(self, numCluster, genesisAccount=Address.createEmptyAccount()):
+    def __init__(self, numCluster, genesisAccount=Address.create_empty_account()):
         self.numCluster = numCluster
         self.genesisAccount = genesisAccount
 

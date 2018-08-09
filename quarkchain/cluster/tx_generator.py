@@ -32,7 +32,7 @@ class TransactionGenerator:
         self.accounts = []
         for item in LOADTEST_ACCOUNTS:
             account = Account(
-                Address.createFrom(item["address"]),
+                Address.create_from(item["address"]),
                 bytes.fromhex(item["key"]))
             self.accounts.append(account)
 
@@ -54,24 +54,24 @@ class TransactionGenerator:
 
     async def __gen(self, numTx, xShardPercent, sampleTx: Transaction):
         Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
-            self.branch.getShardId(), numTx, xShardPercent
+            self.branch.get_shard_id(), numTx, xShardPercent
         ))
         if numTx <= 0:
             return
         startTime = time.time()
         txList = []
         total = 0
-        sampleEvmTx = sampleTx.code.getEvmTransaction()
+        sampleEvmTx = sampleTx.code.get_evm_transaction()
         for account in self.accounts:
-            inShardAddress = Address(account.address.recipient, self.branch.getShardId())
-            nonce = self.slaveServer.getTransactionCount(inShardAddress)
-            tx = self.createTransaction(account, nonce, xShardPercent, sampleEvmTx)
+            inShardAddress = Address(account.address.recipient, self.branch.get_shard_id())
+            nonce = self.slaveServer.get_transaction_count(inShardAddress)
+            tx = self.create_transaction(account, nonce, xShardPercent, sampleEvmTx)
             if not tx:
                 continue
             txList.append(tx)
             total += 1
             if len(txList) >= 600 or total >= numTx:
-                self.slaveServer.addTxList(txList)
+                self.slaveServer.add_tx_list(txList)
                 txList = []
                 await asyncio.sleep(random.uniform(8, 12))  # yield CPU so that other stuff won't be held for too long
 
@@ -80,15 +80,15 @@ class TransactionGenerator:
 
         endTime = time.time()
         Logger.info("[{}] generated {} transactions in {:.2f} seconds".format(
-            self.branch.getShardId(), total, endTime - startTime
+            self.branch.get_shard_id(), total, endTime - startTime
         ))
         self.running = False
 
-    def createTransaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
+    def create_transaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
-        shardSize = self.branch.getShardSize()
+        shardSize = self.branch.get_shard_size()
         shardMask = shardSize - 1
-        fromShard = self.branch.getShardId()
+        fromShard = self.branch.get_shard_id()
 
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
@@ -111,7 +111,7 @@ class TransactionGenerator:
         if random.randint(1, 100) <= xShardPercent:
             # x-shard tx
             toShard = random.randint(0, config.SHARD_SIZE - 1)
-            if toShard == self.branch.getShardId():
+            if toShard == self.branch.get_shard_id():
                 toShard = (toShard + 1) % config.SHARD_SIZE
             toFullShardId = toFullShardId & (~shardMask) | toShard
 
@@ -130,4 +130,4 @@ class TransactionGenerator:
             toFullShardId=toFullShardId,
             networkId=config.NETWORK_ID)
         evmTx.sign(account.key)
-        return Transaction(code=Code.createEvmCode(evmTx))
+        return Transaction(code=Code.create_evm_code(evmTx))

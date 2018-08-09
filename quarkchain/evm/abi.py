@@ -3,14 +3,14 @@ from typing import Iterable
 from quarkchain.utils import sha3_256
 
 
-def intToBytes(n: int):
+def int_to_bytes(n: int):
     """
     similar to hex(n), but align to bytes
     """
     return n.to_bytes((n.bit_length() + 7) // 8, 'big')
 
 
-def txToTypedData(rawTx):
+def tx_to_typed_data(rawTx):
     """
     see UnsignedTransaction, exludes ['v', 'r', 's', 'version']
     """
@@ -18,17 +18,17 @@ def txToTypedData(rawTx):
       {
         "type": "uint256",
         "name": "nonce",
-        "value": "0x{}".format(intToBytes(rawTx.nonce).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.nonce).hex())
       },
       {
         "type": "uint256",
         "name": "gasPrice",
-        "value": "0x{}".format(intToBytes(rawTx.gasprice).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.gasprice).hex())
       },
       {
         "type": "uint256",
         "name": "gasLimit",
-        "value": "0x{}".format(intToBytes(rawTx.startgas).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.startgas).hex())
       },
       {
         "type": "uint160",
@@ -38,7 +38,7 @@ def txToTypedData(rawTx):
       {
         "type": "uint256",
         "name": "value",
-        "value": "0x{}".format(intToBytes(rawTx.value).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.value).hex())
       },
       {
         "type": "bytes",
@@ -48,17 +48,17 @@ def txToTypedData(rawTx):
       {
         "type": "uint32",
         "name": "fromFullShardId",
-        "value": "0x{}".format(intToBytes(rawTx.fromFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.fromFullShardId).hex())
       },
       {
         "type": "uint32",
         "name": "toFullShardId",
-        "value": "0x{}".format(intToBytes(rawTx.toFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.toFullShardId).hex())
       },
       {
         "type": "uint256",
         "name": "networkId",
-        "value": "0x{}".format(intToBytes(rawTx.networkId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.networkId).hex())
       },
       {
         "type": "string",
@@ -68,7 +68,7 @@ def txToTypedData(rawTx):
     ]
 
 
-def solidityPack(types: Iterable, values: Iterable):
+def solidity_pack(types: Iterable, values: Iterable):
     """
     Port of ABI.solidityPack
     https://github.com/ethereumjs/ethereumjs-abi/blob/00ba8463a7f7a67fcad737ff9c2ebd95643427f7/lib/index.js#L441
@@ -106,21 +106,21 @@ def solidityPack(types: Iterable, values: Iterable):
     return retv
 
 
-def soliditySHA3(types: Iterable, values: Iterable):
+def solidity_s_h_a3(types: Iterable, values: Iterable):
     """
     returns 0x hex str
     """
-    return "0x{}".format(sha3_256(solidityPack(types, values)).hex())
+    return "0x{}".format(sha3_256(solidity_pack(types, values)).hex())
 
 
-def typedSignatureHash(tx):
+def typed_signature_hash(tx):
     schema = list(map(lambda x: "{} {}".format(x["type"], x["name"]), tx))
     types = list(map(lambda x: x["type"], tx))
     data = list(map(lambda x: bytes.fromhex(x['value'][2:]) if x['type'] == "bytes" else x['value'], tx))
-    return soliditySHA3(
+    return solidity_s_h_a3(
         ['bytes32', 'bytes32'],
         [
-            soliditySHA3(['string'] * len(tx), schema),
-            soliditySHA3(types, data)
+            solidity_s_h_a3(['string'] * len(tx), schema),
+            solidity_s_h_a3(types, data)
         ]
     )

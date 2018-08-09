@@ -1,5 +1,5 @@
 import unittest
-from quarkchain.evm.abi import txToTypedData, solidityPack, typedSignatureHash
+from quarkchain.evm.abi import tx_to_typed_data, solidity_pack, typed_signature_hash
 from quarkchain.evm.transactions import Transaction
 
 
@@ -72,21 +72,21 @@ class TestTypedSignature(unittest.TestCase):
 
 
     def test_typed(self):
-        assert txToTypedData(self.rawTx) == self.tx
+        assert tx_to_typed_data(self.rawTx) == self.tx
 
 
-    def test_solidityPack(self):
+    def test_solidity_pack(self):
         schema = list(map(lambda x: "{} {}".format(x["type"], x["name"]), self.tx))
         types = list(map(lambda x: x["type"], self.tx))
         data = list(map(lambda x: bytes.fromhex(x['value'][2:]) if x['type'] == "bytes" else x['value'], self.tx))
-        h1 = solidityPack(['string'] * len(self.tx), schema)
-        h2 = solidityPack(types, data)
+        h1 = solidity_pack(['string'] * len(self.tx), schema)
+        h2 = solidity_pack(types, data)
         assert h1.hex() == "75696e74323536206e6f6e636575696e7432353620676173507269636575696e74323536206761734c696d697475696e7431363020746f75696e743235362076616c75656279746573206461746175696e7433322066726f6d46756c6c5368617264496475696e74333220746f46756c6c5368617264496475696e74323536206e6574776f726b4964737472696e6720716b63446f6d61696e"
         assert h2.hex() == "000000000000000000000000000000000000000000000000000000000000000d00000000000000000000000000000000000000000000000000000002540be4000000000000000000000000000000000000000000000000000000000000007530314b2cd22c6d26618ce051a58c65af1253aecbb80000000000000000000000000000000000000000000000056bc75e2d63100000c47decfdc49c19500000000000000000000000000000000000000000000000000000000000000003626f74746f6d2d717561726b"
 
 
-    def test_typedSignatureHash(self):
-        h = typedSignatureHash(self.tx)
+    def test_typed_signature_hash(self):
+        h = typed_signature_hash(self.tx)
         assert h == "0x57dfcc7be8e4249fb6e75a45dc5ecdfed0309ed951b6adc69b8a659c7eca33bf"
 
 

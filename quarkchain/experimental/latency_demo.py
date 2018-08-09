@@ -41,19 +41,19 @@ class Block:
     blockId = 0
 
     def __init__(self, height, owner):
-        self.blockId = Block.getNextBlockId()
+        self.blockId = Block.get_next_block_id()
         self.height = height
         self.owner = owner
 
     @classmethod
-    def getNextBlockId(cls):
+    def get_next_block_id(cls):
         cls.blockId += 1
         return cls.blockId
 
     genesisBlock = None
 
     @classmethod
-    def getGenesisBlock(cls):
+    def get_genesis_block(cls):
         return Block(0, None)
 
     def __repr__(self):
@@ -69,16 +69,16 @@ class Network:
         self.latency = latency
         self.peers = peers
 
-    def addNode(self, peer):
+    def add_node(self, peer):
         self.peers.append(peer)
 
-    def broadcastNewBlock(self, source, blockData):
+    def broadcast_new_block(self, source, blockData):
         for peer in self.peers:
             if peer == source:
                 continue
 
-            self.scheduler.scheduleAfter(
-                self.latency, peer.rpcHandleReceiveBlock, blockData)
+            self.scheduler.schedule_after(
+                self.latency, peer.rpc_handle_receive_block, blockData)
 
 
 class Miner:
@@ -86,13 +86,13 @@ class Miner:
     minerId = 0
 
     @classmethod
-    def getNextMinerId(cls):
+    def get_next_miner_id(cls):
         cls.minerId += 1
         return cls.minerId
 
     def __init__(self, network, hashPower, scheduler, nblock, diffCalc):
-        self.minerId = Miner.getNextMinerId()
-        self.chain = [Block.getGenesisBlock()]
+        self.minerId = Miner.get_next_miner_id()
+        self.chain = [Block.get_genesis_block()]
         self.network = network
         self.hashPower = hashPower
         self.pow = proof_of_work.PoW(hashPower)
@@ -102,7 +102,7 @@ class Miner:
         self.mineTask = None
         self.wastedBlocks = 0
 
-    def rpcHandleReceiveBlock(self, ts, blockData):
+    def rpc_handle_receive_block(self, ts, blockData):
         global args
         block, chain = blockData
 
@@ -132,14 +132,14 @@ class Miner:
                   (ts, self.minerId, wasteBlock))
         self.wastedBlocks += wasteBlock
 
-        self.checkChainIntegrity()
+        self.check_chain_integrity()
 
         if self.mineTask is not None:
             self.mineTask.cancel()
             self.mineTask = None
-            self.mineNext()
+            self.mine_next()
 
-    def getBlockToMine(self):
+    def get_block_to_mine(self):
         return Block(self.chain[-1].height + 1, self)
 
     def mined(self, ts, block):
@@ -148,19 +148,19 @@ class Miner:
             print("%.2f, Node %d: Mined block height %d" %
                   (ts, self.minerId, block.height))
         self.chain.append(block)
-        self.network.broadcastNewBlock(self, (block, self.chain))
-        self.mineNext()
+        self.network.broadcast_new_block(self, (block, self.chain))
+        self.mine_next()
 
-    def mineNext(self):
+    def mine_next(self):
         if len(self.chain) >= self.nblock:
             return
 
-        block = self.getBlockToMine()
-        timeToMine = self.pow.mine(self.diffCalc.calculateDiff(self.chain))
-        self.mineTask = self.scheduler.scheduleAfter(
+        block = self.get_block_to_mine()
+        timeToMine = self.pow.mine(self.diffCalc.calculate_diff(self.chain))
+        self.mineTask = self.scheduler.schedule_after(
             timeToMine, self.mined, block)
 
-    def checkChainIntegrity(self):
+    def check_chain_integrity(self):
         for i in range(len(self.chain)):
             assert(self.chain[i].height == i)
 
@@ -189,12 +189,12 @@ def main():
     m2 = Miner(network, args.miner2_hash_power,
                scheduler, args.nblocks, diffCalc)
 
-    network.addNode(m1)
-    network.addNode(m2)
+    network.add_node(m1)
+    network.add_node(m2)
 
-    m1.mineNext()
-    m2.mineNext()
-    scheduler.loopUntilNoTask()
+    m1.mine_next()
+    m2.mine_next()
+    scheduler.loop_until_no_task()
 
     r1 = 0
     r2 = 0

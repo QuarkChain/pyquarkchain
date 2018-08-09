@@ -60,7 +60,7 @@ class DefaultConfig:
         self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
 
         # Distribute pre-mined quarkash into different shards for faster distribution
-        self.GENESIS_ACCOUNT = Address.createFrom("199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3")
+        self.GENESIS_ACCOUNT = Address.create_from("199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3")
         # The key is only here to sign artificial transactions for load test
         self.GENESIS_KEY = bytes.fromhex("c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3")
         self.GENESIS_COIN = 0
@@ -93,15 +93,15 @@ class DefaultConfig:
         self.BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
         # testnet config
-        self.ACCOUNTS_TO_FUND = [Address.createFrom(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]) for item in ACCOUNTS_TO_FUND]
+        self.ACCOUNTS_TO_FUND = [Address.create_from(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]) for item in ACCOUNTS_TO_FUND]
         self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
-        self.LOADTEST_ACCOUNTS = [(Address.createFrom(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
+        self.LOADTEST_ACCOUNTS = [(Address.create_from(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
         # whether to index transaction by address
         self.ENABLE_TRANSACTION_HISTORY = True
 
-    def setShardSize(self, shardSize):
+    def set_shard_size(self, shardSize):
         assert(is_p2(shardSize))
         self.SHARD_SIZE = shardSize
         self.SHARD_SIZE_BITS = int_left_most_bit(shardSize) - 1
@@ -140,7 +140,7 @@ class Env:
         self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
         self.clusterConfig = clusterConfig or DefaultClusterConfig()
 
-    def setNetworkId(self, networkId):
+    def set_network_id(self, networkId):
         self.config.NETWORK_ID = networkId
         self.evmConfig["NETWORK_ID"] = networkId
 

@@ -68,20 +68,20 @@ class Simulator:
         self.rootBlockToMine = None
         self.minorBlockToMine = None
 
-    def getMinorBlockTip(self):
+    def get_minor_block_tip(self):
         return self.minorBlockList[-1]
 
-    def getRootBlockTip(self):
+    def get_root_block_tip(self):
         return self.rootBlockList[-1]
 
-    def getGenesisRootBlockNumber(self):
+    def get_genesis_root_block_number(self):
         return self.args.rprevious
 
-    def getGenesisMinorBlockNumber(self):
+    def get_genesis_minor_block_number(self):
         return self.args.minor_genesis_epoch * MINOR_BLOCK_PER_ROOT_BLOCK
 
-    def getNextMinorBlockToMine(self, ts):
-        tip = self.getMinorBlockTip()
+    def get_next_minor_block_to_mine(self, ts):
+        tip = self.get_minor_block_tip()
 
         # Produce block in this epoch if the epoch has space
         if tip.rootIndex < MINOR_BLOCK_PER_ROOT_BLOCK - 1:
@@ -94,7 +94,7 @@ class Simulator:
 
         # Produce block in next epoch if a root block is available
         rootHeightToConfirm = tip.rootBlock.blockHeight + 1
-        if rootHeightToConfirm <= self.getRootBlockTip().blockHeight:
+        if rootHeightToConfirm <= self.get_root_block_tip().blockHeight:
             rootBlock = self.rootBlockList[rootHeightToConfirm]
             check(ts == max(tip.minedTime, rootBlock.minedTime))
             return MinorBlock(
@@ -106,30 +106,30 @@ class Simulator:
         # Unable to find a root block to produce the minor block
         return None
 
-    def mineNextRootBlock(self, ts):
+    def mine_next_root_block(self, ts):
         check(self.rootBlockToMine is None)
         if len(self.pendingMinorBlockQueue) == 0 or \
                 self.pendingMinorBlockQueue[0].rootBlock.blockHeight + self.args.rprevious > \
-                self.getRootBlockTip().blockHeight + 1:
+                self.get_root_block_tip().blockHeight + 1:
             # The root block is not able to mine.  Will wait until a minor block is produced.
             # TODO: the root block may also mine an null minor block with reduced coinbase reward
             return
 
         self.rootBlockToMine = RootBlock(
-            blockHeight=self.getRootBlockTip().blockHeight + 1,
+            blockHeight=self.get_root_block_tip().blockHeight + 1,
             minorBlockList=[],       # to be fill once mined
             miningTime=ts,
             minedTime=None)
 
-        self.scheduler.scheduleAfter(
+        self.scheduler.schedule_after(
             get_next_interval(ROOT_BLOCK_INTERVAL_SEC),
-            self.mineRootBlock,
+            self.mine_root_block,
             self.rootBlockToMine)
 
         if self.args.verbose >= 1:
             print("%0.2f: rootBlock %d mining ..." % (ts, self.rootBlockToMine.blockHeight))
 
-    def mineRootBlock(self, ts, rootBlock):
+    def mine_root_block(self, ts, rootBlock):
         check(rootBlock == self.rootBlockToMine)
 
         # Include minor blocks as much as possible
@@ -158,26 +158,26 @@ class Simulator:
 
         # Mine minor block produced by the root block if no minor block is in progress.
         if self.minorBlockToMine is None:
-            self.mineNextMinorBlock(ts)
+            self.mine_next_minor_block(ts)
             check(self.minorBlockToMine is not None)
-            check(self.minorBlockToMine.rootBlock == self.getRootBlockTip())
+            check(self.minorBlockToMine.rootBlock == self.get_root_block_tip())
 
-        self.mineNextRootBlock(ts)
+        self.mine_next_root_block(ts)
 
-    def mineNextMinorBlock(self, ts):
+    def mine_next_minor_block(self, ts):
         check(self.minorBlockToMine is None)
 
-        mBlock = self.getNextMinorBlockToMine(ts)
+        mBlock = self.get_next_minor_block_to_mine(ts)
         if mBlock is None:
             return
 
         self.minorBlockToMine = mBlock
-        self.scheduler.scheduleAfter(
+        self.scheduler.schedule_after(
             mBlock.minedTime - ts,
-            self.mineMinorBlock,
+            self.mine_minor_block,
             self.minorBlockToMine)
 
-    def mineMinorBlock(self, ts, minorBlock):
+    def mine_minor_block(self, ts, minorBlock):
         check(minorBlock == self.minorBlockToMine)
 
         if self.args.verbose >= 1:
@@ -191,15 +191,15 @@ class Simulator:
         # Should restart root block mining, but actually it doesn't matter
         # because exponential distribution is memory-less
         if self.rootBlockToMine is None:
-            self.mineNextRootBlock(ts)
+            self.mine_next_root_block(ts)
 
-        self.mineNextMinorBlock(ts)
+        self.mine_next_minor_block(ts)
 
     def run(self):
-        self.mineNextRootBlock(0)
-        self.mineNextMinorBlock(0)
+        self.mine_next_root_block(0)
+        self.mine_next_minor_block(0)
 
-        self.scheduler.loopUntilNoTask()
+        self.scheduler.loop_until_no_task()
 
 
 def main():
@@ -237,7 +237,7 @@ def main():
         idleDuration / simulator.rootBlockList[-1].minedTime * 100))
     print("Minor block interval: %0.2f" % (
         simulator.minorBlockList[-1].minedTime /
-        (simulator.minorBlockList[-1].blockHeight - simulator.getGenesisMinorBlockNumber())))
+        (simulator.minorBlockList[-1].blockHeight - simulator.get_genesis_minor_block_number())))
 
 
 if __name__ == '__main__':

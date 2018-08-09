@@ -21,29 +21,29 @@ class TestItem:
 
 class TestHeap(unittest.TestCase):
 
-    def testHeapSort(self):
+    def test_heap_sort(self):
         N = 100
         data = [TestItem(i) for i in range(N)]
         random.shuffle(data)
         h = heap.Heap(lambda x, y: x.value - y.value)
         for d in data:
             h.push(d)
-            self.assertTrue(h.checkIntegrity())
+            self.assertTrue(h.check_integrity())
         for i in range(N):
-            self.assertEqual(h.popTop().value, i)
-            self.assertTrue(h.checkIntegrity())
-        self.assertTrue(h.isEmpty())
+            self.assertEqual(h.pop_top().value, i)
+            self.assertTrue(h.check_integrity())
+        self.assertTrue(h.is_empty())
 
-    def testHeapRandomPop(self):
+    def test_heap_random_pop(self):
         N = 100
         data = [TestItem(i) for i in range(N)]
         random.shuffle(data)
         h = heap.Heap(lambda x, y: x.value - y.value)
         for d in data:
             h.push(d)
-            self.assertTrue(h.checkIntegrity())
+            self.assertTrue(h.check_integrity())
         random.shuffle(data)
         for d in data:
             h.pop(d)
-            self.assertTrue(h.checkIntegrity())
-        self.assertTrue(h.isEmpty())
+            self.assertTrue(h.check_integrity())
+        self.assertTrue(h.is_empty())

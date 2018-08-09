@@ -37,9 +37,9 @@ class RootDb:
         self.rHeaderPool = dict()
         self.tipHeader = None
 
-        self.__recoverFromDb()
+        self.__recover_from_db()
 
-    def __recoverFromDb(self):
+    def __recover_from_db(self):
         ''' Recover the best chain from local database.
         '''
         Logger.info("Recovering root chain from local database...")
@@ -61,25 +61,25 @@ class RootDb:
 
             self.rHeaderPool[rHash] = rBlock.header
             for mHeader in rBlock.minorBlockHeaderList:
-                self.mHashSet.add(mHeader.getHash())
+                self.mHashSet.add(mHeader.get_hash())
 
-    def getTipHeader(self):
+    def get_tip_header(self):
         return self.tipHeader
 
     # ------------------------- Root block db operations --------------------------------
-    def putRootBlock(self, rootBlock, lastMinorBlockHeaderList, rootBlockHash=None):
+    def put_root_block(self, rootBlock, lastMinorBlockHeaderList, rootBlockHash=None):
         if rootBlockHash is None:
-            rootBlockHash = rootBlock.header.getHash()
+            rootBlockHash = rootBlock.header.get_hash()
 
         lastList = LastMinorBlockHeaderList(headerList=lastMinorBlockHeaderList)
         self.db.put(b"rblock_" + rootBlockHash, rootBlock.serialize())
         self.db.put(b"lastlist_" + rootBlockHash, lastList.serialize())
         self.rHeaderPool[rootBlockHash] = rootBlock.header
 
-    def updateTipHash(self, blockHash):
+    def update_tip_hash(self, blockHash):
         self.db.put(b"tipHash", blockHash)
 
-    def getRootBlockByHash(self, h, consistencyCheck=True):
+    def get_root_block_by_hash(self, h, consistencyCheck=True):
         if consistencyCheck and h not in self.rHeaderPool:
             return None
 
@@ -88,37 +88,37 @@ class RootDb:
             return None
         return RootBlock.deserialize(rawBlock)
 
-    def getRootBlockHeaderByHash(self, h, consistencyCheck=True):
+    def get_root_block_header_by_hash(self, h, consistencyCheck=True):
         header = self.rHeaderPool.get(h, None)
         if not header and not consistencyCheck:
-            block = self.getRootBlockByHash(h, False)
+            block = self.get_root_block_by_hash(h, False)
             if block:
                 header = block.header
         return header
 
-    def getRootBlockLastMinorBlockHeaderList(self, h):
+    def get_root_block_last_minor_block_header_list(self, h):
         if h not in self.rHeaderPool:
             return None
         return LastMinorBlockHeaderList.deserialize(self.db.get(b"lastlist_" + h)).headerList
 
-    def containRootBlockByHash(self, h):
+    def contain_root_block_by_hash(self, h):
         return h in self.rHeaderPool
 
-    def putRootBlockIndex(self, block):
-        self.db.put(b"ri_%d" % block.header.height, block.header.getHash())
+    def put_root_block_index(self, block):
+        self.db.put(b"ri_%d" % block.header.height, block.header.get_hash())
 
-    def getRootBlockByHeight(self, height):
+    def get_root_block_by_height(self, height):
         key = b"ri_%d" % height
         if key not in self.db:
             return None
         blockHash = self.db.get(key)
-        return self.getRootBlockByHash(blockHash, False)
+        return self.get_root_block_by_hash(blockHash, False)
 
     # ------------------------- Minor block db operations --------------------------------
-    def containMinorBlockByHash(self, h):
+    def contain_minor_block_by_hash(self, h):
         return h in self.mHashSet
 
-    def putMinorBlockHash(self, mHash):
+    def put_minor_block_hash(self, mHash):
         self.db.put(b"mheader_" + mHash, b'')
         self.mHashSet.add(mHash)
 
@@ -144,45 +144,45 @@ class RootState:
         self.rawDb = env.db
         self.db = RootDb(self.rawDb, env.config.MAX_ROOT_BLOCK_IN_MEMORY)
 
-        persistedTip = self.db.getTipHeader()
+        persistedTip = self.db.get_tip_header()
         if persistedTip:
             self.tip = persistedTip
             Logger.info("Recovered root state with tip height {}".format(self.tip.height))
         else:
-            self.__createGenesisBlocks()
+            self.__create_genesis_blocks()
             Logger.info("Created genesis root block")
 
-    def __createGenesisBlocks(self):
+    def __create_genesis_blocks(self):
         evmList = create_genesis_evm_list(env=self.env)
         genesisRootBlock0, genesisRootBlock1, gMinorBlockList0, gMinorBlockList1 = create_genesis_blocks(
             env=self.env, evmList=evmList)
 
-        self.db.putRootBlock(genesisRootBlock0, [b.header for b in gMinorBlockList0])
-        self.db.putRootBlockIndex(genesisRootBlock0)
-        self.db.putRootBlock(genesisRootBlock1, [b.header for b in gMinorBlockList1])
-        self.db.putRootBlockIndex(genesisRootBlock1)
+        self.db.put_root_block(genesisRootBlock0, [b.header for b in gMinorBlockList0])
+        self.db.put_root_block_index(genesisRootBlock0)
+        self.db.put_root_block(genesisRootBlock1, [b.header for b in gMinorBlockList1])
+        self.db.put_root_block_index(genesisRootBlock1)
         self.tip = genesisRootBlock1.header
         for b in gMinorBlockList0:
-            self.addValidatedMinorBlockHash(b.header.getHash())
+            self.add_validated_minor_block_hash(b.header.get_hash())
         for b in gMinorBlockList1:
-            self.addValidatedMinorBlockHash(b.header.getHash())
+            self.add_validated_minor_block_hash(b.header.get_hash())
 
-    def getTipBlock(self):
-        return self.db.getRootBlockByHash(self.tip.getHash())
+    def get_tip_block(self):
+        return self.db.get_root_block_by_hash(self.tip.get_hash())
 
-    def addValidatedMinorBlockHash(self, h):
-        self.db.putMinorBlockHash(h)
+    def add_validated_minor_block_hash(self, h):
+        self.db.put_minor_block_hash(h)
 
-    def getNextBlockDifficulty(self, createTime=None):
+    def get_next_block_difficulty(self, createTime=None):
         if createTime is None:
             createTime = max(self.tip.createTime + 1, int(time.time()))
-        return self.diffCalc.calculateDiffWithParent(self.tip, createTime)
+        return self.diffCalc.calculate_diff_with_parent(self.tip, createTime)
 
-    def createBlockToMine(self, mHeaderList, address, createTime=None):
+    def create_block_to_mine(self, mHeaderList, address, createTime=None):
         if createTime is None:
             createTime = max(self.tip.createTime + 1, int(time.time()))
-        difficulty = self.diffCalc.calculateDiffWithParent(self.tip, createTime)
-        block = self.tip.createBlockToAppend(createTime=createTime, address=address, difficulty=difficulty)
+        difficulty = self.diffCalc.calculate_diff_with_parent(self.tip, createTime)
+        block = self.tip.create_block_to_append(createTime=createTime, address=address, difficulty=difficulty)
         block.minorBlockHeaderList = mHeaderList
 
         coinbaseAmount = 0
@@ -192,15 +192,15 @@ class RootState:
         coinbaseAmount = coinbaseAmount // 2
         return block.finalize(quarkash=coinbaseAmount, coinbaseAddress=address)
 
-    def validateBlockHeader(self, blockHeader, blockHash=None):
+    def validate_block_header(self, blockHeader, blockHash=None):
         ''' Validate the block header.
         '''
         if blockHeader.height <= 1:
             raise ValueError("unexpected height")
 
-        if not self.db.containRootBlockByHash(blockHeader.hashPrevBlock):
+        if not self.db.contain_root_block_by_hash(blockHeader.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
-        prevBlockHeader = self.db.getRootBlockHeaderByHash(blockHeader.hashPrevBlock)
+        prevBlockHeader = self.db.get_root_block_header_by_hash(blockHeader.hashPrevBlock)
 
         if prevBlockHeader.height + 1 != blockHeader.height:
             raise ValueError("incorrect block height")
@@ -210,12 +210,12 @@ class RootState:
                 blockHeader.createTime, prevBlockHeader.createTime))
 
         if blockHash is None:
-            blockHash = blockHeader.getHash()
+            blockHash = blockHeader.get_hash()
 
         # Check difficulty
         if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
             if self.env.config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.diffCalc.calculateDiffWithParent(prevBlockHeader, blockHeader.createTime)
+                diff = self.diffCalc.calculate_diff_with_parent(prevBlockHeader, blockHeader.createTime)
                 if diff != blockHeader.difficulty:
                     raise ValueError("incorrect difficulty")
                 metric = diff * int.from_bytes(blockHash, byteorder="big")
@@ -226,21 +226,21 @@ class RootState:
 
         return blockHash
 
-    def __isSameChain(self, longerBlockHeader, shorterBlockHeader):
+    def __is_same_chain(self, longerBlockHeader, shorterBlockHeader):
         if shorterBlockHeader.height > longerBlockHeader.height:
             return False
 
         header = longerBlockHeader
         for i in range(longerBlockHeader.height - shorterBlockHeader.height):
-            header = self.db.getRootBlockHeaderByHash(header.hashPrevBlock)
+            header = self.db.get_root_block_header_by_hash(header.hashPrevBlock)
         return header == shorterBlockHeader
 
-    def validateBlock(self, block, blockHash=None):
-        if not self.db.containRootBlockByHash(block.header.hashPrevBlock):
+    def validate_block(self, block, blockHash=None):
+        if not self.db.contain_root_block_by_hash(block.header.hashPrevBlock):
             raise ValueError("previous hash block mismatch")
-        prevLastMinorBlockHeaderList = self.db.getRootBlockLastMinorBlockHeaderList(block.header.hashPrevBlock)
+        prevLastMinorBlockHeaderList = self.db.get_root_block_last_minor_block_header_list(block.header.hashPrevBlock)
 
-        blockHash = self.validateBlockHeader(block.header, blockHash)
+        blockHash = self.validate_block_header(block.header, blockHash)
 
         # Check the merkle tree
         merkleHash = calculate_merkle_root(block.minorBlockHeaderList)
@@ -253,17 +253,17 @@ class RootState:
         lastMinorBlockHeaderList = []
         blockCountInShard = 0
         for idx, mHeader in enumerate(block.minorBlockHeaderList):
-            if mHeader.branch.getShardId() != shardId:
-                if mHeader.branch.getShardId() != shardId + 1:
+            if mHeader.branch.get_shard_id() != shardId:
+                if mHeader.branch.get_shard_id() != shardId + 1:
                     raise ValueError("shard id must be ordered")
                 if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                     raise ValueError("fail to prove progress")
                 if mHeader.createTime > block.header.createTime:
                     raise ValueError("minor block create time is too large {}>{}".format(
                         mHeader.createTime, block.header.createTime))
-                if not self.__isSameChain(
-                        self.db.getRootBlockHeaderByHash(block.header.hashPrevBlock),
-                        self.db.getRootBlockHeaderByHash(prevHeader.hashPrevRootBlock)):
+                if not self.__is_same_chain(
+                        self.db.get_root_block_header_by_hash(block.header.hashPrevBlock),
+                        self.db.get_root_block_header_by_hash(prevHeader.hashPrevRootBlock)):
                     raise ValueError("minor block's prev root block must be in the same chain")
 
                 lastMinorBlockHeaderList.append(block.minorBlockHeaderList[idx - 1])
@@ -271,71 +271,71 @@ class RootState:
                 blockCountInShard = 0
                 prevHeader = prevLastMinorBlockHeaderList[shardId]
 
-            if not self.db.containMinorBlockByHash(mHeader.getHash()):
+            if not self.db.contain_minor_block_by_hash(mHeader.get_hash()):
                 raise ValueError("minor block is not validated. {}-{}".format(
-                    mHeader.branch.getShardId(), mHeader.height))
+                    mHeader.branch.get_shard_id(), mHeader.height))
 
-            if mHeader.hashPrevMinorBlock != prevHeader.getHash():
+            if mHeader.hashPrevMinorBlock != prevHeader.get_hash():
                 raise ValueError("minor block doesn't link to previous minor block")
             blockCountInShard += 1
             prevHeader = mHeader
             # TODO: Add coinbase
 
-        if shardId != block.header.shardInfo.getShardSize() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
+        if shardId != block.header.shardInfo.get_shard_size() - 1 and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0:
             raise ValueError("fail to prove progress")
         if blockCountInShard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
             raise ValueError("fail to prove progress")
         if mHeader.createTime > block.header.createTime:
             raise ValueError("minor block create time is too large {}>{}".format(
                 mHeader.createTime, block.header.createTime))
-        if not self.__isSameChain(
-                self.db.getRootBlockHeaderByHash(block.header.hashPrevBlock),
-                self.db.getRootBlockHeaderByHash(mHeader.hashPrevRootBlock)):
+        if not self.__is_same_chain(
+                self.db.get_root_block_header_by_hash(block.header.hashPrevBlock),
+                self.db.get_root_block_header_by_hash(mHeader.hashPrevRootBlock)):
             raise ValueError("minor block's prev root block must be in the same chain")
         lastMinorBlockHeaderList.append(mHeader)
 
         return blockHash, lastMinorBlockHeaderList
 
-    def __rewriteBlockIndexTo(self, block):
+    def __rewrite_block_index_to(self, block):
         ''' Find the common ancestor in the current chain and rewrite index till block '''
         while block.header.height >= 0:
-            origBlock = self.db.getRootBlockByHeight(block.header.height)
+            origBlock = self.db.get_root_block_by_height(block.header.height)
             if origBlock and origBlock.header == block.header:
                 break
-            self.db.putRootBlockIndex(block)
-            block = self.db.getRootBlockByHash(block.header.hashPrevBlock)
+            self.db.put_root_block_index(block)
+            block = self.db.get_root_block_by_hash(block.header.hashPrevBlock)
 
-    def addBlock(self, block, blockHash=None):
+    def add_block(self, block, blockHash=None):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
-        blockHash, lastMinorBlockHeaderList = self.validateBlock(block, blockHash)
+        blockHash, lastMinorBlockHeaderList = self.validate_block(block, blockHash)
 
-        self.db.putRootBlock(block, lastMinorBlockHeaderList, rootBlockHash=blockHash)
+        self.db.put_root_block(block, lastMinorBlockHeaderList, rootBlockHash=blockHash)
 
         if self.tip.height < block.header.height:
             self.tip = block.header
-            self.db.updateTipHash(blockHash)
-            self.__rewriteBlockIndexTo(block)
+            self.db.update_tip_hash(blockHash)
+            self.__rewrite_block_index_to(block)
             return True
         return False
 
     # -------------------------------- Root block db related operations ------------------------------
-    def getRootBlockByHash(self, h):
-        return self.db.getRootBlockByHash(h)
+    def get_root_block_by_hash(self, h):
+        return self.db.get_root_block_by_hash(h)
 
-    def containRootBlockByHash(self, h):
-        return self.db.containRootBlockByHash(h)
+    def contain_root_block_by_hash(self, h):
+        return self.db.contain_root_block_by_hash(h)
 
-    def getRootBlockHeaderByHash(self, h):
-        return self.db.getRootBlockHeaderByHash(h)
+    def get_root_block_header_by_hash(self, h):
+        return self.db.get_root_block_header_by_hash(h)
 
-    def getRootBlockByHeight(self, height):
-        return self.db.getRootBlockByHeight(height)
+    def get_root_block_by_height(self, height):
+        return self.db.get_root_block_by_height(height)
 
     # --------------------------------- Minor block db related operations ----------------------------
-    def isMinorBlockValidated(self, h):
-        return self.db.containMinorBlockByHash(h)
+    def is_minor_block_validated(self, h):
+        return self.db.contain_minor_block_by_hash(h)

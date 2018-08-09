@@ -31,12 +31,12 @@ class Network:
         self.procs = []
         self.shutdownCalled = False
 
-    async def waitAndShutdown(self, prefix, proc):
+    async def wait_and_shutdown(self, prefix, proc):
         await proc.wait()
         if self.shutdownCalled:
             return
 
-    async def runApps(self):
+    async def run_apps(self):
         """
         run bootstrap node (first process) first, sleep for 3 seconds
         """
@@ -63,8 +63,8 @@ class Network:
             self.procs.append((prefix, s))
 
     async def run(self):
-        await self.runApps()
-        await asyncio.gather(*[self.waitAndShutdown(prefix, proc) for prefix, proc in self.procs])
+        await self.run_apps()
+        await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
         self.shutdownCalled = True
@@ -75,7 +75,7 @@ class Network:
                 pass
         await asyncio.gather(*[proc.wait() for prefix, proc in self.procs])
 
-    def startAndLoop(self):
+    def start_and_loop(self):
         try:
             asyncio.get_event_loop().run_until_complete(self.run())
         except KeyboardInterrupt:
@@ -124,7 +124,7 @@ def main():
     )
 
     network = Network(config)
-    network.startAndLoop()
+    network.start_and_loop()
 
 
 if __name__ == '__main__':

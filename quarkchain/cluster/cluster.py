@@ -89,7 +89,7 @@ class Cluster:
         self.enableTransactionHistory = enableTransactionHistory
         self.clusterID = clusterID
 
-    async def waitAndShutdown(self, prefix, proc):
+    async def wait_and_shutdown(self, prefix, proc):
         ''' If one process terminates shutdown the entire cluster '''
         await proc.wait()
         if self.shutdownCalled:
@@ -98,7 +98,7 @@ class Cluster:
         print("{} is dead. Shutting down the cluster...".format(prefix))
         await self.shutdown()
 
-    async def runMaster(self):
+    async def run_master(self):
         master = await run_master(
             configFilePath=self.configFilePath,
             dbPathRoot=self.config["master"]["db_path_root"],
@@ -121,7 +121,7 @@ class Cluster:
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
 
-    async def runSlaves(self):
+    async def run_slaves(self):
         for slave in self.config["slaves"]:
             s = await run_slave(
                 port=slave["port"],
@@ -135,16 +135,16 @@ class Cluster:
             self.procs.append((prefix, s))
 
     async def run(self):
-        await self.runMaster()
-        await self.runSlaves()
+        await self.run_master()
+        await self.run_slaves()
 
-        await asyncio.gather(*[self.waitAndShutdown(prefix, proc) for prefix, proc in self.procs])
+        await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
         self.shutdownCalled = True
         kill_child_processes(os.getpid())
 
-    def startAndLoop(self):
+    def start_and_loop(self):
         try:
             asyncio.get_event_loop().run_until_complete(self.run())
         except KeyboardInterrupt:
@@ -241,7 +241,7 @@ def main():
     if args.enable_transaction_history:
         print("Starting cluster with transaction history enabled...")
 
-    cluster.startAndLoop()
+    cluster.start_and_loop()
 
 
 if __name__ == '__main__':

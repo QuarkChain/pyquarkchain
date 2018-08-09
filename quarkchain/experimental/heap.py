@@ -12,49 +12,49 @@ class Heap:
         self.heapSize = 0
         self.cmp = cmp
 
-    def __assertItem(self, item):
+    def __assert_item(self, item):
         assert(self.heap[item.heapIndex] == item)
 
     def __swap(self, item1, item2):
-        self.__assertItem(item1)
-        self.__assertItem(item2)
+        self.__assert_item(item1)
+        self.__assert_item(item2)
         self.heap[item1.heapIndex] = item2
         self.heap[item2.heapIndex] = item1
         tmp = item1.heapIndex
         item1.heapIndex = item2.heapIndex
         item2.heapIndex = tmp
 
-    def __getParent(self, item):
+    def __get_parent(self, item):
         assert(item.heapIndex != 0)
         return self.heap[(item.heapIndex - 1) // 2]
 
-    def __getLeftChild(self, item):
+    def __get_left_child(self, item):
         index = item.heapIndex * 2 + 1
         if index >= self.heapSize:
             return None
         return self.heap[index]
 
-    def __getRightChild(self, item):
+    def __get_right_child(self, item):
         index = item.heapIndex * 2 + 2
         if index >= self.heapSize:
             return None
         return self.heap[index]
 
-    def __siftUp(self, item):
+    def __sift_up(self, item):
         assert(self.heap[item.heapIndex] == item)
         while item.heapIndex != 0:
-            parent = self.__getParent(item)
+            parent = self.__get_parent(item)
             if self.cmp(parent, item) <= 0:
                 return
             self.__swap(parent, item)
 
-    def __siftDown(self, item):
+    def __sift_down(self, item):
         while True:
-            leftChild = self.__getLeftChild(item)
+            leftChild = self.__get_left_child(item)
             if leftChild is None:
                 return
 
-            rightChild = self.__getRightChild(item)
+            rightChild = self.__get_right_child(item)
             minChild = leftChild
             if rightChild is not None and self.cmp(rightChild, leftChild) < 0:
                 minChild = rightChild
@@ -71,7 +71,7 @@ class Heap:
             self.heap[self.heapSize] = item
         item.heapIndex = self.heapSize
         self.heapSize += 1
-        self.__siftUp(item)
+        self.__sift_up(item)
 
     def pop(self, item):
         lastItem = self.heap[self.heapSize - 1]
@@ -80,34 +80,34 @@ class Heap:
         self.heap[self.heapSize] = None
         if lastItem != item:
             # TODO: Optimize
-            self.__siftDown(lastItem)
-            self.__siftUp(lastItem)
+            self.__sift_down(lastItem)
+            self.__sift_up(lastItem)
         return item
 
-    def popTop(self):
+    def pop_top(self):
         return self.pop(self.heap[0])
 
     def size(self):
         return self.heapSize
 
-    def isEmpty(self):
+    def is_empty(self):
         return self.heapSize == 0
 
     def __str__(self):
         return str(self.heap[:self.heapSize])
 
     # self check, used for testing only
-    def checkIntegrity(self):
+    def check_integrity(self):
         for i in range(self.heapSize):
             item = self.heap[i]
             if i != 0:
-                parent = self.__getParent(item)
+                parent = self.__get_parent(item)
                 if self.cmp(item, parent) < 0:
                     return False
-            leftChild = self.__getLeftChild(item)
+            leftChild = self.__get_left_child(item)
             if leftChild is not None and self.cmp(leftChild, item) < 0:
                 return False
-            rightChild = self.__getRightChild(item)
+            rightChild = self.__get_right_child(item)
             if rightChild is not None and self.cmp(rightChild, item) < 0:
                 return False
         return True

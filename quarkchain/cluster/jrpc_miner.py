@@ -18,23 +18,23 @@ class Endpoint:
     def __init__(self, port):
         self.port = port
 
-    def __sendRequest(self, *args, **kwargs):
+    def __send_request(self, *args, **kwargs):
         return jsonrpcclient.request("http://localhost:{}".format(self.port), *args, **kwargs)
 
-    def setArtificialTxCount(self, count):
+    def set_artificial_tx_count(self, count):
         ''' Keep trying until success.
         It might take a while for the cluster to recover state.
         '''
         while True:
             try:
-                return self.__sendRequest("setArtificialTxConfig", count, 10, 0)
+                return self.__send_request("setArtificialTxConfig", count, 10, 0)
             except Exception:
                 pass
             time.sleep(1)
 
-    def getNextBlockToMine(self, coinbaseAddressHex, shardMaskValue):
-        resp = self.__sendRequest(
-            "getNextBlockToMine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
+    def get_next_block_to_mine(self, coinbaseAddressHex, shardMaskValue):
+        resp = self.__send_request(
+            "get_next_block_to_mine", coinbaseAddressHex, quantity_encoder(shardMaskValue), preferRoot=True)
         if not resp:
             return None, None
         isRoot = resp["isRootBlock"]
@@ -43,9 +43,9 @@ class Endpoint:
         block = blockClass.deserialize(blockBytes)
         return isRoot, block
 
-    def addBlock(self, block):
+    def add_block(self, block):
         branch = 0 if isinstance(block, RootBlock) else block.header.branch.value
-        resp = self.__sendRequest("addBlock", quantity_encoder(branch), data_encoder(block.serialize()))
+        resp = self.__send_request("add_block", quantity_encoder(branch), data_encoder(block.serialize()))
         return resp
 
 
@@ -59,7 +59,7 @@ class Miner:
         self.block = None
         self.isRoot = False
 
-    def __simulatePowDelay(self, startTime):
+    def __simulate_pow_delay(self, startTime):
         if self.isRoot:
             expectedBlockTime = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
         else:
@@ -70,14 +70,14 @@ class Miner:
         delay = max(0, blockTime - elapsed)
         time.sleep(delay)
 
-    def __checkMetric(self, metric):
+    def __check_metric(self, metric):
         # Testnet does not check difficulty
         if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
             return True
         return metric < 2 ** 256
 
     def __logStatus(self, success):
-        shard = "R" if self.isRoot else self.block.header.branch.getShardId()
+        shard = "R" if self.isRoot else self.block.header.branch.get_shard_id()
         count = len(self.block.minorBlockHeaderList) if self.isRoot else len(self.block.txList)
         status = "success" if success else "fail"
         elapsed = time.time() - self.block.header.createTime
@@ -86,9 +86,9 @@ class Miner:
             shard, self.block.header.height, count, status, elapsed))
 
     def run(self):
-        self.endpoint.setArtificialTxCount(self.artificialTxCount)
+        self.endpoint.set_artificial_tx_count(self.artificialTxCount)
         while True:
-            isRoot, block = self.endpoint.getNextBlockToMine(self.coinbaseAddressHex, self.shardMaskValue)
+            isRoot, block = self.endpoint.get_next_block_to_mine(self.coinbaseAddressHex, self.shardMaskValue)
             if not block:
                 time.sleep(1)
                 continue
@@ -98,11 +98,11 @@ class Miner:
                 self.isRoot = isRoot
             for i in range(1000000):
                 self.block.header.nonce += 1
-                metric = int.from_bytes(self.block.header.getHash(), byteorder="big") * self.block.header.difficulty
-                if self.__checkMetric(metric):
-                    self.__simulatePowDelay(block.header.createTime)
+                metric = int.from_bytes(self.block.header.get_hash(), byteorder="big") * self.block.header.difficulty
+                if self.__check_metric(metric):
+                    self.__simulate_pow_delay(block.header.createTime)
                     try:
-                        self.endpoint.addBlock(self.block)
+                        self.endpoint.add_block(self.block)
                         success = True
                     except Exception as e:
                         Logger.logException()
