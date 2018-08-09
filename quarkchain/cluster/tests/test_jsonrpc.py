@@ -54,7 +54,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 key=id1.get_key(),
@@ -243,7 +243,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 key=id1.get_key(),
@@ -257,14 +257,14 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             # By id
-            resp = send_request("getMinorBlockById",
+            resp = send_request("get_minor_block_by_id",
                                "0x" + block1.header.get_hash().hex() + "0" * 8, False)
             self.assertEqual(resp["transactions"][0], "0x" + tx.get_hash().hex() + "0" * 8)
-            resp = send_request("getMinorBlockById",
+            resp = send_request("get_minor_block_by_id",
                                "0x" + block1.header.get_hash().hex() + "0" * 8, True)
             self.assertEqual(resp["transactions"][0]["hash"], "0x" + tx.get_hash().hex())
 
-            resp = send_request("getMinorBlockById", "0x" + "ff" * 36, True)
+            resp = send_request("get_minor_block_by_id", "0x" + "ff" * 36, True)
             self.assertIsNone(resp)
 
             # By height
@@ -287,7 +287,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 key=id1.get_key(),
@@ -301,7 +301,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
-                "getTransactionById", "0x" + tx.get_hash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
+                "get_transaction_by_id", "0x" + tx.get_hash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["hash"], "0x" + tx.get_hash().hex())
 
     def test_call_success(self):

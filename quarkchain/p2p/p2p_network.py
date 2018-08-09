@@ -231,7 +231,7 @@ class P2PNetwork:
         self.nextClusterPeerId = 0
         self.clusterPeerPool = dict()   # cluster peer id => peer
 
-    async def newPeer(self, client_reader, client_writer):
+    async def new_peer(self, client_reader, client_writer):
         peer = Peer(
             self.env,
             client_reader,
@@ -303,7 +303,7 @@ class P2PNetwork:
 
     def start_server(self):
         coro = asyncio.start_server(
-            self.newPeer, "0.0.0.0", self.port, loop=self.loop)
+            self.new_peer, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
         Logger.info("Self id {}".format(self.selfId.hex()))
         Logger.info("Listening on {} for p2p".format(

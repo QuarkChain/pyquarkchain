@@ -46,10 +46,10 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.txList), 1)
 
-            originalBalanceAcc1 = call_async(master.getPrimaryAccountData(acc1)).balance
+            originalBalanceAcc1 = call_async(master.get_primary_account_data(acc1)).balance
             gasPaid = (opcodes.GTXXSHARDCOST + opcodes.GTXCOST) * 3
             self.assertTrue(call_async(slaves[0].add_block(block1)))
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).balance,
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).balance,
                              originalBalanceAcc1 - 54321 - gasPaid)
             self.assertEqual(slaves[1].shardStateMap[3].get_balance(acc3.recipient), 0)
 
@@ -83,7 +83,7 @@ class TestCluster(unittest.TestCase):
 
             self.assertTrue(call_async(slaves[1].add_block(block3)))
             # Expect withdrawTo is included in acc3's balance
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc3)).balance, 54321)
+            self.assertEqual(call_async(master.get_primary_account_data(acc3)).balance, 54321)
 
     def test_get_primary_account_data(self):
         id1 = Identity.create_random_identity()
@@ -95,7 +95,7 @@ class TestCluster(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shardStateMap[branch.value],
                 key=id1.get_key(),
@@ -108,8 +108,8 @@ class TestCluster(unittest.TestCase):
             isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc1)).transactionCount, 1)
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc2)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 1)
+            self.assertEqual(call_async(master.get_primary_account_data(acc2)).transactionCount, 0)
 
     def test_add_transaction(self):
         id1 = Identity.create_random_identity()
@@ -128,7 +128,7 @@ class TestCluster(unittest.TestCase):
                 toAddress=acc1,
                 value=12345,
             )
-            self.assertTrue(call_async(master.addTransaction(tx1)))
+            self.assertTrue(call_async(master.add_transaction(tx1)))
             self.assertEqual(len(slaves[0].shardStateMap[branch0.value].txQueue), 1)
 
             branch1 = Branch.create(2, 1)
@@ -140,7 +140,7 @@ class TestCluster(unittest.TestCase):
                 value=12345,
                 gas=30000,
             )
-            self.assertTrue(call_async(master.addTransaction(tx2)))
+            self.assertTrue(call_async(master.add_transaction(tx2)))
             self.assertEqual(len(slaves[1].shardStateMap[branch1.value].txQueue), 1)
 
             # check the tx is received by the other cluster
@@ -346,5 +346,5 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(slaves[1].add_block(b3)))
 
             self.assertTrue(call_async(slaves[1].add_block(b4)))
-            self.assertEqual(call_async(master.getPrimaryAccountData(acc3)).balance, 54321)
+            self.assertEqual(call_async(master.get_primary_account_data(acc3)).balance, 54321)
 

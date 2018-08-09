@@ -26,7 +26,7 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("sendRawTransaction", txHex)
+        resp = await self.__send_request("send_raw_transaction", txHex)
         return resp
 
     async def getContractAddress(self, txId):
@@ -42,11 +42,11 @@ class Endpoint:
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("networkInfo")
+        resp = await self.__send_request("network_info")
         return int(resp["shardSize"], 16)
 
     async def getNetworkId(self):
-        resp = await self.__send_request("networkInfo")
+        resp = await self.__send_request("network_info")
         return int(resp["networkId"], 16)
 
 
