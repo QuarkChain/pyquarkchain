@@ -75,7 +75,7 @@ class Devp2pService(WiredService):
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
-            self.app.network.refreshConnections(active_peers)
+            self.app.network.refresh_connections(active_peers)
         )
 
     '''
@@ -89,7 +89,7 @@ class Devp2pService(WiredService):
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
-            self.app.network.refreshConnections(active_peers)
+            self.app.network.refresh_connections(active_peers)
         )
 
     def get_connected_peers(self):
@@ -109,7 +109,7 @@ class Devp2pService(WiredService):
             active_peers = self.get_connected_peers()
             self.app.network.loop.call_soon_threadsafe(
                 asyncio.ensure_future,
-                self.app.network.refreshConnections(active_peers)
+                self.app.network.refresh_connections(active_peers)
             )
 
     def start(self):
@@ -241,7 +241,7 @@ class P2PNetwork:
             self.__getNextClusterPeerId())
         await peer.start(isServer=True)
 
-    async def refreshConnections(self, peers):
+    async def refresh_connections(self, peers):
         Logger.info("Refreshing connections to {} peers: {}".format(
             len(peers),
             peers

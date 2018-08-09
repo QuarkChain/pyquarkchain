@@ -497,9 +497,9 @@ def main():
 
     for node in nodeList:
         node.start()
-    statsPrinter = StatsPrinter(scheduler)
+    stats_printer = StatsPrinter(scheduler)
     scheduler.schedule_after(STATS_PRINTER_INTERVAL,
-                            statsPrinter.print_stats, nodeList)
+                            stats_printer.print_stats, nodeList)
     scheduler.loop_until_no_task()
 
 

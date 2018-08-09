@@ -421,7 +421,7 @@ class Node:
         self.peers.append(peer)
 
 
-async def statsPrinter(nodeList):
+async def stats_printer(nodeList):
     startTime = time.time()
     while True:
         usedTime = (time.time() - startTime) + 0.0001
@@ -485,7 +485,7 @@ def main():
     #     nodeList.append(node)
 
     taskList = [node.start() for node in nodeList]
-    taskList.append(statsPrinter(nodeList))
+    taskList.append(stats_printer(nodeList))
     loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(
         *taskList))

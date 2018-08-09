@@ -36,7 +36,7 @@ class Network:
         if self.shutdownCalled:
             return
 
-    async def runApps(self):
+    async def run_apps(self):
         """
         run bootstrap node (first process) first, sleep for 3 seconds
         """
@@ -63,7 +63,7 @@ class Network:
             self.procs.append((prefix, s))
 
     async def run(self):
-        await self.runApps()
+        await self.run_apps()
         await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
 
     async def shutdown(self):
