@@ -37,9 +37,9 @@ class RootDb:
         self.rHeaderPool = dict()
         self.tipHeader = None
 
-        self.__recoverFromDb()
+        self.__recover_from_db()
 
-    def __recoverFromDb(self):
+    def __recover_from_db(self):
         ''' Recover the best chain from local database.
         '''
         Logger.info("Recovering root chain from local database...")
@@ -149,10 +149,10 @@ class RootState:
             self.tip = persistedTip
             Logger.info("Recovered root state with tip height {}".format(self.tip.height))
         else:
-            self.__createGenesisBlocks()
+            self.__create_genesis_blocks()
             Logger.info("Created genesis root block")
 
-    def __createGenesisBlocks(self):
+    def __create_genesis_blocks(self):
         evmList = create_genesis_evm_list(env=self.env)
         genesisRootBlock0, genesisRootBlock1, gMinorBlockList0, gMinorBlockList1 = create_genesis_blocks(
             env=self.env, evmList=evmList)
@@ -226,7 +226,7 @@ class RootState:
 
         return blockHash
 
-    def __isSameChain(self, longerBlockHeader, shorterBlockHeader):
+    def __is_same_chain(self, longerBlockHeader, shorterBlockHeader):
         if shorterBlockHeader.height > longerBlockHeader.height:
             return False
 
@@ -261,7 +261,7 @@ class RootState:
                 if mHeader.createTime > block.header.createTime:
                     raise ValueError("minor block create time is too large {}>{}".format(
                         mHeader.createTime, block.header.createTime))
-                if not self.__isSameChain(
+                if not self.__is_same_chain(
                         self.db.get_root_block_header_by_hash(block.header.hashPrevBlock),
                         self.db.get_root_block_header_by_hash(prevHeader.hashPrevRootBlock)):
                     raise ValueError("minor block's prev root block must be in the same chain")
@@ -288,7 +288,7 @@ class RootState:
         if mHeader.createTime > block.header.createTime:
             raise ValueError("minor block create time is too large {}>{}".format(
                 mHeader.createTime, block.header.createTime))
-        if not self.__isSameChain(
+        if not self.__is_same_chain(
                 self.db.get_root_block_header_by_hash(block.header.hashPrevBlock),
                 self.db.get_root_block_header_by_hash(mHeader.hashPrevRootBlock)):
             raise ValueError("minor block's prev root block must be in the same chain")
@@ -296,7 +296,7 @@ class RootState:
 
         return blockHash, lastMinorBlockHeaderList
 
-    def __rewriteBlockIndexTo(self, block):
+    def __rewrite_block_index_to(self, block):
         ''' Find the common ancestor in the current chain and rewrite index till block '''
         while block.header.height >= 0:
             origBlock = self.db.get_root_block_by_height(block.header.height)
@@ -319,7 +319,7 @@ class RootState:
         if self.tip.height < block.header.height:
             self.tip = block.header
             self.db.update_tip_hash(blockHash)
-            self.__rewriteBlockIndexTo(block)
+            self.__rewrite_block_index_to(block)
             return True
         return False
 

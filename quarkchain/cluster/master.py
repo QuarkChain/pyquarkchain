@@ -64,20 +64,20 @@ class SyncTask:
 
     async def sync(self):
         try:
-            await self.__runSync()
+            await self.__run_sync()
         except Exception as e:
             Logger.logException()
             self.peer.close_with_error(str(e))
 
-    async def __runSync(self):
+    async def __run_sync(self):
         """raise on any error so that sync() will close peer connection"""
-        if self.__hasBlockHash(self.header.get_hash()):
+        if self.__has_block_hash(self.header.get_hash()):
             return
 
         # descending height
         blockHeaderChain = [self.header]
 
-        while not self.__hasBlockHash(blockHeaderChain[-1].hashPrevBlock):
+        while not self.__has_block_hash(blockHeaderChain[-1].hashPrevBlock):
             blockHash = blockHeaderChain[-1].hashPrevBlock
             height = blockHeaderChain[-1].height - 1
 
@@ -88,13 +88,13 @@ class SyncTask:
                 return
 
             Logger.info("[R] downloading block header list from {} {}".format(height, blockHash.hex()))
-            blockHeaderList = await self.__downloadBlockHeaders(blockHash)
+            blockHeaderList = await self.__download_block_headers(blockHash)
             Logger.info("[R] downloaded headers from peer".format(len(blockHeaderList)))
             if not self.__validate_block_headers(blockHeaderList):
                 # TODO: tag bad peer
                 raise RuntimeError("Bad peer sending discontinuing block headers")
             for header in blockHeaderList:
-                if self.__hasBlockHash(header.get_hash()):
+                if self.__has_block_hash(header.get_hash()):
                     break
                 blockHeaderChain.append(header)
 
@@ -103,7 +103,7 @@ class SyncTask:
         while len(blockHeaderChain) > 0:
             Logger.info("[R] syncing from {} {}".format(
                 blockHeaderChain[0].height, blockHeaderChain[0].get_hash().hex()))
-            blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
+            blockChain = await self.__download_blocks(blockHeaderChain[:100])
             Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
             if len(blockChain) != len(blockHeaderChain[:100]):
                 # TODO: tag bad peer
@@ -113,7 +113,7 @@ class SyncTask:
                 await self.__add_block(block)
                 blockHeaderChain.pop(0)
 
-    def __hasBlockHash(self, blockHash):
+    def __has_block_hash(self, blockHash):
         return self.rootState.contain_root_block_by_hash(blockHash)
 
     def __validate_block_headers(self, blockHeaderList):
@@ -126,7 +126,7 @@ class SyncTask:
                 return False
         return True
 
-    async def __downloadBlockHeaders(self, blockHash):
+    async def __download_block_headers(self, blockHash):
         request = GetRootBlockHeaderListRequest(
             blockHash=blockHash,
             limit=100,
@@ -136,7 +136,7 @@ class SyncTask:
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request)
         return resp.blockHeaderList
 
-    async def __downloadBlocks(self, blockHeaderList):
+    async def __download_blocks(self, blockHeaderList):
         blockHashList = [b.get_hash() for b in blockHeaderList]
         op, resp, rpcId = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_LIST_REQUEST, GetRootBlockListRequest(blockHashList))
@@ -144,14 +144,14 @@ class SyncTask:
 
     async def __add_block(self, rootBlock):
         start = time.time()
-        await self.__syncMinorBlocks(rootBlock.minorBlockHeaderList)
+        await self.__sync_minor_blocks(rootBlock.minorBlockHeaderList)
         await self.masterServer.add_root_block(rootBlock)
         elapse = time.time() - start
         Logger.info("[R] syncing root block {} {} took {:.2f} seconds".format(
             rootBlock.header.height, rootBlock.header.get_hash().hex(), elapse,
         ))
 
-    async def __syncMinorBlocks(self, minorBlockHeaderList):
+    async def __sync_minor_blocks(self, minorBlockHeaderList):
         minorBlockDownloadMap = dict()
         for mBlockHeader in minorBlockHeaderList:
             mBlockHash = mBlockHeader.get_hash()
@@ -404,12 +404,12 @@ class MasterServer():
         # (epoch in minute, txCount in the minute)
         self.txCountHistory = deque()
 
-        self.__initRootMiner()
+        self.__init_root_miner()
 
-    def __initRootMiner(self):
+    def __init_root_miner(self):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT
 
-        async def __createBlock():
+        async def __create_block():
             while True:
                 isRoot, block = await self.get_next_block_to_mine(address=minerAddress, shardMaskValue=0, preferRoot=True)
                 if isRoot:
@@ -420,16 +420,16 @@ class MasterServer():
             # Root block should include latest minor block headers while it's being mined
             # This is a hack to get the latest minor block included since testnet does not check difficulty
             # TODO: fix this as it will break real PoW
-            block = await __createBlock()
+            block = await __create_block()
             await self.add_root_block(block)
 
-        def __getTargetBlockTime():
+        def __get_target_block_time():
             return self.get_artificial_tx_config().targetRootBlockTime
 
         self.rootMiner = Miner(
-            __createBlock,
+            __create_block,
             __add_block,
-            __getTargetBlockTime,
+            __get_target_block_time,
         )
 
     def __get_shard_size(self):
@@ -442,7 +442,7 @@ class MasterServer():
     def get_artificial_tx_config(self):
         return self.artificialTxConfig
 
-    def __hasAllShards(self):
+    def __has_all_shards(self):
         ''' Returns True if all the shards have been run by at least one node '''
         return (len(self.branchToSlaves) == self.__get_shard_size() and
                 all([len(slaves) > 0 for _, slaves in self.branchToSlaves.items()]))
@@ -460,7 +460,7 @@ class MasterServer():
         Logger.info("Connected to {}:{}".format(ip, port))
         return (reader, writer)
 
-    async def __connectToSlaves(self):
+    async def __connect_to_slaves(self):
         ''' Master connects to all the slaves '''
         futures = []
         slaves = []
@@ -499,7 +499,7 @@ class MasterServer():
                 if slave.has_shard(shardId):
                     self.branchToSlaves.setdefault(branch.value, []).append(slave)
 
-    async def __setupSlaveToSlaveConnections(self):
+    async def __setup_slave_to_slave_connections(self):
         ''' Make slaves connect to other slaves.
         Retries until success.
         '''
@@ -509,7 +509,7 @@ class MasterServer():
             if not success:
                 self.shutdown()
 
-    async def __sendMiningConfigToSlaves(self, mining):
+    async def __send_mining_config_to_slaves(self, mining):
         futures = []
         for slave in self.slavePool:
             request = MineRequest(self.get_artificial_tx_config(), mining)
@@ -518,7 +518,7 @@ class MasterServer():
         check(all([resp.errorCode == 0 for _, resp, _ in responses]))
 
     async def start_mining(self):
-        await self.__sendMiningConfigToSlaves(True)
+        await self.__send_mining_config_to_slaves(True)
         self.rootMiner.enable()
         self.rootMiner.mine_new_block_async()
         Logger.warning("Mining started with root block time {} s, minor block time {} s".format(
@@ -527,7 +527,7 @@ class MasterServer():
         ))
 
     async def stop_mining(self):
-        await self.__sendMiningConfigToSlaves(False)
+        await self.__send_mining_config_to_slaves(False)
         self.rootMiner.disable()
         Logger.warning("Mining stopped")
 
@@ -540,18 +540,18 @@ class MasterServer():
         for branchValue, slaves in self.branchToSlaves.items():
             Logger.info("[{}] is run by slave {}".format(Branch(branchValue).get_shard_id(), [s.id for s in slaves]))
 
-    async def __initCluster(self):
-        await self.__connectToSlaves()
+    async def __init_cluster(self):
+        await self.__connect_to_slaves()
         self.__logSummary()
-        if not self.__hasAllShards():
+        if not self.__has_all_shards():
             Logger.error("Missing some shards. Check cluster config file!")
             return
-        await self.__setupSlaveToSlaveConnections()
+        await self.__setup_slave_to_slave_connections()
 
         self.clusterActiveFuture.set_result(None)
 
     def start(self):
-        self.loop.create_task(self.__initCluster())
+        self.loop.create_task(self.__init_cluster())
 
     def start_and_loop(self):
         self.start()
@@ -574,7 +574,7 @@ class MasterServer():
     def get_shutdown_future(self):
         return self.shutdownFuture
 
-    async def __createRootBlockToMineOrFallbackToMinorBlock(self, address):
+    async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
         ''' Try to create a root block to mine or fallback to create minor block if failed proof-of-progress '''
         futures = []
         for slave in self.slavePool:
@@ -613,12 +613,12 @@ class MasterServer():
             headerList.extend(headers)
             if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                 # Fallback to create minor block
-                block = await self.__getMinorBlockToMine(Branch.create(self.__get_shard_size(), shardId), address)
+                block = await self.__get_minor_block_to_mine(Branch.create(self.__get_shard_size(), shardId), address)
                 return (None, None) if not block else (False, block)
 
         return (True, self.rootState.create_block_to_mine(headerList, address))
 
-    async def __getMinorBlockToMine(self, branch, address):
+    async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
             branch=branch,
             address=address.address_in_branch(branch),
@@ -638,7 +638,7 @@ class MasterServer():
             return None, None
 
         if preferRoot and shardMaskValue == 0:
-            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
+            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(address)
 
         shardMask = None if shardMaskValue == 0 else ShardMask(shardMaskValue)
         futures = []
@@ -694,9 +694,9 @@ class MasterServer():
                     maxEco = eco
 
         if branchValueWithMaxEco == 0:
-            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
+            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(address)
 
-        block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
+        block = await self.__get_minor_block_to_mine(Branch(branchValueWithMaxEco), address)
         return (None, None) if not block else (False, block)
 
     async def get_account_data(self, address):

@@ -38,9 +38,9 @@ class Miner:
     def mine_new_block_async(self):
         if not self.enabled:
             return False
-        asyncio.ensure_future(self.__mineNewBlock())
+        asyncio.ensure_future(self.__mine_new_block())
 
-    async def __mineNewBlock(self):
+    async def __mine_new_block(self):
         """Get a new block and start mining.
         If a mining process has already been started, update the process to mine the new block.
         """
@@ -56,9 +56,9 @@ class Miner:
         self.process = AioProcess(target=mineFunc, args=(block, targetBlockTime, self.input, self.output))
         self.process.start()
 
-        asyncio.ensure_future(self.__handleMinedBlock())
+        asyncio.ensure_future(self.__handle_mined_block())
 
-    async def __handleMinedBlock(self):
+    async def __handle_mined_block(self):
         while True:
             block = await self.output.coro_get()
             if not block:
@@ -80,7 +80,7 @@ class Miner:
             shard, block.header.height, count, elapsed, block.header.get_hash().hex()))
 
     @staticmethod
-    def __checkMetric(metric):
+    def __check_metric(metric):
         # Testnet does not check difficulty
         if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
             return True
@@ -92,7 +92,7 @@ class Miner:
         while True:
             block.header.nonce += 1
             metric = int.from_bytes(block.header.get_hash(), byteorder="big") * block.header.difficulty
-            if Miner.__checkMetric(metric):
+            if Miner.__check_metric(metric):
                 Miner.__logStatus(block)
                 output.put(block)
                 block, _ = input.get()
@@ -106,7 +106,7 @@ class Miner:
                 return
 
     @staticmethod
-    def __getBlockTime(block, targetBlockTime):
+    def __get_block_time(block, targetBlockTime):
         if isinstance(block, MinorBlock):
             # Adjust the target block time to compensate computation time
             gasUsedRatio = block.meta.evmGasUsed / block.meta.evmGasLimit
@@ -127,7 +127,7 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                targetTime = block.header.createTime + Miner.__getBlockTime(block, targetBlockTime)
+                targetTime = block.header.createTime + Miner.__get_block_time(block, targetBlockTime)
             except Exception:
                 # got nothing from queue
                 pass
@@ -139,6 +139,6 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                targetTime = block.header.createTime + Miner.__getBlockTime(block, targetBlockTime)
+                targetTime = block.header.createTime + Miner.__get_block_time(block, targetBlockTime)
 
 

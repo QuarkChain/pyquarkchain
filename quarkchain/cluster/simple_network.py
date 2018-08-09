@@ -272,7 +272,7 @@ class SimpleNetwork:
             client_writer,
             self,
             self.masterServer,
-            self.__getNextClusterPeerId())
+            self.__get_next_cluster_peer_id())
         await peer.start(isServer=True)
 
     async def connect(self, ip, port):
@@ -282,7 +282,7 @@ class SimpleNetwork:
         except Exception as e:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
-        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__getNextClusterPeerId())
+        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__get_next_cluster_peer_id())
         peer.send_hello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -347,7 +347,7 @@ class SimpleNetwork:
             self.connect_seed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
 
     # ------------------------------- Cluster Peer Management --------------------------------
-    def __getNextClusterPeerId(self):
+    def __get_next_cluster_peer_id(self):
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 

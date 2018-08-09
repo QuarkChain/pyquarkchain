@@ -62,20 +62,20 @@ class SyncTask:
 
     async def sync(self):
         try:
-            await self.__runSync()
+            await self.__run_sync()
         except Exception as e:
             Logger.logException()
             self.shardConn.close_with_error(str(e))
 
-    async def __runSync(self):
-        if self.__hasBlockHash(self.header.get_hash()):
+    async def __run_sync(self):
+        if self.__has_block_hash(self.header.get_hash()):
             return
 
         # descending height
         blockHeaderChain = [self.header]
 
         # TODO: Stop if too many headers to revert
-        while not self.__hasBlockHash(blockHeaderChain[-1].hashPrevMinorBlock):
+        while not self.__has_block_hash(blockHeaderChain[-1].hashPrevMinorBlock):
             blockHash = blockHeaderChain[-1].hashPrevMinorBlock
             height = blockHeaderChain[-1].height - 1
 
@@ -88,21 +88,21 @@ class SyncTask:
                 return
             Logger.info("[{}] downloading headers from {} {}".format(
                 self.shardState.branch.get_shard_id(), height, blockHash.hex()))
-            blockHeaderList = await self.__downloadBlockHeaders(blockHash)
+            blockHeaderList = await self.__download_block_headers(blockHash)
             Logger.info("[{}] downloaded {} headers from peer".format(
                 self.shardState.branch.get_shard_id(), len(blockHeaderList)))
             if not self.__validate_block_headers(blockHeaderList):
                 # TODO: tag bad peer
                 return self.shardConn.close_with_error("Bad peer sending discontinuing block headers")
             for header in blockHeaderList:
-                if self.__hasBlockHash(header.get_hash()):
+                if self.__has_block_hash(header.get_hash()):
                     break
                 blockHeaderChain.append(header)
 
         # ascending height
         blockHeaderChain.reverse()
         while len(blockHeaderChain) > 0:
-            blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
+            blockChain = await self.__download_blocks(blockHeaderChain[:100])
             Logger.info("[{}] downloaded {} blocks from peer".format(
                 self.shardState.branch.get_shard_id(), len(blockChain)))
             check(len(blockChain) == len(blockHeaderChain[:100]))
@@ -115,7 +115,7 @@ class SyncTask:
                 await self.slaveServer.add_block(block)
                 blockHeaderChain.pop(0)
 
-    def __hasBlockHash(self, blockHash):
+    def __has_block_hash(self, blockHash):
         return self.shardState.db.contain_minor_block_by_hash(blockHash)
 
     def __validate_block_headers(self, blockHeaderList):
@@ -128,7 +128,7 @@ class SyncTask:
                 return False
         return True
 
-    async def __downloadBlockHeaders(self, blockHash):
+    async def __download_block_headers(self, blockHash):
         request = GetMinorBlockHeaderListRequest(
             blockHash=blockHash,
             branch=self.shardState.branch,
@@ -139,7 +139,7 @@ class SyncTask:
             CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST, request)
         return resp.blockHeaderList
 
-    async def __downloadBlocks(self, blockHeaderList):
+    async def __download_blocks(self, blockHeaderList):
         blockHashList = [b.get_hash() for b in blockHeaderList]
         op, resp, rpcId = await self.shardConn.write_rpc_request(
             CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
@@ -617,7 +617,7 @@ class MasterConnection(ClusterConnection):
 
     async def handle_sync_minor_block_list_request(self, req):
 
-        async def __downloadBlocks(blockHashList):
+        async def __download_blocks(blockHashList):
             op, resp, rpcId = await vConn.write_rpc_request(
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(blockHashList))
             return resp.minorBlockList
@@ -634,7 +634,7 @@ class MasterConnection(ClusterConnection):
             blockHashList = req.minorBlockHashList
             while len(blockHashList) > 0:
                 blocksToDownload = blockHashList[:BLOCK_BATCH_SIZE]
-                blockChain = await __downloadBlocks(blocksToDownload)
+                blockChain = await __download_blocks(blocksToDownload)
                 Logger.info("[{}] sync request from master, downloaded {} blocks ({} - {})".format(
                     req.branch.get_shard_id(), len(blockChain),
                     blockChain[0].header.height, blockChain[-1].header.height))
@@ -795,7 +795,7 @@ class SlaveServer():
         self.txGenMap = dict()
         self.minerMap = dict()  # branchValue -> Miner
         self.shardStateMap = dict()  # branchValue -> ShardState
-        self.__initShards()
+        self.__init_shards()
         self.shutdownInProgress = False
         self.slaveId = 0
 
@@ -803,7 +803,7 @@ class SlaveServer():
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_blockFutures = dict()
 
-    def __initShards(self):
+    def __init_shards(self):
         ''' branchValue -> ShardState mapping '''
         shardSize = self.__get_shard_size()
         branchValues = set()
@@ -814,16 +814,16 @@ class SlaveServer():
 
         for branchValue in branchValues:
             shardId = Branch(branchValue).get_shard_id()
-            db = self.__initShardDb(shardId)
+            db = self.__init_shard_db(shardId)
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
                 shardId=shardId,
                 db=db,
             )
-            self.__initMiner(branchValue)
+            self.__init_miner(branchValue)
             self.txGenMap[branchValue] = TransactionGenerator(Branch(branchValue), self)
 
-    def __initShardDb(self, shardId):
+    def __init_shard_db(self, shardId):
         """
         Given a shardId (*not* full shard id), create a PersistentDB or use the env.db if
         DB_PATH_ROOT is not specified in the ClusterConfig.
@@ -837,13 +837,13 @@ class SlaveServer():
         )
         return PersistentDb(dbPath, clean=self.env.clusterConfig.DB_CLEAN)
 
-    def __initMiner(self, branchValue):
+    def __init_miner(self, branchValue):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(Branch(branchValue))
 
         def __is_syncing():
             return any([vs[branchValue].synchronizer.running for vs in self.master.vConnMap.values()])
 
-        async def __createBlock():
+        async def __create_block():
             # hold off mining if the shard is syncing
             while __is_syncing():
                 await asyncio.sleep(0.1)
@@ -859,13 +859,13 @@ class SlaveServer():
                 return
             await self.add_block(block)
 
-        def __getTargetBlockTime():
+        def __get_target_block_time():
             return self.artificialTxConfig.targetMinorBlockTime
 
         self.minerMap[branchValue] = Miner(
-            __createBlock,
+            __create_block,
             __add_block,
-            __getTargetBlockTime,
+            __get_target_block_time,
         )
 
     def init_shard_states(self, rootTip):
@@ -908,7 +908,7 @@ class SlaveServer():
         for shardId, slaves in enumerate(self.shardToSlaves):
             Logger.info("[{}] is run by slave {}".format(shardId, [s.id for s in slaves]))
 
-    async def __handleMasterConnectionLost(self):
+    async def __handle_master_connection_lost(self):
         check(self.master is not None)
         await self.waitUntilClose()
 
@@ -916,7 +916,7 @@ class SlaveServer():
             # TODO: May reconnect
             self.shutdown()
 
-    async def __handleNewConnection(self, reader, writer):
+    async def __handle_new_connection(self, reader, writer):
         # The first connection should always come from master
         if not self.master:
             self.master = MasterConnection(self.env, reader, writer, self, name="{}_master".format(self.name))
@@ -935,7 +935,7 @@ class SlaveServer():
     async def __start_server(self):
         ''' Run the server until shutdown is called '''
         self.server = await asyncio.start_server(
-            self.__handleNewConnection, "0.0.0.0", self.env.clusterConfig.NODE_PORT, loop=self.loop)
+            self.__handle_new_connection, "0.0.0.0", self.env.clusterConfig.NODE_PORT, loop=self.loop)
         Logger.info("Listening on {} for intra-cluster RPC".format(
             self.server.sockets[0].getsockname()))
 
@@ -970,7 +970,7 @@ class SlaveServer():
         check(resp.errorCode == 0)
         self.artificialTxConfig = resp.artificialTxConfig
 
-    def __getBranchToAddXshardTxListRequest(self, blockHash, xshardTxList):
+    def __get_branch_to_add_xshard_tx_list_request(self, blockHash, xshardTxList):
         branchToAddXshardTxListRequest = dict()
 
         xshardMap = dict()
@@ -995,7 +995,7 @@ class SlaveServer():
         ''' Broadcast x-shard transactions to their recipient shards '''
 
         blockHash = block.header.get_hash()
-        branchToAddXshardTxListRequest = self.__getBranchToAddXshardTxListRequest(blockHash, xshardTxList)
+        branchToAddXshardTxListRequest = self.__get_branch_to_add_xshard_tx_list_request(blockHash, xshardTxList)
         rpcFutures = []
         for branch, request in branchToAddXshardTxListRequest.items():
             if branch.value in self.shardStateMap:
@@ -1010,7 +1010,7 @@ class SlaveServer():
     async def batch_broadcast_xshard_tx_list(self, blockHashToXShardList):
         branchToAddXshardTxListRequestList = dict()
         for blockHash, xShardList in blockHashToXShardList.items():
-            branchToAddXshardTxListRequest = self.__getBranchToAddXshardTxListRequest(blockHash, xShardList)
+            branchToAddXshardTxListRequest = self.__get_branch_to_add_xshard_tx_list_request(blockHash, xShardList)
             for branch, request in branchToAddXshardTxListRequest.items():
                 branchToAddXshardTxListRequestList.setdefault(branch, []).append(request)
 

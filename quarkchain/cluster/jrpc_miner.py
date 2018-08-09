@@ -59,7 +59,7 @@ class Miner:
         self.block = None
         self.isRoot = False
 
-    def __simulatePowDelay(self, startTime):
+    def __simulate_pow_delay(self, startTime):
         if self.isRoot:
             expectedBlockTime = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
         else:
@@ -70,7 +70,7 @@ class Miner:
         delay = max(0, blockTime - elapsed)
         time.sleep(delay)
 
-    def __checkMetric(self, metric):
+    def __check_metric(self, metric):
         # Testnet does not check difficulty
         if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
             return True
@@ -99,8 +99,8 @@ class Miner:
             for i in range(1000000):
                 self.block.header.nonce += 1
                 metric = int.from_bytes(self.block.header.get_hash(), byteorder="big") * self.block.header.difficulty
-                if self.__checkMetric(metric):
-                    self.__simulatePowDelay(block.header.createTime)
+                if self.__check_metric(metric):
+                    self.__simulate_pow_delay(block.header.createTime)
                     try:
                         self.endpoint.add_block(self.block)
                         success = True

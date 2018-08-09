@@ -238,7 +238,7 @@ class P2PNetwork:
             client_writer,
             self,
             self.masterServer,
-            self.__getNextClusterPeerId())
+            self.__get_next_cluster_peer_id())
         await peer.start(isServer=True)
 
     async def refresh_connections(self, peers):
@@ -285,7 +285,7 @@ class P2PNetwork:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
         peer = Peer(self.env, reader, writer, self,
-                    self.masterServer, self.__getNextClusterPeerId())
+                    self.masterServer, self.__get_next_cluster_peer_id())
         peer.send_hello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -325,7 +325,7 @@ class P2PNetwork:
                 self.local_server.sockets[0].getsockname()))
 
     # ------------------------------- Cluster Peer Management --------------------------------
-    def __getNextClusterPeerId(self):
+    def __get_next_cluster_peer_id(self):
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 

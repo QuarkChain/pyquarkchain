@@ -17,9 +17,9 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 class Endpoint:
     def __init__(self, url):
         self.url = url
-        asyncio.get_event_loop().run_until_complete(self.__createSession())
+        asyncio.get_event_loop().run_until_complete(self.__create_session())
 
-    async def __createSession(self):
+    async def __create_session(self):
         self.session = aiohttp.ClientSession()
 
     async def __send_request(self, *args):
