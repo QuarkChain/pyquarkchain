@@ -14,7 +14,7 @@ class MADifficultyCalculator:
     # Obtain the difficulty required for the next block
     def calculate_diff(self, chain):
         assert(len(chain) >= 1)
-        gensisDiff = chain[0].getRequiredDiff()
+        gensisDiff = chain[0].get_required_diff()
         chain = chain[:len(chain) // self.slideSize * self.slideSize]
         if len(chain) <= self.bootstrapSamples + 1:
             return gensisDiff
@@ -25,10 +25,10 @@ class MADifficultyCalculator:
 
         workDone = 0
         for block in chain[-samples:]:
-            workDone = workDone + 1 / block.getRequiredDiff()
+            workDone = workDone + 1 / block.get_required_diff()
 
-        timeUsedSec = chain[-1].getCreateTimeSec() - \
-            chain[-1 - samples].getCreateTimeSec()
+        timeUsedSec = chain[-1].get_create_time_sec() - \
+            chain[-1 - samples].get_create_time_sec()
 
         return timeUsedSec / self.targetIntervalSec / workDone
 

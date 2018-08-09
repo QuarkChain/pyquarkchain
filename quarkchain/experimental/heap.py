@@ -84,7 +84,7 @@ class Heap:
             self.__siftUp(lastItem)
         return item
 
-    def popTop(self):
+    def pop_top(self):
         return self.pop(self.heap[0])
 
     def size(self):
@@ -97,7 +97,7 @@ class Heap:
         return str(self.heap[:self.heapSize])
 
     # self check, used for testing only
-    def checkIntegrity(self):
+    def check_integrity(self):
         for i in range(self.heapSize):
             item = self.heap[i]
             if i != 0:
