@@ -44,12 +44,12 @@ class ByteBuffer:
         self.bytes = bytes(data)
         self.position = 0
 
-    def __checkSpace(self, space):
+    def __check_space(self, space):
         if space > len(self.bytes) - self.position:
             raise RuntimeError("no enough space")
 
     def get_uint(self, size):
-        self.__checkSpace(size)
+        self.__check_space(size)
         value = int.from_bytes(
             self.bytes[self.position:self.position + size], byteorder="big")
         self.position += size
@@ -71,7 +71,7 @@ class ByteBuffer:
         return self.get_uint(32)
 
     def get_bytes(self, size):
-        self.__checkSpace(size)
+        self.__check_space(size)
         value = self.bytes[self.position:self.position + size]
         self.position += size
         return value

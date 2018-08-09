@@ -64,20 +64,20 @@ class SyncTask:
 
     async def sync(self):
         try:
-            await self.__runSync()
+            await self.__run_sync()
         except Exception as e:
             Logger.logException()
             self.peer.close_with_error(str(e))
 
-    async def __runSync(self):
+    async def __run_sync(self):
         """raise on any error so that sync() will close peer connection"""
-        if self.__hasBlockHash(self.header.get_hash()):
+        if self.__has_block_hash(self.header.get_hash()):
             return
 
         # descending height
         blockHeaderChain = [self.header]
 
-        while not self.__hasBlockHash(blockHeaderChain[-1].hashPrevBlock):
+        while not self.__has_block_hash(blockHeaderChain[-1].hashPrevBlock):
             blockHash = blockHeaderChain[-1].hashPrevBlock
             height = blockHeaderChain[-1].height - 1
 
@@ -88,13 +88,13 @@ class SyncTask:
                 return
 
             Logger.info("[R] downloading block header list from {} {}".format(height, blockHash.hex()))
-            blockHeaderList = await self.__downloadBlockHeaders(blockHash)
+            blockHeaderList = await self.__download_block_headers(blockHash)
             Logger.info("[R] downloaded headers from peer".format(len(blockHeaderList)))
             if not self.__validate_block_headers(blockHeaderList):
                 # TODO: tag bad peer
                 raise RuntimeError("Bad peer sending discontinuing block headers")
             for header in blockHeaderList:
-                if self.__hasBlockHash(header.get_hash()):
+                if self.__has_block_hash(header.get_hash()):
                     break
                 blockHeaderChain.append(header)
 
@@ -103,7 +103,7 @@ class SyncTask:
         while len(blockHeaderChain) > 0:
             Logger.info("[R] syncing from {} {}".format(
                 blockHeaderChain[0].height, blockHeaderChain[0].get_hash().hex()))
-            blockChain = await self.__downloadBlocks(blockHeaderChain[:100])
+            blockChain = await self.__download_blocks(blockHeaderChain[:100])
             Logger.info("[R] downloaded {} blocks from peer".format(len(blockChain)))
             if len(blockChain) != len(blockHeaderChain[:100]):
                 # TODO: tag bad peer
@@ -113,7 +113,7 @@ class SyncTask:
                 await self.__add_block(block)
                 blockHeaderChain.pop(0)
 
-    def __hasBlockHash(self, blockHash):
+    def __has_block_hash(self, blockHash):
         return self.rootState.contain_root_block_by_hash(blockHash)
 
     def __validate_block_headers(self, blockHeaderList):
@@ -126,7 +126,7 @@ class SyncTask:
                 return False
         return True
 
-    async def __downloadBlockHeaders(self, blockHash):
+    async def __download_block_headers(self, blockHash):
         request = GetRootBlockHeaderListRequest(
             blockHash=blockHash,
             limit=100,
@@ -136,7 +136,7 @@ class SyncTask:
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request)
         return resp.blockHeaderList
 
-    async def __downloadBlocks(self, blockHeaderList):
+    async def __download_blocks(self, blockHeaderList):
         blockHashList = [b.get_hash() for b in blockHeaderList]
         op, resp, rpcId = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_LIST_REQUEST, GetRootBlockListRequest(blockHashList))
@@ -144,14 +144,14 @@ class SyncTask:
 
     async def __add_block(self, rootBlock):
         start = time.time()
-        await self.__syncMinorBlocks(rootBlock.minorBlockHeaderList)
+        await self.__sync_minor_blocks(rootBlock.minorBlockHeaderList)
         await self.masterServer.add_root_block(rootBlock)
         elapse = time.time() - start
         Logger.info("[R] syncing root block {} {} took {:.2f} seconds".format(
             rootBlock.header.height, rootBlock.header.get_hash().hex(), elapse,
         ))
 
-    async def __syncMinorBlocks(self, minorBlockHeaderList):
+    async def __sync_minor_blocks(self, minorBlockHeaderList):
         minorBlockDownloadMap = dict()
         for mBlockHeader in minorBlockHeaderList:
             mBlockHash = mBlockHeader.get_hash()
@@ -224,7 +224,7 @@ class SlaveConnection(ClusterConnection):
         self.shardMaskList = shardMaskList
         check(len(shardMaskList) > 0)
 
-        asyncio.ensure_future(self.activeAndLoopForever())
+        asyncio.ensure_future(self.active_and_loop_forever())
 
     def get_connection_to_forward(self, metadata):
         ''' Override ProxyConnection.get_connection_to_forward()
@@ -254,7 +254,7 @@ class SlaveConnection(ClusterConnection):
                 return True
         return False
 
-    async def sendPing(self):
+    async def send_ping(self):
         req = Ping("", [], self.masterServer.rootState.get_tip_block())
         op, resp, rpcId = await self.write_rpc_request(
             op=ClusterOp.PING,
@@ -262,7 +262,7 @@ class SlaveConnection(ClusterConnection):
             metadata=ClusterMetadata(branch=ROOT_BRANCH, clusterPeerId=0))
         return (resp.id, resp.shardMaskList)
 
-    async def sendConnectToSlaves(self, slaveInfoList):
+    async def send_connect_to_slaves(self, slaveInfoList):
         ''' Make slave connect to other slaves.
         Returns True on success
         '''
@@ -286,7 +286,7 @@ class SlaveConnection(ClusterConnection):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().close_with_error(error)
 
-    async def addTransaction(self, tx):
+    async def add_transaction(self, tx):
         request = AddTransactionRequest(tx)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.ADD_TRANSACTION_REQUEST,
@@ -294,7 +294,7 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.errorCode == 0
 
-    async def executeTransaction(self, tx: Transaction, fromAddress):
+    async def execute_transaction(self, tx: Transaction, fromAddress):
         request = ExecuteTransactionRequest(tx, fromAddress)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.EXECUTE_TRANSACTION_REQUEST,
@@ -355,7 +355,7 @@ class SlaveConnection(ClusterConnection):
 
     # RPC handlers
 
-    async def handleAddMinorBlockHeaderRequest(self, req):
+    async def handle_add_minor_block_header_request(self, req):
         self.masterServer.rootState.add_validated_minor_block_hash(req.minorBlockHeader.get_hash())
         self.masterServer.update_shard_stats(req.shardStats)
         self.masterServer.update_tx_count_history(req.txCount, req.xShardTxCount, req.minorBlockHeader.createTime)
@@ -367,7 +367,7 @@ class SlaveConnection(ClusterConnection):
 
 OP_RPC_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: (
-        ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE, SlaveConnection.handleAddMinorBlockHeaderRequest),
+        ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE, SlaveConnection.handle_add_minor_block_header_request),
 }
 
 
@@ -404,12 +404,12 @@ class MasterServer():
         # (epoch in minute, txCount in the minute)
         self.txCountHistory = deque()
 
-        self.__initRootMiner()
+        self.__init_root_miner()
 
-    def __initRootMiner(self):
+    def __init_root_miner(self):
         minerAddress = self.env.config.TESTNET_MASTER_ACCOUNT
 
-        async def __createBlock():
+        async def __create_block():
             while True:
                 isRoot, block = await self.get_next_block_to_mine(address=minerAddress, shardMaskValue=0, preferRoot=True)
                 if isRoot:
@@ -420,16 +420,16 @@ class MasterServer():
             # Root block should include latest minor block headers while it's being mined
             # This is a hack to get the latest minor block included since testnet does not check difficulty
             # TODO: fix this as it will break real PoW
-            block = await __createBlock()
+            block = await __create_block()
             await self.add_root_block(block)
 
-        def __getTargetBlockTime():
+        def __get_target_block_time():
             return self.get_artificial_tx_config().targetRootBlockTime
 
         self.rootMiner = Miner(
-            __createBlock,
+            __create_block,
             __add_block,
-            __getTargetBlockTime,
+            __get_target_block_time,
         )
 
     def __get_shard_size(self):
@@ -442,7 +442,7 @@ class MasterServer():
     def get_artificial_tx_config(self):
         return self.artificialTxConfig
 
-    def __hasAllShards(self):
+    def __has_all_shards(self):
         ''' Returns True if all the shards have been run by at least one node '''
         return (len(self.branchToSlaves) == self.__get_shard_size() and
                 all([len(slaves) > 0 for _, slaves in self.branchToSlaves.items()]))
@@ -460,7 +460,7 @@ class MasterServer():
         Logger.info("Connected to {}:{}".format(ip, port))
         return (reader, writer)
 
-    async def __connectToSlaves(self):
+    async def __connect_to_slaves(self):
         ''' Master connects to all the slaves '''
         futures = []
         slaves = []
@@ -476,8 +476,8 @@ class MasterServer():
                 slaveInfo.id,
                 slaveInfo.shardMaskList,
                 name="{}_slave_{}".format(self.name, slaveInfo.id))
-            await slave.waitUntilActive()
-            futures.append(slave.sendPing())
+            await slave.wait_until_active()
+            futures.append(slave.send_ping())
             slaves.append(slave)
 
         results = await asyncio.gather(*futures)
@@ -499,17 +499,17 @@ class MasterServer():
                 if slave.has_shard(shardId):
                     self.branchToSlaves.setdefault(branch.value, []).append(slave)
 
-    async def __setupSlaveToSlaveConnections(self):
+    async def __setup_slave_to_slave_connections(self):
         ''' Make slaves connect to other slaves.
         Retries until success.
         '''
         for slave in self.slavePool:
-            await slave.waitUntilActive()
-            success = await slave.sendConnectToSlaves(self.clusterConfig.get_slave_info_list())
+            await slave.wait_until_active()
+            success = await slave.send_connect_to_slaves(self.clusterConfig.get_slave_info_list())
             if not success:
                 self.shutdown()
 
-    async def __sendMiningConfigToSlaves(self, mining):
+    async def __send_mining_config_to_slaves(self, mining):
         futures = []
         for slave in self.slavePool:
             request = MineRequest(self.get_artificial_tx_config(), mining)
@@ -518,7 +518,7 @@ class MasterServer():
         check(all([resp.errorCode == 0 for _, resp, _ in responses]))
 
     async def start_mining(self):
-        await self.__sendMiningConfigToSlaves(True)
+        await self.__send_mining_config_to_slaves(True)
         self.rootMiner.enable()
         self.rootMiner.mine_new_block_async()
         Logger.warning("Mining started with root block time {} s, minor block time {} s".format(
@@ -527,7 +527,7 @@ class MasterServer():
         ))
 
     async def stop_mining(self):
-        await self.__sendMiningConfigToSlaves(False)
+        await self.__send_mining_config_to_slaves(False)
         self.rootMiner.disable()
         Logger.warning("Mining stopped")
 
@@ -540,18 +540,18 @@ class MasterServer():
         for branchValue, slaves in self.branchToSlaves.items():
             Logger.info("[{}] is run by slave {}".format(Branch(branchValue).get_shard_id(), [s.id for s in slaves]))
 
-    async def __initCluster(self):
-        await self.__connectToSlaves()
+    async def __init_cluster(self):
+        await self.__connect_to_slaves()
         self.__logSummary()
-        if not self.__hasAllShards():
+        if not self.__has_all_shards():
             Logger.error("Missing some shards. Check cluster config file!")
             return
-        await self.__setupSlaveToSlaveConnections()
+        await self.__setup_slave_to_slave_connections()
 
         self.clusterActiveFuture.set_result(None)
 
     def start(self):
-        self.loop.create_task(self.__initCluster())
+        self.loop.create_task(self.__init_cluster())
 
     def start_and_loop(self):
         self.start()
@@ -574,7 +574,7 @@ class MasterServer():
     def get_shutdown_future(self):
         return self.shutdownFuture
 
-    async def __createRootBlockToMineOrFallbackToMinorBlock(self, address):
+    async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
         ''' Try to create a root block to mine or fallback to create minor block if failed proof-of-progress '''
         futures = []
         for slave in self.slavePool:
@@ -613,12 +613,12 @@ class MasterServer():
             headerList.extend(headers)
             if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
                 # Fallback to create minor block
-                block = await self.__getMinorBlockToMine(Branch.create(self.__get_shard_size(), shardId), address)
+                block = await self.__get_minor_block_to_mine(Branch.create(self.__get_shard_size(), shardId), address)
                 return (None, None) if not block else (False, block)
 
         return (True, self.rootState.create_block_to_mine(headerList, address))
 
-    async def __getMinorBlockToMine(self, branch, address):
+    async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
             branch=branch,
             address=address.address_in_branch(branch),
@@ -638,7 +638,7 @@ class MasterServer():
             return None, None
 
         if preferRoot and shardMaskValue == 0:
-            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
+            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(address)
 
         shardMask = None if shardMaskValue == 0 else ShardMask(shardMaskValue)
         futures = []
@@ -694,9 +694,9 @@ class MasterServer():
                     maxEco = eco
 
         if branchValueWithMaxEco == 0:
-            return await self.__createRootBlockToMineOrFallbackToMinorBlock(address)
+            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(address)
 
-        block = await self.__getMinorBlockToMine(Branch(branchValueWithMaxEco), address)
+        block = await self.__get_minor_block_to_mine(Branch(branchValueWithMaxEco), address)
         return (None, None) if not block else (False, block)
 
     async def get_account_data(self, address):
@@ -719,7 +719,7 @@ class MasterServer():
         check(len(branchToAccountBranchData) == self.__get_shard_size())
         return branchToAccountBranchData
 
-    async def getPrimaryAccountData(self, address):
+    async def get_primary_account_data(self, address):
         # TODO: Only query the shard who has the address
         shardId = address.get_shard_id(self.__get_shard_size())
         branch = Branch.create(self.__get_shard_size(), shardId)
@@ -734,7 +734,7 @@ class MasterServer():
                 return accountBranchData
         return None
 
-    async def addTransaction(self, tx, fromPeer=None):
+    async def add_transaction(self, tx, fromPeer=None):
         ''' Add transaction to the cluster and broadcast to peers '''
         evmTx = tx.code.get_evm_transaction()
         evmTx.set_shard_size(self.__get_shard_size())
@@ -744,7 +744,7 @@ class MasterServer():
 
         futures = []
         for slave in self.branchToSlaves[branch.value]:
-            futures.append(slave.addTransaction(tx))
+            futures.append(slave.add_transaction(tx))
 
         success = all(await asyncio.gather(*futures))
         if not success:
@@ -760,7 +760,7 @@ class MasterServer():
                     Logger.logException()
         return True
 
-    async def executeTransaction(self, tx: Transaction, fromAddress) -> Optional[bytes]:
+    async def execute_transaction(self, tx: Transaction, fromAddress) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evmTx = tx.code.get_evm_transaction()
         evmTx.set_shard_size(self.__get_shard_size())
@@ -770,7 +770,7 @@ class MasterServer():
 
         futures = []
         for slave in self.branchToSlaves[branch.value]:
-            futures.append(slave.executeTransaction(tx, fromAddress))
+            futures.append(slave.execute_transaction(tx, fromAddress))
         responses = await asyncio.gather(*futures)
         # failed response will return as None
         success = all(r is not None for r in responses) and len(set(responses)) == 1
@@ -813,7 +813,7 @@ class MasterServer():
             self.rootMiner.mine_new_block_async()
 
 
-    async def addRawMinorBlock(self, branch, blockData):
+    async def add_raw_minor_block(self, branch, blockData):
         if branch.value not in self.branchToSlaves:
             return False
 
@@ -822,7 +822,7 @@ class MasterServer():
         _, resp, _ = await self.get_slave_connection(branch).write_rpc_request(ClusterOp.ADD_MINOR_BLOCK_REQUEST, request)
         return resp.errorCode == 0
 
-    async def add_root_blockFromMiner(self, block):
+    async def add_root_block_from_miner(self, block):
         ''' Should only be called by miner '''
         # TODO: push candidate block to miner
         if block.header.hashPrevBlock != self.rootState.tip.get_hash():
@@ -856,7 +856,7 @@ class MasterServer():
             return None
         return self.network.get_peer_by_cluster_peer_id(clusterPeerId)
 
-    async def createPeerClusterConnections(self, clusterPeerId):
+    async def create_peer_cluster_connections(self, clusterPeerId):
         futureList = self.broadcast_rpc(
             op=ClusterOp.CREATE_CLUSTER_PEER_CONNECTION_REQUEST,
             req=CreateClusterPeerConnectionRequest(clusterPeerId))
@@ -870,7 +870,7 @@ class MasterServer():
             op=ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND,
             cmd=DestroyClusterPeerConnectionCommand(clusterPeerId))
 
-    async def setTargetBlockTime(self, rootBlockTime, minorBlockTime):
+    async def set_target_block_time(self, rootBlockTime, minorBlockTime):
         rootBlockTime = rootBlockTime if rootBlockTime else self.artificialTxConfig.targetRootBlockTime
         minorBlockTime = minorBlockTime if minorBlockTime else self.artificialTxConfig.targetMinorBlockTime
         self.artificialTxConfig = ArtificialTxConfig(
@@ -879,7 +879,7 @@ class MasterServer():
         )
         await self.start_mining()
 
-    async def setMining(self, mining):
+    async def set_mining(self, mining):
         if mining:
             await self.start_mining()
         else:
@@ -910,7 +910,7 @@ class MasterServer():
         while len(self.txCountHistory) > 0 and self.txCountHistory[0][0] < time.time() - 3600 * 12:
             self.txCountHistory.popleft()
 
-    async def getStats(self):
+    async def get_stats(self):
         shards = [dict() for i in range(self.__get_shard_size())]
         for shardStats in self.branchToShardStats.values():
             shardId = shardStats.branch.get_shard_id()

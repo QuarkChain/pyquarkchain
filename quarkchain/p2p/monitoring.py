@@ -138,7 +138,7 @@ CONST_METRIC = "pendingTxCount"
 CONST_INTERVAL = 1
 
 async def async_stats(idx, server):
-    response = await server.getStats()
+    response = await server.get_stats()
     print("idx={};{}={}".format(idx, CONST_METRIC, response[CONST_METRIC]))
 
 

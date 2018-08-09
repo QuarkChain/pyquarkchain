@@ -58,12 +58,12 @@ class ProxyConnection(Connection):
     def close_connection(self, conn):
         pass
 
-    async def handleMetadataAndRawData(self, metadata, rawData):
+    async def handle_metadata_and_raw_data(self, metadata, rawData):
         forwardConn = self.get_connection_to_forward(metadata)
         if forwardConn:
             check(self.validate_connection(forwardConn))
             return forwardConn.write_raw_data(self.get_metadata_to_forward(metadata), rawData)
-        await super().handleMetadataAndRawData(metadata, rawData)
+        await super().handle_metadata_and_raw_data(metadata, rawData)
 
 
 class ForwardingVirtualConnection():
@@ -92,8 +92,8 @@ class VirtualConnection(AbstractConnection):
         self.proxyConn = proxyConn
         self.forwardConn = ForwardingVirtualConnection(self)
 
-    async def readMetadataAndRawData(self):
-        ''' Override AbstractConnection.readMetadataAndRawData()
+    async def read_metadata_and_raw_data(self):
+        ''' Override AbstractConnection.read_metadata_and_raw_data()
         '''
         while len(self.readDeque) == 0:
             self.readEvent.clear()

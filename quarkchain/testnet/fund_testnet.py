@@ -17,9 +17,9 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 class Endpoint:
     def __init__(self, url):
         self.url = url
-        asyncio.get_event_loop().run_until_complete(self.__createSession())
+        asyncio.get_event_loop().run_until_complete(self.__create_session())
 
-    async def __createSession(self):
+    async def __create_session(self):
         self.session = aiohttp.ClientSession()
 
     async def __send_request(self, *args):
@@ -36,7 +36,7 @@ class Endpoint:
 
     async def send_transaction(self, tx):
         txHex = "0x" + rlp.encode(tx, EvmTransaction).hex()
-        resp = await self.__send_request("sendRawTransaction", txHex)
+        resp = await self.__send_request("send_raw_transaction", txHex)
         return resp
 
     async def get_transaction_receipt(self, txId):
@@ -44,17 +44,17 @@ class Endpoint:
         resp = await self.__send_request("get_transaction_receipt", txId)
         return resp
 
-    async def getNonce(self, account):
+    async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
         resp = await self.__send_request("get_transaction_count", addressHex)
         return int(resp, 16)
 
     async def get_shard_size(self):
-        resp = await self.__send_request("networkInfo")
+        resp = await self.__send_request("network_info")
         return int(resp["shardSize"], 16)
 
-    async def getNetworkId(self):
-        resp = await self.__send_request("networkInfo")
+    async def get_network_id(self):
+        resp = await self.__send_request("network_info")
         return int(resp["networkId"], 16)
 
 
@@ -76,7 +76,7 @@ def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransac
 
 async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     address = Address.create_from_identity(genesisId, shard)
-    nonce = await endpoint.getNonce(address)
+    nonce = await endpoint.get_nonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, to, networkId, amount)
     txId = await endpoint.send_transaction(tx)
     cnt = 0
@@ -104,7 +104,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 
 
 async def fund(endpoint, genesisId, addrByAmount):
-    networkId = await endpoint.getNetworkId()
+    networkId = await endpoint.get_network_id()
     shardSize = await endpoint.get_shard_size()
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])

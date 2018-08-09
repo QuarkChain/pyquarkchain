@@ -75,7 +75,7 @@ class Devp2pService(WiredService):
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
-            self.app.network.refreshConnections(active_peers)
+            self.app.network.refresh_connections(active_peers)
         )
 
     '''
@@ -89,7 +89,7 @@ class Devp2pService(WiredService):
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
             asyncio.ensure_future,
-            self.app.network.refreshConnections(active_peers)
+            self.app.network.refresh_connections(active_peers)
         )
 
     def get_connected_peers(self):
@@ -109,7 +109,7 @@ class Devp2pService(WiredService):
             active_peers = self.get_connected_peers()
             self.app.network.loop.call_soon_threadsafe(
                 asyncio.ensure_future,
-                self.app.network.refreshConnections(active_peers)
+                self.app.network.refresh_connections(active_peers)
             )
 
     def start(self):
@@ -231,17 +231,17 @@ class P2PNetwork:
         self.nextClusterPeerId = 0
         self.clusterPeerPool = dict()   # cluster peer id => peer
 
-    async def newPeer(self, client_reader, client_writer):
+    async def new_peer(self, client_reader, client_writer):
         peer = Peer(
             self.env,
             client_reader,
             client_writer,
             self,
             self.masterServer,
-            self.__getNextClusterPeerId())
+            self.__get_next_cluster_peer_id())
         await peer.start(isServer=True)
 
-    async def refreshConnections(self, peers):
+    async def refresh_connections(self, peers):
         Logger.info("Refreshing connections to {} peers: {}".format(
             len(peers),
             peers
@@ -285,7 +285,7 @@ class P2PNetwork:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
         peer = Peer(self.env, reader, writer, self,
-                    self.masterServer, self.__getNextClusterPeerId())
+                    self.masterServer, self.__get_next_cluster_peer_id())
         peer.send_hello()
         result = await peer.start(isServer=False)
         if result is not None:
@@ -303,7 +303,7 @@ class P2PNetwork:
 
     def start_server(self):
         coro = asyncio.start_server(
-            self.newPeer, "0.0.0.0", self.port, loop=self.loop)
+            self.new_peer, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
         Logger.info("Self id {}".format(self.selfId.hex()))
         Logger.info("Listening on {} for p2p".format(
@@ -325,7 +325,7 @@ class P2PNetwork:
                 self.local_server.sockets[0].getsockname()))
 
     # ------------------------------- Cluster Peer Management --------------------------------
-    def __getNextClusterPeerId(self):
+    def __get_next_cluster_peer_id(self):
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 

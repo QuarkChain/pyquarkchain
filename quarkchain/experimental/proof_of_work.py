@@ -14,7 +14,7 @@ class PoW:
         return numpy.random.exponential(1 / diff / self.hashPower)
 
 
-async def testPoW():
+async def test_po_w():
     hashPower = 100
     diff = 0.01
     # Target block rate is 1sec
@@ -28,7 +28,7 @@ async def testPoW():
 
 def main():
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(testPoW())
+    loop.run_until_complete(test_po_w())
 
 
 if __name__ == "__main__":

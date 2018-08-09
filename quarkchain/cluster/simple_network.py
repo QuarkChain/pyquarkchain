@@ -53,7 +53,7 @@ class Peer(P2PConnection):
         3. only initiate connection from one side, eg. from smaller of ip_port; in SimpleNetwork, from new nodes only
         3 is the way to go
         '''
-        op, cmd, rpcId = await self.readCommand()
+        op, cmd, rpcId = await self.read_command()
         if op is None:
             assert(self.state == ConnectionState.CLOSED)
             Logger.info("Failed to read command, peer may have closed connection")
@@ -94,11 +94,11 @@ class Peer(P2PConnection):
         if isServer:
             self.send_hello()
 
-        await self.masterServer.createPeerClusterConnections(self.clusterPeerId)
+        await self.masterServer.create_peer_cluster_connections(self.clusterPeerId)
         Logger.info("Established virtual shard connections with peer {}".format(self.id.hex()))
 
-        asyncio.ensure_future(self.activeAndLoopForever())
-        await self.waitUntilActive()
+        asyncio.ensure_future(self.active_and_loop_forever())
+        await self.wait_until_active()
 
         # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
         self.network.activePeerPool[self.id] = self
@@ -138,10 +138,10 @@ class Peer(P2PConnection):
             (self.id.hex() if self.id is not None else "unknown", error))
         return super().close_with_error(error)
 
-    async def handleError(self, op, cmd, rpcId):
+    async def handle_error(self, op, cmd, rpcId):
         self.close_with_error("Unexpected op {}".format(op))
 
-    async def handleGetPeerListRequest(self, request):
+    async def handle_get_peer_list_request(self, request):
         resp = GetPeerListResponse()
         for peerId, peer in self.network.activePeerPool.items():
             if peer == self:
@@ -167,7 +167,7 @@ class Peer(P2PConnection):
 
     # ----------------------- RPC handlers ---------------------------------
 
-    async def handleNewMinorBlockHeaderList(self, op, cmd, rpcId):
+    async def handle_new_minor_block_header_list(self, op, cmd, rpcId):
         if len(cmd.minorBlockHeaderList) != 0:
             return self.close_with_error("minor block header list must be empty")
 
@@ -182,12 +182,12 @@ class Peer(P2PConnection):
         self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
         self.masterServer.handle_new_root_block_header(cmd.rootBlockHeader, self)
 
-    async def handleNewTransactionList(self, op, cmd, rpcId):
+    async def handle_new_transaction_list(self, op, cmd, rpcId):
         for tx in cmd.transactionList:
             Logger.debug("Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex()))
-            await self.masterServer.addTransaction(tx, self)
+            await self.masterServer.add_transaction(tx, self)
 
-    async def handleGetRootBlockHeaderListRequest(self, request):
+    async def handle_get_root_block_header_list_request(self, request):
         if request.limit <= 0:
             self.close_with_error("Bad limit")
         # TODO: support tip direction
@@ -204,7 +204,7 @@ class Peer(P2PConnection):
             blockHash = header.hashPrevBlock
         return GetRootBlockHeaderListResponse(self.rootState.tip, headerList)
 
-    async def handleGetRootBlockListRequest(self, request):
+    async def handle_get_root_block_list_request(self, request):
         rBlockList = []
         for h in request.rootBlockHashList:
             rBlock = self.rootState.db.get_root_block_by_hash(h, consistencyCheck=False)
@@ -229,19 +229,19 @@ class Peer(P2PConnection):
 
 # Only for non-RPC (fire-and-forget) and RPC request commands
 OP_NONRPC_MAP = {
-    CommandOp.HELLO: Peer.handleError,
-    CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handleNewMinorBlockHeaderList,
-    CommandOp.NEW_TRANSACTION_LIST: Peer.handleNewTransactionList,
+    CommandOp.HELLO: Peer.handle_error,
+    CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handle_new_minor_block_header_list,
+    CommandOp.NEW_TRANSACTION_LIST: Peer.handle_new_transaction_list,
 }
 
 # For RPC request commands
 OP_RPC_MAP = {
     CommandOp.GET_PEER_LIST_REQUEST:
-        (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handleGetPeerListRequest),
+        (CommandOp.GET_PEER_LIST_RESPONSE, Peer.handle_get_peer_list_request),
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST:
-        (CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE, Peer.handleGetRootBlockHeaderListRequest),
+        (CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE, Peer.handle_get_root_block_header_list_request),
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST:
-        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handleGetRootBlockListRequest),
+        (CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE, Peer.handle_get_root_block_list_request),
 }
 
 
@@ -265,14 +265,14 @@ class SimpleNetwork:
         self.nextClusterPeerId = 0
         self.clusterPeerPool = dict()   # cluster peer id => peer
 
-    async def newPeer(self, client_reader, client_writer):
+    async def new_peer(self, client_reader, client_writer):
         peer = Peer(
             self.env,
             client_reader,
             client_writer,
             self,
             self.masterServer,
-            self.__getNextClusterPeerId())
+            self.__get_next_cluster_peer_id())
         await peer.start(isServer=True)
 
     async def connect(self, ip, port):
@@ -282,21 +282,21 @@ class SimpleNetwork:
         except Exception as e:
             Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
-        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__getNextClusterPeerId())
+        peer = Peer(self.env, reader, writer, self, self.masterServer, self.__get_next_cluster_peer_id())
         peer.send_hello()
         result = await peer.start(isServer=False)
         if result is not None:
             return None
         return peer
 
-    async def connectSeed(self, ip, port):
+    async def connect_seed(self, ip, port):
         peer = await self.connect(ip, port)
         if peer is None:
             # Fail to connect
             return
 
         # Make sure the peer is ready for incoming messages
-        await peer.waitUntilActive()
+        await peer.wait_until_active()
         try:
             op, resp, rpcId = await peer.write_rpc_request(
                 CommandOp.GET_PEER_LIST_REQUEST, GetPeerListRequest(10))
@@ -322,7 +322,7 @@ class SimpleNetwork:
 
     def start_server(self):
         coro = asyncio.start_server(
-            self.newPeer, "0.0.0.0", self.port, loop=self.loop)
+            self.new_peer, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
         Logger.info("Self id {}".format(self.selfId.hex()))
         Logger.info("Listening on {} for p2p".format(
@@ -344,10 +344,10 @@ class SimpleNetwork:
                 self.local_server.sockets[0].getsockname()))
 
         self.loop.create_task(
-            self.connectSeed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
+            self.connect_seed(self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT))
 
     # ------------------------------- Cluster Peer Management --------------------------------
-    def __getNextClusterPeerId(self):
+    def __get_next_cluster_peer_id(self):
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 
