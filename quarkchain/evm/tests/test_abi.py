@@ -1,5 +1,5 @@
 import unittest
-from quarkchain.evm.abi import tx_to_typed_data, solidity_pack, typedSignatureHash
+from quarkchain.evm.abi import tx_to_typed_data, solidity_pack, typed_signature_hash
 from quarkchain.evm.transactions import Transaction
 
 
