@@ -737,7 +737,7 @@ class MasterServer():
     async def addTransaction(self, tx, fromPeer=None):
         ''' Add transaction to the cluster and broadcast to peers '''
         evmTx = tx.code.get_evm_transaction()
-        evmTx.setShardSize(self.__get_shard_size())
+        evmTx.set_shard_size(self.__get_shard_size())
         branch = Branch.create(self.__get_shard_size(), evmTx.fromShardId())
         if branch.value not in self.branchToSlaves:
             return False
@@ -763,7 +763,7 @@ class MasterServer():
     async def executeTransaction(self, tx: Transaction, fromAddress) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evmTx = tx.code.get_evm_transaction()
-        evmTx.setShardSize(self.__get_shard_size())
+        evmTx.set_shard_size(self.__get_shard_size())
         branch = Branch.create(self.__get_shard_size(), evmTx.fromShardId())
         if branch.value not in self.branchToSlaves:
             return None

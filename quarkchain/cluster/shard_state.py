@@ -530,7 +530,7 @@ class ShardState:
                 fromFullShardId=evmTx.fromFullShardId, toFullShardId=evmTx.toFullShardId, networkId=evmTx.networkId)
             evmTx.sender = fromAddress.recipient
 
-        evmTx.setShardSize(self.branch.get_shard_size())
+        evmTx.set_shard_size(self.branch.get_shard_size())
 
         if evmTx.networkId != self.env.config.NETWORK_ID:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
@@ -701,7 +701,7 @@ class ShardState:
         for idx, tx in enumerate(block.txList):
             try:
                 evmTx = self.__validateTx(tx, evmState)
-                evmTx.setShardSize(self.branch.get_shard_size())
+                evmTx.set_shard_size(self.branch.get_shard_size())
                 apply_transaction(evmState, evmTx, tx.get_hash())
                 evmTxIncluded.append(evmTx)
             except Exception as e:
@@ -943,7 +943,7 @@ class ShardState:
                 networkId=self.env.config.NETWORK_ID,
             )
             evmTx.sign(key=self.env.config.GENESIS_KEY)
-            evmTx.setShardSize(self.branch.get_shard_size())
+            evmTx.set_shard_size(self.branch.get_shard_size())
             try:
                 # tx_wrapper_hash is not needed for in-shard tx
                 apply_transaction(evmState, evmTx, tx_wrapper_hash=bytes(32))
@@ -991,7 +991,7 @@ class ShardState:
             )
             if evmTx is None:
                 break
-            evmTx.setShardSize(self.branch.get_shard_size())
+            evmTx.set_shard_size(self.branch.get_shard_size())
             try:
                 tx = Transaction(code=Code.create_evm_code(evmTx))
                 apply_transaction(evmState, evmTx, tx.get_hash())
