@@ -45,7 +45,7 @@ _inject_into_logger(
     textwrap.dedent(
         """\
         def trace(self, msg, *args, **kwargs):
-            if self.is_enabledFor(TRACE):
+            if self.isEnabledFor(TRACE):
                 self._log(TRACE, msg, args, **kwargs)
         """
     ),
@@ -176,7 +176,7 @@ class SLogger(logging.Logger):
         return SLogger.manager.log_json
 
     def is_active(self, level_name='trace'):
-        return self.is_enabledFor(logging._checkLevel(level_name.upper()))
+        return self.isEnabledFor(logging._checkLevel(level_name.upper()))
 
     def format_message(self, msg, kwargs, highlight, level):
         if getattr(self, 'log_json', False):
