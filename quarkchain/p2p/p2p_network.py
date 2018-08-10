@@ -329,8 +329,8 @@ class P2PNetwork:
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 
-    def get_peer_by_cluster_peer_id(self, clusterPeerId):
-        return self.clusterPeerPool.get(clusterPeerId)
+    def get_peer_by_cluster_peer_id(self, cluster_peer_id):
+        return self.clusterPeerPool.get(cluster_peer_id)
 
 
 if __name__ == '__main__':

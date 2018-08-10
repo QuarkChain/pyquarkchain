@@ -95,7 +95,7 @@ class TestCluster(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transaction_count, 0)
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
@@ -108,8 +108,8 @@ class TestCluster(unittest.TestCase):
             isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
-            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 1)
-            self.assertEqual(call_async(master.get_primary_account_data(acc2)).transactionCount, 0)
+            self.assertEqual(call_async(master.get_primary_account_data(acc1)).transaction_count, 1)
+            self.assertEqual(call_async(master.get_primary_account_data(acc2)).transaction_count, 0)
 
     def test_add_transaction(self):
         id1 = Identity.create_random_identity()

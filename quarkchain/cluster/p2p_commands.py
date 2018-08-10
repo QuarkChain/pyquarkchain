@@ -12,7 +12,7 @@ class HelloCommand(Serializable):
         ("peerId", hash256),
         ("peerIp", uint128),
         ("peerPort", uint16),
-        ("shardMaskList", PrependedSizeListSerializer(
+        ("shard_mask_list", PrependedSizeListSerializer(
             4, uint32)),  # TODO create shard mask object
         ("rootBlockHeader", RootBlockHeader),
     ]
@@ -23,7 +23,7 @@ class HelloCommand(Serializable):
                  peerId,
                  peerIp,
                  peerPort,
-                 shardMaskList,
+                 shard_mask_list,
                  rootBlockHeader):
         fields = {k: v for k, v in locals().items() if k != 'self'}
         super(type(self), self).__init__(**fields)
@@ -105,12 +105,12 @@ class GetRootBlockHeaderListRequest(Serializable):
 
 class GetRootBlockHeaderListResponse(Serializable):
     FIELDS = [
-        ("rootTip", RootBlockHeader),
+        ("root_tip", RootBlockHeader),
         ("blockHeaderList", PrependedSizeListSerializer(4, RootBlockHeader))
     ]
 
-    def __init__(self, rootTip, blockHeaderList):
-        self.rootTip = rootTip
+    def __init__(self, root_tip, blockHeaderList):
+        self.root_tip = root_tip
         self.blockHeaderList = blockHeaderList
 
 
@@ -139,11 +139,11 @@ class GetMinorBlockListRequest(Serializable):
     all minor blocks should be from the same shard.
     '''
     FIELDS = [
-        ("minorBlockHashList", PrependedSizeListSerializer(4, hash256))
+        ("minor_block_hash_list", PrependedSizeListSerializer(4, hash256))
     ]
 
-    def __init__(self, minorBlockHashList=None):
-        self.minorBlockHashList = minorBlockHashList if minorBlockHashList is not None else []
+    def __init__(self, minor_block_hash_list=None):
+        self.minor_block_hash_list = minor_block_hash_list if minor_block_hash_list is not None else []
 
 
 class GetMinorBlockListResponse(Serializable):
@@ -174,13 +174,13 @@ class GetMinorBlockHeaderListRequest(Serializable):
 
 class GetMinorBlockHeaderListResponse(Serializable):
     FIELDS = [
-        ("rootTip", RootBlockHeader),
+        ("root_tip", RootBlockHeader),
         ("shardTip", MinorBlockHeader),
         ("blockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader))
     ]
 
-    def __init__(self, rootTip, shardTip, blockHeaderList):
-        self.rootTip = rootTip
+    def __init__(self, root_tip, shardTip, blockHeaderList):
+        self.root_tip = root_tip
         self.shardTip = shardTip
         self.blockHeaderList = blockHeaderList
 

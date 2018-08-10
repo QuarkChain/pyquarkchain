@@ -208,7 +208,7 @@ class ShardConnection(VirtualConnection):
 
     async def handle_get_minor_block_list_request(self, request):
         m_block_list = []
-        for m_block_hash in request.minorBlockHashList:
+        for m_block_hash in request.minor_block_hash_list:
             m_block = self.shard_state.db.get_minor_block_by_hash(m_block_hash, consistency_check=False)
             if m_block is None:
                 continue
@@ -345,7 +345,7 @@ class MasterConnection(ClusterConnection):
         return self.env.config.SHARD_SIZE
 
     def close(self):
-        for clusterPeerId, connMap in self.v_conn_map.items():
+        for cluster_peer_id, connMap in self.v_conn_map.items():
             for branchValue, conn in connMap.items():
                 conn.get_forwarding_connection().close()
 
@@ -366,7 +366,7 @@ class MasterConnection(ClusterConnection):
     # Cluster RPC handlers
 
     async def handle_ping(self, ping):
-        self.slave_server.init_shard_states(ping.rootTip)
+        self.slave_server.init_shard_states(ping.root_tip)
         return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
 
     async def handle_connect_to_slaves_request(self, connect_to_slave_request):
@@ -375,7 +375,7 @@ class MasterConnection(ClusterConnection):
         Skip self and slaves already connected.
         """
         result_list = []
-        for slave_info in connect_to_slave_request.slaveInfoList:
+        for slave_info in connect_to_slave_request.slave_info_list:
             if slave_info.id == self.slave_server.id or slave_info.id in self.slave_server.slave_ids:
                 result_list.append(bytes())
                 continue
@@ -391,7 +391,7 @@ class MasterConnection(ClusterConnection):
                 continue
 
             slave = SlaveConnection(self.env, reader, writer, self.slave_server, slave_info.id,
-                                    slave_info.shardMaskList)
+                                    slave_info.shard_mask_list)
             await slave.wait_until_active()
             # Tell the remote slave who I am
             id, shard_mask_list = await slave.send_ping()
@@ -410,24 +410,24 @@ class MasterConnection(ClusterConnection):
 
     async def handle_mine_request(self, request):
         if request.mining:
-            self.slave_server.start_mining(request.artificialTxConfig)
+            self.slave_server.start_mining(request.artificial_tx_config)
         else:
             self.slave_server.stop_mining()
-        return MineResponse(errorCode=0)
+        return MineResponse(error_code=0)
 
     async def handle_gen_tx_request(self, request):
-        self.slave_server.create_transactions(request.numTxPerShard, request.xShardPercent, request.tx)
-        return GenTxResponse(errorCode=0)
+        self.slave_server.create_transactions(request.num_tx_per_shard, request.x_shard_percent, request.tx)
+        return GenTxResponse(error_code=0)
 
     # Blockchain RPC handlers
 
     async def handle_add_root_block_request(self, req):
-        # TODO: handle expectSwitch
+        # TODO: handle expect_switch
         error_code = 0
         switched = False
         for branchValue, shardState in self.shard_state_map.items():
             try:
-                switched = shardState.add_root_block(req.rootBlock)
+                switched = shardState.add_root_block(req.root_block)
             except ValueError:
                 Logger.logException()
                 # TODO: May be enum or Unix errno?
@@ -444,23 +444,23 @@ class MasterConnection(ClusterConnection):
                 height=shard_state.header_tip.height + 1,
                 coinbase_amount=shard_state.get_next_block_coinbase_amount(),
                 difficulty=shard_state.get_next_block_difficulty(),
-                unconfirmedHeadersCoinbaseAmount=shard_state.get_unconfirmed_headers_coinbase_amount(),
+                unconfirmed_headers_coinbase_amount=shard_state.get_unconfirmed_headers_coinbase_amount(),
             ))
         return GetEcoInfoListResponse(
-            errorCode=0,
-            ecoInfoList=eco_info_list,
+            error_code=0,
+            eco_info_list=eco_info_list,
         )
 
     async def handle_get_next_block_to_mine_request(self, req):
         branch_value = req.branch.value
         if branch_value not in self.shard_state_map:
-            return GetNextBlockToMineResponse(errorCode=errno.EBADMSG)
+            return GetNextBlockToMineResponse(error_code=errno.EBADMSG)
 
         block = self.shard_state_map[branch_value].create_block_to_mine(
             address=req.address,
         )
         response = GetNextBlockToMineResponse(
-            errorCode=0,
+            error_code=0,
             block=block,
         )
         return response
@@ -468,16 +468,16 @@ class MasterConnection(ClusterConnection):
     async def handle_add_minor_block_request(self, req):
         ''' For local miner to submit mined blocks through master '''
         try:
-            block = MinorBlock.deserialize(req.minorBlockData)
+            block = MinorBlock.deserialize(req.minor_block_data)
         except Exception:
             return AddMinorBlockResponse(
-                errorCode=errno.EBADMSG,
+                error_code=errno.EBADMSG,
             )
         branch_value = block.header.branch.value
         shard_state = self.slave_server.shard_state_map.get(branch_value, None)
         if not shard_state:
             return AddMinorBlockResponse(
-                errorCode=errno.EBADMSG,
+                error_code=errno.EBADMSG,
             )
 
         if block.header.hash_prev_minor_block != shard_state.header_tip.get_hash():
@@ -485,11 +485,11 @@ class MasterConnection(ClusterConnection):
             # TODO: push block candidate to miners than letting them pull
             Logger.info("[{}] dropped stale block {} mined locally".format(
                 block.header.branch.get_shard_id(), block.header.height))
-            return AddMinorBlockResponse(errorCode=0)
+            return AddMinorBlockResponse(error_code=0)
 
         success = await self.slave_server.add_block(block)
         return AddMinorBlockResponse(
-            errorCode=0 if success else errno.EFAULT,
+            error_code=0 if success else errno.EFAULT,
         )
 
     async def handle_get_unconfirmed_header_list_request(self, _req):
@@ -500,56 +500,56 @@ class MasterConnection(ClusterConnection):
                 header_list=shardState.get_unconfirmed_header_list(),
             ))
         return GetUnconfirmedHeadersResponse(
-            errorCode=0,
-            headersInfoList=headers_info_list,
+            error_code=0,
+            headers_info_list=headers_info_list,
         )
 
     async def handle_get_account_data_request(self, req):
         account_branch_data_list = self.slave_server.get_account_data(req.address)
         return GetAccountDataResponse(
-            errorCode=0,
-            accountBranchDataList=account_branch_data_list,
+            error_code=0,
+            account_branch_data_list=account_branch_data_list,
         )
 
     async def handle_add_transaction(self, req):
         success = self.slave_server.add_tx(req.tx)
         return AddTransactionResponse(
-            errorCode=0 if success else 1,
+            error_code=0 if success else 1,
         )
 
     async def handle_execute_transaction(self, req):
         res = self.slave_server.execute_tx(req.tx, req.from_address)
         fail = res is None
         return ExecuteTransactionResponse(
-            errorCode=int(fail),
+            error_code=int(fail),
             result=res if not fail else b''
         )
 
     async def handle_destroy_cluster_peer_connection_command(self, op, cmd, rpcId):
-        if cmd.clusterPeerId not in self.v_conn_map:
-            Logger.error("cannot find cluster peer connection to destroy {}".format(cmd.clusterPeerId))
+        if cmd.cluster_peer_id not in self.v_conn_map:
+            Logger.error("cannot find cluster peer connection to destroy {}".format(cmd.cluster_peer_id))
             return
-        for branch_value, v_conn in self.v_conn_map[cmd.clusterPeerId].items():
+        for branch_value, v_conn in self.v_conn_map[cmd.cluster_peer_id].items():
             v_conn.get_forwarding_connection().close()
-        del self.v_conn_map[cmd.clusterPeerId]
+        del self.v_conn_map[cmd.cluster_peer_id]
 
     async def handle_create_cluster_peer_connection_request(self, req):
-        if req.clusterPeerId in self.v_conn_map:
-            Logger.error("duplicated create cluster peer connection {}".format(req.clusterPeerId))
-            return CreateClusterPeerConnectionResponse(errorCode=errno.ENOENT)
+        if req.cluster_peer_id in self.v_conn_map:
+            Logger.error("duplicated create cluster peer connection {}".format(req.cluster_peer_id))
+            return CreateClusterPeerConnectionResponse(error_code=errno.ENOENT)
 
         conn_map = dict()
-        self.v_conn_map[req.clusterPeerId] = conn_map
+        self.v_conn_map[req.cluster_peer_id] = conn_map
         active_futures = []
         for branch_value, shard_state in self.shard_state_map.items():
-            conn = ShardConnection(master_conn=self, cluster_peer_id=req.clusterPeerId, shard_state=shard_state,
-                                   name="{}_vconn_{}".format(self.name, req.clusterPeerId))
+            conn = ShardConnection(master_conn=self, cluster_peer_id=req.cluster_peer_id, shard_state=shard_state,
+                                   name="{}_vconn_{}".format(self.name, req.cluster_peer_id))
             asyncio.ensure_future(conn.active_and_loop_forever())
             conn_map[branch_value] = conn
             active_futures.append(conn.active_future)
         # wait for all the connections to become active before return
         await asyncio.gather(*active_futures)
-        return CreateClusterPeerConnectionResponse(errorCode=0)
+        return CreateClusterPeerConnectionResponse(error_code=0)
 
     def broadcast_new_tip(self, branch):
         for cluster_peer_id, conn_map in self.v_conn_map.items():
@@ -560,33 +560,33 @@ class MasterConnection(ClusterConnection):
             conn_map[branch.value].broadcast_new_tip()
 
     def broadcast_tx_list(self, branch, tx_list, shard_conn=None):
-        for clusterPeerId, conn_map in self.v_conn_map.items():
+        for cluster_peer_id, conn_map in self.v_conn_map.items():
             if branch.value not in conn_map:
-                Logger.error("Cannot find branch {} in conn {}".format(branch.value, clusterPeerId))
+                Logger.error("Cannot find branch {} in conn {}".format(branch.value, cluster_peer_id))
                 continue
             if shard_conn == conn_map[branch.value]:
                 continue
             conn_map[branch.value].broadcast_tx_list(tx_list, )
 
     async def handle_get_minor_block_request(self, req):
-        if req.minorBlockHash != bytes(32):
-            block = self.slave_server.get_minor_block_by_hash(req.minorBlockHash, req.branch)
+        if req.minor_block_hash != bytes(32):
+            block = self.slave_server.get_minor_block_by_hash(req.minor_block_hash, req.branch)
         else:
             block = self.slave_server.get_minor_block_by_height(req.height, req.branch)
 
         if not block:
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            return GetMinorBlockResponse(errorCode=1, minorBlock=empty_block)
+            return GetMinorBlockResponse(error_code=1, minor_block=empty_block)
 
-        return GetMinorBlockResponse(errorCode=0, minorBlock=block)
+        return GetMinorBlockResponse(error_code=0, minor_block=block)
 
     async def handle_get_transaction_request(self, req):
         minor_block, i = self.slave_server.get_transaction_by_hash(req.tx_hash, req.branch)
         if not minor_block:
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            return GetTransactionResponse(errorCode=1, minorBlock=empty_block, index=0)
+            return GetTransactionResponse(error_code=1, minor_block=empty_block, index=0)
 
-        return GetTransactionResponse(errorCode=0, minorBlock=minor_block, index=i)
+        return GetTransactionResponse(error_code=0, minor_block=minor_block, index=i)
 
     async def handle_get_transaction_receipt_request(self, req):
         resp = self.slave_server.get_transaction_receipt(req.tx_hash, req.branch)
@@ -594,21 +594,21 @@ class MasterConnection(ClusterConnection):
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
             empty_receipt = TransactionReceipt.create_empty_receipt()
             return GetTransactionReceiptResponse(
-                errorCode=1, minorBlock=empty_block, index=0, receipt=empty_receipt)
+                error_code=1, minor_block=empty_block, index=0, receipt=empty_receipt)
         minor_block, i, receipt = resp
         return GetTransactionReceiptResponse(
-            errorCode=0, minorBlock=minor_block, index=i, receipt=receipt)
+            error_code=0, minor_block=minor_block, index=i, receipt=receipt)
 
     async def handle_get_transaction_list_by_address_request(self, req):
         result = self.slave_server.get_transaction_list_by_address(req.address, req.start, req.limit)
         if not result:
             return GetTransactionListByAddressResponse(
-                errorCode=1,
+                error_code=1,
                 tx_list=[],
                 next=b"",
             )
         return GetTransactionListByAddressResponse(
-            errorCode=0,
+            error_code=0,
             tx_list=result[0],
             next=result[1],
         )
@@ -620,16 +620,16 @@ class MasterConnection(ClusterConnection):
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(block_hash_list))
             return resp.minorBlockList
 
-        if req.clusterPeerId not in self.v_conn_map:
-            return SyncMinorBlockListResponse(errorCode=errno.EBADMSG)
-        if req.branch.value not in self.v_conn_map[req.clusterPeerId]:
-            return SyncMinorBlockListResponse(errorCode=errno.EBADMSG)
+        if req.cluster_peer_id not in self.v_conn_map:
+            return SyncMinorBlockListResponse(error_code=errno.EBADMSG)
+        if req.branch.value not in self.v_conn_map[req.cluster_peer_id]:
+            return SyncMinorBlockListResponse(error_code=errno.EBADMSG)
 
-        v_conn = self.v_conn_map[req.clusterPeerId][req.branch.value]
+        v_conn = self.v_conn_map[req.cluster_peer_id][req.branch.value]
 
         BLOCK_BATCH_SIZE = 100
         try:
-            block_hash_list = req.minorBlockHashList
+            block_hash_list = req.minor_block_hash_list
             while len(block_hash_list) > 0:
                 blocks_to_download = block_hash_list[:BLOCK_BATCH_SIZE]
                 block_chain = await __download_blocks(blocks_to_download)
@@ -643,9 +643,9 @@ class MasterConnection(ClusterConnection):
 
         except Exception as e:
             Logger.errorException()
-            return SyncMinorBlockListResponse(errorCode=1)
+            return SyncMinorBlockListResponse(error_code=1)
 
-        return SyncMinorBlockListResponse(errorCode=0)
+        return SyncMinorBlockListResponse(error_code=0)
 
 
 MASTER_OP_NONRPC_MAP = {
@@ -721,14 +721,14 @@ class SlaveConnection(Connection):
         # TODO: Send real root tip and allow shards to confirm each other
         req = Ping(self.slave_server.id, self.slave_server.shard_mask_list, RootBlock(RootBlockHeader()))
         op, resp, rpcId = await self.write_rpc_request(ClusterOp.PING, req)
-        return (resp.id, resp.shardMaskList)
+        return (resp.id, resp.shard_mask_list)
 
     # Cluster RPC handlers
 
     async def handle_ping(self, ping):
         if not self.id:
             self.id = ping.id
-            self.shard_mask_list = ping.shardMaskList
+            self.shard_mask_list = ping.shard_mask_list
             self.slave_server.add_slave_connection(self)
         if len(self.shard_mask_list) == 0:
             return self.close_with_error("Empty shard mask list from slave {}".format(self.id))
@@ -742,21 +742,21 @@ class SlaveConnection(Connection):
             Logger.error(
                 "add xshard tx list request shard size mismatch! "
                 "Expect: {}, actual: {}".format(self.__get_shard_size(), req.branch.get_shard_size()))
-            return AddXshardTxListResponse(errorCode=errno.ESRCH)
+            return AddXshardTxListResponse(error_code=errno.ESRCH)
 
         if req.branch.value not in self.shard_state_map:
             Logger.error("cannot find shard id {} locally".format(req.branch.get_shard_id()))
-            return AddXshardTxListResponse(errorCode=errno.ENOENT)
+            return AddXshardTxListResponse(error_code=errno.ENOENT)
 
-        self.shard_state_map[req.branch.value].add_cross_shard_tx_list_by_minor_block_hash(req.minorBlockHash, req.tx_list)
-        return AddXshardTxListResponse(errorCode=0)
+        self.shard_state_map[req.branch.value].add_cross_shard_tx_list_by_minor_block_hash(req.minor_block_hash, req.tx_list)
+        return AddXshardTxListResponse(error_code=0)
 
     async def handle_batch_add_xshard_tx_list_request(self, batchRequest):
-        for request in batchRequest.addXshardTxListRequestList:
+        for request in batchRequest.add_xshard_tx_list_request_list:
             response = await self.handle_add_xshard_tx_list_request(request)
-            if response.errorCode != 0:
-                return BatchAddXshardTxListResponse(errorCode=response.errorCode)
-        return BatchAddXshardTxListResponse(errorCode=0)
+            if response.error_code != 0:
+                return BatchAddXshardTxListResponse(error_code=response.error_code)
+        return BatchAddXshardTxListResponse(error_code=0)
 
 
 SLAVE_OP_NONRPC_MAP = {}
@@ -858,7 +858,7 @@ class SlaveServer():
             await self.add_block(block)
 
         def __get_target_block_time():
-            return self.artificial_tx_config.targetMinorBlockTime
+            return self.artificial_tx_config.target_minor_block_time
 
         self.miner_map[branch_value] = Miner(__create_block, __add_block, __get_target_block_time)
 
@@ -872,7 +872,7 @@ class SlaveServer():
         for branch_value, miner in self.miner_map.items():
             Logger.info("[{}] start mining with target minor block time {} seconds".format(
                 Branch(branch_value).get_shard_id(),
-                artificial_tx_config.targetMinorBlockTime,
+                artificial_tx_config.target_minor_block_time,
             ))
             miner.enable()
             miner.mine_new_block_async();
@@ -955,8 +955,8 @@ class SlaveServer():
         ''' Update master that a minor block has been appended successfully '''
         request = AddMinorBlockHeaderRequest(minor_block_header, tx_count, x_shard_tx_count, shard_stats)
         _, resp, _ = await self.master.write_rpc_request(ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request)
-        check(resp.errorCode == 0)
-        self.artificial_tx_config = resp.artificialTxConfig
+        check(resp.error_code == 0)
+        self.artificial_tx_config = resp.artificial_tx_config
 
     def __get_branch_to_add_xshard_tx_list_request(self, block_hash, xshard_tx_list):
         branch_to_add_xshard_tx_list_request = dict()
@@ -993,7 +993,7 @@ class SlaveServer():
                 future = slave_conn.write_rpc_request(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
                 rpc_futures.append(future)
         responses = await asyncio.gather(*rpc_futures)
-        check(all([response.errorCode == 0 for _, response, _ in responses]))
+        check(all([response.error_code == 0 for _, response, _ in responses]))
 
     async def batch_broadcast_xshard_tx_list(self, block_hash_to_xshard_list):
         branch_to_add_xshard_tx_list_request_list = dict()
@@ -1007,14 +1007,14 @@ class SlaveServer():
             if branch.value in self.shard_state_map:
                 for request in request_list:
                     self.shard_state_map[branch.value].add_cross_shard_tx_list_by_minor_block_hash(
-                        request.minorBlockHash, request.tx_list)
+                        request.minor_block_hash, request.tx_list)
 
             batch_request = BatchAddXshardTxListRequest(request_list)
             for slaveConn in self.shard_to_slaves[branch.get_shard_id()]:
                 future = slaveConn.write_rpc_request(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batch_request)
                 rpc_futures.append(future)
         responses = await asyncio.gather(*rpc_futures)
-        check(all([response.errorCode == 0 for _, response, _ in responses]))
+        check(all([response.error_code == 0 for _, response, _ in responses]))
 
     async def add_block(self, block):
         ''' Returns true if block is successfully added. False on any error. '''
@@ -1160,9 +1160,9 @@ class SlaveServer():
         for branch_value, shard_state in self.shard_state_map.items():
             results.append(AccountBranchData(
                 branch=Branch(branch_value),
-                transactionCount=shard_state.get_transaction_count(address.recipient),
+                transaction_count=shard_state.get_transaction_count(address.recipient),
                 balance=shard_state.get_balance(address.recipient),
-                isContract=len(shard_state.get_code(address.recipient)) > 0,
+                is_contract=len(shard_state.get_code(address.recipient)) > 0,
             ))
         return results
 

@@ -134,7 +134,7 @@ def print_all_clusters(ip, p2p_port, jrpc_port, ip_lookup={}):
     pprint.pprint(find_all_clusters(ip, p2p_port, jrpc_port, ip_lookup))
 
 
-CONST_METRIC = "pendingTxCount"
+CONST_METRIC = "pending_tx_count"
 CONST_INTERVAL = 1
 
 async def async_stats(idx, server):

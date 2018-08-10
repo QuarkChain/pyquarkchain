@@ -285,10 +285,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         if m_block.header.height > 2:
             prev_count = self.get_total_tx_count(m_block.header.hash_prev_minor_block)
         count = prev_count + len(m_block.tx_list)
-        self.db.put(b"txCount_" + m_block.header.get_hash(), count.to_bytes(4, "big"))
+        self.db.put(b"tx_count_" + m_block.header.get_hash(), count.to_bytes(4, "big"))
 
     def get_total_tx_count(self, m_block_hash):
-        count_bytes = self.db.get(b"txCount_" + m_block_hash, None)
+        count_bytes = self.db.get(b"tx_count_" + m_block_hash, None)
         if not count_bytes:
             return 0
         return int.from_bytes(count_bytes, "big")
@@ -735,8 +735,8 @@ class ShardState:
         new_chain = []
         old_chain = []
 
-        # minorBlock height could be lower than the current tip
-        # we should revert all the blocks above minorBlock height
+        # minor_block height could be lower than the current tip
+        # we should revert all the blocks above minor_block height
         height = minor_block.header.height + 1
         while True:
             orig_block = self.db.get_minor_block_by_height(height)
@@ -829,7 +829,7 @@ class ShardState:
         # or they are equal length but the root height confirmed by the block is longer
         update_tip = False
         if not self.__is_same_root_chain(self.root_tip, self.db.get_root_block_header_by_hash(block.header.hash_prev_root_block)):
-            # Don't update tip if the block depends on a root block that is not rootTip or rootTip's ancestor
+            # Don't update tip if the block depends on a root block that is not root_tip or root_tip's ancestor
             update_tip = False
         elif block.header.hash_prev_minor_block == self.header_tip.get_hash():
             update_tip = True
@@ -1230,7 +1230,7 @@ class ShardState:
                         address,
                         Address(tx.to, tx.toFullShardId) if tx.to else None,
                         tx.value,
-                        blockHeight=0,
+                        block_height=0,
                         timestamp=0,
                         success=False,
                     ))
@@ -1258,10 +1258,10 @@ class ShardState:
             branch=self.branch,
             height=self.header_tip.height,
             timestamp=self.header_tip.create_time,
-            txCount60s=tx_count,
-            pendingTxCount=len(self.tx_queue),
-            totalTxCount=self.db.get_total_tx_count(self.header_tip.get_hash()),
-            blockCount60s=block_count,
-            staleBlockCount60s=stale_block_count,
-            lastBlockTime=last_block_time,
+            tx_count60s=tx_count,
+            pending_tx_count=len(self.tx_queue),
+            total_tx_count=self.db.get_total_tx_count(self.header_tip.get_hash()),
+            block_count60s=block_count,
+            stale_block_count60s=stale_block_count,
+            last_block_time=last_block_time,
         )

@@ -20,9 +20,9 @@ class Peer(P2PConnection):
     Note a Peer object exists in both parties of communication.
     """
 
-    def __init__(self, env, reader, writer, network, masterServer, clusterPeerId, name=None):
+    def __init__(self, env, reader, writer, network, masterServer, cluster_peer_id, name=None):
         if name is None:
-            name = "{}_peer_{}".format(masterServer.name, clusterPeerId)
+            name = "{}_peer_{}".format(masterServer.name, cluster_peer_id)
         super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
         self.network = network
         self.masterServer = masterServer
@@ -30,9 +30,9 @@ class Peer(P2PConnection):
 
         # The following fields should be set once active
         self.id = None
-        self.shardMaskList = None
+        self.shard_mask_list = None
         self.bestRootBlockHeaderObserved = None
-        self.clusterPeerId = clusterPeerId
+        self.cluster_peer_id = cluster_peer_id
 
     def send_hello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
@@ -40,7 +40,7 @@ class Peer(P2PConnection):
                            peerId=self.network.selfId,
                            peerIp=int(self.network.ip),
                            peerPort=self.network.port,
-                           shardMaskList=[],
+                           shard_mask_list=[],
                            rootBlockHeader=self.rootState.tip)
         # Send hello request
         self.write_command(CommandOp.HELLO, cmd)
@@ -69,7 +69,7 @@ class Peer(P2PConnection):
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peerId
-        self.shardMaskList = cmd.shardMaskList
+        self.shard_mask_list = cmd.shard_mask_list
         self.ip = ipaddress.ip_address(cmd.peerIp)
         self.port = cmd.peerPort
 
@@ -94,7 +94,7 @@ class Peer(P2PConnection):
         if isServer:
             self.send_hello()
 
-        await self.masterServer.create_peer_cluster_connections(self.clusterPeerId)
+        await self.masterServer.create_peer_cluster_connections(self.cluster_peer_id)
         Logger.info("Established virtual shard connections with peer {}".format(self.id.hex()))
 
         asyncio.ensure_future(self.active_and_loop_forever())
@@ -102,7 +102,7 @@ class Peer(P2PConnection):
 
         # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
         self.network.activePeerPool[self.id] = self
-        self.network.clusterPeerPool[self.clusterPeerId] = self
+        self.network.clusterPeerPool[self.cluster_peer_id] = self
         Logger.info("Peer {} added to active peer pool".format(self.id.hex()))
 
         self.masterServer.handle_new_root_block_header(self.bestRootBlockHeaderObserved, self)
@@ -113,11 +113,11 @@ class Peer(P2PConnection):
             assert(self.id is not None)
             if self.id in self.network.activePeerPool:
                 del self.network.activePeerPool[self.id]
-            if self.clusterPeerId in self.network.clusterPeerPool:
-                del self.network.clusterPeerPool[self.clusterPeerId]
+            if self.cluster_peer_id in self.network.clusterPeerPool:
+                del self.network.clusterPeerPool[self.cluster_peer_id]
             Logger.info("Peer {} disconnected, remaining {}".format(
                 self.id.hex(), len(self.network.activePeerPool)))
-            self.masterServer.destroy_peer_cluster_connections(self.clusterPeerId)
+            self.masterServer.destroy_peer_cluster_connections(self.cluster_peer_id)
 
         super().close()
 
@@ -125,11 +125,11 @@ class Peer(P2PConnection):
         assert(self.id is not None)
         if self.id in self.network.activePeerPool:
             del self.network.activePeerPool[self.id]
-        if self.clusterPeerId in self.network.clusterPeerPool:
-            del self.network.clusterPeerPool[self.clusterPeerId]
+        if self.cluster_peer_id in self.network.clusterPeerPool:
+            del self.network.clusterPeerPool[self.cluster_peer_id]
         Logger.info("Peer {} ({}:{}) disconnected, remaining {}".format(
             self.id.hex(), self.ip, self.port, len(self.network.activePeerPool)))
-        self.masterServer.destroy_peer_cluster_connections(self.clusterPeerId)
+        self.masterServer.destroy_peer_cluster_connections(self.cluster_peer_id)
         super().close()
 
     def close_with_error(self, error):
@@ -155,7 +155,7 @@ class Peer(P2PConnection):
     def get_cluster_peer_id(self):
         ''' Override P2PConnection.get_cluster_peer_id()
         '''
-        return self.clusterPeerId
+        return self.cluster_peer_id
 
     def get_connection_to_forward(self, metadata):
         ''' Override P2PConnection.get_connection_to_forward()
@@ -351,5 +351,5 @@ class SimpleNetwork:
         self.nextClusterPeerId = self.nextClusterPeerId + 1
         return self.nextClusterPeerId
 
-    def get_peer_by_cluster_peer_id(self, clusterPeerId):
-        return self.clusterPeerPool.get(clusterPeerId)
+    def get_peer_by_cluster_peer_id(self, cluster_peer_id):
+        return self.clusterPeerPool.get(cluster_peer_id)

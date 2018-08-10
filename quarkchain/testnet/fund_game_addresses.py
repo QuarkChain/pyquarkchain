@@ -335,7 +335,7 @@ async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
         if resp:
             break
 
-    height = int(resp["blockHeight"], 16)
+    height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
     print("shard={} tx={} block={} status={}".format(shard, txId, height, status))
     return txId, height

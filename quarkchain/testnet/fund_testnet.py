@@ -93,7 +93,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
             print("retry tx={}".format(txId))
             await endpoint.send_transaction(tx)
 
-    height = int(resp["blockHeight"], 16)
+    height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
     print(
         "shard={} tx={} block={} status={} amount={}".format(

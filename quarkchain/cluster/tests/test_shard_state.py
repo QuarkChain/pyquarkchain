@@ -873,7 +873,7 @@ class TestShardState(unittest.TestCase):
         self.assertRaises(ValueError, state.add_block(b1))
 
     def test_not_update_tip_on_root_fork(self):
-        ''' block's hash_prev_root_block must be on the same chain with rootTip to update tip.
+        ''' block's hash_prev_root_block must be on the same chain with root_tip to update tip.
 
                  +--+
               a. |r1|
@@ -927,7 +927,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.header_tip, m1.header)
 
     def test_add_root_block_revert_header_tip(self):
-        ''' block's hash_prev_root_block must be on the same chain with rootTip to update tip.
+        ''' block's hash_prev_root_block must be on the same chain with root_tip to update tip.
 
                  +--+
                  |r1|<-------------+
@@ -942,8 +942,8 @@ class TestShardState(unittest.TestCase):
                  +--+      +--+
 
         Initial state: r0 <- m1 <- m2
-        Adding r1, r2, m3 makes r1 the rootTip, m3 the headerTip
-        Adding r3 should change the rootTip to r3, headerTip to m2
+        Adding r1, r2, m3 makes r1 the root_tip, m3 the headerTip
+        Adding r3 should change the root_tip to r3, headerTip to m2
         '''
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)

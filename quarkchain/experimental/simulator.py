@@ -152,8 +152,8 @@ class MajorBlock:
     def get_mining_eco(self):
         return self.header.get_mining_eco()
 
-    def add_minor_block(self, minorBlock):
-        self.minorBlockMap[minorBlock.get_hash()] = minorBlock
+    def add_minor_block(self, minor_block):
+        self.minorBlockMap[minor_block.get_hash()] = minor_block
 
 
 # hash before 1024 are used for genesis block
@@ -195,13 +195,13 @@ class MinorBlockChain:
             slideSize=1,
             targetIntervalSec=MINOR_BLOCK_RATE_SEC)
 
-    def try_append_block(self, minorBlock):
-        if minorBlock.header.hash_prev_minor_block != \
+    def try_append_block(self, minor_block):
+        if minor_block.header.hash_prev_minor_block != \
            self.bestChain[-1].header.hash:
             return False
 
-        self.blockMap[minorBlock.header.hash] = minorBlock
-        self.bestChain.append(minorBlock)
+        self.blockMap[minor_block.header.hash] = minor_block
+        self.bestChain.append(minor_block)
         return True
 
     def get_block_to_mine(self):
@@ -228,8 +228,8 @@ class MajorBlockChain:
             targetIntervalSec=MAJOR_BLOCK_RATE_SEC)
         self.pendingMinorBlockMap = {}
 
-    def add_minor_block_to_confirm(self, minorBlock):
-        self.pendingMinorBlockMap[minorBlock.header.hash] = minorBlock
+    def add_minor_block_to_confirm(self, minor_block):
+        self.pendingMinorBlockMap[minor_block.header.hash] = minor_block
 
     # Check if the major block can be appended to the best chain
     def try_append_block(self, majorBlock):
@@ -399,12 +399,12 @@ class Node:
         if self.mineChainId == 0:
             self.mineFuture.cancel()
 
-    def rpc_get_minor_block(self, minorBlock):
+    def rpc_get_minor_block(self, minor_block):
         assert(self.minorChainList[
-               minorBlock.get_shard_id()].try_append_block(minorBlock))
-        self.majorChain.add_minor_block_to_confirm(minorBlock)
+               minor_block.get_shard_id()].try_append_block(minor_block))
+        self.majorChain.add_minor_block_to_confirm(minor_block)
         # TODO cancel mining on major if minor eco is smaller
-        if self.mineChainId - 1 == minorBlock.get_shard_id() or self.mineChainId == 0:
+        if self.mineChainId - 1 == minor_block.get_shard_id() or self.mineChainId == 0:
             self.mineFuture.cancel()
 
     def broadcast_major_block(self, majorBlock):
@@ -412,9 +412,9 @@ class Node:
             block = copy.deepcopy(majorBlock)
             peer.rpc_get_major_block(block)
 
-    def broadcast_minor_block(self, minorBlock):
+    def broadcast_minor_block(self, minor_block):
         for peer in self.peers:
-            block = copy.deepcopy(minorBlock)
+            block = copy.deepcopy(minor_block)
             peer.rpc_get_minor_block(block)
 
     def add_peer(self, peer):

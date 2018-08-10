@@ -17,16 +17,16 @@ ROOT_BLOCK_MINOR_BLOCK_LIMIT = MINOR_BLOCK_PER_ROOT_BLOCK
 
 
 class MinorBlock:
-    def __init__(self, rootBlock, rootIndex, blockHeight, minedTime):
-        self.rootBlock = rootBlock
+    def __init__(self, root_block, rootIndex, block_height, minedTime):
+        self.root_block = root_block
         self.rootIndex = rootIndex
-        self.blockHeight = blockHeight
+        self.block_height = block_height
         self.minedTime = minedTime
 
 
 class RootBlock:
-    def __init__(self, blockHeight, minorBlockList, miningTime, minedTime):
-        self.blockHeight = blockHeight
+    def __init__(self, block_height, minorBlockList, miningTime, minedTime):
+        self.block_height = block_height
         self.minorBlockList = minorBlockList
         self.miningTime = miningTime
         self.minedTime = minedTime
@@ -48,7 +48,7 @@ class Simulator:
         for i in range(args.rprevious):
             self.rootBlockList.append(
                 RootBlock(
-                    blockHeight=i,
+                    block_height=i,
                     minorBlockList=[],
                     miningTime=0,
                     minedTime=0))
@@ -58,9 +58,9 @@ class Simulator:
         for i in range(args.minor_genesis_epoch):
             for j in range(MINOR_BLOCK_PER_ROOT_BLOCK):
                 mBlock = MinorBlock(
-                    rootBlock=self.rootBlockList[i],
+                    root_block=self.rootBlockList[i],
                     rootIndex=j,
-                    blockHeight=i * MINOR_BLOCK_PER_ROOT_BLOCK + j,
+                    block_height=i * MINOR_BLOCK_PER_ROOT_BLOCK + j,
                     minedTime=0)
                 self.minorBlockList.append(mBlock)
                 self.pendingMinorBlockQueue.append(mBlock)
@@ -87,20 +87,20 @@ class Simulator:
         if tip.rootIndex < MINOR_BLOCK_PER_ROOT_BLOCK - 1:
             check(ts == tip.minedTime)
             return MinorBlock(
-                rootBlock=tip.rootBlock,
+                root_block=tip.root_block,
                 rootIndex=tip.rootIndex + 1,
-                blockHeight=tip.blockHeight + 1,
+                block_height=tip.block_height + 1,
                 minedTime=ts + MINOR_BLOCK_INTERVAL_SEC)
 
         # Produce block in next epoch if a root block is available
-        rootHeightToConfirm = tip.rootBlock.blockHeight + 1
-        if rootHeightToConfirm <= self.get_root_block_tip().blockHeight:
-            rootBlock = self.rootBlockList[rootHeightToConfirm]
-            check(ts == max(tip.minedTime, rootBlock.minedTime))
+        rootHeightToConfirm = tip.root_block.block_height + 1
+        if rootHeightToConfirm <= self.get_root_block_tip().block_height:
+            root_block = self.rootBlockList[rootHeightToConfirm]
+            check(ts == max(tip.minedTime, root_block.minedTime))
             return MinorBlock(
-                rootBlock=rootBlock,
+                root_block=root_block,
                 rootIndex=0,
-                blockHeight=tip.blockHeight + 1,
+                block_height=tip.block_height + 1,
                 minedTime=ts + MINOR_BLOCK_INTERVAL_SEC)
 
         # Unable to find a root block to produce the minor block
@@ -109,14 +109,14 @@ class Simulator:
     def mine_next_root_block(self, ts):
         check(self.rootBlockToMine is None)
         if len(self.pendingMinorBlockQueue) == 0 or \
-                self.pendingMinorBlockQueue[0].rootBlock.blockHeight + self.args.rprevious > \
-                self.get_root_block_tip().blockHeight + 1:
+                self.pendingMinorBlockQueue[0].root_block.block_height + self.args.rprevious > \
+                self.get_root_block_tip().block_height + 1:
             # The root block is not able to mine.  Will wait until a minor block is produced.
             # TODO: the root block may also mine an null minor block with reduced coinbase reward
             return
 
         self.rootBlockToMine = RootBlock(
-            blockHeight=self.get_root_block_tip().blockHeight + 1,
+            block_height=self.get_root_block_tip().block_height + 1,
             minorBlockList=[],       # to be fill once mined
             miningTime=ts,
             minedTime=None)
@@ -127,16 +127,16 @@ class Simulator:
             self.rootBlockToMine)
 
         if self.args.verbose >= 1:
-            print("%0.2f: rootBlock %d mining ..." % (ts, self.rootBlockToMine.blockHeight))
+            print("%0.2f: root_block %d mining ..." % (ts, self.rootBlockToMine.block_height))
 
-    def mine_root_block(self, ts, rootBlock):
-        check(rootBlock == self.rootBlockToMine)
+    def mine_root_block(self, ts, root_block):
+        check(root_block == self.rootBlockToMine)
 
         # Include minor blocks as much as possible
         confirmedList = []
         while len(self.pendingMinorBlockQueue) != 0 and \
-                self.pendingMinorBlockQueue[0].rootBlock.blockHeight + self.args.rprevious <= \
-                rootBlock.blockHeight:
+                self.pendingMinorBlockQueue[0].root_block.block_height + self.args.rprevious <= \
+                root_block.block_height:
             mBlock = self.pendingMinorBlockQueue.popleft()
             confirmedList.append(mBlock)
             if len(confirmedList) >= ROOT_BLOCK_MINOR_BLOCK_LIMIT:
@@ -144,7 +144,7 @@ class Simulator:
 
         check(len(confirmedList) > 0)
         if (self.args.verbose >= 1):
-            print("%0.2f: rootBlock %d mined with %d mblocks" % (ts, rootBlock.blockHeight, len(confirmedList)))
+            print("%0.2f: root_block %d mined with %d mblocks" % (ts, root_block.block_height, len(confirmedList)))
 
         # Add root block to chain
         self.rootBlockToMine.minorBlockList = confirmedList
@@ -152,7 +152,7 @@ class Simulator:
         self.rootBlockList.append(self.rootBlockToMine)
         self.rootBlockToMine = None
 
-        if rootBlock.blockHeight >= self.args.rblocks:
+        if root_block.block_height >= self.args.rblocks:
             self.scheduler.stop()
             return
 
@@ -160,7 +160,7 @@ class Simulator:
         if self.minorBlockToMine is None:
             self.mine_next_minor_block(ts)
             check(self.minorBlockToMine is not None)
-            check(self.minorBlockToMine.rootBlock == self.get_root_block_tip())
+            check(self.minorBlockToMine.root_block == self.get_root_block_tip())
 
         self.mine_next_root_block(ts)
 
@@ -177,11 +177,11 @@ class Simulator:
             self.mine_minor_block,
             self.minorBlockToMine)
 
-    def mine_minor_block(self, ts, minorBlock):
-        check(minorBlock == self.minorBlockToMine)
+    def mine_minor_block(self, ts, minor_block):
+        check(minor_block == self.minorBlockToMine)
 
         if self.args.verbose >= 1:
-            print("%0.2f: minorBlock %d mined" % (ts, minorBlock.blockHeight))
+            print("%0.2f: minor_block %d mined" % (ts, minor_block.block_height))
 
         # Add mined minor block to pending queue and chain
         self.pendingMinorBlockQueue.append(self.minorBlockToMine)
@@ -237,7 +237,7 @@ def main():
         idleDuration / simulator.rootBlockList[-1].minedTime * 100))
     print("Minor block interval: %0.2f" % (
         simulator.minorBlockList[-1].minedTime /
-        (simulator.minorBlockList[-1].blockHeight - simulator.get_genesis_minor_block_number())))
+        (simulator.minorBlockList[-1].block_height - simulator.get_genesis_minor_block_number())))
 
 
 if __name__ == '__main__':

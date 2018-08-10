@@ -36,7 +36,7 @@ class TransactionGenerator:
                 bytes.fromhex(item["key"]))
             self.accounts.append(account)
 
-    def generate(self, numTx, xShardPercent, tx: Transaction):
+    def generate(self, numTx, x_shard_percent, tx: Transaction):
         """Generate a bunch of transactions in the network
         The total number of transactions generated each time
         """
@@ -49,12 +49,12 @@ class TransactionGenerator:
             return False
 
         self.running = True
-        asyncio.ensure_future(self.__gen(numTx, xShardPercent, tx))
+        asyncio.ensure_future(self.__gen(numTx, x_shard_percent, tx))
         return True
 
-    async def __gen(self, numTx, xShardPercent, sampleTx: Transaction):
+    async def __gen(self, numTx, x_shard_percent, sampleTx: Transaction):
         Logger.info("[{}] start generating {} transactions with {}% cross-shard".format(
-            self.branch.get_shard_id(), numTx, xShardPercent
+            self.branch.get_shard_id(), numTx, x_shard_percent
         ))
         if numTx <= 0:
             return
@@ -65,7 +65,7 @@ class TransactionGenerator:
         for account in self.accounts:
             inShardAddress = Address(account.address.recipient, self.branch.get_shard_id())
             nonce = self.slaveServer.get_transaction_count(inShardAddress)
-            tx = self.create_transaction(account, nonce, xShardPercent, sampleEvmTx)
+            tx = self.create_transaction(account, nonce, x_shard_percent, sampleEvmTx)
             if not tx:
                 continue
             tx_list.append(tx)
@@ -84,7 +84,7 @@ class TransactionGenerator:
         ))
         self.running = False
 
-    def create_transaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
+    def create_transaction(self, account, nonce, x_shard_percent, sampleEvmTx) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
         shard_size = self.branch.get_shard_size()
         shard_mask = shard_size - 1
@@ -108,7 +108,7 @@ class TransactionGenerator:
             recipient = sampleEvmTx.to
             toFullShardId = fromFullShardId
 
-        if random.randint(1, 100) <= xShardPercent:
+        if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
             toShard = random.randint(0, config.SHARD_SIZE - 1)
             if toShard == self.branch.get_shard_id():
