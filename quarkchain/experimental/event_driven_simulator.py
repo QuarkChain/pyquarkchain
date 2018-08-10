@@ -5,7 +5,6 @@ import heap
 
 
 class Task:
-
     class State(enum.Enum):
         SCHEDULED = 0
         FINISHED = 1
@@ -20,17 +19,16 @@ class Task:
         self.state = Task.State.SCHEDULED
 
     def cancel(self):
-        assert(self.state == Task.State.SCHEDULED)
+        assert self.state == Task.State.SCHEDULED
         self.scheduler.cancel(self)
 
     def run(self):
-        assert(self.state == Task.State.SCHEDULED)
+        assert self.state == Task.State.SCHEDULED
         self.callback(self.ts, self.data)
         self.state = Task.State.FINISHED
 
 
 class Scheduler:
-
     def __init__(self):
         self.ts = 0
         self.pq = heap.Heap(lambda task1, task2: task1.ts - task2.ts)
@@ -48,18 +46,18 @@ class Scheduler:
         self.pq.pop(task)
 
     def terminate(self):
-        ''' Terminate the scheduler immediately
-        '''
+        """ Terminate the scheduler immediately
+        """
         self.terminated = True
 
     def stop(self):
-        ''' Stop the scheduler.  schedule_after() will return None thereafter.
-        '''
+        """ Stop the scheduler.  schedule_after() will return None thereafter.
+        """
         self.stopped = True
 
     def loop_until_no_task(self):
         while not self.pq.is_empty() and not self.terminated:
             task = self.pq.pop_top()
-            assert(task.ts >= self.ts)
+            assert task.ts >= self.ts
             self.ts = task.ts
             task.run()

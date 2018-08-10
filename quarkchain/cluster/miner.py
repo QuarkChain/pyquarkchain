@@ -11,7 +11,13 @@ from quarkchain.utils import Logger
 
 
 class Miner:
-    def __init__(self, create_block_async_func, add_block_async_func, get_target_block_time_func, simulate=True):
+    def __init__(
+        self,
+        create_block_async_func,
+        add_block_async_func,
+        get_target_block_time_func,
+        simulate=True,
+    ):
         """Mining will happen on a subprocess managed by this class
 
         create_block_async_func: takes no argument, returns a block (either RootBlock or MinorBlock)
@@ -53,7 +59,9 @@ class Miner:
         mine_func = Miner.simulate_mine if self.simulate else Miner.mine
         self.input = AioQueue()
         self.output = AioQueue()
-        self.process = AioProcess(target=mine_func, args=(block, target_block_time, self.input, self.output))
+        self.process = AioProcess(
+            target=mine_func, args=(block, target_block_time, self.input, self.output)
+        )
         self.process.start()
 
         asyncio.ensure_future(self.__handle_mined_block())
@@ -76,8 +84,15 @@ class Miner:
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
 
-        Logger.info("[{}] {} [{}] ({:.2f}) {}".format(
-            shard, block.header.height, count, elapsed, block.header.get_hash().hex()))
+        Logger.info(
+            "[{}] {} [{}] ({:.2f}) {}".format(
+                shard,
+                block.header.height,
+                count,
+                elapsed,
+                block.header.get_hash().hex(),
+            )
+        )
 
     @staticmethod
     def __check_metric(metric):
@@ -91,7 +106,10 @@ class Miner:
         """PoW"""
         while True:
             block.header.nonce += 1
-            metric = int.from_bytes(block.header.get_hash(), byteorder="big") * block.header.difficulty
+            metric = (
+                int.from_bytes(block.header.get_hash(), byteorder="big")
+                * block.header.difficulty
+            )
             if Miner.__check_metric(metric):
                 Miner.__log_status(block)
                 output.put(block)
@@ -111,23 +129,32 @@ class Miner:
             # Adjust the target block time to compensate computation time
             gas_used_ratio = block.meta.evm_gas_used / block.meta.evm_gas_limit
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
-            Logger.debug("[{}] target block time {:.2f}".format(
-                block.header.branch.get_shard_id(), target_block_time))
+            Logger.debug(
+                "[{}] target block time {:.2f}".format(
+                    block.header.branch.get_shard_id(), target_block_time
+                )
+            )
 
         return numpy.random.exponential(target_block_time)
 
     @staticmethod
     def simulate_mine(block, target_block_time, input, output):
         """Sleep until the target time"""
-        target_time = block.header.create_time + numpy.random.exponential(target_block_time)
+        target_time = block.header.create_time + numpy.random.exponential(
+            target_block_time
+        )
         while True:
             time.sleep(0.1)
             try:
-                block, target_block_time = input.get_nowait()  # raises if queue is empty
+                block, target_block_time = (
+                    input.get_nowait()
+                )  # raises if queue is empty
                 if not block:
                     output.put(None)
                     return
-                target_time = block.header.create_time + Miner.__get_block_time(block, target_block_time)
+                target_time = block.header.create_time + Miner.__get_block_time(
+                    block, target_block_time
+                )
             except Exception:
                 # got nothing from queue
                 pass
@@ -139,6 +166,6 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                target_time = block.header.create_time + Miner.__get_block_time(block, target_block_time)
-
-
+                target_time = block.header.create_time + Miner.__get_block_time(
+                    block, target_block_time
+                )

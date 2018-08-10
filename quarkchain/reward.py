@@ -1,7 +1,4 @@
-
-
 class ConstMinorBlockRewardCalcultor:
-
     def __init__(self, env):
         self.env = env
 

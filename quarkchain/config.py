@@ -16,7 +16,6 @@ class NetworkId:
 
 
 class DefaultConfig:
-
     def __init__(self):
         self.P2P_PROTOCOL_VERSION = 0
         self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
@@ -30,7 +29,7 @@ class DefaultConfig:
         self.DEVP2P_BOOTSTRAP_PORT = 29000
         self.DEVP2P_MIN_PEERS = 2
         self.DEVP2P_MAX_PEERS = 10
-        self.DEVP2P_ADDITIONAL_BOOTSTRAPS = ''
+        self.DEVP2P_ADDITIONAL_BOOTSTRAPS = ""
         self.LOCAL_SERVER_PORT = 38391  # TODO: cleanup
         self.LOCAL_SERVER_ENABLE = False  # TODO: cleanup
         self.PUBLIC_JSON_RPC_PORT = 38391
@@ -50,7 +49,10 @@ class DefaultConfig:
         # This means the network will fork permanently after a long partition
         self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
         self.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF = int(
-            self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * self.ROOT_BLOCK_INTERVAL_SEC / self.MINOR_BLOCK_INTERVAL_SEC)
+            self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+            * self.ROOT_BLOCK_INTERVAL_SEC
+            / self.MINOR_BLOCK_INTERVAL_SEC
+        )
 
         self.MAX_ROOT_BLOCK_IN_MEMORY = self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * 2
         self.MAX_MINOR_BLOCK_IN_MEMORY = self.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF * 2
@@ -60,25 +62,34 @@ class DefaultConfig:
         self.MINOR_BLOCK_DEFAULT_REWARD = 100 * self.QUARKSH_TO_JIAOZI
 
         # Distribute pre-mined quarkash into different shards for faster distribution
-        self.GENESIS_ACCOUNT = Address.create_from("199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3")
+        self.GENESIS_ACCOUNT = Address.create_from(
+            "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
+        )
         # The key is only here to sign artificial transactions for load test
-        self.GENESIS_KEY = bytes.fromhex("c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3")
+        self.GENESIS_KEY = bytes.fromhex(
+            "c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+        )
         self.GENESIS_COIN = 0
         self.GENESIS_MINOR_COIN = self.QUARKSH_TO_JIAOZI * (10 ** 10) // self.SHARD_SIZE
         self.GENESIS_DIFFICULTY = 1000000
-        self.GENESIS_MINOR_DIFFICULTY = \
-            self.GENESIS_DIFFICULTY * self.MINOR_BLOCK_INTERVAL_SEC // \
-            self.SHARD_SIZE // self.ROOT_BLOCK_INTERVAL_SEC
+        self.GENESIS_MINOR_DIFFICULTY = (
+            self.GENESIS_DIFFICULTY
+            * self.MINOR_BLOCK_INTERVAL_SEC
+            // self.SHARD_SIZE
+            // self.ROOT_BLOCK_INTERVAL_SEC
+        )
         # 2018/2/2 5 am 7 min 38 sec
         self.GENESIS_CREATE_TIME = 1519147489
         self.PROOF_OF_PROGRESS_BLOCKS = 1
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
-        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=45, diff_factor=2048,
-                                                            minimum_diff=self.GENESIS_DIFFICULTY)
-        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=9, diff_factor=2048,
-                                                             minimum_diff=self.GENESIS_MINOR_DIFFICULTY)
+        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=45, diff_factor=2048, minimum_diff=self.GENESIS_DIFFICULTY
+        )
+        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
+            cutoff=9, diff_factor=2048, minimum_diff=self.GENESIS_MINOR_DIFFICULTY
+        )
 
         self.NETWORK_ID = NetworkId.TESTNET_PORSCHE
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT
@@ -89,16 +100,37 @@ class DefaultConfig:
         self.BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
         # testnet config
-        self.ACCOUNTS_TO_FUND = [Address.create_from(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]) for item in ACCOUNTS_TO_FUND]
+        self.ACCOUNTS_TO_FUND = [
+            Address.create_from(
+                item["address"][:40]
+                + item["address"][0:2]
+                + item["address"][10:12]
+                + item["address"][20:22]
+                + item["address"][30:32]
+            )
+            for item in ACCOUNTS_TO_FUND
+        ]
         self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
-        self.LOADTEST_ACCOUNTS = [(Address.create_from(item["address"][:40] + item["address"][0:2] + item["address"][10:12] + item["address"][20:22] + item["address"][30:32]), bytes.fromhex(item["key"])) for item in LOADTEST_ACCOUNTS]
+        self.LOADTEST_ACCOUNTS = [
+            (
+                Address.create_from(
+                    item["address"][:40]
+                    + item["address"][0:2]
+                    + item["address"][10:12]
+                    + item["address"][20:22]
+                    + item["address"][30:32]
+                ),
+                bytes.fromhex(item["key"]),
+            )
+            for item in LOADTEST_ACCOUNTS
+        ]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
         # whether to index transaction by address
         self.ENABLE_TRANSACTION_HISTORY = True
 
     def set_shard_size(self, shard_size):
-        assert(is_p2(shard_size))
+        assert is_p2(shard_size)
         self.SHARD_SIZE = shard_size
         self.SHARD_SIZE_BITS = int_left_most_bit(shard_size) - 1
 
@@ -107,7 +139,6 @@ class DefaultConfig:
 
 
 class DefaultClusterConfig:
-
     def __init__(self):
         self.NODE_PORT = 38290
         # Empty means Master
@@ -127,7 +158,6 @@ def get_default_evm_config():
 
 
 class Env:
-
     def __init__(self, db=None, config=None, evm_config=None, cluster_config=None):
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
@@ -141,7 +171,12 @@ class Env:
         self.evm_config["NETWORK_ID"] = network_id
 
     def copy(self):
-        return Env(self.db, self.config.copy(), dict(self.evm_config), self.cluster_config.copy())
+        return Env(
+            self.db,
+            self.config.copy(),
+            dict(self.evm_config),
+            self.cluster_config.copy(),
+        )
 
 
 DEFAULT_ENV = Env()

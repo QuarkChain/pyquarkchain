@@ -12,37 +12,36 @@ class HelloCommand(Serializable):
         ("peer_id", hash256),
         ("peer_ip", uint128),
         ("peer_port", uint16),
-        ("shard_mask_list", PrependedSizeListSerializer(
-            4, uint32)),  # TODO create shard mask object
+        (
+            "shard_mask_list",
+            PrependedSizeListSerializer(4, uint32),
+        ),  # TODO create shard mask object
         ("root_block_header", RootBlockHeader),
     ]
 
-    def __init__(self,
-                 version,
-                 network_id,
-                 peer_id,
-                 peer_ip,
-                 peer_port,
-                 shard_mask_list,
-                 root_block_header):
-        fields = {k: v for k, v in locals().items() if k != 'self'}
+    def __init__(
+        self,
+        version,
+        network_id,
+        peer_id,
+        peer_ip,
+        peer_port,
+        shard_mask_list,
+        root_block_header,
+    ):
+        fields = {k: v for k, v in locals().items() if k != "self"}
         super(type(self), self).__init__(**fields)
 
 
 class GetPeerListRequest(Serializable):
-    FIELDS = [
-        ("max_peers", uint32),
-    ]
+    FIELDS = [("max_peers", uint32)]
 
     def __init__(self, max_peers):
         self.max_peers = max_peers
 
 
 class PeerInfo(Serializable):
-    FIELDS = [
-        ("ip", uint128),
-        ("port", uint16),
-    ]
+    FIELDS = [("ip", uint128), ("port", uint16)]
 
     def __init__(self, ip, port):
         self.ip = ip
@@ -50,19 +49,18 @@ class PeerInfo(Serializable):
 
 
 class GetPeerListResponse(Serializable):
-    FIELDS = [
-        ("peer_info_list", PrependedSizeListSerializer(4, PeerInfo))
-    ]
+    FIELDS = [("peer_info_list", PrependedSizeListSerializer(4, PeerInfo))]
 
     def __init__(self, peer_info_list=None):
         self.peer_info_list = peer_info_list if peer_info_list is not None else []
 
 
 class NewMinorBlockHeaderListCommand(Serializable):
-    '''RPC to inform peers about new root or minor blocks with the following constraints
+    """RPC to inform peers about new root or minor blocks with the following constraints
     - If the RPC is sent to root, then the minor block header list must be empty.
     - If the RPC is sent to a shard, then all minor block headers must be in the shard.
-    '''
+    """
+
     FIELDS = [
         ("root_block_header", RootBlockHeader),
         ("minor_block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
@@ -74,10 +72,9 @@ class NewMinorBlockHeaderListCommand(Serializable):
 
 
 class NewTransactionListCommand(Serializable):
-    ''' Broadcast transactions '''
-    FIELDS = [
-        ("transaction_list", PrependedSizeListSerializer(4, Transaction))
-    ]
+    """ Broadcast transactions """
+
+    FIELDS = [("transaction_list", PrependedSizeListSerializer(4, Transaction))]
 
     def __init__(self, transaction_list=None):
         self.transaction_list = transaction_list if transaction_list is not None else []
@@ -91,10 +88,11 @@ class Direction(IntEnum):
 class GetRootBlockHeaderListRequest(Serializable):
     """ Obtain block hashs in the active chain.
     """
+
     FIELDS = [
         ("block_hash", hash256),
         ("limit", uint32),
-        ("direction", uint8),       # 0 to genesis, 1 to tip
+        ("direction", uint8),  # 0 to genesis, 1 to tip
     ]
 
     def __init__(self, block_hash, limit, direction):
@@ -106,7 +104,7 @@ class GetRootBlockHeaderListRequest(Serializable):
 class GetRootBlockHeaderListResponse(Serializable):
     FIELDS = [
         ("root_tip", RootBlockHeader),
-        ("block_header_list", PrependedSizeListSerializer(4, RootBlockHeader))
+        ("block_header_list", PrependedSizeListSerializer(4, RootBlockHeader)),
     ]
 
     def __init__(self, root_tip, block_header_list):
@@ -115,41 +113,39 @@ class GetRootBlockHeaderListResponse(Serializable):
 
 
 class GetRootBlockListRequest(Serializable):
-    ''' RPC to get a root block list.  The RPC should be only fired by root chain
-    '''
-    FIELDS = [
-        ("root_block_hash_list", PrependedSizeListSerializer(4, hash256))
-    ]
+    """ RPC to get a root block list.  The RPC should be only fired by root chain
+    """
+
+    FIELDS = [("root_block_hash_list", PrependedSizeListSerializer(4, hash256))]
 
     def __init__(self, root_block_hash_list=None):
-        self.root_block_hash_list = root_block_hash_list if root_block_hash_list is not None else []
+        self.root_block_hash_list = (
+            root_block_hash_list if root_block_hash_list is not None else []
+        )
 
 
 class GetRootBlockListResponse(Serializable):
-    FIELDS = [
-        ("root_block_list", PrependedSizeListSerializer(4, RootBlock))
-    ]
+    FIELDS = [("root_block_list", PrependedSizeListSerializer(4, RootBlock))]
 
     def __init__(self, root_block_list=None):
         self.root_block_list = root_block_list if root_block_list is not None else []
 
 
 class GetMinorBlockListRequest(Serializable):
-    ''' RPCP to get a minor block list.  The RPC should be only fired by a shard, and
+    """ RPCP to get a minor block list.  The RPC should be only fired by a shard, and
     all minor blocks should be from the same shard.
-    '''
-    FIELDS = [
-        ("minor_block_hash_list", PrependedSizeListSerializer(4, hash256))
-    ]
+    """
+
+    FIELDS = [("minor_block_hash_list", PrependedSizeListSerializer(4, hash256))]
 
     def __init__(self, minor_block_hash_list=None):
-        self.minor_block_hash_list = minor_block_hash_list if minor_block_hash_list is not None else []
+        self.minor_block_hash_list = (
+            minor_block_hash_list if minor_block_hash_list is not None else []
+        )
 
 
 class GetMinorBlockListResponse(Serializable):
-    FIELDS = [
-        ("minor_block_list", PrependedSizeListSerializer(4, MinorBlock))
-    ]
+    FIELDS = [("minor_block_list", PrependedSizeListSerializer(4, MinorBlock))]
 
     def __init__(self, minor_block_list=None):
         self.minor_block_list = minor_block_list if minor_block_list is not None else []
@@ -158,11 +154,12 @@ class GetMinorBlockListResponse(Serializable):
 class GetMinorBlockHeaderListRequest(Serializable):
     """ Obtain block hashs in the active chain.
     """
+
     FIELDS = [
         ("block_hash", hash256),
         ("branch", Branch),
         ("limit", uint32),
-        ("direction", uint8),       # 0 to genesis, 1 to tip
+        ("direction", uint8),  # 0 to genesis, 1 to tip
     ]
 
     def __init__(self, block_hash, branch, limit, direction):
@@ -176,7 +173,7 @@ class GetMinorBlockHeaderListResponse(Serializable):
     FIELDS = [
         ("root_tip", RootBlockHeader),
         ("shard_tip", MinorBlockHeader),
-        ("block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader))
+        ("block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
     def __init__(self, root_tip, shard_tip, block_header_list):
@@ -185,7 +182,7 @@ class GetMinorBlockHeaderListResponse(Serializable):
         self.block_header_list = block_header_list
 
 
-class CommandOp():
+class CommandOp:
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
     NEW_TRANSACTION_LIST = 2

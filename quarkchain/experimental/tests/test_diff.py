@@ -5,7 +5,6 @@ import statistics as stat
 
 
 class Block:
-
     def __init__(self, n_time=0.0, required_diff=0.1):
         self.n_time = n_time
         self.required_diff = required_diff
@@ -18,29 +17,27 @@ class Block:
 
 
 class TestMADifficulty(unittest.TestCase):
-
     def test_none_sample(self):
         chain = [Block(0, 0.1)]
-        diff_calc = diff.MADifficultyCalculator(
-            ma_samples=2, target_interval_sec=5.0)
+        diff_calc = diff.MADifficultyCalculator(ma_samples=2, target_interval_sec=5.0)
         self.assertEqual(diff_calc.calculate_diff(chain), 0.1)
 
     def test_one_sample(self):
         chain = [Block(0, 0.1), Block(4.0, 0.1)]
-        diff_calc = diff.MADifficultyCalculator(
-            ma_samples=2, target_interval_sec=5.0)
+        diff_calc = diff.MADifficultyCalculator(ma_samples=2, target_interval_sec=5.0)
         self.assertEqual(diff_calc.calculate_diff(chain), 0.08)
 
     def test_two_sample(self):
         chain = [Block(0, 0.1), Block(4.0, 0.1), Block(10, 0.08)]
-        diff_calc = diff.MADifficultyCalculator(
-            ma_samples=2, target_interval_sec=5.0)
+        diff_calc = diff.MADifficultyCalculator(ma_samples=2, target_interval_sec=5.0)
         self.assertEqual(diff_calc.calculate_diff(chain), 1 / 11.25)
 
 
 def main():
     target_interval_sec = 5
-    diff_calc = diff.MADifficultyCalculator(ma_samples=32, target_interval_sec=target_interval_sec)
+    diff_calc = diff.MADifficultyCalculator(
+        ma_samples=32, target_interval_sec=target_interval_sec
+    )
     hash_power = 100
 
     cTime = 0.0
@@ -55,12 +52,21 @@ def main():
         used_time = block.n_time - chain[-1].n_time
         chain.append(block)
         usedTimeList.append(used_time)
-        print("Time %.2f, block %d, requiredWork %.2f, used_time %.2f" %
-              (block.n_time, i + 1, 1 / block.required_diff, used_time))
+        print(
+            "Time %.2f, block %d, requiredWork %.2f, used_time %.2f"
+            % (block.n_time, i + 1, 1 / block.required_diff, used_time)
+        )
 
-    print("Max: %.2f, min: %.2f, avg: %.2f, std: %.2f" % (max(usedTimeList), min(
-        usedTimeList), stat.mean(usedTimeList), stat.stdev(usedTimeList)))
+    print(
+        "Max: %.2f, min: %.2f, avg: %.2f, std: %.2f"
+        % (
+            max(usedTimeList),
+            min(usedTimeList),
+            stat.mean(usedTimeList),
+            stat.stdev(usedTimeList),
+        )
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -18,10 +18,10 @@ def int_left_most_bit(v):
 
 
 def masks_have_overlap(m1, m2):
-    '''
+    """
     0b101, 0b11 -> True
     0b101, 0b10 -> False
-    '''
+    """
     check(m1 > 0 and m2 > 0)
 
     i1 = int_left_most_bit(m1)
@@ -54,7 +54,7 @@ def check(condition):
 def crash():
     """ Crash python interpreter """
     p = ctypes.pointer(ctypes.c_char.from_address(5))
-    p[0] = b'x'
+    p[0] = b"x"
 
 
 def call_async(coro):
@@ -64,13 +64,13 @@ def call_async(coro):
 
 
 def assert_true_with_timeout(f, duration=1):
-        async def d():
-            deadline = time.time() + duration
-            while not f() and time.time() < deadline:
-                await asyncio.sleep(0.001)
-            assert(f())
+    async def d():
+        deadline = time.time() + duration
+        while not f() and time.time() < deadline:
+            await asyncio.sleep(0.001)
+        assert f()
 
-        asyncio.get_event_loop().run_until_complete(d())
+    asyncio.get_event_loop().run_until_complete(d())
 
 
 class Logger:
@@ -104,7 +104,10 @@ class Logger:
             return
         key = stack_list[-2]
 
-        if key not in cls.last_debug_time_map or time.time() - cls.last_debug_time_map[key] > duration:
+        if (
+            key not in cls.last_debug_time_map
+            or time.time() - cls.last_debug_time_map[key] > duration
+        ):
             Logger.debug(msg)
             cls.last_debug_time_map[key] = time.time()
 
@@ -120,7 +123,10 @@ class Logger:
             return
         key = stack_list[-2]
 
-        if key not in cls.last_info_time_map or time.time() - cls.last_info_time_map[key] > duration:
+        if (
+            key not in cls.last_info_time_map
+            or time.time() - cls.last_info_time_map[key] > duration
+        ):
             Logger.info(msg)
             cls.last_info_time_map[key] = time.time()
 
@@ -136,7 +142,10 @@ class Logger:
             return
         key = stack_list[-2]
 
-        if key not in cls.last_warning_time_map or time.time() - cls.last_warning_time_map[key] > duration:
+        if (
+            key not in cls.last_warning_time_map
+            or time.time() - cls.last_warning_time_map[key] > duration
+        ):
             Logger.warning(msg)
             cls.last_warning_time_map[key] = time.time()
 
@@ -152,7 +161,10 @@ class Logger:
             return
         key = stack_list[-2]
 
-        if key not in cls.last_error_time_map or time.time() - cls.last_error_time_map[key] > duration:
+        if (
+            key not in cls.last_error_time_map
+            or time.time() - cls.last_error_time_map[key] > duration
+        ):
             Logger.error(msg)
             cls.last_error_time_map[key] = time.time()
 
@@ -172,7 +184,10 @@ class Logger:
             return
         key = stack_list[-2]
 
-        if key not in cls.last_error_time_map or time.time() - cls.last_error_time_map[key] > duration:
+        if (
+            key not in cls.last_error_time_map
+            or time.time() - cls.last_error_time_map[key] > duration
+        ):
             cls.error_exception()
             cls.last_error_time_map[key] = time.time()
 
@@ -190,13 +205,13 @@ class Logger:
         Logger.fatal(traceback.format_exc())
 
 
-'''
+"""
 # Color reference
 BLACK, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE = range(8)
 RESET_SEQ = "\033[1;0m"
 COLOR_SEQ = "\033[1;3%dm"
 BOLD_SEQ = "\033[1m"
-'''
+"""
 
 
 def set_logging_level(level):
@@ -205,18 +220,29 @@ def set_logging_level(level):
         "INFO": logging.INFO,
         "WARNING": logging.WARNING,
         "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL
+        "CRITICAL": logging.CRITICAL,
     }
     level = level.upper()
     if level not in level_map:
         raise RuntimeError("invalid level {}".format(level))
 
-    logging.addLevelName(logging.DEBUG, "\033[1;33m%s\033[1;0m" % logging.getLevelName(logging.DEBUG))
-    logging.addLevelName(logging.WARNING, "\033[1;35m%s\033[1;0m" % logging.getLevelName(logging.WARNING))
-    logging.addLevelName(logging.ERROR, "\033[1;31m%s\033[1;0m" % logging.getLevelName(logging.ERROR))
-    logging.addLevelName(logging.CRITICAL, "\033[1;41m%s\033[1;0m" % logging.getLevelName(logging.CRITICAL))
+    logging.addLevelName(
+        logging.DEBUG, "\033[1;33m%s\033[1;0m" % logging.getLevelName(logging.DEBUG)
+    )
+    logging.addLevelName(
+        logging.WARNING, "\033[1;35m%s\033[1;0m" % logging.getLevelName(logging.WARNING)
+    )
+    logging.addLevelName(
+        logging.ERROR, "\033[1;31m%s\033[1;0m" % logging.getLevelName(logging.ERROR)
+    )
+    logging.addLevelName(
+        logging.CRITICAL,
+        "\033[1;41m%s\033[1;0m" % logging.getLevelName(logging.CRITICAL),
+    )
 
-    logging.basicConfig(format='%(asctime)s:%(levelname)s:%(message)s', level=level_map[level])
+    logging.basicConfig(
+        format="%(asctime)s:%(levelname)s:%(message)s", level=level_map[level]
+    )
 
 
 def main():
@@ -230,5 +256,5 @@ def main():
         time.sleep(0.1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

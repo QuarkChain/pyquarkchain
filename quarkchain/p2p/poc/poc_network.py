@@ -10,10 +10,15 @@ PORT = 55000
 
 
 async def run_app(bootstrap_port, node_port, node_num, min_peers, max_peers):
-    cmd = "python poc_app.py --bootstrap_port={} --node_port={} "\
-          "--node_num={} --min_peers={} --max_peers={}".format(
-              bootstrap_port, node_port, node_num, min_peers, max_peers)
-    return await asyncio.create_subprocess_exec(*cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    cmd = (
+        "python poc_app.py --bootstrap_port={} --node_port={} "
+        "--node_num={} --min_peers={} --max_peers={}".format(
+            bootstrap_port, node_port, node_num, min_peers, max_peers
+        )
+    )
+    return await asyncio.create_subprocess_exec(
+        *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
 
 
 async def print_output(prefix, stream):
@@ -25,7 +30,6 @@ async def print_output(prefix, stream):
 
 
 class Network:
-
     def __init__(self, config):
         self.config = config
         self.procs = []
@@ -46,7 +50,8 @@ class Network:
             node_port=app["node_port"],
             node_num=app["node_num"],
             min_peers=app["min_peers"],
-            max_peers=app["max_peers"])
+            max_peers=app["max_peers"],
+        )
         prefix = "APP_{}".format(app["id"])
         asyncio.ensure_future(print_output(prefix, s.stdout))
         self.procs.append((prefix, s))
@@ -57,14 +62,17 @@ class Network:
                 node_port=app["node_port"],
                 node_num=app["node_num"],
                 min_peers=app["min_peers"],
-                max_peers=app["max_peers"])
+                max_peers=app["max_peers"],
+            )
             prefix = "APP_{}".format(app["id"])
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
     async def run(self):
         await self.run_apps()
-        await asyncio.gather(*[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs])
+        await asyncio.gather(
+            *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
+        )
 
     async def shutdown(self):
         self.shutdown_called = True
@@ -91,28 +99,26 @@ def create_app_config(app_count, network_port_start, min_peers, max_peers):
     config = dict()
     config["apps"] = []
     for i in range(app_count):
-        config["apps"].append({
-            "id": "{:03}".format(i),
-            "bootstrap_port": network_port_start,  # use first host as bootstrap
-            "node_port": network_port_start + i,
-            "node_num": i,
-            "min_peers": min_peers,
-            "max_peers": max_peers,
-        })
+        config["apps"].append(
+            {
+                "id": "{:03}".format(i),
+                "bootstrap_port": network_port_start,  # use first host as bootstrap
+                "node_port": network_port_start + i,
+                "node_num": i,
+                "min_peers": min_peers,
+                "max_peers": max_peers,
+            }
+        )
 
     return config
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--num_apps", default=10, type=int)
-    parser.add_argument(
-        "--port_start", default=PORT, type=int)
-    parser.add_argument(
-        "--min_peers", default=2, type=int)
-    parser.add_argument(
-        "--max_peers", default=10, type=int)
+    parser.add_argument("--num_apps", default=10, type=int)
+    parser.add_argument("--port_start", default=PORT, type=int)
+    parser.add_argument("--min_peers", default=2, type=int)
+    parser.add_argument("--max_peers", default=10, type=int)
 
     args = parser.parse_args()
 
@@ -127,5 +133,5 @@ def main():
     network.start_and_loop()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -4,28 +4,31 @@ import copy
 import sha3
 
 # constants of ethash
-WORD_BYTES = 4                    # bytes in word
-DATASET_BYTES_INIT = 2**30        # bytes in dataset at genesis
-DATASET_BYTES_GROWTH = 2**23      # dataset growth per epoch
-CACHE_BYTES_INIT = 2**24          # bytes in cache at genesis
-CACHE_BYTES_GROWTH = 2**17        # cache growth per epoch
-CACHE_MULTIPLIER = 1024             # Size of the DAG relative to the cache
-EPOCH_LENGTH = 30000              # blocks per epoch
-MIX_BYTES = 128                   # width of mix
-HASH_BYTES = 64                   # hash length in bytes
-DATASET_PARENTS = 256             # number of parents of each dataset element
-CACHE_ROUNDS = 3                  # number of rounds in cache production
-ACCESSES = 64                     # number of accesses in hashimoto loop
+WORD_BYTES = 4  # bytes in word
+DATASET_BYTES_INIT = 2 ** 30  # bytes in dataset at genesis
+DATASET_BYTES_GROWTH = 2 ** 23  # dataset growth per epoch
+CACHE_BYTES_INIT = 2 ** 24  # bytes in cache at genesis
+CACHE_BYTES_GROWTH = 2 ** 17  # cache growth per epoch
+CACHE_MULTIPLIER = 1024  # Size of the DAG relative to the cache
+EPOCH_LENGTH = 30000  # blocks per epoch
+MIX_BYTES = 128  # width of mix
+HASH_BYTES = 64  # hash length in bytes
+DATASET_PARENTS = 256  # number of parents of each dataset element
+CACHE_ROUNDS = 3  # number of rounds in cache production
+ACCESSES = 64  # number of accesses in hashimoto loop
 
 # Assumes little endian bit ordering (same as Intel architectures)
 
 
 def serialize_hash(h):
-    return b''.join([x.to_bytes(4, byteorder='little') for x in h])
+    return b"".join([x.to_bytes(4, byteorder="little") for x in h])
 
 
 def deserialize_hash(h):
-    return [int.from_bytes(h[i:i + WORD_BYTES], byteorder='little') for i in range(0, len(h), WORD_BYTES)]
+    return [
+        int.from_bytes(h[i : i + WORD_BYTES], byteorder="little")
+        for i in range(0, len(h), WORD_BYTES)
+    ]
 
 
 def hash_words(h, sz, x):
@@ -36,7 +39,8 @@ def hash_words(h, sz, x):
 
 
 def serialize_cache(ds):
-    return ''.join([serialize_hash(h) for h in ds])
+    return "".join([serialize_hash(h) for h in ds])
+
 
 serialize_dataset = serialize_cache
 
@@ -56,7 +60,7 @@ def xor(a, b):
 
 
 def isprime(x):
-    for i in range(2, int(x**0.5) + 1):
+    for i in range(2, int(x ** 0.5) + 1):
         if x % i == 0:
             return False
     return True
@@ -71,8 +75,7 @@ def get_cache_size(block_number):
 
 
 def get_full_size(block_number):
-    sz = DATASET_BYTES_INIT + DATASET_BYTES_GROWTH * \
-        (block_number // EPOCH_LENGTH)
+    sz = DATASET_BYTES_INIT + DATASET_BYTES_GROWTH * (block_number // EPOCH_LENGTH)
     sz -= MIX_BYTES
     while not isprime(sz / MIX_BYTES):
         sz -= 2 * MIX_BYTES
@@ -95,11 +98,12 @@ def mkcache(cache_size, seed):
 
     return o
 
+
 FNV_PRIME = 0x01000193
 
 
 def fnv(v1, v2):
-    return ((v1 * FNV_PRIME) ^ v2) % 2**32
+    return ((v1 * FNV_PRIME) ^ v2) % 2 ** 32
 
 
 def calc_dataset_item(cache, i):
@@ -143,7 +147,7 @@ def hashimoto(header, nonce, full_size, dataset_lookup):
         cmix.append(fnv(fnv(fnv(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]))
     return {
         "mix digest": serialize_hash(cmix),
-        "result": serialize_hash(sha3_256(s + cmix))
+        "result": serialize_hash(sha3_256(s + cmix)),
     }
 
 
@@ -159,16 +163,17 @@ def hashimoto_full(full_size, dataset, header, nonce):
 
 
 def mine(full_size, dataset, header, difficulty):
-    target = zpad(encode_int(2**256 // difficulty), 64)[::-1]
+    target = zpad(encode_int(2 ** 256 // difficulty), 64)[::-1]
     from random import randint
-    nonce = randint(0, 2**64)
+
+    nonce = randint(0, 2 ** 64)
     while hashimoto_full(full_size, dataset, header, nonce) > target:
-        nonce = (nonce + 1) % 2**64
+        nonce = (nonce + 1) % 2 ** 64
     return nonce
 
 
 def get_seedhash(block):
-    s = '\x00' * 32
+    s = "\x00" * 32
     for i in range(block.number // EPOCH_LENGTH):
         s = serialize_hash(sha3_256(s))
     return s

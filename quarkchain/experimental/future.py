@@ -2,13 +2,16 @@
 
 import asyncio
 
+
 async def slow_operation(future):
     await asyncio.sleep(1)
-    future.set_result('Future is done')
+    future.set_result("Future is done")
+
 
 async def int_operation(future):
     await asyncio.sleep(0.5)
     future.cancel()
+
 
 async def next_operation():
     future = asyncio.Future()
@@ -16,6 +19,7 @@ async def next_operation():
     asyncio.run_coroutine_threadsafe(int_operation(future), asyncio.get_event_loop())
     await future
     print("Done")
+
 
 loop = asyncio.get_event_loop()
 

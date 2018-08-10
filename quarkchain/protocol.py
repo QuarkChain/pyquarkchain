@@ -8,13 +8,14 @@ ROOT_SHARD_ID = 0
 
 
 class ConnectionState(Enum):
-    CONNECTING = 0   # connecting before the Connection can be used
-    ACTIVE = 1       # the peer is active
-    CLOSED = 2       # the peer connection is closed
+    CONNECTING = 0  # connecting before the Connection can be used
+    ACTIVE = 1  # the peer is active
+    CLOSED = 2  # the peer connection is closed
 
 
 class Metadata(Serializable):
     """ Metadata contains the extra info that needs to be encoded in the RPC layer"""
+
     FIELDS = []
 
     def __init__(self):
@@ -35,7 +36,15 @@ class AbstractConnection:
         cls.conn_id += 1
         return cls.conn_id
 
-    def __init__(self, op_ser_map, op_non_rpc_map, op_rpc_map, loop=None, metadata_class=Metadata, name=None):
+    def __init__(
+        self,
+        op_ser_map,
+        op_non_rpc_map,
+        op_rpc_map,
+        loop=None,
+        metadata_class=Metadata,
+        name=None,
+    ):
         self.op_ser_map = op_ser_map
         self.op_non_rpc_map = op_non_rpc_map
         self.op_rpc_map = op_rpc_map
@@ -95,8 +104,7 @@ class AbstractConnection:
         rpc_future = asyncio.Future()
 
         if self.state != ConnectionState.ACTIVE:
-            rpc_future.set_exception(RuntimeError(
-                "Peer connection is not active"))
+            rpc_future.set_exception(RuntimeError("Peer connection is not active"))
             return rpc_future
 
         self.rpc_id += 1
@@ -133,7 +141,9 @@ class AbstractConnection:
 
         if op in self.op_non_rpc_map:
             if rpc_id != 0:
-                raise RuntimeError("{}: non-rpc command's id must be zero".format(self.name))
+                raise RuntimeError(
+                    "{}: non-rpc command's id must be zero".format(self.name)
+                )
             await self.__handle_request(op, cmd)
         elif op in self.op_rpc_map:
             # Check if it is a valid RPC request
@@ -143,7 +153,9 @@ class AbstractConnection:
         else:
             # Check if it is a valid RPC response
             if rpc_id not in self.rpc_future_map:
-                raise RuntimeError("{}: unexpected rpc response {}".format(self.name, rpc_id))
+                raise RuntimeError(
+                    "{}: unexpected rpc response {}".format(self.name, rpc_id)
+                )
             future = self.rpc_future_map[rpc_id]
             del self.rpc_future_map[rpc_id]
             future.set_result((op, cmd, rpc_id))
@@ -153,7 +165,9 @@ class AbstractConnection:
             await self.handle_metadata_and_raw_data(metadata, raw_data)
         except Exception as e:
             Logger.log_exception()
-            self.close_with_error("{}: error processing request: {}".format(self.name, e))
+            self.close_with_error(
+                "{}: error processing request: {}".format(self.name, e)
+            )
 
     async def loop_once(self):
         try:
@@ -167,7 +181,9 @@ class AbstractConnection:
             self.close_with_error("{}: error reading request: {}".format(self.name, e))
             return
 
-        asyncio.ensure_future(self.__internal_handle_metadata_and_raw_data(metadata, raw_data))
+        asyncio.ensure_future(
+            self.__internal_handle_metadata_and_raw_data(metadata, raw_data)
+        )
 
     async def active_and_loop_forever(self):
         if self.state == ConnectionState.CONNECTING:
@@ -176,7 +192,7 @@ class AbstractConnection:
         while self.state == ConnectionState.ACTIVE:
             await self.loop_once()
 
-        assert(self.state == ConnectionState.CLOSED)
+        assert self.state == ConnectionState.CLOSED
 
         # Abort all in-flight RPCs
         for rpc_id, future in self.rpc_future_map.items():
@@ -211,18 +227,21 @@ class Connection(AbstractConnection):
     """
 
     def __init__(
-            self,
-            env,
-            reader,
-            writer,
-            op_ser_map,
-            op_non_rpc_map,
-            op_rpc_map,
-            loop=None,
-            metadata_class=Metadata,
-            name=None):
+        self,
+        env,
+        reader,
+        writer,
+        op_ser_map,
+        op_non_rpc_map,
+        op_rpc_map,
+        loop=None,
+        metadata_class=Metadata,
+        name=None,
+    ):
         loop = loop if loop else asyncio.get_event_loop()
-        super().__init__(op_ser_map, op_non_rpc_map, op_rpc_map, loop, metadata_class, name=name)
+        super().__init__(
+            op_ser_map, op_non_rpc_map, op_rpc_map, loop, metadata_class, name=name
+        )
         self.env = env
         self.reader = reader
         self.writer = writer
