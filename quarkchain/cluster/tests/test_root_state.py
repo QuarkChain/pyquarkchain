@@ -208,20 +208,20 @@ class TestRootState(unittest.TestCase):
 
         # Check new difficulty
         rB0 = rState.create_block_to_mine(
-            mHeaderList=[b0.header, b1.header],
+            m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            createTime=rState.tip.createTime + 9)
+            create_time=rState.tip.createTime + 9)
         self.assertEqual(rState.tip.difficulty, rB0.header.difficulty)
         rB0 = rState.create_block_to_mine(
-            mHeaderList=[b0.header, b1.header],
+            m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            createTime=rState.tip.createTime + 3)
+            create_time=rState.tip.createTime + 3)
         self.assertEqual(rState.tip.difficulty + rState.tip.difficulty // 2048, rB0.header.difficulty)
 
         rB0 = rState.create_block_to_mine(
-            mHeaderList=[b0.header, b1.header],
+            m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            createTime=rState.tip.createTime + 26).finalize()
+            create_time=rState.tip.createTime + 26).finalize()
         self.assertEqual(rState.tip.difficulty - rState.tip.difficulty // 2048, rB0.header.difficulty)
 
         for i in range(0, 2 ** 32):
@@ -284,7 +284,7 @@ class TestRootState(unittest.TestCase):
         # fork is pruned from recovered state
         self.assertIsNone(recoveredState.db.get_root_block_by_hash(rB00.header.get_hash()))
         self.assertEqual(
-            recoveredState.db.get_root_block_by_hash(rB00.header.get_hash(), consistencyCheck=False),
+            recoveredState.db.get_root_block_by_hash(rB00.header.get_hash(), consistency_check=False),
             rB00)
 
     def test_add_root_block_with_minor_block_with_wrong_root_block_hash(self):
