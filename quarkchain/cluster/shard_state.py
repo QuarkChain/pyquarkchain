@@ -470,9 +470,9 @@ class ShardState:
         return EvmState(env=self.env.evmEnv, db=self.raw_db)
 
     def __create_genesis_blocks(self, shardId):
-        evm_list = create_genesis_evm_list(env=self.env, dbMap={self.shard_id: self.raw_db})
+        evm_list = create_genesis_evm_list(env=self.env, db_map={self.shard_id: self.raw_db})
         genesis_root_block0, genesis_root_block1, g_minor_block_list0, g_minor_block_list1 = create_genesis_blocks(
-            env=self.env, evmList=evm_list)
+            env=self.env, evm_list=evm_list)
 
         # Add x-shard list to db
         for m_block1, evm_state in zip(g_minor_block_list1, evm_list):

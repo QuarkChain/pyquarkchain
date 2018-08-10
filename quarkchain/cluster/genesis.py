@@ -23,13 +23,13 @@ from quarkchain.utils import sha3_256
 # This make sures that all hash pointers of m1 and r1 points to previous valid blocks.
 
 
-def create_genesis_minor_block(env, shardId, evmState):
-    ''' Create a genesis minor block that doesn't depend on any root block
-    '''
-    branch = Branch.create(env.config.SHARD_SIZE, shardId)
+def create_genesis_minor_block(env, shard_id, evm_state):
+    """ Create a genesis minor block that doesn't depend on any root block
+    """
+    branch = Branch.create(env.config.SHARD_SIZE, shard_id)
 
     meta = MinorBlockMeta(hashMerkleRoot=bytes(32),
-                          hashEvmStateRoot=evmState.trie.root_hash,
+                          hashEvmStateRoot=evm_state.trie.root_hash,
                           coinbaseAddress=env.config.GENESIS_ACCOUNT.address_in_branch(branch),
                           extraData=b'It was the best of times, it was the worst of times, ... - Charles Dickens')
     header = MinorBlockHeader(version=0,
@@ -47,69 +47,66 @@ def create_genesis_minor_block(env, shardId, evmState):
         txList=[])
 
 
-def create_genesis_root_block(env, minorBlockHeaderList=[]):
+def create_genesis_root_block(env, minor_block_header_list=[]):
     header = RootBlockHeader(version=0,
                              height=0,
                              shardInfo=ShardInfo.create(env.config.SHARD_SIZE),
                              hashPrevBlock=bytes(32),
-                             hashMerkleRoot=calculate_merkle_root(minorBlockHeaderList),
+                             hashMerkleRoot=calculate_merkle_root(minor_block_header_list),
                              createTime=env.config.GENESIS_CREATE_TIME,
                              difficulty=env.config.GENESIS_DIFFICULTY)
     block = RootBlock(
         header=header,
-        minorBlockHeaderList=minorBlockHeaderList)
+        minorBlockHeaderList=minor_block_header_list)
     return block
 
 
-def create_genesis_evm_list(env, dbMap=dict()):
-    ''' Create genesis evm state map.  Basically, it will load account balance from json file to pre-mine.
-    '''
-    evmList = []
-    for shardId in range(env.config.SHARD_SIZE):
-        evmState = EvmState(
+def create_genesis_evm_list(env, db_map=dict()):
+    """ Create genesis evm state map.  Basically, it will load account balance from json file to pre-mine.
+    """
+    evm_list = []
+    for shard_id in range(env.config.SHARD_SIZE):
+        evm_state = EvmState(
             env=env.evmEnv,
-            db=dbMap[shardId] if shardId in dbMap else InMemoryDb())
-        evmState.full_shard_id = env.config.GENESIS_ACCOUNT.fullShardId & (~(env.config.SHARD_SIZE - 1)) | shardId
-        evmState.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
+            db=db_map[shard_id] if shard_id in db_map else InMemoryDb())
+        evm_state.full_shard_id = env.config.GENESIS_ACCOUNT.fullShardId & (~(env.config.SHARD_SIZE - 1)) | shard_id
+        evm_state.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)
 
         if env.config.ACCOUNTS_TO_FUND:
             for address in env.config.ACCOUNTS_TO_FUND:
-                if address.get_shard_id(env.config.SHARD_SIZE) == shardId:
-                    evmState.full_shard_id = address.fullShardId
-                    evmState.delta_balance(address.recipient, env.config.ACCOUNTS_TO_FUND_COIN)
+                if address.get_shard_id(env.config.SHARD_SIZE) == shard_id:
+                    evm_state.full_shard_id = address.fullShardId
+                    evm_state.delta_balance(address.recipient, env.config.ACCOUNTS_TO_FUND_COIN)
 
-        evmState.commit()
-        evmList.append(evmState)
-    return evmList
+        evm_state.commit()
+        evm_list.append(evm_state)
+    return evm_list
 
 
-def create_genesis_blocks(env, evmList):
-    ''' Create genesis block with pre-defined evm states.
-    '''
+def create_genesis_blocks(env, evm_list):
+    """ Create genesis block with pre-defined evm states.
+    """
     # List of minor blocks with height 0
-    genesisMinorBlockList0 = []
+    genesis_minor_block_list0 = []
     for shardId in range(env.config.SHARD_SIZE):
-        genesisMinorBlockList0.append(
-            create_genesis_minor_block(
-                env=env,
-                shardId=shardId,
-                evmState=evmList[shardId]))
-    genesisRootBlock0 = create_genesis_root_block(env, [b.header for b in genesisMinorBlockList0])
+        genesis_minor_block_list0.append(
+            create_genesis_minor_block(env=env, shard_id=shardId, evm_state=evm_list[shardId]))
+    genesis_root_block0 = create_genesis_root_block(env, [b.header for b in genesis_minor_block_list0])
 
     # List of minor blocks with height 1
-    genesisMinorBlockList1 = []
-    for shardId, block in enumerate(genesisMinorBlockList0):
-        genesisMinorBlockList1.append(
+    genesis_minor_block_list1 = []
+    for shardId, block in enumerate(genesis_minor_block_list0):
+        genesis_minor_block_list1.append(
             block.create_block_to_append().finalize(
-                evmState=evmList[shardId],
-                hashPrevRootBlock=genesisRootBlock0.header.get_hash()))
+                evmState=evm_list[shardId],
+                hashPrevRootBlock=genesis_root_block0.header.get_hash()))
 
-    genesisRootBlock1 = genesisRootBlock0   \
+    genesis_root_block1 = genesis_root_block0   \
         .create_block_to_append()              \
-        .extend_minor_block_header_list([b.header for b in genesisMinorBlockList1]) \
+        .extend_minor_block_header_list([b.header for b in genesis_minor_block_list1]) \
         .finalize()
 
-    return genesisRootBlock0, genesisRootBlock1, genesisMinorBlockList0, genesisMinorBlockList1
+    return genesis_root_block0, genesis_root_block1, genesis_minor_block_list0, genesis_minor_block_list1
 
 
 def main():

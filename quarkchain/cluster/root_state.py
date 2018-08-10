@@ -155,7 +155,7 @@ class RootState:
     def __create_genesis_blocks(self):
         evm_list = create_genesis_evm_list(env=self.env)
         genesis_root_block0, genesis_root_block1, g_minor_block_list0, g_minor_block_list1 = create_genesis_blocks(
-            env=self.env, evmList=evm_list)
+            env=self.env, evm_list=evm_list)
 
         self.db.put_root_block(genesis_root_block0, [b.header for b in g_minor_block_list0])
         self.db.put_root_block_index(genesis_root_block0)
