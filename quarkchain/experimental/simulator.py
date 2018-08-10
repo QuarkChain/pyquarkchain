@@ -239,19 +239,19 @@ class MajorBlockChain:
 
         # May sure all hashs are unique
         hashSet = set()
-        for blockHash in majorBlock.minorBlockMap:
-            if blockHash in hashSet:
+        for block_hash in majorBlock.minorBlockMap:
+            if block_hash in hashSet:
                 return False
-            hashSet.add(blockHash)
+            hashSet.add(block_hash)
 
         # May sure local map contains all minor blocks (since we don't support
         # fork now)
-        for blockHash in majorBlock.minorBlockMap:
-            if blockHash not in self.pendingMinorBlockMap:
+        for block_hash in majorBlock.minorBlockMap:
+            if block_hash not in self.pendingMinorBlockMap:
                 return False
 
-        for blockHash in majorBlock.minorBlockMap:
-            self.pendingMinorBlockMap.pop(blockHash)
+        for block_hash in majorBlock.minorBlockMap:
+            self.pendingMinorBlockMap.pop(block_hash)
 
         self.blockMap[majorBlock.header.hash] = majorBlock
         self.bestChain.append(majorBlock)

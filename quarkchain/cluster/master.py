@@ -128,19 +128,19 @@ class SyncTask:
 
     async def __download_block_headers(self, block_hash):
         request = GetRootBlockHeaderListRequest(
-            blockHash=block_hash,
+            block_hash=block_hash,
             limit=100,
             direction=Direction.GENESIS,
         )
         op, resp, rpc_id = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request)
-        return resp.blockHeaderList
+        return resp.block_header_list
 
     async def __download_blocks(self, block_header_list):
         block_hash_list = [b.get_hash() for b in block_header_list]
         op, resp, rpc_id = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_LIST_REQUEST, GetRootBlockListRequest(block_hash_list))
-        return resp.rootBlockList
+        return resp.root_block_list
 
     async def __add_block(self, root_block):
         start = time.time()

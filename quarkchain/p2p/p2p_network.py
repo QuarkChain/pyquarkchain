@@ -248,7 +248,7 @@ class P2PNetwork:
         ))
         # 1. disconnect peers that are not in devp2p peer list
         to_be_disconnected = []
-        for peerId, peer in self.activePeerPool.items():
+        for peer_id, peer in self.activePeerPool.items():
             ip_port = '{}:{}'.format(peer.ip, peer.port)
             if ip_port not in peers:
                 to_be_disconnected.append(peer)
@@ -298,7 +298,7 @@ class P2PNetwork:
     def shutdown_peers(self):
         activePeerPool = self.activePeerPool
         self.activePeerPool = dict()
-        for peerId, peer in activePeerPool.items():
+        for peer_id, peer in activePeerPool.items():
             peer.close()
 
     def start_server(self):

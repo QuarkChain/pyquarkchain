@@ -130,20 +130,20 @@ class SyncTask:
 
     async def __download_block_headers(self, block_hash):
         request = GetMinorBlockHeaderListRequest(
-            blockHash=block_hash,
+            block_hash=block_hash,
             branch=self.shard_state.branch,
             limit=100,
             direction=Direction.GENESIS,
         )
         op, resp, rpc_id = await self.shard_conn.write_rpc_request(
             CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST, request)
-        return resp.blockHeaderList
+        return resp.block_header_list
 
     async def __download_blocks(self, block_header_list):
         block_hash_list = [b.get_hash() for b in block_header_list]
         op, resp, rpc_id = await self.shard_conn.write_rpc_request(
             CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(block_hash_list))
-        return resp.minorBlockList
+        return resp.minor_block_list
 
 
 class Synchronizer:
@@ -194,7 +194,7 @@ class ShardConnection(VirtualConnection):
         if request.direction != Direction.GENESIS:
             self.close_with_error("Bad direction")
 
-        block_hash = request.blockHash
+        block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
             header = self.shard_state.db.get_minor_block_header_by_hash(block_hash, consistency_check=False)
@@ -231,11 +231,11 @@ class ShardConnection(VirtualConnection):
 
         if self.best_root_block_header_observed:
             # check root header is not decreasing
-            if cmd.rootBlockHeader.height < self.best_root_block_header_observed.height:
+            if cmd.root_block_header.height < self.best_root_block_header_observed.height:
                 return self.close_with_error("best observed root header height is decreasing {} < {}".format(
-                    cmd.rootBlockHeader.height, self.best_root_block_header_observed.height))
-            if cmd.rootBlockHeader.height == self.best_root_block_header_observed.height:
-                if cmd.rootBlockHeader != self.best_root_block_header_observed:
+                    cmd.root_block_header.height, self.best_root_block_header_observed.height))
+            if cmd.root_block_header.height == self.best_root_block_header_observed.height:
+                if cmd.root_block_header != self.best_root_block_header_observed:
                     return self.close_with_error("best observed root header changed with same height {}".format(
                         self.best_root_block_header_observed.height))
 
@@ -244,7 +244,7 @@ class ShardConnection(VirtualConnection):
                     return self.close_with_error("best observed minor header is decreasing {} < {}".format(
                         m_header.height, self.best_minor_block_header_observed.height))
 
-        self.best_root_block_header_observed = cmd.rootBlockHeader
+        self.best_root_block_header_observed = cmd.root_block_header
         self.best_minor_block_header_observed = m_header
 
         # Do not download if the new header is not higher than the current tip
@@ -268,7 +268,7 @@ class ShardConnection(VirtualConnection):
             cmd=NewMinorBlockHeaderListCommand(self.shard_state.root_tip, [self.shard_state.header_tip]))
 
     async def handle_new_transaction_list_command(self, opCode, cmd, rpcId):
-        self.slave_server.add_tx_list(cmd.transactionList, self)
+        self.slave_server.add_tx_list(cmd.transaction_list, self)
 
     def broadcast_tx_list(self, tx_list):
         self.write_command(
@@ -618,7 +618,7 @@ class MasterConnection(ClusterConnection):
         async def __download_blocks(block_hash_list):
             op, resp, rpcId = await v_conn.write_rpc_request(
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(block_hash_list))
-            return resp.minorBlockList
+            return resp.minor_block_list
 
         if req.cluster_peer_id not in self.v_conn_map:
             return SyncMinorBlockListResponse(error_code=errno.EBADMSG)
@@ -1166,13 +1166,13 @@ class SlaveServer():
             ))
         return results
 
-    def get_minor_block_by_hash(self, blockHash, branch):
+    def get_minor_block_by_hash(self, block_hash, branch):
         if branch.value not in self.shard_state_map:
             return None
 
         shard_state = self.shard_state_map[branch.value]
         try:
-            return shard_state.db.get_minor_block_by_hash(blockHash, False)
+            return shard_state.db.get_minor_block_by_hash(block_hash, False)
         except Exception:
             return None
 

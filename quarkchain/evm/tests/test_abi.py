@@ -14,7 +14,7 @@ class TestTypedSignature(unittest.TestCase):
                         data=b'',
                         fromFullShardId=0xc47decfd,
                         toFullShardId=0xc49c1950,
-                        networkId=0x03)
+                        network_id=0x03)
 
 
     tx = [

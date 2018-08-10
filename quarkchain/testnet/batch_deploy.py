@@ -47,10 +47,10 @@ class Endpoint:
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["networkId"], 16)
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, data, networkId) -> EvmTransaction:
+def create_transaction(address, key, nonce, data, network_id) -> EvmTransaction:
     evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
@@ -60,16 +60,16 @@ def create_transaction(address, key, nonce, data, networkId) -> EvmTransaction:
         data=data,
         fromFullShardId=address.full_shard_id,
         toFullShardId=address.full_shard_id,
-        networkId=networkId,
+        network_id=network_id,
     )
     evm_tx.sign(key)
     return evm_tx
 
 
-async def deploy_shard(endpoint, genesisId, data, networkId, shard):
+async def deploy_shard(endpoint, genesisId, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, data, networkId)
+    tx = create_transaction(address, genesisId.get_key(), nonce, data, network_id)
     txId = await endpoint.send_transaction(tx)
     while True:
         print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
@@ -82,11 +82,11 @@ async def deploy_shard(endpoint, genesisId, data, networkId, shard):
 
 
 async def deploy(endpoint, genesisId, data):
-    networkId = await endpoint.get_network_id()
+    network_id = await endpoint.get_network_id()
     shard_size = await endpoint.get_shard_size()
     futures = []
     for i in range(shard_size):
-        futures.append(deploy_shard(endpoint, genesisId, data, networkId, i))
+        futures.append(deploy_shard(endpoint, genesisId, data, network_id, i))
 
     results = await asyncio.gather(*futures)
     print("\n\n")

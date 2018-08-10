@@ -60,7 +60,7 @@ class Transaction(rlp.Serializable):
         ('data', binary),
         ('fromFullShardId', BigEndianInt(4)),
         ('toFullShardId', BigEndianInt(4)),
-        ('networkId', big_endian_int),
+        ('network_id', big_endian_int),
         ('version', big_endian_int),
         ('v', big_endian_int),
         ('r', big_endian_int),
@@ -70,7 +70,7 @@ class Transaction(rlp.Serializable):
     _sender = None
 
     def __init__(self, nonce, gasprice, startgas, to, value, data,
-                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1, version=0):
+                 v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, network_id=1, version=0):
         self.data = None
         self.shard_size = 0
 
@@ -87,7 +87,7 @@ class Transaction(rlp.Serializable):
             data,
             fromFullShardId,
             toFullShardId,
-            networkId,
+            network_id,
             version,
             v,
             r,
@@ -116,10 +116,6 @@ class Transaction(rlp.Serializable):
                 self._sender = sha3_256(pub)[-20:]
         return self._sender
 
-    @property
-    def network_id(self):
-        return self.networkId
-
     @sender.setter
     def sender(self, value):
         self._sender = value
@@ -130,7 +126,7 @@ class Transaction(rlp.Serializable):
         A potentially already existing signature would be overridden.
         """
         if network_id is not None:
-            self.networkId = network_id
+            self.network_id = network_id
         key = normalize_key(key)
 
         self.v, self.r, self.s = ecsign(self.hash_unsigned, key)

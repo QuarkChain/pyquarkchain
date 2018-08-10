@@ -58,7 +58,7 @@ def tx_to_typed_data(rawTx):
       {
         "type": "uint256",
         "name": "networkId",
-        "value": "0x{}".format(int_to_bytes(rawTx.networkId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.network_id).hex())
       },
       {
         "type": "string",

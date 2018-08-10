@@ -25,9 +25,9 @@ class MinorBlock:
 
 
 class RootBlock:
-    def __init__(self, block_height, minorBlockList, miningTime, minedTime):
+    def __init__(self, block_height, minor_block_list, miningTime, minedTime):
         self.block_height = block_height
-        self.minorBlockList = minorBlockList
+        self.minor_block_list = minor_block_list
         self.miningTime = miningTime
         self.minedTime = minedTime
 
@@ -39,40 +39,40 @@ def get_next_interval(expectedInterval):
 class Simulator:
     def __init__(self, args):
         self.pendingMinorBlockQueue = deque()
-        self.minorBlockList = []
+        self.minor_block_list = []
         self.scheduler = Scheduler()
         self.args = args
 
         # Create genesis root blocks
-        self.rootBlockList = []
+        self.root_block_list = []
         for i in range(args.rprevious):
-            self.rootBlockList.append(
+            self.root_block_list.append(
                 RootBlock(
                     block_height=i,
-                    minorBlockList=[],
+                    minor_block_list=[],
                     miningTime=0,
                     minedTime=0))
 
         # Create genesis minor blocks
-        self.minorBlockList = []
+        self.minor_block_list = []
         for i in range(args.minor_genesis_epoch):
             for j in range(MINOR_BLOCK_PER_ROOT_BLOCK):
                 mBlock = MinorBlock(
-                    root_block=self.rootBlockList[i],
+                    root_block=self.root_block_list[i],
                     rootIndex=j,
                     block_height=i * MINOR_BLOCK_PER_ROOT_BLOCK + j,
                     minedTime=0)
-                self.minorBlockList.append(mBlock)
+                self.minor_block_list.append(mBlock)
                 self.pendingMinorBlockQueue.append(mBlock)
 
         self.rootBlockToMine = None
         self.minorBlockToMine = None
 
     def get_minor_block_tip(self):
-        return self.minorBlockList[-1]
+        return self.minor_block_list[-1]
 
     def get_root_block_tip(self):
-        return self.rootBlockList[-1]
+        return self.root_block_list[-1]
 
     def get_genesis_root_block_number(self):
         return self.args.rprevious
@@ -95,7 +95,7 @@ class Simulator:
         # Produce block in next epoch if a root block is available
         rootHeightToConfirm = tip.root_block.block_height + 1
         if rootHeightToConfirm <= self.get_root_block_tip().block_height:
-            root_block = self.rootBlockList[rootHeightToConfirm]
+            root_block = self.root_block_list[rootHeightToConfirm]
             check(ts == max(tip.minedTime, root_block.minedTime))
             return MinorBlock(
                 root_block=root_block,
@@ -117,7 +117,7 @@ class Simulator:
 
         self.rootBlockToMine = RootBlock(
             block_height=self.get_root_block_tip().block_height + 1,
-            minorBlockList=[],       # to be fill once mined
+            minor_block_list=[],       # to be fill once mined
             miningTime=ts,
             minedTime=None)
 
@@ -147,9 +147,9 @@ class Simulator:
             print("%0.2f: root_block %d mined with %d mblocks" % (ts, root_block.block_height, len(confirmedList)))
 
         # Add root block to chain
-        self.rootBlockToMine.minorBlockList = confirmedList
+        self.rootBlockToMine.minor_block_list = confirmedList
         self.rootBlockToMine.minedTime = ts
-        self.rootBlockList.append(self.rootBlockToMine)
+        self.root_block_list.append(self.rootBlockToMine)
         self.rootBlockToMine = None
 
         if root_block.block_height >= self.args.rblocks:
@@ -185,7 +185,7 @@ class Simulator:
 
         # Add mined minor block to pending queue and chain
         self.pendingMinorBlockQueue.append(self.minorBlockToMine)
-        self.minorBlockList.append(self.minorBlockToMine)
+        self.minor_block_list.append(self.minorBlockToMine)
         self.minorBlockToMine = None
 
         # Should restart root block mining, but actually it doesn't matter
@@ -220,24 +220,24 @@ def main():
     simulator.run()
 
     mBlockFreq = dict()
-    for rBlock in simulator.rootBlockList[args.rprevious:]:
-        mBlockFreq[len(rBlock.minorBlockList)] = mBlockFreq.get(len(rBlock.minorBlockList), 0) + 1
+    for rBlock in simulator.root_block_list[args.rprevious:]:
+        mBlockFreq[len(rBlock.minor_block_list)] = mBlockFreq.get(len(rBlock.minor_block_list), 0) + 1
     for key in mBlockFreq:
         print("%d: %d" % (key, mBlockFreq[key]))
 
     idleDuration = 0
-    for i in range(1, len(simulator.rootBlockList)):
-        rBlockPrevous = simulator.rootBlockList[i - 1]
-        rBlock = simulator.rootBlockList[i]
+    for i in range(1, len(simulator.root_block_list)):
+        rBlockPrevous = simulator.root_block_list[i - 1]
+        rBlock = simulator.root_block_list[i]
         idleDuration += rBlock.miningTime - rBlockPrevous.minedTime
     print("Seed: %d" % (args.seed))
     print("Duration: %0.2f, Root block mining idle duraiton: %0.2f, idle percentage: %0.2f%%" % (
-        simulator.rootBlockList[-1].minedTime,
+        simulator.root_block_list[-1].minedTime,
         idleDuration,
-        idleDuration / simulator.rootBlockList[-1].minedTime * 100))
+        idleDuration / simulator.root_block_list[-1].minedTime * 100))
     print("Minor block interval: %0.2f" % (
-        simulator.minorBlockList[-1].minedTime /
-        (simulator.minorBlockList[-1].block_height - simulator.get_genesis_minor_block_number())))
+        simulator.minor_block_list[-1].minedTime /
+        (simulator.minor_block_list[-1].block_height - simulator.get_genesis_minor_block_number())))
 
 
 if __name__ == '__main__':

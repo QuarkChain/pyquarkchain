@@ -55,10 +55,10 @@ class Endpoint:
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["networkId"], 16)
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransaction:
+def create_transaction(address, key, nonce, to, network_id, amount) -> EvmTransaction:
     evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
@@ -68,16 +68,16 @@ def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransac
         data=b"",
         fromFullShardId=address.full_shard_id,
         toFullShardId=to.full_shard_id,
-        networkId=networkId,
+        network_id=network_id,
     )
     evm_tx.sign(key)
     return evm_tx
 
 
-async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
+async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, to, networkId, amount)
+    tx = create_transaction(address, genesisId.get_key(), nonce, to, network_id, amount)
     txId = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
@@ -104,7 +104,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 
 
 async def fund(endpoint, genesisId, addrByAmount):
-    networkId = await endpoint.get_network_id()
+    network_id = await endpoint.get_network_id()
     shard_size = await endpoint.get_shard_size()
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
@@ -139,7 +139,7 @@ async def fund(endpoint, genesisId, addrByAmount):
                     continue
                 await asyncio.sleep(0.1)  # slight delay for each call
                 futures.append(
-                    fund_shard(endpoint, genesisId, to, networkId, shard, amount)
+                    fund_shard(endpoint, genesisId, to, network_id, shard, amount)
                 )
 
             results = await asyncio.gather(*futures)

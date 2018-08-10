@@ -304,10 +304,10 @@ class Endpoint:
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["networkId"], 16)
+        return int(resp["network_id"], 16)
 
 
-def create_transaction(address, key, nonce, to, data, networkId) -> EvmTransaction:
+def create_transaction(address, key, nonce, to, data, network_id) -> EvmTransaction:
     evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
@@ -317,16 +317,16 @@ def create_transaction(address, key, nonce, to, data, networkId) -> EvmTransacti
         data=data,
         fromFullShardId=address.full_shard_id,
         toFullShardId=to.full_shard_id,
-        networkId=networkId,
+        network_id=network_id,
     )
     evm_tx.sign(key)
     return evm_tx
 
 
-async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
+async def fund_shard(endpoint, genesisId, to, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
-    tx = create_transaction(address, genesisId.get_key(), nonce, to, data, networkId)
+    tx = create_transaction(address, genesisId.get_key(), nonce, to, data, network_id)
     txId = await endpoint.send_transaction(tx)
     while True:
         print("shard={} tx={} block=(pending)".format(shard, txId))
@@ -342,13 +342,13 @@ async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
 
 
 async def fund(endpoint, genesisId, data):
-    networkId = await endpoint.get_network_id()
+    network_id = await endpoint.get_network_id()
     shard_size = await endpoint.get_shard_size()
     futures = []
     for e in GAME_ADDRESSES:
         shard = e[0]
         to = Address.create_from(e[1][2:])
-        futures.append(fund_shard(endpoint, genesisId, to, data, networkId, shard))
+        futures.append(fund_shard(endpoint, genesisId, to, data, network_id, shard))
 
     results = await asyncio.gather(*futures)
     print("\n\n")

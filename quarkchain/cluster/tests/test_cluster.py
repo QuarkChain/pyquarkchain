@@ -185,21 +185,21 @@ class TestCluster(unittest.TestCase):
             clusters[1].peer.close()
 
             # add blocks in cluster 0
-            blockHeaderList = []
+            block_header_list = []
             for i in range(13):
                 shardState0 = clusters[0].slaveList[0].shard_state_map[0b10]
                 b1 = shardState0.get_tip().create_block_to_append()
                 b1.finalize(evm_state=shardState0.run_block(b1))
                 addResult = call_async(clusters[0].slaveList[0].add_block(b1))
                 self.assertTrue(addResult)
-                blockHeaderList.append(b1.header)
+                block_header_list.append(b1.header)
 
             shardState0 = clusters[0].slaveList[1].shard_state_map[0b11]
             b2 = shardState0.get_tip().create_block_to_append()
             b2.finalize(evm_state=shardState0.run_block(b2))
             addResult = call_async(clusters[0].slaveList[1].add_block(b2))
             self.assertTrue(addResult)
-            blockHeaderList.append(b2.header)
+            block_header_list.append(b2.header)
 
             # add 1 block in cluster 1
             shardState1 = clusters[1].slaveList[1].shard_state_map[0b11]
@@ -213,7 +213,7 @@ class TestCluster(unittest.TestCase):
             # reestablish cluster connection
             call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
 
-            rB1 = clusters[0].master.root_state.create_block_to_mine(blockHeaderList, acc1)
+            rB1 = clusters[0].master.root_state.create_block_to_mine(block_header_list, acc1)
             call_async(clusters[0].master.add_root_block(rB1))
 
             # Make sure the root block tip of local cluster is changed

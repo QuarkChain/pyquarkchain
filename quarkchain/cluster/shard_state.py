@@ -527,14 +527,14 @@ class ShardState:
             # have to create a new evm_tx as nonce is immutable
             evm_tx = EvmTransaction(
                 nonce, evm_tx.gasprice, evm_tx.startgas, evm_tx.to, evm_tx.value, evm_tx.data,
-                fromFullShardId=evm_tx.fromFullShardId, toFullShardId=evm_tx.toFullShardId, networkId=evm_tx.networkId)
+                fromFullShardId=evm_tx.fromFullShardId, toFullShardId=evm_tx.toFullShardId, network_id=evm_tx.network_id)
             evm_tx.sender = from_address.recipient
 
         evm_tx.set_shard_size(self.branch.get_shard_size())
 
-        if evm_tx.networkId != self.env.config.NETWORK_ID:
+        if evm_tx.network_id != self.env.config.NETWORK_ID:
             raise RuntimeError("evm tx network id mismatch. expect {} but got {}".format(
-                self.env.config.NETWORK_ID, evm_tx.networkId))
+                self.env.config.NETWORK_ID, evm_tx.network_id))
 
         if evm_tx.from_shard_id() != self.branch.get_shard_id():
             raise RuntimeError("evm tx from_shard_id mismatch. expect {} but got {}".format(
@@ -940,7 +940,7 @@ class ShardState:
                 data=b'',
                 fromFullShardId=from_full_shard_id,
                 toFullShardId=to_full_shard_id,
-                networkId=self.env.config.NETWORK_ID,
+                network_id=self.env.config.NETWORK_ID,
             )
             evm_tx.sign(key=self.env.config.GENESIS_KEY)
             evm_tx.set_shard_size(self.branch.get_shard_size())

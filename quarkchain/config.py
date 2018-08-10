@@ -136,9 +136,9 @@ class Env:
         self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
         self.clusterConfig = clusterConfig or DefaultClusterConfig()
 
-    def set_network_id(self, networkId):
-        self.config.NETWORK_ID = networkId
-        self.evmConfig["NETWORK_ID"] = networkId
+    def set_network_id(self, network_id):
+        self.config.NETWORK_ID = network_id
+        self.evmConfig["NETWORK_ID"] = network_id
 
     def copy(self):
         return Env(self.db, self.config.copy(), dict(self.evmConfig), self.clusterConfig.copy())

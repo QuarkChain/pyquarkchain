@@ -243,7 +243,7 @@ def tx_encoder(block, i):
         'gasPrice': quantity_encoder(evm_tx.gasprice),
         'gas': quantity_encoder(evm_tx.startgas),
         'data': data_encoder(evm_tx.data),
-        'networkId': quantity_encoder(evm_tx.networkId),
+        'network_id': quantity_encoder(evm_tx.network_id),
         'r': quantity_encoder(evm_tx.r),
         's': quantity_encoder(evm_tx.s),
         'v': quantity_encoder(evm_tx.v),
@@ -552,7 +552,7 @@ class JSONRPCServer:
             nonce, gasprice, startgas, to, value, data_,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
-            networkId=self.master.env.config.NETWORK_ID,
+            network_id=self.master.env.config.NETWORK_ID,
         )
 
         return {
@@ -565,7 +565,7 @@ class JSONRPCServer:
             'gasPrice': quantity_encoder(evm_tx.gasprice),
             'gas': quantity_encoder(evm_tx.startgas),
             'data': data_encoder(evm_tx.data),
-            'networkId': quantity_encoder(evm_tx.networkId),
+            'networkId': quantity_encoder(evm_tx.network_id),
         }
 
     @public_methods.add
@@ -587,7 +587,7 @@ class JSONRPCServer:
 
         toFullShardId = get_data_default("toFullShardId", full_shard_id_decoder, None)
         fromFullShardId = get_data_default("fromFullShardId", full_shard_id_decoder, None)
-        networkId = get_data_default("networkID", quantity_decoder, self.master.env.config.NETWORK_ID)
+        network_id = get_data_default("networkId", quantity_decoder, self.master.env.config.NETWORK_ID)
 
         if nonce is None:
             raise InvalidParams("Missing nonce")
@@ -603,7 +603,7 @@ class JSONRPCServer:
             nonce, gasprice, startgas, to, value, data_, v, r, s,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
-            networkId=networkId,
+            network_id=network_id,
         )
         tx = Transaction(code=Code.create_evm_code(evm_tx))
         success = await self.master.add_transaction(tx)
@@ -643,10 +643,10 @@ class JSONRPCServer:
     @decode_arg("blockId", id_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockById(self, blockId, includeTransactions=False):
-        blockHash, full_shard_id = blockId
+        block_hash, full_shard_id = blockId
         shard_size = self.master.get_shard_size()
         branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
-        block = await self.master.get_minor_block_by_hash(blockHash, branch)
+        block = await self.master.get_minor_block_by_hash(block_hash, branch)
         if not block:
             return None
         return minor_block_encoder(block, includeTransactions)
@@ -703,12 +703,12 @@ class JSONRPCServer:
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         senderAddress = Address.create_from(sender)
 
-        networkId = self.master.env.config.NETWORK_ID
+        network_id = self.master.env.config.NETWORK_ID
 
         nonce = 0  # slave will fill in the real nonce
         evm_tx = EvmTransaction(
             nonce, gas_price, gas, to[:20], value, data_,
-            fromFullShardId=senderAddress.full_shard_id, toFullShardId=toFullShardId, networkId=networkId)
+            fromFullShardId=senderAddress.full_shard_id, toFullShardId=toFullShardId, network_id=network_id)
 
         tx = Transaction(code=Code.create_evm_code(evm_tx))
         res = await self.master.execute_transaction(tx, senderAddress)
@@ -865,9 +865,9 @@ class JSONRPCServer:
     @private_methods.add
     async def getPeers(self):
         peerList = []
-        for peerId, peer in self.master.network.activePeerPool.items():
+        for peer_id, peer in self.master.network.activePeerPool.items():
             peerList.append({
-                "id": data_encoder(peerId),
+                "id": data_encoder(peer_id),
                 "ip": quantity_encoder(int(peer.ip)),
                 "port": quantity_encoder(peer.port),
             })

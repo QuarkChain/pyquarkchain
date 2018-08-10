@@ -13,7 +13,7 @@ from quarkchain.utils import Logger
 def random_full_shard_id(shard_size, shard_id):
     full_shard_id = random.randint(0, (2 ** 32) - 1)
     shard_mask = shard_size - 1
-    return full_shard_id & (~shardMask) | shard_id
+    return full_shard_id & (~shard_mask) | shard_id
 
 
 class Account:
@@ -128,6 +128,6 @@ class TransactionGenerator:
             data=sampleEvmTx.data,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
-            networkId=config.NETWORK_ID)
+            network_id=config.NETWORK_ID)
         evm_tx.sign(account.key)
         return Transaction(code=Code.create_evm_code(evm_tx))

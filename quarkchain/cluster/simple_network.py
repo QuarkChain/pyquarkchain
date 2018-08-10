@@ -36,12 +36,12 @@ class Peer(P2PConnection):
 
     def send_hello(self):
         cmd = HelloCommand(version=self.env.config.P2P_PROTOCOL_VERSION,
-                           networkId=self.env.config.NETWORK_ID,
-                           peerId=self.network.selfId,
-                           peerIp=int(self.network.ip),
-                           peerPort=self.network.port,
+                           network_id=self.env.config.NETWORK_ID,
+                           peer_id=self.network.selfId,
+                           peer_ip=int(self.network.ip),
+                           peer_port=self.network.port,
                            shard_mask_list=[],
-                           rootBlockHeader=self.rootState.tip)
+                           root_block_header=self.rootState.tip)
         # Send hello request
         self.write_command(CommandOp.HELLO, cmd)
 
@@ -65,23 +65,23 @@ class Peer(P2PConnection):
         if cmd.version != self.env.config.P2P_PROTOCOL_VERSION:
             return self.close_with_error("incompatible protocol version")
 
-        if cmd.networkId != self.env.config.NETWORK_ID:
+        if cmd.network_id != self.env.config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
 
-        self.id = cmd.peerId
+        self.id = cmd.peer_id
         self.shard_mask_list = cmd.shard_mask_list
-        self.ip = ipaddress.ip_address(cmd.peerIp)
-        self.port = cmd.peerPort
+        self.ip = ipaddress.ip_address(cmd.peer_ip)
+        self.port = cmd.peer_port
 
         Logger.info("Got HELLO from peer {} ({}:{})".format(self.id.hex(), self.ip, self.port))
 
         # Validate best root and minor blocks from peer
         # TODO: validate hash and difficulty through a helper function
-        if cmd.rootBlockHeader.shard_info.get_shard_size() != self.env.config.SHARD_SIZE:
+        if cmd.root_block_header.shard_info.get_shard_size() != self.env.config.SHARD_SIZE:
             return self.close_with_error(
                 "Shard size from root block header does not match local")
 
-        self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
+        self.bestRootBlockHeaderObserved = cmd.root_block_header
 
         if self.id == self.network.selfId:
             # connect to itself, stop it
@@ -143,11 +143,11 @@ class Peer(P2PConnection):
 
     async def handle_get_peer_list_request(self, request):
         resp = GetPeerListResponse()
-        for peerId, peer in self.network.activePeerPool.items():
+        for peer_id, peer in self.network.activePeerPool.items():
             if peer == self:
                 continue
-            resp.peerInfoList.append(PeerInfo(int(peer.ip), peer.port))
-            if len(resp.peerInfoList) >= request.maxPeers:
+            resp.peer_info_list.append(PeerInfo(int(peer.ip), peer.port))
+            if len(resp.peer_info_list) >= request.max_peers:
                 break
         return resp
 
@@ -171,19 +171,19 @@ class Peer(P2PConnection):
         if len(cmd.minor_block_header_list) != 0:
             return self.close_with_error("minor block header list must be empty")
 
-        if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
+        if cmd.root_block_header.height < self.bestRootBlockHeaderObserved.height:
             return self.close_with_error("root block height is decreasing {} < {}".format(
-                cmd.rootBlockHeader.height, self.bestRootBlockHeaderObserved.height))
-        if cmd.rootBlockHeader.height == self.bestRootBlockHeaderObserved.height:
-            if cmd.rootBlockHeader != self.bestRootBlockHeaderObserved:
+                cmd.root_block_header.height, self.bestRootBlockHeaderObserved.height))
+        if cmd.root_block_header.height == self.bestRootBlockHeaderObserved.height:
+            if cmd.root_block_header != self.bestRootBlockHeaderObserved:
                 return self.close_with_error("root block header changed with same height {}".format(
                     self.bestRootBlockHeaderObserved.height))
 
-        self.bestRootBlockHeaderObserved = cmd.rootBlockHeader
-        self.masterServer.handle_new_root_block_header(cmd.rootBlockHeader, self)
+        self.bestRootBlockHeaderObserved = cmd.root_block_header
+        self.masterServer.handle_new_root_block_header(cmd.root_block_header, self)
 
     async def handle_new_transaction_list(self, op, cmd, rpcId):
-        for tx in cmd.transactionList:
+        for tx in cmd.transaction_list:
             Logger.debug("Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex()))
             await self.masterServer.add_transaction(tx, self)
 
@@ -194,19 +194,19 @@ class Peer(P2PConnection):
         if request.direction != Direction.GENESIS:
             self.close_with_error("Bad direction")
 
-        blockHash = request.blockHash
+        block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.rootState.db.get_root_block_header_by_hash(blockHash, consistency_check=False)
+            header = self.rootState.db.get_root_block_header_by_hash(block_hash, consistency_check=False)
             header_list.append(header)
             if header.height == 0:
                 break
-            blockHash = header.hash_prev_block
+            block_hash = header.hash_prev_block
         return GetRootBlockHeaderListResponse(self.rootState.tip, header_list)
 
     async def handle_get_root_block_list_request(self, request):
         rBlockList = []
-        for h in request.rootBlockHashList:
+        for h in request.root_block_hash_list:
             rBlock = self.rootState.db.get_root_block_by_hash(h, consistency_check=False)
             if rBlock is None:
                 continue
@@ -304,8 +304,8 @@ class SimpleNetwork:
             Logger.logException()
             return
 
-        Logger.info("connecting {} peers ...".format(len(resp.peerInfoList)))
-        for peerInfo in resp.peerInfoList:
+        Logger.info("connecting {} peers ...".format(len(resp.peer_info_list)))
+        for peerInfo in resp.peer_info_list:
             asyncio.ensure_future(self.connect(
                 str(ipaddress.ip_address(peerInfo.ip)), peerInfo.port))
 
@@ -317,7 +317,7 @@ class SimpleNetwork:
     def shutdown_peers(self):
         activePeerPool = self.activePeerPool
         self.activePeerPool = dict()
-        for peerId, peer in activePeerPool.items():
+        for peer_id, peer in activePeerPool.items():
             peer.close()
 
     def start_server(self):

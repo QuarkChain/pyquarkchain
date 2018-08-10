@@ -22,11 +22,11 @@ def create_default_state(env):
 def add_minor_block_to_cluster(sStates, block):
     shard_id = block.header.branch.get_shard_id()
     sStates[shard_id].finalize_and_add_block(block)
-    blockHash = block.header.get_hash()
+    block_hash = block.header.get_hash()
     for i in range(block.header.branch.get_shard_size()):
         if i == shard_id:
             continue
-        sStates[i].add_cross_shard_tx_list_by_minor_block_hash(blockHash, CrossShardTransactionList(tx_list=[]))
+        sStates[i].add_cross_shard_tx_list_by_minor_block_hash(block_hash, CrossShardTransactionList(tx_list=[]))
 
 
 class TestRootState(unittest.TestCase):
