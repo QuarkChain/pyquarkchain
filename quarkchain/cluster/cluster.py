@@ -205,15 +205,15 @@ def main():
         filename = args.cluster_config
     else:
         config = create_cluster_config(
-            slaveCount=args.num_slaves,
+            slave_count=args.num_slaves,
             ip=IP,
-            p2pPort=args.p2p_port,
-            clusterPortStart=args.port_start,
-            jsonRpcPort=args.json_rpc_port,
-            jsonRpcPrivatePort=args.json_rpc_private_port,
-            seedHost=args.seed_host,
-            seedPort=args.seed_port,
-            dbPathRoot = args.db_path_root,
+            p2p_port=args.p2p_port,
+            cluster_port_start=args.port_start,
+            json_rpc_port=args.json_rpc_port,
+            json_rpc_private_port=args.json_rpc_private_port,
+            seed_host=args.seed_host,
+            seed_port=args.seed_port,
+            db_path_root = args.db_path_root,
             devp2p=args.devp2p,
             devp2p_ip=args.devp2p_ip,
             devp2p_port=args.devp2p_port,

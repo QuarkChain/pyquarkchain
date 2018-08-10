@@ -109,7 +109,7 @@ def get_next_port():
 
 
 def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account()):
-    seedPort = get_next_port()  # first cluster will listen on this port
+    seed_port = get_next_port()  # first cluster will listen on this port
     clusterList = []
     loop = asyncio.get_event_loop()
 
@@ -117,14 +117,14 @@ def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account
         env = get_test_env(genesisAccount, genesisMinorQuarkash=1000000)
 
         config = create_cluster_config(
-            slaveCount=env.config.SHARD_SIZE,
+            slave_count=env.config.SHARD_SIZE,
             ip="127.0.0.1",
-            p2pPort=0,
-            jsonRpcPort=0,
-            jsonRpcPrivatePort=0,
-            clusterPortStart=get_next_port(),
-            seedHost="",
-            seedPort=0,
+            p2p_port=0,
+            json_rpc_port=0,
+            json_rpc_private_port=0,
+            cluster_port_start=get_next_port(),
+            seed_host="",
+            seed_port=0,
             devp2p=False,
             devp2p_ip='',
             devp2p_port=29000,
@@ -149,8 +149,8 @@ def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account
             slaveServer.start()
             slaveServerList.append(slaveServer)
 
-        env.config.P2P_SERVER_PORT = seedPort if i == 0 else get_next_port()
-        env.config.P2P_SEED_PORT = seedPort
+        env.config.P2P_SERVER_PORT = seed_port if i == 0 else get_next_port()
+        env.config.P2P_SEED_PORT = seed_port
         env.clusterConfig.ID = 0
         env.clusterConfig.CONFIG = ClusterConfig(config)
 
@@ -165,7 +165,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account
         network = SimpleNetwork(env, masterServer)
         network.start_server()
         if i != 0:
-            peer = call_async(network.connect("127.0.0.1", seedPort))
+            peer = call_async(network.connect("127.0.0.1", seed_port))
         else:
             peer = None
 
