@@ -15,9 +15,8 @@ def get_output():
     from_id = Identity.create_random_identity()
     acc1 = Address.create_from_identity(from_id, 0)
     tx = Transaction(
-        [TransactionInput(bytes(32), 0)],
-        Code(),
-        [TransactionOutput(acc1, 0)])
+        [TransactionInput(bytes(32), 0)], Code(), [TransactionOutput(acc1, 0)]
+    )
     tx.sign([from_id.get_key()])
 
     for name, obj in size_list:
@@ -40,5 +39,5 @@ def main():
             sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

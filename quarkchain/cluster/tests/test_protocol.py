@@ -21,9 +21,7 @@ class AsyncMock(MagicMock):
 
 
 class DummyPackage(Serializable):
-    FIELDS = [
-        ("value", uint32),
-    ]
+    FIELDS = [("value", uint32)]
 
     def __init__(self, value):
         self.value = value
@@ -38,7 +36,6 @@ OP_RPC_MAP = {OP: (OP, handle_package)}
 
 
 class DummyP2PConnection(P2PConnection):
-
     def __init__(self, env, reader, writer):
         super().__init__(env, reader, writer, OP_SER_MAP, {}, OP_RPC_MAP)
         self.mockClusterConnection = MagicMock()
@@ -54,7 +51,6 @@ class DummyP2PConnection(P2PConnection):
 
 
 class DummyClusterConnection(ClusterConnection):
-
     def __init__(self, env, reader, writer):
         super().__init__(env, reader, writer, OP_SER_MAP, {}, OP_RPC_MAP)
         self.mockP2PConnection = MagicMock()
@@ -67,7 +63,6 @@ class DummyClusterConnection(ClusterConnection):
 
 
 class TestP2PConnection(unittest.TestCase):
-
     def test_forward(self):
         meta = P2PMetadata(FORWARD_BRANCH)
         metaBytes = meta.serialize()
@@ -87,7 +82,8 @@ class TestP2PConnection(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(conn.loop_once())
 
         conn.mockClusterConnection.write_raw_data.assert_called_once_with(
-            ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID), rawData)
+            ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID), rawData
+        )
 
     def test_no_forward(self):
         meta = P2PMetadata(EMPTY_BRANCH)
@@ -108,11 +104,12 @@ class TestP2PConnection(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(conn.loop_once())
 
         conn.mockClusterConnection.write_raw_data.assert_not_called()
-        writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
+        writer.write.assert_has_calls(
+            [call(requestSizeBytes), call(metaBytes), call(rawData)]
+        )
 
 
 class TestClusterConnection(unittest.TestCase):
-
     def test_forward(self):
         meta = ClusterMetadata(FORWARD_BRANCH, CLUSTER_PEER_ID)
         metaBytes = meta.serialize()
@@ -132,7 +129,8 @@ class TestClusterConnection(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(conn.loop_once())
 
         conn.mockP2PConnection.write_raw_data.assert_called_once_with(
-            P2PMetadata(FORWARD_BRANCH), rawData)
+            P2PMetadata(FORWARD_BRANCH), rawData
+        )
 
     def test_no_forward(self):
         meta = ClusterMetadata(EMPTY_BRANCH)
@@ -153,4 +151,6 @@ class TestClusterConnection(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(conn.loop_once())
 
         conn.mockP2PConnection.write_raw_data.assert_not_called()
-        writer.write.assert_has_calls([call(requestSizeBytes), call(metaBytes), call(rawData)])
+        writer.write.assert_has_calls(
+            [call(requestSizeBytes), call(metaBytes), call(rawData)]
+        )

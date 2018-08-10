@@ -7,7 +7,6 @@ import rocksdb
 
 
 class Db:
-
     def __getitem__(self, key):
         value = self.get(key)
         if value is None:
@@ -64,10 +63,9 @@ class PersistentDb(Db):
             self._destroy()
         pathlib.Path(self.db_path).mkdir(parents=True, exist_ok=True)
 
-
         options = rocksdb.Options()
         options.create_if_missing = True
-        options.max_open_files = 100000 # ubuntu 16.04 max files descriptors 524288
+        options.max_open_files = 100000  # ubuntu 16.04 max files descriptors 524288
         options.write_buffer_size = 128 * 1024 * 1024  # 128 MiB
         options.max_write_buffer_number = 3
         options.target_file_size_base = 67108864
@@ -85,7 +83,7 @@ class PersistentDb(Db):
 
     def multi_get(self, keys):
         keys = [k.encode() if not isinstance(k, bytes) else k for k in keys]
-        return self._db.multi_get(keys) # returns a dict with keys as keys
+        return self._db.multi_get(keys)  # returns a dict with keys as keys
 
     def put(self, key, value):
         key = key.encode() if not isinstance(key, bytes) else key

@@ -5,9 +5,7 @@ import random
 import unittest
 
 
-
 class TestItem:
-
     def __init__(self, value):
         self.value = value
         self.heap_index = 0
@@ -20,7 +18,6 @@ class TestItem:
 
 
 class TestHeap(unittest.TestCase):
-
     def test_heap_sort(self):
         N = 100
         data = [TestItem(i) for i in range(N)]

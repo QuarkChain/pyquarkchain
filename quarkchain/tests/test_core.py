@@ -10,7 +10,6 @@ from quarkchain.tests.test_utils import create_random_test_transaction
 
 
 class TestTransaction(unittest.TestCase):
-
     def test_transaction(self):
         id1 = Identity.create_random_identity()
         acc2 = Address.create_random_account()
@@ -27,7 +26,6 @@ class TestTransaction(unittest.TestCase):
 
 
 class TestBranch(unittest.TestCase):
-
     def test_branch(self):
         b = Branch.create(8, 6)
         self.assertEqual(b.get_shard_size(), 8)
@@ -35,7 +33,6 @@ class TestBranch(unittest.TestCase):
 
 
 class TestShardInfo(unittest.TestCase):
-
     def test_shard_info(self):
         info = ShardInfo.create(4, False)
         self.assertEqual(info.get_shard_size(), 4)
@@ -47,7 +44,6 @@ class TestShardInfo(unittest.TestCase):
 
 
 class TestIdentity(unittest.TestCase):
-
     def test_identity(self):
         id1 = Identity.create_random_identity()
         id2 = id1.create_from_key(id1.get_key())
@@ -56,7 +52,6 @@ class TestIdentity(unittest.TestCase):
 
 
 class TestShardMask(unittest.TestCase):
-
     def test_shard_mask(self):
         sm0 = ShardMask(0b1)
         self.assertTrue(sm0.contain_shard_id(0))
@@ -77,33 +72,22 @@ class TestShardMask(unittest.TestCase):
 
     def test_shard_mask_iterate(self):
         sm0 = ShardMask(0b11)
-        self.assertEqual(
-            sorted(l for l in sm0.iterate(4)),
-            [1, 0b11])
-        self.assertEqual(
-            sorted(l for l in sm0.iterate(8)),
-            [1, 0b11, 0b101, 0b111])
+        self.assertEqual(sorted(l for l in sm0.iterate(4)), [1, 0b11])
+        self.assertEqual(sorted(l for l in sm0.iterate(8)), [1, 0b11, 0b101, 0b111])
 
         sm1 = ShardMask(0b101)
-        self.assertEqual(
-            sorted(l for l in sm1.iterate(8)),
-            [1, 0b101])
-        self.assertEqual(
-            sorted(l for l in sm1.iterate(16)),
-            [1, 0b101, 0b1001, 0b1101])
+        self.assertEqual(sorted(l for l in sm1.iterate(8)), [1, 0b101])
+        self.assertEqual(sorted(l for l in sm1.iterate(16)), [1, 0b101, 0b1001, 0b1101])
 
 
 class Uint32Optional(Serializable):
-    FIELDS = [
-        ("value", Optional(uint32)),
-    ]
+    FIELDS = [("value", Optional(uint32))]
 
     def __init__(self, value):
         self.value = value
 
 
 class TestOptional(unittest.TestCase):
-
     def test_optional(self):
         v = Uint32Optional(123)
         b = v.serialize()

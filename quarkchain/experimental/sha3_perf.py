@@ -30,10 +30,10 @@ def main():
     args = parser.parse_args()
 
     if args.profile:
-        profile.run('test_perf()')
+        profile.run("test_perf()")
     else:
         test_perf()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

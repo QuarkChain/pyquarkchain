@@ -2,7 +2,7 @@ from quarkchain.utils import check
 
 
 class EthDifficultyCalculator:
-    ''' Using metropolis or homestead algorithm (check_uncle=True or False)'''
+    """ Using metropolis or homestead algorithm (check_uncle=True or False)"""
 
     def __init__(self, cutoff, diff_factor, minimum_diff=1, check_uncle=False):
         self.cutoff = cutoff

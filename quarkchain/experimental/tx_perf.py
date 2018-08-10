@@ -44,7 +44,7 @@ def test_perf():
     print("Verifying transactions")
     start_time = time.time()
     for i in range(N):
-        assert(tx_list[i].verify_signature([rec_list[i]]))
+        assert tx_list[i].verify_signature([rec_list[i]])
     duration = time.time() - start_time
     print("Verifications PS: %.2f" % (N / duration))
 
@@ -74,12 +74,12 @@ def test_perf_evm():
             startgas=2,
             to=to_addr.recipient,
             value=3,
-            data=b'',
+            data=b"",
             from_full_shard_id=0,
             to_full_shard_id=0,
-            network_id=1)
-        evm_tx.sign(
-            key=from_id.get_key())
+            network_id=1,
+        )
+        evm_tx.sign(key=from_id.get_key())
         tx_list.append(evm_tx)
         from_list.append(from_id.get_recipient())
     duration = time.time() - start_time
@@ -89,7 +89,7 @@ def test_perf_evm():
     start_time = time.time()
     for i in range(N):
         tx_list[i]._sender = None
-        assert(tx_list[i].sender == from_list[i])
+        assert tx_list[i].sender == from_list[i]
     duration = time.time() - start_time
     print("Verifications PS: %.2f" % (N / duration))
 
@@ -101,7 +101,7 @@ def main():
     args = parser.parse_args()
 
     if args.profile:
-        profile.run('test_perf()')
+        profile.run("test_perf()")
     else:
         if args.evm:
             test_perf_evm()
@@ -109,5 +109,5 @@ def main():
             test_perf()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

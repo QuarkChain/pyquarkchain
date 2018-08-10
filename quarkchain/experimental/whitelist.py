@@ -2,7 +2,6 @@ import random
 
 
 class Candidate:
-
     def __init__(self, key, score):
         self.key = key
         self.score = score
@@ -26,7 +25,9 @@ def get_whitelist(candidate_list, n, seed):
 
 def generate_person_list(n, seed):
     random.seed(seed)
-    return [Candidate(key=random.random(), score=random.randint(1, 100)) for i in range(n)]
+    return [
+        Candidate(key=random.random(), score=random.randint(1, 100)) for i in range(n)
+    ]
 
 
 candidate_list = generate_person_list(100, 123)

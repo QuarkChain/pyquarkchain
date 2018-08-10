@@ -6,14 +6,13 @@
 
 
 class Heap:
-
     def __init__(self, cmp):
         self.heap = []
         self.heap_size = 0
         self.cmp = cmp
 
     def __assert_item(self, item):
-        assert(self.heap[item.heap_index] == item)
+        assert self.heap[item.heap_index] == item
 
     def __swap(self, item1, item2):
         self.__assert_item(item1)
@@ -25,7 +24,7 @@ class Heap:
         item2.heap_index = tmp
 
     def __get_parent(self, item):
-        assert(item.heap_index != 0)
+        assert item.heap_index != 0
         return self.heap[(item.heap_index - 1) // 2]
 
     def __get_left_child(self, item):
@@ -41,7 +40,7 @@ class Heap:
         return self.heap[index]
 
     def __sift_up(self, item):
-        assert(self.heap[item.heap_index] == item)
+        assert self.heap[item.heap_index] == item
         while item.heap_index != 0:
             parent = self.__get_parent(item)
             if self.cmp(parent, item) <= 0:
@@ -94,7 +93,7 @@ class Heap:
         return self.heap_size == 0
 
     def __str__(self):
-        return str(self.heap[:self.heap_size])
+        return str(self.heap[: self.heap_size])
 
     # self check, used for testing only
     def check_integrity(self):

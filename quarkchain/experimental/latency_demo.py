@@ -38,6 +38,7 @@ import proof_of_work
 class Block:
     """ Immutable block
     """
+
     block_id = 0
 
     def __init__(self, height, owner):
@@ -78,7 +79,8 @@ class Network:
                 continue
 
             self.scheduler.schedule_after(
-                self.latency, peer.rpc_handle_receive_block, block_data)
+                self.latency, peer.rpc_handle_receive_block, block_data
+            )
 
 
 class Miner:
@@ -107,8 +109,10 @@ class Miner:
         block, chain = block_data
 
         if args.verbose >= 1:
-            print("%.2f, Node %d: Receive block height %d" %
-                  (ts, self.miner_id, block.height))
+            print(
+                "%.2f, Node %d: Receive block height %d"
+                % (ts, self.miner_id, block.height)
+            )
 
         # Local chain is longer, skip the RPC
         if self.chain[-1].height >= block.height:
@@ -128,8 +132,10 @@ class Miner:
             waste_block += 1
 
         if args.verbose >= 1:
-            print("%.2f, Node %d: Fork resolve, wasted block %d" %
-                  (ts, self.miner_id, waste_block))
+            print(
+                "%.2f, Node %d: Fork resolve, wasted block %d"
+                % (ts, self.miner_id, waste_block)
+            )
         self.wasted_blocks += waste_block
 
         self.check_chain_integrity()
@@ -145,8 +151,10 @@ class Miner:
     def mined(self, ts, block):
         global args
         if args.verbose >= 1:
-            print("%.2f, Node %d: Mined block height %d" %
-                  (ts, self.miner_id, block.height))
+            print(
+                "%.2f, Node %d: Mined block height %d"
+                % (ts, self.miner_id, block.height)
+            )
         self.chain.append(block)
         self.network.broadcast_new_block(self, (block, self.chain))
         self.mine_next()
@@ -157,12 +165,11 @@ class Miner:
 
         block = self.get_block_to_mine()
         time_to_mine = self.pow.mine(self.diff_calc.calculate_diff(self.chain))
-        self.mine_task = self.scheduler.schedule_after(
-            time_to_mine, self.mined, block)
+        self.mine_task = self.scheduler.schedule_after(time_to_mine, self.mined, block)
 
     def check_chain_integrity(self):
         for i in range(len(self.chain)):
-            assert(self.chain[i].height == i)
+            assert self.chain[i].height == i
 
 
 args = None
@@ -184,10 +191,8 @@ def main():
     scheduler = simulator.Scheduler()
     network = Network(scheduler, args.latency)
 
-    m1 = Miner(network, args.miner1_hash_power,
-               scheduler, args.nblocks, diff_calc)
-    m2 = Miner(network, args.miner2_hash_power,
-               scheduler, args.nblocks, diff_calc)
+    m1 = Miner(network, args.miner1_hash_power, scheduler, args.nblocks, diff_calc)
+    m2 = Miner(network, args.miner2_hash_power, scheduler, args.nblocks, diff_calc)
 
     network.add_node(m1)
     network.add_node(m2)
@@ -209,11 +214,15 @@ def main():
         if m1.chain[i] == m2.chain[i]:
             agree_blocks += 1
 
-    print("Miner1 reward %d, Miner2 reward %d, ratio %.2f, agree %.2f%%" %
-          (r1, r2, r1 / r2, agree_blocks / args.nblocks * 100))
-    print("Miner1 stale blocks %d, Miner2 stale blocks %d" %
-          (m1.wasted_blocks, m2.wasted_blocks))
+    print(
+        "Miner1 reward %d, Miner2 reward %d, ratio %.2f, agree %.2f%%"
+        % (r1, r2, r1 / r2, agree_blocks / args.nblocks * 100)
+    )
+    print(
+        "Miner1 stale blocks %d, Miner2 stale blocks %d"
+        % (m1.wasted_blocks, m2.wasted_blocks)
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

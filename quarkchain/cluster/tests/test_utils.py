@@ -15,10 +15,11 @@ from quarkchain.utils import call_async, check
 
 
 def get_test_env(
-        genesis_account=Address.create_empty_account(),
-        genesis_quarkash=0,
-        genesis_minor_quarkash=0,
-        shard_size=2):
+    genesis_account=Address.create_empty_account(),
+    genesis_quarkash=0,
+    genesis_minor_quarkash=0,
+    shard_size=2,
+):
     env = DEFAULT_ENV.copy()
     env.config.set_shard_size(shard_size)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
@@ -38,57 +39,56 @@ def get_test_env(
 
 
 def create_transfer_transaction(
-        shard_state,
-        key,
-        from_address,
-        to_address,
-        value,
-        gas=21000,     # transfer tx min gas
-        gas_price=1,
-        nonce=None,
+    shard_state,
+    key,
+    from_address,
+    to_address,
+    value,
+    gas=21000,  # transfer tx min gas
+    gas_price=1,
+    nonce=None,
 ):
     """ Create an in-shard xfer tx
     """
     evm_tx = EvmTransaction(
-        nonce=shard_state.get_transaction_count(from_address.recipient) if nonce is None else nonce,
+        nonce=shard_state.get_transaction_count(from_address.recipient)
+        if nonce is None
+        else nonce,
         gasprice=gas_price,
         startgas=gas,
         to=to_address.recipient,
         value=value,
-        data=b'',
+        data=b"",
         from_full_shard_id=from_address.full_shard_id,
         to_full_shard_id=to_address.full_shard_id,
         network_id=shard_state.env.config.NETWORK_ID,
     )
     evm_tx.sign(key=key)
-    return Transaction(
-        in_list=[],
-        code=Code.create_evm_code(evm_tx),
-        out_list=[])
+    return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
 
 
-def create_contract_creation_transaction(shard_state, key, from_address, to_full_shard_id):
+def create_contract_creation_transaction(
+    shard_state, key, from_address, to_full_shard_id
+):
     evm_tx = EvmTransaction(
         nonce=shard_state.get_transaction_count(from_address.recipient),
         gasprice=1,
         startgas=1000000,
         value=0,
-        to=b'',
+        to=b"",
         # a contract creation payload
-        data=bytes.fromhex("608060405234801561001057600080fd5b5061013f806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063942ae0a714610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60606040805190810160405280600a81526020017f68656c6c6f576f726c64000000000000000000000000000000000000000000008152509050905600a165627a7a72305820a45303c36f37d87d8dd9005263bdf8484b19e86208e4f8ed476bf393ec06a6510029"),  # noqa
+        data=bytes.fromhex(
+            "608060405234801561001057600080fd5b5061013f806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063942ae0a714610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60606040805190810160405280600a81526020017f68656c6c6f576f726c64000000000000000000000000000000000000000000008152509050905600a165627a7a72305820a45303c36f37d87d8dd9005263bdf8484b19e86208e4f8ed476bf393ec06a6510029"
+        ),  # noqa
         from_full_shard_id=from_address.full_shard_id,
         to_full_shard_id=to_full_shard_id,
-        network_id=shard_state.env.config.NETWORK_ID
+        network_id=shard_state.env.config.NETWORK_ID,
     )
     evm_tx.sign(key)
-    return Transaction(
-        in_list=[],
-        code=Code.create_evm_code(evm_tx),
-        out_list=[])
+    return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
 
 
 class Cluster:
-
     def __init__(self, master, slave_list, network, peer):
         self.master = master
         self.slave_list = slave_list
@@ -126,13 +126,13 @@ def create_test_clusters(num_cluster, genesis_account=Address.create_empty_accou
             seed_host="",
             seed_port=0,
             devp2p=False,
-            devp2p_ip='',
+            devp2p_ip="",
             devp2p_port=29000,
-            devp2p_bootstrap_host='0.0.0.0',
+            devp2p_bootstrap_host="0.0.0.0",
             devp2p_bootstrap_port=29000,
             devp2p_min_peers=2,
             devp2p_max_peers=10,
-            devp2p_additional_bootstraps='',
+            devp2p_additional_bootstraps="",
         )
         for j in range(env.config.SHARD_SIZE):
             # skip the ones used by create_cluster_config
@@ -144,8 +144,12 @@ def create_test_clusters(num_cluster, genesis_account=Address.create_empty_accou
             slave_env.db = InMemoryDb()
             slave_env.cluster_config.ID = config["slaves"][slave]["id"]
             slave_env.cluster_config.NODE_PORT = config["slaves"][slave]["port"]
-            slave_env.cluster_config.SHARD_MASK_LIST = [ShardMask(v) for v in config["slaves"][slave]["shard_masks"]]
-            slave_server = SlaveServer(slave_env, name="cluster{}_slave{}".format(i, slave))
+            slave_env.cluster_config.SHARD_MASK_LIST = [
+                ShardMask(v) for v in config["slaves"][slave]["shard_masks"]
+            ]
+            slave_server = SlaveServer(
+                slave_env, name="cluster{}_slave{}".format(i, slave)
+            )
             slave_server.start()
             slave_server_list.append(slave_server)
 
@@ -199,7 +203,6 @@ def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
 
 
 class ClusterContext(ContextDecorator):
-
     def __init__(self, num_cluster, genesis_account=Address.create_empty_account()):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account

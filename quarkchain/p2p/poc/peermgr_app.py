@@ -8,12 +8,14 @@ from devp2p import app_helper
 import rlp
 from rlp.utils import encode_hex, decode_hex, is_integer
 import gevent
+
 try:
     import ethereum.slogging as slogging
-    slogging.configure(config_string=':info,p2p.protocol:info,p2p.peer:info')
+
+    slogging.configure(config_string=":info,p2p.protocol:info,p2p.peer:info")
 except:
     import devp2p.slogging as slogging
-log = slogging.get_logger('my_app')
+log = slogging.get_logger("my_app")
 
 """
 based on devp2p/examples/full_app.py
@@ -26,7 +28,7 @@ class ExampleProtocol(BaseProtocol):
     protocol_id = 1
     network_id = 0
     max_cmd_id = 1  # Actually max id is 0, but 0 is the special value.
-    name = b'example'
+    name = b"example"
     version = 1
 
     def __init__(self, peer, service):
@@ -38,46 +40,57 @@ class ExampleProtocol(BaseProtocol):
 class ExampleService(WiredService):
 
     # required by BaseService
-    name = 'exampleservice'
+    name = "exampleservice"
     default_config = dict(example=dict(num_participants=1))
 
     # required by WiredService
     wire_protocol = ExampleProtocol  # create for each peer
 
     def __init__(self, app):
-        log.info('ExampleService init')
+        log.info("ExampleService init")
         self.config = app.config
-        self.address = privtopub_raw(decode_hex(
-            self.config['node']['privkey_hex']))
+        self.address = privtopub_raw(decode_hex(self.config["node"]["privkey_hex"]))
         super(ExampleService, self).__init__(app)
 
     def show_peers(self):
-        while(True):
+        while True:
             gevent.sleep(10)
-            log.warning("I am {} I have {} peers: {}".format(
-                self.app.config['discovery']['listen_port'],
-                self.app.services.peermanager.num_peers(),
-                list(map(lambda p: p.ip_port, self.app.services.peermanager.peers))
-            ))
+            log.warning(
+                "I am {} I have {} peers: {}".format(
+                    self.app.config["discovery"]["listen_port"],
+                    self.app.services.peermanager.num_peers(),
+                    list(map(lambda p: p.ip_port, self.app.services.peermanager.peers)),
+                )
+            )
 
     def start(self):
-        log.info('ExampleService start')
+        log.info("ExampleService start")
         super(ExampleService, self).start()
         gevent.spawn(self.show_peers)
 
 
 class ExampleApp(BaseApp):
-    client_name = 'exampleapp'
-    version = '0.1'
-    client_version = '%s/%s/%s' % (version, sys.platform,
-                                   'py%d.%d.%d' % sys.version_info[:3])
-    client_version_string = '%s/v%s' % (client_name, client_version)
+    client_name = "exampleapp"
+    version = "0.1"
+    client_version = "%s/%s/%s" % (
+        version,
+        sys.platform,
+        "py%d.%d.%d" % sys.version_info[:3],
+    )
+    client_version_string = "%s/v%s" % (client_name, client_version)
     default_config = dict(BaseApp.default_config)
-    default_config['client_version_string'] = client_version_string
-    default_config['post_app_start_callback'] = None
+    default_config["client_version_string"] = client_version_string
+    default_config["post_app_start_callback"] = None
 
 
-if __name__ == '__main__':
-    apps = app_helper.setup_apps(ExampleApp, ExampleService, num_nodes=10,
-                                 seed=0, min_peers=2, max_peers=10, random_port=False)
+if __name__ == "__main__":
+    apps = app_helper.setup_apps(
+        ExampleApp,
+        ExampleService,
+        num_nodes=10,
+        seed=0,
+        min_peers=2,
+        max_peers=10,
+        random_port=False,
+    )
     app_helper.serve_until_stopped(apps)

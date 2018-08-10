@@ -25,8 +25,10 @@ NODE_POWERFUL_MINER_SIZE = 2
 NODE_POWERFUL_MAJOR_MINER_SIZE = 0
 NODE_DEFAULT_HASH_POWER = 100
 NODE_POWERFUL_HASH_POWER = 10000
-TOTAL_HASH_POWER = NODE_POWERFUL_HASH_POWER * NODE_POWERFUL_MINER_SIZE + \
-    (NODE_SIZE - NODE_POWERFUL_MINER_SIZE) * NODE_DEFAULT_HASH_POWER
+TOTAL_HASH_POWER = (
+    NODE_POWERFUL_HASH_POWER * NODE_POWERFUL_MINER_SIZE
+    + (NODE_SIZE - NODE_POWERFUL_MINER_SIZE) * NODE_DEFAULT_HASH_POWER
+)
 
 SHARD_SIZE = 8
 MINOR_BLOCK_RATE_SEC = 10
@@ -42,17 +44,18 @@ class Transaction:
 
 
 class MinorBlockHeader:
-
-    def __init__(self,
-                 hash,
-                 n_branch,
-                 height,
-                 hash_prev_major_block=0,
-                 hash_prev_minor_block=0,
-                 hash_merkle_root=0,
-                 n_time=0,
-                 n_bits=0,
-                 n_nonce=0):
+    def __init__(
+        self,
+        hash,
+        n_branch,
+        height,
+        hash_prev_major_block=0,
+        hash_prev_minor_block=0,
+        hash_merkle_root=0,
+        n_time=0,
+        n_bits=0,
+        n_nonce=0,
+    ):
         self.n_branch = n_branch
         self.hash_prev_major_block = hash_prev_major_block
         self.hash_prev_minor_block = hash_prev_minor_block
@@ -78,7 +81,6 @@ class MinorBlockHeader:
 
 
 class MinorBlock:
-
     def __init__(self, header):
         self.header = header
 
@@ -99,17 +101,18 @@ class MinorBlock:
 
 
 class MajorBlockHeader:
-
-    def __init__(self,
-                 hash,
-                 n_shard,
-                 height,
-                 hash_prev_block=0,
-                 hash_merkle_root=0,
-                 hash_coinbase=0,
-                 n_time=0,
-                 n_bits=0,
-                 n_nonce=0):
+    def __init__(
+        self,
+        hash,
+        n_shard,
+        height,
+        hash_prev_block=0,
+        hash_merkle_root=0,
+        hash_coinbase=0,
+        n_time=0,
+        n_bits=0,
+        n_nonce=0,
+    ):
         self.hash = hash
         self.n_shard = n_shard
         self.hash_prev_block = hash_prev_block
@@ -120,7 +123,7 @@ class MajorBlockHeader:
         self.n_nonce = n_nonce
         self.diff = 1.0
         self.required_diff = 0.0
-        self.block_reward = MINOR_BLOCK_REWARD   # TODO
+        self.block_reward = MINOR_BLOCK_REWARD  # TODO
         self.height = height
 
     def meet_diff(self):
@@ -131,7 +134,6 @@ class MajorBlockHeader:
 
 
 class MajorBlock:
-
     def __init__(self, header, minor_block_map={}):
         self.header = header
         self.minor_block_map = minor_block_map
@@ -181,7 +183,6 @@ def create_genesis_minor_block(shard_size, shard_id, hash):
 
 
 class MinorBlockChain:
-
     def __init__(self, shard_size, shard_id, hash):
         self.shard_size = shard_size
         self.shard_id = shard_id
@@ -193,11 +194,11 @@ class MinorBlockChain:
             ma_samples=1440,
             bootstrap_samples=64,
             slide_size=1,
-            target_interval_sec=MINOR_BLOCK_RATE_SEC)
+            target_interval_sec=MINOR_BLOCK_RATE_SEC,
+        )
 
     def try_append_block(self, minor_block):
-        if minor_block.header.hash_prev_minor_block != \
-           self.best_chain[-1].header.hash:
+        if minor_block.header.hash_prev_minor_block != self.best_chain[-1].header.hash:
             return False
 
         self.block_map[minor_block.header.hash] = minor_block
@@ -209,13 +210,13 @@ class MinorBlockChain:
             hash=get_global_hash(),
             n_branch=self.shard_id,
             height=self.best_chain[-1].header.height + 1,
-            hash_prev_minor_block=self.best_chain[-1].get_hash())
+            hash_prev_minor_block=self.best_chain[-1].get_hash(),
+        )
         header.required_diff = self.diff_calc.calculate_diff(self.best_chain)
         return MinorBlock(header)
 
 
 class MajorBlockChain:
-
     def __init__(self, shard_size, hash):
         self.shard_size = shard_size
         self.genesis_block = create_genesis_major_block(shard_size, hash)
@@ -225,7 +226,8 @@ class MajorBlockChain:
             ma_samples=144,
             bootstrap_samples=64,
             slide_size=1,
-            target_interval_sec=MAJOR_BLOCK_RATE_SEC)
+            target_interval_sec=MAJOR_BLOCK_RATE_SEC,
+        )
         self.pending_minor_block_map = {}
 
     def add_minor_block_to_confirm(self, minor_block):
@@ -262,18 +264,18 @@ class MajorBlockChain:
             hash=get_global_hash(),
             n_shard=self.shard_size,
             height=self.best_chain[-1].header.height + 1,
-            hash_prev_block=self.best_chain[-1].get_hash())
+            hash_prev_block=self.best_chain[-1].get_hash(),
+        )
         header.required_diff = self.diff_calc.calculate_diff(self.best_chain)
         return MajorBlock(header, copy.copy(self.pending_minor_block_map))
 
 
 class DynamicChainSelector:
-
     def select(major_chain, minor_chain_list):
         # Find the most economical chain
         best_block = major_chain.get_block_to_mine()
         max_eco = best_block.get_mining_eco()
-        best_chain_id = 0     # Major is 0
+        best_chain_id = 0  # Major is 0
         max_dup_count = 1
         for chain_id, chain in enumerate(minor_chain_list):
             block = chain.get_block_to_mine()
@@ -308,7 +310,6 @@ class DynamicChainSelector:
 
 
 class FixChainSelector:
-
     def __init__(self, minor_chain_id):
         self.minor_chain_id = minor_chain_id
 
@@ -318,14 +319,13 @@ class FixChainSelector:
 
 
 class FixMajorChainSelector:
-
     def __init__(self):
         pass
 
     def select(self, major_chain, minor_chain_list):
         best_block = major_chain.get_block_to_mine()
         max_eco = best_block.get_mining_eco()
-        best_chain_id = 0     # Major is 0
+        best_chain_id = 0  # Major is 0
         return (best_chain_id, best_block, max_eco)
 
 
@@ -339,9 +339,8 @@ class Node:
         return cls.node_id
 
     def __init__(
-            self,
-            hash_power=NODE_DEFAULT_HASH_POWER,
-            chain_selector=DynamicChainSelector):
+        self, hash_power=NODE_DEFAULT_HASH_POWER, chain_selector=DynamicChainSelector
+    ):
         self.node_id = Node.get_next_node_id()
         self.peers = []
         self.major_chain = MajorBlockChain(SHARD_SIZE, 0)
@@ -359,7 +358,8 @@ class Node:
 
     async def mine_one_chain(self):
         best_chain_id, best_block, max_eco = self.chain_selector.select(
-            self.major_chain, self.minor_chain_list)
+            self.major_chain, self.minor_chain_list
+        )
 
         mine_time = self.pow.mine(best_block.get_required_diff())
         # print("Node %d mining on chain %d with height %d with work %.2f and used time %.2f" %
@@ -375,14 +375,25 @@ class Node:
         best_block.header.n_time = time.time()
         if best_chain_id == 0:
             if self.major_chain.try_append_block(best_block):
-                print("Node %d mined major block height %d, used time %.2f" %
-                      (self.node_id, best_block.header.height, mine_time))
+                print(
+                    "Node %d mined major block height %d, used time %.2f"
+                    % (self.node_id, best_block.header.height, mine_time)
+                )
                 self.broadcast_major_block(best_block)
                 self.rewards += best_block.header.block_reward
         else:
-            if self.minor_chain_list[best_block.get_shard_id()].try_append_block(best_block):
-                print("Node %d mined minor block height %d on minor chain %d, used time %.2f" %
-                      (self.node_id, best_block.header.height, best_block.get_shard_id(), mine_time))
+            if self.minor_chain_list[best_block.get_shard_id()].try_append_block(
+                best_block
+            ):
+                print(
+                    "Node %d mined minor block height %d on minor chain %d, used time %.2f"
+                    % (
+                        self.node_id,
+                        best_block.header.height,
+                        best_block.get_shard_id(),
+                        mine_time,
+                    )
+                )
                 self.major_chain.add_minor_block_to_confirm(best_block)
                 self.broadcast_minor_block(best_block)
                 self.rewards += best_block.header.block_reward
@@ -395,16 +406,20 @@ class Node:
         return self.peers
 
     def rpc_get_major_block(self, major_block):
-        assert(self.major_chain.try_append_block(major_block))
+        assert self.major_chain.try_append_block(major_block)
         if self.mine_chain_id == 0:
             self.mine_future.cancel()
 
     def rpc_get_minor_block(self, minor_block):
-        assert(self.minor_chain_list[
-               minor_block.get_shard_id()].try_append_block(minor_block))
+        assert self.minor_chain_list[minor_block.get_shard_id()].try_append_block(
+            minor_block
+        )
         self.major_chain.add_minor_block_to_confirm(minor_block)
         # TODO cancel mining on major if minor eco is smaller
-        if self.mine_chain_id - 1 == minor_block.get_shard_id() or self.mine_chain_id == 0:
+        if (
+            self.mine_chain_id - 1 == minor_block.get_shard_id()
+            or self.mine_chain_id == 0
+        ):
             self.mine_future.cancel()
 
     def broadcast_major_block(self, major_block):
@@ -433,24 +448,42 @@ async def stats_printer(node_list):
                 powerful_rewards += node.rewards
             else:
                 weak_rewards += node.rewards
-            print("Node %d, rewards %d, mining %d" % (node.node_id, node.rewards,
-                                                      node.mine_chain_id if hasattr(node, "mineChainId") else -1))
+            print(
+                "Node %d, rewards %d, mining %d"
+                % (
+                    node.node_id,
+                    node.rewards,
+                    node.mine_chain_id if hasattr(node, "mineChainId") else -1,
+                )
+            )
         if weak_rewards != 0:
-            print("Powerful/weak rewards ratio: %.2f" %
-                  (powerful_rewards / weak_rewards))
+            print(
+                "Powerful/weak rewards ratio: %.2f" % (powerful_rewards / weak_rewards)
+            )
         print("------------------------------------")
-        print("Major chain height %d, reward %d, work %.2f, blocks interval %.2f" % (
-            node.major_chain.best_chain[-1].header.height,
-            node.major_chain.best_chain[-1].header.block_reward,
-            1 / node.major_chain.get_block_to_mine().header.required_diff,
-            used_time / node.major_chain.best_chain[-1].header.height
-            if node.major_chain.best_chain[-1].header.height > 0 else 0))
+        print(
+            "Major chain height %d, reward %d, work %.2f, blocks interval %.2f"
+            % (
+                node.major_chain.best_chain[-1].header.height,
+                node.major_chain.best_chain[-1].header.block_reward,
+                1 / node.major_chain.get_block_to_mine().header.required_diff,
+                used_time / node.major_chain.best_chain[-1].header.height
+                if node.major_chain.best_chain[-1].header.height > 0
+                else 0,
+            )
+        )
         for cid, chain in enumerate(node.minor_chain_list):
-            print("Minor chain %d, height %d, work %.2f, block interval %.2f" % (
-                cid,
-                chain.best_chain[-1].header.height,
-                1 / chain.get_block_to_mine().header.required_diff,
-                used_time / chain.best_chain[-1].header.height if chain.best_chain[-1].header.height > 0 else 0))
+            print(
+                "Minor chain %d, height %d, work %.2f, block interval %.2f"
+                % (
+                    cid,
+                    chain.best_chain[-1].header.height,
+                    1 / chain.get_block_to_mine().header.required_diff,
+                    used_time / chain.best_chain[-1].header.height
+                    if chain.best_chain[-1].header.height > 0
+                    else 0,
+                )
+            )
         print("====================================")
         await asyncio.sleep(5)
 
@@ -487,9 +520,8 @@ def main():
     task_list = [node.start() for node in node_list]
     task_list.append(stats_printer(node_list))
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(asyncio.gather(
-        *task_list))
+    loop.run_until_complete(asyncio.gather(*task_list))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

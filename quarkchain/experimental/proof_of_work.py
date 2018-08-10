@@ -4,6 +4,7 @@ import asyncio
 import numpy.random
 import time
 
+
 class PoW:
     # hash_power, number of hashs per second
     def __init__(self, hash_power):
