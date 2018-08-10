@@ -129,7 +129,7 @@ class TestCluster(unittest.TestCase):
                 value=12345,
             )
             self.assertTrue(call_async(master.add_transaction(tx1)))
-            self.assertEqual(len(slaves[0].shardStateMap[branch0.value].txQueue), 1)
+            self.assertEqual(len(slaves[0].shardStateMap[branch0.value].tx_queue), 1)
 
             branch1 = Branch.create(2, 1)
             tx2 = create_transfer_transaction(
@@ -141,16 +141,16 @@ class TestCluster(unittest.TestCase):
                 gas=30000,
             )
             self.assertTrue(call_async(master.add_transaction(tx2)))
-            self.assertEqual(len(slaves[1].shardStateMap[branch1.value].txQueue), 1)
+            self.assertEqual(len(slaves[1].shardStateMap[branch1.value].tx_queue), 1)
 
             # check the tx is received by the other cluster
-            txQueue = clusters[1].slaveList[0].shardStateMap[branch0.value].txQueue
-            assert_true_with_timeout(lambda: len(txQueue) == 1)
-            self.assertEqual(txQueue.pop_transaction(), tx1.code.get_evm_transaction())
+            tx_queue = clusters[1].slaveList[0].shardStateMap[branch0.value].tx_queue
+            assert_true_with_timeout(lambda: len(tx_queue) == 1)
+            self.assertEqual(tx_queue.pop_transaction(), tx1.code.get_evm_transaction())
 
-            txQueue = clusters[1].slaveList[1].shardStateMap[branch1.value].txQueue
-            assert_true_with_timeout(lambda: len(txQueue) == 1)
-            self.assertEqual(txQueue.pop_transaction(), tx2.code.get_evm_transaction())
+            tx_queue = clusters[1].slaveList[1].shardStateMap[branch1.value].tx_queue
+            assert_true_with_timeout(lambda: len(tx_queue) == 1)
+            self.assertEqual(tx_queue.pop_transaction(), tx2.code.get_evm_transaction())
 
     def test_add_minor_block_request_list(self):
         id1 = Identity.create_random_identity()
@@ -208,7 +208,7 @@ class TestCluster(unittest.TestCase):
             addResult = call_async(clusters[1].slaveList[1].add_block(b3))
             self.assertTrue(addResult)
 
-            self.assertEqual(clusters[1].slaveList[1].shardStateMap[0b11].headerTip, b3.header)
+            self.assertEqual(clusters[1].slaveList[1].shardStateMap[0b11].header_tip, b3.header)
 
             # reestablish cluster connection
             call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
@@ -225,11 +225,11 @@ class TestCluster(unittest.TestCase):
             # Minor block is downloaded
             self.assertEqual(b1.header.height, 14)
             assert_true_with_timeout(
-                lambda: clusters[1].slaveList[0].shardStateMap[0b10].headerTip == b1.header)
+                lambda: clusters[1].slaveList[0].shardStateMap[0b10].header_tip == b1.header)
 
             # The tip is overwritten due to root chain first consensus
             assert_true_with_timeout(
-                lambda: clusters[1].slaveList[1].shardStateMap[0b11].headerTip == b2.header)
+                lambda: clusters[1].slaveList[1].shardStateMap[0b11].header_tip == b2.header)
 
     def test_shard_synchronizer_with_fork(self):
         id1 = Identity.create_random_identity()
@@ -248,7 +248,7 @@ class TestCluster(unittest.TestCase):
                 addResult = call_async(clusters[0].slaveList[0].add_block(block))
                 self.assertTrue(addResult)
                 blockList.append(block)
-            self.assertEqual(clusters[0].slaveList[0].shardStateMap[0b10].headerTip.height, 14)
+            self.assertEqual(clusters[0].slaveList[0].shardStateMap[0b10].header_tip.height, 14)
 
             # cluster 1 has 12 blocks added
             for i in range(12):
@@ -257,7 +257,7 @@ class TestCluster(unittest.TestCase):
                 block.finalize(evmState=shardState0.run_block(block))
                 addResult = call_async(clusters[1].slaveList[0].add_block(block))
                 self.assertTrue(addResult)
-            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip.height, 13)
+            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].header_tip.height, 13)
 
             # reestablish cluster connection
             call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
@@ -280,8 +280,8 @@ class TestCluster(unittest.TestCase):
                     lambda: clusters[1].master.rootState.is_minor_block_validated(
                         block.header.get_hash()))
 
-            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].headerTip,
-                             clusters[0].slaveList[0].shardStateMap[0b10].headerTip)
+            self.assertEqual(clusters[1].slaveList[0].shardStateMap[0b10].header_tip,
+                             clusters[0].slaveList[0].shardStateMap[0b10].header_tip)
 
     def test_broadcast_cross_shard_transactions(self):
         ''' Test the cross shard transactions are broadcasted to the destination shards '''
@@ -321,7 +321,7 @@ class TestCluster(unittest.TestCase):
 
             self.assertTrue(call_async(slaves[0].add_block(b2)))
             # b2 doesn't update tip
-            self.assertEqual(slaves[0].shardStateMap[2 | 0].headerTip, b1.header)
+            self.assertEqual(slaves[0].shardStateMap[2 | 0].header_tip, b1.header)
 
             # expect shard 1 got the CrossShardTransactionList of b2
             xshardTxList = slaves[1].shardStateMap[2 | 1].db.get_minor_block_xshard_tx_list(b2.header.get_hash())

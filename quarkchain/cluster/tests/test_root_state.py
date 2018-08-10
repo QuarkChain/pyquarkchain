@@ -14,7 +14,7 @@ def create_default_state(env):
     sStateList = [
         ShardState(
             env=env,
-            shardId=shardId,
+            shard_id=shardId,
             db=quarkchain.db.InMemoryDb()) for shardId in range(env.config.SHARD_SIZE)]
     return (rState, sStateList)
 
@@ -184,8 +184,8 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(sStates[0].add_root_block(rB2))
         self.assertTrue(sStates[1].add_root_block(rB2))
         self.assertEqual(rState.tip, rB2.header)
-        self.assertEqual(sStates[0].rootTip, rB2.header)
-        self.assertEqual(sStates[1].rootTip, rB2.header)
+        self.assertEqual(sStates[0].root_tip, rB2.header)
+        self.assertEqual(sStates[1].root_tip, rB2.header)
 
     def test_root_state_difficulty(self):
         env = get_test_env()
@@ -394,7 +394,7 @@ class TestRootState(unittest.TestCase):
         add_minor_block_to_cluster(sStates, m4)
 
         # Test recovery
-        sState0Recovered = ShardState(env, shardId=0, db=sStates[0].rawDb)
+        sState0Recovered = ShardState(env, shard_id=0, db=sStates[0].raw_db)
         sState0Recovered.init_from_root_block(rB1)
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(sStates, m3)

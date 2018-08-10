@@ -79,9 +79,9 @@ class SyncTask:
             blockHash = blockHeaderChain[-1].hashPrevMinorBlock
             height = blockHeaderChain[-1].height - 1
 
-            if self.shardState.headerTip.height - height > self.maxStaleness:
+            if self.shardState.header_tip.height - height > self.maxStaleness:
                 Logger.warning("[{}] abort syncing due to forking at very old block {} << {}".format(
-                    self.header.branch.get_shard_id(), height, self.shardState.headerTip.height))
+                    self.header.branch.get_shard_id(), height, self.shardState.header_tip.height))
                 return
 
             if not self.shardState.db.contain_root_block_by_hash(blockHeaderChain[-1].hashPrevRootBlock):
@@ -197,19 +197,19 @@ class ShardConnection(VirtualConnection):
         blockHash = request.blockHash
         headerList = []
         for i in range(request.limit):
-            header = self.shardState.db.get_minor_block_header_by_hash(blockHash, consistencyCheck=False)
+            header = self.shardState.db.get_minor_block_header_by_hash(blockHash, consistency_check=False)
             headerList.append(header)
             if header.height == 0:
                 break
             blockHash = header.hashPrevMinorBlock
 
         return GetMinorBlockHeaderListResponse(
-            self.shardState.rootTip, self.shardState.headerTip, headerList)
+            self.shardState.root_tip, self.shardState.header_tip, headerList)
 
     async def handle_get_minor_block_list_request(self, request):
         mBlockList = []
         for mBlockHash in request.minorBlockHashList:
-            mBlock = self.shardState.db.get_minor_block_by_hash(mBlockHash, consistencyCheck=False)
+            mBlock = self.shardState.db.get_minor_block_by_hash(mBlockHash, consistency_check=False)
             if mBlock is None:
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit
@@ -248,24 +248,24 @@ class ShardConnection(VirtualConnection):
         self.bestMinorBlockHeaderObserved = mHeader
 
         # Do not download if the new header is not higher than the current tip
-        if self.shardState.headerTip.height >= mHeader.height:
+        if self.shardState.header_tip.height >= mHeader.height:
             return
 
         self.synchronizer.add_task(mHeader, self)
 
     def broadcast_new_tip(self):
         if self.bestRootBlockHeaderObserved:
-            if self.shardState.rootTip.height < self.bestRootBlockHeaderObserved.height:
+            if self.shardState.root_tip.height < self.bestRootBlockHeaderObserved.height:
                 return
-            if self.shardState.rootTip == self.bestRootBlockHeaderObserved:
-                if self.shardState.headerTip.height < self.bestMinorBlockHeaderObserved.height:
+            if self.shardState.root_tip == self.bestRootBlockHeaderObserved:
+                if self.shardState.header_tip.height < self.bestMinorBlockHeaderObserved.height:
                     return
-                if self.shardState.headerTip == self.bestMinorBlockHeaderObserved:
+                if self.shardState.header_tip == self.bestMinorBlockHeaderObserved:
                     return
 
         self.write_command(
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
-            cmd=NewMinorBlockHeaderListCommand(self.shardState.rootTip, [self.shardState.headerTip]))
+            cmd=NewMinorBlockHeaderListCommand(self.shardState.root_tip, [self.shardState.header_tip]))
 
     async def handle_new_transaction_list_command(self, opCode, cmd, rpcId):
         self.slaveServer.add_tx_list(cmd.transactionList, self)
@@ -440,7 +440,7 @@ class MasterConnection(ClusterConnection):
         for branchValue, shardState in self.shardStateMap.items():
             ecoInfoList.append(EcoInfo(
                 branch=Branch(branchValue),
-                height=shardState.headerTip.height + 1,
+                height=shardState.header_tip.height + 1,
                 coinbaseAmount=shardState.get_next_block_coinbase_amount(),
                 difficulty=shardState.get_next_block_difficulty(),
                 unconfirmedHeadersCoinbaseAmount=shardState.get_unconfirmed_headers_coinbase_amount(),
@@ -479,7 +479,7 @@ class MasterConnection(ClusterConnection):
                 errorCode=errno.EBADMSG,
             )
 
-        if block.header.hashPrevMinorBlock != shardState.headerTip.get_hash():
+        if block.header.hashPrevMinorBlock != shardState.header_tip.get_hash():
             # Tip changed, don't bother creating a fork
             # TODO: push block candidate to miners than letting them pull
             Logger.info("[{}] dropped stale block {} mined locally".format(
@@ -817,7 +817,7 @@ class SlaveServer():
             db = self.__init_shard_db(shardId)
             self.shardStateMap[branchValue] = ShardState(
                 env=self.env,
-                shardId=shardId,
+                shard_id=shardId,
                 db=db,
             )
             self.__init_miner(branchValue)
@@ -855,7 +855,7 @@ class SlaveServer():
             if __is_syncing():
                 return
             # Do not add stale block
-            if self.shardStateMap[block.header.branch.value].headerTip.height >= block.header.height:
+            if self.shardStateMap[block.header.branch.value].header_tip.height >= block.header.height:
                 return
             await self.add_block(block)
 
@@ -868,10 +868,10 @@ class SlaveServer():
             __get_target_block_time,
         )
 
-    def init_shard_states(self, rootTip):
+    def init_shard_states(self, root_tip):
         ''' Will be called when master connects to slaves '''
         for _, shardState in self.shardStateMap.items():
-            shardState.init_from_root_block(rootTip)
+            shardState.init_from_root_block(root_tip)
 
     def start_mining(self, artificialTxConfig):
         self.artificialTxConfig = artificialTxConfig

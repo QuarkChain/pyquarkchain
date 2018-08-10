@@ -111,8 +111,8 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("sendTransaction", request)
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 1)
-            self.assertEqual(slaves[0].shardStateMap[branch.value].txQueue.pop_transaction(), evmTx)
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 1)
+            self.assertEqual(slaves[0].shardStateMap[branch.value].tx_queue.pop_transaction(), evmTx)
 
     def test_sendTransaction_with_bad_signature(self):
         """ sendTransaction validates signature """
@@ -137,7 +137,7 @@ class TestJSONRPC(unittest.TestCase):
                 toFullShardId="0x00000001",
             )
             self.assertIsNone(send_request("sendTransaction", request))
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0)
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0)
 
     def test_sendTransaction_missing_from_full_shard_id(self):
         id1 = Identity.create_random_identity()
@@ -315,7 +315,7 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("call", {"to": "0x" + acc1.serialize().hex()})
 
             self.assertEqual(response, "0x")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0, "should not affect tx queue")
 
     def test_call_failure(self):
         id1 = Identity.create_random_identity()
@@ -329,7 +329,7 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"})
 
             self.assertIsNone(response, "failed tx should return None")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].txQueue), 0, "should not affect tx queue")
+            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0, "should not affect tx queue")
 
     def test_getTransactionReceipt_not_exist(self):
         id1 = Identity.create_random_identity()
@@ -400,8 +400,8 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[1].add_block(b3)))
 
             # in-shard tx 21000 + receiving x-shard tx 9000
-            self.assertEqual(s2.evmState.gas_used, 30000)
-            self.assertEqual(s2.evmState.xshard_receive_gas_used, 9000)
+            self.assertEqual(s2.evm_state.gas_used, 30000)
+            self.assertEqual(s2.evm_state.xshard_receive_gas_used, 9000)
             resp = send_request("getTransactionReceipt",
                                "0x" + tx.get_hash().hex() + acc2.fullShardId.to_bytes(4, "big").hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
