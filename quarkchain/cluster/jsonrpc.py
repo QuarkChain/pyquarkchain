@@ -455,7 +455,7 @@ class JSONRPCServer:
             "shardSize": quantity_encoder(self.master.get_shard_size()),
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
-            "shardServerCount": len(self.master.slavePool),
+            "shardServerCount": len(self.master.slave_pool),
         }
 
     @public_methods.add
@@ -626,7 +626,7 @@ class JSONRPCServer:
     @decode_arg("blockId", data_decoder)
     async def getRootBlockById(self, blockId):
         try:
-            block = self.master.rootState.db.get_root_block_by_hash(blockId, False)
+            block = self.master.root_state.db.get_root_block_by_hash(blockId, False)
             return root_block_encoder(block)
         except Exception:
             return None
@@ -634,7 +634,7 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("height", quantity_decoder)
     async def getRootBlockByHeight(self, height):
-        block = self.master.rootState.get_root_block_by_height(height)
+        block = self.master.root_state.get_root_block_by_height(height)
         if not block:
             return None
         return root_block_encoder(block)
@@ -845,7 +845,7 @@ class JSONRPCServer:
     @decode_arg("shardMaskValue", quantity_decoder)
     async def getNextBlockToMine(self, coinbaseAddress, shardMaskValue, preferRoot=False):
         address = Address.deserialize(coinbaseAddress)
-        isRootBlock, block = await self.master.get_next_block_to_mine(address, shardMaskValue, preferRoot=preferRoot)
+        isRootBlock, block = await self.master.get_next_block_to_mine(address, shardMaskValue, prefer_root=preferRoot)
         if not block:
             return None
         return {

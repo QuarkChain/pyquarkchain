@@ -26,7 +26,7 @@ class Peer(P2PConnection):
         super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP, name=name)
         self.network = network
         self.masterServer = masterServer
-        self.rootState = masterServer.rootState
+        self.rootState = masterServer.root_state
 
         # The following fields should be set once active
         self.id = None

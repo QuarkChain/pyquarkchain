@@ -390,7 +390,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].add_block(b1)))
             _, b2 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertTrue(call_async(slaves[1].add_block(b2)))
-            _, rB = call_async(master.get_next_block_to_mine(address=acc1, preferRoot=True))
+            _, rB = call_async(master.get_next_block_to_mine(address=acc1, prefer_root=True))
 
             call_async(master.add_root_block(rB))
 

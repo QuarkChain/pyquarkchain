@@ -159,7 +159,7 @@ def create_test_clusters(numCluster, genesisAccount=Address.create_empty_account
         masterServer.start()
 
         # Wait until the cluster is ready
-        loop.run_until_complete(masterServer.clusterActiveFuture)
+        loop.run_until_complete(masterServer.cluster_active_future)
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, masterServer)

@@ -70,7 +70,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block.minorBlockHeaderList[0], block1.header)
             self.assertEqual(block.minorBlockHeaderList[1], block2.header)
 
-            self.assertTrue(master.rootState.add_block(block))
+            self.assertTrue(master.root_state.add_block(block))
             slaves[1].shard_state_map[3].add_root_block(block)
             self.assertEqual(slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0)
 
@@ -166,7 +166,7 @@ class TestCluster(unittest.TestCase):
             # Make sure the xshard list is added to another slave
             self.assertTrue(
                 clusters[0].slaveList[1].shard_state_map[0b11].contain_remote_minor_block_hash(b1.header.get_hash()))
-            self.assertTrue(clusters[0].master.rootState.is_minor_block_validated(b1.header.get_hash()))
+            self.assertTrue(clusters[0].master.root_state.is_minor_block_validated(b1.header.get_hash()))
 
             # Make sure another cluster received the new block
             assert_true_with_timeout(
@@ -174,7 +174,7 @@ class TestCluster(unittest.TestCase):
             assert_true_with_timeout(
                 lambda: clusters[1].slaveList[1].shard_state_map[0b11].contain_remote_minor_block_hash(b1.header.get_hash()))
             assert_true_with_timeout(
-                lambda: clusters[1].master.rootState.is_minor_block_validated(b1.header.get_hash()))
+                lambda: clusters[1].master.root_state.is_minor_block_validated(b1.header.get_hash()))
 
     def test_add_root_block_request_list(self):
         id1 = Identity.create_random_identity()
@@ -213,14 +213,14 @@ class TestCluster(unittest.TestCase):
             # reestablish cluster connection
             call_async(clusters[1].network.connect("127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT))
 
-            rB1 = clusters[0].master.rootState.create_block_to_mine(blockHeaderList, acc1)
+            rB1 = clusters[0].master.root_state.create_block_to_mine(blockHeaderList, acc1)
             call_async(clusters[0].master.add_root_block(rB1))
 
             # Make sure the root block tip of local cluster is changed
-            self.assertEqual(clusters[0].master.rootState.tip, rB1.header)
+            self.assertEqual(clusters[0].master.root_state.tip, rB1.header)
 
             # Make sure the root block tip of cluster 1 is changed
-            assert_true_with_timeout(lambda: clusters[1].master.rootState.tip == rB1.header, 2)
+            assert_true_with_timeout(lambda: clusters[1].master.root_state.tip == rB1.header, 2)
 
             # Minor block is downloaded
             self.assertEqual(b1.header.height, 14)
@@ -277,7 +277,7 @@ class TestCluster(unittest.TestCase):
                     lambda: clusters[1].slaveList[0].shard_state_map[0b10].contain_block_by_hash(
                         block.header.get_hash()))
                 assert_true_with_timeout(
-                    lambda: clusters[1].master.rootState.is_minor_block_validated(
+                    lambda: clusters[1].master.root_state.is_minor_block_validated(
                         block.header.get_hash()))
 
             self.assertEqual(clusters[1].slaveList[0].shard_state_map[0b10].header_tip,
