@@ -56,7 +56,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toAddress=acc1,
@@ -111,8 +111,8 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("sendTransaction", request)
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 1)
-            self.assertEqual(slaves[0].shardStateMap[branch.value].tx_queue.pop_transaction(), evmTx)
+            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 1)
+            self.assertEqual(slaves[0].shard_state_map[branch.value].tx_queue.pop_transaction(), evmTx)
 
     def test_sendTransaction_with_bad_signature(self):
         """ sendTransaction validates signature """
@@ -137,7 +137,7 @@ class TestJSONRPC(unittest.TestCase):
                 toFullShardId="0x00000001",
             )
             self.assertIsNone(send_request("sendTransaction", request))
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0)
+            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 0)
 
     def test_sendTransaction_missing_from_full_shard_id(self):
         id1 = Identity.create_random_identity()
@@ -168,7 +168,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             tx = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[2 | 0],
+                shardState=slaves[0].shard_state_map[2 | 0],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toAddress=acc3,
@@ -184,7 +184,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(block1.header.branch.value, 0b10)
 
             self.assertTrue(send_request("addBlock", "0x2", response["blockData"]))
-            self.assertEqual(slaves[1].shardStateMap[3].get_balance(acc3.recipient), 0)
+            self.assertEqual(slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0)
 
             # Expect to mine shard 1 due to proof-of-progress
             response = send_request("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
@@ -205,7 +205,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(block.minorBlockHeaderList[1], block2.header)
 
             send_request("addBlock", "0x0", response["blockData"])
-            self.assertEqual(slaves[1].shardStateMap[3].get_balance(acc3.recipient), 0)
+            self.assertEqual(slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0)
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
             response = send_request("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0")
@@ -245,7 +245,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toAddress=acc1,
@@ -289,7 +289,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transactionCount, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toAddress=acc1,
@@ -315,7 +315,7 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("call", {"to": "0x" + acc1.serialize().hex()})
 
             self.assertEqual(response, "0x")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0, "should not affect tx queue")
+            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 0, "should not affect tx queue")
 
     def test_call_failure(self):
         id1 = Identity.create_random_identity()
@@ -329,7 +329,7 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"})
 
             self.assertIsNone(response, "failed tx should return None")
-            self.assertEqual(len(slaves[0].shardStateMap[branch.value].tx_queue), 0, "should not affect tx queue")
+            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 0, "should not affect tx queue")
 
     def test_getTransactionReceipt_not_exist(self):
         id1 = Identity.create_random_identity()
@@ -349,7 +349,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toAddress=acc1,
@@ -376,7 +376,7 @@ class TestJSONRPC(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
-            s1, s2 = slaves[0].shardStateMap[2], slaves[1].shardStateMap[3]
+            s1, s2 = slaves[0].shard_state_map[2], slaves[1].shard_state_map[3]
             txGen = lambda s, f, t: create_transfer_transaction(
                 shardState=s,
                 key=id1.get_key(),
@@ -421,7 +421,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             toFullShardId = acc1.fullShardId + 2
             tx = create_contract_creation_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toFullShardId=toFullShardId
@@ -451,7 +451,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             toFullShardId = acc1.fullShardId + 1  # x-shard contract creation should fail
             tx = create_contract_creation_transaction(
-                shardState=slaves[0].shardStateMap[branch.value],
+                shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 fromAddress=acc1,
                 toFullShardId=toFullShardId
