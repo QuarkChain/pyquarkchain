@@ -77,8 +77,8 @@ class SyncTask:
         # descending height
         block_header_chain = [self.header]
 
-        while not self.__has_block_hash(block_header_chain[-1].hashPrevBlock):
-            block_hash = block_header_chain[-1].hashPrevBlock
+        while not self.__has_block_hash(block_header_chain[-1].hash_prev_block):
+            block_hash = block_header_chain[-1].hash_prev_block
             height = block_header_chain[-1].height - 1
 
             # abort if we have to download super old blocks
@@ -122,7 +122,7 @@ class SyncTask:
             block, prev = block_header_list[i:i + 2]
             if block.height != prev.height + 1:
                 return False
-            if block.hashPrevBlock != prev.get_hash():
+            if block.hash_prev_block != prev.get_hash():
                 return False
         return True
 
@@ -144,7 +144,7 @@ class SyncTask:
 
     async def __add_block(self, root_block):
         start = time.time()
-        await self.__sync_minor_blocks(root_block.minorBlockHeaderList)
+        await self.__sync_minor_blocks(root_block.minor_block_header_list)
         await self.master_server.add_root_block(root_block)
         elapse = time.time() - start
         Logger.info("[R] syncing root block {} {} took {:.2f} seconds".format(
@@ -350,7 +350,7 @@ class SlaveConnection(ClusterConnection):
         )
         if resp.errorCode != 0:
             return None
-        return resp.txList, resp.next
+        return resp.tx_list, resp.next
 
 
     # RPC handlers
@@ -358,7 +358,7 @@ class SlaveConnection(ClusterConnection):
     async def handle_add_minor_block_header_request(self, req):
         self.master_server.root_state.add_validated_minor_block_hash(req.minorBlockHeader.get_hash())
         self.master_server.update_shard_stats(req.shardStats)
-        self.master_server.update_tx_count_history(req.txCount, req.xShardTxCount, req.minorBlockHeader.createTime)
+        self.master_server.update_tx_count_history(req.txCount, req.xShardTxCount, req.minorBlockHeader.create_time)
         return AddMinorBlockHeaderResponse(
             errorCode=0,
             artificialTxConfig=self.master_server.get_artificial_tx_config(),
@@ -592,7 +592,7 @@ class MasterServer():
                     return (None, None)
 
                 height = 0
-                for header in headers_info.headerList:
+                for header in headers_info.header_list:
                     # check headers are ordered by height
                     check(height == 0 or height + 1 == header.height)
                     height = header.height
@@ -672,7 +672,7 @@ class MasterServer():
             if shard_mask and not shard_mask.contain_branch(Branch(branch_value)):
                 continue
             # TODO: Obtain block reward and tx fee
-            eco = eco_info.coinbaseAmount / eco_info.difficulty
+            eco = eco_info.coinbase_amount / eco_info.difficulty
             if branch_value_with_max_eco is None or eco > max_eco or \
                     (eco == max_eco and branch_value_with_max_eco > 0 and block_height > eco_info.height):
                 branch_value_with_max_eco = branch_value
@@ -821,7 +821,7 @@ class MasterServer():
     async def add_root_block_from_miner(self, block):
         ''' Should only be called by miner '''
         # TODO: push candidate block to miner
-        if block.header.hashPrevBlock != self.root_state.tip.get_hash():
+        if block.header.hash_prev_block != self.root_state.tip.get_hash():
             Logger.info("[R] dropped stale root block {} mined locally".format(block.header.height))
             return False
         await self.add_root_block(block)
@@ -927,8 +927,8 @@ class MasterServer():
 
         root_last_block_time = 0
         if self.root_state.tip.height >= 3:
-            prev = self.root_state.db.get_root_block_by_hash(self.root_state.tip.hashPrevBlock)
-            root_last_block_time = self.root_state.tip.createTime - prev.header.createTime
+            prev = self.root_state.db.get_root_block_by_hash(self.root_state.tip.hash_prev_block)
+            root_last_block_time = self.root_state.tip.create_time - prev.header.create_time
 
         tx_count_history = []
         for item in self.tx_count_history:
@@ -940,9 +940,9 @@ class MasterServer():
 
         return {
             "shardServerCount": len(self.slave_pool),
-            "shardSize": self.__get_shard_size(),
+            "shard_size": self.__get_shard_size(),
             "rootHeight": self.root_state.tip.height,
-            "rootTimestamp": self.root_state.tip.createTime,
+            "rootTimestamp": self.root_state.tip.create_time,
             "rootLastBlockTime": root_last_block_time,
             "txCount60s": tx_count60s,
             "blockCount60s": block_count60s,
@@ -979,7 +979,7 @@ class MasterServer():
         return await slave.get_minor_block_by_height(height, branch)
 
     async def get_transaction_by_hash(self, tx_hash, branch):
-        """ Returns (MinorBlock, i) where i is the index of the tx in the block txList """
+        """ Returns (MinorBlock, i) where i is the index of the tx in the block tx_list """
         if branch.value not in self.branch_to_slaves:
             return None
 

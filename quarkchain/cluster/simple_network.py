@@ -77,7 +77,7 @@ class Peer(P2PConnection):
 
         # Validate best root and minor blocks from peer
         # TODO: validate hash and difficulty through a helper function
-        if cmd.rootBlockHeader.shardInfo.get_shard_size() != self.env.config.SHARD_SIZE:
+        if cmd.rootBlockHeader.shard_info.get_shard_size() != self.env.config.SHARD_SIZE:
             return self.close_with_error(
                 "Shard size from root block header does not match local")
 
@@ -168,7 +168,7 @@ class Peer(P2PConnection):
     # ----------------------- RPC handlers ---------------------------------
 
     async def handle_new_minor_block_header_list(self, op, cmd, rpcId):
-        if len(cmd.minorBlockHeaderList) != 0:
+        if len(cmd.minor_block_header_list) != 0:
             return self.close_with_error("minor block header list must be empty")
 
         if cmd.rootBlockHeader.height < self.bestRootBlockHeaderObserved.height:
@@ -195,14 +195,14 @@ class Peer(P2PConnection):
             self.close_with_error("Bad direction")
 
         blockHash = request.blockHash
-        headerList = []
+        header_list = []
         for i in range(request.limit):
             header = self.rootState.db.get_root_block_header_by_hash(blockHash, consistency_check=False)
-            headerList.append(header)
+            header_list.append(header)
             if header.height == 0:
                 break
-            blockHash = header.hashPrevBlock
-        return GetRootBlockHeaderListResponse(self.rootState.tip, headerList)
+            blockHash = header.hash_prev_block
+        return GetRootBlockHeaderListResponse(self.rootState.tip, header_list)
 
     async def handle_get_root_block_list_request(self, request):
         rBlockList = []

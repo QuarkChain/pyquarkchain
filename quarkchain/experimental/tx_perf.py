@@ -31,12 +31,12 @@ def test_perf():
 
     print("Creating %d transactions..." % N)
     startTime = time.time()
-    txList = []
+    tx_list = []
     recList = []
     for i in range(N):
         fromId = idList[random.randint(0, IDN - 1)]
         toAddr = accList[random.randint(0, IDN - 1)]
-        txList.append(create_random_test_transaction(fromId, toAddr))
+        tx_list.append(create_random_test_transaction(fromId, toAddr))
         recList.append(fromId.get_recipient())
     duration = time.time() - startTime
     print("Creations PS: %.2f" % (N / duration))
@@ -44,7 +44,7 @@ def test_perf():
     print("Verifying transactions")
     startTime = time.time()
     for i in range(N):
-        assert(txList[i].verify_signature([recList[i]]))
+        assert(tx_list[i].verify_signature([recList[i]]))
     duration = time.time() - startTime
     print("Verifications PS: %.2f" % (N / duration))
 
@@ -63,12 +63,12 @@ def test_perf_evm():
 
     print("Creating %d transactions..." % N)
     startTime = time.time()
-    txList = []
+    tx_list = []
     fromList = []
     for i in range(N):
         fromId = idList[random.randint(0, IDN - 1)]
         toAddr = accList[random.randint(0, IDN - 1)]
-        evmTx = EvmTransaction(
+        evm_tx = EvmTransaction(
             nonce=0,
             gasprice=1,
             startgas=2,
@@ -78,9 +78,9 @@ def test_perf_evm():
             fromFullShardId=0,
             toFullShardId=0,
             networkId=1)
-        evmTx.sign(
+        evm_tx.sign(
             key=fromId.get_key())
-        txList.append(evmTx)
+        tx_list.append(evm_tx)
         fromList.append(fromId.get_recipient())
     duration = time.time() - startTime
     print("Creations PS: %.2f" % (N / duration))
@@ -88,8 +88,8 @@ def test_perf_evm():
     print("Verifying transactions")
     startTime = time.time()
     for i in range(N):
-        txList[i]._sender = None
-        assert(txList[i].sender == fromList[i])
+        tx_list[i]._sender = None
+        assert(tx_list[i].sender == fromList[i])
     duration = time.time() - startTime
     print("Verifications PS: %.2f" % (N / duration))
 

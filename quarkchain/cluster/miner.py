@@ -73,8 +73,8 @@ class Miner:
     def __logStatus(block):
         is_root = isinstance(block, RootBlock)
         shard = "R" if is_root else block.header.branch.get_shard_id()
-        count = len(block.minorBlockHeaderList) if is_root else len(block.txList)
-        elapsed = time.time() - block.header.createTime
+        count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
+        elapsed = time.time() - block.header.create_time
 
         Logger.info("[{}] {} [{}] ({:.2f}) {}".format(
             shard, block.header.height, count, elapsed, block.header.get_hash().hex()))
@@ -109,7 +109,7 @@ class Miner:
     def __get_block_time(block, target_block_time):
         if isinstance(block, MinorBlock):
             # Adjust the target block time to compensate computation time
-            gas_used_ratio = block.meta.evmGasUsed / block.meta.evmGasLimit
+            gas_used_ratio = block.meta.evm_gas_used / block.meta.evm_gas_limit
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
             Logger.debug("[{}] target block time {:.2f}".format(
                 block.header.branch.get_shard_id(), target_block_time))
@@ -119,7 +119,7 @@ class Miner:
     @staticmethod
     def simulate_mine(block, target_block_time, input, output):
         """Sleep until the target time"""
-        target_time = block.header.createTime + numpy.random.exponential(target_block_time)
+        target_time = block.header.create_time + numpy.random.exponential(target_block_time)
         while True:
             time.sleep(0.1)
             try:
@@ -127,7 +127,7 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                target_time = block.header.createTime + Miner.__get_block_time(block, target_block_time)
+                target_time = block.header.create_time + Miner.__get_block_time(block, target_block_time)
             except Exception:
                 # got nothing from queue
                 pass
@@ -139,6 +139,6 @@ class Miner:
                 if not block:
                     output.put(None)
                     return
-                target_time = block.header.createTime + Miner.__get_block_time(block, target_block_time)
+                target_time = block.header.create_time + Miner.__get_block_time(block, target_block_time)
 
 

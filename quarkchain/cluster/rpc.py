@@ -204,12 +204,12 @@ class GetMinorBlockResponse(Serializable):
 
 class GetTransactionRequest(Serializable):
     FIELDS = [
-        ("txHash", hash256),
+        ("tx_hash", hash256),
         ("branch", Branch),
     ]
 
-    def __init__(self, txHash, branch):
-        self.txHash = txHash
+    def __init__(self, tx_hash, branch):
+        self.tx_hash = tx_hash
         self.branch = branch
 
 
@@ -229,12 +229,12 @@ class GetTransactionResponse(Serializable):
 class ExecuteTransactionRequest(Serializable):
     FIELDS = [
         ("tx", Transaction),
-        ("fromAddress", Address)
+        ("from_address", Address)
     ]
 
-    def __init__(self, tx, fromAddress):
+    def __init__(self, tx, from_address):
         self.tx = tx
-        self.fromAddress = fromAddress
+        self.from_address = from_address
 
 
 class ExecuteTransactionResponse(Serializable):
@@ -250,12 +250,12 @@ class ExecuteTransactionResponse(Serializable):
 
 class GetTransactionReceiptRequest(Serializable):
     FIELDS = [
-        ("txHash", hash256),
+        ("tx_hash", hash256),
         ("branch", Branch),
     ]
 
-    def __init__(self, txHash, branch):
-        self.txHash = txHash
+    def __init__(self, tx_hash, branch):
+        self.tx_hash = tx_hash
         self.branch = branch
 
 
@@ -289,19 +289,19 @@ class GetTransactionListByAddressRequest(Serializable):
 
 class TransactionDetail(Serializable):
     FIELDS = [
-        ("txHash", hash256),
-        ("fromAddress", Address),
-        ("toAddress", Optional(Address)),
+        ("tx_hash", hash256),
+        ("from_address", Address),
+        ("to_address", Optional(Address)),
         ("value", uint256),
         ("blockHeight", uint64),
         ("timestamp", uint64),  # block timestamp
         ("success", boolean),
     ]
 
-    def __init__(self, txHash, fromAddress, toAddress, value, blockHeight, timestamp, success):
-        self.txHash = txHash
-        self.fromAddress = fromAddress
-        self.toAddress = toAddress
+    def __init__(self, tx_hash, from_address, to_address, value, blockHeight, timestamp, success):
+        self.tx_hash = tx_hash
+        self.from_address = from_address
+        self.to_address = to_address
         self.value = value
         self.blockHeight = blockHeight
         self.timestamp = timestamp
@@ -311,13 +311,13 @@ class TransactionDetail(Serializable):
 class GetTransactionListByAddressResponse(Serializable):
     FIELDS = [
         ("errorCode", uint32),
-        ("txList", PrependedSizeListSerializer(4, TransactionDetail)),
+        ("tx_list", PrependedSizeListSerializer(4, TransactionDetail)),
         ("next", PrependedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, errorCode, txList, next):
+    def __init__(self, errorCode, tx_list, next):
         self.errorCode = errorCode
-        self.txList = txList
+        self.tx_list = tx_list
         self.next = next
 
 
@@ -354,15 +354,15 @@ class EcoInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("height", uint64),
-        ("coinbaseAmount", uint256),
+        ("coinbase_amount", uint256),
         ("difficulty", uint64),
         ("unconfirmedHeadersCoinbaseAmount", uint256)
     ]
 
-    def __init__(self, branch, height, coinbaseAmount, difficulty, unconfirmedHeadersCoinbaseAmount):
+    def __init__(self, branch, height, coinbase_amount, difficulty, unconfirmedHeadersCoinbaseAmount):
         self.branch = branch
         self.height = height
-        self.coinbaseAmount = coinbaseAmount
+        self.coinbase_amount = coinbase_amount
         self.difficulty = difficulty
         self.unconfirmedHeadersCoinbaseAmount = unconfirmedHeadersCoinbaseAmount
 
@@ -431,12 +431,12 @@ class AddMinorBlockResponse(Serializable):
 class HeadersInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
-        ("headerList", PrependedSizeListSerializer(4, MinorBlockHeader)),
+        ("header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
-    def __init__(self, branch, headerList):
+    def __init__(self, branch, header_list):
         self.branch = branch
-        self.headerList = headerList
+        self.header_list = header_list
 
 
 class GetUnconfirmedHeadersRequest(Serializable):
@@ -607,13 +607,13 @@ class AddXshardTxListRequest(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("minorBlockHash", hash256),
-        ("txList", CrossShardTransactionList),
+        ("tx_list", CrossShardTransactionList),
     ]
 
-    def __init__(self, branch, minorBlockHash, txList):
+    def __init__(self, branch, minorBlockHash, tx_list):
         self.branch = branch
         self.minorBlockHash = minorBlockHash
-        self.txList = txList
+        self.tx_list = tx_list
 
 
 class AddXshardTxListResponse(Serializable):

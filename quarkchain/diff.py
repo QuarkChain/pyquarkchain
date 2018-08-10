@@ -16,7 +16,7 @@ class EthDifficultyCalculator:
     def calculate_diff_with_parent(self, parent, create_time):
         # TODO: support uncle
         check(not self.check_uncle)
-        check(parent.createTime < create_time)
-        sign = max(1 - (create_time - parent.createTime) // self.cutoff, -99)
+        check(parent.create_time < create_time)
+        sign = max(1 - (create_time - parent.create_time) // self.cutoff, -99)
         offset = parent.difficulty // self.diff_factor
         return int(max(parent.difficulty + offset * sign, self.minimum_diff))

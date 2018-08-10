@@ -31,7 +31,7 @@ class ProxyConnection(Connection):
         will forward the request without deserialize the request.
 
         metadata is a uint32 having shard size and shard id encoded as
-            shardSize | shardId
+            shard_size | shard_id
         See the definition for Branch in core.py.
         0 represents the root chain.
 

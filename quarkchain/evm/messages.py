@@ -364,11 +364,11 @@ def _apply_msg(ext, msg, code):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.core.CrossShardTransactionDeposit(
-                    txHash=msg.tx_hash,
-                    fromAddress=quarkchain.core.Address(msg.sender, msg.from_full_shard_id),
-                    toAddress=quarkchain.core.Address(msg.to, msg.to_full_shard_id),
+                    tx_hash=msg.tx_hash,
+                    from_address=quarkchain.core.Address(msg.sender, msg.from_full_shard_id),
+                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_id),
                     value=msg.value,
-                    gasPrice=ext.tx_gasprice)
+                    gas_price=ext.tx_gasprice)
             )
         elif not ext.transfer_value(msg.sender, msg.to, msg.value):
             log_msg.debug('MSG TRANSFER FAILED', have=ext.get_balance(msg.to),

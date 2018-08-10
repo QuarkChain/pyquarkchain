@@ -51,7 +51,7 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shardSize"], 16)
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
@@ -59,19 +59,19 @@ class Endpoint:
 
 
 def create_transaction(address, key, nonce, to, networkId, amount) -> EvmTransaction:
-    evmTx = EvmTransaction(
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=to.recipient,
         value=int(amount) * (10 ** 18),
         data=b"",
-        fromFullShardId=address.fullShardId,
-        toFullShardId=to.fullShardId,
+        fromFullShardId=address.full_shard_id,
+        toFullShardId=to.full_shard_id,
         networkId=networkId,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
 async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
@@ -81,7 +81,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
     txId = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
-        addr = "0x" + to.recipient.hex() + hex(to.fullShardId)[2:]
+        addr = "0x" + to.recipient.hex() + hex(to.full_shard_id)[2:]
         print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
         await asyncio.sleep(5)
         resp = await endpoint.get_transaction_receipt(txId)
@@ -105,7 +105,7 @@ async def fund_shard(endpoint, genesisId, to, networkId, shard, amount):
 
 async def fund(endpoint, genesisId, addrByAmount):
     networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    shard_size = await endpoint.get_shard_size()
     for amount in addrByAmount:
         addrs = addrByAmount.get(amount, [])
         print(
@@ -116,7 +116,7 @@ async def fund(endpoint, genesisId, addrByAmount):
         # shard -> [addr]
         byShard = defaultdict(list)
         for addr in addrs:
-            shard = int(addr[-8:], 16) & (shardSize - 1)
+            shard = int(addr[-8:], 16) & (shard_size - 1)
             byShard[shard].append(addr)
 
         while True:
@@ -130,7 +130,7 @@ async def fund(endpoint, genesisId, addrByAmount):
 
             futures = []
             for addr in toFund:
-                shard = int(addr[-8:], 16) & (shardSize - 1)
+                shard = int(addr[-8:], 16) & (shard_size - 1)
                 try:
                     # sorry but this is user input
                     to = Address.create_from(addr[2:])

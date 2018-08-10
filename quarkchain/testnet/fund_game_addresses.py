@@ -300,7 +300,7 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shardSize"], 16)
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
@@ -308,19 +308,19 @@ class Endpoint:
 
 
 def create_transaction(address, key, nonce, to, data, networkId) -> EvmTransaction:
-    evmTx = EvmTransaction(
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=to.recipient,
         value=1000000 * (10 ** 18),
         data=data,
-        fromFullShardId=address.fullShardId,
-        toFullShardId=to.fullShardId,
+        fromFullShardId=address.full_shard_id,
+        toFullShardId=to.full_shard_id,
         networkId=networkId,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
 async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
@@ -343,7 +343,7 @@ async def fund_shard(endpoint, genesisId, to, data, networkId, shard):
 
 async def fund(endpoint, genesisId, data):
     networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    shard_size = await endpoint.get_shard_size()
     futures = []
     for e in GAME_ADDRESSES:
         shard = e[0]

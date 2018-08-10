@@ -48,15 +48,15 @@ class MinorBlockHeader:
                  nBranch,
                  height,
                  hashPrevMajorBlock=0,
-                 hashPrevMinorBlock=0,
-                 hashMerkleRoot=0,
+                 hash_prev_minor_block=0,
+                 hash_merkle_root=0,
                  nTime=0,
                  nBits=0,
                  nNonce=0):
         self.nBranch = nBranch
         self.hashPrevMajorBlock = hashPrevMajorBlock
-        self.hashPrevMinorBlock = hashPrevMinorBlock
-        self.hashMerkleRoot = hashMerkleRoot
+        self.hash_prev_minor_block = hash_prev_minor_block
+        self.hash_merkle_root = hash_merkle_root
         self.nTime = nTime
         self.nBits = nBits
         self.nNonce = nNonce
@@ -104,16 +104,16 @@ class MajorBlockHeader:
                  hash,
                  nShard,
                  height,
-                 hashPrevBlock=0,
-                 hashMerkleRoot=0,
+                 hash_prev_block=0,
+                 hash_merkle_root=0,
                  hashCoinbase=0,
                  nTime=0,
                  nBits=0,
                  nNonce=0):
         self.hash = hash
         self.nShard = nShard
-        self.hashPrevBlock = hashPrevBlock
-        self.hashMerkleRoot = hashMerkleRoot
+        self.hash_prev_block = hash_prev_block
+        self.hash_merkle_root = hash_merkle_root
         self.hashCoinbase = hashCoinbase
         self.nTime = nTime
         self.nBits = nBits
@@ -166,15 +166,15 @@ def get_global_hash():
     return hashCounter
 
 
-def create_genesis_major_block(shardSize, hash):
-    header = MajorBlockHeader(hash, shardSize, height=0)
+def create_genesis_major_block(shard_size, hash):
+    header = MajorBlockHeader(hash, shard_size, height=0)
     header.requiredDiff = MAJOR_BLOCK_GENSIS_DIFF
     header.nTime = time.time()
     return MajorBlock(header)
 
 
-def create_genesis_minor_block(shardSize, shardId, hash):
-    header = MinorBlockHeader(hash=hash, nBranch=shardId, height=0)
+def create_genesis_minor_block(shard_size, shard_id, hash):
+    header = MinorBlockHeader(hash=hash, nBranch=shard_id, height=0)
     header.requiredDiff = MINOR_BLOCK_GENSIS_DIFF
     header.nTime = time.time()
     return MinorBlock(header)
@@ -182,10 +182,10 @@ def create_genesis_minor_block(shardSize, shardId, hash):
 
 class MinorBlockChain:
 
-    def __init__(self, shardSize, shardId, hash):
-        self.shardSize = shardSize
-        self.shardId = shardId
-        self.genesisBlock = create_genesis_minor_block(shardSize, shardId, hash)
+    def __init__(self, shard_size, shard_id, hash):
+        self.shard_size = shard_size
+        self.shard_id = shard_id
+        self.genesisBlock = create_genesis_minor_block(shard_size, shard_id, hash)
         # Map from block hash to block
         self.blockMap = {hash: self.genesisBlock}
         self.bestChain = [self.genesisBlock]
@@ -196,7 +196,7 @@ class MinorBlockChain:
             targetIntervalSec=MINOR_BLOCK_RATE_SEC)
 
     def try_append_block(self, minorBlock):
-        if minorBlock.header.hashPrevMinorBlock != \
+        if minorBlock.header.hash_prev_minor_block != \
            self.bestChain[-1].header.hash:
             return False
 
@@ -207,18 +207,18 @@ class MinorBlockChain:
     def get_block_to_mine(self):
         header = MinorBlockHeader(
             hash=get_global_hash(),
-            nBranch=self.shardId,
+            nBranch=self.shard_id,
             height=self.bestChain[-1].header.height + 1,
-            hashPrevMinorBlock=self.bestChain[-1].get_hash())
+            hash_prev_minor_block=self.bestChain[-1].get_hash())
         header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MinorBlock(header)
 
 
 class MajorBlockChain:
 
-    def __init__(self, shardSize, hash):
-        self.shardSize = shardSize
-        self.genesisBlock = create_genesis_major_block(shardSize, hash)
+    def __init__(self, shard_size, hash):
+        self.shard_size = shard_size
+        self.genesisBlock = create_genesis_major_block(shard_size, hash)
         self.blockMap = {hash: self.genesisBlock}
         self.bestChain = [self.genesisBlock]
         self.diffCalc = diff.MADifficultyCalculator(
@@ -234,7 +234,7 @@ class MajorBlockChain:
     # Check if the major block can be appended to the best chain
     def try_append_block(self, majorBlock):
         # TODO validate majorBlock
-        if majorBlock.header.hashPrevBlock != self.bestChain[-1].header.hash:
+        if majorBlock.header.hash_prev_block != self.bestChain[-1].header.hash:
             return False
 
         # May sure all hashs are unique
@@ -260,9 +260,9 @@ class MajorBlockChain:
     def get_block_to_mine(self):
         header = MajorBlockHeader(
             hash=get_global_hash(),
-            nShard=self.shardSize,
+            nShard=self.shard_size,
             height=self.bestChain[-1].header.height + 1,
-            hashPrevBlock=self.bestChain[-1].get_hash())
+            hash_prev_block=self.bestChain[-1].get_hash())
         header.requiredDiff = self.diffCalc.calculate_diff(self.bestChain)
         return MajorBlock(header, copy.copy(self.pendingMinorBlockMap))
 
@@ -295,10 +295,10 @@ class DynamicChainSelector:
         # MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS blocks in each shard.  If not, try
         # to mine the shard.
         if bestChainId == 0 and MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS != 0:
-            blockCountInShard = {x: 0 for x in range(majorChain.shardSize)}
+            blockCountInShard = {x: 0 for x in range(majorChain.shard_size)}
             for block in majorChain.pendingMinorBlockMap.values():
                 blockCountInShard[block.get_shard_id()] += 1
-            for i in range(majorChain.shardSize):
+            for i in range(majorChain.shard_size):
                 if blockCountInShard[i] < MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS:
                     block = minorChainList[i].get_block_to_mine()
                     eco = block.get_mining_eco()
@@ -468,7 +468,7 @@ def main():
             node.add_peer(peer)
             peer.add_peer(node)
         nodeList.append(node)
-    # shardId = 0
+    # shard_id = 0
     # for i in range(NODE_SIZE):
     #     if i < NODE_POWERFUL_MINER_SIZE:
     #         if i < NODE_POWERFUL_MAJOR_MINER_SIZE:
@@ -476,8 +476,8 @@ def main():
     #         else:
     #             node = Node(hashPower=NODE_POWERFUL_HASH_POWER)
     #     else:
-    #         node = Node(hashPower=NODE_DEFAULT_HASH_POWER, chainSelector=FixChainSelector(shardId))
-    #         shardId = (shardId + 1) % SHARD_SIZE
+    #         node = Node(hashPower=NODE_DEFAULT_HASH_POWER, chainSelector=FixChainSelector(shard_id))
+    #         shard_id = (shard_id + 1) % SHARD_SIZE
 
     #     for peer in nodeList:
     #         node.add_peer(peer)

@@ -75,8 +75,8 @@ class SyncTask:
         block_header_chain = [self.header]
 
         # TODO: Stop if too many headers to revert
-        while not self.__has_block_hash(block_header_chain[-1].hashPrevMinorBlock):
-            block_hash = block_header_chain[-1].hashPrevMinorBlock
+        while not self.__has_block_hash(block_header_chain[-1].hash_prev_minor_block):
+            block_hash = block_header_chain[-1].hash_prev_minor_block
             height = block_header_chain[-1].height - 1
 
             if self.shard_state.header_tip.height - height > self.max_staleness:
@@ -84,7 +84,7 @@ class SyncTask:
                     self.header.branch.get_shard_id(), height, self.shard_state.header_tip.height))
                 return
 
-            if not self.shard_state.db.contain_root_block_by_hash(block_header_chain[-1].hashPrevRootBlock):
+            if not self.shard_state.db.contain_root_block_by_hash(block_header_chain[-1].hash_prev_root_block):
                 return
             Logger.info("[{}] downloading headers from {} {}".format(
                 self.shard_state.branch.get_shard_id(), height, block_hash.hex()))
@@ -110,7 +110,7 @@ class SyncTask:
             for block in block_chain:
                 # Stop if the block depends on an unknown root block
                 # TODO: move this check to early stage to avoid downloading unnecessary headers
-                if not self.shard_state.db.contain_root_block_by_hash(block.header.hashPrevRootBlock):
+                if not self.shard_state.db.contain_root_block_by_hash(block.header.hash_prev_root_block):
                     return
                 await self.slave_server.add_block(block)
                 block_header_chain.pop(0)
@@ -124,7 +124,7 @@ class SyncTask:
             block, prev = block_header_list[i:i + 2]
             if block.height != prev.height + 1:
                 return False
-            if block.hashPrevMinorBlock != prev.get_hash():
+            if block.hash_prev_minor_block != prev.get_hash():
                 return False
         return True
 
@@ -201,7 +201,7 @@ class ShardConnection(VirtualConnection):
             header_list.append(header)
             if header.height == 0:
                 break
-            block_hash = header.hashPrevMinorBlock
+            block_hash = header.hash_prev_minor_block
 
         return GetMinorBlockHeaderListResponse(
             self.shard_state.root_tip, self.shard_state.header_tip, header_list)
@@ -219,10 +219,10 @@ class ShardConnection(VirtualConnection):
 
     async def handle_new_minor_block_header_list_command(self, _op, cmd, _rpc_id):
         # TODO: allow multiple headers if needed
-        if len(cmd.minorBlockHeaderList) != 1:
+        if len(cmd.minor_block_header_list) != 1:
             self.close_with_error("minor block header list must have only one header")
             return
-        for m_header in cmd.minorBlockHeaderList:
+        for m_header in cmd.minor_block_header_list:
             Logger.info("[{}] received new header with height {}".format(
                 m_header.branch.get_shard_id(), m_header.height))
             if m_header.branch != self.shard_state.branch:
@@ -270,10 +270,10 @@ class ShardConnection(VirtualConnection):
     async def handle_new_transaction_list_command(self, opCode, cmd, rpcId):
         self.slave_server.add_tx_list(cmd.transactionList, self)
 
-    def broadcast_tx_list(self, txList):
+    def broadcast_tx_list(self, tx_list):
         self.write_command(
             op=CommandOp.NEW_TRANSACTION_LIST,
-            cmd=NewTransactionListCommand(txList),
+            cmd=NewTransactionListCommand(tx_list),
         )
 
     def get_metadata_to_write(self, metadata):
@@ -442,7 +442,7 @@ class MasterConnection(ClusterConnection):
             eco_info_list.append(EcoInfo(
                 branch=Branch(branch_value),
                 height=shard_state.header_tip.height + 1,
-                coinbaseAmount=shard_state.get_next_block_coinbase_amount(),
+                coinbase_amount=shard_state.get_next_block_coinbase_amount(),
                 difficulty=shard_state.get_next_block_difficulty(),
                 unconfirmedHeadersCoinbaseAmount=shard_state.get_unconfirmed_headers_coinbase_amount(),
             ))
@@ -480,7 +480,7 @@ class MasterConnection(ClusterConnection):
                 errorCode=errno.EBADMSG,
             )
 
-        if block.header.hashPrevMinorBlock != shard_state.header_tip.get_hash():
+        if block.header.hash_prev_minor_block != shard_state.header_tip.get_hash():
             # Tip changed, don't bother creating a fork
             # TODO: push block candidate to miners than letting them pull
             Logger.info("[{}] dropped stale block {} mined locally".format(
@@ -497,7 +497,7 @@ class MasterConnection(ClusterConnection):
         for branchValue, shardState in self.shard_state_map.items():
             headers_info_list.append(HeadersInfo(
                 branch=Branch(branchValue),
-                headerList=shardState.get_unconfirmed_header_list(),
+                header_list=shardState.get_unconfirmed_header_list(),
             ))
         return GetUnconfirmedHeadersResponse(
             errorCode=0,
@@ -518,7 +518,7 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handle_execute_transaction(self, req):
-        res = self.slave_server.execute_tx(req.tx, req.fromAddress)
+        res = self.slave_server.execute_tx(req.tx, req.from_address)
         fail = res is None
         return ExecuteTransactionResponse(
             errorCode=int(fail),
@@ -581,7 +581,7 @@ class MasterConnection(ClusterConnection):
         return GetMinorBlockResponse(errorCode=0, minorBlock=block)
 
     async def handle_get_transaction_request(self, req):
-        minor_block, i = self.slave_server.get_transaction_by_hash(req.txHash, req.branch)
+        minor_block, i = self.slave_server.get_transaction_by_hash(req.tx_hash, req.branch)
         if not minor_block:
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
             return GetTransactionResponse(errorCode=1, minorBlock=empty_block, index=0)
@@ -589,7 +589,7 @@ class MasterConnection(ClusterConnection):
         return GetTransactionResponse(errorCode=0, minorBlock=minor_block, index=i)
 
     async def handle_get_transaction_receipt_request(self, req):
-        resp = self.slave_server.get_transaction_receipt(req.txHash, req.branch)
+        resp = self.slave_server.get_transaction_receipt(req.tx_hash, req.branch)
         if not resp:
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
             empty_receipt = TransactionReceipt.create_empty_receipt()
@@ -604,12 +604,12 @@ class MasterConnection(ClusterConnection):
         if not result:
             return GetTransactionListByAddressResponse(
                 errorCode=1,
-                txList=[],
+                tx_list=[],
                 next=b"",
             )
         return GetTransactionListByAddressResponse(
             errorCode=0,
-            txList=result[0],
+            tx_list=result[0],
             next=result[1],
         )
 
@@ -707,9 +707,9 @@ class SlaveConnection(Connection):
     def __get_shard_size(self):
         return self.slave_server.env.config.SHARD_SIZE
 
-    def has_shard(self, shardId):
-        for shardMask in self.shard_mask_list:
-            if shardMask.contain_shard_id(shardId):
+    def has_shard(self, shard_id):
+        for shard_mask in self.shard_mask_list:
+            if shard_mask.contain_shard_id(shard_id):
                 return True
         return False
 
@@ -748,7 +748,7 @@ class SlaveConnection(Connection):
             Logger.error("cannot find shard id {} locally".format(req.branch.get_shard_id()))
             return AddXshardTxListResponse(errorCode=errno.ENOENT)
 
-        self.shard_state_map[req.branch.value].add_cross_shard_tx_list_by_minor_block_hash(req.minorBlockHash, req.txList)
+        self.shard_state_map[req.branch.value].add_cross_shard_tx_list_by_minor_block_hash(req.minorBlockHash, req.tx_list)
         return AddXshardTxListResponse(errorCode=0)
 
     async def handle_batch_add_xshard_tx_list_request(self, batchRequest):
@@ -805,8 +805,8 @@ class SlaveServer():
         ''' branchValue -> ShardState mapping '''
         shard_size = self.__get_shard_size()
         branch_values = set()
-        for shardMask in self.shard_mask_list:
-            for shard_id in shardMask.iterate(shard_size):
+        for shard_mask in self.shard_mask_list:
+            for shard_id in shard_mask.iterate(shard_size):
                 branch_value = shard_id + shard_size
                 branch_values.add(branch_value)
 
@@ -823,15 +823,15 @@ class SlaveServer():
 
     def __init_shard_db(self, shard_id):
         """
-        Given a shardId (*not* full shard id), create a PersistentDB or use the env.db if
+        Given a shard_id (*not* full shard id), create a PersistentDB or use the env.db if
         DB_PATH_ROOT is not specified in the ClusterConfig.
         """
         if self.env.clusterConfig.DB_PATH_ROOT is None:
             return self.env.db
 
-        db_path = "{path}/shard-{shardId}.db".format(
+        db_path = "{path}/shard-{shard_id}.db".format(
             path=self.env.clusterConfig.DB_PATH_ROOT,
-            shardId=shard_id,
+            shard_id=shard_id,
         )
         return PersistentDb(db_path, clean=self.env.clusterConfig.DB_CLEAN)
 
@@ -966,7 +966,7 @@ class SlaveServer():
             xshard_map[shard_id + self.__get_shard_size()] = []
 
         for xshard_tx in xshard_tx_list:
-            shard_id = xshard_tx.toAddress.get_shard_id(self.__get_shard_size())
+            shard_id = xshard_tx.to_address.get_shard_id(self.__get_shard_size())
             branch_value = Branch.create(self.__get_shard_size(), shard_id).value
             xshard_map[branch_value].append(xshard_tx)
 
@@ -987,7 +987,7 @@ class SlaveServer():
         rpc_futures = []
         for branch, request in branch_to_add_xshard_tx_list_request.items():
             if branch.value in self.shard_state_map:
-                self.shard_state_map[branch.value].add_cross_shard_tx_list_by_minor_block_hash(block_hash, request.txList)
+                self.shard_state_map[branch.value].add_cross_shard_tx_list_by_minor_block_hash(block_hash, request.tx_list)
 
             for slave_conn in self.shard_to_slaves[branch.get_shard_id()]:
                 future = slave_conn.write_rpc_request(ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request)
@@ -1007,7 +1007,7 @@ class SlaveServer():
             if branch.value in self.shard_state_map:
                 for request in request_list:
                     self.shard_state_map[branch.value].add_cross_shard_tx_list_by_minor_block_hash(
-                        request.minorBlockHash, request.txList)
+                        request.minorBlockHash, request.tx_list)
 
             batch_request = BatchAddXshardTxListRequest(request_list)
             for slaveConn in self.shard_to_slaves[branch.get_shard_id()]:
@@ -1057,7 +1057,7 @@ class SlaveServer():
 
         await self.broadcast_xshard_tx_list(block, xshard_list)
         await self.send_minor_block_header_to_master(
-            block.header, len(block.txList), len(xshard_list), shard_state.get_shard_stats())
+            block.header, len(block.tx_list), len(xshard_list), shard_state.get_shard_stats())
 
         self.add_blockFutures[block.header.get_hash()].set_result(None)
         del self.add_blockFutures[block.header.get_hash()]
@@ -1111,14 +1111,14 @@ class SlaveServer():
 
         return True
 
-    def add_tx_list(self, txList, shard_conn=None):
-        if not txList:
+    def add_tx_list(self, tx_list, shard_conn=None):
+        if not tx_list:
             return
-        evm_tx = txList[0].code.get_evm_transaction()
+        evm_tx = tx_list[0].code.get_evm_transaction()
         evm_tx.set_shard_size(self.__get_shard_size())
         branch_value = evm_tx.from_shard_id() | self.__get_shard_size()
         valid_tx_list = []
-        for tx in txList:
+        for tx in tx_list:
             if self.add_tx(tx):
                 valid_tx_list.append(tx)
         if not valid_tx_list:

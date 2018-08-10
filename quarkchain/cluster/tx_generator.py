@@ -10,10 +10,10 @@ from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger
 
 
-def random_full_shard_id(shardSize, shardId):
-    fullShardId = random.randint(0, (2 ** 32) - 1)
-    shardMask = shardSize - 1
-    return fullShardId & (~shardMask) | shardId
+def random_full_shard_id(shard_size, shard_id):
+    full_shard_id = random.randint(0, (2 ** 32) - 1)
+    shard_mask = shard_size - 1
+    return full_shard_id & (~shardMask) | shard_id
 
 
 class Account:
@@ -59,7 +59,7 @@ class TransactionGenerator:
         if numTx <= 0:
             return
         startTime = time.time()
-        txList = []
+        tx_list = []
         total = 0
         sampleEvmTx = sampleTx.code.get_evm_transaction()
         for account in self.accounts:
@@ -68,11 +68,11 @@ class TransactionGenerator:
             tx = self.create_transaction(account, nonce, xShardPercent, sampleEvmTx)
             if not tx:
                 continue
-            txList.append(tx)
+            tx_list.append(tx)
             total += 1
-            if len(txList) >= 600 or total >= numTx:
-                self.slaveServer.add_tx_list(txList)
-                txList = []
+            if len(tx_list) >= 600 or total >= numTx:
+                self.slaveServer.add_tx_list(tx_list)
+                tx_list = []
                 await asyncio.sleep(random.uniform(8, 12))  # yield CPU so that other stuff won't be held for too long
 
             if total >= numTx:
@@ -86,24 +86,24 @@ class TransactionGenerator:
 
     def create_transaction(self, account, nonce, xShardPercent, sampleEvmTx) -> Optional[Transaction]:
         config = DEFAULT_ENV.config
-        shardSize = self.branch.get_shard_size()
-        shardMask = shardSize - 1
+        shard_size = self.branch.get_shard_size()
+        shard_mask = shard_size - 1
         fromShard = self.branch.get_shard_id()
 
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
-        if sampleEvmTx.fromFullShardId and (sampleEvmTx.fromFullShardId & shardMask) != fromShard:
+        if sampleEvmTx.fromFullShardId and (sampleEvmTx.fromFullShardId & shard_mask) != fromShard:
             return None
 
         if sampleEvmTx.fromFullShardId:
             fromFullShardId = sampleEvmTx.fromFullShardId
         else:
-            fromFullShardId = account.address.fullShardId & (~shardMask) | fromShard
+            fromFullShardId = account.address.full_shard_id & (~shardMask) | fromShard
 
         if not sampleEvmTx.to:
-            toAddress = random.choice(self.accounts).address
-            recipient = toAddress.recipient
-            toFullShardId = toAddress.fullShardId & (~shardMask) | fromShard
+            to_address = random.choice(self.accounts).address
+            recipient = to_address.recipient
+            toFullShardId = to_address.full_shard_id & (~shardMask) | fromShard
         else:
             recipient = sampleEvmTx.to
             toFullShardId = fromFullShardId
@@ -119,7 +119,7 @@ class TransactionGenerator:
         if not sampleEvmTx.data:
             value = random.randint(1, 100) * (10 ** 15)
 
-        evmTx = EvmTransaction(
+        evm_tx = EvmTransaction(
             nonce=nonce,
             gasprice=sampleEvmTx.gasprice,
             startgas=sampleEvmTx.startgas,
@@ -129,5 +129,5 @@ class TransactionGenerator:
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
             networkId=config.NETWORK_ID)
-        evmTx.sign(account.key)
-        return Transaction(code=Code.create_evm_code(evmTx))
+        evm_tx.sign(account.key)
+        return Transaction(code=Code.create_evm_code(evm_tx))

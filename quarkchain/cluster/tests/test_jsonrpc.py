@@ -46,8 +46,8 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionCount(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
-        acc2 = Address.create_random_account(fullShardId=1)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
@@ -58,8 +58,8 @@ class TestJSONRPC(unittest.TestCase):
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
-                toAddress=acc1,
+                from_address=acc1,
+                to_address=acc1,
                 value=12345,
             )
             self.assertTrue(slaves[0].add_tx(tx))
@@ -75,50 +75,50 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_sendTransaction(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
-        acc2 = Address.create_random_account(fullShardId=1)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            evmTx = EvmTransaction(
+            evm_tx = EvmTransaction(
                 nonce=0,
                 gasprice=6,
                 startgas=30000,
                 to=acc2.recipient,
                 value=15,
                 data=b"",
-                fromFullShardId=acc1.fullShardId,
-                toFullShardId=acc2.fullShardId,
+                fromFullShardId=acc1.full_shard_id,
+                toFullShardId=acc2.full_shard_id,
                 networkId=slaves[0].env.config.NETWORK_ID,
             )
-            evmTx.sign(id1.get_key())
+            evm_tx.sign(id1.get_key())
             request = dict(
                 to="0x" + acc2.recipient.hex(),
                 gasPrice="0x6",
                 gas=hex(30000),
                 value="0xf",  # 15
-                v=quantity_encoder(evmTx.v),
-                r=quantity_encoder(evmTx.r),
-                s=quantity_encoder(evmTx.s),
+                v=quantity_encoder(evm_tx.v),
+                r=quantity_encoder(evm_tx.r),
+                s=quantity_encoder(evm_tx.s),
                 nonce="0x0",
                 fromFullShardId="0x00000000",
                 toFullShardId="0x00000001",
                 networkId=hex(slaves[0].env.config.NETWORK_ID),
             )
-            tx = Transaction(code=Code.create_evm_code(evmTx))
+            tx = Transaction(code=Code.create_evm_code(evm_tx))
             response = send_request("sendTransaction", request)
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
             self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 1)
-            self.assertEqual(slaves[0].shard_state_map[branch.value].tx_queue.pop_transaction(), evmTx)
+            self.assertEqual(slaves[0].shard_state_map[branch.value].tx_queue.pop_transaction(), evm_tx)
 
     def test_sendTransaction_with_bad_signature(self):
         """ sendTransaction validates signature """
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
-        acc2 = Address.create_random_account(fullShardId=1)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slaveList
@@ -126,7 +126,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             request = dict(
                 to="0x" + acc2.recipient.hex(),
-                gasPrice="0x6",
+                gas_price="0x6",
                 gas=hex(30000),
                 value="0xf",
                 v="0x1",
@@ -141,12 +141,12 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_sendTransaction_missing_from_full_shard_id(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             request = dict(
                 to="0x" + acc1.recipient.hex(),
-                gasPrice="0x6",
+                gas_price="0x6",
                 gas=hex(30000),
                 value="0xf",
                 v="0x1",
@@ -160,9 +160,9 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getNextBlockToMine_and_addBlock(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
-        acc2 = Address.create_random_account(fullShardId=0)
-        acc3 = Address.create_random_account(fullShardId=1)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=0)
+        acc3 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slaveList
@@ -170,8 +170,8 @@ class TestJSONRPC(unittest.TestCase):
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[2 | 0],
                 key=id1.get_key(),
-                fromAddress=acc1,
-                toAddress=acc3,
+                from_address=acc1,
+                to_address=acc3,
                 value=14,
                 gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             )
@@ -200,9 +200,9 @@ class TestJSONRPC(unittest.TestCase):
             block = RootBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
 
             self.assertEqual(block.header.height, 2)
-            self.assertEqual(len(block.minorBlockHeaderList), 2)
-            self.assertEqual(block.minorBlockHeaderList[0], block1.header)
-            self.assertEqual(block.minorBlockHeaderList[1], block2.header)
+            self.assertEqual(len(block.minor_block_header_list), 2)
+            self.assertEqual(block.minor_block_header_list[0], block1.header)
+            self.assertEqual(block.minor_block_header_list[1], block2.header)
 
             send_request("addBlock", "0x0", response["blockData"])
             self.assertEqual(slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0)
@@ -221,7 +221,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getNextBlockToMine_with_shard_mask(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             response = send_request("getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x2")
@@ -236,7 +236,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_get_minor_block(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
@@ -247,8 +247,8 @@ class TestJSONRPC(unittest.TestCase):
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
-                toAddress=acc1,
+                from_address=acc1,
+                to_address=acc1,
                 value=12345,
             )
             self.assertTrue(slaves[0].add_tx(tx))
@@ -280,7 +280,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionById(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
@@ -291,8 +291,8 @@ class TestJSONRPC(unittest.TestCase):
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
-                toAddress=acc1,
+                from_address=acc1,
+                to_address=acc1,
                 value=12345,
             )
             self.assertTrue(slaves[0].add_tx(tx))
@@ -301,12 +301,12 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
-                "getTransactionById", "0x" + tx.get_hash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
+                "getTransactionById", "0x" + tx.get_hash().hex() + acc1.full_shard_id.to_bytes(4, "big").hex())
             self.assertEqual(resp["hash"], "0x" + tx.get_hash().hex())
 
     def test_call_success(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slaveList
@@ -319,7 +319,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_call_failure(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slaveList
@@ -333,7 +333,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionReceipt_not_exist(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             resp = send_request("getTransactionReceipt", "0x" + bytes(36).hex())
@@ -341,7 +341,7 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionReceipt_on_transfer(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
@@ -351,8 +351,8 @@ class TestJSONRPC(unittest.TestCase):
             tx = create_transfer_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
-                toAddress=acc1,
+                from_address=acc1,
+                to_address=acc1,
                 value=12345,
             )
             self.assertTrue(slaves[0].add_tx(tx))
@@ -361,7 +361,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request("getTransactionReceipt",
-                               "0x" + tx.get_hash().hex() + acc1.fullShardId.to_bytes(4, "big").hex())
+                               "0x" + tx.get_hash().hex() + acc1.full_shard_id.to_bytes(4, "big").hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
             self.assertEqual(resp["status"], "0x1")
             self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
@@ -369,8 +369,8 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionReceipt_on_x_shard_transfer(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
-        acc2 = Address.create_from_identity(id1, fullShardId=1)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_from_identity(id1, full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
@@ -380,8 +380,8 @@ class TestJSONRPC(unittest.TestCase):
             txGen = lambda s, f, t: create_transfer_transaction(
                 shardState=s,
                 key=id1.get_key(),
-                fromAddress=f,
-                toAddress=t,
+                from_address=f,
+                to_address=t,
                 gas=21000 if f == t else 30000,
                 value=12345,
             )
@@ -403,7 +403,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(s2.evm_state.gas_used, 30000)
             self.assertEqual(s2.evm_state.xshard_receive_gas_used, 9000)
             resp = send_request("getTransactionReceipt",
-                               "0x" + tx.get_hash().hex() + acc2.fullShardId.to_bytes(4, "big").hex())
+                               "0x" + tx.get_hash().hex() + acc2.full_shard_id.to_bytes(4, "big").hex())
             self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
             self.assertEqual(resp["status"], "0x1")
             self.assertEqual(resp["cumulativeGasUsed"], hex(30000))
@@ -412,18 +412,18 @@ class TestJSONRPC(unittest.TestCase):
 
     def test_getTransactionReceipt_on_contract_creation(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            toFullShardId = acc1.fullShardId + 2
+            toFullShardId = acc1.full_shard_id + 2
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
+                from_address=acc1,
                 toFullShardId=toFullShardId
             )
             self.assertTrue(slaves[0].add_tx(tx))
@@ -436,24 +436,24 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["status"], "0x1")
             self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
 
-            contractAddress = mk_contract_address(acc1.recipient, toFullShardId, 0)
+            contract_address = mk_contract_address(acc1.recipient, toFullShardId, 0)
             self.assertEqual(resp["contractAddress"],
-                             "0x" + contractAddress.hex() + toFullShardId.to_bytes(4, "big").hex())
+                             "0x" + contract_address.hex() + toFullShardId.to_bytes(4, "big").hex())
 
     def test_getTransactionReceipt_on_contract_creation_failure(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, fullShardId=0)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            toFullShardId = acc1.fullShardId + 1  # x-shard contract creation should fail
+            toFullShardId = acc1.full_shard_id + 1  # x-shard contract creation should fail
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
-                fromAddress=acc1,
+                from_address=acc1,
                 toFullShardId=toFullShardId
             )
             self.assertTrue(slaves[0].add_tx(tx))

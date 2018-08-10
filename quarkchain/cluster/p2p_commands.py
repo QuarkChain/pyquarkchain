@@ -65,12 +65,12 @@ class NewMinorBlockHeaderListCommand(Serializable):
     '''
     FIELDS = [
         ("rootBlockHeader", RootBlockHeader),
-        ("minorBlockHeaderList", PrependedSizeListSerializer(4, MinorBlockHeader)),
+        ("minor_block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
     ]
 
-    def __init__(self, rootBlockHeader, minorBlockHeaderList):
+    def __init__(self, rootBlockHeader, minor_block_header_list):
         self.rootBlockHeader = rootBlockHeader
-        self.minorBlockHeaderList = minorBlockHeaderList
+        self.minor_block_header_list = minor_block_header_list
 
 
 class NewTransactionListCommand(Serializable):

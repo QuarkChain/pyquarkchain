@@ -14,19 +14,19 @@ def create_default_state(env):
     sStateList = [
         ShardState(
             env=env,
-            shard_id=shardId,
-            db=quarkchain.db.InMemoryDb()) for shardId in range(env.config.SHARD_SIZE)]
+            shard_id=shard_id,
+            db=quarkchain.db.InMemoryDb()) for shard_id in range(env.config.SHARD_SIZE)]
     return (rState, sStateList)
 
 
 def add_minor_block_to_cluster(sStates, block):
-    shardId = block.header.branch.get_shard_id()
-    sStates[shardId].finalize_and_add_block(block)
+    shard_id = block.header.branch.get_shard_id()
+    sStates[shard_id].finalize_and_add_block(block)
     blockHash = block.header.get_hash()
     for i in range(block.header.branch.get_shard_size()):
-        if i == shardId:
+        if i == shard_id:
             continue
-        sStates[i].add_cross_shard_tx_list_by_minor_block_hash(blockHash, CrossShardTransactionList(txList=[]))
+        sStates[i].add_cross_shard_tx_list_by_minor_block_hash(blockHash, CrossShardTransactionList(tx_list=[]))
 
 
 class TestRootState(unittest.TestCase):
@@ -56,7 +56,7 @@ class TestRootState(unittest.TestCase):
         self.assertIsNone(rState.get_root_block_by_height(3))
         self.assertEqual(rState.get_root_block_by_height(2), rB)
         self.assertEqual(rState.get_root_block_by_height(1),
-                         rState.get_root_block_by_hash(rB.header.hashPrevBlock))
+                         rState.get_root_block_by_hash(rB.header.hash_prev_block))
 
     def test_root_state_and_shard_state_add_block(self):
         env = get_test_env()
@@ -207,18 +207,18 @@ class TestRootState(unittest.TestCase):
         rB0 = rState.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.createTime + 9)
+            create_time=rState.tip.create_time + 9)
         self.assertEqual(rState.tip.difficulty, rB0.header.difficulty)
         rB0 = rState.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.createTime + 3)
+            create_time=rState.tip.create_time + 3)
         self.assertEqual(rState.tip.difficulty + rState.tip.difficulty // 2048, rB0.header.difficulty)
 
         rB0 = rState.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.createTime + 26).finalize()
+            create_time=rState.tip.create_time + 26).finalize()
         self.assertEqual(rState.tip.difficulty - rState.tip.difficulty // 2048, rB0.header.difficulty)
 
         for i in range(0, 2 ** 32):
@@ -254,7 +254,7 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(rState.add_block(rB0))
 
         # create a fork
-        rB00.header.createTime += 1
+        rB00.header.create_time += 1
         rB00.finalize()
         self.assertNotEqual(rB0.header.get_hash(), rB00.header.get_hash())
 
@@ -300,7 +300,7 @@ class TestRootState(unittest.TestCase):
 
         where r3 is invalid because m2 depends on r2, which is not in the r3 chain.
         '''
-        env = get_test_env(shardSize=1)
+        env = get_test_env(shard_size=1)
         rState, sStates = create_default_state(env)
 
         rB0 = rState.get_tip_block()
@@ -322,7 +322,7 @@ class TestRootState(unittest.TestCase):
         self.assertFalse(sStates[0].add_root_block(rB2))
 
         m2 = m1.create_block_to_append()
-        m2.header.hashPrevRootBlock = rB2.header.get_hash()
+        m2.header.hash_prev_root_block = rB2.header.get_hash()
         add_minor_block_to_cluster(sStates, m2)
 
         rState.add_validated_minor_block_hash(m2.header.get_hash())
@@ -357,7 +357,7 @@ class TestRootState(unittest.TestCase):
                  +--+
         where m3 is invalid because m3 depeonds on r2, whose minor chain is not the same chain as m3
         '''
-        env = get_test_env(shardSize=1)
+        env = get_test_env(shard_size=1)
         rState, sStates = create_default_state(env)
 
         rB0 = rState.get_tip_block()
@@ -382,12 +382,12 @@ class TestRootState(unittest.TestCase):
         self.assertFalse(sStates[0].add_root_block(rB2))
 
         m3 = m1.create_block_to_append()
-        m3.header.hashPrevRootBlock = rB2.header.get_hash()
+        m3.header.hash_prev_root_block = rB2.header.get_hash()
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(sStates, m3)
 
         m4 = m1.create_block_to_append()
-        m4.header.hashPrevRootBlock = rB1.header.get_hash()
+        m4.header.hash_prev_root_block = rB1.header.get_hash()
         add_minor_block_to_cluster(sStates, m4)
 
         # Test recovery

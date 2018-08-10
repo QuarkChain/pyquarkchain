@@ -100,17 +100,17 @@ def full_shard_id_decoder(hexStr):
     return int.from_bytes(b, byteorder="big")
 
 
-def full_shard_id_encoder(fullShardId):
-    return data_encoder(fullShardId.to_bytes(4, byteorder="big"))
+def full_shard_id_encoder(full_shard_id):
+    return data_encoder(full_shard_id.to_bytes(4, byteorder="big"))
 
 
-def id_encoder(hashBytes, fullShardId):
-    """ Encode hash and fullShardId into hex """
-    return data_encoder(hashBytes + fullShardId.to_bytes(4, byteorder="big"))
+def id_encoder(hashBytes, full_shard_id):
+    """ Encode hash and full_shard_id into hex """
+    return data_encoder(hashBytes + full_shard_id.to_bytes(4, byteorder="big"))
 
 
 def id_decoder(hexStr):
-    """ Decode an id to (hash, fullShardId) """
+    """ Decode an id to (hash, full_shard_id) """
     dataBytes = data_decoder(hexStr)
     if len(dataBytes) != 36:
         raise InvalidParams("Invalid id encoding")
@@ -146,30 +146,30 @@ def root_block_encoder(block):
         "id": data_encoder(header.get_hash()),
         "height": quantity_encoder(header.height),
         "hash": data_encoder(header.get_hash()),
-        "hashPrevBlock": data_encoder(header.hashPrevBlock),
-        "idPrevBlock": data_encoder(header.hashPrevBlock),
+        "hashPrevBlock": data_encoder(header.hash_prev_block),
+        "idPrevBlock": data_encoder(header.hash_prev_block),
         "nonce": quantity_encoder(header.nonce),
-        "hashMerkleRoot": data_encoder(header.hashMerkleRoot),
-        "miner": address_encoder(header.coinbaseAddress.serialize()),
+        "hashMerkleRoot": data_encoder(header.hash_merkle_root),
+        "miner": address_encoder(header.coinbase_address.serialize()),
         "difficulty": quantity_encoder(header.difficulty),
-        "timestamp": quantity_encoder(header.createTime),
+        "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
     }
 
     d["minorBlockHeaders"] = []
-    for header in block.minorBlockHeaderList:
+    for header in block.minor_block_header_list:
         h = {
             'id': id_encoder(header.get_hash(), header.branch.get_shard_id()),
             'height': quantity_encoder(header.height),
             'hash': data_encoder(header.get_hash()),
             'branch': quantity_encoder(header.branch.value),
             'shard': quantity_encoder(header.branch.get_shard_id()),
-            'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
-            'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch.get_shard_id()),
-            'hashPrevRootBlock': data_encoder(header.hashPrevRootBlock),
+            'hashPrevMinorBlock': data_encoder(header.hash_prev_minor_block),
+            'idPrevMinorBlock': id_encoder(header.hash_prev_minor_block, header.branch.get_shard_id()),
+            'hashPrevRootBlock': data_encoder(header.hash_prev_root_block),
             'nonce': quantity_encoder(header.nonce),
             'difficulty': quantity_encoder(header.difficulty),
-            'timestamp': quantity_encoder(header.createTime),
+            'timestamp': quantity_encoder(header.create_time),
         }
         d["minorBlockHeaders"].append(h)
     return d
@@ -192,26 +192,26 @@ def minor_block_encoder(block, include_transactions=False):
         'hash': data_encoder(header.get_hash()),
         'branch': quantity_encoder(header.branch.value),
         'shard': quantity_encoder(header.branch.get_shard_id()),
-        'hashPrevMinorBlock': data_encoder(header.hashPrevMinorBlock),
-        'idPrevMinorBlock': id_encoder(header.hashPrevMinorBlock, header.branch.get_shard_id()),
-        'hashPrevRootBlock': data_encoder(header.hashPrevRootBlock),
+        'hashPrevMinorBlock': data_encoder(header.hash_prev_minor_block),
+        'idPrevMinorBlock': id_encoder(header.hash_prev_minor_block, header.branch.get_shard_id()),
+        'hashPrevRootBlock': data_encoder(header.hash_prev_root_block),
         'nonce': quantity_encoder(header.nonce),
-        'hashMerkleRoot': data_encoder(meta.hashMerkleRoot),
-        'hashEvmStateRoot': data_encoder(meta.hashEvmStateRoot),
-        'miner': address_encoder(meta.coinbaseAddress.serialize()),
+        'hashMerkleRoot': data_encoder(meta.hash_merkle_root),
+        'hashEvmStateRoot': data_encoder(meta.hash_evm_state_root),
+        'miner': address_encoder(meta.coinbase_address.serialize()),
         'difficulty': quantity_encoder(header.difficulty),
-        'extraData': data_encoder(meta.extraData),
-        'gasLimit': quantity_encoder(meta.evmGasLimit),
-        'gasUsed': quantity_encoder(meta.evmGasUsed),
-        'timestamp': quantity_encoder(header.createTime),
+        'extraData': data_encoder(meta.extra_data),
+        'gasLimit': quantity_encoder(meta.evm_gas_limit),
+        'gasUsed': quantity_encoder(meta.evm_gas_used),
+        'timestamp': quantity_encoder(header.create_time),
         'size': quantity_encoder(len(block.serialize())),
     }
     if include_transactions:
         d['transactions'] = []
-        for i, tx in enumerate(block.txList):
+        for i, tx in enumerate(block.tx_list):
             d['transactions'].append(tx_encoder(block, i))
     else:
-        d['transactions'] = [id_encoder(tx.get_hash(), block.header.branch.get_shard_id()) for tx in block.txList]
+        d['transactions'] = [id_encoder(tx.get_hash(), block.header.branch.get_shard_id()) for tx in block.tx_list]
     return d
 
 
@@ -220,33 +220,33 @@ def tx_encoder(block, i):
 
     `transaction` is the `i`th transaction in `block`.
     """
-    tx = block.txList[i]
-    evmTx = tx.code.get_evm_transaction()
-    # TODO: shardMask is wrong when the tx is pending and block is fake
-    shardMask = block.header.branch.get_shard_size() - 1
+    tx = block.tx_list[i]
+    evm_tx = tx.code.get_evm_transaction()
+    # TODO: shard_mask is wrong when the tx is pending and block is fake
+    shard_mask = block.header.branch.get_shard_size() - 1
     return {
-        'id': id_encoder(tx.get_hash(), evmTx.fromFullShardId),
+        'id': id_encoder(tx.get_hash(), evm_tx.fromFullShardId),
         'hash': data_encoder(tx.get_hash()),
-        'nonce': quantity_encoder(evmTx.nonce),
-        'timestamp': quantity_encoder(block.header.createTime),
+        'nonce': quantity_encoder(evm_tx.nonce),
+        'timestamp': quantity_encoder(block.header.create_time),
         'shard': quantity_encoder(block.header.branch.get_shard_id()),
         'blockId': id_encoder(block.header.get_hash(), block.header.branch.get_shard_id()),
         'blockHeight': quantity_encoder(block.header.height),
         'transactionIndex': quantity_encoder(i),
-        'from': data_encoder(evmTx.sender),
-        'to': data_encoder(evmTx.to),
-        'fromFullShardId': full_shard_id_encoder(evmTx.fromFullShardId),
-        'toFullShardId': full_shard_id_encoder(evmTx.toFullShardId),
-        'fromShardId': quantity_encoder(evmTx.fromFullShardId & shardMask),
-        'toShardId': quantity_encoder(evmTx.toFullShardId & shardMask),
-        'value': quantity_encoder(evmTx.value),
-        'gasPrice': quantity_encoder(evmTx.gasprice),
-        'gas': quantity_encoder(evmTx.startgas),
-        'data': data_encoder(evmTx.data),
-        'networkId': quantity_encoder(evmTx.networkId),
-        'r': quantity_encoder(evmTx.r),
-        's': quantity_encoder(evmTx.s),
-        'v': quantity_encoder(evmTx.v),
+        'from': data_encoder(evm_tx.sender),
+        'to': data_encoder(evm_tx.to),
+        'fromFullShardId': full_shard_id_encoder(evm_tx.fromFullShardId),
+        'toFullShardId': full_shard_id_encoder(evm_tx.toFullShardId),
+        'fromShardId': quantity_encoder(evm_tx.fromFullShardId & shard_mask),
+        'toShardId': quantity_encoder(evm_tx.toFullShardId & shard_mask),
+        'value': quantity_encoder(evm_tx.value),
+        'gasPrice': quantity_encoder(evm_tx.gasprice),
+        'gas': quantity_encoder(evm_tx.startgas),
+        'data': data_encoder(evm_tx.data),
+        'networkId': quantity_encoder(evm_tx.networkId),
+        'r': quantity_encoder(evm_tx.r),
+        's': quantity_encoder(evm_tx.s),
+        'v': quantity_encoder(evm_tx.v),
     }
 
 
@@ -274,22 +274,22 @@ def loglist_encoder(loglist):
 
 
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
-    tx = block.txList[i]
-    evmTx = tx.code.get_evm_transaction()
+    tx = block.tx_list[i]
+    evm_tx = tx.code.get_evm_transaction()
     resp = {
-        'transactionId': id_encoder(tx.get_hash(), evmTx.fromFullShardId),
+        'transactionId': id_encoder(tx.get_hash(), evm_tx.fromFullShardId),
         'transactionHash': data_encoder(tx.get_hash()),
         'transactionIndex': quantity_encoder(i),
         'blockId': id_encoder(block.header.get_hash(), block.header.branch.get_shard_id()),
         'blockHash': data_encoder(block.header.get_hash()),
         'blockHeight': quantity_encoder(block.header.height),
         'blockNumber': quantity_encoder(block.header.height),
-        'cumulativeGasUsed': quantity_encoder(receipt.gasUsed),
-        'gasUsed': quantity_encoder(receipt.gasUsed - receipt.prevGasUsed),
+        'cumulativeGasUsed': quantity_encoder(receipt.gas_used),
+        'gasUsed': quantity_encoder(receipt.gas_used - receipt.prev_gas_used),
         'status': quantity_encoder(1 if receipt.success == b"\x01" else 0),
         'contractAddress': (
-            address_encoder(receipt.contractAddress.serialize())
-            if not receipt.contractAddress.is_empty() else None
+            address_encoder(receipt.contract_address.serialize())
+            if not receipt.contract_address.is_empty() else None
         ),
     }
     logs = []
@@ -496,11 +496,11 @@ class JSONRPCServer:
             return {"primary": primary}
 
         branchToAccountBranchData = await self.master.get_account_data(address)
-        shardSize = self.master.get_shard_size()
+        shard_size = self.master.get_shard_size()
 
         shards = []
-        for shard in range(shardSize):
-            branch = Branch.create(shardSize, shard)
+        for shard in range(shard_size):
+            branch = Branch.create(shard_size, shard)
             accountBranchData = branchToAccountBranchData[branch]
             data = {
                 "branch": quantity_encoder(accountBranchData.branch.value),
@@ -511,7 +511,7 @@ class JSONRPCServer:
             }
             shards.append(data)
 
-            if shard == address.get_shard_id(shardSize):
+            if shard == address.get_shard_id(shard_size):
                 primary = data
 
         return {
@@ -548,7 +548,7 @@ class JSONRPCServer:
         if toFullShardId is None:
             toFullShardId = fromFullShardId
 
-        evmTx = EvmTransaction(
+        evm_tx = EvmTransaction(
             nonce, gasprice, startgas, to, value, data_,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
@@ -556,16 +556,16 @@ class JSONRPCServer:
         )
 
         return {
-            "txHashUnsigned": data_encoder(evmTx.hash_unsigned),
-            "nonce": quantity_encoder(evmTx.nonce),
-            'to': data_encoder(evmTx.to),
-            'fromFullShardId': full_shard_id_encoder(evmTx.fromFullShardId),
-            'toFullShardId': full_shard_id_encoder(evmTx.toFullShardId),
-            'value': quantity_encoder(evmTx.value),
-            'gasPrice': quantity_encoder(evmTx.gasprice),
-            'gas': quantity_encoder(evmTx.startgas),
-            'data': data_encoder(evmTx.data),
-            'networkId': quantity_encoder(evmTx.networkId),
+            "txHashUnsigned": data_encoder(evm_tx.hash_unsigned),
+            "nonce": quantity_encoder(evm_tx.nonce),
+            'to': data_encoder(evm_tx.to),
+            'fromFullShardId': full_shard_id_encoder(evm_tx.fromFullShardId),
+            'toFullShardId': full_shard_id_encoder(evm_tx.toFullShardId),
+            'value': quantity_encoder(evm_tx.value),
+            'gasPrice': quantity_encoder(evm_tx.gasprice),
+            'gas': quantity_encoder(evm_tx.startgas),
+            'data': data_encoder(evm_tx.data),
+            'networkId': quantity_encoder(evm_tx.networkId),
         }
 
     @public_methods.add
@@ -599,13 +599,13 @@ class JSONRPCServer:
         if toFullShardId is None:
             toFullShardId = fromFullShardId
 
-        evmTx = EvmTransaction(
+        evm_tx = EvmTransaction(
             nonce, gasprice, startgas, to, value, data_, v, r, s,
             fromFullShardId=fromFullShardId,
             toFullShardId=toFullShardId,
             networkId=networkId,
         )
-        tx = Transaction(code=Code.create_evm_code(evmTx))
+        tx = Transaction(code=Code.create_evm_code(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
             return None
@@ -615,12 +615,12 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("txData", data_decoder)
     async def sendRawTransaction(self, txData):
-        evmTx = rlp.decode(txData, EvmTransaction)
-        tx = Transaction(code=Code.create_evm_code(evmTx))
+        evm_tx = rlp.decode(txData, EvmTransaction)
+        tx = Transaction(code=Code.create_evm_code(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
             return "0x" + bytes(32 + 4).hex()
-        return id_encoder(tx.get_hash(), evmTx.fromFullShardId)
+        return id_encoder(tx.get_hash(), evm_tx.fromFullShardId)
 
     @public_methods.add
     @decode_arg("blockId", data_decoder)
@@ -643,9 +643,9 @@ class JSONRPCServer:
     @decode_arg("blockId", id_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockById(self, blockId, includeTransactions=False):
-        blockHash, fullShardId = blockId
-        shardSize = self.master.get_shard_size()
-        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
+        blockHash, full_shard_id = blockId
+        shard_size = self.master.get_shard_size()
+        branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
         block = await self.master.get_minor_block_by_hash(blockHash, branch)
         if not block:
             return None
@@ -655,12 +655,12 @@ class JSONRPCServer:
     @decode_arg("shard", quantity_decoder)
     @decode_arg("includeTransactions", bool_decoder)
     async def getMinorBlockByHeight(self, shard: int, height=None, includeTransactions=False):
-        shardSize = self.master.get_shard_size()
+        shard_size = self.master.get_shard_size()
         if height is not None:
             height = quantity_decoder(height)
-        if shard >= shardSize:
-            raise InvalidParams("shard is larger than shard size {} > {}".format(shard, shardSize))
-        branch = Branch.create(shardSize, shard)
+        if shard >= shard_size:
+            raise InvalidParams("shard is larger than shard size {} > {}".format(shard, shard_size))
+        branch = Branch.create(shard_size, shard)
         block = await self.master.get_minor_block_by_height(height, branch)
         if not block:
             return None
@@ -669,13 +669,13 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("txId", id_decoder)
     async def getTransactionById(self, txId):
-        txHash, fullShardId = txId
-        shardSize = self.master.get_shard_size()
-        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
-        minorBlock, i = await self.master.get_transaction_by_hash(txHash, branch)
+        tx_hash, full_shard_id = txId
+        shard_size = self.master.get_shard_size()
+        branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
+        minorBlock, i = await self.master.get_transaction_by_hash(tx_hash, branch)
         if not minorBlock:
             return None
-        if len(minorBlock.txList) <= i:
+        if len(minorBlock.tx_list) <= i:
             return None
         return tx_encoder(minorBlock, i)
 
@@ -697,7 +697,7 @@ class JSONRPCServer:
         toFullShardId = int.from_bytes(to[20:], "big")
 
         gas = get_data_default("gas", quantity_decoder, 1000000)
-        gasPrice = get_data_default("gasPrice", quantity_decoder, 0)
+        gas_price = get_data_default("gasPrice", quantity_decoder, 0)
         value = get_data_default("value", quantity_decoder, 0)
         data_ = get_data_default("data", data_decoder, b"")
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
@@ -706,25 +706,25 @@ class JSONRPCServer:
         networkId = self.master.env.config.NETWORK_ID
 
         nonce = 0  # slave will fill in the real nonce
-        evmTx = EvmTransaction(
-            nonce, gasPrice, gas, to[:20], value, data_,
-            fromFullShardId=senderAddress.fullShardId, toFullShardId=toFullShardId, networkId=networkId)
+        evm_tx = EvmTransaction(
+            nonce, gas_price, gas, to[:20], value, data_,
+            fromFullShardId=senderAddress.full_shard_id, toFullShardId=toFullShardId, networkId=networkId)
 
-        tx = Transaction(code=Code.create_evm_code(evmTx))
+        tx = Transaction(code=Code.create_evm_code(evm_tx))
         res = await self.master.execute_transaction(tx, senderAddress)
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
     @decode_arg("txId", id_decoder)
     async def getTransactionReceipt(self, txId):
-        txHash, fullShardId = txId
-        shardSize = self.master.get_shard_size()
-        branch = Branch.create(shardSize, (shardSize - 1) & fullShardId)
-        resp = await self.master.get_transaction_receipt(txHash, branch)
+        tx_hash, full_shard_id = txId
+        shard_size = self.master.get_shard_size()
+        branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
+        resp = await self.master.get_transaction_receipt(tx_hash, branch)
         if not resp:
             return None
         minorBlock, i, receipt = resp
-        if len(minorBlock.txList) <= i:
+        if len(minorBlock.tx_list) <= i:
             return None
 
         return receipt_encoder(minorBlock, i, receipt)
@@ -813,15 +813,15 @@ class JSONRPCServer:
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard):
         """ Returns the result of the transaction application without putting in block chain """
-        toAddress = Address.create_from(eth_address_to_quarkchain_address_decoder(data["to"]))
+        to_address = Address.create_from(eth_address_to_quarkchain_address_decoder(data["to"]))
         if shard:
-            toAddress = Address(toAddress.recipient, shard)
-        data["to"] = "0x" + toAddress.serialize().hex()
+            to_address = Address(to_address.recipient, shard)
+        data["to"] = "0x" + to_address.serialize().hex()
         if "from" in data:
-            fromAddress = Address.create_from(eth_address_to_quarkchain_address_decoder(data["from"]))
+            from_address = Address.create_from(eth_address_to_quarkchain_address_decoder(data["from"]))
             if shard:
-                fromAddress = Address(fromAddress.recipient, shard)
-            data["from"] = "0x" + fromAddress.serialize().hex()
+                from_address = Address(from_address.recipient, shard)
+            data["from"] = "0x" + from_address.serialize().hex()
         return await self.call(**data)
 
     @public_methods.add
@@ -930,13 +930,13 @@ class JSONRPCServer:
         result = await self.master.get_transactions_by_address(address, start, limit)
         if not result:
             return None
-        txList, next = result
+        tx_list, next = result
         txs = []
-        for tx in txList:
+        for tx in tx_list:
             txs.append({
-                "txId": id_encoder(tx.txHash, tx.fromAddress.fullShardId),
-                "fromAddress": address_encoder(tx.fromAddress.serialize()),
-                "toAddress": address_encoder(tx.toAddress.serialize()) if tx.toAddress else "0x",
+                "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_id),
+                "fromAddress": address_encoder(tx.from_address.serialize()),
+                "toAddress": address_encoder(tx.to_address.serialize()) if tx.to_address else "0x",
                 "value": quantity_encoder(tx.value),
                 "blockHeight": quantity_encoder(tx.blockHeight),
                 "timestamp": quantity_encoder(tx.timestamp),

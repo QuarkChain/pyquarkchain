@@ -72,7 +72,7 @@ class Transaction(rlp.Serializable):
     def __init__(self, nonce, gasprice, startgas, to, value, data,
                  v=0, r=0, s=0, fromFullShardId=0, toFullShardId=0, networkId=1, version=0):
         self.data = None
-        self.shardSize = 0
+        self.shard_size = 0
 
         to = utils.normalize_address(to, allow_blank=True)
 
@@ -178,21 +178,21 @@ class Transaction(rlp.Serializable):
         if self.to in (b'', '\0' * 20):
             return mk_contract_address(self.sender, self.nonce)
 
-    def set_shard_size(self, shardSize):
-        check(is_p2(shardSize))
-        self.shardSize = shardSize
+    def set_shard_size(self, shard_size):
+        check(is_p2(shard_size))
+        self.shard_size = shard_size
 
     def from_shard_id(self):
-        if self.shardSize == 0:
-            raise RuntimeError("shardSize is not set")
-        shardMask = self.shardSize - 1
-        return self.fromFullShardId & shardMask
+        if self.shard_size == 0:
+            raise RuntimeError("shard_size is not set")
+        shard_mask = self.shard_size - 1
+        return self.fromFullShardId & shard_mask
 
     def to_shard_id(self):
-        if self.shardSize == 0:
-            raise RuntimeError("shardSize is not set")
-        shardMask = self.shardSize - 1
-        return self.toFullShardId & shardMask
+        if self.shard_size == 0:
+            raise RuntimeError("shard_size is not set")
+        shard_mask = self.shard_size - 1
+        return self.toFullShardId & shard_mask
 
     def is_cross_shard(self):
         return self.from_shard_id() != self.to_shard_id()

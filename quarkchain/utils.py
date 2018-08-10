@@ -26,8 +26,8 @@ def masks_have_overlap(m1, m2):
 
     i1 = int_left_most_bit(m1)
     i2 = int_left_most_bit(m2)
-    bitMask = (1 << ((min(i1, i2) - 1))) - 1
-    return (m1 & bitMask) == (m2 & bitMask)
+    bit_mask = (1 << ((min(i1, i2) - 1))) - 1
+    return (m1 & bit_mask) == (m2 & bit_mask)
 
 
 def is_p2(v):

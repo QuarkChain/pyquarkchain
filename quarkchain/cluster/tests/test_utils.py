@@ -18,9 +18,9 @@ def get_test_env(
         genesisAccount=Address.create_empty_account(),
         genesisQuarkash=0,
         genesisMinorQuarkash=0,
-        shardSize=2):
+        shard_size=2):
     env = DEFAULT_ENV.copy()
-    env.config.set_shard_size(shardSize)
+    env.config.set_shard_size(shard_size)
     env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.config.SKIP_MINOR_COINBASE_CHECK = False
@@ -40,51 +40,51 @@ def get_test_env(
 def create_transfer_transaction(
         shardState,
         key,
-        fromAddress,
-        toAddress,
+        from_address,
+        to_address,
         value,
         gas=21000,     # transfer tx min gas
-        gasPrice=1,
+        gas_price=1,
         nonce=None,
 ):
     """ Create an in-shard xfer tx
     """
-    evmTx = EvmTransaction(
-        nonce=shardState.get_transaction_count(fromAddress.recipient) if nonce is None else nonce,
-        gasprice=gasPrice,
+    evm_tx = EvmTransaction(
+        nonce=shardState.get_transaction_count(from_address.recipient) if nonce is None else nonce,
+        gasprice=gas_price,
         startgas=gas,
-        to=toAddress.recipient,
+        to=to_address.recipient,
         value=value,
         data=b'',
-        fromFullShardId=fromAddress.fullShardId,
-        toFullShardId=toAddress.fullShardId,
+        fromFullShardId=from_address.full_shard_id,
+        toFullShardId=to_address.full_shard_id,
         networkId=shardState.env.config.NETWORK_ID,
     )
-    evmTx.sign(key=key)
+    evm_tx.sign(key=key)
     return Transaction(
-        inList=[],
-        code=Code.create_evm_code(evmTx),
-        outList=[])
+        in_list=[],
+        code=Code.create_evm_code(evm_tx),
+        out_list=[])
 
 
-def create_contract_creation_transaction(shardState, key, fromAddress, toFullShardId):
-    evmTx = EvmTransaction(
-        nonce=shardState.get_transaction_count(fromAddress.recipient),
+def create_contract_creation_transaction(shardState, key, from_address, toFullShardId):
+    evm_tx = EvmTransaction(
+        nonce=shardState.get_transaction_count(from_address.recipient),
         gasprice=1,
         startgas=1000000,
         value=0,
         to=b'',
         # a contract creation payload
         data=bytes.fromhex("608060405234801561001057600080fd5b5061013f806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063942ae0a714610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60606040805190810160405280600a81526020017f68656c6c6f576f726c64000000000000000000000000000000000000000000008152509050905600a165627a7a72305820a45303c36f37d87d8dd9005263bdf8484b19e86208e4f8ed476bf393ec06a6510029"),  # noqa
-        fromFullShardId=fromAddress.fullShardId,
+        fromFullShardId=from_address.full_shard_id,
         toFullShardId=toFullShardId,
         networkId=shardState.env.config.NETWORK_ID
     )
-    evmTx.sign(key)
+    evm_tx.sign(key)
     return Transaction(
-        inList=[],
-        code=Code.create_evm_code(evmTx),
-        outList=[])
+        in_list=[],
+        code=Code.create_evm_code(evm_tx),
+        out_list=[])
 
 
 class Cluster:

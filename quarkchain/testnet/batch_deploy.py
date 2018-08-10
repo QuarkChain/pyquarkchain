@@ -34,7 +34,7 @@ class Endpoint:
         resp = await self.__send_request("getTransactionReceipt", txId)
         if not resp:
             return None
-        return resp["contractAddress"]
+        return resp["contract_address"]
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
@@ -43,7 +43,7 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shardSize"], 16)
+        return int(resp["shard_size"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
@@ -51,19 +51,19 @@ class Endpoint:
 
 
 def create_transaction(address, key, nonce, data, networkId) -> EvmTransaction:
-    evmTx = EvmTransaction(
+    evm_tx = EvmTransaction(
         nonce=nonce,
         gasprice=1,
         startgas=1000000,
         to=b'',
         value=0,
         data=data,
-        fromFullShardId=address.fullShardId,
-        toFullShardId=address.fullShardId,
+        fromFullShardId=address.full_shard_id,
+        toFullShardId=address.full_shard_id,
         networkId=networkId,
     )
-    evmTx.sign(key)
-    return evmTx
+    evm_tx.sign(key)
+    return evm_tx
 
 
 async def deploy_shard(endpoint, genesisId, data, networkId, shard):
@@ -74,25 +74,25 @@ async def deploy_shard(endpoint, genesisId, data, networkId, shard):
     while True:
         print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
         await asyncio.sleep(5)
-        contractAddress = await endpoint.get_contract_address(txId)
-        if contractAddress:
+        contract_address = await endpoint.get_contract_address(txId)
+        if contract_address:
             break
-    print("shard={} tx={} contract={}".format(shard, txId, contractAddress))
-    return txId, contractAddress
+    print("shard={} tx={} contract={}".format(shard, txId, contract_address))
+    return txId, contract_address
 
 
 async def deploy(endpoint, genesisId, data):
     networkId = await endpoint.get_network_id()
-    shardSize = await endpoint.get_shard_size()
+    shard_size = await endpoint.get_shard_size()
     futures = []
-    for i in range(shardSize):
+    for i in range(shard_size):
         futures.append(deploy_shard(endpoint, genesisId, data, networkId, i))
 
     results = await asyncio.gather(*futures)
     print("\n\n")
     for shard, result in enumerate(results):
-        txId, contractAddress = result
-        print("[{}, \"{}\"],  // {}".format(shard, contractAddress, txId))
+        txId, contract_address = result
+        print("[{}, \"{}\"],  // {}".format(shard, contract_address, txId))
 
 
 def main():

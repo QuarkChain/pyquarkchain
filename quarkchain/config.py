@@ -97,10 +97,10 @@ class DefaultConfig:
         # whether to index transaction by address
         self.ENABLE_TRANSACTION_HISTORY = True
 
-    def set_shard_size(self, shardSize):
-        assert(is_p2(shardSize))
-        self.SHARD_SIZE = shardSize
-        self.SHARD_SIZE_BITS = int_left_most_bit(shardSize) - 1
+    def set_shard_size(self, shard_size):
+        assert(is_p2(shard_size))
+        self.SHARD_SIZE = shard_size
+        self.SHARD_SIZE_BITS = int_left_most_bit(shard_size) - 1
 
     def copy(self):
         return copy.copy(self)
