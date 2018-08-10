@@ -23,7 +23,7 @@ class Peer(P2PConnection):
     def __init__(self, env, reader, writer, network, masterServer, clusterPeerId, name=None):
         if name is None:
             name = "{}_peer_{}".format(masterServer.name, clusterPeerId)
-        super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP, name=name)
+        super().__init__(env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP)
         self.network = network
         self.masterServer = masterServer
         self.rootState = masterServer.root_state

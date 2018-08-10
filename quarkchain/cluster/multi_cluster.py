@@ -1,10 +1,10 @@
 import argparse
 import asyncio
+import os
 import random
 import socket
 
-import cluster as cl
-from cluster import kill_child_processes
+from quarkchain.cluster import cluster as cl
 
 from devp2p.utils import colors, COLOR_END
 
@@ -82,7 +82,7 @@ async def main():
                 config, filename, mine, args.clean, False, "{}C{}{}_".format(colors[i % len(colors)], i, COLOR_END)
         ))
 
-    tasks = []
+    tasks = list()
     tasks.append(asyncio.ensure_future(clusters[0].run()))
     await asyncio.sleep(3)
     for cluster in clusters[1:]:
@@ -103,7 +103,7 @@ if __name__ == '__main__':
         loop.run_until_complete(main())
     except KeyboardInterrupt:
         try:
-            kill_child_processes(os.getpid())
+            cl.kill_child_processes(os.getpid())
         except Exception:
             pass
     finally:

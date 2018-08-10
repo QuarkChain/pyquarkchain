@@ -195,7 +195,7 @@ def shutdown_clusters(clusterList, expectAbortedRpcCount=0):
         cluster.master.shutdown()
         loop.run_until_complete(cluster.master.get_shutdown_future())
 
-    check(expectAbortedRpcCount == AbstractConnection.abortedRpcCount)
+    check(expectAbortedRpcCount == AbstractConnection.aborted_rpc_count)
 
 
 class ClusterContext(ContextDecorator):

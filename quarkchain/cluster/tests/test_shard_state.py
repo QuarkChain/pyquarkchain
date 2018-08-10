@@ -785,10 +785,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env()
         env.config.GENESIS_MINOR_DIFFICULTY = 10000
         env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
-        env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9,
-            diffFactor=2048,
-            minimumDiff=1)
+        env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
         state = create_default_shard_state(env=env, shardId=0)
 

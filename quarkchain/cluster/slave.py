@@ -315,13 +315,13 @@ class MasterConnection(ClusterConnection):
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
-        # clusterPeerId -> {branchValue -> ShardConn}
+        # cluster_peer_id -> {branch_value -> shard_conn}
         self.v_conn_map = dict()
 
     def get_connection_to_forward(self, metadata):
         ''' Override ProxyConnection.get_connection_to_forward()
         '''
-        if metadata.clusterPeerId == 0:
+        if metadata.cluster_peer_id == 0:
             # Data from master
             return None
 
@@ -329,11 +329,11 @@ class MasterConnection(ClusterConnection):
             self.close_with_error("incorrect forwarding branch")
             return
 
-        conn_map = self.v_conn_map.get(metadata.clusterPeerId)
+        conn_map = self.v_conn_map.get(metadata.cluster_peer_id)
         if conn_map is None:
             # Master can close the peer connection at any time
             # TODO: any way to avoid this race?
-            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.clusterPeerId), 1)
+            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.cluster_peer_id), 1)
             return NULL_CONNECTION
 
         return conn_map[metadata.branch.value].get_forwarding_connection()
@@ -546,7 +546,7 @@ class MasterConnection(ClusterConnection):
                                    name="{}_vconn_{}".format(self.name, req.clusterPeerId))
             asyncio.ensure_future(conn.active_and_loop_forever())
             conn_map[branch_value] = conn
-            active_futures.append(conn.activeFuture)
+            active_futures.append(conn.active_future)
         # wait for all the connections to become active before return
         await asyncio.gather(*active_futures)
         return CreateClusterPeerConnectionResponse(errorCode=0)
@@ -860,11 +860,7 @@ class SlaveServer():
         def __get_target_block_time():
             return self.artificial_tx_config.targetMinorBlockTime
 
-        self.miner_map[branch_value] = Miner(
-            __create_block,
-            __add_block,
-            __get_target_block_time,
-        )
+        self.miner_map[branch_value] = Miner(__create_block, __add_block, __get_target_block_time)
 
     def init_shard_states(self, root_tip):
         ''' Will be called when master connects to slaves '''

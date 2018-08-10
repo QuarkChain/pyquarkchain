@@ -75,14 +75,10 @@ class DefaultConfig:
         self.SKIP_ROOT_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_DIFFICULTY_CHECK = False
         self.SKIP_MINOR_COINBASE_CHECK = False
-        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=45,
-            diffFactor=2048,
-            minimumDiff=self.GENESIS_DIFFICULTY)
-        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9,
-            diffFactor=2048,
-            minimumDiff=self.GENESIS_MINOR_DIFFICULTY)
+        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=45, diff_factor=2048,
+                                                            minimum_diff=self.GENESIS_DIFFICULTY)
+        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=9, diff_factor=2048,
+                                                             minimum_diff=self.GENESIS_MINOR_DIFFICULTY)
 
         self.NETWORK_ID = NetworkId.TESTNET_PORSCHE
         self.TESTNET_MASTER_ACCOUNT = self.GENESIS_ACCOUNT

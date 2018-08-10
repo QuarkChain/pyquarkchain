@@ -191,10 +191,7 @@ class TestRootState(unittest.TestCase):
         env = get_test_env()
         env.config.GENESIS_DIFFICULTY = 1000
         env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
-        env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9,
-            diffFactor=2048,
-            minimumDiff=1)
+        env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
 
         rState, sStates = create_default_state(env)

@@ -230,10 +230,10 @@ class SlaveConnection(ClusterConnection):
         ''' Override ProxyConnection.get_connection_to_forward()
         Forward traffic from slave to peer
         '''
-        if metadata.clusterPeerId == 0:
+        if metadata.cluster_peer_id == 0:
             return None
 
-        peer = self.master_server.get_peer(metadata.clusterPeerId)
+        peer = self.master_server.get_peer(metadata.cluster_peer_id)
         if peer is None:
             return NULL_CONNECTION
 
@@ -256,10 +256,10 @@ class SlaveConnection(ClusterConnection):
 
     async def send_ping(self):
         req = Ping("", [], self.master_server.root_state.get_tip_block())
-        op, resp, rpcId = await self.write_rpc_request(
+        op, resp, rpc_id = await self.write_rpc_request(
             op=ClusterOp.PING,
             cmd=req,
-            metadata=ClusterMetadata(branch=ROOT_BRANCH, clusterPeerId=0))
+            metadata=ClusterMetadata(branch=ROOT_BRANCH, cluster_peer_id=0))
         return (resp.id, resp.shardMaskList)
 
     async def send_connect_to_slaves(self, slave_info_list):
@@ -426,11 +426,7 @@ class MasterServer():
         def __get_target_block_time():
             return self.get_artificial_tx_config().targetRootBlockTime
 
-        self.root_miner = Miner(
-            __create_block,
-            __add_block,
-            __get_target_block_time,
-        )
+        self.root_miner = Miner(__create_block, __add_block, __get_target_block_time)
 
     def __get_shard_size(self):
         # TODO: replace it with dynamic size
@@ -536,13 +532,13 @@ class MasterServer():
         check(len(self.branch_to_slaves[branch.value]) > 0)
         return self.branch_to_slaves[branch.value][0]
 
-    def __logSummary(self):
+    def __log_summary(self):
         for branch_value, slaves in self.branch_to_slaves.items():
             Logger.info("[{}] is run by slave {}".format(Branch(branch_value).get_shard_id(), [s.id for s in slaves]))
 
     async def __init_cluster(self):
         await self.__connect_to_slaves()
-        self.__logSummary()
+        self.__log_summary()
         if not self.__has_all_shards():
             Logger.error("Missing some shards. Check cluster config file!")
             return
