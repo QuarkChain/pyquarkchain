@@ -15,9 +15,9 @@ we can always do more fancy improvements such as setting this based on past N bl
 
 
 async def async_adjust(idx, server, root, minor, mining):
-    response = await server.setTargetBlockTime(root, minor)
+    response = await server.set_target_block_time(root, minor)
     print("idx={};response={}".format(idx, response))
-    await server.setMining(mining)
+    await server.set_mining(mining)
 
 
 async def async_adjust_difficulty(args):

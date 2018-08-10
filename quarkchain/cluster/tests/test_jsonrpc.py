@@ -51,12 +51,12 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transaction_count, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -79,7 +79,7 @@ class TestJSONRPC(unittest.TestCase):
         acc2 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             evm_tx = EvmTransaction(
@@ -121,12 +121,12 @@ class TestJSONRPC(unittest.TestCase):
         acc2 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             request = dict(
                 to="0x" + acc2.recipient.hex(),
-                gas_price="0x6",
+                gasPrice="0x6",
                 gas=hex(30000),
                 value="0xf",
                 v="0x1",
@@ -146,7 +146,7 @@ class TestJSONRPC(unittest.TestCase):
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             request = dict(
                 to="0x" + acc1.recipient.hex(),
-                gas_price="0x6",
+                gasPrice="0x6",
                 gas=hex(30000),
                 value="0xf",
                 v="0x1",
@@ -165,10 +165,10 @@ class TestJSONRPC(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             tx = create_transfer_transaction(
-                shardState=slaves[0].shard_state_map[2 | 0],
+                shard_state=slaves[0].shard_state_map[2 | 0],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc3,
@@ -240,12 +240,12 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transaction_count, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -284,12 +284,12 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             self.assertEqual(call_async(master.get_primary_account_data(acc1)).transaction_count, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -309,7 +309,7 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             response = send_request("call", {"to": "0x" + acc1.serialize().hex()})
@@ -322,7 +322,7 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             # insufficient gas
@@ -345,11 +345,11 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             tx = create_transfer_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -374,11 +374,11 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             s1, s2 = slaves[0].shard_state_map[2], slaves[1].shard_state_map[3]
             txGen = lambda s, f, t: create_transfer_transaction(
-                shardState=s,
+                shard_state=s,
                 key=id1.get_key(),
                 from_address=f,
                 to_address=t,
@@ -416,12 +416,12 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             to_full_shard_id = acc1.full_shard_id + 2
             tx = create_contract_creation_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=to_full_shard_id
@@ -446,12 +446,12 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
-            slaves = clusters[0].slaveList
+            slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
             to_full_shard_id = acc1.full_shard_id + 1  # x-shard contract creation should fail
             tx = create_contract_creation_transaction(
-                shardState=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=to_full_shard_id

@@ -24,9 +24,9 @@ from quarkchain.utils import Logger, check
 class ExpiryQueue:
     """ A queue only keeps the elements added in the past ttl seconds """
 
-    def __init__(self, ttlSec):
+    def __init__(self, ttl_sec):
         self.__queue = deque()
-        self.__ttl = ttlSec
+        self.__ttl = ttl_sec
 
     def __remove_expired_elements(self):
         current = time.time()
@@ -57,9 +57,9 @@ class ExpiryQueue:
 
 class ExpiryCounter:
 
-    def __init__(self, windowSec):
-        self.window = windowSec
-        self.queue = ExpiryQueue(windowSec)
+    def __init__(self, window_sec):
+        self.window = window_sec
+        self.queue = ExpiryQueue(window_sec)
 
     def increment(self, value):
         self.queue.append(value)
@@ -199,7 +199,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.r_minor_header_pool = dict()
 
         # height -> set(minor block hash) for counting wasted blocks
-        self.heightToMinorBlockHashes = dict()
+        self.height_to_minor_block_hashes = dict()
 
     def __get_last_minor_block_in_root_block(self, root_block):
         l_header = None
@@ -241,7 +241,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
     # ------------------------- Root block db operations --------------------------------
     def put_root_block(self, root_block, r_minor_header, root_block_hash=None):
-        """ rMinorHeader: the minor header of the shard in the root block with largest height
+        """ r_minor_header: the minor header of the shard in the root block with largest height
         """
         if root_block_hash is None:
             root_block_hash = root_block.header.get_hash()
@@ -276,7 +276,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.m_header_pool[m_block_hash] = m_block.header
         self.m_meta_pool[m_block_hash] = m_block.meta
 
-        self.heightToMinorBlockHashes.setdefault(m_block.header.height, set()).add(m_block.header.get_hash())
+        self.height_to_minor_block_hashes.setdefault(m_block.header.height, set()).add(m_block.header.get_hash())
 
         self.put_confirmed_cross_shard_transaction_deposit_list(m_block_hash, x_shard_receive_tx_list)
 
@@ -333,7 +333,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
     def get_block_count_by_height(self, height):
         """ Return the total number of blocks with the given height"""
-        return len(self.heightToMinorBlockHashes.setdefault(height, set()))
+        return len(self.height_to_minor_block_hashes.setdefault(height, set()))
 
     # ------------------------- Transaction db operations --------------------------------
     def put_transaction_index(self, tx, block_height, index):
@@ -376,7 +376,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
     # -------------------------- Cross-shard tx operations ----------------------------
     def put_minor_block_xshard_tx_list(self, h, tx_list: CrossShardTransactionList):
-        # self.xShardSet.add(h)
+        # self.x_shard_set.add(h)
         self.db.put(b"xShard_" + h, tx_list.serialize())
 
     def get_minor_block_xshard_tx_list(self, h) -> CrossShardTransactionList:
@@ -467,7 +467,7 @@ class ShardState:
         self.__rewrite_block_index_to(self.db.get_minor_block_by_hash(self.header_tip.get_hash()), add_tx_back_to_queue=False)
 
     def __create_evm_state(self):
-        return EvmState(env=self.env.evmEnv, db=self.raw_db)
+        return EvmState(env=self.env.evm_env, db=self.raw_db)
 
     def __create_genesis_blocks(self, shard_id):
         evm_list = create_genesis_evm_list(env=self.env, db_map={self.shard_id: self.raw_db})
@@ -567,7 +567,7 @@ class ShardState:
             self.tx_dict[tx_hash] = tx
             return True
         except Exception as e:
-            Logger.warningEverySec("Failed to add transaction: {}".format(e), 1)
+            Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
             return False
 
     def execute_tx(self, tx: Transaction, from_address) -> Optional[bytes]:
@@ -578,7 +578,7 @@ class ShardState:
             success, output = apply_transaction(state, evm_tx, tx_wrapper_hash=bytes(32))
             return output if success else None
         except Exception as e:
-            Logger.warningEverySec("failed to apply transaction: {}".format(e), 1)
+            Logger.warning_every_sec("failed to apply transaction: {}".format(e), 1)
             return None
 
     def __get_evm_state_for_new_block(self, block, ephemeral=True):
@@ -705,7 +705,7 @@ class ShardState:
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 evm_tx_included.append(evm_tx)
             except Exception as e:
-                Logger.debugException()
+                Logger.debug_exception()
                 Logger.debug("failed to process Tx {}, idx {}, reason {}".format(
                     tx.get_hash().hex(), idx, e))
                 raise e
@@ -822,7 +822,7 @@ class ShardState:
         # TODO: Check evm bloom
 
         # TODO: Add block reward to coinbase
-        # self.rewardCalc.get_block_reward(self):
+        # self.reward_calc.get_block_reward(self):
         self.db.put_minor_block(block, x_shard_receive_tx_list)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
@@ -888,8 +888,8 @@ class ShardState:
         # TODO: add block reward
         # TODO: the current calculation is bogus and just serves as a placeholder.
         coinbase = 0
-        for txWrapper in self.tx_queue.peek():
-            tx = txWrapper.tx
+        for tx_wrapper in self.tx_queue.peek():
+            tx = tx_wrapper.tx
             coinbase += tx.gasprice * tx.startgas
 
         if self.root_tip.get_hash() != self.header_tip.hash_prev_root_block:
@@ -949,7 +949,7 @@ class ShardState:
                 apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
                 block.add_tx(Transaction(code=Code.create_evm_code(evm_tx)))
             except Exception as e:
-                Logger.errorException()
+                Logger.error_exception()
                 return
 
     def create_block_to_mine(self, create_time=None, address=None, gas_limit=None):
@@ -968,14 +968,14 @@ class ShardState:
         evm_state = self.__get_evm_state_for_new_block(block)
 
         if gas_limit is not None:
-            # Set gasLimit.  Since gas limit is auto adjusted between blocks, this is for test purpose only.
+            # Set gas_limit.  Since gas limit is auto adjusted between blocks, this is for test purpose only.
             evm_state.gas_limit = gas_limit
 
         prev_header = self.header_tip
         ancestor_root_header = self.db.get_root_block_header_by_hash(prev_header.hash_prev_root_block)
         check(self.__is_same_root_chain(self.root_tip, ancestor_root_header))
 
-        # cross-shard receive must be handled before including tx from txQueue
+        # cross-shard receive must be handled before including tx from tx_queue
         block.header.hash_prev_root_block = self.__include_cross_shard_tx_list(
             evm_state=evm_state,
             descendant_root_header=self.root_tip,
@@ -998,7 +998,7 @@ class ShardState:
                 block.add_tx(tx)
                 poped_txs.append(evm_tx)
             except Exception as e:
-                Logger.warningEverySec("Failed to include transaction: {}".format(e), 1)
+                Logger.warning_every_sec("Failed to include transaction: {}".format(e), 1)
                 tx = Transaction(code=Code.create_evm_code(evm_tx))
                 self.tx_dict.pop(tx.get_hash(), None)
 
@@ -1030,7 +1030,7 @@ class ShardState:
         return self.db.contain_minor_block_by_hash(h)
 
     def get_pending_tx_size(self):
-        return self.transactionPool.size()
+        return self.transaction_pool.size()
 
     #
     # ============================ Cross-shard transaction handling =============================
@@ -1065,10 +1065,10 @@ class ShardState:
                 continue
 
             if not self.db.contain_remote_minor_block_hash(h):
-                raise ValueError("cannot find xShard tx list for {}-{} {}".format(
+                raise ValueError("cannot find x_shard tx list for {}-{} {}".format(
                     m_header.branch.get_shard_id(), m_header.height, h.hex()))
 
-        # shardHeader cannot be None since PROOF_OF_PROGRESS should be positive
+        # shard_header cannot be None since PROOF_OF_PROGRESS should be positive
         check(shard_header is not None)
 
         self.db.put_root_block(root_block, shard_header)
@@ -1085,16 +1085,16 @@ class ShardState:
             orig_block = self.db.get_minor_block_by_height(shard_header.height)
             if not orig_block or orig_block.header != shard_header:
                 self.__rewrite_block_index_to(self.db.get_minor_block_by_hash(shard_header.get_hash()))
-                # TODO: shardHeader might not be the tip of the longest chain
+                # TODO: shard_header might not be the tip of the longest chain
                 # need to switch to the tip of the longest chain
                 self.header_tip = shard_header
                 self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
                 Logger.info("[{}] (root confirms a fork) shard tip reset from {} to {} by root block {}".format(
                     self.branch.get_shard_id(), orig_header_tip.height, self.header_tip.height, root_block.header.height))
             else:
-                # the current headerTip might point to a root block on a fork with rBlock
-                # we need to scan back until finding a minor block pointing to the same root chain rBlock is on.
-                # the worst case would be that we go all the way back to origBlock (shardHeader)
+                # the current header_tip might point to a root block on a fork with r_block
+                # we need to scan back until finding a minor block pointing to the same root chain r_block is on.
+                # the worst case would be that we go all the way back to orig_block (shard_header)
                 while not self.__is_same_root_chain(
                         self.root_tip, self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block)):
                     self.header_tip = self.db.get_minor_block_header_by_hash(self.header_tip.hash_prev_minor_block)
@@ -1107,7 +1107,7 @@ class ShardState:
                                         self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block)))
         return False
 
-    def __is_neighbor(self, remoteBranch):
+    def __is_neighbor(self, remote_branch):
         # TODO: Apply routing rule to determine neighors that could directly send x-shard tx
         return True
 

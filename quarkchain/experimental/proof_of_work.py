@@ -5,25 +5,25 @@ import numpy.random
 import time
 
 class PoW:
-    # hashPower, number of hashs per second
-    def __init__(self, hashPower):
-        self.hashPower = hashPower
+    # hash_power, number of hashs per second
+    def __init__(self, hash_power):
+        self.hash_power = hash_power
 
     # Return a realization of mining time in sec
     def mine(self, diff):
-        return numpy.random.exponential(1 / diff / self.hashPower)
+        return numpy.random.exponential(1 / diff / self.hash_power)
 
 
 async def test_po_w():
-    hashPower = 100
+    hash_power = 100
     diff = 0.01
     # Target block rate is 1sec
-    p = PoW(hashPower)
+    p = PoW(hash_power)
     for i in range(10):
-        startTime = time.time()
+        start_time = time.time()
         await asyncio.sleep(p.mine(diff))
-        usedTime = time.time() - startTime
-        print(usedTime)
+        used_time = time.time() - start_time
+        print(used_time)
 
 
 def main():

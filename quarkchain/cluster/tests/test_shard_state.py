@@ -9,11 +9,11 @@ from quarkchain.evm import opcodes
 
 
 def create_default_shard_state(env, shard_id=0):
-    shardState = ShardState(
+    shard_state = ShardState(
         env=env,
         shard_id=shard_id,
     )
-    return shardState
+    return shard_state
 
 
 class TestShardState(unittest.TestCase):
@@ -29,11 +29,11 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=0)
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -48,12 +48,12 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=1)
         acc2 = Address.create_random_account(full_shard_id=1)
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         # state is shard 0 but tx from shard 1
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -69,12 +69,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -136,19 +136,19 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
             value=12345,
         )
         self.assertTrue(state.add_tx(tx))
-        self.assertFalse(state.add_tx(tx))  # already in txQueue
+        self.assertFalse(state.add_tx(tx))  # already in tx_queue
 
         self.assertEqual(len(state.tx_queue), 1)
         self.assertEqual(len(state.tx_dict), 1)
@@ -188,12 +188,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -210,12 +210,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=2000000 + opcodes.GTXCOST)
+            genesis_account=acc1,
+            genesis_minor_quarkash=2000000 + opcodes.GTXCOST)
         state = create_default_shard_state(env=env)
 
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -232,7 +232,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.evm_state.get_full_shard_id(acc2.recipient), acc2.full_shard_id)
 
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=Address(acc2.recipient, acc2.full_shard_id + 2),  # set a different full shard id
@@ -240,7 +240,7 @@ class TestShardState(unittest.TestCase):
             gas=50000,
         ))
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id2.get_key(),
             from_address=acc2,
             to_address=acc1,
@@ -286,12 +286,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=2000000 + opcodes.GTXCOST)
+            genesis_account=acc1,
+            genesis_minor_quarkash=2000000 + opcodes.GTXCOST)
         state = create_default_shard_state(env=env)
 
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -323,12 +323,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=2000000 + opcodes.GTXCOST)
+            genesis_account=acc1,
+            genesis_minor_quarkash=2000000 + opcodes.GTXCOST)
         state = create_default_shard_state(env=env)
 
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -368,8 +368,8 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
         b1 = state.create_block_to_mine(address=acc3)
@@ -389,12 +389,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         tx = create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -431,12 +431,12 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         state.add_tx(create_transfer_transaction(
-            shardState=state,
+            shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
@@ -455,11 +455,11 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env0 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         env1 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
@@ -469,7 +469,7 @@ class TestShardState(unittest.TestCase):
 
         b1 = state1.get_tip().create_block_to_append()
         tx = create_transfer_transaction(
-            shardState=state1,
+            shard_state=state1,
             key=id1.get_key(),
             from_address=acc2,
             to_address=acc1,
@@ -517,11 +517,11 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env0 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         env1 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
@@ -531,7 +531,7 @@ class TestShardState(unittest.TestCase):
 
         b1 = state1.get_tip().create_block_to_append()
         tx = create_transfer_transaction(
-            shardState=state1,
+            shard_state=state1,
             key=id1.get_key(),
             from_address=acc2,
             to_address=acc1,
@@ -612,8 +612,8 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         b0 = state.get_tip().create_block_to_append()
@@ -636,11 +636,11 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         env0 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         env1 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
@@ -681,11 +681,11 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         env0 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         env1 = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
@@ -751,8 +751,8 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         b0 = state.get_tip().create_block_to_append()
@@ -815,8 +815,8 @@ class TestShardState(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         blockHeaders = []
@@ -860,8 +860,8 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
         b1 = state.create_block_to_mine(address=acc3)
@@ -894,8 +894,8 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         m1 = state.get_tip().create_block_to_append(address=acc1)
@@ -942,14 +942,14 @@ class TestShardState(unittest.TestCase):
                  +--+      +--+
 
         Initial state: r0 <- m1 <- m2
-        Adding r1, r2, m3 makes r1 the root_tip, m3 the headerTip
-        Adding r3 should change the root_tip to r3, headerTip to m2
+        Adding r1, r2, m3 makes r1 the root_tip, m3 the header_tip
+        Adding r3 should change the root_tip to r3, header_tip to m2
         '''
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         env = get_test_env(
-            genesisAccount=acc1,
-            genesisMinorQuarkash=10000000)
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
         m1 = state.get_tip().create_block_to_append(address=acc1)

@@ -12,13 +12,13 @@ size_list = [
 
 def get_output():
     outputs = []
-    fromId = Identity.create_random_identity()
-    acc1 = Address.create_from_identity(fromId, 0)
+    from_id = Identity.create_random_identity()
+    acc1 = Address.create_from_identity(from_id, 0)
     tx = Transaction(
         [TransactionInput(bytes(32), 0)],
         Code(),
         [TransactionOutput(acc1, 0)])
-    tx.sign([fromId.get_key()])
+    tx.sign([from_id.get_key()])
 
     for name, obj in size_list:
         outputs.append("{}: {}".format(name, len(obj.serialize())))

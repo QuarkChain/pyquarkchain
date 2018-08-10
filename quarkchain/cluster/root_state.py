@@ -19,7 +19,7 @@ class LastMinorBlockHeaderList(Serializable):
 class RootDb:
     """ Storage for all validated root blocks and minor blocks
 
-    On initialization it will try to recover the recent blocks (maxNumBlocksToRecover) of the best chain
+    On initialization it will try to recover the recent blocks (max_num_blocks_to_recover) of the best chain
     from local database.
     Block referenced by "tipHash" is skipped because it's consistency is not guaranteed within the cluster.
     Note that we only recover the blocks on the best chain than including the forking blocks because
@@ -47,7 +47,7 @@ class RootDb:
         if b"tipHash" not in self.db:
             return None
 
-        # The block referenced by tipHash might not have been fully propagated within the cluster
+        # The block referenced by tip_hash might not have been fully propagated within the cluster
         # when the cluster was down, but its parent is guaranteed to have been accepted by all shards.
         # Therefore we use its parent as the new tip.
         r_hash = self.db.get(b"tipHash")

@@ -288,9 +288,9 @@ class Endpoint:
         resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_transaction_receipt(self, txId):
+    async def get_transaction_receipt(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("getTransactionReceipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         return resp
 
     async def get_nonce(self, account):
@@ -327,18 +327,18 @@ async def fund_shard(endpoint, genesisId, to, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, to, data, network_id)
-    txId = await endpoint.send_transaction(tx)
+    tx_id = await endpoint.send_transaction(tx)
     while True:
-        print("shard={} tx={} block=(pending)".format(shard, txId))
+        print("shard={} tx={} block=(pending)".format(shard, tx_id))
         await asyncio.sleep(5)
-        resp = await endpoint.get_transaction_receipt(txId)
+        resp = await endpoint.get_transaction_receipt(tx_id)
         if resp:
             break
 
     height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
-    print("shard={} tx={} block={} status={}".format(shard, txId, height, status))
-    return txId, height
+    print("shard={} tx={} block={} status={}".format(shard, tx_id, height, status))
+    return tx_id, height
 
 
 async def fund(endpoint, genesisId, data):
@@ -353,8 +353,8 @@ async def fund(endpoint, genesisId, data):
     results = await asyncio.gather(*futures)
     print("\n\n")
     for shard, result in enumerate(results):
-        txId, height = result
-        print("[{}, \"{}\"],  // {}".format(shard, height, txId))
+        tx_id, height = result
+        print("[{}, \"{}\"],  // {}".format(shard, height, tx_id))
 
 
 def main():

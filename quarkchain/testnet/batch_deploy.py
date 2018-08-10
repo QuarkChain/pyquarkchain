@@ -29,9 +29,9 @@ class Endpoint:
         resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_contract_address(self, txId):
+    async def get_contract_address(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("getTransactionReceipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         if not resp:
             return None
         return resp["contract_address"]
@@ -70,15 +70,15 @@ async def deploy_shard(endpoint, genesisId, data, network_id, shard):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, data, network_id)
-    txId = await endpoint.send_transaction(tx)
+    tx_id = await endpoint.send_transaction(tx)
     while True:
-        print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, txId))
+        print("shard={} tx={} contract=(waiting for tx to be confirmed)".format(shard, tx_id))
         await asyncio.sleep(5)
-        contract_address = await endpoint.get_contract_address(txId)
+        contract_address = await endpoint.get_contract_address(tx_id)
         if contract_address:
             break
-    print("shard={} tx={} contract={}".format(shard, txId, contract_address))
-    return txId, contract_address
+    print("shard={} tx={} contract={}".format(shard, tx_id, contract_address))
+    return tx_id, contract_address
 
 
 async def deploy(endpoint, genesisId, data):
@@ -91,8 +91,8 @@ async def deploy(endpoint, genesisId, data):
     results = await asyncio.gather(*futures)
     print("\n\n")
     for shard, result in enumerate(results):
-        txId, contract_address = result
-        print("[{}, \"{}\"],  // {}".format(shard, contract_address, txId))
+        tx_id, contract_address = result
+        print("[{}, \"{}\"],  // {}".format(shard, contract_address, tx_id))
 
 
 def main():

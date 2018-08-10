@@ -64,7 +64,7 @@ class SyncTask:
         try:
             await self.__run_sync()
         except Exception as e:
-            Logger.logException()
+            Logger.log_exception()
             self.shard_conn.close_with_error(str(e))
 
     async def __run_sync(self):
@@ -267,7 +267,7 @@ class ShardConnection(VirtualConnection):
             op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
             cmd=NewMinorBlockHeaderListCommand(self.shard_state.root_tip, [self.shard_state.header_tip]))
 
-    async def handle_new_transaction_list_command(self, opCode, cmd, rpcId):
+    async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
         self.slave_server.add_tx_list(cmd.transaction_list, self)
 
     def broadcast_tx_list(self, tx_list):
@@ -333,7 +333,7 @@ class MasterConnection(ClusterConnection):
         if conn_map is None:
             # Master can close the peer connection at any time
             # TODO: any way to avoid this race?
-            Logger.warningEverySec("cannot find cluster peer id in vConnMap {}".format(metadata.cluster_peer_id), 1)
+            Logger.warning_every_sec("cannot find cluster peer id in v_conn_map {}".format(metadata.cluster_peer_id), 1)
             return NULL_CONNECTION
 
         return conn_map[metadata.branch.value].get_forwarding_connection()
@@ -345,8 +345,8 @@ class MasterConnection(ClusterConnection):
         return self.env.config.SHARD_SIZE
 
     def close(self):
-        for cluster_peer_id, connMap in self.v_conn_map.items():
-            for branchValue, conn in connMap.items():
+        for cluster_peer_id, conn_map in self.v_conn_map.items():
+            for branch_value, conn in conn_map.items():
                 conn.get_forwarding_connection().close()
 
         Logger.info("Lost connection with master")
@@ -425,11 +425,11 @@ class MasterConnection(ClusterConnection):
         # TODO: handle expect_switch
         error_code = 0
         switched = False
-        for branchValue, shardState in self.shard_state_map.items():
+        for branch_value, shard_state in self.shard_state_map.items():
             try:
-                switched = shardState.add_root_block(req.root_block)
+                switched = shard_state.add_root_block(req.root_block)
             except ValueError:
-                Logger.logException()
+                Logger.log_exception()
                 # TODO: May be enum or Unix errno?
                 error_code = errno.EBADMSG
                 break
@@ -494,10 +494,10 @@ class MasterConnection(ClusterConnection):
 
     async def handle_get_unconfirmed_header_list_request(self, _req):
         headers_info_list = []
-        for branchValue, shardState in self.shard_state_map.items():
+        for branch_value, shard_state in self.shard_state_map.items():
             headers_info_list.append(HeadersInfo(
-                branch=Branch(branchValue),
-                header_list=shardState.get_unconfirmed_header_list(),
+                branch=Branch(branch_value),
+                header_list=shard_state.get_unconfirmed_header_list(),
             ))
         return GetUnconfirmedHeadersResponse(
             error_code=0,
@@ -525,7 +525,7 @@ class MasterConnection(ClusterConnection):
             result=res if not fail else b''
         )
 
-    async def handle_destroy_cluster_peer_connection_command(self, op, cmd, rpcId):
+    async def handle_destroy_cluster_peer_connection_command(self, op, cmd, rpc_id):
         if cmd.cluster_peer_id not in self.v_conn_map:
             Logger.error("cannot find cluster peer connection to destroy {}".format(cmd.cluster_peer_id))
             return
@@ -616,7 +616,7 @@ class MasterConnection(ClusterConnection):
     async def handle_sync_minor_block_list_request(self, req):
 
         async def __download_blocks(block_hash_list):
-            op, resp, rpcId = await v_conn.write_rpc_request(
+            op, resp, rpc_id = await v_conn.write_rpc_request(
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST, GetMinorBlockListRequest(block_hash_list))
             return resp.minor_block_list
 
@@ -642,7 +642,7 @@ class MasterConnection(ClusterConnection):
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
 
         except Exception as e:
-            Logger.errorException()
+            Logger.error_exception()
             return SyncMinorBlockListResponse(error_code=1)
 
         return SyncMinorBlockListResponse(error_code=0)
@@ -720,7 +720,7 @@ class SlaveConnection(Connection):
     async def send_ping(self):
         # TODO: Send real root tip and allow shards to confirm each other
         req = Ping(self.slave_server.id, self.slave_server.shard_mask_list, RootBlock(RootBlockHeader()))
-        op, resp, rpcId = await self.write_rpc_request(ClusterOp.PING, req)
+        op, resp, rpc_id = await self.write_rpc_request(ClusterOp.PING, req)
         return (resp.id, resp.shard_mask_list)
 
     # Cluster RPC handlers
@@ -751,8 +751,8 @@ class SlaveConnection(Connection):
         self.shard_state_map[req.branch.value].add_cross_shard_tx_list_by_minor_block_hash(req.minor_block_hash, req.tx_list)
         return AddXshardTxListResponse(error_code=0)
 
-    async def handle_batch_add_xshard_tx_list_request(self, batchRequest):
-        for request in batchRequest.add_xshard_tx_list_request_list:
+    async def handle_batch_add_xshard_tx_list_request(self, batch_request):
+        for request in batch_request.add_xshard_tx_list_request_list:
             response = await self.handle_add_xshard_tx_list_request(request)
             if response.error_code != 0:
                 return BatchAddXshardTxListResponse(error_code=response.error_code)
@@ -778,8 +778,8 @@ class SlaveServer():
     def __init__(self, env, name="slave"):
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.id = self.env.clusterConfig.ID
-        self.shard_mask_list = self.env.clusterConfig.SHARD_MASK_LIST
+        self.id = self.env.cluster_config.ID
+        self.shard_mask_list = self.env.cluster_config.SHARD_MASK_LIST
 
         # shard id -> a list of slave running the shard
         self.shard_to_slaves = [[] for i in range(self.__get_shard_size())]
@@ -791,18 +791,18 @@ class SlaveServer():
 
         self.artificial_tx_config = None
         self.tx_gen_map = dict()
-        self.miner_map = dict()  # branchValue -> Miner
-        self.shard_state_map = dict()  # branchValue -> ShardState
+        self.miner_map = dict()  # branch_value -> Miner
+        self.shard_state_map = dict()  # branch_value -> ShardState
         self.__init_shards()
         self.shutdown_in_progress = False
         self.slave_id = 0
 
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
-        self.add_blockFutures = dict()
+        self.add_block_futures = dict()
 
     def __init_shards(self):
-        ''' branchValue -> ShardState mapping '''
+        ''' branch_value -> ShardState mapping '''
         shard_size = self.__get_shard_size()
         branch_values = set()
         for shard_mask in self.shard_mask_list:
@@ -826,14 +826,14 @@ class SlaveServer():
         Given a shard_id (*not* full shard id), create a PersistentDB or use the env.db if
         DB_PATH_ROOT is not specified in the ClusterConfig.
         """
-        if self.env.clusterConfig.DB_PATH_ROOT is None:
+        if self.env.cluster_config.DB_PATH_ROOT is None:
             return self.env.db
 
         db_path = "{path}/shard-{shard_id}.db".format(
-            path=self.env.clusterConfig.DB_PATH_ROOT,
+            path=self.env.cluster_config.DB_PATH_ROOT,
             shard_id=shard_id,
         )
-        return PersistentDb(db_path, clean=self.env.clusterConfig.DB_CLEAN)
+        return PersistentDb(db_path, clean=self.env.cluster_config.DB_CLEAN)
 
     def __init_miner(self, branch_value):
         miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(Branch(branch_value))
@@ -864,8 +864,8 @@ class SlaveServer():
 
     def init_shard_states(self, root_tip):
         ''' Will be called when master connects to slaves '''
-        for _, shardState in self.shard_state_map.items():
-            shardState.init_from_root_block(root_tip)
+        for _, shard_state in self.shard_state_map.items():
+            shard_state.init_from_root_block(root_tip)
 
     def start_mining(self, artificial_tx_config):
         self.artificial_tx_config = artificial_tx_config
@@ -896,7 +896,7 @@ class SlaveServer():
             if slave.has_shard(shard_id):
                 self.shard_to_slaves[shard_id].append(slave)
 
-        # self.__logSummary()
+        # self.__log_summary()
 
     def __log_summary(self):
         for shard_id, slaves in enumerate(self.shard_to_slaves):
@@ -904,7 +904,7 @@ class SlaveServer():
 
     async def __handle_master_connection_lost(self):
         check(self.master is not None)
-        await self.waitUntilClose()
+        await self.wait_until_close()
 
         if not self.shutdown_in_progress:
             # TODO: May reconnect
@@ -923,7 +923,7 @@ class SlaveServer():
     async def __start_server(self):
         ''' Run the server until shutdown is called '''
         self.server = await asyncio.start_server(
-            self.__handle_new_connection, "0.0.0.0", self.env.clusterConfig.NODE_PORT, loop=self.loop)
+            self.__handle_new_connection, "0.0.0.0", self.env.cluster_config.NODE_PORT, loop=self.loop)
         Logger.info("Listening on {} for intra-cluster RPC".format(
             self.server.sockets[0].getsockname()))
 
@@ -1010,8 +1010,8 @@ class SlaveServer():
                         request.minor_block_hash, request.tx_list)
 
             batch_request = BatchAddXshardTxListRequest(request_list)
-            for slaveConn in self.shard_to_slaves[branch.get_shard_id()]:
-                future = slaveConn.write_rpc_request(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batch_request)
+            for slave_conn in self.shard_to_slaves[branch.get_shard_id()]:
+                future = slave_conn.write_rpc_request(ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batch_request)
                 rpc_futures.append(future)
         responses = await asyncio.gather(*rpc_futures)
         check(all([response.error_code == 0 for _, response, _ in responses]))
@@ -1028,7 +1028,7 @@ class SlaveServer():
         try:
             xshard_list = shard_state.add_block(block)
         except Exception as e:
-            Logger.errorException()
+            Logger.error_exception()
             return False
 
         # block has been added to local state and let's pass to peers
@@ -1036,20 +1036,20 @@ class SlaveServer():
             if old_tip != shard_state.tip():
                 self.master.broadcast_new_tip(block.header.branch)
         except Exception:
-            Logger.warningEverySec("broadcast tip failure", 1)
+            Logger.warning_every_sec("broadcast tip failure", 1)
 
         # block already existed in local shard state
         # but might not have been propagated to other shards and master
         # let's make sure all the shards and master got it before return
         if xshard_list is None:
-            future = self.add_blockFutures.get(block.header.get_hash(), None)
+            future = self.add_block_futures.get(block.header.get_hash(), None)
             if future:
                 Logger.info("[{}] {} is being added ... waiting for it to finish".format(
                     block.header.branch.get_shard_id(), block.header.height))
                 await future
             return True
 
-        self.add_blockFutures[block.header.get_hash()] = self.loop.create_future()
+        self.add_block_futures[block.header.get_hash()] = self.loop.create_future()
 
         # Start mining new one before propagating inside cluster
         # The propagation should be done by the time the new block is mined
@@ -1059,8 +1059,8 @@ class SlaveServer():
         await self.send_minor_block_header_to_master(
             block.header, len(block.tx_list), len(xshard_list), shard_state.get_shard_stats())
 
-        self.add_blockFutures[block.header.get_hash()].set_result(None)
-        del self.add_blockFutures[block.header.get_hash()]
+        self.add_block_futures[block.header.get_hash()].set_result(None)
+        del self.add_block_futures[block.header.get_hash()]
         return True
 
     async def add_block_list_for_sync(self, block_list):
@@ -1087,25 +1087,25 @@ class SlaveServer():
             try:
                 xshard_list = shard_state.add_block(block)
             except Exception as e:
-                Logger.errorException()
+                Logger.error_exception()
                 return False
 
             # block already existed in local shard state
             # but might not have been propagated to other shards and master
             # let's make sure all the shards and master got it before return
             if xshard_list is None:
-                future = self.add_blockFutures.get(block_hash, None)
+                future = self.add_block_futures.get(block_hash, None)
                 if future:
                     existing_add_block_futures.append(future)
             else:
                 block_hash_to_x_shard_list[block_hash] = xshard_list
-                self.add_blockFutures[block_hash] = self.loop.create_future()
+                self.add_block_futures[block_hash] = self.loop.create_future()
 
         await self.batch_broadcast_xshard_tx_list(block_hash_to_x_shard_list)
 
         for block_hash in block_hash_to_x_shard_list.keys():
-            self.add_blockFutures[block_hash].set_result(None)
-            del self.add_blockFutures[block_hash]
+            self.add_block_futures[block_hash].set_result(None)
+            del self.add_block_futures[block_hash]
 
         await asyncio.gather(*existing_add_block_futures)
 
@@ -1222,10 +1222,10 @@ def parse_args():
         "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int)
     # Unique Id identifying the node in the cluster
     parser.add_argument(
-        "--node_id", default=DEFAULT_ENV.clusterConfig.ID, type=str)
+        "--node_id", default=DEFAULT_ENV.cluster_config.ID, type=str)
     # Node port for intra-cluster RPC
     parser.add_argument(
-        "--node_port", default=DEFAULT_ENV.clusterConfig.NODE_PORT, type=int)
+        "--node_port", default=DEFAULT_ENV.cluster_config.NODE_PORT, type=int)
     # TODO: support a list shard masks
     parser.add_argument(
         "--shard_mask", default=1, type=int)
@@ -1247,11 +1247,11 @@ def parse_args():
     env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
     env.config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
-    env.clusterConfig.ID = bytes(args.node_id, "ascii")
-    env.clusterConfig.NODE_PORT = args.node_port
-    env.clusterConfig.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
-    env.clusterConfig.DB_PATH_ROOT = None if args.in_memory_db else args.db_path_root
-    env.clusterConfig.DB_CLEAN = args.clean
+    env.cluster_config.ID = bytes(args.node_id, "ascii")
+    env.cluster_config.NODE_PORT = args.node_port
+    env.cluster_config.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
+    env.cluster_config.DB_PATH_ROOT = None if args.in_memory_db else args.db_path_root
+    env.cluster_config.DB_CLEAN = args.clean
 
     return env
 

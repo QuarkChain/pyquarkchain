@@ -8,20 +8,20 @@ class Candidate:
         self.score = score
 
 
-def get_whitelist(candidateList, n, seed):
+def get_whitelist(candidate_list, n, seed):
     random.seed(seed)
-    whiteList = []
-    candidateList.sort(key=lambda p: p.key)
+    white_list = []
+    candidate_list.sort(key=lambda p: p.key)
     for i in range(n):
-        totalScore = sum([p.score for p in candidateList])
-        chosen = random.randint(0, totalScore - 1)
-        for idx, p in enumerate(candidateList):
+        total_score = sum([p.score for p in candidate_list])
+        chosen = random.randint(0, total_score - 1)
+        for idx, p in enumerate(candidate_list):
             if chosen <= p.score:
-                whiteList.append(p)
-                candidateList.pop(idx)
+                white_list.append(p)
+                candidate_list.pop(idx)
                 break
             chosen -= p.score
-    return whiteList
+    return white_list
 
 
 def generate_person_list(n, seed):
@@ -29,7 +29,7 @@ def generate_person_list(n, seed):
     return [Candidate(key=random.random(), score=random.randint(1, 100)) for i in range(n)]
 
 
-candidateList = generate_person_list(100, 123)
-whiteList = get_whitelist(candidateList, 50, 321)
-for p in whiteList:
+candidate_list = generate_person_list(100, 123)
+white_list = get_whitelist(candidate_list, 50, 321)
+for p in white_list:
     print(p.key, p.score)

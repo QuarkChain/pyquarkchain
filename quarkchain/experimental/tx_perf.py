@@ -21,31 +21,31 @@ def test_perf():
     N = 5000
     IDN = 10
     print("Creating %d identities" % IDN)
-    idList = []
+    id_list = []
     for i in range(IDN):
-        idList.append(Identity.create_random_identity())
+        id_list.append(Identity.create_random_identity())
 
-    accList = []
+    acc_list = []
     for i in range(IDN):
-        accList.append(Address.create_from_identity(idList[i]))
+        acc_list.append(Address.create_from_identity(id_list[i]))
 
     print("Creating %d transactions..." % N)
-    startTime = time.time()
+    start_time = time.time()
     tx_list = []
-    recList = []
+    rec_list = []
     for i in range(N):
-        fromId = idList[random.randint(0, IDN - 1)]
-        toAddr = accList[random.randint(0, IDN - 1)]
-        tx_list.append(create_random_test_transaction(fromId, toAddr))
-        recList.append(fromId.get_recipient())
-    duration = time.time() - startTime
+        from_id = id_list[random.randint(0, IDN - 1)]
+        to_addr = acc_list[random.randint(0, IDN - 1)]
+        tx_list.append(create_random_test_transaction(from_id, to_addr))
+        rec_list.append(from_id.get_recipient())
+    duration = time.time() - start_time
     print("Creations PS: %.2f" % (N / duration))
 
     print("Verifying transactions")
-    startTime = time.time()
+    start_time = time.time()
     for i in range(N):
-        assert(tx_list[i].verify_signature([recList[i]]))
-    duration = time.time() - startTime
+        assert(tx_list[i].verify_signature([rec_list[i]]))
+    duration = time.time() - start_time
     print("Verifications PS: %.2f" % (N / duration))
 
 
@@ -53,44 +53,44 @@ def test_perf_evm():
     N = 5000
     IDN = 10
     print("Creating %d identities" % IDN)
-    idList = []
+    id_list = []
     for i in range(IDN):
-        idList.append(Identity.create_random_identity())
+        id_list.append(Identity.create_random_identity())
 
-    accList = []
+    acc_list = []
     for i in range(IDN):
-        accList.append(Address.create_from_identity(idList[i]))
+        acc_list.append(Address.create_from_identity(id_list[i]))
 
     print("Creating %d transactions..." % N)
-    startTime = time.time()
+    start_time = time.time()
     tx_list = []
-    fromList = []
+    from_list = []
     for i in range(N):
-        fromId = idList[random.randint(0, IDN - 1)]
-        toAddr = accList[random.randint(0, IDN - 1)]
+        from_id = id_list[random.randint(0, IDN - 1)]
+        to_addr = acc_list[random.randint(0, IDN - 1)]
         evm_tx = EvmTransaction(
             nonce=0,
             gasprice=1,
             startgas=2,
-            to=toAddr.recipient,
+            to=to_addr.recipient,
             value=3,
             data=b'',
             from_full_shard_id=0,
             to_full_shard_id=0,
             network_id=1)
         evm_tx.sign(
-            key=fromId.get_key())
+            key=from_id.get_key())
         tx_list.append(evm_tx)
-        fromList.append(fromId.get_recipient())
-    duration = time.time() - startTime
+        from_list.append(from_id.get_recipient())
+    duration = time.time() - start_time
     print("Creations PS: %.2f" % (N / duration))
 
     print("Verifying transactions")
-    startTime = time.time()
+    start_time = time.time()
     for i in range(N):
         tx_list[i]._sender = None
-        assert(tx_list[i].sender == fromList[i])
-    duration = time.time() - startTime
+        assert(tx_list[i].sender == from_list[i])
+    duration = time.time() - start_time
     print("Verifications PS: %.2f" % (N / duration))
 
 

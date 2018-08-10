@@ -67,7 +67,7 @@ def create_genesis_evm_list(env, db_map=dict()):
     evm_list = []
     for shard_id in range(env.config.SHARD_SIZE):
         evm_state = EvmState(
-            env=env.evmEnv,
+            env=env.evm_env,
             db=db_map[shard_id] if shard_id in db_map else InMemoryDb())
         evm_state.full_shard_id = env.config.GENESIS_ACCOUNT.full_shard_id & (~(env.config.SHARD_SIZE - 1)) | shard_id
         evm_state.delta_balance(env.config.GENESIS_ACCOUNT.recipient, env.config.GENESIS_MINOR_COIN)

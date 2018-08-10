@@ -39,9 +39,9 @@ class Endpoint:
         resp = await self.__send_request("sendRawTransaction", txHex)
         return resp
 
-    async def get_transaction_receipt(self, txId):
+    async def get_transaction_receipt(self, tx_id):
         """txId should be '0x.....' """
-        resp = await self.__send_request("getTransactionReceipt", txId)
+        resp = await self.__send_request("getTransactionReceipt", tx_id)
         return resp
 
     async def get_nonce(self, account):
@@ -78,29 +78,29 @@ async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
     address = Address.create_from_identity(genesisId, shard)
     nonce = await endpoint.get_nonce(address)
     tx = create_transaction(address, genesisId.get_key(), nonce, to, network_id, amount)
-    txId = await endpoint.send_transaction(tx)
+    tx_id = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
         addr = "0x" + to.recipient.hex() + hex(to.full_shard_id)[2:]
-        print("shard={} tx={} to={} block=(pending)".format(shard, txId, addr))
+        print("shard={} tx={} to={} block=(pending)".format(shard, tx_id, addr))
         await asyncio.sleep(5)
-        resp = await endpoint.get_transaction_receipt(txId)
+        resp = await endpoint.get_transaction_receipt(tx_id)
         if resp:
             break
         cnt += 1
         if cnt == 10:
             cnt = 0
-            print("retry tx={}".format(txId))
+            print("retry tx={}".format(tx_id))
             await endpoint.send_transaction(tx)
 
     height = int(resp["block_height"], 16)
     status = int(resp["status"], 16)
     print(
         "shard={} tx={} block={} status={} amount={}".format(
-            shard, txId, height, status, amount
+            shard, tx_id, height, status, amount
         )
     )
-    return txId, height
+    return tx_id, height
 
 
 async def fund(endpoint, genesisId, addrByAmount):
@@ -145,8 +145,8 @@ async def fund(endpoint, genesisId, addrByAmount):
             results = await asyncio.gather(*futures)
             print("\n\n")
             for idx, result in enumerate(results):
-                txId, height = result
-                print('[{}, "{}"],  // {}'.format(idx, height, txId))
+                tx_id, height = result
+                print('[{}, "{}"],  // {}'.format(idx, height, tx_id))
 
 
 def read_addr(filepath) -> Dict[int, List[str]]:

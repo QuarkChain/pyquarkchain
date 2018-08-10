@@ -128,20 +128,20 @@ def get_default_evm_config():
 
 class Env:
 
-    def __init__(self, db=None, config=None, evmConfig=None, clusterConfig=None):
+    def __init__(self, db=None, config=None, evm_config=None, cluster_config=None):
         self.db = db or quarkchain.db.InMemoryDb()
         self.config = config or DefaultConfig()
-        self.evmConfig = evmConfig or get_default_evm_config()
-        self.evmConfig["NETWORK_ID"] = self.config.NETWORK_ID
-        self.evmEnv = quarkchain.evm.config.Env(db=self.db, config=self.evmConfig)
-        self.clusterConfig = clusterConfig or DefaultClusterConfig()
+        self.evm_config = evm_config or get_default_evm_config()
+        self.evm_config["NETWORK_ID"] = self.config.NETWORK_ID
+        self.evm_env = quarkchain.evm.config.Env(db=self.db, config=self.evm_config)
+        self.cluster_config = cluster_config or DefaultClusterConfig()
 
     def set_network_id(self, network_id):
         self.config.NETWORK_ID = network_id
-        self.evmConfig["NETWORK_ID"] = network_id
+        self.evm_config["NETWORK_ID"] = network_id
 
     def copy(self):
-        return Env(self.db, self.config.copy(), dict(self.evmConfig), self.clusterConfig.copy())
+        return Env(self.db, self.config.copy(), dict(self.evm_config), self.cluster_config.copy())
 
 
 DEFAULT_ENV = Env()

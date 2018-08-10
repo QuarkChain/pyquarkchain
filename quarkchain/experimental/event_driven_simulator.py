@@ -12,7 +12,7 @@ class Task:
         CANCELLED = 2
 
     def __init__(self, scheduler, ts, callback, data):
-        self.heapIndex = 0
+        self.heap_index = 0
         self.scheduler = scheduler
         self.ts = ts
         self.callback = callback

@@ -126,33 +126,33 @@ class AbstractConnection:
 
     async def handle_metadata_and_raw_data(self, metadata, raw_data):
         """ Subclass can override this to provide customized handler """
-        op, cmd, rpcId = self.__parse_command(raw_data)
+        op, cmd, rpc_id = self.__parse_command(raw_data)
 
         if op not in self.op_ser_map:
             raise RuntimeError("{}: unsupported op {}".format(self.name, op))
 
         if op in self.op_non_rpc_map:
-            if rpcId != 0:
+            if rpc_id != 0:
                 raise RuntimeError("{}: non-rpc command's id must be zero".format(self.name))
             await self.__handle_request(op, cmd)
         elif op in self.op_rpc_map:
             # Check if it is a valid RPC request
-            self.validate_and_update_peer_rpc_id(metadata, rpcId)
+            self.validate_and_update_peer_rpc_id(metadata, rpc_id)
 
-            await self.__handle_rpc_request(op, cmd, rpcId, metadata)
+            await self.__handle_rpc_request(op, cmd, rpc_id, metadata)
         else:
             # Check if it is a valid RPC response
-            if rpcId not in self.rpc_future_map:
-                raise RuntimeError("{}: unexpected rpc response {}".format(self.name, rpcId))
-            future = self.rpc_future_map[rpcId]
-            del self.rpc_future_map[rpcId]
-            future.set_result((op, cmd, rpcId))
+            if rpc_id not in self.rpc_future_map:
+                raise RuntimeError("{}: unexpected rpc response {}".format(self.name, rpc_id))
+            future = self.rpc_future_map[rpc_id]
+            del self.rpc_future_map[rpc_id]
+            future.set_result((op, cmd, rpc_id))
 
     async def __internal_handle_metadata_and_raw_data(self, metadata, raw_data):
         try:
             await self.handle_metadata_and_raw_data(metadata, raw_data)
         except Exception as e:
-            Logger.logException()
+            Logger.log_exception()
             self.close_with_error("{}: error processing request: {}".format(self.name, e))
 
     async def loop_once(self):
@@ -163,7 +163,7 @@ class AbstractConnection:
                 self.close()
                 return
         except Exception as e:
-            Logger.logException()
+            Logger.log_exception()
             self.close_with_error("{}: error reading request: {}".format(self.name, e))
             return
 

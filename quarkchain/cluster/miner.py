@@ -66,11 +66,11 @@ class Miner:
             try:
                 await self.add_block_async_func(block)
             except Exception:
-                Logger.logException()
+                Logger.log_exception()
                 self.mine_new_block_async()
 
     @staticmethod
-    def __logStatus(block):
+    def __log_status(block):
         is_root = isinstance(block, RootBlock)
         shard = "R" if is_root else block.header.branch.get_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
@@ -93,7 +93,7 @@ class Miner:
             block.header.nonce += 1
             metric = int.from_bytes(block.header.get_hash(), byteorder="big") * block.header.difficulty
             if Miner.__check_metric(metric):
-                Miner.__logStatus(block)
+                Miner.__log_status(block)
                 output.put(block)
                 block, _ = input.get()
             try:
@@ -132,7 +132,7 @@ class Miner:
                 # got nothing from queue
                 pass
             if time.time() > target_time:
-                Miner.__logStatus(block)
+                Miner.__log_status(block)
                 block.header.nonce = random.randint(0, 2 ** 32 - 1)
                 output.put(block)
                 block, target_block_time = input.get()  # blocking
