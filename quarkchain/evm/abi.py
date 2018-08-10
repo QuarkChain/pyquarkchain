@@ -48,12 +48,12 @@ def tx_to_typed_data(rawTx):
       {
         "type": "uint32",
         "name": "fromFullShardId",
-        "value": "0x{}".format(int_to_bytes(rawTx.fromFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.from_full_shard_id).hex())
       },
       {
         "type": "uint32",
         "name": "toFullShardId",
-        "value": "0x{}".format(int_to_bytes(rawTx.toFullShardId).hex())
+        "value": "0x{}".format(int_to_bytes(rawTx.to_full_shard_id).hex())
       },
       {
         "type": "uint256",

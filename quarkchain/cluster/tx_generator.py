@@ -92,28 +92,28 @@ class TransactionGenerator:
 
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
-        if sampleEvmTx.fromFullShardId and (sampleEvmTx.fromFullShardId & shard_mask) != fromShard:
+        if sampleEvmTx.from_full_shard_id and (sampleEvmTx.from_full_shard_id & shard_mask) != fromShard:
             return None
 
-        if sampleEvmTx.fromFullShardId:
-            fromFullShardId = sampleEvmTx.fromFullShardId
+        if sampleEvmTx.from_full_shard_id:
+            from_full_shard_id = sampleEvmTx.from_full_shard_id
         else:
-            fromFullShardId = account.address.full_shard_id & (~shardMask) | fromShard
+            from_full_shard_id = account.address.full_shard_id & (~shard_mask) | fromShard
 
         if not sampleEvmTx.to:
             to_address = random.choice(self.accounts).address
             recipient = to_address.recipient
-            toFullShardId = to_address.full_shard_id & (~shardMask) | fromShard
+            to_full_shard_id = to_address.full_shard_id & (~shard_mask) | fromShard
         else:
             recipient = sampleEvmTx.to
-            toFullShardId = fromFullShardId
+            to_full_shard_id = from_full_shard_id
 
         if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
             toShard = random.randint(0, config.SHARD_SIZE - 1)
             if toShard == self.branch.get_shard_id():
                 toShard = (toShard + 1) % config.SHARD_SIZE
-            toFullShardId = toFullShardId & (~shardMask) | toShard
+            to_full_shard_id = to_full_shard_id & (~shard_mask) | toShard
 
         value = sampleEvmTx.value
         if not sampleEvmTx.data:
@@ -126,8 +126,8 @@ class TransactionGenerator:
             to=recipient,
             value=value,
             data=sampleEvmTx.data,
-            fromFullShardId=fromFullShardId,
-            toFullShardId=toFullShardId,
+            from_full_shard_id=from_full_shard_id,
+            to_full_shard_id=to_full_shard_id,
             network_id=config.NETWORK_ID)
         evm_tx.sign(account.key)
         return Transaction(code=Code.create_evm_code(evm_tx))

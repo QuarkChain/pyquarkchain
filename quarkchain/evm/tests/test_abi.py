@@ -12,8 +12,8 @@ class TestTypedSignature(unittest.TestCase):
                         to=bytes.fromhex('314b2cd22c6d26618ce051a58c65af1253aecbb8'),
                         value=0x056bc75e2d63100000,
                         data=b'',
-                        fromFullShardId=0xc47decfd,
-                        toFullShardId=0xc49c1950,
+                        from_full_shard_id=0xc47decfd,
+                        to_full_shard_id=0xc49c1950,
                         network_id=0x03)
 
 

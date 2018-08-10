@@ -89,8 +89,8 @@ class TestJSONRPC(unittest.TestCase):
                 to=acc2.recipient,
                 value=15,
                 data=b"",
-                fromFullShardId=acc1.full_shard_id,
-                toFullShardId=acc2.full_shard_id,
+                from_full_shard_id=acc1.full_shard_id,
+                to_full_shard_id=acc2.full_shard_id,
                 network_id=slaves[0].env.config.NETWORK_ID,
             )
             evm_tx.sign(id1.get_key())
@@ -419,12 +419,12 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            toFullShardId = acc1.full_shard_id + 2
+            to_full_shard_id = acc1.full_shard_id + 2
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
-                toFullShardId=toFullShardId
+                to_full_shard_id=to_full_shard_id
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
@@ -436,9 +436,9 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["status"], "0x1")
             self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
 
-            contract_address = mk_contract_address(acc1.recipient, toFullShardId, 0)
+            contract_address = mk_contract_address(acc1.recipient, to_full_shard_id, 0)
             self.assertEqual(resp["contractAddress"],
-                             "0x" + contract_address.hex() + toFullShardId.to_bytes(4, "big").hex())
+                             "0x" + contract_address.hex() + to_full_shard_id.to_bytes(4, "big").hex())
 
     def test_getTransactionReceipt_on_contract_creation_failure(self):
         id1 = Identity.create_random_identity()
@@ -449,12 +449,12 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slaveList
 
             branch = Branch.create(2, 0)
-            toFullShardId = acc1.full_shard_id + 1  # x-shard contract creation should fail
+            to_full_shard_id = acc1.full_shard_id + 1  # x-shard contract creation should fail
             tx = create_contract_creation_transaction(
                 shardState=slaves[0].shard_state_map[branch.value],
                 key=id1.get_key(),
                 from_address=acc1,
-                toFullShardId=toFullShardId
+                to_full_shard_id=to_full_shard_id
             )
             self.assertTrue(slaves[0].add_tx(tx))
 

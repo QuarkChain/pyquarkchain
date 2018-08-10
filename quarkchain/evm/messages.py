@@ -185,7 +185,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     state.refunds = 0
     validate_transaction(state, tx)
 
-    state.full_shard_id = tx.toFullShardId
+    state.full_shard_id = tx.to_full_shard_id
 
     intrinsic_gas = tx.intrinsic_gas_used
     log_tx.debug('TX NEW', txdict=tx.to_dict())
@@ -207,8 +207,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         message_data,
         code_address=tx.to,
         is_cross_shard=tx.is_cross_shard(),
-        from_full_shard_id=tx.fromFullShardId,
-        to_full_shard_id=tx.toFullShardId,
+        from_full_shard_id=tx.from_full_shard_id,
+        to_full_shard_id=tx.to_full_shard_id,
         tx_hash=tx_wrapper_hash,
     )
 

@@ -225,7 +225,7 @@ def tx_encoder(block, i):
     # TODO: shard_mask is wrong when the tx is pending and block is fake
     shard_mask = block.header.branch.get_shard_size() - 1
     return {
-        'id': id_encoder(tx.get_hash(), evm_tx.fromFullShardId),
+        'id': id_encoder(tx.get_hash(), evm_tx.from_full_shard_id),
         'hash': data_encoder(tx.get_hash()),
         'nonce': quantity_encoder(evm_tx.nonce),
         'timestamp': quantity_encoder(block.header.create_time),
@@ -235,10 +235,10 @@ def tx_encoder(block, i):
         'transactionIndex': quantity_encoder(i),
         'from': data_encoder(evm_tx.sender),
         'to': data_encoder(evm_tx.to),
-        'fromFullShardId': full_shard_id_encoder(evm_tx.fromFullShardId),
-        'toFullShardId': full_shard_id_encoder(evm_tx.toFullShardId),
-        'fromShardId': quantity_encoder(evm_tx.fromFullShardId & shard_mask),
-        'toShardId': quantity_encoder(evm_tx.toFullShardId & shard_mask),
+        'fromFullShardId': full_shard_id_encoder(evm_tx.from_full_shard_id),
+        'toFullShardId': full_shard_id_encoder(evm_tx.to_full_shard_id),
+        'fromShardId': quantity_encoder(evm_tx.from_full_shard_id & shard_mask),
+        'toShardId': quantity_encoder(evm_tx.to_full_shard_id & shard_mask),
         'value': quantity_encoder(evm_tx.value),
         'gasPrice': quantity_encoder(evm_tx.gasprice),
         'gas': quantity_encoder(evm_tx.startgas),
@@ -277,7 +277,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     tx = block.tx_list[i]
     evm_tx = tx.code.get_evm_transaction()
     resp = {
-        'transactionId': id_encoder(tx.get_hash(), evm_tx.fromFullShardId),
+        'transactionId': id_encoder(tx.get_hash(), evm_tx.from_full_shard_id),
         'transactionHash': data_encoder(tx.get_hash()),
         'transactionIndex': quantity_encoder(i),
         'blockId': id_encoder(block.header.get_hash(), block.header.branch.get_shard_id()),
@@ -537,21 +537,21 @@ class JSONRPCServer:
         value = get_data_default("value", quantity_decoder, 0)
         data_ = get_data_default("data", data_decoder, b"")
 
-        fromFullShardId = get_data_default("fromFullShardId", full_shard_id_decoder, None)
-        toFullShardId = get_data_default("toFullShardId", full_shard_id_decoder, None)
+        from_full_shard_id = get_data_default("fromFullShardId", full_shard_id_decoder, None)
+        to_full_shard_id = get_data_default("toFullShardId", full_shard_id_decoder, None)
 
         if nonce is None:
             raise InvalidParams("nonce is missing")
-        if fromFullShardId is None:
+        if from_full_shard_id is None:
             raise InvalidParams("fromFullShardId is missing")
 
-        if toFullShardId is None:
-            toFullShardId = fromFullShardId
+        if to_full_shard_id is None:
+            to_full_shard_id = from_full_shard_id
 
         evm_tx = EvmTransaction(
             nonce, gasprice, startgas, to, value, data_,
-            fromFullShardId=fromFullShardId,
-            toFullShardId=toFullShardId,
+            from_full_shard_id=from_full_shard_id,
+            to_full_shard_id=to_full_shard_id,
             network_id=self.master.env.config.NETWORK_ID,
         )
 
@@ -559,8 +559,8 @@ class JSONRPCServer:
             "txHashUnsigned": data_encoder(evm_tx.hash_unsigned),
             "nonce": quantity_encoder(evm_tx.nonce),
             'to': data_encoder(evm_tx.to),
-            'fromFullShardId': full_shard_id_encoder(evm_tx.fromFullShardId),
-            'toFullShardId': full_shard_id_encoder(evm_tx.toFullShardId),
+            'fromFullShardId': full_shard_id_encoder(evm_tx.from_full_shard_id),
+            'toFullShardId': full_shard_id_encoder(evm_tx.to_full_shard_id),
             'value': quantity_encoder(evm_tx.value),
             'gasPrice': quantity_encoder(evm_tx.gasprice),
             'gas': quantity_encoder(evm_tx.startgas),
@@ -585,24 +585,24 @@ class JSONRPCServer:
         s = get_data_default("s", quantity_decoder, 0)
         nonce = get_data_default("nonce", quantity_decoder, None)
 
-        toFullShardId = get_data_default("toFullShardId", full_shard_id_decoder, None)
-        fromFullShardId = get_data_default("fromFullShardId", full_shard_id_decoder, None)
+        to_full_shard_id = get_data_default("toFullShardId", full_shard_id_decoder, None)
+        from_full_shard_id = get_data_default("fromFullShardId", full_shard_id_decoder, None)
         network_id = get_data_default("networkId", quantity_decoder, self.master.env.config.NETWORK_ID)
 
         if nonce is None:
             raise InvalidParams("Missing nonce")
         if not (v and r and s):
             raise InvalidParams("Missing v, r, s")
-        if fromFullShardId is None:
+        if from_full_shard_id is None:
             raise InvalidParams("Missing fromFullShardId")
 
-        if toFullShardId is None:
-            toFullShardId = fromFullShardId
+        if to_full_shard_id is None:
+            to_full_shard_id = from_full_shard_id
 
         evm_tx = EvmTransaction(
             nonce, gasprice, startgas, to, value, data_, v, r, s,
-            fromFullShardId=fromFullShardId,
-            toFullShardId=toFullShardId,
+            from_full_shard_id=from_full_shard_id,
+            to_full_shard_id=to_full_shard_id,
             network_id=network_id,
         )
         tx = Transaction(code=Code.create_evm_code(evm_tx))
@@ -610,7 +610,7 @@ class JSONRPCServer:
         if not success:
             return None
 
-        return id_encoder(tx.get_hash(), fromFullShardId)
+        return id_encoder(tx.get_hash(), from_full_shard_id)
 
     @public_methods.add
     @decode_arg("txData", data_decoder)
@@ -620,7 +620,7 @@ class JSONRPCServer:
         success = await self.master.add_transaction(tx)
         if not success:
             return "0x" + bytes(32 + 4).hex()
-        return id_encoder(tx.get_hash(), evm_tx.fromFullShardId)
+        return id_encoder(tx.get_hash(), evm_tx.from_full_shard_id)
 
     @public_methods.add
     @decode_arg("blockId", data_decoder)
@@ -694,7 +694,7 @@ class JSONRPCServer:
         if to is None:
             raise InvalidParams("Missing to")
 
-        toFullShardId = int.from_bytes(to[20:], "big")
+        to_full_shard_id = int.from_bytes(to[20:], "big")
 
         gas = get_data_default("gas", quantity_decoder, 1000000)
         gas_price = get_data_default("gasPrice", quantity_decoder, 0)
@@ -708,7 +708,7 @@ class JSONRPCServer:
         nonce = 0  # slave will fill in the real nonce
         evm_tx = EvmTransaction(
             nonce, gas_price, gas, to[:20], value, data_,
-            fromFullShardId=senderAddress.full_shard_id, toFullShardId=toFullShardId, network_id=network_id)
+            from_full_shard_id=senderAddress.full_shard_id, to_full_shard_id=to_full_shard_id, network_id=network_id)
 
         tx = Transaction(code=Code.create_evm_code(evm_tx))
         res = await self.master.execute_transaction(tx, senderAddress)
@@ -896,11 +896,11 @@ class JSONRPCServer:
         value = get_data_default("value", quantity_decoder, 0)
         data = get_data_default("data", data_decoder, b"")
         # FIXME: can't support specifying full shard ID to 0. currently is regarded as not set
-        fromFullShardId = get_data_default("fromFullShardId", full_shard_id_decoder, 0)
+        from_full_shard_id = get_data_default("fromFullShardId", full_shard_id_decoder, 0)
         # build sample tx
         evmTxSample = EvmTransaction(
             0, gasprice, startgas, to, value, data,
-            fromFullShardId=fromFullShardId,
+            from_full_shard_id=from_full_shard_id,
         )
         tx = Transaction(code=Code.create_evm_code(evmTxSample))
         return await self.master.create_transactions(num_tx_per_shard, x_shard_percent, tx)

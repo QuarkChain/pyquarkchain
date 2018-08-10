@@ -93,12 +93,12 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.code.get_evm_transaction()
-        addr = Address(evm_tx.sender, evm_tx.fromFullShardId)
+        addr = Address(evm_tx.sender, evm_tx.from_full_shard_id)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
         # "to" can be empty for smart contract deployment
-        if evm_tx.to and self.branch.is_in_shard(evm_tx.toFullShardId):
-            addr = Address(evm_tx.to, evm_tx.toFullShardId)
+        if evm_tx.to and self.branch.is_in_shard(evm_tx.to_full_shard_id):
+            addr = Address(evm_tx.to, evm_tx.to_full_shard_id)
             key = self.__encode_address_transaction_key(addr, block_height, index, False)
             func(key, b"")
 
@@ -173,8 +173,8 @@ class TransactionHistoryMixin:
                 tx_list.append(
                     TransactionDetail(
                         tx.get_hash(),
-                        Address(evm_tx.sender, evm_tx.fromFullShardId),
-                        Address(evm_tx.to, evm_tx.toFullShardId) if evm_tx.to else None,
+                        Address(evm_tx.sender, evm_tx.from_full_shard_id),
+                        Address(evm_tx.to, evm_tx.to_full_shard_id) if evm_tx.to else None,
                         evm_tx.value,
                         height,
                         m_block.header.create_time,
@@ -522,12 +522,12 @@ class ShardState:
         evm_tx = tx.code.get_evm_transaction()
 
         if from_address:
-            check(evm_tx.fromFullShardId == from_address.full_shard_id)
+            check(evm_tx.from_full_shard_id == from_address.full_shard_id)
             nonce = evm_state.get_nonce(from_address.recipient)
             # have to create a new evm_tx as nonce is immutable
             evm_tx = EvmTransaction(
                 nonce, evm_tx.gasprice, evm_tx.startgas, evm_tx.to, evm_tx.value, evm_tx.data,
-                fromFullShardId=evm_tx.fromFullShardId, toFullShardId=evm_tx.toFullShardId, network_id=evm_tx.network_id)
+                from_full_shard_id=evm_tx.from_full_shard_id, to_full_shard_id=evm_tx.to_full_shard_id, network_id=evm_tx.network_id)
             evm_tx.sender = from_address.recipient
 
         evm_tx.set_shard_size(self.branch.get_shard_size())
@@ -938,8 +938,8 @@ class ShardState:
                 to=address.recipient,
                 value=10 * (10 ** 18),
                 data=b'',
-                fromFullShardId=from_full_shard_id,
-                toFullShardId=to_full_shard_id,
+                from_full_shard_id=from_full_shard_id,
+                to_full_shard_id=to_full_shard_id,
                 network_id=self.env.config.NETWORK_ID,
             )
             evm_tx.sign(key=self.env.config.GENESIS_KEY)
@@ -1224,11 +1224,11 @@ class ShardState:
             tx_list = []
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
-                if Address(tx.sender, tx.fromFullShardId) == address:
+                if Address(tx.sender, tx.from_full_shard_id) == address:
                     tx_list.append(TransactionDetail(
                         Transaction(code=Code.create_evm_code(tx)).get_hash(),
                         address,
-                        Address(tx.to, tx.toFullShardId) if tx.to else None,
+                        Address(tx.to, tx.to_full_shard_id) if tx.to else None,
                         tx.value,
                         block_height=0,
                         timestamp=0,

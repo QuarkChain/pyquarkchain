@@ -58,8 +58,8 @@ def create_transaction(address, key, nonce, data, network_id) -> EvmTransaction:
         to=b'',
         value=0,
         data=data,
-        fromFullShardId=address.full_shard_id,
-        toFullShardId=address.full_shard_id,
+        from_full_shard_id=address.full_shard_id,
+        to_full_shard_id=address.full_shard_id,
         network_id=network_id,
     )
     evm_tx.sign(key)

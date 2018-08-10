@@ -56,8 +56,8 @@ def create_transfer_transaction(
         to=to_address.recipient,
         value=value,
         data=b'',
-        fromFullShardId=from_address.full_shard_id,
-        toFullShardId=to_address.full_shard_id,
+        from_full_shard_id=from_address.full_shard_id,
+        to_full_shard_id=to_address.full_shard_id,
         network_id=shardState.env.config.NETWORK_ID,
     )
     evm_tx.sign(key=key)
@@ -67,7 +67,7 @@ def create_transfer_transaction(
         out_list=[])
 
 
-def create_contract_creation_transaction(shardState, key, from_address, toFullShardId):
+def create_contract_creation_transaction(shardState, key, from_address, to_full_shard_id):
     evm_tx = EvmTransaction(
         nonce=shardState.get_transaction_count(from_address.recipient),
         gasprice=1,
@@ -76,8 +76,8 @@ def create_contract_creation_transaction(shardState, key, from_address, toFullSh
         to=b'',
         # a contract creation payload
         data=bytes.fromhex("608060405234801561001057600080fd5b5061013f806100206000396000f300608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063942ae0a714610046575b600080fd5b34801561005257600080fd5b5061005b6100d6565b6040518080602001828103825283818151815260200191508051906020019080838360005b8381101561009b578082015181840152602081019050610080565b50505050905090810190601f1680156100c85780820380516001836020036101000a031916815260200191505b509250505060405180910390f35b60606040805190810160405280600a81526020017f68656c6c6f576f726c64000000000000000000000000000000000000000000008152509050905600a165627a7a72305820a45303c36f37d87d8dd9005263bdf8484b19e86208e4f8ed476bf393ec06a6510029"),  # noqa
-        fromFullShardId=from_address.full_shard_id,
-        toFullShardId=toFullShardId,
+        from_full_shard_id=from_address.full_shard_id,
+        to_full_shard_id=to_full_shard_id,
         network_id=shardState.env.config.NETWORK_ID
     )
     evm_tx.sign(key)
