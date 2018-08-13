@@ -70,7 +70,7 @@ def tx_to_typed_data(raw_tx):
 
 def solidity_pack(types: Iterable, values: Iterable):
     """
-    Port of ABI.solidity_pack
+    Port of `ABI.solidityPack`
     https://github.com/ethereumjs/ethereumjs-abi/blob/00ba8463a7f7a67fcad737ff9c2ebd95643427f7/lib/index.js#L441
     Serialize values according to types
     returns bytes
@@ -106,7 +106,7 @@ def solidity_pack(types: Iterable, values: Iterable):
     return retv
 
 
-def solidity_s_h_a3(types: Iterable, values: Iterable):
+def solidity_sha3(types: Iterable, values: Iterable):
     """
     returns 0x hex str
     """
@@ -117,10 +117,10 @@ def typed_signature_hash(tx):
     schema = list(map(lambda x: "{} {}".format(x["type"], x["name"]), tx))
     types = list(map(lambda x: x["type"], tx))
     data = list(map(lambda x: bytes.fromhex(x['value'][2:]) if x['type'] == "bytes" else x['value'], tx))
-    return solidity_s_h_a3(
+    return solidity_sha3(
         ['bytes32', 'bytes32'],
         [
-            solidity_s_h_a3(['string'] * len(tx), schema),
-            solidity_s_h_a3(types, data)
+            solidity_sha3(['string'] * len(tx), schema),
+            solidity_sha3(types, data)
         ]
     )
