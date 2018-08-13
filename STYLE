@@ -1,28 +1,23 @@
-Coding Style of pyquarkchain project
+Coding Style of pyquarkchain Project
 
 =============
 General Rules
 
-We use PEP8 https://www.python.org/dev/peps/pep-0008/ as our general rules for coding style.
+Follow PEP8 https://www.python.org/dev/peps/pep-0008/
 For sublime, we suggest to use Anaconda package.
 
 ======
 Naming
 
-We use mix Java and C style naming:
 - Package name: lower_case_with_underscore
 - Class name: UpperCamelCase
-- Method name: lowerCamelCase
+- Method name: lower_case_with_underscore
 - Constant: UPPER_CASE_WITH_UNDERSCORE
 - Global function: lower_case_with_underscore
-- Local variable: lowerCamelCase
+- Local variable: lower_case_with_underscore
 
-==========
-Line Width
+==============
+Code Formatter
 
-We use 120 max chars per line instead of 80 chars.
-For sublime with Anaconda, we could set
-
-"pep8_max_line_length": 120
-
-in settings.
+All py files should be formatted using the Black code formatter.
+https://github.com/ambv/black
