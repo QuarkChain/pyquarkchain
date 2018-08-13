@@ -10,7 +10,7 @@ from rlp.utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
 from quarkchain.utils import sha3_256, is_p2, check
-from quarkchain.evm.abi import tx_to_typed_data, typed_signature_hash
+from quarkchain.evm.solidity_abi_utils import tx_to_typed_data, typed_signature_hash
 
 # in the yellow paper it is specified that s should be smaller than
 # secpk1n (eq.205)
