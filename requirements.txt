@@ -17,6 +17,7 @@ aiohttp_cors==0.7.0
 eth-utils==1.0.3
 eth-keys==0.2.0b3
 eth-bloom==1.0.0
+absl-py==0.4.0
 
 # Dependencies pulled from pydevp2p
 # TODO: make pydevp2p submodule, or remove dependencies
