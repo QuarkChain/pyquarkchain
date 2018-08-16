@@ -80,7 +80,6 @@ from quarkchain.utils import check, set_logging_level, Logger
 from quarkchain.cluster.cluster_config import ClusterConfig
 
 FLAGS = flags.FLAGS
-flags.DEFINE_string('slave_kafka_rest', None, 'REST endpoint for logging to Kafka')
 
 
 class SyncTask:
