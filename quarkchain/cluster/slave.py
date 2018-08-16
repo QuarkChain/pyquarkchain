@@ -4,7 +4,7 @@ import errno
 import ipaddress
 from collections import deque
 from typing import Optional, Tuple
-
+from quarkchain.db import InMemoryDb
 from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -72,6 +72,7 @@ from quarkchain.core import (
 from quarkchain.db import PersistentDb
 from quarkchain.protocol import Connection
 from quarkchain.utils import check, set_logging_level, Logger
+from quarkchain.cluster.cluster_config import ClusterConfig
 
 
 class SyncTask:
@@ -979,8 +980,8 @@ class SlaveServer:
     def __init__(self, env, name="slave"):
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.id = self.env.cluster_config.ID
-        self.shard_mask_list = self.env.cluster_config.SHARD_MASK_LIST
+        self.id = bytes(self.env.slave_config.ID, "ascii")
+        self.shard_mask_list = self.env.slave_config.SHARD_MASK_LIST
 
         # shard id -> a list of slave running the shard
         self.shard_to_slaves = [[] for i in range(self.__get_shard_size())]
@@ -1027,13 +1028,13 @@ class SlaveServer:
         Given a shard_id (*not* full shard id), create a PersistentDB or use the env.db if
         DB_PATH_ROOT is not specified in the ClusterConfig.
         """
-        if self.env.cluster_config.DB_PATH_ROOT is None:
-            return self.env.db
+        if self.env.cluster_config.use_mem_db():
+            return InMemoryDb()
 
         db_path = "{path}/shard-{shard_id}.db".format(
             path=self.env.cluster_config.DB_PATH_ROOT, shard_id=shard_id
         )
-        return PersistentDb(db_path, clean=self.env.cluster_config.DB_CLEAN)
+        return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self, branch_value):
         miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(
@@ -1154,7 +1155,7 @@ class SlaveServer:
         self.server = await asyncio.start_server(
             self.__handle_new_connection,
             "0.0.0.0",
-            self.env.cluster_config.NODE_PORT,
+            self.env.slave_config.PORT,
             loop=self.loop,
         )
         Logger.info(
@@ -1487,52 +1488,16 @@ class SlaveServer:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # P2P port
-    parser.add_argument(
-        "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int
-    )
-    # Local port for JSON-RPC, wallet, etc
-    parser.add_argument("--enable_local_server", default=False, type=bool)
-    parser.add_argument(
-        "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int
-    )
-    # Seed host which provides the list of available peers
-    parser.add_argument(
-        "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST, type=str
-    )
-    parser.add_argument(
-        "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int
-    )
+    ClusterConfig.attach_arguments(parser)
     # Unique Id identifying the node in the cluster
-    parser.add_argument("--node_id", default=DEFAULT_ENV.cluster_config.ID, type=str)
-    # Node port for intra-cluster RPC
-    parser.add_argument(
-        "--node_port", default=DEFAULT_ENV.cluster_config.NODE_PORT, type=int
-    )
-    # TODO: support a list shard masks
-    parser.add_argument("--shard_mask", default=1, type=int)
-    parser.add_argument("--enable_transaction_history", default=False, type=bool)
-    parser.add_argument("--in_memory_db", default=False)
-    parser.add_argument("--clean", default=False)
-    parser.add_argument("--db_path_root", default="./db", type=str)
-    parser.add_argument("--log_level", default="info", type=str)
+    parser.add_argument("--node_id", default="", type=str)
     args = parser.parse_args()
 
-    set_logging_level(args.log_level)
-
     env = DEFAULT_ENV.copy()
-    env.config.P2P_SERVER_PORT = args.server_port
-    env.config.P2P_SEED_HOST = args.seed_host
-    env.config.P2P_SEED_PORT = args.seed_port
-    env.config.LOCAL_SERVER_PORT = args.local_port
-    env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
-    env.config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
+    env.cluster_config = ClusterConfig.create_from_args(args)
+    env.slave_config = env.cluster_config.get_slave_config(args.node_id)
 
-    env.cluster_config.ID = bytes(args.node_id, "ascii")
-    env.cluster_config.NODE_PORT = args.node_port
-    env.cluster_config.SHARD_MASK_LIST = [ShardMask(args.shard_mask)]
-    env.cluster_config.DB_PATH_ROOT = None if args.in_memory_db else args.db_path_root
-    env.cluster_config.DB_CLEAN = args.clean
+    set_logging_level(env.cluster_config.LOG_LEVEL)
 
     return env
 

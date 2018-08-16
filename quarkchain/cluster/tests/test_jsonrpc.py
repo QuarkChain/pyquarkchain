@@ -12,6 +12,7 @@ from quarkchain.cluster.tests.test_utils import (
     ClusterContext,
     create_contract_creation_transaction,
 )
+from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.core import MinorBlock, RootBlock
@@ -27,7 +28,10 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 @contextmanager
 def jrpc_server_context(master):
-    server = JSONRPCServer.start_test_server(DEFAULT_ENV, master)
+    env = DEFAULT_ENV.copy()
+    env.cluster_config = ClusterConfig()
+    env.cluster_config.JSON_RPC_PORT = 38391
+    server = JSONRPCServer.start_test_server(env, master)
     yield server
     server.shutdown()
 
@@ -35,9 +39,7 @@ def jrpc_server_context(master):
 def send_request(*args):
     async def __send_request(*args):
         async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-            client = aiohttpClient(
-                session, "http://localhost:" + str(DEFAULT_ENV.config.LOCAL_SERVER_PORT)
-            )
+            client = aiohttpClient(session, "http://localhost:38391")
             response = await client.request(*args)
             return response
 

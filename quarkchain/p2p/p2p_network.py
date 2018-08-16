@@ -175,13 +175,13 @@ def devp2p_app(env, network):
     # get bootstrap node (node0) enode
     bootstrap_node_privkey = sha3(
         "{}:udp:{}:{}".format(
-            seed, env.config.DEVP2P_BOOTSTRAP_HOST, env.config.DEVP2P_BOOTSTRAP_PORT
+            seed, env.cluster_config.P2P.BOOTSTRAP_HOST, env.cluster_config.P2P.BOOTSTRAP_PORT
         ).encode("utf-8")
     )
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
     enode = host_port_pubkey_to_uri(
-        env.config.DEVP2P_BOOTSTRAP_HOST,
-        env.config.DEVP2P_BOOTSTRAP_PORT,
+        env.cluster_config.P2P.BOOTSTRAP_HOST,
+        env.cluster_config.P2P.BOOTSTRAP_PORT,
         bootstrap_node_pubkey,
     )
 
@@ -193,32 +193,31 @@ def devp2p_app(env, network):
         update_config_with_defaults(base_config, s.default_config)
 
     base_config["discovery"]["bootstrap_nodes"] = [enode] + parse_additional_bootstraps(
-        env.config.DEVP2P_ADDITIONAL_BOOTSTRAPS
+        env.cluster_config.P2P.ADDITIONAL_BOOTSTRAPS
     )
     base_config["seed"] = seed
-    base_config["base_port"] = env.config.DEVP2P_PORT
-    base_config["min_peers"] = env.config.DEVP2P_MIN_PEERS
-    base_config["max_peers"] = env.config.DEVP2P_MAX_PEERS
-
+    base_config["base_port"] = env.cluster_config.DISCOVERY_PORT
+    base_config["min_peers"] = env.cluster_config.MIN_PEERS
+    base_config["max_peers"] = env.cluster_config.MAX_PEERS
     min_peers = base_config["min_peers"]
     max_peers = base_config["max_peers"]
 
     assert min_peers <= max_peers
     config = copy.deepcopy(base_config)
     node_num = 0
-    config["node_num"] = env.config.DEVP2P_PORT
+    config["node_num"] = env.cluster_config.DISCOVERY_PORT
 
     # create this node priv_key
     config["node"]["privkey_hex"] = encode_hex(
         sha3(
-            "{}:udp:{}:{}".format(seed, network.ip, env.config.DEVP2P_PORT).encode(
+            "{}:udp:{}:{}".format(seed, network.ip, env.cluster_config.DISCOVERY_PORT).encode(
                 "utf-8"
             )
         )
     )
     # set ports based on node
-    config["discovery"]["listen_port"] = env.config.DEVP2P_PORT
-    config["p2p"]["listen_port"] = env.config.DEVP2P_PORT
+    config["discovery"]["listen_port"] = env.cluster_config.DISCOVERY_PORT
+    config["p2p"]["listen_port"] = env.cluster_config.DISCOVERY_PORT
     config["p2p"]["min_peers"] = min_peers
     config["p2p"]["max_peers"] = max_peers
     ip = network.ip
@@ -245,12 +244,11 @@ class P2PNetwork:
         self.master_server = master_server
         master_server.network = self
         self.ip = ipaddress.ip_address(
-            env.config.DEVP2P_IP
-            if env.config.DEVP2P_IP != ""
+            env.cluster_config.P2P.IP
+            if env.cluster_config.P2P.IP
             else socket.gethostbyname(socket.gethostname())
         )
-        self.port = self.env.config.P2P_SERVER_PORT
-        self.local_port = self.env.config.LOCAL_SERVER_PORT
+        self.port = self.env.cluster_config.P2P_PORT
         # Internal peer id in the cluster, mainly for connection management
         # 0 is reserved for master
         self.next_cluster_peer_id = 0
@@ -351,17 +349,6 @@ class P2PNetwork:
 
     def start(self):
         self.start_server()
-
-        if self.env.config.LOCAL_SERVER_ENABLE:
-            coro = asyncio.start_server(
-                self.new_local_client, "0.0.0.0", self.local_port, loop=self.loop
-            )
-            self.local_server = self.loop.run_until_complete(coro)
-            Logger.info(
-                "Listening on {} for local".format(
-                    self.local_server.sockets[0].getsockname()
-                )
-            )
 
     # ------------------------------- Cluster Peer Management --------------------------------
     def __get_next_cluster_peer_id(self):

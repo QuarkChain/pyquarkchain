@@ -19,21 +19,6 @@ class DefaultConfig:
     def __init__(self):
         self.P2P_PROTOCOL_VERSION = 0
         self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
-        self.P2P_SERVER_PORT = 38291
-        self.P2P_SEED_HOST = "127.0.0.1"
-        self.P2P_SEED_PORT = self.P2P_SERVER_PORT
-        self.DEVP2P = False
-        self.DEVP2P_IP = ""
-        self.DEVP2P_PORT = 29000
-        self.DEVP2P_BOOTSTRAP_HOST = "0.0.0.0"
-        self.DEVP2P_BOOTSTRAP_PORT = 29000
-        self.DEVP2P_MIN_PEERS = 2
-        self.DEVP2P_MAX_PEERS = 10
-        self.DEVP2P_ADDITIONAL_BOOTSTRAPS = ""
-        self.LOCAL_SERVER_PORT = 38391  # TODO: cleanup
-        self.LOCAL_SERVER_ENABLE = False  # TODO: cleanup
-        self.PUBLIC_JSON_RPC_PORT = 38391
-        self.PRIVATE_JSON_RPC_PORT = 38491
 
         self.SHARD_SIZE = 8
         self.SHARD_SIZE_BITS = int_left_most_bit(self.SHARD_SIZE) - 1
@@ -126,28 +111,10 @@ class DefaultConfig:
         ]
         self.LOADTEST_ACCOUNTS_COIN = self.ACCOUNTS_TO_FUND_COIN
 
-        # whether to index transaction by address
-        self.ENABLE_TRANSACTION_HISTORY = True
-
     def set_shard_size(self, shard_size):
         assert is_p2(shard_size)
         self.SHARD_SIZE = shard_size
         self.SHARD_SIZE_BITS = int_left_most_bit(shard_size) - 1
-
-    def copy(self):
-        return copy.copy(self)
-
-
-class DefaultClusterConfig:
-    def __init__(self):
-        self.NODE_PORT = 38290
-        # Empty means Master
-        self.SHARD_MASK_LIST = []
-        self.ID = ""
-        self.CONFIG = None
-        self.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
-        self.DB_PATH_ROOT = None
-        self.DB_CLEAN = False
 
     def copy(self):
         return copy.copy(self)
@@ -164,7 +131,7 @@ class Env:
         self.evm_config = evm_config or get_default_evm_config()
         self.evm_config["NETWORK_ID"] = self.config.NETWORK_ID
         self.evm_env = quarkchain.evm.config.Env(db=self.db, config=self.evm_config)
-        self.cluster_config = cluster_config or DefaultClusterConfig()
+        self.cluster_config = cluster_config
 
     def set_network_id(self, network_id):
         self.config.NETWORK_ID = network_id
@@ -175,7 +142,7 @@ class Env:
             self.db,
             self.config.copy(),
             dict(self.evm_config),
-            self.cluster_config.copy(),
+            copy.copy(self.cluster_config) if self.cluster_config else None,
         )
 
 
