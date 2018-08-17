@@ -62,6 +62,7 @@ from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.utils import set_logging_level, Logger, check
+from quarkchain.cluster.cluster_config import ClusterConfig
 
 
 class SyncTask:
@@ -235,25 +236,6 @@ class Synchronizer:
             task = SyncTask(header, peer)
             await task.sync()
         self.running = False
-
-
-class ClusterConfig:
-    def __init__(self, config):
-        self.config = config
-
-    def get_slave_info_list(self):
-        results = []
-        for slave in self.config["slaves"]:
-            ip = int(ipaddress.ip_address(slave["ip"]))
-            results.append(
-                SlaveInfo(
-                    slave["id"],
-                    ip,
-                    slave["port"],
-                    [ShardMask(v) for v in slave["shard_masks"]],
-                )
-            )
-        return results
 
 
 class SlaveConnection(ClusterConnection):
@@ -439,7 +421,7 @@ class MasterServer:
         self.env = env
         self.root_state = root_state
         self.network = None  # will be set by SimpleNetwork
-        self.cluster_config = env.cluster_config.CONFIG
+        self.cluster_config = env.cluster_config
 
         # branch value -> a list of slave running the shard
         self.branch_to_slaves = dict()
@@ -512,7 +494,7 @@ class MasterServer:
             except Exception as e:
                 Logger.info("Failed to connect {} {}: {}".format(ip, port, e))
                 await asyncio.sleep(
-                    self.env.cluster_config.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY
+                    self.env.cluster_config.MASTER.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY
                 )
         Logger.info("Connected to {}:{}".format(ip, port))
         return (reader, writer)
@@ -1173,79 +1155,28 @@ class MasterServer:
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # P2P port
-    parser.add_argument(
-        "--server_port", default=DEFAULT_ENV.config.P2P_SERVER_PORT, type=int
-    )
-    # Local port for JSON-RPC, wallet, etc
-    parser.add_argument("--enable_local_server", default=False, type=bool)
-    parser.add_argument(
-        "--local_port", default=DEFAULT_ENV.config.LOCAL_SERVER_PORT, type=int
-    )
-    parser.add_argument(
-        "--json_rpc_private_port",
-        default=DEFAULT_ENV.config.PRIVATE_JSON_RPC_PORT,
-        type=int,
-    )
-    # Seed host which provides the list of available peers
-    parser.add_argument(
-        "--seed_host", default=DEFAULT_ENV.config.P2P_SEED_HOST, type=str
-    )
-    parser.add_argument(
-        "--seed_port", default=DEFAULT_ENV.config.P2P_SEED_PORT, type=int
-    )
-    parser.add_argument("--cluster_config", default="cluster_config.json", type=str)
-    parser.add_argument("--mine", default=False, type=bool)
-    parser.add_argument("--in_memory_db", default=False)
-    parser.add_argument("--db_path_root", default="./db", type=str)
-    parser.add_argument("--clean", default=False, type=bool)
-    parser.add_argument("--log_level", default="info", type=str)
-    parser.add_argument("--devp2p", default=False, type=bool)
-    parser.add_argument("--devp2p_ip", default="", type=str)
-    parser.add_argument("--devp2p_port", default=29000, type=int)
-    parser.add_argument(
-        "--devp2p_bootstrap_host",
-        default=socket.gethostbyname(socket.gethostname()),
-        type=str,
-    )
-    parser.add_argument("--devp2p_bootstrap_port", default=29000, type=int)
-    parser.add_argument("--devp2p_min_peers", default=2, type=int)
-    parser.add_argument("--devp2p_max_peers", default=10, type=int)
-    parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
+    ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
-    set_logging_level(args.log_level)
-
     env = DEFAULT_ENV.copy()
-    env.config.P2P_SERVER_PORT = args.server_port
-    env.config.P2P_SEED_HOST = args.seed_host
-    env.config.P2P_SEED_PORT = args.seed_port
-    # TODO: cleanup local server port
-    env.config.LOCAL_SERVER_PORT = args.local_port
-    env.config.LOCAL_SERVER_ENABLE = args.enable_local_server
-    env.config.PUBLIC_JSON_RPC_PORT = args.local_port
-    env.config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
-    env.config.DEVP2P = args.devp2p
-    env.config.DEVP2P_IP = args.devp2p_ip
-    env.config.DEVP2P_PORT = args.devp2p_port
-    env.config.DEVP2P_BOOTSTRAP_HOST = args.devp2p_bootstrap_host
-    env.config.DEVP2P_BOOTSTRAP_PORT = args.devp2p_bootstrap_port
-    env.config.DEVP2P_MIN_PEERS = args.devp2p_min_peers
-    env.config.DEVP2P_MAX_PEERS = args.devp2p_max_peers
-    env.config.DEVP2P_ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
-    env.cluster_config.CONFIG = ClusterConfig(json.load(open(args.cluster_config)))
+    env.cluster_config = ClusterConfig.create_from_args(args)
+
+    set_logging_level(env.cluster_config.LOG_LEVEL)
+
+    env.cluster_config.CHAIN.update_config(env.config)
 
     # initialize database
-    if not args.in_memory_db:
+    if not env.cluster_config.use_mem_db():
         env.db = PersistentDb(
-            "{path}/master.db".format(path=args.db_path_root), clean=args.clean
+            "{path}/master.db".format(path=env.cluster_config.DB_PATH_ROOT),
+            clean=env.cluster_config.CLEAN,
         )
 
-    return env, args.mine
+    return env
 
 
 def main():
-    env, mine = parse_args()
+    env = parse_args()
 
     root_state = RootState(env)
 
@@ -1254,15 +1185,17 @@ def main():
     master.wait_until_cluster_active()
 
     # kick off mining
-    if mine:
+    if env.cluster_config.MINE:
         asyncio.ensure_future(master.start_mining())
 
     network = (
-        P2PNetwork(env, master) if env.config.DEVP2P else SimpleNetwork(env, master)
+        P2PNetwork(env, master)
+        if env.cluster_config.use_p2p()
+        else SimpleNetwork(env, master)
     )
     network.start()
 
-    if env.config.DEVP2P:
+    if env.cluster_config.use_p2p():
         thread = Thread(target=devp2p_app, args=[env, network], daemon=True)
         thread.start()
 

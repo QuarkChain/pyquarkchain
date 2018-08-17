@@ -381,7 +381,7 @@ class JSONRPCServer:
     @classmethod
     def start_public_server(cls, env, master_server):
         server = cls(
-            env, master_server, env.config.PUBLIC_JSON_RPC_PORT, public_methods
+            env, master_server, env.cluster_config.JSON_RPC_PORT, public_methods
         )
         server.start()
         return server
@@ -389,7 +389,7 @@ class JSONRPCServer:
     @classmethod
     def start_private_server(cls, env, master_server):
         server = cls(
-            env, master_server, env.config.PRIVATE_JSON_RPC_PORT, private_methods
+            env, master_server, env.cluster_config.PRIVATE_JSON_RPC_PORT, private_methods
         )
         server.start()
         return server
@@ -401,7 +401,7 @@ class JSONRPCServer:
             methods.add(method)
         for method in private_methods.values():
             methods.add(method)
-        server = cls(env, master_server, env.config.PUBLIC_JSON_RPC_PORT, methods)
+        server = cls(env, master_server, env.cluster_config.JSON_RPC_PORT, methods)
         server.start()
         return server
 

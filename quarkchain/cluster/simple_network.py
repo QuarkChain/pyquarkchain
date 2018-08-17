@@ -312,8 +312,7 @@ class SimpleNetwork:
         self.master_server = master_server
         master_server.network = self
         self.ip = ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))
-        self.port = self.env.config.P2P_SERVER_PORT
-        self.local_port = self.env.config.LOCAL_SERVER_PORT
+        self.port = self.env.cluster_config.P2P_PORT
         # Internal peer id in the cluster, mainly for connection management
         # 0 is reserved for master
         self.next_cluster_peer_id = 0
@@ -400,20 +399,10 @@ class SimpleNetwork:
     def start(self):
         self.start_server()
 
-        if self.env.config.LOCAL_SERVER_ENABLE:
-            coro = asyncio.start_server(
-                self.new_local_client, "0.0.0.0", self.local_port, loop=self.loop
-            )
-            self.local_server = self.loop.run_until_complete(coro)
-            Logger.info(
-                "Listening on {} for local".format(
-                    self.local_server.sockets[0].getsockname()
-                )
-            )
-
         self.loop.create_task(
             self.connect_seed(
-                self.env.config.P2P_SEED_HOST, self.env.config.P2P_SEED_PORT
+                self.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_HOST,
+                self.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,
             )
         )
 
