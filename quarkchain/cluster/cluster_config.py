@@ -5,6 +5,8 @@ import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.core import ShardMask
+from quarkchain.utils import is_p2, check
+from quarkchain.config import DEFAULT_ENV
 
 
 class BaseConfig:
@@ -63,6 +65,19 @@ class P2PConfig(BaseConfig):
     ADDITIONAL_BOOTSTRAP_LIST = []  # list of host:port
 
 
+class ChainConfig(BaseConfig):
+    SHARD_SIZE = DEFAULT_ENV.config.SHARD_SIZE
+    ROOT_BLOCK_INTERVAL_SEC = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
+    MINOR_BLOCK_INTERVAL_SEC = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
+    NETWORK_ID = DEFAULT_ENV.config.NETWORK_ID
+
+    def update_config(self, config):
+        config.set_shard_size(self.SHARD_SIZE)
+        names = ["ROOT_BLOCK_INTERVAL_SEC", "MINOR_BLOCK_INTERVAL_SEC", "NETWORK_ID"]
+        for name in names:
+            setattr(config, name, getattr(self, name))
+
+
 class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
@@ -75,12 +90,14 @@ class ClusterConfig(BaseConfig):
     MINE = False
     CLEAN = False
 
+    CHAIN = None
     MASTER = None
     SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
 
     def __init__(self):
+        self.CHAIN = ChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []
         self._json_filepath = None
@@ -122,6 +139,12 @@ class ClusterConfig(BaseConfig):
         parser.add_argument(
             "--mine", action="store_true", default=ClusterConfig.MINE, dest="mine"
         )
+
+        parser.add_argument("--num_shards", default=ChainConfig.SHARD_SIZE, type=int)
+        parser.add_argument("--root_block_interval_sec", default= ChainConfig.ROOT_BLOCK_INTERVAL_SEC, type=int)
+        parser.add_argument("--minor_block_interval_sec", default=ChainConfig.MINOR_BLOCK_INTERVAL_SEC, type=int)
+        parser.add_argument("--network_id", default=ChainConfig.NETWORK_ID, type=int)
+
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
         parser.add_argument("--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str)
@@ -170,6 +193,9 @@ class ClusterConfig(BaseConfig):
             config.json_filepath = args.cluster_config
             return config
 
+        check(is_p2(args.num_shards), "--num_shards must be power of 2")
+        check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
+
         config = ClusterConfig()
         config.LOG_LEVEL = args.log_level
         config.DB_PATH_ROOT = args.db_path_root
@@ -181,6 +207,11 @@ class ClusterConfig(BaseConfig):
         config.CLEAN = args.clean
         config.MINE = args.mine
         config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
+
+        config.CHAIN.SHARD_SIZE = args.num_shards
+        config.CHAIN.ROOT_BLOCK_INTERVAL_SEC = args.root_block_interval_sec
+        config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
+        config.CHAIN.NETWORK_ID = args.network_id
 
         if args.devp2p:
             config.P2P = P2PConfig()
@@ -212,6 +243,7 @@ class ClusterConfig(BaseConfig):
 
     def to_dict(self):
         ret = super().to_dict()
+        ret["CHAIN"] = self.CHAIN.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
@@ -223,6 +255,7 @@ class ClusterConfig(BaseConfig):
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
+        config.CHAIN = ChainConfig.from_dict(config.CHAIN)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
 

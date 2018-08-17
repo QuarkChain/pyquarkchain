@@ -43,12 +43,12 @@ def sha3_256(x):
     return keccak(x)
 
 
-def check(condition):
+def check(condition, msg=""):
     """ Unlike assert, which can be optimized out,
     check will always check whether condition is satisfied or throw AssertionError if not
     """
     if not condition:
-        raise AssertionError()
+        raise AssertionError(msg)
 
 
 def crash():
