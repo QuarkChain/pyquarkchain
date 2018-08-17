@@ -99,10 +99,10 @@ class Filter:
         for criteria, log_topic in zip(self.topics, log.topics):
             if not criteria:
                 continue
-            if isinstance(criteria, list):  # list of str "0x..."
+            if isinstance(criteria, list):  # list of bytes
                 if not any(c == log_topic for c in criteria):
                     return False
-            else:  # str
+            else:  # single criteria as bytes
                 if criteria != log_topic:
                     return False
         return True
