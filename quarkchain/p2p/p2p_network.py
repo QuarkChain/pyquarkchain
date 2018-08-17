@@ -60,7 +60,7 @@ class Devp2pService(WiredService):
 
     def on_wire_protocol_stop(self, proto):
         GLOG.info(
-            "NODE{} on_wire_protocol_stop".format(self.config["node_num"]), proto=proto
+            "NODE{} on_wire_protocol_stop proto={}".format(self.config["node_num"], proto)
         )
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
@@ -73,7 +73,7 @@ class Devp2pService(WiredService):
 
     def on_wire_protocol_start(self, proto):
         GLOG.info(
-            "NODE{} on_wire_protocol_start".format(self.config["node_num"]), proto=proto
+            "NODE{} on_wire_protocol_start proto={}".format(self.config["node_num"], proto)
         )
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(

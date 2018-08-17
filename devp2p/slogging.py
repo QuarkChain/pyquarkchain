@@ -1,7 +1,7 @@
 import logging
 
 from quarkchain.evm.slogging import get_logger, configure, configure_logging, getLogger
-configure_logging()
+configure_logging(':info')
 
 if __name__ == '__main__':
     logging.basicConfig()
