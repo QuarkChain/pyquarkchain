@@ -1,11 +1,11 @@
 import asyncio
 from contextlib import ContextDecorator
 
-from quarkchain.cluster.master import MasterServer, ClusterConfig
+from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
-from quarkchain.cluster.utils import create_cluster_config
+from quarkchain.cluster.cluster_config import ClusterConfig, SlaveConfig, SimpleNetworkConfig
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
@@ -29,12 +29,18 @@ def get_test_env(
     env.config.GENESIS_COIN = genesis_quarkash
     env.config.GENESIS_MINOR_COIN = genesis_minor_quarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesis_account
-    env.cluster_config.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 0.01
+
     env.db = InMemoryDb()
     env.set_network_id(1234567890)
 
     env.config.ACCOUNTS_TO_FUND = []
     env.config.LOADTEST_ACCOUNTS = []
+
+    env.cluster_config = ClusterConfig()
+    env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
+    env.cluster_config.DB_PATH_ROOT = ""
+    assert env.cluster_config.use_mem_db()
+
     return env
 
 
@@ -109,54 +115,34 @@ def get_next_port():
 
 
 def create_test_clusters(num_cluster, genesis_account=Address.create_empty_account()):
-    seed_port = get_next_port()  # first cluster will listen on this port
+    bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
     loop = asyncio.get_event_loop()
 
     for i in range(num_cluster):
         env = get_test_env(genesis_account, genesis_minor_quarkash=1000000)
+        env.cluster_config.P2P_PORT = bootstrap_port if i == 0 else get_next_port()
+        env.cluster_config.JSON_RPC_PORT = get_next_port()
+        env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
+        env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
+        env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
 
-        config = create_cluster_config(
-            slave_count=env.config.SHARD_SIZE,
-            ip="127.0.0.1",
-            p2p_port=0,
-            json_rpc_port=0,
-            json_rpc_private_port=0,
-            cluster_port_start=get_next_port(),
-            seed_host="",
-            seed_port=0,
-            devp2p=False,
-            devp2p_ip="",
-            devp2p_port=29000,
-            devp2p_bootstrap_host="0.0.0.0",
-            devp2p_bootstrap_port=29000,
-            devp2p_min_peers=2,
-            devp2p_max_peers=10,
-            devp2p_additional_bootstraps="",
-        )
         for j in range(env.config.SHARD_SIZE):
-            # skip the ones used by create_cluster_config
-            get_next_port()
+            slave_config = SlaveConfig()
+            slave_config.ID = "S{}".format(j)
+            slave_config.PORT = get_next_port()
+            slave_config.SHARD_MASK_LIST = [ShardMask(j | env.config.SHARD_SIZE)]
+            slave_config.DB_PATH_ROOT = None  # TODO: fix the db in config
+            env.cluster_config.SLAVE_LIST.append(slave_config)
 
         slave_server_list = []
-        for slave in range(env.config.SHARD_SIZE):
+        for j in range(env.config.SHARD_SIZE):
             slave_env = env.copy()
             slave_env.db = InMemoryDb()
-            slave_env.cluster_config.ID = config["slaves"][slave]["id"]
-            slave_env.cluster_config.NODE_PORT = config["slaves"][slave]["port"]
-            slave_env.cluster_config.SHARD_MASK_LIST = [
-                ShardMask(v) for v in config["slaves"][slave]["shard_masks"]
-            ]
-            slave_server = SlaveServer(
-                slave_env, name="cluster{}_slave{}".format(i, slave)
-            )
+            slave_env.slave_config = env.cluster_config.get_slave_config("S{}".format(j))
+            slave_server = SlaveServer(slave_env, name="cluster{}_slave{}".format(i, j))
             slave_server.start()
             slave_server_list.append(slave_server)
-
-        env.config.P2P_SERVER_PORT = seed_port if i == 0 else get_next_port()
-        env.config.P2P_SEED_PORT = seed_port
-        env.cluster_config.ID = 0
-        env.cluster_config.CONFIG = ClusterConfig(config)
 
         root_state = RootState(env)
         master_server = MasterServer(env, root_state, name="cluster{}_master".format(i))
@@ -169,7 +155,7 @@ def create_test_clusters(num_cluster, genesis_account=Address.create_empty_accou
         network = SimpleNetwork(env, master_server)
         network.start_server()
         if i != 0:
-            peer = call_async(network.connect("127.0.0.1", seed_port))
+            peer = call_async(network.connect("127.0.0.1", bootstrap_port))
         else:
             peer = None
 

@@ -89,7 +89,7 @@ class TransactionHistoryMixin:
         self, minor_block_hash, cross_shard_transaction_deposit_list
     ):
         """Stores a mapping from minor block to the list of CrossShardTransactionDeposit confirmed"""
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return
 
         l = CrossShardTransactionList(cross_shard_transaction_deposit_list)
@@ -115,14 +115,14 @@ class TransactionHistoryMixin:
             func(key, b"")
 
     def put_transaction_history_index(self, tx, block_height, index):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return
         self.__update_transaction_history_index(
             tx, block_height, index, lambda k, v: self.db.put(k, v)
         )
 
     def remove_transaction_history_index(self, tx, block_height, index):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return
         self.__update_transaction_history_index(
             tx, block_height, index, lambda k, v: self.db.remove(k)
@@ -141,21 +141,21 @@ class TransactionHistoryMixin:
             func(key, b"")
 
     def put_transaction_history_index_from_block(self, minor_block):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return
         self.__update_transaction_history_index_from_block(
             minor_block, lambda k, v: self.db.put(k, v)
         )
 
     def remove_transaction_history_index_from_block(self, minor_block):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return
         self.__update_transaction_history_index_from_block(
             minor_block, lambda k, v: self.db.remove(k)
         )
 
     def get_transactions_by_address(self, address, start=b"", limit=10):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
         serialized_address = address.serialize()
@@ -1474,7 +1474,7 @@ class ShardState:
         return block, index, receipt
 
     def get_transaction_list_by_address(self, address, start, limit):
-        if not self.env.config.ENABLE_TRANSACTION_HISTORY:
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
         if start == bytes(1):  # get pending tx

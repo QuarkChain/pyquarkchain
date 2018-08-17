@@ -252,7 +252,8 @@ class TestCluster(unittest.TestCase):
             # reestablish cluster connection
             call_async(
                 clusters[1].network.connect(
-                    "127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT
+                    "127.0.0.1",
+                    clusters[0].master.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,
                 )
             )
 
@@ -317,7 +318,8 @@ class TestCluster(unittest.TestCase):
             # reestablish cluster connection
             call_async(
                 clusters[1].network.connect(
-                    "127.0.0.1", clusters[0].master.env.config.P2P_SEED_PORT
+                    "127.0.0.1",
+                    clusters[0].master.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,
                 )
             )
 
