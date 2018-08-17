@@ -307,12 +307,11 @@ class Identity:
 class Address(Serializable):
     FIELDS = [("recipient", FixedSizeBytesSerializer(20)), ("full_shard_id", uint32)]
 
-    def __init__(self, recipient: bytes, full_shard_id: int, *args, **kwargs) -> None:
+    def __init__(self, recipient: bytes, full_shard_id: int) -> None:
         """
         recipient is 20 bytes SHA3 of public key
         shard_id is uint32_t
         """
-        super().__init__(*args, **kwargs)
         self.recipient = recipient
         self.full_shard_id = full_shard_id
 
@@ -507,8 +506,7 @@ class Transaction(Serializable):
         ("sign_list", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(65))),
     ]
 
-    def __init__(self, in_list=None, code=Code(), out_list=None, sign_list=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, in_list=None, code=Code(), out_list=None, sign_list=None):
         self.in_list = [] if in_list is None else in_list
         self.out_list = [] if out_list is None else out_list
         self.sign_list = [] if sign_list is None else sign_list

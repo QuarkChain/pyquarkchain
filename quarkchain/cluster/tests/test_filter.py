@@ -1,8 +1,6 @@
 import unittest
 from copy import copy
 
-from rlp.sedes import BigEndianInt
-
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.tests.test_shard_state import create_default_shard_state
 from quarkchain.cluster.tests.test_utils import (
@@ -10,7 +8,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_creation_with_event_transaction,
     create_transfer_transaction,
 )
-from quarkchain.core import Identity, Address
+from quarkchain.core import Identity, Address, Log
 from quarkchain.evm.bloom import bits_in_number
 
 
@@ -36,10 +34,10 @@ class TestFilter(unittest.TestCase):
         start_height = b.header.height
         # https://hastebin.com/debezaqocu.cs
         # 1 log with 2 topics - sha3(b'Hi(address)') and msg.sender
-        log = state.evm_state.receipts[0].logs[0]
+        log = Log.create_from_eth_log(state.evm_state.receipts[0].logs[0])
 
         # add other random blocks with normal tx
-        for i in range(10):
+        for _ in range(10):
             tx = create_transfer_transaction(
                 shard_state=state,
                 key=id1.get_key(),
@@ -60,17 +58,11 @@ class TestFilter(unittest.TestCase):
         self.state = state
         self.start_height = start_height
         self.filer_gen_with_criteria = lambda criteria: Filter(
-            state.db,
-            state.branch,
-            state._get_evm_state_for_new_block,
-            [],
-            criteria,
-            start_height,
-            start_height + 10,
+            state.db, [], criteria, start_height, start_height + 10
         )
 
     def test_bloom_bits_in_cstor(self):
-        criteria = ["0x" + BigEndianInt(32).serialize(t).hex() for t in self.log.topics]
+        criteria = ["0x" + t.hex() for t in self.log.topics]
         f = self.filer_gen_with_criteria(criteria)
         # only use sha3(b'Hi(address)') to test bits
         expected_indexes = bits_in_number(f.bloom_bits[0][0])
@@ -78,21 +70,10 @@ class TestFilter(unittest.TestCase):
 
     def test_get_block_candidates_hit(self):
         hit_criteria = [
-            [
-                "0x" + BigEndianInt(32).serialize(t).hex() for t in self.log.topics
-            ],  # exact match
-            [
-                "0x" + BigEndianInt(32).serialize(self.log.topics[0]).hex(),
-                None,
-            ],  # one wild card
-            [
-                None,
-                "0x" + BigEndianInt(32).serialize(self.log.topics[1]).hex(),
-            ],  # another wild card
-            [
-                None,
-                ["0x" + BigEndianInt(32).serialize(self.log.topics[1]).hex(), "0x1234"],
-            ],  # one item with OR
+            ["0x" + t.hex() for t in self.log.topics],  # exact match
+            ["0x" + self.log.topics[0].hex(), None],  # one wild card
+            [None, "0x" + self.log.topics[1].hex()],  # another wild card
+            [None, ["0x" + self.log.topics[1].hex(), "0x1234"]],  # one item with OR
         ]
         for criteria in hit_criteria:
             f = self.filer_gen_with_criteria(criteria)
@@ -101,19 +82,14 @@ class TestFilter(unittest.TestCase):
             self.assertEqual(blocks[0].header.height, self.start_height)
 
     def test_get_block_candidates_miss(self):
-        miss_criteria = [
-            [
-                "0x" + BigEndianInt(32).serialize(self.log.topics[0]).hex(),
-                "0x1234",
-            ]  # one miss match
-        ]
+        miss_criteria = [["0x" + self.log.topics[0].hex(), "0x1234"]]  # one miss match
         for criteria in miss_criteria:
             f = self.filer_gen_with_criteria(criteria)
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 0)
 
     def test_log_topics_match(self):
-        criteria = ["0x" + BigEndianInt(32).serialize(t).hex() for t in self.log.topics]
+        criteria = ["0x" + t.hex() for t in self.log.topics]
         f = self.filer_gen_with_criteria(criteria)
         log = copy(self.log)
         log.topics = []
@@ -129,7 +105,7 @@ class TestFilter(unittest.TestCase):
         self.assertTrue(f._log_topics_match(log))
 
     def test_get_logs(self):
-        criteria = ["0x" + BigEndianInt(32).serialize(t).hex() for t in self.log.topics]
+        criteria = ["0x" + t.hex() for t in self.log.topics]
         f = self.filer_gen_with_criteria(criteria)
         logs = f._get_logs([self.hit_block])
         self.assertEqual([self.log], logs)

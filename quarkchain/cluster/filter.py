@@ -1,10 +1,8 @@
-from typing import List, Optional, Union, Callable
+from typing import List, Optional, Union
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
-from quarkchain.core import Address, Transaction, MinorBlock, Branch
+from quarkchain.core import Address, Log, MinorBlock
 from quarkchain.evm.bloom import bloom
-from quarkchain.evm.messages import apply_transaction, Receipt, Log
-from quarkchain.evm.state import State as EvmState
 from quarkchain.utils import Logger
 
 
@@ -17,8 +15,6 @@ class Filter:
     def __init__(
         self,
         db: ShardDbOperator,
-        branch: Branch,
-        state_gen_func: Callable[[MinorBlock], EvmState],
         addresses: List[Address],
         topics: List[Optional[Union[str, List[str]]]],
         start_block: int,
@@ -26,11 +22,8 @@ class Filter:
         block_hash: Optional[str] = None,
     ):
         self.db = db
-        self.branch = branch
-        self.state_gen_func = state_gen_func
         # if `addresses` present, should be in the same shard
         self.recipients = [addr.recipient for addr in addresses]
-        self.topics = topics
         self.start_block = start_block
         self.end_block = end_block
         self.block_hash = block_hash  # TODO: not supported yet
@@ -42,18 +35,23 @@ class Filter:
         for r in self.recipients:
             b = bloom(r)
             self.bloom_bits.append([b])
+        self.topics = []  # type: List[Optional[Union[byte, List[bytes]]]]
         for tp in topics:
             if not tp:
                 # regard as wildcard
+                self.topics.append(tp)
                 continue
             if isinstance(tp, list):  # list of str "0x..."
-                bloom_list = []
+                bloom_list, topic_list = [], []
                 for sub_tp in tp:
                     bs = bytes.fromhex(sub_tp[2:])
                     bloom_list.append(bloom(bs))
+                    topic_list.append(int(sub_tp[2:], 16).to_bytes(32, "big"))
                 self.bloom_bits.append(bloom_list)
+                self.topics.append(topic_list)
             else:  # str
                 self.bloom_bits.append([bloom(bytes.fromhex(tp[2:]))])
+                self.topics.append(int(tp[2:], 16).to_bytes(32, "big"))
 
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
@@ -84,17 +82,8 @@ class Filter:
         """Given potential blocks, re-run tx to find exact matches."""
         ret = []
         for block in blocks:
-            tx_list = block.tx_list or []  # type: List[Transaction]
-            # use evm state in the previous block
-            evm_state = self.state_gen_func(
-                self.db.get_minor_block_by_height(block.header.height - 1)
-            )
-            # execute all tx, then check all the generated logs
-            for tx in tx_list:
-                evm_tx = tx.code.get_evm_transaction()
-                evm_tx.shard_size = self.branch.get_shard_size()
-                apply_transaction(evm_state, evm_tx, tx.get_hash())
-            for r in evm_state.receipts:  # type: Receipt
+            for i in range(len(block.tx_list or [])):
+                r = block.get_receipt(self.db.db, i)  # type: Receipt
                 for log in r.logs:  # type: Log
                     # empty recipient means no filtering
                     if self.recipients and log.address not in self.recipients:
@@ -111,10 +100,10 @@ class Filter:
             if not criteria:
                 continue
             if isinstance(criteria, list):  # list of str "0x..."
-                if not any(int(c[2:], 16) == log_topic for c in criteria):
+                if not any(c == log_topic for c in criteria):
                     return False
             else:  # str
-                if int(criteria[2:], 16) != log_topic:
+                if criteria != log_topic:
                     return False
         return True
 
