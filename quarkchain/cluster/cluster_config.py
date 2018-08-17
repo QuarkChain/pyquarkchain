@@ -1,21 +1,27 @@
 import ipaddress
 import json
 import os
+import socket
 import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
+from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
-from quarkchain.config import DEFAULT_ENV
+
+HOST = socket.gethostbyname(socket.gethostname())
+
+
+def is_config_field(s: str):
+    return s.isupper() and not s.startswith("_")
 
 
 class BaseConfig:
     def to_dict(self):
         ret = dict()
         for k, v in self.__class__.__dict__.items():
-            if k.startswith("_") or (not isinstance(v, (str, int, list))):
-                continue
-            ret[k] = getattr(self, k) if k in self.__dict__ else v
+            if is_config_field(k):
+                ret[k] = getattr(self, k) if k in self.__dict__ else v
         return ret
 
     @classmethod
@@ -27,13 +33,11 @@ class BaseConfig:
 
 
 class MasterConfig(BaseConfig):
-    IP = "0.0.0.0"
-
     MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
 
 
 class SlaveConfig(BaseConfig):
-    IP = "0.0.0.0"
+    IP = HOST
     PORT = 38392
     ID = ""
     SHARD_MASK_LIST = None
@@ -51,18 +55,18 @@ class SlaveConfig(BaseConfig):
 
 
 class SimpleNetworkConfig(BaseConfig):
-    BOOTSTRAP_HOST = "0.0.0.0"
+    BOOTSTRAP_HOST = HOST
     BOOTSTRAP_PORT = 38291
 
 
 class P2PConfig(BaseConfig):
-    IP = ""
+    IP = socket.gethostbyname(socket.gethostname())
     DISCOVERY_PORT = 29000
-    BOOTSTRAP_HOST = "0.0.0.0"
+    BOOTSTRAP_HOST = HOST
     BOOTSTRAP_PORT = 29000
     MIN_PEERS = 2
     MAX_PEERS = 10
-    ADDITIONAL_BOOTSTRAP_LIST = []  # list of host:port
+    ADDITIONAL_BOOTSTRAPS = ""
 
 
 class ChainConfig(BaseConfig):
@@ -141,13 +145,23 @@ class ClusterConfig(BaseConfig):
         )
 
         parser.add_argument("--num_shards", default=ChainConfig.SHARD_SIZE, type=int)
-        parser.add_argument("--root_block_interval_sec", default= ChainConfig.ROOT_BLOCK_INTERVAL_SEC, type=int)
-        parser.add_argument("--minor_block_interval_sec", default=ChainConfig.MINOR_BLOCK_INTERVAL_SEC, type=int)
+        parser.add_argument(
+            "--root_block_interval_sec",
+            default=ChainConfig.ROOT_BLOCK_INTERVAL_SEC,
+            type=int,
+        )
+        parser.add_argument(
+            "--minor_block_interval_sec",
+            default=ChainConfig.MINOR_BLOCK_INTERVAL_SEC,
+            type=int,
+        )
         parser.add_argument("--network_id", default=ChainConfig.NETWORK_ID, type=int)
 
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
-        parser.add_argument("--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str)
+        parser.add_argument(
+            "--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str
+        )
         parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT)
         parser.add_argument(
             "--json_rpc_port", default=ClusterConfig.JSON_RPC_PORT, type=int
@@ -164,9 +178,17 @@ class ClusterConfig(BaseConfig):
             dest="enable_transaction_history",
         )
 
-        parser.add_argument("--seed_host", default=SimpleNetworkConfig.BOOTSTRAP_HOST)
-        parser.add_argument("--seed_port", default=SimpleNetworkConfig.BOOTSTRAP_PORT)
-        parser.add_argument("--devp2p", default=False, type=bool)
+        parser.add_argument(
+            "--simple_network_bootstrap_host",
+            default=SimpleNetworkConfig.BOOTSTRAP_HOST,
+        )
+        parser.add_argument(
+            "--simple_network_bootstrap_port",
+            default=SimpleNetworkConfig.BOOTSTRAP_PORT,
+        )
+        parser.add_argument(
+            "--devp2p_enable", action="store_true", default=False, dest="devp2p_enable"
+        )
         """
         set devp2p_ip so that peers can connect to this cluster
         leave empty if you want to use `socket.gethostbyname()`, but it may cause this cluster to be unreachable by peers
@@ -213,7 +235,7 @@ class ClusterConfig(BaseConfig):
         config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
         config.CHAIN.NETWORK_ID = args.network_id
 
-        if args.devp2p:
+        if args.devp2p_enable:
             config.P2P = P2PConfig()
             config.P2P.IP = args.devp2p_ip
             config.P2P.DISCOVERY_PORT = args.devp2p_port
@@ -221,11 +243,11 @@ class ClusterConfig(BaseConfig):
             config.P2P.BOOTSTRAP_PORT = args.devp2p_bootstrap_port
             config.P2P.MIN_PEERS = args.devp2p_min_peers
             config.P2P.MAX_PEERS = args.devp2p_max_peers
-            config.P2P.ADDITIONAL_BOOTSTRAP_LIST = args.devp2p_additional_bootstrap_list
+            config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
         else:
             config.SIMPLE_NETWORK = SimpleNetworkConfig()
-            config.SIMPLE_NETWORK.BOOTSTRAP_HOST = args.seed_host
-            config.SIMPLE_NETWORK.BOOTSTRAP_PORT = args.seed_port
+            config.SIMPLE_NETWORK.BOOTSTRAP_HOST = args.simple_network_bootstrap_host
+            config.SIMPLE_NETWORK.BOOTSTRAP_PORT = args.simple_network_bootstrap_port
 
         for i in range(args.num_slaves):
             slave_config = SlaveConfig()
@@ -248,8 +270,10 @@ class ClusterConfig(BaseConfig):
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
+            del ret["SIMPLE_NETWORK"]
         else:
             ret["SIMPLE_NETWORK"] = self.SIMPLE_NETWORK.to_dict()
+            del ret["P2P"]
         return ret
 
     @classmethod

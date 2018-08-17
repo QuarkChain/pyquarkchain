@@ -196,28 +196,28 @@ def devp2p_app(env, network):
         env.cluster_config.P2P.ADDITIONAL_BOOTSTRAPS
     )
     base_config["seed"] = seed
-    base_config["base_port"] = env.cluster_config.DISCOVERY_PORT
-    base_config["min_peers"] = env.cluster_config.MIN_PEERS
-    base_config["max_peers"] = env.cluster_config.MAX_PEERS
+    base_config["base_port"] = env.cluster_config.P2P.DISCOVERY_PORT
+    base_config["min_peers"] = env.cluster_config.P2P.MIN_PEERS
+    base_config["max_peers"] = env.cluster_config.P2P.MAX_PEERS
     min_peers = base_config["min_peers"]
     max_peers = base_config["max_peers"]
 
     assert min_peers <= max_peers
     config = copy.deepcopy(base_config)
     node_num = 0
-    config["node_num"] = env.cluster_config.DISCOVERY_PORT
+    config["node_num"] = env.cluster_config.P2P.DISCOVERY_PORT
 
     # create this node priv_key
     config["node"]["privkey_hex"] = encode_hex(
         sha3(
-            "{}:udp:{}:{}".format(seed, network.ip, env.cluster_config.DISCOVERY_PORT).encode(
+            "{}:udp:{}:{}".format(seed, network.ip, env.cluster_config.P2P.DISCOVERY_PORT).encode(
                 "utf-8"
             )
         )
     )
     # set ports based on node
-    config["discovery"]["listen_port"] = env.cluster_config.DISCOVERY_PORT
-    config["p2p"]["listen_port"] = env.cluster_config.DISCOVERY_PORT
+    config["discovery"]["listen_port"] = env.cluster_config.P2P.DISCOVERY_PORT
+    config["p2p"]["listen_port"] = env.cluster_config.P2P.DISCOVERY_PORT
     config["p2p"]["min_peers"] = min_peers
     config["p2p"]["max_peers"] = max_peers
     ip = network.ip
