@@ -19,7 +19,7 @@ from rlp.utils import encode_hex, decode_hex, is_integer
 import gevent
 
 try:
-    import ethereum.slogging as slogging
+    import quarkchain.evm.slogging as slogging
 
     slogging.configure(config_string=":info,p2p.protocol:info,p2p.peer:info")
 except:

@@ -23,7 +23,7 @@ from quarkchain.utils import Logger
 from quarkchain.cluster.simple_network import Peer
 
 try:
-    import ethereum.slogging as slogging
+    import quarkchain.evm.slogging as slogging
 
     slogging.configure(config_string=":info,p2p.protocol:info,p2p.peer:info")
 except:

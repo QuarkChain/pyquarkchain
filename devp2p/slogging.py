@@ -2,7 +2,7 @@ import logging
 import warnings
 
 try:
-    from ethereum.slogging import get_logger, configure, configure_logging, getLogger
+    from quarkchain.evm.slogging import get_logger, configure, configure_logging, getLogger
 except ImportError:
     warnings.warn('Ethereum not available, could not import slogging', ImportWarning)
     # patch logging to support kargs
