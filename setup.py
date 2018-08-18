@@ -1,11 +1,10 @@
 import os
+
 from setuptools import setup
 
-install_requires = set(x.strip() for x in open('requirements.txt'))
-install_requires_replacements = {
-}
-install_requires = [install_requires_replacements.get(
-    r, r) for r in install_requires]
+install_requires = set(x.strip() for x in open("requirements.txt"))
+install_requires_replacements = {}
+install_requires = [install_requires_replacements.get(r, r) for r in install_requires]
 
 # Utility function to read the README file.
 # Used for the long_description.  It's nice, because now 1) we have a top level
@@ -26,12 +25,9 @@ setup(
     license="MIT",
     keywords="QuarkChain,blockchain",
     url="",
-    packages=['quarkchain'],
-    long_description=read('README.md'),
-    classifiers=[
-        "Development Status :: 0 - Development",
-        "License :: MIT License",
-    ],
+    packages=["quarkchain"],
+    long_description=read("README.md"),
+    classifiers=["Development Status :: 0 - Development", "License :: MIT License"],
     install_requires=install_requires,
-    python_requires='>=3.5'
+    python_requires=">=3.5",
 )
