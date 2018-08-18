@@ -991,14 +991,14 @@ class JSONRPCServer:
         )
 
     @private_methods.add
-    async def set_target_block_time(self, root_block_time=0, minor_block_time=0):
+    async def setTargetBlockTime(self, root_block_time=0, minor_block_time=0):
         """0 will not update existing value"""
         return await self.master.set_target_block_time(
             root_block_time, minor_block_time
         )
 
     @private_methods.add
-    async def set_mining(self, mining):
+    async def setMining(self, mining):
         """Turn on / off mining"""
         return await self.master.set_mining(mining)
 
