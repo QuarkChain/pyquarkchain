@@ -5,6 +5,7 @@ from json.encoder import JSONEncoder
 from logging import StreamHandler, Formatter, FileHandler
 from quarkchain.evm.utils import bcolors, is_numeric
 import sys
+from quarkchain.utils import QKCLogFormatter
 
 
 DEFAULT_LOGLEVEL = 'INFO'
@@ -304,7 +305,8 @@ def configure(config_string=None, log_json=False, log_file=None):
     if len(rootLogger.handlers) == 0:
         #handler = StreamHandler()
         handler = StreamHandler(sys.stdout)
-        formatter = Formatter(log_format)
+        #formatter = Formatter(log_format)
+        formatter = QKCLogFormatter()
         handler.setFormatter(formatter)
         rootLogger.addHandler(handler)
     if log_file:

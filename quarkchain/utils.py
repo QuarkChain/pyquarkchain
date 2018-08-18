@@ -3,6 +3,7 @@ import ctypes
 import logging
 import time
 import traceback
+import logging
 
 from eth_utils import keccak
 
@@ -242,6 +243,48 @@ def set_logging_level(level):
 
     logging.basicConfig(
         format="%(asctime)s:%(levelname)s:%(message)s", level=level_map[level]
+    )
+
+
+class QKCLogFormatter(logging.Formatter):
+    def format(self, record):
+        prefix = get_qkc_log_prefix(record)
+        return prefix + super(QKCLogFormatter, self).format(record)
+
+
+def get_colored_initial_for_level(level: int):
+    mapping = {
+        logging.CRITICAL: "\033[1;41mC\033[1;0m",
+        logging.ERROR: "\033[1;31mE\033[1;0m",
+        logging.WARNING: "\033[1;35mW\033[1;0m",
+        logging.INFO: "I",
+        logging.DEBUG: "\033[1;33mD\033[1;0m",
+        logging.NOTSET: "?",
+    }
+    return mapping[level]
+
+
+def get_qkc_log_prefix(record: logging.LogRecord):
+    """Returns the absl log prefix for the log record.
+  Args:
+    record: logging.LogRecord, the record to get prefix for.
+  """
+    created_tuple = time.localtime(record.created)
+    created_microsecond = int(record.created % 1.0 * 1e6)
+
+    level = record.levelno
+    severity = get_colored_initial_for_level(level)
+
+    return "%s%02d%02d %02d:%02d:%02d.%06d %s:%d] " % (
+        severity,
+        created_tuple.tm_mon,
+        created_tuple.tm_mday,
+        created_tuple.tm_hour,
+        created_tuple.tm_min,
+        created_tuple.tm_sec,
+        created_microsecond,
+        record.filename,
+        record.lineno,
     )
 
 
