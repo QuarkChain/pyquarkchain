@@ -55,6 +55,17 @@ Running >1 clusters with P2P network: (--mine=True sets exactly 1 cluster to min
 pypy3 multi_cluster.py --num_cluster=10 (--mine=True)
 ```
 
+## Development Flow
+
+[`pre-commit`](https://pre-commit.com) is used to manage git hooks.
+
+```
+# make sure `pre-commit` is installed (homebrew, pip, etc)
+pre-commit install
+```
+
+Currently `black` is used to format modified python code. Refer to STYLE for coding style suggestions.
+
 ## Docker Deployment
 ####TODO: update this section with pypy command
 First [install docker](https://docs.docker.com/docker-for-mac/install/)
