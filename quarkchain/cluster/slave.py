@@ -4,6 +4,11 @@ import errno
 import ipaddress
 from collections import deque
 from typing import Optional, Tuple
+# absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
+from absl import logging as GLOG
+from absl import flags
+import sys
+
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.p2p_commands import (
@@ -73,6 +78,8 @@ from quarkchain.db import PersistentDb
 from quarkchain.protocol import Connection
 from quarkchain.utils import check, set_logging_level, Logger
 from quarkchain.cluster.cluster_config import ClusterConfig
+
+FLAGS = flags.FLAGS
 
 
 class SyncTask:
@@ -1491,7 +1498,7 @@ def parse_args():
     ClusterConfig.attach_arguments(parser)
     # Unique Id identifying the node in the cluster
     parser.add_argument("--node_id", default="", type=str)
-    args = parser.parse_args()
+    args, unknown_flags = parser.parse_known_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
@@ -1501,11 +1508,14 @@ def parse_args():
 
     set_logging_level(env.cluster_config.LOG_LEVEL)
 
-    return env
+    return env, unknown_flags
 
 
 def main():
-    env = parse_args()
+    env, unknown_flags = parse_args()
+    FLAGS(sys.argv[:1] + unknown_flags)
+    if FLAGS['verbosity'].using_default_value:
+        FLAGS.verbosity = 0
 
     slave_server = SlaveServer(env)
     slave_server.start_and_loop()

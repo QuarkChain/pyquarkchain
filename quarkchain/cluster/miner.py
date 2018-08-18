@@ -7,8 +7,8 @@ from aioprocessing import AioProcess, AioQueue
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
 from quarkchain.core import MinorBlock, RootBlock
-from quarkchain.utils import Logger
-
+from absl import logging as GLOG
+from absl import flags
 
 class Miner:
     def __init__(
@@ -38,7 +38,7 @@ class Miner:
         self.enabled = True
 
     def disable(self):
-        """Stop the mining process is there is one"""
+        """Stop the mining process if there is one"""
         self.enabled = False
 
     def mine_new_block_async(self):
@@ -73,8 +73,8 @@ class Miner:
                 return
             try:
                 await self.add_block_async_func(block)
-            except Exception:
-                Logger.log_exception()
+            except Exception as ex:
+                GLOG.exception(ex)
                 self.mine_new_block_async()
 
     @staticmethod
@@ -84,14 +84,16 @@ class Miner:
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
 
-        Logger.info(
+        GLOG.log_every_n_seconds(
+            GLOG.INFO,
             "[{}] {} [{}] ({:.2f}) {}".format(
                 shard,
                 block.header.height,
                 count,
                 elapsed,
                 block.header.get_hash().hex(),
-            )
+            ),
+            60,
         )
 
     @staticmethod
@@ -129,7 +131,7 @@ class Miner:
             # Adjust the target block time to compensate computation time
             gas_used_ratio = block.meta.evm_gas_used / block.meta.evm_gas_limit
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
-            Logger.debug(
+            GLOG.debug(
                 "[{}] target block time {:.2f}".format(
                     block.header.branch.get_shard_id(), target_block_time
                 )

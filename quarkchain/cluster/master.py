@@ -10,6 +10,10 @@ from threading import Thread
 from typing import Optional
 
 import psutil
+# absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
+from absl import logging as GLOG
+from absl import flags
+import sys
 
 from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.miner import Miner
@@ -63,6 +67,8 @@ from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.utils import set_logging_level, Logger, check
 from quarkchain.cluster.cluster_config import ClusterConfig
+
+FLAGS = flags.FLAGS
 
 
 class SyncTask:
@@ -1156,7 +1162,7 @@ class MasterServer:
 def parse_args():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
-    args = parser.parse_args()
+    args, unknown_flags = parser.parse_known_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
@@ -1172,11 +1178,14 @@ def parse_args():
             clean=env.cluster_config.CLEAN,
         )
 
-    return env
+    return env, unknown_flags
 
 
 def main():
-    env = parse_args()
+    env, unknown_flags = parse_args()
+    FLAGS(sys.argv[:1] + unknown_flags)
+    if FLAGS['verbosity'].using_default_value:
+        FLAGS.verbosity = 0
 
     root_state = RootState(env)
 
