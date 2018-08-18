@@ -60,7 +60,9 @@ class Devp2pService(WiredService):
 
     def on_wire_protocol_stop(self, proto):
         GLOG.info(
-            "NODE{} on_wire_protocol_stop proto={}".format(self.config["node_num"], proto)
+            "NODE{} on_wire_protocol_stop proto={}".format(
+                self.config["node_num"], proto
+            )
         )
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
@@ -73,7 +75,9 @@ class Devp2pService(WiredService):
 
     def on_wire_protocol_start(self, proto):
         GLOG.info(
-            "NODE{} on_wire_protocol_start proto={}".format(self.config["node_num"], proto)
+            "NODE{} on_wire_protocol_start proto={}".format(
+                self.config["node_num"], proto
+            )
         )
         active_peers = self.get_connected_peers()
         self.app.network.loop.call_soon_threadsafe(
@@ -167,7 +171,9 @@ def devp2p_app(env, network):
     # get bootstrap node (node0) enode
     bootstrap_node_privkey = sha3(
         "{}:udp:{}:{}".format(
-            seed, env.cluster_config.P2P.BOOTSTRAP_HOST, env.cluster_config.P2P.BOOTSTRAP_PORT
+            seed,
+            env.cluster_config.P2P.BOOTSTRAP_HOST,
+            env.cluster_config.P2P.BOOTSTRAP_PORT,
         ).encode("utf-8")
     )
     bootstrap_node_pubkey = privtopub_raw(bootstrap_node_privkey)
@@ -202,9 +208,9 @@ def devp2p_app(env, network):
     # create this node priv_key
     config["node"]["privkey_hex"] = encode_hex(
         sha3(
-            "{}:udp:{}:{}".format(seed, network.ip, env.cluster_config.P2P.DISCOVERY_PORT).encode(
-                "utf-8"
-            )
+            "{}:udp:{}:{}".format(
+                seed, network.ip, env.cluster_config.P2P.DISCOVERY_PORT
+            ).encode("utf-8")
         )
     )
     # set ports based on node

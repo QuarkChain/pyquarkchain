@@ -10,6 +10,7 @@ from threading import Thread
 from typing import Optional
 
 import psutil
+
 # absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
 from absl import logging as GLOG
 from absl import flags
@@ -1184,7 +1185,7 @@ def parse_args():
 def main():
     env, unknown_flags = parse_args()
     FLAGS(sys.argv[:1] + unknown_flags)
-    if FLAGS['verbosity'].using_default_value:
+    if FLAGS["verbosity"].using_default_value:
         FLAGS.verbosity = 0
 
     root_state = RootState(env)

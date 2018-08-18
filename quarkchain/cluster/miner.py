@@ -10,6 +10,7 @@ from quarkchain.core import MinorBlock, RootBlock
 from absl import logging as GLOG
 from absl import flags
 
+
 class Miner:
     def __init__(
         self,
