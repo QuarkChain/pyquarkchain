@@ -1,3 +1,4 @@
+import argparse
 import ipaddress
 import json
 import os
@@ -60,7 +61,7 @@ class SimpleNetworkConfig(BaseConfig):
 
 
 class P2PConfig(BaseConfig):
-    IP = socket.gethostbyname(socket.gethostname())
+    IP = HOST
     DISCOVERY_PORT = 29000
     BOOTSTRAP_HOST = HOST
     BOOTSTRAP_PORT = 29000
@@ -292,3 +293,11 @@ class ClusterConfig(BaseConfig):
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    ClusterConfig.attach_arguments(parser)
+    args = parser.parse_args()
+    config = ClusterConfig.create_from_args(args)
+    print(config.to_json())
