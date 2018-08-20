@@ -7,6 +7,7 @@
 import argparse
 import copy
 import random
+from typing import List
 
 import ecdsa
 import rlp
@@ -612,7 +613,7 @@ class Log(Serializable):
         ("data", PrependedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, recipient, topics, data):
+    def __init__(self, recipient: bytes, topics: List[bytes], data: bytes):
         self.recipient = recipient
         self.topics = topics
         self.data = data
@@ -647,7 +648,15 @@ class TransactionReceipt(Serializable):
         ("logs", PrependedSizeListSerializer(4, Log)),
     ]
 
-    def __init__(self, success, gas_used, prev_gas_used, contract_address, bloom, logs):
+    def __init__(
+        self,
+        success: bytes,
+        gas_used: int,
+        prev_gas_used: int,
+        contract_address: Address,
+        bloom: int,
+        logs: List[Log],
+    ):
         self.success = success
         self.gas_used = gas_used
         self.prev_gas_used = prev_gas_used
