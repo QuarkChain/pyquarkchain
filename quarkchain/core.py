@@ -14,6 +14,7 @@ from eth_keys import KeyAPI
 
 import quarkchain.evm.messages
 from quarkchain.evm import trie
+from quarkchain.evm.messages import Receipt
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import (
     int_left_most_bit,
@@ -230,7 +231,7 @@ uint32 = UintSerializer(4)
 uint64 = UintSerializer(8)
 uint128 = UintSerializer(16)
 uint256 = UintSerializer(32)
-uint2048 = UintSerializer(2048)
+uint2048 = UintSerializer(256)
 hash256 = FixedSizeBytesSerializer(32)
 boolean = BooleanSerializer()
 
@@ -311,8 +312,8 @@ class Address(Serializable):
         recipient is 20 bytes SHA3 of public key
         shard_id is uint32_t
         """
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
+        self.recipient = recipient
+        self.full_shard_id = full_shard_id
 
     def to_hex(self):
         return self.serialize().hex()
@@ -385,7 +386,7 @@ class TransactionOutput(Serializable):
 class Branch(Serializable):
     FIELDS = [("value", uint32)]
 
-    def __init__(self, value):
+    def __init__(self, value: int):
         self.value = value
 
     def get_shard_size(self):
@@ -506,12 +507,10 @@ class Transaction(Serializable):
     ]
 
     def __init__(self, in_list=None, code=Code(), out_list=None, sign_list=None):
-        in_list = [] if in_list is None else in_list
-        out_list = [] if out_list is None else out_list
-        sign_list = [] if sign_list is None else sign_list
-
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
+        self.in_list = [] if in_list is None else in_list
+        self.out_list = [] if out_list is None else out_list
+        self.sign_list = [] if sign_list is None else sign_list
+        self.code = code
 
     def serialize_unsigned(self, barray: bytearray = None) -> bytearray:
         barray = barray if barray is not None else bytearray()
@@ -713,6 +712,7 @@ class MinorBlockHeader(Serializable):
         ("create_time", uint64),
         ("difficulty", uint64),
         ("nonce", uint64),
+        ("bloom", uint2048),
     ]
 
     def __init__(
@@ -727,6 +727,7 @@ class MinorBlockHeader(Serializable):
         create_time=0,
         difficulty=0,
         nonce=0,
+        bloom=0,
     ):
         fields = {k: v for k, v in locals().items() if k != "self"}
         super(type(self), self).__init__(**fields)
@@ -742,7 +743,7 @@ class MinorBlock(Serializable):
         ("tx_list", PrependedSizeListSerializer(4, Transaction)),
     ]
 
-    def __init__(self, header, meta, tx_list=None):
+    def __init__(self, header: MinorBlockHeader, meta: MinorBlockMeta, tx_list=None):
         self.header = header
         self.meta = meta
         self.tx_list = [] if tx_list is None else tx_list
@@ -768,6 +769,7 @@ class MinorBlock(Serializable):
             evm_state.receipts, evm_state.db
         )
         self.header.hash_meta = self.meta.get_hash()
+        self.header.bloom = evm_state.bloom
         return self
 
     def add_tx(self, tx):

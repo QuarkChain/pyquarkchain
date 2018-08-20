@@ -154,9 +154,9 @@ def root_block_encoder(block):
         "difficulty": quantity_encoder(header.difficulty),
         "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
+        "minorBlockHeaders": [],
     }
 
-    d["minorBlockHeaders"] = []
     for header in block.minor_block_header_list:
         h = {
             "id": id_encoder(header.get_hash(), header.branch.get_shard_id()),
@@ -261,10 +261,6 @@ def tx_encoder(block, i):
 
 def loglist_encoder(loglist):
     """Encode a list of log"""
-    # l = []
-    # if len(loglist) > 0 and loglist[0] is None:
-    #     assert all(element is None for element in l)
-    #     return l
     result = []
     for l in loglist:
         result.append(
