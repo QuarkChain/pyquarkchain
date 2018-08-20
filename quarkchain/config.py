@@ -86,25 +86,13 @@ class DefaultConfig:
 
         # testnet config
         self.ACCOUNTS_TO_FUND = [
-            Address.create_from(
-                item["address"][:40]
-                + item["address"][0:2]
-                + item["address"][10:12]
-                + item["address"][20:22]
-                + item["address"][30:32]
-            )
+            Address.create_from(item["address"])
             for item in ACCOUNTS_TO_FUND
         ]
         self.ACCOUNTS_TO_FUND_COIN = 1000000 * self.QUARKSH_TO_JIAOZI
         self.LOADTEST_ACCOUNTS = [
             (
-                Address.create_from(
-                    item["address"][:40]
-                    + item["address"][0:2]
-                    + item["address"][10:12]
-                    + item["address"][20:22]
-                    + item["address"][30:32]
-                ),
+                Address.create_from(item["address"]),
                 bytes.fromhex(item["key"]),
             )
             for item in LOADTEST_ACCOUNTS
