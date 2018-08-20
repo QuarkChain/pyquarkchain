@@ -336,7 +336,8 @@ class Address(Serializable):
     @staticmethod
     def create_from_identity(identity: Identity, full_shard_id=None):
         if full_shard_id is None:
-            full_shard_id = random.randint(0, (2 ** 32) - 1)
+            r = identity.get_recipient()
+            full_shard_id = int.from_bytes(r[0:1] + r[5:6] + r[10:11] + r[15:16], "big")
         return Address(identity.get_recipient(), full_shard_id)
 
     @staticmethod
@@ -344,9 +345,9 @@ class Address(Serializable):
         """ An account is a special address with default shard that the
         account should be in.
         """
-        if full_shard_id is None:
-            full_shard_id = random.randint(0, (2 ** 32) - 1)
-        return Address(Identity.create_random_identity().get_recipient(), full_shard_id)
+        return Address.create_from_identity(
+            Identity.create_random_identity(), full_shard_id
+        )
 
     @staticmethod
     def create_empty_account(full_shard_id=0):
