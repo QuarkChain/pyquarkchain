@@ -786,10 +786,6 @@ class MinorBlock(Serializable):
         return self
 
     def get_receipt(self, db, i):
-        # ignore if no meta is set
-        if self.meta.hash_evm_receipt_root == bytes(Constant.HASH_LENGTH):
-            return None
-
         t = trie.Trie(db, self.meta.hash_evm_receipt_root)
         receipt = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
         if receipt.contract_address != b"":

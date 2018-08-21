@@ -84,8 +84,6 @@ class Filter:
         for block in blocks:
             for i in range(len(block.tx_list or [])):
                 r = block.get_receipt(self.db.db, i)
-                if not r:
-                    continue
                 for log in r.logs:
                     # empty recipient means no filtering
                     if self.recipients and log.recipient not in self.recipients:
