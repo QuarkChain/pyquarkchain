@@ -57,13 +57,17 @@ class TestFilter(unittest.TestCase):
         self.log = log
         self.state = state
         self.start_height = start_height
-        self.filer_gen_with_criteria = lambda criteria: Filter(
-            state.db, [], criteria, start_height, start_height + 10
-        )
+
+        def filter_gen_with_criteria(criteria, addresses=None):
+            return Filter(
+                state.db, addresses or [], criteria, start_height, start_height + 10
+            )
+
+        self.filter_gen_with_criteria = filter_gen_with_criteria
 
     def test_bloom_bits_in_cstor(self):
         criteria = ["0x" + t.hex() for t in self.log.topics]
-        f = self.filer_gen_with_criteria(criteria)
+        f = self.filter_gen_with_criteria(criteria)
         # only use sha3(b'Hi(address)') to test bits
         expected_indexes = bits_in_number(f.bloom_bits[0][0])
         self.assertEqual([333, 522, 1419], expected_indexes)
@@ -74,9 +78,13 @@ class TestFilter(unittest.TestCase):
             ["0x" + self.log.topics[0].hex(), None],  # one wild card
             [None, "0x" + self.log.topics[1].hex()],  # another wild card
             [None, ["0x" + self.log.topics[1].hex(), "0x1234"]],  # one item with OR
+            [],  # only filter by address: added in the following for-loop
         ]
         for criteria in hit_criteria:
-            f = self.filer_gen_with_criteria(criteria)
+            addresses = []
+            if not criteria:
+                addresses = [Address(self.log.recipient, full_shard_id=0)]
+            f = self.filter_gen_with_criteria(criteria, addresses)
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 1)
             self.assertEqual(blocks[0].header.height, self.start_height)
@@ -84,13 +92,13 @@ class TestFilter(unittest.TestCase):
     def test_get_block_candidates_miss(self):
         miss_criteria = [["0x" + self.log.topics[0].hex(), "0x1234"]]  # one miss match
         for criteria in miss_criteria:
-            f = self.filer_gen_with_criteria(criteria)
+            f = self.filter_gen_with_criteria(criteria)
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 0)
 
     def test_log_topics_match(self):
         criteria = ["0x" + t.hex() for t in self.log.topics]
-        f = self.filer_gen_with_criteria(criteria)
+        f = self.filter_gen_with_criteria(criteria)
         log = copy(self.log)
         log.topics = []
         # topic array length mismatch
@@ -100,12 +108,13 @@ class TestFilter(unittest.TestCase):
         self.assertTrue(f._log_topics_match(log))
         # wild card match
         criteria[0] = None
-        f = self.filer_gen_with_criteria(criteria)
+        f = self.filter_gen_with_criteria(criteria)
         log = copy(self.log)
         self.assertTrue(f._log_topics_match(log))
 
     def test_get_logs(self):
         criteria = ["0x" + t.hex() for t in self.log.topics]
-        f = self.filer_gen_with_criteria(criteria)
+        addresses = [Address(self.log.recipient, 0)]
+        f = self.filter_gen_with_criteria(criteria, addresses)
         logs = f._get_logs([self.hit_block])
         self.assertEqual([self.log], logs)

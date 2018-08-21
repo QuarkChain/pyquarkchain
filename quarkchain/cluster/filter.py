@@ -35,7 +35,7 @@ class Filter:
         for r in self.recipients:
             b = bloom(r)
             self.bloom_bits.append([b])
-        self.topics = []  # type: List[Optional[Union[byte, List[bytes]]]]
+        self.topics = []  # type: List[Optional[Union[bytes, List[bytes]]]]
         for tp in topics:
             if not tp:
                 # regard as wildcard
@@ -83,10 +83,10 @@ class Filter:
         ret = []
         for block in blocks:
             for i in range(len(block.tx_list or [])):
-                r = block.get_receipt(self.db.db, i)  # type: Receipt
-                for log in r.logs:  # type: Log
+                r = block.get_receipt(self.db.db, i)
+                for log in r.logs:
                     # empty recipient means no filtering
-                    if self.recipients and log.address not in self.recipients:
+                    if self.recipients and log.recipient not in self.recipients:
                         continue
                     if self._log_topics_match(log):
                         ret.append(log)
