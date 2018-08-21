@@ -1082,7 +1082,7 @@ class SlaveServer:
             return self.artificial_tx_config.target_minor_block_time
 
         self.miner_map[branch_value] = Miner(
-            __create_block, __add_block, __get_target_block_time
+            __create_block, __add_block, __get_target_block_time, self.env
         )
 
     def init_shard_states(self, root_tip):
@@ -1516,7 +1516,7 @@ def main():
     env, unknown_flags = parse_args()
     FLAGS(sys.argv[:1] + unknown_flags)
     if FLAGS["verbosity"].using_default_value:
-        FLAGS.verbosity = 0
+        FLAGS.verbosity = 0  # INFO level
 
     slave_server = SlaveServer(env)
     slave_server.start_and_loop()

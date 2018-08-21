@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+import socket
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
@@ -17,12 +18,13 @@ class Miner:
         create_block_async_func,
         add_block_async_func,
         get_target_block_time_func,
+        env,
         simulate=True,
     ):
         """Mining will happen on a subprocess managed by this class
 
         create_block_async_func: takes no argument, returns a block (either RootBlock or MinorBlock)
-        add_block_async_func: takes a block
+        add_block_async_func: takes a block, add it to chain
         get_target_block_time_func: takes no argument, returns the target block time in second
         """
         self.create_block_async_func = create_block_async_func
@@ -31,6 +33,7 @@ class Miner:
         self.simulate = simulate
         self.enabled = False
         self.process = None
+        self.env = env
 
     def is_enabled(self):
         return self.enabled
@@ -52,7 +55,15 @@ class Miner:
         If a mining process has already been started, update the process to mine the new block.
         """
         target_block_time = self.get_target_block_time_func()
+        inception = int(round(time.time() * 1e3))
         block = await self.create_block_async_func()
+        self.new_block_info = {
+            "hash": block.header.get_hash().hex(),
+            "height": block.header.height,
+            "inception": inception,
+            "creation_latency_ms": int(round(time.time() * 1e3)) - inception,
+            "target_block_time": target_block_time,
+        }
         if self.process:
             self.input.put((block, target_block_time))
             return
@@ -72,6 +83,23 @@ class Miner:
             block = await self.output.coro_get()
             if not block:
                 return
+            if (
+                block.header.height == self.new_block_info["height"]
+            ):  # avoid possible race condition
+                is_root = isinstance(block, RootBlock)
+                sample = {
+                    "time": int(round(time.time())),
+                    "shard": "R"
+                    if is_root
+                    else str(block.header.branch.get_shard_id()),
+                    "cluster": socket.gethostbyname(socket.gethostname()),
+                    "total_latency_ms": int(round(time.time() * 1e3))
+                    - self.new_block_info["inception"],
+                }
+                sample.update(self.new_block_info)
+                self.env.cluster_config.logKafkaSample(
+                    self.env.cluster_config.MONITORING.MINER_TOPIC, sample
+                )
             try:
                 await self.add_block_async_func(block)
             except Exception as ex:
@@ -142,7 +170,7 @@ class Miner:
 
     @staticmethod
     def simulate_mine(block, target_block_time, input, output):
-        """Sleep until the target time"""
+        """Sleep until the target time, or a new block is added to queue"""
         target_time = block.header.create_time + numpy.random.exponential(
             target_block_time
         )

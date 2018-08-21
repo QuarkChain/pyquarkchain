@@ -4,6 +4,8 @@ import json
 import os
 import socket
 import tempfile
+import requests
+from absl import logging as GLOG
 
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import DEFAULT_ENV
@@ -83,6 +85,11 @@ class ChainConfig(BaseConfig):
             setattr(config, name, getattr(self, name))
 
 
+class MonitoringConfig(BaseConfig):
+    KAFKA_REST_ADDRESS = ""
+    MINER_TOPIC = "qkc_miner"
+
+
 class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
@@ -101,11 +108,14 @@ class ClusterConfig(BaseConfig):
     SIMPLE_NETWORK = None
     P2P = None
 
+    MONITORING = None
+
     def __init__(self):
         self.CHAIN = ChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []
         self._json_filepath = None
+        self.MONITORING = MonitoringConfig()
 
     def get_slave_info_list(self):
         results = []
@@ -205,6 +215,8 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
         parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
         parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
+        parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
+        parser.add_argument("--monitoring_miner_topic", default="qkc_miner", type=str)
 
     @classmethod
     def create_from_args(cls, args):
@@ -235,6 +247,9 @@ class ClusterConfig(BaseConfig):
         config.CHAIN.ROOT_BLOCK_INTERVAL_SEC = args.root_block_interval_sec
         config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
         config.CHAIN.NETWORK_ID = args.network_id
+
+        config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
+        config.MONITORING.MINER_TOPIC = args.monitoring_miner_topic
 
         if args.devp2p_enable:
             config.P2P = P2PConfig()
@@ -267,6 +282,7 @@ class ClusterConfig(BaseConfig):
     def to_dict(self):
         ret = super().to_dict()
         ret["CHAIN"] = self.CHAIN.to_dict()
+        ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
@@ -281,6 +297,7 @@ class ClusterConfig(BaseConfig):
     def from_dict(cls, d):
         config = super().from_dict(d)
         config.CHAIN = ChainConfig.from_dict(config.CHAIN)
+        config.MONITORING = MonitoringConfig().from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
 
@@ -293,6 +310,21 @@ class ClusterConfig(BaseConfig):
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
+
+    def logKafkaSample(self, topic: str, sample: dict):
+        if self.MONITORING.KAFKA_REST_ADDRESS == "":
+            return
+        url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
+        try:
+            record_data = json.dumps({"records": [{"value": sample}]})
+            headers = {
+                "Content-Type": "application/vnd.kafka.json.v2+json",
+                "Accept": "application/vnd.kafka.v2+json",
+            }
+            response = requests.post(url, data=record_data, headers=headers)
+            GLOG.info(response)
+        except Exception as ex:
+            GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
 
 
 if __name__ == "__main__":
