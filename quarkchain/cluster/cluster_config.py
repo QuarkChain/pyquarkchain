@@ -6,6 +6,7 @@ import socket
 import tempfile
 import requests
 from absl import logging as GLOG
+import aiohttp
 
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import DEFAULT_ENV
@@ -322,7 +323,29 @@ class ClusterConfig(BaseConfig):
                 "Accept": "application/vnd.kafka.v2+json",
             }
             response = requests.post(url, data=record_data, headers=headers)
-            GLOG.info(response)
+            if response.status_code != 200:
+                raise Exception(
+                    "non-OK response status code: {}".format(response.status_code)
+                )
+        except Exception as ex:
+            GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
+
+    async def logKafkaSampleAsync(self, topic: str, sample: dict):
+        if self.MONITORING.KAFKA_REST_ADDRESS == "":
+            return
+        url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
+        try:
+            record_data = json.dumps({"records": [{"value": sample}]})
+            headers = {
+                "Content-Type": "application/vnd.kafka.json.v2+json",
+                "Accept": "application/vnd.kafka.v2+json",
+            }
+            session = aiohttp.ClientSession()
+            response = await session.post(url, data=record_data, headers=headers)
+            if response.status != 200:
+                raise Exception(
+                    "non-OK response status code: {}".format(response.status_code)
+                )
         except Exception as ex:
             GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
 

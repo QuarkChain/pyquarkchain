@@ -97,8 +97,10 @@ class Miner:
                     - self.new_block_info["inception"],
                 }
                 sample.update(self.new_block_info)
-                self.env.cluster_config.logKafkaSample(
-                    self.env.cluster_config.MONITORING.MINER_TOPIC, sample
+                asyncio.ensure_future(
+                    self.env.cluster_config.logKafkaSampleAsync(
+                        self.env.cluster_config.MONITORING.MINER_TOPIC, sample
+                    )
                 )
             try:
                 await self.add_block_async_func(block)
