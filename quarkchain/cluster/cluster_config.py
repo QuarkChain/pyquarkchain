@@ -87,7 +87,8 @@ class ChainConfig(BaseConfig):
 
 
 class MonitoringConfig(BaseConfig):
-    KAFKA_REST_ADDRESS = ""
+    CLUSTER_ID = HOST
+    KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
 
 
@@ -332,7 +333,15 @@ class ClusterConfig(BaseConfig):
             GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
 
     async def logKafkaSampleAsync(self, topic: str, sample: dict):
-        """logs sample to Kafka topic asynchronously"""
+        """logs sample to Kafka topic asynchronously
+        Sample for monitoring purpose:
+        Supports logging samples to Kafka via REST API (Confluent)
+
+        Column guidelines:
+        time: timestamp of the record
+        sample_rate: pre-sampled record shall set this to sample rate
+        column type shall be log int, str, or vector of str
+        """
         if self.MONITORING.KAFKA_REST_ADDRESS == "":
             return
         url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)

@@ -92,7 +92,7 @@ class Miner:
                     "shard": "R"
                     if is_root
                     else str(block.header.branch.get_shard_id()),
-                    "cluster": socket.gethostbyname(socket.gethostname()),
+                    "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                     "total_latency_ms": int(round(time.time() * 1e3))
                     - self.new_block_info["inception"],
                 }
