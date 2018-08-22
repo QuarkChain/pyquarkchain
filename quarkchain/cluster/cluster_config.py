@@ -313,6 +313,7 @@ class ClusterConfig(BaseConfig):
         return json.dumps(self.to_dict(), indent=4)
 
     def logKafkaSample(self, topic: str, sample: dict):
+        """for debugging purposes, use async version instead"""
         if self.MONITORING.KAFKA_REST_ADDRESS == "":
             return
         url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
@@ -331,6 +332,7 @@ class ClusterConfig(BaseConfig):
             GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
 
     async def logKafkaSampleAsync(self, topic: str, sample: dict):
+        """logs sample to Kafka topic asynchronously"""
         if self.MONITORING.KAFKA_REST_ADDRESS == "":
             return
         url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
@@ -348,6 +350,8 @@ class ClusterConfig(BaseConfig):
                 )
         except Exception as ex:
             GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
+        finally:
+            await session.close()
 
 
 if __name__ == "__main__":
