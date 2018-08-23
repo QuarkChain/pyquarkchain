@@ -1,9 +1,13 @@
+from typing import List
+
 from quarkchain.core import (
     CrossShardTransactionList,
     MinorBlock,
     MinorBlockHeader,
     RootBlock,
     TransactionReceipt,
+    Log,
+    FixedSizeBytesSerializer,
 )
 from quarkchain.core import (
     Transaction,
@@ -521,15 +525,15 @@ class ShardStats(Serializable):
 
     def __init__(
         self,
-        branch,
-        height,
-        timestamp,
-        tx_count60s,
-        pending_tx_count,
-        total_tx_count,
-        block_count60s,
-        stale_block_count60s,
-        last_block_time,
+        branch: Branch,
+        height: int,
+        timestamp: int,
+        tx_count60s: int,
+        pending_tx_count: int,
+        total_tx_count: int,
+        block_count60s: int,
+        stale_block_count60s: int,
+        last_block_time: int,
     ):
         self.branch = branch
         self.height = height
@@ -611,6 +615,43 @@ class BatchAddXshardTxListResponse(Serializable):
         self.error_code = error_code
 
 
+class GetLogRequest(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("addresses", PrependedSizeListSerializer(4, Address)),
+        (
+            "topics",
+            PrependedSizeListSerializer(
+                4, PrependedSizeListSerializer(4, FixedSizeBytesSerializer(32))
+            ),
+        ),
+        ("start_block", uint64),
+        ("end_block", uint64),
+    ]
+
+    def __init__(
+        self,
+        branch: Branch,
+        addresses: List[Address],
+        topics: List[List[bytes]],
+        start_block: int,
+        end_block: int,
+    ):
+        self.branch = branch
+        self.addresses = addresses
+        self.topics = topics
+        self.start_block = start_block
+        self.end_block = end_block
+
+
+class GetLogResponse(Serializable):
+    FIELDS = [("error_code", uint32), ("logs", PrependedSizeListSerializer(4, Log))]
+
+    def __init__(self, error_code: int, logs: List[Log]):
+        self.error_code = error_code
+        self.logs = logs
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -660,6 +701,8 @@ class ClusterOp:
     GEN_TX_RESPONSE = 42 + CLUSTER_OP_BASE
     GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST = 43 + CLUSTER_OP_BASE
     GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE = 44 + CLUSTER_OP_BASE
+    GET_LOG_REQUEST = 45 + CLUSTER_OP_BASE
+    GET_LOG_RESPONSE = 46 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -706,4 +749,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GEN_TX_RESPONSE: GenTxResponse,
     ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST: GetTransactionListByAddressRequest,
     ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE: GetTransactionListByAddressResponse,
+    ClusterOp.GET_LOG_REQUEST: GetLogRequest,
+    ClusterOp.GET_LOG_RESPONSE: GetLogResponse,
 }

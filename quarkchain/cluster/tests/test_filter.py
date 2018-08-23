@@ -9,7 +9,8 @@ from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
 )
 from quarkchain.core import Identity, Address, Log
-from quarkchain.evm.bloom import bits_in_number
+from quarkchain.evm.bloom import bits_in_number, bloom
+from quarkchain.utils import sha3_256
 
 
 class TestFilter(unittest.TestCase):
@@ -34,7 +35,7 @@ class TestFilter(unittest.TestCase):
         start_height = b.header.height
         # https://hastebin.com/debezaqocu.cs
         # 1 log with 2 topics - sha3(b'Hi(address)') and msg.sender
-        log = Log.create_from_eth_log(state.evm_state.receipts[0].logs[0])
+        log = Log.create_from_eth_log(state.evm_state.receipts[0].logs[0], b, 0, 0)
 
         # add other random blocks with normal tx
         for _ in range(10):
@@ -66,18 +67,19 @@ class TestFilter(unittest.TestCase):
         self.filter_gen_with_criteria = filter_gen_with_criteria
 
     def test_bloom_bits_in_cstor(self):
-        criteria = ["0x" + t.hex() for t in self.log.topics]
+        criteria = [[tp] for tp in self.log.topics]
         f = self.filter_gen_with_criteria(criteria)
-        # only use sha3(b'Hi(address)') to test bits
-        expected_indexes = bits_in_number(f.bloom_bits[0][0])
-        self.assertEqual([333, 522, 1419], expected_indexes)
+        # use sha3(b'Hi(address)') to test bits
+        expected_indexes = bits_in_number(bloom(sha3_256(b"Hi(address)")))
+        self.assertEqual(expected_indexes, bits_in_number(f.bloom_bits[0][0]))
 
     def test_get_block_candidates_hit(self):
         hit_criteria = [
-            ["0x" + t.hex() for t in self.log.topics],  # exact match
-            ["0x" + self.log.topics[0].hex(), None],  # one wild card
-            [None, "0x" + self.log.topics[1].hex()],  # another wild card
-            [None, ["0x" + self.log.topics[1].hex(), "0x1234"]],  # one item with OR
+            [[tp] for tp in self.log.topics],  # exact match
+            [[self.log.topics[0]], []],  # one wild card
+            [[self.log.topics[0]]],  # matching first should be enough
+            [[], [self.log.topics[1]]],  # another wild card
+            [[], [self.log.topics[1], bytes.fromhex("1234")]],  # one item with OR
             [],  # only filter by address: added in the following for-loop
         ]
         for criteria in hit_criteria:
@@ -90,30 +92,31 @@ class TestFilter(unittest.TestCase):
             self.assertEqual(blocks[0].header.height, self.start_height)
 
     def test_get_block_candidates_miss(self):
-        miss_criteria = [["0x" + self.log.topics[0].hex(), "0x1234"]]  # one miss match
+        miss_criteria = [
+            [[self.log.topics[0]], [bytes.fromhex("1234")]]  # one miss match
+        ]
         for criteria in miss_criteria:
             f = self.filter_gen_with_criteria(criteria)
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 0)
 
     def test_log_topics_match(self):
-        criteria = ["0x" + t.hex() for t in self.log.topics]
+        criteria = [[tp] for tp in self.log.topics]
         f = self.filter_gen_with_criteria(criteria)
         log = copy(self.log)
+        # super wild card
         log.topics = []
-        # topic array length mismatch
-        self.assertFalse(f._log_topics_match(log))
+        self.assertTrue(f._log_topics_match(log))
         # should match exactly
         log = copy(self.log)
         self.assertTrue(f._log_topics_match(log))
         # wild card match
-        criteria[0] = None
+        criteria[0] = []
         f = self.filter_gen_with_criteria(criteria)
-        log = copy(self.log)
         self.assertTrue(f._log_topics_match(log))
 
     def test_get_logs(self):
-        criteria = ["0x" + t.hex() for t in self.log.topics]
+        criteria = [[tp] for tp in self.log.topics]
         addresses = [Address(self.log.recipient, 0)]
         f = self.filter_gen_with_criteria(criteria, addresses)
         logs = f._get_logs([self.hit_block])
