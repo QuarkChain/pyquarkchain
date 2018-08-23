@@ -15,7 +15,6 @@ from eth_keys import KeyAPI
 
 import quarkchain.evm.messages
 from quarkchain.evm import trie
-from quarkchain.evm.messages import Receipt
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import (
     int_left_most_bit,

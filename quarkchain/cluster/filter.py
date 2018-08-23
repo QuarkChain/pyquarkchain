@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.core import Address, Log, MinorBlock
@@ -81,7 +81,7 @@ class Filter:
         for block in blocks:
             for i in range(len(block.tx_list or [])):
                 r = block.get_receipt(self.db.db, i)
-                for j, log in enumerate(r.logs):
+                for log in r.logs:
                     # empty recipient means no filtering
                     if self.recipients and log.recipient not in self.recipients:
                         continue

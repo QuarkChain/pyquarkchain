@@ -56,7 +56,6 @@ from quarkchain.cluster.rpc import (
     CLUSTER_OP_SERIALIZER_MAP,
     ExecuteTransactionRequest,
     Ping,
-    SlaveInfo,
     GetTransactionReceiptRequest,
     GetTransactionListByAddressRequest,
 )
