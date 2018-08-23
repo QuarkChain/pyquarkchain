@@ -473,7 +473,9 @@ class MasterServer:
         def __get_target_block_time():
             return self.get_artificial_tx_config().target_root_block_time
 
-        self.root_miner = Miner(__create_block, __add_block, __get_target_block_time)
+        self.root_miner = Miner(
+            __create_block, __add_block, __get_target_block_time, self.env
+        )
 
     def __get_shard_size(self):
         # TODO: replace it with dynamic size
@@ -1186,7 +1188,7 @@ def main():
     env, unknown_flags = parse_args()
     FLAGS(sys.argv[:1] + unknown_flags)
     if FLAGS["verbosity"].using_default_value:
-        FLAGS.verbosity = 0
+        FLAGS.verbosity = 0  # INFO level
 
     root_state = RootState(env)
 

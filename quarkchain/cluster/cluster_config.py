@@ -9,6 +9,7 @@ from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
+from quarkchain.cluster.monitoring import KafkaSampleLogger
 
 HOST = socket.gethostbyname(socket.gethostname())
 
@@ -83,6 +84,12 @@ class ChainConfig(BaseConfig):
             setattr(config, name, getattr(self, name))
 
 
+class MonitoringConfig(BaseConfig):
+    CLUSTER_ID = HOST
+    KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
+    MINER_TOPIC = "qkc_miner"
+
+
 class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
@@ -101,11 +108,15 @@ class ClusterConfig(BaseConfig):
     SIMPLE_NETWORK = None
     P2P = None
 
+    MONITORING = None
+
     def __init__(self):
         self.CHAIN = ChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []
         self._json_filepath = None
+        self.MONITORING = MonitoringConfig()
+        self.kafka_logger = KafkaSampleLogger(self)
 
     def get_slave_info_list(self):
         results = []
@@ -205,6 +216,8 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
         parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
         parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
+        parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
+        parser.add_argument("--monitoring_miner_topic", default="qkc_miner", type=str)
 
     @classmethod
     def create_from_args(cls, args):
@@ -235,6 +248,9 @@ class ClusterConfig(BaseConfig):
         config.CHAIN.ROOT_BLOCK_INTERVAL_SEC = args.root_block_interval_sec
         config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
         config.CHAIN.NETWORK_ID = args.network_id
+
+        config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
+        config.MONITORING.MINER_TOPIC = args.monitoring_miner_topic
 
         if args.devp2p_enable:
             config.P2P = P2PConfig()
@@ -267,6 +283,7 @@ class ClusterConfig(BaseConfig):
     def to_dict(self):
         ret = super().to_dict()
         ret["CHAIN"] = self.CHAIN.to_dict()
+        ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
@@ -281,6 +298,7 @@ class ClusterConfig(BaseConfig):
     def from_dict(cls, d):
         config = super().from_dict(d)
         config.CHAIN = ChainConfig.from_dict(config.CHAIN)
+        config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
 

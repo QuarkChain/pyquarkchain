@@ -355,7 +355,3 @@ class P2PNetwork:
 
     def get_peer_by_cluster_peer_id(self, cluster_peer_id):
         return self.cluster_peer_pool.get(cluster_peer_id)
-
-
-if __name__ == "__main__":
-    main()
