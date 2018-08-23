@@ -439,9 +439,10 @@ class MasterServer:
         self.name = name
 
         self.artificial_tx_config = ArtificialTxConfig(
-            target_root_block_time=self.env.config.ROOT_BLOCK_INTERVAL_SEC,
-            target_minor_block_time=self.env.config.MINOR_BLOCK_INTERVAL_SEC,
+            target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
+            target_minor_block_time=self.env.quark_chain_config.SHARD_LIST[0].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
+
         self.synchronizer = Synchronizer()
 
         # branch value -> ShardStats
@@ -474,7 +475,8 @@ class MasterServer:
             return self.get_artificial_tx_config().target_root_block_time
 
         self.root_miner = Miner(
-            __create_block, __add_block, __get_target_block_time, self.env
+            self.env.quark_chain_config.ROOT.CONSENSUS_TYPE,
+            __create_block, __add_block, __get_target_block_time, self.env,
         )
 
     def __get_shard_size(self):
@@ -1172,7 +1174,7 @@ def parse_args():
 
     set_logging_level(env.cluster_config.LOG_LEVEL)
 
-    env.cluster_config.CHAIN.update_config(env.config)
+    env.cluster_config.CHAIN.update_env(env)
 
     # initialize database
     if not env.cluster_config.use_mem_db():

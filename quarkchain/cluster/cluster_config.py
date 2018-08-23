@@ -1,37 +1,16 @@
 import argparse
 import ipaddress
-import json
 import os
 import socket
 import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.config import DEFAULT_ENV, BaseConfig
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 
 HOST = socket.gethostbyname(socket.gethostname())
-
-
-def is_config_field(s: str):
-    return s.isupper() and not s.startswith("_")
-
-
-class BaseConfig:
-    def to_dict(self):
-        ret = dict()
-        for k, v in self.__class__.__dict__.items():
-            if is_config_field(k):
-                ret[k] = getattr(self, k) if k in self.__dict__ else v
-        return ret
-
-    @classmethod
-    def from_dict(cls, d):
-        config = cls()
-        for k, v in d.items():
-            setattr(config, k, v)
-        return config
 
 
 class MasterConfig(BaseConfig):
@@ -77,11 +56,11 @@ class ChainConfig(BaseConfig):
     MINOR_BLOCK_INTERVAL_SEC = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
     NETWORK_ID = DEFAULT_ENV.config.NETWORK_ID
 
-    def update_config(self, config):
-        config.set_shard_size(self.SHARD_SIZE)
+    def update_env(self, env):
+        env.config.set_shard_size(self.SHARD_SIZE)
         names = ["ROOT_BLOCK_INTERVAL_SEC", "MINOR_BLOCK_INTERVAL_SEC", "NETWORK_ID"]
         for name in names:
-            setattr(config, name, getattr(self, name))
+            setattr(env.config, name, getattr(self, name))
 
 
 class MonitoringConfig(BaseConfig):
@@ -224,10 +203,10 @@ class ClusterConfig(BaseConfig):
         """ Create ClusterConfig either from the JSON file or cmd flags.
         """
         if args.cluster_config:
-            config_dict = json.load(open(args.cluster_config))
-            config = cls.from_dict(config_dict)
-            config.json_filepath = args.cluster_config
-            return config
+            with open(args.cluster_config) as f:
+                config = cls.from_json(f.read())
+                config.json_filepath = args.cluster_config
+                return config
 
         check(is_p2(args.num_shards), "--num_shards must be power of 2")
         check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
@@ -308,9 +287,6 @@ class ClusterConfig(BaseConfig):
             config.SIMPLE_NETWORK = SimpleNetworkConfig.from_dict(d["SIMPLE_NETWORK"])
 
         return config
-
-    def to_json(self):
-        return json.dumps(self.to_dict(), indent=4)
 
 
 if __name__ == "__main__":
