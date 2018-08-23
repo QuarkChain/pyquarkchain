@@ -4,14 +4,12 @@ import json
 import os
 import socket
 import tempfile
-import requests
-from absl import logging as GLOG
-import aiohttp
 
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
+from quarkchain.cluster.monitoring import KafkaSampleLogger
 
 HOST = socket.gethostbyname(socket.gethostname())
 
@@ -118,6 +116,7 @@ class ClusterConfig(BaseConfig):
         self.SLAVE_LIST = []
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
+        self.kafka_logger = KafkaSampleLogger(self)
 
     def get_slave_info_list(self):
         results = []
@@ -299,7 +298,7 @@ class ClusterConfig(BaseConfig):
     def from_dict(cls, d):
         config = super().from_dict(d)
         config.CHAIN = ChainConfig.from_dict(config.CHAIN)
-        config.MONITORING = MonitoringConfig().from_dict(config.MONITORING)
+        config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
 
@@ -312,55 +311,6 @@ class ClusterConfig(BaseConfig):
 
     def to_json(self):
         return json.dumps(self.to_dict(), indent=4)
-
-    def logKafkaSample(self, topic: str, sample: dict):
-        """for debugging purposes, use async version instead"""
-        if self.MONITORING.KAFKA_REST_ADDRESS == "":
-            return
-        url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
-        try:
-            record_data = json.dumps({"records": [{"value": sample}]})
-            headers = {
-                "Content-Type": "application/vnd.kafka.json.v2+json",
-                "Accept": "application/vnd.kafka.v2+json",
-            }
-            response = requests.post(url, data=record_data, headers=headers)
-            if response.status_code != 200:
-                raise Exception(
-                    "non-OK response status code: {}".format(response.status_code)
-                )
-        except Exception as ex:
-            GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
-
-    async def logKafkaSampleAsync(self, topic: str, sample: dict):
-        """logs sample to Kafka topic asynchronously
-        Sample for monitoring purpose:
-        Supports logging samples to Kafka via REST API (Confluent)
-
-        Column guidelines:
-        time: timestamp of the record
-        sample_rate: pre-sampled record shall set this to sample rate
-        column type shall be log int, str, or vector of str
-        """
-        if self.MONITORING.KAFKA_REST_ADDRESS == "":
-            return
-        url = "http://{}/topics/{}".format(self.MONITORING.KAFKA_REST_ADDRESS, topic)
-        try:
-            record_data = json.dumps({"records": [{"value": sample}]})
-            headers = {
-                "Content-Type": "application/vnd.kafka.json.v2+json",
-                "Accept": "application/vnd.kafka.v2+json",
-            }
-            session = aiohttp.ClientSession()
-            response = await session.post(url, data=record_data, headers=headers)
-            if response.status != 200:
-                raise Exception(
-                    "non-OK response status code: {}".format(response.status_code)
-                )
-        except Exception as ex:
-            GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
-        finally:
-            await session.close()
 
 
 if __name__ == "__main__":

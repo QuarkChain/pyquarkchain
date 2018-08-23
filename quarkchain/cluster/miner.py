@@ -98,7 +98,7 @@ class Miner:
                 }
                 sample.update(self.new_block_info)
                 asyncio.ensure_future(
-                    self.env.cluster_config.logKafkaSampleAsync(
+                    self.env.cluster_config.kafka_logger.log_kafka_sample_async(
                         self.env.cluster_config.MONITORING.MINER_TOPIC, sample
                     )
                 )
