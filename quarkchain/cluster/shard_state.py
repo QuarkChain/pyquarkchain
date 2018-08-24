@@ -668,28 +668,29 @@ class ShardState:
                 time.time() - start_time, len(block.tx_list)
             )
         )
-        extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
-        sample = {
-            "time": time_ms() // 1000,
-            "shard": str(block.header.branch.get_shard_id()),
-            "cluster": "{}:{}".format(
-                self.env.cluster_config.MONITORING.CLUSTER_ID,
-                self.env.cluster_config.P2P_PORT,
-            ),
-            "hash": block.header.get_hash().hex(),
-            "height": block.header.height,
-            "original_cluster": extra_data["cluster"],
-            "inception": extra_data["inception"],
-            "creation_latency_ms": extra_data["creation_ms"],
-            "add_block_latency_ms": time_ms() - start_ms,
-            "mined": extra_data["mined"],
-            "propagation_latency_ms": start_ms - extra_data["mined"],
-        }
-        asyncio.ensure_future(
-            self.env.cluster_config.kafka_logger.log_kafka_sample_async(
-                self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
+        if block.meta.extra_data.decode("utf-8") != "":
+            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+            sample = {
+                "time": time_ms() // 1000,
+                "shard": str(block.header.branch.get_shard_id()),
+                "cluster": "{}:{}".format(
+                    self.env.cluster_config.MONITORING.CLUSTER_ID,
+                    self.env.cluster_config.P2P_PORT,
+                ),
+                "hash": block.header.get_hash().hex(),
+                "height": block.header.height,
+                "original_cluster": extra_data["cluster"],
+                "inception": extra_data["inception"],
+                "creation_latency_ms": extra_data["creation_ms"],
+                "add_block_latency_ms": time_ms() - start_ms,
+                "mined": extra_data.get("mined", 0),
+                "propagation_latency_ms": start_ms - extra_data.get("mined", 0),
+            }
+            asyncio.ensure_future(
+                self.env.cluster_config.kafka_logger.log_kafka_sample_async(
+                    self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
+                )
             )
-        )
         return evm_state.xshard_list
 
     def get_tip(self):
