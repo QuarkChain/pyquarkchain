@@ -1169,10 +1169,6 @@ class ShardState:
         start_block: int,
         end_block: int,
     ) -> Optional[List[Log]]:
-        # pre-validation
-        if not addresses and not topics:
-            # too much wild card
-            return None
         if addresses and (
             len(set(addr.full_shard_id for addr in addresses)) != 1
             or addresses[0].get_shard_id(self.branch.get_shard_size()) != self.shard_id
