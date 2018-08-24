@@ -52,9 +52,8 @@ class Filter:
             for tp in tp_list:
                 bloom_list.append(bloom(tp))
             self.bloom_bits.append(bloom_list)
-        # a timestamp to record how long have been spent, which will also
-        # control the timeout
-        self.start_ts = time.time()
+        # a timestamp to control timeout. will be set upon running
+        self.start_ts = None
 
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
