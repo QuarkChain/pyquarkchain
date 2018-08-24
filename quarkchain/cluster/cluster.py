@@ -1,12 +1,16 @@
 import argparse
 import asyncio
 import os
+import platform
 import signal
 from asyncio import subprocess
 
 import psutil
 
 from quarkchain.cluster.cluster_config import ClusterConfig
+
+
+PYTHON = "pypy3" if platform.python_implementation() == "PyPy" else "python3"
 
 
 def kill_child_processes(parent_pid, sig=signal.SIGTERM):
@@ -28,14 +32,14 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 async def run_master(config_file):
-    cmd = "pypy3 master.py --cluster_config={}".format(config_file)
+    cmd = "{} master.py --cluster_config={}".format(PYTHON, config_file)
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
 
 
 async def run_slave(config_file, id):
-    cmd = "pypy3 slave.py --cluster_config={} --node_id={}".format(config_file, id)
+    cmd = "{} slave.py --cluster_config={} --node_id={}".format(PYTHON, config_file, id)
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
@@ -50,11 +54,7 @@ async def print_output(prefix, stream):
 
 
 class Cluster:
-    def __init__(
-        self,
-        config,
-        cluster_id="",
-    ):
+    def __init__(self, config, cluster_id=""):
         self.config = config
         self.procs = []
         self.shutdown_called = False
