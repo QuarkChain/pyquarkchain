@@ -1,6 +1,7 @@
 import asyncio
 import inspect
 import json
+from typing import List
 
 import aiohttp_cors
 import rlp
@@ -11,9 +12,10 @@ from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
+from quarkchain.cluster.master import MasterServer
 from quarkchain.evm.utils import is_numeric, denoms
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import Address, Branch, Code, Transaction
+from quarkchain.core import Address, Branch, Code, Transaction, Log
 from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import Logger
@@ -259,22 +261,22 @@ def tx_encoder(block, i):
     }
 
 
-def loglist_encoder(loglist):
+def loglist_encoder(loglist: List[Log]):
     """Encode a list of log"""
     result = []
     for l in loglist:
         result.append(
             {
-                "logIndex": quantity_encoder(l["log_idx"]),
-                "transactionIndex": quantity_encoder(l["tx_idx"]),
-                "transactionHash": data_encoder(l["txhash"]),
-                "blockHash": data_encoder(l["block"].header.get_hash()),
-                "blockNumber": quantity_encoder(l["block"].header.height),
-                "blockHeight": quantity_encoder(l["block"].header.height),
-                "address": data_encoder(l["log"].recipient),
-                "recipient": data_encoder(l["log"].recipient),
-                "data": data_encoder(l["log"].data),
-                "topics": [data_encoder(topic) for topic in l["log"].topics],
+                "logIndex": quantity_encoder(l.log_idx),
+                "transactionIndex": quantity_encoder(l.tx_idx),
+                "transactionHash": data_encoder(l.tx_hash),
+                "blockHash": data_encoder(l.block_hash),
+                "blockNumber": quantity_encoder(l.block_number),
+                "blockHeight": quantity_encoder(l.block_number),
+                "address": data_encoder(l.recipient),
+                "recipient": data_encoder(l.recipient),
+                "data": data_encoder(l.data),
+                "topics": [data_encoder(topic) for topic in l.topics],
             }
         )
     return result
@@ -301,19 +303,8 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
             if not receipt.contract_address.is_empty()
             else None
         ),
+        "logs": loglist_encoder(receipt.logs),
     }
-    logs = []
-    for j, log in enumerate(receipt.logs):
-        logs.append(
-            {
-                "log": log,
-                "log_idx": j,
-                "block": block,
-                "txhash": tx.get_hash(),
-                "tx_idx": i,
-            }
-        )
-    resp["logs"] = loglist_encoder(logs)
 
     return resp
 
@@ -385,7 +376,10 @@ class JSONRPCServer:
     @classmethod
     def start_private_server(cls, env, master_server):
         server = cls(
-            env, master_server, env.cluster_config.PRIVATE_JSON_RPC_PORT, private_methods
+            env,
+            master_server,
+            env.cluster_config.PRIVATE_JSON_RPC_PORT,
+            private_methods,
         )
         server.start()
         return server
@@ -401,7 +395,7 @@ class JSONRPCServer:
         server.start()
         return server
 
-    def __init__(self, env, master_server, port, methods: AsyncMethods):
+    def __init__(self, env, master_server: MasterServer, port, methods: AsyncMethods):
         self.loop = asyncio.get_event_loop()
         self.port = port
         self.env = env
@@ -902,6 +896,46 @@ class JSONRPCServer:
         if receipt["contractAddress"]:
             receipt["contractAddress"] = receipt["contractAddress"][:42]
         return receipt
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def eth_getLogs(self, data, shard=None):
+        start_block = data.get("fromBlock", "latest")
+        end_block = data.get("toBlock", "latest")
+        # TODO: not supported yet for "earliest" or "pending" block
+        if (isinstance(start_block, str) and start_block != "latest") or (
+            isinstance(end_block, str) and end_block != "latest"
+        ):
+            return None
+        # parse addresses / topics
+        addresses, topics = [], []
+        if "address" in data:
+            if isinstance(data["address"], str):
+                addresses = [
+                    Address.deserialize(
+                        eth_address_to_quarkchain_address_decoder(data["address"])
+                    )
+                ]
+            elif isinstance(data["address"], list):
+                addresses = [
+                    Address.deserialize(eth_address_to_quarkchain_address_decoder(a))
+                    for a in data["address"]
+                ]
+        if shard is not None:
+            addresses = [Address(a.recipient, shard) for a in addresses]
+        if "topics" in data:
+            for topic_item in data["topics"]:
+                if isinstance(topic_item, str):
+                    topics.append([data_decoder(topic_item)])
+                elif isinstance(topic_item, list):
+                    topics.append([data_decoder(tp) for tp in topic_item])
+        branch = Branch.create(self.master.get_shard_size(), shard)
+        logs = await self.master.get_logs(
+            addresses, topics, start_block, end_block, branch
+        )
+        if logs is None:
+            return None
+        return loglist_encoder(logs)
 
     ######################## Private Methods ########################
 

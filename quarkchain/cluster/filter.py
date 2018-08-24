@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.core import Address, Log, MinorBlock
@@ -16,11 +16,16 @@ class Filter:
         self,
         db: ShardDbOperator,
         addresses: List[Address],
-        topics: List[Optional[Union[str, List[str]]]],
+        topics: List[List[bytes]],
         start_block: int,
         end_block: int,
         block_hash: Optional[str] = None,
     ):
+        """
+        `topics` is a list of lists where each one expresses the OR semantics,
+        while the whole list itself is connected by AND. For details check the
+        Ethereum JSONRPC spec.
+        """
         self.db = db
         # if `addresses` present, should be in the same shard
         self.recipients = [addr.recipient for addr in addresses]
@@ -35,23 +40,15 @@ class Filter:
         for r in self.recipients:
             b = bloom(r)
             self.bloom_bits.append([b])
-        self.topics = []  # type: List[Optional[Union[bytes, List[bytes]]]]
-        for tp in topics:
-            if not tp:
+        self.topics = topics
+        for tp_list in topics:
+            if not tp_list:
                 # regard as wildcard
-                self.topics.append(tp)
                 continue
-            if isinstance(tp, list):  # list of str "0x..."
-                bloom_list, topic_list = [], []
-                for sub_tp in tp:
-                    bs = bytes.fromhex(sub_tp[2:])
-                    bloom_list.append(bloom(bs))
-                    topic_list.append(int(sub_tp[2:], 16).to_bytes(32, "big"))
-                self.bloom_bits.append(bloom_list)
-                self.topics.append(topic_list)
-            else:  # str
-                self.bloom_bits.append([bloom(bytes.fromhex(tp[2:]))])
-                self.topics.append(int(tp[2:], 16).to_bytes(32, "big"))
+            bloom_list = []
+            for tp in tp_list:
+                bloom_list.append(bloom(tp))
+            self.bloom_bits.append(bloom_list)
 
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
@@ -94,8 +91,7 @@ class Filter:
 
     def _log_topics_match(self, log: Log) -> bool:
         """Whether a log matches given criteria in constructor. Position / order matters."""
-        if len(self.topics) != len(log.topics):
-            return False
+        # https://github.com/ethereum/wiki/wiki/JSON-RPC#a-note-on-specifying-topic-filters
         for criteria, log_topic in zip(self.topics, log.topics):
             if not criteria:
                 continue

@@ -1,12 +1,20 @@
 import time
 from collections import deque
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Union
 
+from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.config import NetworkId
-from quarkchain.core import calculate_merkle_root, Address, Branch, Code, Transaction
+from quarkchain.core import (
+    calculate_merkle_root,
+    Address,
+    Branch,
+    Code,
+    Transaction,
+    Log,
+)
 from quarkchain.core import (
     mk_receipt_sha,
     CrossShardTransactionList,
@@ -1153,3 +1161,25 @@ class ShardState:
             stale_block_count60s=stale_block_count,
             last_block_time=last_block_time,
         )
+
+    def get_logs(
+        self,
+        addresses: List[Address],
+        topics: List[Optional[Union[str, List[str]]]],
+        start_block: int,
+        end_block: int,
+    ) -> Optional[List[Log]]:
+        if addresses and (
+            len(set(addr.full_shard_id for addr in addresses)) != 1
+            or addresses[0].get_shard_id(self.branch.get_shard_size()) != self.shard_id
+        ):
+            # should have the same shard Id for the given addresses
+            return None
+
+        log_filter = Filter(self.db, addresses, topics, start_block, end_block)
+
+        try:
+            logs = log_filter.run()
+            return logs
+        except Exception:
+            return None

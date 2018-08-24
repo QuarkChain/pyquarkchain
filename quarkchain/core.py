@@ -15,7 +15,6 @@ from eth_keys import KeyAPI
 
 import quarkchain.evm.messages
 from quarkchain.evm import trie
-from quarkchain.evm.messages import Receipt
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import (
     int_left_most_bit,
@@ -606,70 +605,6 @@ def mk_receipt_sha(receipts, db):
     return t.root_hash
 
 
-class Log(Serializable):
-
-    FIELDS = [
-        ("recipient", FixedSizeBytesSerializer(20)),
-        ("topics", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(32))),
-        ("data", PrependedSizeBytesSerializer(4)),
-    ]
-
-    def __init__(self, recipient: bytes, topics: List[bytes], data: bytes):
-        self.recipient = recipient
-        self.topics = topics
-        self.data = data
-
-    @classmethod
-    def create_from_eth_log(cls, eth_log):
-        recipient = eth_log.address
-        data = eth_log.data
-
-        topics = []
-        for topic in eth_log.topics:
-            topics.append(topic.to_bytes(32, "big"))
-        return Log(recipient, topics, data)
-
-    def to_dict(self):
-        return {
-            "recipient": self.recipient.hex(),
-            "topics": [t.hex() for t in self.topics],
-            "data": self.data.hex(),
-        }
-
-
-class TransactionReceipt(Serializable):
-    """ Wrapper over tx receipts from EVM """
-
-    FIELDS = [
-        ("success", PrependedSizeBytesSerializer(1)),
-        ("gas_used", uint64),
-        ("prev_gas_used", uint64),
-        ("bloom", uint2048),
-        ("contract_address", Address),
-        ("logs", PrependedSizeListSerializer(4, Log)),
-    ]
-
-    def __init__(
-        self,
-        success: bytes,
-        gas_used: int,
-        prev_gas_used: int,
-        contract_address: Address,
-        bloom: int,
-        logs: List[Log],
-    ):
-        self.success = success
-        self.gas_used = gas_used
-        self.prev_gas_used = prev_gas_used
-        self.contract_address = contract_address
-        self.bloom = bloom
-        self.logs = logs
-
-    @classmethod
-    def create_empty_receipt(cls):
-        return cls(b"", 0, 0, Address.create_empty_account(0), 0, [])
-
-
 class MinorBlockMeta(Serializable):
     """ Meta data that are not included in root block
     """
@@ -727,20 +662,29 @@ class MinorBlockHeader(Serializable):
 
     def __init__(
         self,
-        version=0,
-        height=0,
-        branch=Branch.create(1, 0),
-        coinbase_amount=0,
-        hash_prev_minor_block=bytes(Constant.HASH_LENGTH),
-        hash_prev_root_block=bytes(Constant.HASH_LENGTH),
-        hash_meta=bytes(Constant.HASH_LENGTH),
-        create_time=0,
-        difficulty=0,
-        nonce=0,
-        bloom=0,
+        version: int = 0,
+        height: int = 0,
+        branch: Branch = Branch.create(1, 0),
+        coinbase_amount: int = 0,
+        hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
+        hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
+        hash_meta: bytes = bytes(Constant.HASH_LENGTH),
+        create_time: int = 0,
+        difficulty: int = 0,
+        nonce: int = 0,
+        bloom: int = 0,
     ):
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
+        self.version = version
+        self.height = height
+        self.branch = branch
+        self.coinbase_amount = coinbase_amount
+        self.hash_prev_minor_block = hash_prev_minor_block
+        self.hash_prev_root_block = hash_prev_root_block
+        self.hash_meta = hash_meta
+        self.create_time = create_time
+        self.difficulty = difficulty
+        self.nonce = nonce
+        self.bloom = bloom
 
     def get_hash(self):
         return sha3_256(self.serialize())
@@ -803,7 +747,10 @@ class MinorBlock(Serializable):
         else:
             prev_gas_used = self.meta.evm_cross_shard_receive_gas_used
 
-        logs = [Log.create_from_eth_log(eth_log) for eth_log in receipt.logs]
+        logs = [
+            Log.create_from_eth_log(eth_log, self, tx_idx=i, log_idx=j)
+            for j, eth_log in enumerate(receipt.logs)
+        ]
 
         return TransactionReceipt(
             receipt.state_root,
@@ -965,6 +912,101 @@ class CrossShardTransactionList(Serializable):
 
     def __init__(self, tx_list):
         self.tx_list = tx_list
+
+
+class Log(Serializable):
+
+    FIELDS = [
+        ("recipient", FixedSizeBytesSerializer(20)),
+        ("topics", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(32))),
+        ("data", PrependedSizeBytesSerializer(4)),
+        # derived fields
+        ("block_number", uint64),
+        ("block_hash", hash256),
+        ("tx_idx", uint32),
+        ("tx_hash", hash256),
+        ("log_idx", uint32),
+    ]
+
+    def __init__(
+        self,
+        recipient: bytes,
+        topics: List[bytes],
+        data: bytes,
+        block_number: int = 0,
+        block_hash: bytes = bytes(Constant.HASH_LENGTH),
+        tx_idx: int = 0,
+        tx_hash: bytes = bytes(Constant.HASH_LENGTH),
+        log_idx: int = 0,
+    ):
+        self.recipient = recipient
+        self.topics = topics
+        self.data = data
+        self.block_number = block_number
+        self.block_hash = block_hash
+        self.tx_idx = tx_idx
+        self.tx_hash = tx_hash
+        self.log_idx = log_idx
+
+    @classmethod
+    def create_from_eth_log(cls, eth_log, block: MinorBlock, tx_idx: int, log_idx: int):
+        recipient = eth_log.address
+        data = eth_log.data
+        tx = block.tx_list[tx_idx]  # type: Transaction
+
+        topics = []
+        for topic in eth_log.topics:
+            topics.append(topic.to_bytes(32, "big"))
+        return Log(
+            recipient,
+            topics,
+            data,
+            block_number=block.header.height,
+            block_hash=block.header.get_hash(),
+            tx_idx=tx_idx,
+            tx_hash=tx.get_hash(),
+            log_idx=log_idx,
+        )
+
+    def to_dict(self):
+        return {
+            "recipient": self.recipient.hex(),
+            "topics": [t.hex() for t in self.topics],
+            "data": self.data.hex(),
+        }
+
+
+class TransactionReceipt(Serializable):
+    """ Wrapper over tx receipts from EVM """
+
+    FIELDS = [
+        ("success", PrependedSizeBytesSerializer(1)),
+        ("gas_used", uint64),
+        ("prev_gas_used", uint64),
+        ("bloom", uint2048),
+        ("contract_address", Address),
+        ("logs", PrependedSizeListSerializer(4, Log)),
+    ]
+
+    def __init__(
+        self,
+        success: bytes,
+        gas_used: int,
+        prev_gas_used: int,
+        contract_address: Address,
+        bloom: int,
+        logs: List[Log],
+    ):
+        self.success = success
+        self.gas_used = gas_used
+        self.prev_gas_used = prev_gas_used
+        self.contract_address = contract_address
+        self.bloom = bloom
+        self.logs = logs
+
+    @classmethod
+    def create_empty_receipt(cls):
+        return cls(b"", 0, 0, Address.create_empty_account(0), 0, [])
 
 
 def test():

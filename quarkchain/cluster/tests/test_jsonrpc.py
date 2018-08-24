@@ -11,6 +11,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
     create_contract_creation_transaction,
+    create_contract_creation_with_event_transaction,
 )
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.config import DEFAULT_ENV
@@ -71,7 +72,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             response = send_request(
@@ -181,7 +182,6 @@ class TestJSONRPC(unittest.TestCase):
     def test_getNextBlockToMine_and_addBlock(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
         acc3 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(
@@ -297,7 +297,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             # By id
@@ -359,7 +359,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
@@ -441,7 +441,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
@@ -467,7 +467,7 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slave_list
 
             s1, s2 = slaves[0].shard_state_map[2], slaves[1].shard_state_map[3]
-            txGen = lambda s, f, t: create_transfer_transaction(
+            tx_gen = lambda s, f, t: create_transfer_transaction(
                 shard_state=s,
                 key=id1.get_key(),
                 from_address=f,
@@ -475,18 +475,18 @@ class TestJSONRPC(unittest.TestCase):
                 gas=21000 if f == t else 30000,
                 value=12345,
             )
-            self.assertTrue(slaves[0].add_tx(txGen(s1, acc1, acc2)))
+            self.assertTrue(slaves[0].add_tx(tx_gen(s1, acc1, acc2)))
             _, b1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(b1)))
             _, b2 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertTrue(call_async(slaves[1].add_block(b2)))
-            _, rB = call_async(
+            _, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1, prefer_root=True)
             )
 
-            call_async(master.add_root_block(rB))
+            call_async(master.add_root_block(root_block))
 
-            tx = txGen(s2, acc2, acc2)
+            tx = tx_gen(s2, acc2, acc2)
             self.assertTrue(slaves[1].add_tx(tx))
             _, b3 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertTrue(call_async(slaves[1].add_block(b3)))
@@ -526,7 +526,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
@@ -567,7 +567,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             resp = send_request(
@@ -578,3 +578,66 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["status"], "0x0")
             self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
             self.assertIsNone(resp["contractAddress"])
+
+    def test_eth_getLogs(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        expected_log_parts = {
+            "logIndex": "0x0",
+            "transactionIndex": "0x0",
+            "blockNumber": "0x2",
+            "blockHeight": "0x2",
+            "data": "0x",
+        }
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=slaves[0].shard_state_map[branch.value],
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_id=acc1.full_shard_id,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            _, block = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertTrue(call_async(slaves[0].add_block(block)))
+
+            # no filter object as wild cards
+            resp = send_request("eth_getLogs", {}, hex(acc1.full_shard_id))
+            self.assertEqual(1, len(resp))
+            self.assertDictContainsSubset(expected_log_parts, resp[0])
+
+            # filter by contract address
+            contract_addr = mk_contract_address(acc1.recipient, acc1.full_shard_id, 0)
+            filter_obj = {"address": "0x" + contract_addr.hex()}
+            resp = send_request("eth_getLogs", filter_obj, hex(acc1.full_shard_id))
+            self.assertEqual(1, len(resp))
+
+            # filter by topics
+            filter_obj = {
+                "topics": [
+                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                ]
+            }
+            filter_obj_nested = {
+                "topics": [
+                    [
+                        "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                    ]
+                ]
+            }
+            for f in (filter_obj, filter_obj_nested):
+                resp = send_request("eth_getLogs", f, hex(acc1.full_shard_id))
+                self.assertEqual(1, len(resp))
+                self.assertDictContainsSubset(expected_log_parts, resp[0])
+                self.assertEqual(
+                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
+                    resp[0]["topics"][0],
+                )

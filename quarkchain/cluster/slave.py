@@ -3,7 +3,7 @@ import asyncio
 import errno
 import ipaddress
 from collections import deque
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, List, Union
 
 # absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
 from absl import logging as GLOG
@@ -30,7 +30,11 @@ from quarkchain.cluster.protocol import (
     ForwardingVirtualConnection,
     NULL_CONNECTION,
 )
-from quarkchain.cluster.rpc import AddMinorBlockHeaderRequest
+from quarkchain.cluster.rpc import (
+    AddMinorBlockHeaderRequest,
+    GetLogRequest,
+    GetLogResponse,
+)
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
     EcoInfo,
@@ -65,7 +69,7 @@ from quarkchain.cluster.rpc import (
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import Branch, ShardMask, Transaction
+from quarkchain.core import Branch, ShardMask, Transaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,
     MinorBlock,
@@ -409,7 +413,7 @@ class MasterConnection(ClusterConnection):
         )
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.slave_server = slave_server
+        self.slave_server = slave_server  # type: SlaveServer
         self.shard_state_map = slave_server.shard_state_map
 
         asyncio.ensure_future(self.active_and_loop_forever())
@@ -799,6 +803,16 @@ class MasterConnection(ClusterConnection):
 
         return SyncMinorBlockListResponse(error_code=0)
 
+    async def handle_get_logs(self, req: GetLogRequest) -> GetLogResponse:
+        res = self.slave_server.get_logs(
+            req.addresses, req.topics, req.start_block, req.end_block, req.branch
+        )
+        fail = res is None
+        return GetLogResponse(
+            error_code=int(fail),
+            logs=res or [],  # `None` will be converted to empty list
+        )
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -874,6 +888,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST: (
         ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE,
         MasterConnection.handle_get_transaction_list_by_address_request,
+    ),
+    ClusterOp.GET_LOG_REQUEST: (
+        ClusterOp.GET_LOG_RESPONSE,
+        MasterConnection.handle_get_logs,
     ),
 }
 
@@ -1002,7 +1020,7 @@ class SlaveServer:
         self.artificial_tx_config = None
         self.tx_gen_map = dict()
         self.miner_map = dict()  # branch_value -> Miner
-        self.shard_state_map = dict()  # branch_value -> ShardState
+        self.shard_state_map = dict()  # type: Dict[int, ShardState]
         self.__init_shards()
         self.shutdown_in_progress = False
         self.slave_id = 0
@@ -1494,6 +1512,20 @@ class SlaveServer:
             return None
         shard_state = self.shard_state_map[branch.value]
         return shard_state.get_transaction_list_by_address(address, start, limit)
+
+    def get_logs(
+        self,
+        addresses: List[Address],
+        topics: List[Optional[Union[str, List[str]]]],
+        start_block: int,
+        end_block: int,
+        branch: Branch,
+    ) -> Optional[List[Log]]:
+        if branch.value not in self.shard_state_map:
+            return None
+
+        shard_state = self.shard_state_map[branch.value]
+        return shard_state.get_logs(addresses, topics, start_block, end_block)
 
 
 def parse_args():

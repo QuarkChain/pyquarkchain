@@ -1,13 +1,11 @@
 import argparse
 import asyncio
 import ipaddress
-import json
 import random
-import socket
 import time
 from collections import deque
 from threading import Thread
-from typing import Optional
+from typing import Optional, List, Union, Dict
 
 import psutil
 
@@ -16,7 +14,6 @@ from absl import logging as GLOG
 from absl import flags
 import sys
 
-from quarkchain.cluster.jsonrpc import JSONRPCServer
 from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -49,6 +46,9 @@ from quarkchain.cluster.rpc import (
     ArtificialTxConfig,
     MineRequest,
     GenTxRequest,
+    GetLogResponse,
+    GetLogRequest,
+    ShardStats,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -56,13 +56,12 @@ from quarkchain.cluster.rpc import (
     CLUSTER_OP_SERIALIZER_MAP,
     ExecuteTransactionRequest,
     Ping,
-    SlaveInfo,
     GetTransactionReceiptRequest,
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import DEFAULT_ENV
-from quarkchain.core import Branch, ShardMask
+from quarkchain.core import Branch, ShardMask, Log, Address
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
@@ -392,6 +391,20 @@ class SlaveConnection(ClusterConnection):
             return None
         return resp.tx_list, resp.next
 
+    async def get_logs(
+        self,
+        branch: Branch,
+        addresses: List[Address],
+        topics: List[List[bytes]],
+        start_block: int,
+        end_block: int,
+    ) -> Optional[List[Log]]:
+        request = GetLogRequest(branch, addresses, topics, start_block, end_block)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_LOG_REQUEST, request
+        )  # type: GetLogResponse
+        return resp.logs if resp.error_code == 0 else None
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -431,7 +444,7 @@ class MasterServer:
         self.cluster_config = env.cluster_config
 
         # branch value -> a list of slave running the shard
-        self.branch_to_slaves = dict()
+        self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
 
         self.cluster_active_future = self.loop.create_future()
@@ -445,8 +458,7 @@ class MasterServer:
 
         self.synchronizer = Synchronizer()
 
-        # branch value -> ShardStats
-        self.branch_to_shard_stats = dict()
+        self.branch_to_shard_stats = dict()  # type: Dict[int, ShardStats]
         # (epoch in minute, tx_count in the minute)
         self.tx_count_history = deque()
 
@@ -1163,6 +1175,25 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transactions_by_address(address, start, limit)
 
+    async def get_logs(
+        self,
+        addresses: List[Address],
+        topics: List[List[bytes]],
+        start_block: Union[int, str],
+        end_block: Union[int, str],
+        branch: Branch,
+    ) -> Optional[List[Log]]:
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        if start_block == "latest":
+            start_block = self.branch_to_shard_stats[branch.value].height
+        if end_block == "latest":
+            end_block = self.branch_to_shard_stats[branch.value].height
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_logs(branch, addresses, topics, start_block, end_block)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -1187,6 +1218,9 @@ def parse_args():
 
 
 def main():
+
+    from quarkchain.cluster.jsonrpc import JSONRPCServer
+
     env, unknown_flags = parse_args()
     FLAGS(sys.argv[:1] + unknown_flags)
     if FLAGS["verbosity"].using_default_value:

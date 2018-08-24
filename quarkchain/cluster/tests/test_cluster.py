@@ -42,8 +42,8 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             # Expect to mine shard 0 since it has one tx
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertFalse(isRoot)
+            is_root, block1 = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertFalse(is_root)
             self.assertEqual(block1.header.height, 2)
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.tx_list), 1)
@@ -62,8 +62,8 @@ class TestCluster(unittest.TestCase):
             )
 
             # Expect to mine shard 1 due to proof-of-progress
-            isRoot, block2 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertFalse(isRoot)
+            is_root, block2 = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertFalse(is_root)
             self.assertEqual(block2.header.height, 2)
             self.assertEqual(block2.header.branch.value, 0b11)
             self.assertEqual(len(block2.tx_list), 0)
@@ -71,8 +71,8 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(slaves[1].add_block(block2)))
 
             # Expect to mine root
-            isRoot, block = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertTrue(isRoot)
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertTrue(is_root)
             self.assertEqual(block.header.height, 2)
             self.assertEqual(len(block.minor_block_header_list), 2)
             self.assertEqual(block.minor_block_header_list[0], block1.header)
@@ -85,8 +85,8 @@ class TestCluster(unittest.TestCase):
             )
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
-            isRoot, block3 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertFalse(isRoot)
+            is_root, block3 = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertFalse(is_root)
             self.assertEqual(block3.header.height, 3)
             self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.tx_list), 0)
@@ -119,7 +119,7 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            isRoot, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            is_root, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block1)))
 
             self.assertEqual(
@@ -414,7 +414,7 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(call_async(slaves[1].add_block(b3)))
 
-            isRoot, rB = call_async(master.get_next_block_to_mine(address=acc1))
+            is_root, rB = call_async(master.get_next_block_to_mine(address=acc1))
             call_async(master.add_root_block(rB))
 
             # b4 should include the withdraw of tx1
