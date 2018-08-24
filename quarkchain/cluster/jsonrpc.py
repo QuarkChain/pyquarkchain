@@ -12,6 +12,7 @@ from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
+from quarkchain.cluster.master import MasterServer
 from quarkchain.core import Address, Branch, Code, Transaction, Log
 from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.evm.transactions import Transaction as EvmTransaction
