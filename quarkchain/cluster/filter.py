@@ -1,3 +1,4 @@
+import time
 from typing import List, Optional
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
@@ -11,6 +12,8 @@ class Filter:
     Filter class for logs, blocks, pending tx, etc.
     TODO: For now only supports filtering logs.
     """
+
+    TIMEOUT = 10  # seconds
 
     def __init__(
         self,
@@ -49,6 +52,8 @@ class Filter:
             for tp in tp_list:
                 bloom_list.append(bloom(tp))
             self.bloom_bits.append(bloom_list)
+        # a timestamp to control timeout. will be set upon running
+        self.start_ts = None
 
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
@@ -73,12 +78,15 @@ class Filter:
             if not should_skip_block:
                 ret.append(block)
 
+            if (1 + i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+                raise Exception("Filter timeout")
+
         return ret
 
     def _get_logs(self, blocks: List[MinorBlock]) -> List[Log]:
         """Given potential blocks, re-run tx to find exact matches."""
         ret = []
-        for block in blocks:
+        for b_i, block in enumerate(blocks):
             for i in range(len(block.tx_list or [])):
                 r = block.get_receipt(self.db.db, i)
                 for log in r.logs:
@@ -87,6 +95,8 @@ class Filter:
                         continue
                     if self._log_topics_match(log):
                         ret.append(log)
+            if (1 + b_i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+                raise Exception("Filter timeout")
         return ret
 
     def _log_topics_match(self, log: Log) -> bool:
@@ -104,6 +114,7 @@ class Filter:
         return True
 
     def run(self) -> List[Log]:
+        self.start_ts = time.time()
         candidate_blocks = self._get_block_candidates()
         logs = self._get_logs(candidate_blocks)
         return logs

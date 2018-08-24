@@ -1181,5 +1181,6 @@ class ShardState:
         try:
             logs = log_filter.run()
             return logs
-        except Exception:
+        except Exception as e:
+            Logger.error_exception()
             return None
