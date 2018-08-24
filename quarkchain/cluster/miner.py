@@ -1,6 +1,7 @@
 import asyncio
 import random
 import time
+import json
 
 import numpy
 from absl import logging as GLOG
@@ -89,12 +90,12 @@ class Miner:
     async def __handle_mined_block(self):
         while True:
             block = await self.output.coro_get()
+            is_root = isinstance(block, RootBlock)
             if not block:
                 return
             if (
                 block.header.height == self.new_block_info["height"]
             ):  # avoid possible race condition
-                is_root = isinstance(block, RootBlock)
                 sample = {
                     "time": int(time.time()),
                     "shard": "R"
@@ -109,6 +110,12 @@ class Miner:
                         self.env.cluster_config.MONITORING.MINER_TOPIC, sample
                     )
                 )
+            if not is_root:
+                extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+                extra_data["mined"] = time_ms()
+                # NOTE this actually ruins POW mining; added for perf tracking
+                block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
+                block.header.hash_meta = block.meta.get_hash()
             try:
                 await self.add_block_async_func(block)
             except Exception as ex:

@@ -1,6 +1,9 @@
 import time
 from collections import deque
 from typing import Optional, Tuple, List, Union
+import json
+from absl import logging as GLOG
+import asyncio
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
@@ -30,7 +33,7 @@ from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
-from quarkchain.utils import Logger, check
+from quarkchain.utils import Logger, check, time_ms
 
 
 class ExpiryQueue:
@@ -559,6 +562,7 @@ class ShardState:
         Raises on any error.
         """
         start_time = time.time()
+        start_ms = time_ms()
         if self.header_tip.height - block.header.height > 700:
             Logger.info(
                 "[{}] drop old block {} << {}".format(
@@ -659,10 +663,31 @@ class ShardState:
                 ),
             )
         )
-        end_time = time.time()
         Logger.debug(
             "Add block took {} seconds for {} tx".format(
-                end_time - start_time, len(block.tx_list)
+                time.time() - start_time, len(block.tx_list)
+            )
+        )
+        extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+        sample = {
+            "time": time_ms() // 1000,
+            "shard": str(block.header.branch.get_shard_id()),
+            "cluster": "{}:{}".format(
+                self.env.cluster_config.MONITORING.CLUSTER_ID,
+                self.env.cluster_config.P2P_PORT,
+            ),
+            "hash": block.header.get_hash().hex(),
+            "height": block.header.height,
+            "original_cluster": extra_data["cluster"],
+            "inception": extra_data["inception"],
+            "creation_latency_ms": extra_data["creation_ms"],
+            "add_block_latency_ms": time_ms() - start_ms,
+            "mined": extra_data["mined"],
+            "propagation_latency_ms": start_ms - extra_data["mined"],
+        }
+        asyncio.ensure_future(
+            self.env.cluster_config.kafka_logger.log_kafka_sample_async(
+                self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
             )
         )
         return evm_state.xshard_list
@@ -781,6 +806,10 @@ class ShardState:
         """ Create a block to append and include TXs to maximize rewards
         """
         start_time = time.time()
+        extra_data = {
+            "inception": time_ms(),
+            "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
+        }
         if not create_time:
             create_time = max(int(time.time()), self.header_tip.create_time + 1)
         difficulty = self.get_next_block_difficulty(create_time)
@@ -841,6 +870,8 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
+        extra_data["creation_ms"] = time_ms() - extra_data["inception"]
+        block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
         block.finalize(evm_state=evm_state)
 
         end_time = time.time()

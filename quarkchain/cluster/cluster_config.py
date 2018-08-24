@@ -67,6 +67,7 @@ class MonitoringConfig(BaseConfig):
     CLUSTER_ID = HOST
     KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
+    PROPAGATION_TOPIC = "block_propagation"
 
 
 class ClusterConfig(BaseConfig):
