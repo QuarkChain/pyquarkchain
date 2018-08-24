@@ -54,7 +54,7 @@ class ByteBuffer:
 
     def __check_space(self, space):
         if space > len(self.bytes) - self.position:
-            raise RuntimeError("no enough space")
+            raise RuntimeError("buffer is shorter than expected")
 
     def get_uint(self, size):
         self.__check_space(size)

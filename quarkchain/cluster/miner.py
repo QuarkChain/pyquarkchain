@@ -8,6 +8,7 @@ from aioprocessing import AioProcess, AioQueue
 
 from quarkchain.config import DEFAULT_ENV, NetworkId
 from quarkchain.core import MinorBlock, RootBlock
+from quarkchain.utils import time_ms
 from absl import logging as GLOG
 from absl import flags
 
@@ -55,13 +56,13 @@ class Miner:
         If a mining process has already been started, update the process to mine the new block.
         """
         target_block_time = self.get_target_block_time_func()
-        inception = int(round(time.time() * 1e3))
+        inception = time_ms()
         block = await self.create_block_async_func()
         self.new_block_info = {
             "hash": block.header.get_hash().hex(),
             "height": block.header.height,
             "inception": inception,
-            "creation_latency_ms": int(round(time.time() * 1e3)) - inception,
+            "creation_latency_ms": time_ms() - inception,
             "target_block_time": target_block_time,
         }
         if self.process:
@@ -88,13 +89,12 @@ class Miner:
             ):  # avoid possible race condition
                 is_root = isinstance(block, RootBlock)
                 sample = {
-                    "time": int(round(time.time())),
+                    "time": int(time.time()),
                     "shard": "R"
                     if is_root
                     else str(block.header.branch.get_shard_id()),
                     "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
-                    "total_latency_ms": int(round(time.time() * 1e3))
-                    - self.new_block_info["inception"],
+                    "total_latency_ms": time_ms() - self.new_block_info["inception"],
                 }
                 sample.update(self.new_block_info)
                 asyncio.ensure_future(

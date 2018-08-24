@@ -288,6 +288,14 @@ def get_qkc_log_prefix(record: logging.LogRecord):
     )
 
 
+def time_ms():
+    """currently pypy only has Python 3.5.3, but a new nice feature added by Python 3.7 is time.time_ns()
+    this function provides the same behavior but there is no precision gain
+    see https://www.python.org/dev/peps/pep-0564/
+    """
+    return int(time.time() * 1e3)
+
+
 def main():
     set_logging_level("debug")
 
