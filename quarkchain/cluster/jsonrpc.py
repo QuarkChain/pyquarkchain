@@ -13,11 +13,10 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
 from quarkchain.cluster.master import MasterServer
-from quarkchain.evm.utils import is_numeric, denoms
-from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Transaction, Log
 from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.evm.utils import is_numeric, denoms
 from quarkchain.utils import Logger
 
 # defaults
@@ -214,7 +213,7 @@ def minor_block_encoder(block, include_transactions=False):
     }
     if include_transactions:
         d["transactions"] = []
-        for i, tx in enumerate(block.tx_list):
+        for i, _ in enumerate(block.tx_list):
             d["transactions"].append(tx_encoder(block, i))
     else:
         d["transactions"] = [
@@ -427,8 +426,7 @@ class JSONRPCServer:
         response = await armor(self.handlers.dispatch(request))
         if response.is_notification:
             return web.Response()
-        else:
-            return web.json_response(response, status=response.http_status)
+        return web.json_response(response, status=response.http_status)
 
     def start(self):
         app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
@@ -793,15 +791,11 @@ class JSONRPCServer:
 
     @public_methods.add
     async def net_version(self):
-        """
-        """
         return quantity_encoder(self.master.env.config.NETWORK_ID)
 
     @public_methods.add
     @encode_res(quantity_encoder)
     async def eth_gasPrice(self):
-        """
-        """
         return 10 ** 9
 
     @public_methods.add
@@ -886,11 +880,11 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_sendRawTransaction(self, tx_data):
-        return await self.send_raw_transaction(tx_data)
+        return await self.sendRawTransaction(tx_data)
 
     @public_methods.add
     async def eth_getTransactionReceipt(self, tx_id):
-        receipt = await self.get_transaction_receipt(tx_id)
+        receipt = await self.master.get_transaction_receipt(tx_id)
         if not receipt:
             return None
         if receipt["contractAddress"]:
@@ -1068,10 +1062,3 @@ class JSONRPCServer:
     @private_methods.add
     async def getJrpcCalls(self):
         return self.counters
-
-
-if __name__ == "__main__":
-    # web.run_app(app, port=5000)
-    server = JSONRPCServer(DEFAULT_ENV, None)
-    server.start()
-    asyncio.get_event_loop().run_forever()
