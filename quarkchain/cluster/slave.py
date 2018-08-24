@@ -1045,8 +1045,9 @@ class SlaveServer:
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self, branch_value):
+        branch = Branch(branch_value)
         miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(
-            Branch(branch_value)
+            branch
         )
 
         def __is_syncing():
@@ -1082,6 +1083,7 @@ class SlaveServer:
             return self.artificial_tx_config.target_minor_block_time
 
         self.miner_map[branch_value] = Miner(
+            self.env.quark_chain_config.SHARD_LIST[branch.get_shard_id()].CONSENSUS_TYPE,
             __create_block, __add_block, __get_target_block_time, self.env
         )
 
@@ -1505,7 +1507,7 @@ def parse_args():
     env.cluster_config = ClusterConfig.create_from_args(args)
     env.slave_config = env.cluster_config.get_slave_config(args.node_id)
 
-    env.cluster_config.CHAIN.update_config(env.config)
+    env.cluster_config.CHAIN.update_env(env)
 
     set_logging_level(env.cluster_config.LOG_LEVEL)
 

@@ -1,26 +1,25 @@
 import asyncio
 import random
 import time
-import socket
 
 import numpy
+from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
 
-from quarkchain.config import DEFAULT_ENV, NetworkId
+from quarkchain.config import DEFAULT_ENV, NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock
+from quarkchain.utils import check
 from quarkchain.utils import time_ms
-from absl import logging as GLOG
-from absl import flags
 
 
 class Miner:
     def __init__(
         self,
+        consensus_type: ConsensusType,
         create_block_async_func,
         add_block_async_func,
         get_target_block_time_func,
         env,
-        simulate=True,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -28,10 +27,18 @@ class Miner:
         add_block_async_func: takes a block, add it to chain
         get_target_block_time_func: takes no argument, returns the target block time in second
         """
+        # TODO: add other mining functions
+        check(consensus_type == ConsensusType.POW_SIMULATE)
+        if consensus_type == ConsensusType.POW_SIMULATE:
+            self.mine_func = Miner.simulate_mine
+        elif consensus_type == ConsensusType.POW_ETHASH:
+            self.mine_func = Miner.mine_ethash
+        elif consensus_type == ConsensusType.POW_SHA3SHA3:
+            self.mine_func = Miner.mine_sha3sha3
+
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func
         self.get_target_block_time_func = get_target_block_time_func
-        self.simulate = simulate
         self.enabled = False
         self.process = None
         self.env = env
@@ -69,11 +76,11 @@ class Miner:
             self.input.put((block, target_block_time))
             return
 
-        mine_func = Miner.simulate_mine if self.simulate else Miner.mine
         self.input = AioQueue()
         self.output = AioQueue()
         self.process = AioProcess(
-            target=mine_func, args=(block, target_block_time, self.input, self.output)
+            target=self.mine_func,
+            args=(block, target_block_time, self.input, self.output),
         )
         self.process.start()
 
