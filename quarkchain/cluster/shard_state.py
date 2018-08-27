@@ -29,7 +29,7 @@ from quarkchain.core import (
 )
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
-from quarkchain.evm.state import State as EvmState, State
+from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
@@ -1218,17 +1218,17 @@ class ShardState:
     def estimate_gas(self, tx: Transaction, from_address) -> Optional[int]:
         """Estimate a tx's gas usage by binary searching."""
         evm_tx_start_gas = tx.code.get_evm_transaction().startgas
-        state = self.evm_state.ephemeral_clone()  # type: State
-        state.gas_used = 0
+        evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
+        evm_state.gas_used = 0
         # binary search. similar as in go-ethereum
         lo = 21000 - 1
-        hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else state.gas_limit
+        hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else evm_state.gas_limit
         cap = hi
 
         def run_tx(gas):
-            state.gas_used = 0
-            evm_tx = self.__validate_tx(tx, state, from_address, gas=gas)
-            success, _ = apply_transaction(state, evm_tx, tx_wrapper_hash=bytes(32))
+            evm_state.gas_used = 0
+            evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
+            success, _ = apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
             return success
 
         while lo + 1 < hi:
@@ -1238,7 +1238,7 @@ class ShardState:
                     hi = mid
                 else:
                     lo = mid
-            except Exception as e:
+            except Exception:
                 lo = mid
         if hi == cap and not run_tx(hi):
             # try on highest gas but failed
