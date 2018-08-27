@@ -23,6 +23,27 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.root_tip.height, 1)
         self.assertEqual(state.header_tip.height, 1)
 
+    def test_estimate_gas(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+        tx_gen = lambda data: create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            data=data,
+        )
+        tx = tx_gen(b"")
+        estimate = state.estimate_gas(tx, acc1)
+        self.assertEqual(estimate, 21000)
+        tx = tx_gen(b"12123478123412348125936583475758")
+        estimate = state.estimate_gas(tx, acc1)
+        self.assertEqual(estimate, 23176)
+
     def test_execute_tx(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
@@ -36,6 +57,7 @@ class TestShardState(unittest.TestCase):
             to_address=acc2,
             value=12345,
         )
+        # adding this line to make sure `execute_tx` would reset `gas_used`
         state.evm_state.gas_used = state.evm_state.gas_limit
         res = state.execute_tx(tx, acc1)
         self.assertEqual(res, b"")

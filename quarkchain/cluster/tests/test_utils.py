@@ -5,7 +5,11 @@ from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
-from quarkchain.cluster.cluster_config import ClusterConfig, SlaveConfig, SimpleNetworkConfig
+from quarkchain.cluster.cluster_config import (
+    ClusterConfig,
+    SlaveConfig,
+    SimpleNetworkConfig,
+)
 from quarkchain.config import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
@@ -53,6 +57,7 @@ def create_transfer_transaction(
     gas=21000,  # transfer tx min gas
     gas_price=1,
     nonce=None,
+    data=b"",
 ):
     """ Create an in-shard xfer tx
     """
@@ -64,7 +69,7 @@ def create_transfer_transaction(
         startgas=gas,
         to=to_address.recipient,
         value=value,
-        data=b"",
+        data=data,
         from_full_shard_id=from_address.full_shard_id,
         to_full_shard_id=to_address.full_shard_id,
         network_id=shard_state.env.config.NETWORK_ID,
@@ -159,7 +164,9 @@ def create_test_clusters(num_cluster, genesis_account=Address.create_empty_accou
         for j in range(env.config.SHARD_SIZE):
             slave_env = env.copy()
             slave_env.db = InMemoryDb()
-            slave_env.slave_config = env.cluster_config.get_slave_config("S{}".format(j))
+            slave_env.slave_config = env.cluster_config.get_slave_config(
+                "S{}".format(j)
+            )
             slave_server = SlaveServer(slave_env, name="cluster{}_slave{}".format(i, j))
             slave_server.start()
             slave_server_list.append(slave_server)

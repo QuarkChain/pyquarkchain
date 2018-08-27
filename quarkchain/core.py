@@ -494,7 +494,7 @@ class Code(Serializable):
     def is_evm(self):
         return self.code[:1] == self.OP_EVM
 
-    def get_evm_transaction(self):
+    def get_evm_transaction(self) -> EvmTransaction:
         assert self.is_evm()
         return rlp.decode(self.code[1:], EvmTransaction)
 
@@ -622,17 +622,23 @@ class MinorBlockMeta(Serializable):
 
     def __init__(
         self,
-        hash_merkle_root=bytes(Constant.HASH_LENGTH),
-        hash_evm_state_root=bytes(Constant.HASH_LENGTH),
-        hash_evm_receipt_root=bytes(Constant.HASH_LENGTH),
-        coinbase_address=Address.create_empty_account(),
-        evm_gas_limit=30000 * 400,  # 400 xshard tx
-        evm_gas_used=0,
-        evm_cross_shard_receive_gas_used=0,
-        extra_data=b"",
+        hash_merkle_root: bytes = bytes(Constant.HASH_LENGTH),
+        hash_evm_state_root: bytes = bytes(Constant.HASH_LENGTH),
+        hash_evm_receipt_root: bytes = bytes(Constant.HASH_LENGTH),
+        coinbase_address: Address = Address.create_empty_account(),
+        evm_gas_limit: int = 30000 * 400,  # 400 xshard tx
+        evm_gas_used: int = 0,
+        evm_cross_shard_receive_gas_used: int = 0,
+        extra_data: bytes = b"",
     ):
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
+        self.hash_merkle_root = hash_merkle_root
+        self.hash_evm_state_root = hash_evm_state_root
+        self.hash_evm_receipt_root = hash_evm_receipt_root
+        self.coinbase_address = coinbase_address
+        self.evm_gas_limit = evm_gas_limit
+        self.evm_gas_used = evm_gas_used
+        self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
+        self.extra_data = extra_data
 
     def get_hash(self):
         return sha3_256(self.serialize())
