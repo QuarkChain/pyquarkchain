@@ -101,7 +101,7 @@ class Miner:
                     "shard": "R"
                     if is_root
                     else str(block.header.branch.get_shard_id()),
-                    "network": self.env.cluster_config.MONITORING.NETWORK_ID,
+                    "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
                     "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                     "total_latency_ms": time_ms() - self.new_block_info["inception"],
                 }

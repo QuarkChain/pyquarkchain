@@ -67,7 +67,7 @@ class MonitoringConfig(BaseConfig):
     """None of the configs here is available in commandline, so just set the json file to change defaults
     """
 
-    NETWORK_ID = ""
+    NETWORK_NAME = ""
     CLUSTER_ID = HOST
     KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
@@ -200,6 +200,7 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
         parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
         parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
+        parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
     @classmethod
     def create_from_args(cls, args):
@@ -230,6 +231,8 @@ class ClusterConfig(BaseConfig):
         config.CHAIN.ROOT_BLOCK_INTERVAL_SEC = args.root_block_interval_sec
         config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
         config.CHAIN.NETWORK_ID = args.network_id
+
+        config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
         if args.devp2p_enable:
             config.P2P = P2PConfig()
