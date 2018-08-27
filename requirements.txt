@@ -23,11 +23,10 @@ eth-hash[pycryptodome]==0.1.4
 # TODO: make pydevp2p submodule, or remove dependencies
 pyelliptic==1.5.7
 wheel
-gevent>=1.1.0
+gevent==1.3.4
 bitcoin
 ipaddress
 coverage
-tox
 rlp>=0.6.0,<0.7.0
 miniupnpc
 pytest
