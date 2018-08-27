@@ -673,10 +673,8 @@ class ShardState:
             sample = {
                 "time": time_ms() // 1000,
                 "shard": str(block.header.branch.get_shard_id()),
-                "cluster": "{}:{}".format(
-                    self.env.cluster_config.MONITORING.CLUSTER_ID,
-                    self.env.cluster_config.P2P_PORT,
-                ),
+                "network": self.env.cluster_config.MONITORING.NETWORK_ID,
+                "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                 "hash": block.header.get_hash().hex(),
                 "height": block.header.height,
                 "original_cluster": extra_data["cluster"],
