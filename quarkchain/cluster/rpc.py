@@ -652,6 +652,22 @@ class GetLogResponse(Serializable):
         self.logs = logs
 
 
+class EstimateGasRequest(Serializable):
+    FIELDS = [("tx", Transaction), ("from_address", Address)]
+
+    def __init__(self, tx: Transaction, from_address: Address):
+        self.tx = tx
+        self.from_address = from_address
+
+
+class EstimateGasResponse(Serializable):
+    FIELDS = [("error_code", uint32), ("result", uint32)]
+
+    def __init__(self, error_code: int, result: int):
+        self.error_code = error_code
+        self.result = result
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -703,6 +719,8 @@ class ClusterOp:
     GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE = 44 + CLUSTER_OP_BASE
     GET_LOG_REQUEST = 45 + CLUSTER_OP_BASE
     GET_LOG_RESPONSE = 46 + CLUSTER_OP_BASE
+    ESTIMATE_GAS_REQUEST = 47 + CLUSTER_OP_BASE
+    ESTIMATE_GAS_RESPONSE = 48 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -751,4 +769,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_RESPONSE: GetTransactionListByAddressResponse,
     ClusterOp.GET_LOG_REQUEST: GetLogRequest,
     ClusterOp.GET_LOG_RESPONSE: GetLogResponse,
+    ClusterOp.ESTIMATE_GAS_REQUEST: EstimateGasRequest,
+    ClusterOp.ESTIMATE_GAS_RESPONSE: EstimateGasResponse,
 }
