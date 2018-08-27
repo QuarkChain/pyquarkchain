@@ -366,7 +366,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.db.put(b"xShard_" + h, tx_list.serialize())
 
     def get_minor_block_xshard_tx_list(self, h) -> CrossShardTransactionList:
-        return CrossShardTransactionList.deserialize(self.db.get(b"xShard_" + h))
+        key = b"xShard_" + h
+        if key not in self.db:
+            return None
+        return CrossShardTransactionList.deserialize(self.db.get(key))
 
     def contain_remote_minor_block_hash(self, h):
         key = b"xShard_" + h

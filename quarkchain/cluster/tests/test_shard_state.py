@@ -182,7 +182,6 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -196,6 +195,39 @@ class TestShardState(unittest.TestCase):
         )
         self.assertFalse(state.add_tx(tx))
         self.assertEqual(len(state.tx_queue), 0)
+
+    def test_add_non_neighbor_tx_fail(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=3)  # not acc1's neighbor
+        acc3 = Address.create_random_account(full_shard_id=8)  # acc1's neighbor
+
+        env = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state = create_default_shard_state(env=env)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=0,
+            gas=1000000,
+        )
+        self.assertFalse(state.add_tx(tx))
+        self.assertEqual(len(state.tx_queue), 0)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc3,
+            value=0,
+            gas=1000000,
+        )
+        self.assertTrue(state.add_tx(tx))
+        self.assertEqual(len(state.tx_queue), 1)
 
     def test_two_tx_in_one_block(self):
         id1 = Identity.create_random_identity()
@@ -468,13 +500,17 @@ class TestShardState(unittest.TestCase):
     def test_xshard_tx_received(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=1)
+        acc2 = Address.create_from_identity(id1, full_shard_id=16)
         acc3 = Address.create_random_account(full_shard_id=0)
 
-        env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
-        env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
         state0 = create_default_shard_state(env=env0, shard_id=0)
-        state1 = create_default_shard_state(env=env1, shard_id=1)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
 
         # Add one block in shard 0
         b0 = state0.create_block_to_mine()
@@ -530,6 +566,74 @@ class TestShardState(unittest.TestCase):
         # X-shard gas used
         evmState0 = state0.evm_state
         self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
+    def test_xshard_tx_received_exclude_non_neighbor(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_from_identity(id1, full_shard_id=3)
+        acc3 = Address.create_random_account(full_shard_id=0)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=3)
+
+        # Add one block in shard 0
+        b0 = state0.create_block_to_mine()
+        state0.finalize_and_add_block(b0)
+
+        b1 = state1.get_tip().create_block_to_append()
+        tx = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b1.add_tx(tx)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b1.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=888888,
+                        gas_price=2,
+                    )
+                ]
+            ),
+        )
+
+        # Create a root block containing the block with the x-shard tx
+        rB = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(b0.header)
+            .add_minor_block_header(b1.header)
+            .finalize()
+        )
+        state0.add_root_block(rB)
+
+        # Add b0 and make sure all x-shard tx's are added
+        b2 = state0.create_block_to_mine(address=acc3)
+        state0.finalize_and_add_block(b2)
+
+        self.assertEqual(state0.get_balance(acc1.recipient), 10000000)
+        # Half collected by root
+        self.assertEqual(state0.get_balance(acc3.recipient), 0)
+
+        # X-shard gas used
+        evmState0 = state0.evm_state
+        self.assertEqual(evmState0.xshard_receive_gas_used, 0)
 
     def test_xshard_for_two_root_blocks(self):
         id1 = Identity.create_random_identity()

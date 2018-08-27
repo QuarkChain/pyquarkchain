@@ -34,6 +34,7 @@ from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+from quarkchain.cluster.neighbor import is_neighbor
 
 
 class ExpiryQueue:
@@ -265,10 +266,18 @@ class ShardState:
                 )
             )
 
+        to_branch = Branch.create(self.branch.get_shard_size(), evm_tx.to_shard_id())
+        if evm_tx.is_cross_shard() and not self.__is_neighbor(to_branch):
+            raise RuntimeError(
+                "evm tx to_shard_id {} is not a neighbor of from_shard_id {}".format(
+                    evm_tx.to_shard_id(), evm_tx.from_shard_id()
+                )
+            )
+
         # This will check signature, nonce, balance, gas limit
         validate_transaction(evm_state, evm_tx)
 
-        # TODO: Neighborhood and xshard gas limit check
+        # TODO: xshard gas limit check
         return evm_tx
 
     def add_tx(self, tx: Transaction):
@@ -1010,9 +1019,8 @@ class ShardState:
         )
         return False
 
-    def __is_neighbor(self, remote_branch):
-        # TODO: Apply routing rule to determine neighors that could directly send x-shard tx
-        return True
+    def __is_neighbor(self, remote_branch: Branch):
+        return is_neighbor(self.branch, remote_branch)
 
     def __get_cross_shard_tx_list_by_root_block_hash(self, h):
         r_block = self.db.get_root_block_by_hash(h)
