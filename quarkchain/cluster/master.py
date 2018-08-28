@@ -49,6 +49,7 @@ from quarkchain.cluster.rpc import (
     GetLogResponse,
     GetLogRequest,
     ShardStats,
+    EstimateGasRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -405,6 +406,15 @@ class SlaveConnection(ClusterConnection):
         )  # type: GetLogResponse
         return resp.logs if resp.error_code == 0 else None
 
+    async def estimate_gas(
+        self, tx: Transaction, from_address: Address
+    ) -> Optional[int]:
+        request = EstimateGasRequest(tx, from_address)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.ESTIMATE_GAS_REQUEST, request
+        )
+        return resp.result if resp.error_code == 0 else None
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -453,7 +463,9 @@ class MasterServer:
 
         self.artificial_tx_config = ArtificialTxConfig(
             target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
-            target_minor_block_time=self.env.quark_chain_config.SHARD_LIST[0].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
+            target_minor_block_time=self.env.quark_chain_config.SHARD_LIST[
+                0
+            ].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
 
         self.synchronizer = Synchronizer()
@@ -488,7 +500,10 @@ class MasterServer:
 
         self.root_miner = Miner(
             self.env.quark_chain_config.ROOT.CONSENSUS_TYPE,
-            __create_block, __add_block, __get_target_block_time, self.env,
+            __create_block,
+            __add_block,
+            __get_target_block_time,
+            self.env,
         )
 
     def __get_shard_size(self):
@@ -1193,6 +1208,18 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_logs(branch, addresses, topics, start_block, end_block)
+
+    async def estimate_gas(
+        self, tx: Transaction, from_address: Address
+    ) -> Optional[int]:
+        evm_tx = tx.code.get_evm_transaction()
+        evm_tx.set_shard_size(self.__get_shard_size())
+        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.estimate_gas(tx, from_address)
 
 
 def parse_args():

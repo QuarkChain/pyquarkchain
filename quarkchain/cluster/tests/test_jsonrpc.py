@@ -380,7 +380,9 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
-            response = send_request("call", {"to": "0x" + acc1.serialize().hex()})
+            response = send_request(
+                "call", {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)}
+            )
 
             self.assertEqual(response, "0x")
             self.assertEqual(
@@ -579,7 +581,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
             self.assertIsNone(resp["contractAddress"])
 
-    def test_eth_getLogs(self):
+    def test_getLogs(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
@@ -641,3 +643,15 @@ class TestJSONRPC(unittest.TestCase):
                     "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
                     resp[0]["topics"][0],
                 )
+
+    def test_estimate_gas(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            response = send_request(
+                "estimateGas", {"to": "0x" + acc1.serialize().hex()}
+            )
+            self.assertEqual(response, "0x5208")  # 21000
