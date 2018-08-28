@@ -86,6 +86,8 @@ from quarkchain.db import PersistentDb
 from quarkchain.protocol import Connection
 from quarkchain.utils import check, set_logging_level, Logger
 from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.cluster.neighbor import is_neighbor
+
 
 FLAGS = flags.FLAGS
 
@@ -1276,6 +1278,11 @@ class SlaveServer:
         )
         rpc_futures = []
         for branch, request in branch_to_add_xshard_tx_list_request.items():
+            if branch == block.header.branch or not is_neighbor(
+                block.header.branch, branch
+            ):
+                continue
+
             if branch.value in self.shard_state_map:
                 self.shard_state_map[
                     branch.value
@@ -1291,19 +1298,26 @@ class SlaveServer:
         responses = await asyncio.gather(*rpc_futures)
         check(all([response.error_code == 0 for _, response, _ in responses]))
 
-    async def batch_broadcast_xshard_tx_list(self, block_hash_to_xshard_list):
+    async def batch_broadcast_xshard_tx_list(
+        self, block_hash_to_xshard_list, source_branch: Branch
+    ):
         branch_to_add_xshard_tx_list_request_list = dict()
         for block_hash, x_shard_list in block_hash_to_xshard_list.items():
             branch_to_add_xshard_tx_list_request = self.__get_branch_to_add_xshard_tx_list_request(
                 block_hash, x_shard_list
             )
             for branch, request in branch_to_add_xshard_tx_list_request.items():
+                if branch == source_branch or not is_neighbor(branch, source_branch):
+                    continue
+
                 branch_to_add_xshard_tx_list_request_list.setdefault(branch, []).append(
                     request
                 )
 
         rpc_futures = []
         for branch, request_list in branch_to_add_xshard_tx_list_request_list.items():
+            check(is_neighbor(branch, source_branch))
+
             if branch.value in self.shard_state_map:
                 for request in request_list:
                     self.shard_state_map[
@@ -1395,6 +1409,8 @@ class SlaveServer:
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
         for block in block_list:
+            check(block.header.branch.value == branch_value)
+
             block_hash = block.header.get_hash()
             try:
                 xshard_list = shard_state.add_block(block)
@@ -1413,7 +1429,9 @@ class SlaveServer:
                 block_hash_to_x_shard_list[block_hash] = xshard_list
                 self.add_block_futures[block_hash] = self.loop.create_future()
 
-        await self.batch_broadcast_xshard_tx_list(block_hash_to_x_shard_list)
+        await self.batch_broadcast_xshard_tx_list(
+            block_hash_to_x_shard_list, block_list[0].header.branch
+        )
 
         for block_hash in block_hash_to_x_shard_list.keys():
             self.add_block_futures[block_hash].set_result(None)

@@ -126,6 +126,13 @@ class Cluster:
         self.network = network
         self.peer = peer
 
+    def get_shard_state(self, shard_id):
+        branch_value = self.master.env.config.SHARD_SIZE | shard_id
+        for slave in self.slave_list:
+            if branch_value in slave.shard_state_map:
+                return slave.shard_state_map[branch_value]
+        return None
+
 
 # server.close() does not release the port sometimes even after server.wait_closed() is awaited.
 # we have to use unique ports for each test as a workaround.
@@ -139,29 +146,31 @@ def get_next_port():
     return port
 
 
-def create_test_clusters(num_cluster, genesis_account=Address.create_empty_account()):
+def create_test_clusters(num_cluster, genesis_account, shard_size, num_slaves):
     bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
     loop = asyncio.get_event_loop()
 
     for i in range(num_cluster):
-        env = get_test_env(genesis_account, genesis_minor_quarkash=1000000)
+        env = get_test_env(
+            genesis_account, genesis_minor_quarkash=1000000, shard_size=shard_size
+        )
         env.cluster_config.P2P_PORT = bootstrap_port if i == 0 else get_next_port()
         env.cluster_config.JSON_RPC_PORT = get_next_port()
         env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
 
-        for j in range(env.config.SHARD_SIZE):
+        for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
-            slave_config.SHARD_MASK_LIST = [ShardMask(j | env.config.SHARD_SIZE)]
+            slave_config.SHARD_MASK_LIST = [ShardMask(num_slaves | j)]
             slave_config.DB_PATH_ROOT = None  # TODO: fix the db in config
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         slave_server_list = []
-        for j in range(env.config.SHARD_SIZE):
+        for j in range(num_slaves):
             slave_env = env.copy()
             slave_env.db = InMemoryDb()
             slave_env.slave_config = env.cluster_config.get_slave_config(
@@ -216,12 +225,22 @@ def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
 
 
 class ClusterContext(ContextDecorator):
-    def __init__(self, num_cluster, genesis_account=Address.create_empty_account()):
+    def __init__(
+        self,
+        num_cluster,
+        genesis_account=Address.create_empty_account(),
+        shard_size=2,
+        num_slaves=None,
+    ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
+        self.shard_size = shard_size
+        self.num_slaves = num_slaves if num_slaves else shard_size
 
     def __enter__(self):
-        self.cluster_list = create_test_clusters(self.num_cluster, self.genesis_account)
+        self.cluster_list = create_test_clusters(
+            self.num_cluster, self.genesis_account, self.shard_size, self.num_slaves
+        )
         return self.cluster_list
 
     def __exit__(self, *exc):

@@ -1,5 +1,5 @@
 import unittest
-
+from unittest.mock import MagicMock
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
@@ -257,17 +257,17 @@ class TestCluster(unittest.TestCase):
                 )
             )
 
-            rB1 = clusters[0].master.root_state.create_block_to_mine(
+            root_block1 = clusters[0].master.root_state.create_block_to_mine(
                 block_header_list, acc1
             )
-            call_async(clusters[0].master.add_root_block(rB1))
+            call_async(clusters[0].master.add_root_block(root_block1))
 
             # Make sure the root block tip of local cluster is changed
-            self.assertEqual(clusters[0].master.root_state.tip, rB1.header)
+            self.assertEqual(clusters[0].master.root_state.tip, root_block1.header)
 
             # Make sure the root block tip of cluster 1 is changed
             assert_true_with_timeout(
-                lambda: clusters[1].master.root_state.tip == rB1.header, 2
+                lambda: clusters[1].master.root_state.tip == root_block1.header, 2
             )
 
             # Minor block is downloaded
@@ -355,7 +355,6 @@ class TestCluster(unittest.TestCase):
         """ Test the cross shard transactions are broadcasted to the destination shards """
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
         acc3 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters:
@@ -414,8 +413,10 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(call_async(slaves[1].add_block(b3)))
 
-            is_root, rB = call_async(master.get_next_block_to_mine(address=acc1))
-            call_async(master.add_root_block(rB))
+            is_root, root_block = call_async(
+                master.get_next_block_to_mine(address=acc1)
+            )
+            call_async(master.add_root_block(root_block))
 
             # b4 should include the withdraw of tx1
             b4 = (
@@ -433,3 +434,28 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc3)).balance, 54321
             )
+
+    def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        # create 64 shards so that the neighbor rule can kick in
+        # explicitly set num_slaves to 4 so that it does not spin up 64 slaves
+        with ClusterContext(1, acc1, 64, num_slaves=4) as clusters:
+            slaves = clusters[0].slave_list
+            b1 = slaves[0].shard_state_map[64 | 0].create_block_to_mine(address=acc1)
+            self.assertTrue(call_async(slaves[0].add_block(b1)))
+
+            neighbor_shards = [2 ** i for i in range(6)]
+            for shard_id in range(64):
+                xshardTxList = (
+                    clusters[0]
+                    .get_shard_state(shard_id)
+                    .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
+                )
+                # Only neighbor should have it
+                if shard_id in neighbor_shards:
+                    self.assertIsNotNone(xshardTxList)
+                else:
+                    self.assertIsNone(xshardTxList)
