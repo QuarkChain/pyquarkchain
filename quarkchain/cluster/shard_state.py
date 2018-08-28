@@ -213,7 +213,7 @@ class ShardState:
         self.meta_tip = genesis_minor_block1.meta
 
     def __validate_tx(
-        self, tx: Transaction, evm_state, from_address=None
+        self, tx: Transaction, evm_state, from_address=None, gas=None
     ) -> EvmTransaction:
         """from_address will be set for execute_tx"""
         # UTXOs are not supported now
@@ -239,7 +239,7 @@ class ShardState:
             evm_tx = EvmTransaction(
                 nonce,
                 evm_tx.gasprice,
-                evm_tx.startgas,
+                gas if gas else evm_tx.startgas,  # override gas if specified
                 evm_tx.to,
                 evm_tx.value,
                 evm_tx.data,
@@ -1214,3 +1214,33 @@ class ShardState:
         except Exception as e:
             Logger.error_exception()
             return None
+
+    def estimate_gas(self, tx: Transaction, from_address) -> Optional[int]:
+        """Estimate a tx's gas usage by binary searching."""
+        evm_tx_start_gas = tx.code.get_evm_transaction().startgas
+        evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
+        evm_state.gas_used = 0
+        # binary search. similar as in go-ethereum
+        lo = 21000 - 1
+        hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else evm_state.gas_limit
+        cap = hi
+
+        def run_tx(gas):
+            evm_state.gas_used = 0
+            evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
+            success, _ = apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
+            return success
+
+        while lo + 1 < hi:
+            mid = (lo + hi) // 2
+            try:
+                if run_tx(mid):
+                    hi = mid
+                else:
+                    lo = mid
+            except Exception:
+                lo = mid
+        if hi == cap and not run_tx(hi):
+            # try on highest gas but failed
+            return None
+        return hi
