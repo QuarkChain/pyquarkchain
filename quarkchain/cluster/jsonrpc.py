@@ -363,6 +363,7 @@ public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
 
+# noinspection PyPep8Naming
 class JSONRPCServer:
     @classmethod
     def start_public_server(cls, env, master_server):
@@ -727,46 +728,11 @@ class JSONRPCServer:
 
     @public_methods.add
     async def call(self, **data):
-        """ Returns the result of the transaction application without putting in block chain """
-        if not isinstance(data, dict):
-            raise InvalidParams("Transaction must be an object")
+        return await self._call_or_estimate_gas(is_call=True, **data)
 
-        def get_data_default(key, decoder, default=None):
-            if key in data:
-                return decoder(data[key])
-            return default
-
-        to = get_data_default("to", address_decoder, None)
-        if to is None:
-            raise InvalidParams("Missing to")
-
-        to_full_shard_id = int.from_bytes(to[20:], "big")
-
-        gas = get_data_default("gas", quantity_decoder, 1000000)
-        gas_price = get_data_default("gasPrice", quantity_decoder, 0)
-        value = get_data_default("value", quantity_decoder, 0)
-        data_ = get_data_default("data", data_decoder, b"")
-        sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
-        sender_address = Address.create_from(sender)
-
-        network_id = self.master.env.config.NETWORK_ID
-
-        nonce = 0  # slave will fill in the real nonce
-        evm_tx = EvmTransaction(
-            nonce,
-            gas_price,
-            gas,
-            to[:20],
-            value,
-            data_,
-            from_full_shard_id=sender_address.full_shard_id,
-            to_full_shard_id=to_full_shard_id,
-            network_id=network_id,
-        )
-
-        tx = Transaction(code=Code.create_evm_code(evm_tx))
-        res = await self.master.execute_transaction(tx, sender_address)
-        return data_encoder(res) if res is not None else None
+    @public_methods.add
+    async def estimateGas(self, **data):
+        return await self._call_or_estimate_gas(is_call=False, **data)
 
     @public_methods.add
     @decode_arg("tx_id", id_decoder)
@@ -863,19 +829,7 @@ class JSONRPCServer:
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard):
         """ Returns the result of the transaction application without putting in block chain """
-        to_address = Address.create_from(
-            eth_address_to_quarkchain_address_decoder(data["to"])
-        )
-        if shard:
-            to_address = Address(to_address.recipient, shard)
-        data["to"] = "0x" + to_address.serialize().hex()
-        if "from" in data:
-            from_address = Address.create_from(
-                eth_address_to_quarkchain_address_decoder(data["from"])
-            )
-            if shard:
-                from_address = Address(from_address.recipient, shard)
-            data["from"] = "0x" + from_address.serialize().hex()
+        data = self._convert_eth_call_data(data, shard)
         return await self.call(**data)
 
     @public_methods.add
@@ -893,43 +847,19 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
+    async def eth_estimateGas(self, data, shard):
+        data = self._convert_eth_call_data(data, shard)
+        return await self.estimateGas(**data)
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
     async def eth_getLogs(self, data, shard=None):
-        start_block = data.get("fromBlock", "latest")
-        end_block = data.get("toBlock", "latest")
-        # TODO: not supported yet for "earliest" or "pending" block
-        if (isinstance(start_block, str) and start_block != "latest") or (
-            isinstance(end_block, str) and end_block != "latest"
-        ):
-            return None
-        # parse addresses / topics
-        addresses, topics = [], []
-        if "address" in data:
-            if isinstance(data["address"], str):
-                addresses = [
-                    Address.deserialize(
-                        eth_address_to_quarkchain_address_decoder(data["address"])
-                    )
-                ]
-            elif isinstance(data["address"], list):
-                addresses = [
-                    Address.deserialize(eth_address_to_quarkchain_address_decoder(a))
-                    for a in data["address"]
-                ]
-        if shard is not None:
-            addresses = [Address(a.recipient, shard) for a in addresses]
-        if "topics" in data:
-            for topic_item in data["topics"]:
-                if isinstance(topic_item, str):
-                    topics.append([data_decoder(topic_item)])
-                elif isinstance(topic_item, list):
-                    topics.append([data_decoder(tp) for tp in topic_item])
-        branch = Branch.create(self.master.get_shard_size(), shard)
-        logs = await self.master.get_logs(
-            addresses, topics, start_block, end_block, branch
-        )
-        if logs is None:
-            return None
-        return loglist_encoder(logs)
+        return await self._get_logs(data, shard=shard)
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getLogs(self, data, shard=None):
+        return await self._get_logs(data, shard=shard)
 
     ######################## Private Methods ########################
 
@@ -1062,3 +992,104 @@ class JSONRPCServer:
     @private_methods.add
     async def getJrpcCalls(self):
         return self.counters
+
+    @staticmethod
+    def _convert_eth_call_data(data, shard):
+        to_address = Address.create_from(
+            eth_address_to_quarkchain_address_decoder(data["to"])
+        )
+        if shard:
+            to_address = Address(to_address.recipient, shard)
+        data["to"] = "0x" + to_address.serialize().hex()
+        if "from" in data:
+            from_address = Address.create_from(
+                eth_address_to_quarkchain_address_decoder(data["from"])
+            )
+            if shard:
+                from_address = Address(from_address.recipient, shard)
+            data["from"] = "0x" + from_address.serialize().hex()
+        return data
+
+    async def _get_logs(self, data, shard):
+        start_block = data.get("fromBlock", "latest")
+        end_block = data.get("toBlock", "latest")
+        # TODO: not supported yet for "earliest" or "pending" block
+        if (isinstance(start_block, str) and start_block != "latest") or (
+            isinstance(end_block, str) and end_block != "latest"
+        ):
+            return None
+        # parse addresses / topics
+        addresses, topics = [], []
+        if "address" in data:
+            if isinstance(data["address"], str):
+                addresses = [
+                    Address.deserialize(
+                        eth_address_to_quarkchain_address_decoder(data["address"])
+                    )
+                ]
+            elif isinstance(data["address"], list):
+                addresses = [
+                    Address.deserialize(eth_address_to_quarkchain_address_decoder(a))
+                    for a in data["address"]
+                ]
+        if shard is not None:
+            addresses = [Address(a.recipient, shard) for a in addresses]
+        if "topics" in data:
+            for topic_item in data["topics"]:
+                if isinstance(topic_item, str):
+                    topics.append([data_decoder(topic_item)])
+                elif isinstance(topic_item, list):
+                    topics.append([data_decoder(tp) for tp in topic_item])
+        branch = Branch.create(self.master.get_shard_size(), shard)
+        logs = await self.master.get_logs(
+            addresses, topics, start_block, end_block, branch
+        )
+        if logs is None:
+            return None
+        return loglist_encoder(logs)
+
+    async def _call_or_estimate_gas(self, is_call: bool, **data):
+        """ Returns the result of the transaction application without putting in block chain """
+        if not isinstance(data, dict):
+            raise InvalidParams("Transaction must be an object")
+
+        def get_data_default(key, decoder, default=None):
+            if key in data:
+                return decoder(data[key])
+            return default
+
+        to = get_data_default("to", address_decoder, None)
+        if to is None:
+            raise InvalidParams("Missing to")
+
+        to_full_shard_id = int.from_bytes(to[20:], "big")
+
+        gas = get_data_default("gas", quantity_decoder, 0)
+        gas_price = get_data_default("gasPrice", quantity_decoder, 0)
+        value = get_data_default("value", quantity_decoder, 0)
+        data_ = get_data_default("data", data_decoder, b"")
+        sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
+        sender_address = Address.create_from(sender)
+
+        network_id = self.master.env.config.NETWORK_ID
+
+        nonce = 0  # slave will fill in the real nonce
+        evm_tx = EvmTransaction(
+            nonce,
+            gas_price,
+            gas,
+            to[:20],
+            value,
+            data_,
+            from_full_shard_id=sender_address.full_shard_id,
+            to_full_shard_id=to_full_shard_id,
+            network_id=network_id,
+        )
+
+        tx = Transaction(code=Code.create_evm_code(evm_tx))
+        if is_call:
+            res = await self.master.execute_transaction(tx, sender_address)
+            return data_encoder(res) if res is not None else None
+        else:  # estimate gas
+            res = await self.master.estimate_gas(tx, sender_address)
+            return quantity_encoder(res) if res is not None else None
