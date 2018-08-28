@@ -257,17 +257,17 @@ class TestCluster(unittest.TestCase):
                 )
             )
 
-            rB1 = clusters[0].master.root_state.create_block_to_mine(
+            root_block1 = clusters[0].master.root_state.create_block_to_mine(
                 block_header_list, acc1
             )
-            call_async(clusters[0].master.add_root_block(rB1))
+            call_async(clusters[0].master.add_root_block(root_block1))
 
             # Make sure the root block tip of local cluster is changed
-            self.assertEqual(clusters[0].master.root_state.tip, rB1.header)
+            self.assertEqual(clusters[0].master.root_state.tip, root_block1.header)
 
             # Make sure the root block tip of cluster 1 is changed
             assert_true_with_timeout(
-                lambda: clusters[1].master.root_state.tip == rB1.header, 2
+                lambda: clusters[1].master.root_state.tip == root_block1.header, 2
             )
 
             # Minor block is downloaded
@@ -413,8 +413,10 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(call_async(slaves[1].add_block(b3)))
 
-            is_root, rB = call_async(master.get_next_block_to_mine(address=acc1))
-            call_async(master.add_root_block(rB))
+            is_root, root_block = call_async(
+                master.get_next_block_to_mine(address=acc1)
+            )
+            call_async(master.add_root_block(root_block))
 
             # b4 should include the withdraw of tx1
             b4 = (
