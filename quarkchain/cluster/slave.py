@@ -34,6 +34,9 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderRequest,
     GetLogRequest,
     GetLogResponse,
+    EstimateGasRequest,
+    EstimateGasResponse,
+    ExecuteTransactionRequest,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -642,7 +645,9 @@ class MasterConnection(ClusterConnection):
         success = self.slave_server.add_tx(req.tx)
         return AddTransactionResponse(error_code=0 if success else 1)
 
-    async def handle_execute_transaction(self, req):
+    async def handle_execute_transaction(
+        self, req: ExecuteTransactionRequest
+    ) -> ExecuteTransactionResponse:
         res = self.slave_server.execute_tx(req.tx, req.from_address)
         fail = res is None
         return ExecuteTransactionResponse(
@@ -813,6 +818,11 @@ class MasterConnection(ClusterConnection):
             logs=res or [],  # `None` will be converted to empty list
         )
 
+    async def handle_estimate_gas(self, req: EstimateGasRequest) -> EstimateGasResponse:
+        res = self.slave_server.estimate_gas(req.tx, req.from_address)
+        fail = res is None
+        return EstimateGasResponse(error_code=int(fail), result=res or 0)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -892,6 +902,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_LOG_REQUEST: (
         ClusterOp.GET_LOG_RESPONSE,
         MasterConnection.handle_get_logs,
+    ),
+    ClusterOp.ESTIMATE_GAS_REQUEST: (
+        ClusterOp.ESTIMATE_GAS_RESPONSE,
+        MasterConnection.handle_estimate_gas,
     ),
 }
 
@@ -1064,9 +1078,7 @@ class SlaveServer:
 
     def __init_miner(self, branch_value):
         branch = Branch(branch_value)
-        miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(
-            branch
-        )
+        miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(branch)
 
         def __is_syncing():
             return any(
@@ -1101,8 +1113,13 @@ class SlaveServer:
             return self.artificial_tx_config.target_minor_block_time
 
         self.miner_map[branch_value] = Miner(
-            self.env.quark_chain_config.SHARD_LIST[branch.get_shard_id()].CONSENSUS_TYPE,
-            __create_block, __add_block, __get_target_block_time, self.env
+            self.env.quark_chain_config.SHARD_LIST[
+                branch.get_shard_id()
+            ].CONSENSUS_TYPE,
+            __create_block,
+            __add_block,
+            __get_target_block_time,
+            self.env,
         )
 
     def init_shard_states(self, root_tip):
@@ -1435,7 +1452,7 @@ class SlaveServer:
         branch_value = evm_tx.from_shard_id() | self.__get_shard_size()
         shard_state = self.shard_state_map.get(branch_value, None)
         if not shard_state:
-            return False
+            return None
         return shard_state.execute_tx(tx, from_address)
 
     def get_transaction_count(self, address):
@@ -1526,6 +1543,15 @@ class SlaveServer:
 
         shard_state = self.shard_state_map[branch.value]
         return shard_state.get_logs(addresses, topics, start_block, end_block)
+
+    def estimate_gas(self, tx, from_address) -> Optional[int]:
+        evm_tx = tx.code.get_evm_transaction()
+        evm_tx.set_shard_size(self.__get_shard_size())
+        branch_value = evm_tx.from_shard_id() | self.__get_shard_size()
+        shard_state = self.shard_state_map.get(branch_value, None)
+        if not shard_state:
+            return None
+        return shard_state.estimate_gas(tx, from_address)
 
 
 def parse_args():
