@@ -1064,7 +1064,7 @@ class JSONRPCServer:
 
         to_full_shard_id = int.from_bytes(to[20:], "big")
 
-        gas = get_data_default("gas", quantity_decoder, 1000000)
+        gas = get_data_default("gas", quantity_decoder, 0)
         gas_price = get_data_default("gasPrice", quantity_decoder, 0)
         value = get_data_default("value", quantity_decoder, 0)
         data_ = get_data_default("data", data_decoder, b"")
