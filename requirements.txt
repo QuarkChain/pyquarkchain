@@ -19,6 +19,9 @@ absl-py==0.4.0
 py_ecc==1.4.3
 eth-hash[pycryptodome]==0.1.4
 
+# pyethapp/accounts.py dependency
+pbkdf2
+
 # Dependencies pulled from pydevp2p
 # TODO: make pydevp2p submodule, or remove dependencies
 pyelliptic==1.5.7
