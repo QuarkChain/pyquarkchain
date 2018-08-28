@@ -19,6 +19,7 @@ class NetworkId:
 
 class DefaultConfig:
     def __init__(self):
+        """"TODO: move all parameters derived from block intervals to shard config"""
         self.P2P_PROTOCOL_VERSION = 0
         self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
 
@@ -31,6 +32,12 @@ class DefaultConfig:
         self.MINOR_BLOCK_INTERVAL_SEC = 3
         # TODO: Use ASIC-resistent hash algorithm
         self.DIFF_HASH_FUNC = sha3_256
+
+        self.MAX_BLOCKS_PER_SHARD_IN_ONE_ROOT_BLOCK = (
+            self.ROOT_BLOCK_INTERVAL_SEC / self.MINOR_BLOCK_INTERVAL_SEC + 3
+        )
+
+        self.MAX_NEIGHBORS = 32
 
         # To ignore super old blocks from peers
         # This means the network will fork permanently after a long partition

@@ -1,12 +1,12 @@
-import time
-from collections import deque
-from typing import Optional, Tuple, List, Union
-import json
-from absl import logging as GLOG
 import asyncio
+import json
+import time
+from collections import defaultdict
+from typing import Optional, Tuple, List, Union
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
+from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.config import NetworkId
@@ -34,7 +34,6 @@ from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
-from quarkchain.cluster.neighbor import is_neighbor
 
 
 class ShardState:
@@ -761,6 +760,53 @@ class ShardState:
                 Logger.error_exception()
                 return
 
+    def __add_transactions_to_block(self, block: MinorBlock, evm_state: EvmState):
+        """ Fill up the block tx list with tx from the tx queue"""
+        poped_txs = []
+        xshard_tx_counters = defaultdict(int)
+        max_xshard_tx_per_shard = int(
+            block.meta.evm_gas_limit
+            / opcodes.GTXXSHARDCOST
+            / self.env.config.MAX_NEIGHBORS
+            / self.env.config.MAX_BLOCKS_PER_SHARD_IN_ONE_ROOT_BLOCK
+        )
+        while evm_state.gas_used < evm_state.gas_limit:
+            evm_tx = self.tx_queue.pop_transaction(
+                max_gas=evm_state.gas_limit - evm_state.gas_used
+            )
+            if evm_tx is None:  # tx_queue is exhausted
+                break
+
+            evm_tx.set_shard_size(self.branch.get_shard_size())
+            to_branch = Branch.create(
+                self.branch.get_shard_size(), evm_tx.to_shard_id()
+            )
+
+            if self.branch != to_branch:
+                check(is_neighbor(self.branch, to_branch))
+                if (
+                    xshard_tx_counters[evm_tx.to_shard_id()] + 1
+                    > max_xshard_tx_per_shard
+                ):
+                    continue
+
+            try:
+                tx = Transaction(code=Code.create_evm_code(evm_tx))
+                apply_transaction(evm_state, evm_tx, tx.get_hash())
+                block.add_tx(tx)
+                poped_txs.append(evm_tx)
+                xshard_tx_counters[evm_tx.to_shard_id()] += 1
+            except Exception as e:
+                Logger.warning_every_sec(
+                    "Failed to include transaction: {}".format(e), 1
+                )
+                tx = Transaction(code=Code.create_evm_code(evm_tx))
+                self.tx_dict.pop(tx.get_hash(), None)
+
+        # We don't want to drop the transactions if the mined block failed to be appended
+        for evm_tx in poped_txs:
+            self.tx_queue.add_transaction(evm_tx)
+
     def create_block_to_mine(self, create_time=None, address=None, gas_limit=None):
         """ Create a block to append and include TXs to maximize rewards
         """
@@ -798,29 +844,7 @@ class ShardState:
         # fund load test accounts
         self.__add_transactions_to_fund_loadtest_accounts(block, evm_state)
 
-        poped_txs = []
-        while evm_state.gas_used < evm_state.gas_limit:
-            evm_tx = self.tx_queue.pop_transaction(
-                max_gas=evm_state.gas_limit - evm_state.gas_used
-            )
-            if evm_tx is None:
-                break
-            evm_tx.set_shard_size(self.branch.get_shard_size())
-            try:
-                tx = Transaction(code=Code.create_evm_code(evm_tx))
-                apply_transaction(evm_state, evm_tx, tx.get_hash())
-                block.add_tx(tx)
-                poped_txs.append(evm_tx)
-            except Exception as e:
-                Logger.warning_every_sec(
-                    "Failed to include transaction: {}".format(e), 1
-                )
-                tx = Transaction(code=Code.create_evm_code(evm_tx))
-                self.tx_dict.pop(tx.get_hash(), None)
-
-        # We don't want to drop the transactions if the mined block failed to be appended
-        for evm_tx in poped_txs:
-            self.tx_queue.add_transaction(evm_tx)
+        self.__add_transactions_to_block(block, evm_state)
 
         # Put only half of block fee to coinbase address
         check(evm_state.get_balance(evm_state.block_coinbase) >= evm_state.block_fee)

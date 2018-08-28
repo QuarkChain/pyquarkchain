@@ -251,6 +251,46 @@ class TestShardState(unittest.TestCase):
         self.assertTrue(state.add_tx(tx))
         self.assertEqual(len(state.tx_queue), 1)
 
+    def test_exceeding_xshard_limit(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc2 = Address.create_random_account(full_shard_id=1)
+        acc3 = Address.create_random_account(full_shard_id=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        # a huge number to make xshard tx limit become 0 so that no xshard tx can be
+        # included in the block
+        env.config.MAX_BLOCKS_PER_SHARD_IN_ONE_ROOT_BLOCK = 10 ** 18
+        state = create_default_shard_state(env=env)
+
+        # xshard tx
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=50000,
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 0)
+
+        # inshard tx
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc3,
+            value=12345,
+            gas=50000,
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 1)
+
     def test_two_tx_in_one_block(self):
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
