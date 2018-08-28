@@ -380,7 +380,9 @@ class TestJSONRPC(unittest.TestCase):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
-            response = send_request("call", {"to": "0x" + acc1.serialize().hex()})
+            response = send_request(
+                "call", {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)}
+            )
 
             self.assertEqual(response, "0x")
             self.assertEqual(
