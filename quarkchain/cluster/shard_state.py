@@ -37,55 +37,6 @@ from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.neighbor import is_neighbor
 
 
-class ExpiryQueue:
-    """ A queue only keeps the elements added in the past ttl seconds """
-
-    def __init__(self, ttl_sec):
-        self.__queue = deque()
-        self.__ttl = ttl_sec
-
-    def __remove_expired_elements(self):
-        current = time.time()
-        while len(self.__queue) > 0 and self.__queue[0][0] < current:
-            self.__queue.popleft()
-
-    def append(self, e):
-        self.__remove_expired_elements()
-        self.__queue.append((time.time() + self.__ttl, e))
-
-    def __iter__(self):
-        self.__remove_expired_elements()
-        for t, e in self.__queue:
-            yield e
-
-    def __getitem__(self, index):
-        self.__remove_expired_elements()
-        return self.__queue[index]
-
-    def __len__(self):
-        self.__remove_expired_elements()
-        return len(self.__queue)
-
-    def __str__(self):
-        self.__remove_expired_elements()
-        return str(self.__queue)
-
-
-class ExpiryCounter:
-    def __init__(self, window_sec):
-        self.window = window_sec
-        self.queue = ExpiryQueue(window_sec)
-
-    def increment(self, value):
-        self.queue.append(value)
-
-    def get_count(self):
-        return sum(self.queue)
-
-    def get_count_per_second(self):
-        return self.get_count() / self.window
-
-
 class ShardState:
     """  State of a shard, which includes
     - evm state
