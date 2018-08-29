@@ -766,8 +766,6 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     # TODO: add block number
     async def getCode(self, address):
-        """TODO implement this
-        """
         res = await self.master.get_code(Address.deserialize(address))
         return data_encoder(res) if res is not None else None
 
@@ -876,8 +874,6 @@ class JSONRPCServer:
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
     @decode_arg("shard", shard_id_decoder)
     async def eth_getCode(self, address, shard=None):
-        """TODO implement this
-        """
         addr = Address.deserialize(address)
         if shard is not None:
             addr = Address(addr.recipient, shard)
