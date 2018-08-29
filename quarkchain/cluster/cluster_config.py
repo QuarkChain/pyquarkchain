@@ -85,9 +85,20 @@ class ClusterConfig(BaseConfig):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []
+        self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
+
+        slave_config = SlaveConfig()
+        slave_config.PORT = 38000
+        slave_config.ID = "S0"
+        slave_config.SHARD_MASK_LIST = [ShardMask(1)]
+        self.SLAVE_LIST.append(slave_config)
+
+        fd, self.json_filepath = tempfile.mkstemp()
+        with os.fdopen(fd, "w") as tmp:
+            tmp.write(self.to_json())
 
     def get_slave_info_list(self):
         results = []
@@ -210,7 +221,7 @@ class ClusterConfig(BaseConfig):
         config.MINE = args.mine
         config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
-        config.QUARKCHAIN = QuarkChainConfig.create_default_config(
+        config.QUARKCHAIN.update(
             args.num_shards, args.root_block_interval_sec, args.minor_block_interval_sec
         )
         config.QUARKCHAIN.NETWORK_ID = args.network_id
@@ -218,6 +229,7 @@ class ClusterConfig(BaseConfig):
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
         if args.devp2p_enable:
+            config.SIMPLE_NETWORK = None
             config.P2P = P2PConfig()
             config.P2P.IP = args.devp2p_ip
             config.P2P.DISCOVERY_PORT = args.devp2p_port
@@ -227,10 +239,12 @@ class ClusterConfig(BaseConfig):
             config.P2P.MAX_PEERS = args.devp2p_max_peers
             config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
         else:
+            config.P2P = None
             config.SIMPLE_NETWORK = SimpleNetworkConfig()
             config.SIMPLE_NETWORK.BOOTSTRAP_HOST = args.simple_network_bootstrap_host
             config.SIMPLE_NETWORK.BOOTSTRAP_PORT = args.simple_network_bootstrap_port
 
+        config.SLAVE_LIST = []
         for i in range(args.num_slaves):
             slave_config = SlaveConfig()
             slave_config.PORT = args.port_start + i

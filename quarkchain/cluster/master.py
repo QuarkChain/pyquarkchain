@@ -61,7 +61,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Branch, ShardMask, Log, Address
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb

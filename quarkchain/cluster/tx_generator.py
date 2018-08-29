@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional
 
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS

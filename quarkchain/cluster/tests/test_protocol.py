@@ -4,7 +4,7 @@ from unittest.mock import call, MagicMock
 
 from quarkchain.cluster.protocol import ClusterConnection, P2PConnection
 from quarkchain.cluster.protocol import ClusterMetadata, P2PMetadata
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import uint32, Branch, Serializable
 
 FORWARD_BRANCH = Branch(123)

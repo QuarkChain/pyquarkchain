@@ -269,7 +269,7 @@ class Connection(AbstractConnection):
             return None, None
         size = int.from_bytes(size_bytes, byteorder="big")
 
-        if size > self.env.config.P2P_COMMAND_SIZE_LIMIT:
+        if size > self.env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT:
             raise RuntimeError("{}: command package exceed limit".format(self.name))
 
         metadata_bytes = await self.__read_fully(self.metadata_class.get_byte_size())

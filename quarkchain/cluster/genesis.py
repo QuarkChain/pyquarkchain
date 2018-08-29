@@ -1,4 +1,4 @@
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     MinorBlockMeta,
     MinorBlockHeader,

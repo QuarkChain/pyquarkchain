@@ -14,7 +14,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_creation_with_event_transaction,
 )
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.evm import opcodes

@@ -9,7 +9,7 @@ from collections import defaultdict
 from jsonrpcclient.aiohttp_client import aiohttpClient
 from typing import Dict, List
 
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Identity
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 

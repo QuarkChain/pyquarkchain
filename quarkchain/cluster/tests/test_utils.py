@@ -10,7 +10,7 @@ from quarkchain.cluster.cluster_config import (
     SlaveConfig,
     SimpleNetworkConfig,
 )
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -41,6 +41,7 @@ def get_test_env(
     env.config.LOADTEST_ACCOUNTS = []
 
     env.cluster_config = ClusterConfig()
+    env.quark_chain_config.update(shard_size, 1, 1)
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
     assert env.cluster_config.use_mem_db()
@@ -161,6 +162,7 @@ def create_test_clusters(num_cluster, genesis_account, shard_size, num_slaves):
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
 
+        env.cluster_config.SLAVE_LIST = []
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)

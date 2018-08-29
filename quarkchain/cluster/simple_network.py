@@ -50,7 +50,7 @@ class Peer(P2PConnection):
 
     def send_hello(self):
         cmd = HelloCommand(
-            version=self.env.config.P2P_PROTOCOL_VERSION,
+            version=self.env.quark_chain_config.P2P_PROTOCOL_VERSION,
             network_id=self.env.config.NETWORK_ID,
             peer_id=self.network.self_id,
             peer_ip=int(self.network.ip),
@@ -78,7 +78,7 @@ class Peer(P2PConnection):
         if op != CommandOp.HELLO:
             return self.close_with_error("Hello must be the first command")
 
-        if cmd.version != self.env.config.P2P_PROTOCOL_VERSION:
+        if cmd.version != self.env.quark_chain_config.P2P_PROTOCOL_VERSION:
             return self.close_with_error("incompatible protocol version")
 
         if cmd.network_id != self.env.config.NETWORK_ID:

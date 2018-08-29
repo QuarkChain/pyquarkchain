@@ -71,7 +71,7 @@ from quarkchain.cluster.rpc import (
 )
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Branch, ShardMask, Transaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,

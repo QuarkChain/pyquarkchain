@@ -19,10 +19,6 @@ class NetworkId:
 
 class DefaultConfig:
     def __init__(self):
-        """"TODO: move all parameters derived from block intervals to shard config"""
-        self.P2P_PROTOCOL_VERSION = 0
-        self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
-
         self.SHARD_SIZE = 8
 
         # Difficulty related
@@ -244,25 +240,35 @@ class QuarkChainConfig(BaseConfig):
     ROOT = None
     SHARD_LIST = None
 
-    @classmethod
-    def create_default_config(cls, shard_size, root_block_time, minor_block_time):
-        config = QuarkChainConfig()
-        config.SHARD_SIZE = shard_size
+    def __init__(self):
+        self.ROOT = RootConfig()
+        self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+        self.ROOT.CONSENSUS_CONFIG = POWConfig()
+        self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
 
-        config.ROOT = RootConfig()
-        config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
-        config.ROOT.CONSENSUS_CONFIG = POWConfig()
-        config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
+        self.SHARD_LIST = []
+        for i in range(self.SHARD_SIZE):
+            s = ShardConfig()
+            s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+            s.CONSENSUS_CONFIG = POWConfig()
+            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
+            self.SHARD_LIST.append(s)
 
-        config.SHARD_LIST = []
-        for i in range(shard_size):
+    def update(self, shard_size, root_block_time, minor_block_time):
+        self.SHARD_SIZE = shard_size
+
+        self.ROOT = RootConfig()
+        self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+        self.ROOT.CONSENSUS_CONFIG = POWConfig()
+        self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
+
+        self.SHARD_LIST = []
+        for i in range(self.SHARD_SIZE):
             s = ShardConfig()
             s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
-            config.SHARD_LIST.append(s)
-
-        return config
+            self.SHARD_LIST.append(s)
 
     def to_dict(self):
         ret = super().to_dict()
@@ -281,51 +287,3 @@ class QuarkChainConfig(BaseConfig):
 def get_default_evm_config():
     return dict(quarkchain.evm.config.config_metropolis)
 
-
-class Env:
-    def __init__(self, db=None, config=None, evm_config=None, cluster_config=None):
-        self.db = db or quarkchain.db.InMemoryDb()
-        self.config = config or DefaultConfig()
-        self.evm_config = evm_config or get_default_evm_config()
-        self.evm_config["NETWORK_ID"] = self.config.NETWORK_ID
-        self.evm_env = quarkchain.evm.config.Env(db=self.db, config=self.evm_config)
-        self.cluster_config = cluster_config
-        self._quark_chain_config = None
-
-    def set_network_id(self, network_id):
-        self.config.NETWORK_ID = network_id
-        self.evm_config["NETWORK_ID"] = network_id
-
-    def _init_shard_config(self):
-        config = QuarkChainConfig()
-        config.ROOT = RootConfig()
-        config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
-        config.ROOT.CONSENSUS_CONFIG = POWConfig()
-        config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = self.config.ROOT_BLOCK_INTERVAL_SEC
-
-        config.SHARD_LIST = []
-        for i in range(self.config.SHARD_SIZE):
-            s = ShardConfig()
-            s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
-            s.CONSENSUS_CONFIG = POWConfig()
-            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = self.config.MINOR_BLOCK_INTERVAL_SEC
-            config.SHARD_LIST.append(s)
-
-        self._quark_chain_config = config
-
-    @property
-    def quark_chain_config(self):
-        if self._quark_chain_config is None:
-            self._init_shard_config()
-        return self._quark_chain_config
-
-    def copy(self):
-        return Env(
-            self.db,
-            self.config.copy(),
-            dict(self.evm_config),
-            copy.copy(self.cluster_config) if self.cluster_config else None,
-        )
-
-
-DEFAULT_ENV = Env()
