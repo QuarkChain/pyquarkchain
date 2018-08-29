@@ -677,8 +677,8 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            _, block = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertTrue(call_async(slaves[0].add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
@@ -711,4 +711,38 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertEqual(
                     response,
                     "0x0000000000000000000000000000000000000000000000000000000000000000",
+                )
+
+    def test_get_code(self):
+        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            tx = create_contract_with_storage_transaction(
+                shard_state=slaves[0].shard_state_map[branch.value],
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_id=acc1.full_shard_id,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            _, block = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertTrue(call_async(slaves[0].add_block(block)))
+
+            for using_eth_endpoint in (True, False):
+                if using_eth_endpoint:
+                    resp = send_request("eth_getCode", created_addr[:-8], "0x0")
+                else:
+                    resp = send_request("getCode", created_addr)
+
+                self.assertEqual(
+                    resp,
+                    "0x6080604052600080fd00a165627a7a72305820a6ef942c101f06333ac35072a8ff40332c71d0e11cd0e6d86de8cae7b42696550029",
                 )

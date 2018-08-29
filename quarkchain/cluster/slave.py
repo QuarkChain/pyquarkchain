@@ -39,6 +39,8 @@ from quarkchain.cluster.rpc import (
     ExecuteTransactionRequest,
     GetStorageRequest,
     GetStorageResponse,
+    GetCodeResponse,
+    GetCodeRequest,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -832,6 +834,11 @@ class MasterConnection(ClusterConnection):
         fail = res is None
         return GetStorageResponse(error_code=int(fail), result=res or b"")
 
+    async def handle_get_code(self, req: GetCodeRequest) -> GetCodeResponse:
+        res = self.slave_server.get_code(req.address)
+        fail = res is None
+        return GetCodeResponse(error_code=int(fail), result=res or b"")
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -919,6 +926,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_STORAGE_REQUEST: (
         ClusterOp.GET_STORAGE_RESPONSE,
         MasterConnection.handle_get_storage_at,
+    ),
+    ClusterOp.GET_CODE_REQUEST: (
+        ClusterOp.GET_CODE_RESPONSE,
+        MasterConnection.handle_get_code,
     ),
 }
 
@@ -1589,6 +1600,14 @@ class SlaveServer:
         if branch.value not in self.shard_state_map:
             return None
         return self.shard_state_map[branch.value].get_storage_at(address.recipient, key)
+
+    def get_code(self, address: Address) -> Optional[bytes]:
+        shard_size = self.__get_shard_size()
+        shard_id = address.get_shard_id(shard_size)
+        branch = Branch.create(shard_size, shard_id)
+        if branch.value not in self.shard_state_map:
+            return None
+        return self.shard_state_map[branch.value].get_code(address.recipient)
 
 
 def parse_args():
