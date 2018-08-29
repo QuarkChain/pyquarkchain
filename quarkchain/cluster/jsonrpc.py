@@ -750,6 +750,44 @@ class JSONRPCServer:
         return receipt_encoder(minor_block, i, receipt)
 
     @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getLogs(self, data, shard=None):
+        return await self._get_logs(data, shard=shard)
+
+    @public_methods.add
+    @decode_arg("address", address_decoder)
+    @decode_arg("start", data_decoder)
+    @decode_arg("limit", quantity_decoder)
+    async def getTransactionsByAddress(self, address, start="0x", limit="0xa"):
+        """ "start" should be the "next" in the response for fetching next page.
+            "start" can also be "0x" to fetch from the beginning (i.e., latest).
+            "start" can be "0x00" to fetch the pending outgoing transactions.
+        """
+        address = Address.create_from(address)
+        if limit > 20:
+            limit = 20
+        result = await self.master.get_transactions_by_address(address, start, limit)
+        if not result:
+            return None
+        tx_list, next = result
+        txs = []
+        for tx in tx_list:
+            txs.append(
+                {
+                    "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_id),
+                    "fromAddress": address_encoder(tx.from_address.serialize()),
+                    "toAddress": address_encoder(tx.to_address.serialize())
+                    if tx.to_address
+                    else "0x",
+                    "value": quantity_encoder(tx.value),
+                    "blockHeight": quantity_encoder(tx.block_height),
+                    "timestamp": quantity_encoder(tx.timestamp),
+                    "success": tx.success,
+                }
+            )
+        return {"txList": txs, "next": data_encoder(next)}
+
+    @public_methods.add
     async def getJrpcCalls(self):
         return self.counters
 
@@ -856,10 +894,6 @@ class JSONRPCServer:
     async def eth_getLogs(self, data, shard=None):
         return await self._get_logs(data, shard=shard)
 
-    @public_methods.add
-    @decode_arg("shard", shard_id_decoder)
-    async def getLogs(self, data, shard=None):
-        return await self._get_logs(data, shard=shard)
 
     ######################## Private Methods ########################
 
@@ -955,39 +989,6 @@ class JSONRPCServer:
     async def setMining(self, mining):
         """Turn on / off mining"""
         return await self.master.set_mining(mining)
-
-    @private_methods.add
-    @decode_arg("address", address_decoder)
-    @decode_arg("start", data_decoder)
-    @decode_arg("limit", quantity_decoder)
-    async def getTransactionsByAddress(self, address, start="0x", limit="0xa"):
-        """ "start" should be the "next" in the response for fetching next page.
-            "start" can also be "0x" to fetch from the beginning (i.e., latest).
-            "start" can be "0x00" to fetch the pending outgoing transactions.
-        """
-        address = Address.create_from(address)
-        if limit > 20:
-            limit = 20
-        result = await self.master.get_transactions_by_address(address, start, limit)
-        if not result:
-            return None
-        tx_list, next = result
-        txs = []
-        for tx in tx_list:
-            txs.append(
-                {
-                    "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_id),
-                    "fromAddress": address_encoder(tx.from_address.serialize()),
-                    "toAddress": address_encoder(tx.to_address.serialize())
-                    if tx.to_address
-                    else "0x",
-                    "value": quantity_encoder(tx.value),
-                    "blockHeight": quantity_encoder(tx.block_height),
-                    "timestamp": quantity_encoder(tx.timestamp),
-                    "success": tx.success,
-                }
-            )
-        return {"txList": txs, "next": data_encoder(next)}
 
     @private_methods.add
     async def getJrpcCalls(self):
