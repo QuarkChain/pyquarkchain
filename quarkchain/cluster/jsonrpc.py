@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import List
+from typing import List, Callable
 
 import aiohttp_cors
 import rlp
@@ -751,8 +751,8 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
-    async def getLogs(self, data, shard=None):
-        return await self._get_logs(data, shard=shard)
+    async def getLogs(self, data, shard):
+        return await self._get_logs(data, shard, decoder=address_decoder)
 
     @public_methods.add
     @decode_arg("address", address_decoder)
@@ -908,8 +908,10 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
-    async def eth_getLogs(self, data, shard=None):
-        return await self._get_logs(data, shard=shard)
+    async def eth_getLogs(self, data, shard):
+        return await self._get_logs(
+            data, shard, decoder=eth_address_to_quarkchain_address_decoder
+        )
 
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
@@ -1039,7 +1041,7 @@ class JSONRPCServer:
             data["from"] = "0x" + from_address.serialize().hex()
         return data
 
-    async def _get_logs(self, data, shard):
+    async def _get_logs(self, data, shard, decoder: Callable[[str], bytes]):
         start_block = data.get("fromBlock", "latest")
         end_block = data.get("toBlock", "latest")
         # TODO: not supported yet for "earliest" or "pending" block
@@ -1051,16 +1053,9 @@ class JSONRPCServer:
         addresses, topics = [], []
         if "address" in data:
             if isinstance(data["address"], str):
-                addresses = [
-                    Address.deserialize(
-                        eth_address_to_quarkchain_address_decoder(data["address"])
-                    )
-                ]
+                addresses = [Address.deserialize(decoder(data["address"]))]
             elif isinstance(data["address"], list):
-                addresses = [
-                    Address.deserialize(eth_address_to_quarkchain_address_decoder(a))
-                    for a in data["address"]
-                ]
+                addresses = [Address.deserialize(decoder(a)) for a in data["address"]]
         if shard is not None:
             addresses = [Address(a.recipient, shard) for a in addresses]
         if "topics" in data:
