@@ -664,14 +664,22 @@ class ShardState:
     def get_block_header_by_height(self, height):
         pass
 
-    def get_balance(self, recipient):
+    def get_balance(self, recipient: bytes):
+        # TODO: support specifying block
         return self.evm_state.get_balance(recipient)
 
-    def get_transaction_count(self, recipient):
+    def get_transaction_count(self, recipient: bytes):
+        # TODO: support specifying block
         return self.evm_state.get_nonce(recipient)
 
-    def get_code(self, recipient):
+    def get_code(self, recipient: bytes):
+        # TODO: support specifying block
         return self.evm_state.get_code(recipient)
+
+    def get_storage_at(self, recipient: bytes, key: int) -> bytes:
+        # TODO: support specifying block
+        int_result = self.evm_state.get_storage_data(recipient, key)  # type: int
+        return int_result.to_bytes(32, byteorder="big")
 
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:

@@ -668,6 +668,22 @@ class EstimateGasResponse(Serializable):
         self.result = result
 
 
+class GetStorageRequest(Serializable):
+    FIELDS = [("address", Address), ("key", uint256)]
+
+    def __init__(self, address: Address, key: int):
+        self.address = address
+        self.key = key
+
+
+class GetStorageResponse(Serializable):
+    FIELDS = [("error_code", uint32), ("result", FixedSizeBytesSerializer(32))]
+
+    def __init__(self, error_code: int, result: bytes):
+        self.error_code = error_code
+        self.result = result
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -721,6 +737,8 @@ class ClusterOp:
     GET_LOG_RESPONSE = 46 + CLUSTER_OP_BASE
     ESTIMATE_GAS_REQUEST = 47 + CLUSTER_OP_BASE
     ESTIMATE_GAS_RESPONSE = 48 + CLUSTER_OP_BASE
+    GET_STORAGE_REQUEST = 49 + CLUSTER_OP_BASE
+    GET_STORAGE_RESPONSE = 50 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -771,4 +789,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_LOG_RESPONSE: GetLogResponse,
     ClusterOp.ESTIMATE_GAS_REQUEST: EstimateGasRequest,
     ClusterOp.ESTIMATE_GAS_RESPONSE: EstimateGasResponse,
+    ClusterOp.GET_STORAGE_REQUEST: GetStorageRequest,
+    ClusterOp.GET_STORAGE_RESPONSE: GetStorageResponse,
 }

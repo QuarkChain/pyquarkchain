@@ -37,6 +37,8 @@ from quarkchain.cluster.rpc import (
     EstimateGasRequest,
     EstimateGasResponse,
     ExecuteTransactionRequest,
+    GetStorageRequest,
+    GetStorageResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -825,6 +827,11 @@ class MasterConnection(ClusterConnection):
         fail = res is None
         return EstimateGasResponse(error_code=int(fail), result=res or 0)
 
+    async def handle_get_storage_at(self, req: GetStorageRequest) -> GetStorageResponse:
+        res = self.slave_server.get_storage_at(req.address, req.key)
+        fail = res is None
+        return GetStorageResponse(error_code=int(fail), result=res or b"")
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -908,6 +915,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.ESTIMATE_GAS_REQUEST: (
         ClusterOp.ESTIMATE_GAS_RESPONSE,
         MasterConnection.handle_estimate_gas,
+    ),
+    ClusterOp.GET_STORAGE_REQUEST: (
+        ClusterOp.GET_STORAGE_RESPONSE,
+        MasterConnection.handle_get_storage_at,
     ),
 }
 
@@ -1570,6 +1581,14 @@ class SlaveServer:
         if not shard_state:
             return None
         return shard_state.estimate_gas(tx, from_address)
+
+    def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
+        shard_size = self.__get_shard_size()
+        shard_id = address.get_shard_id(shard_size)
+        branch = Branch.create(shard_size, shard_id)
+        if branch.value not in self.shard_state_map:
+            return None
+        return self.shard_state_map[branch.value].get_storage_at(address.recipient, key)
 
 
 def parse_args():

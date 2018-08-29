@@ -12,6 +12,7 @@ from quarkchain.cluster.tests.test_utils import (
     ClusterContext,
     create_contract_creation_transaction,
     create_contract_creation_with_event_transaction,
+    create_contract_with_storage_transaction,
 )
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.config import DEFAULT_ENV
@@ -20,7 +21,7 @@ from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import call_async
+from quarkchain.utils import call_async, sha3_256
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -655,3 +656,59 @@ class TestJSONRPC(unittest.TestCase):
                 "estimateGas", {"to": "0x" + acc1.serialize().hex()}
             )
             self.assertEqual(response, "0x5208")  # 21000
+
+    def test_get_storage_at(self):
+        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            tx = create_contract_with_storage_transaction(
+                shard_state=slaves[0].shard_state_map[branch.value],
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_id=acc1.full_shard_id,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertTrue(call_async(slaves[0].add_block(block1)))
+
+            for using_eth_endpoint in (True, False):
+                if using_eth_endpoint:
+                    req = lambda k: send_request(
+                        "eth_getStorageAt", created_addr[:-8], k, "0x0"
+                    )
+                else:
+                    req = lambda k: send_request("getStorageAt", created_addr, k)
+
+                # first storage
+                response = req("0x0")
+                # equals 1234
+                self.assertEqual(
+                    response,
+                    "0x00000000000000000000000000000000000000000000000000000000000004d2",
+                )
+
+                # mapping storage
+                k = sha3_256(
+                    bytes.fromhex(acc1.recipient.hex().zfill(64) + "1".zfill(64))
+                )
+                response = req("0x" + k.hex())
+                self.assertEqual(
+                    response,
+                    "0x000000000000000000000000000000000000000000000000000000000000162e",
+                )
+
+                # doesn't exist
+                response = req("0x3")
+                self.assertEqual(
+                    response,
+                    "0x0000000000000000000000000000000000000000000000000000000000000000",
+                )

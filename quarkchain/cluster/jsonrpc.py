@@ -894,6 +894,17 @@ class JSONRPCServer:
     async def eth_getLogs(self, data, shard=None):
         return await self._get_logs(data, shard=shard)
 
+    @public_methods.add
+    @decode_arg("address", eth_address_to_quarkchain_address_decoder)
+    @decode_arg("key", quantity_decoder)
+    # TODO: add block number
+    @decode_arg("shard", shard_id_decoder)
+    async def eth_getStorageAt(self, address, key, shard=None):
+        addr = Address.deserialize(address)
+        if shard is not None:
+            addr = Address(addr.recipient, shard)
+        res = await self.master.get_storage_at(addr, key)
+        return data_encoder(res) if res is not None else None
 
     ######################## Private Methods ########################
 
@@ -993,6 +1004,19 @@ class JSONRPCServer:
     @private_methods.add
     async def getJrpcCalls(self):
         return self.counters
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getLogs(self, data, shard=None):
+        return await self._get_logs(data, shard=shard)
+
+    @public_methods.add
+    @decode_arg("address", address_decoder)
+    @decode_arg("key", quantity_decoder)
+    # TODO: add block number
+    async def getStorageAt(self, address, key):
+        res = await self.master.get_storage_at(Address.deserialize(address), key)
+        return data_encoder(res) if res is not None else None
 
     @staticmethod
     def _convert_eth_call_data(data, shard):
