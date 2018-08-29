@@ -621,9 +621,9 @@ class TestJSONRPC(unittest.TestCase):
                     req = lambda o: send_request("getLogs", o, shard_id)
 
                 # no filter object as wild cards
-                # resp = req({})
-                # self.assertEqual(1, len(resp))
-                # self.assertDictContainsSubset(expected_log_parts, resp[0])
+                resp = req({})
+                self.assertEqual(1, len(resp))
+                self.assertDictContainsSubset(expected_log_parts, resp[0])
 
                 # filter by contract address
                 contract_addr = mk_contract_address(
