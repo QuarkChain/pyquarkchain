@@ -678,8 +678,8 @@ class ShardState:
 
     def get_storage_at(self, recipient: bytes, key: int) -> bytes:
         # TODO: support specifying block
-        key_int = self.evm_state.get_storage_data(recipient, key)  # type: int
-        return key_int.to_bytes(32, byteorder="big")
+        int_result = self.evm_state.get_storage_data(recipient, key)  # type: int
+        return int_result.to_bytes(32, byteorder="big")
 
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:
