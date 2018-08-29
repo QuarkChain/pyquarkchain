@@ -830,7 +830,7 @@ class MasterConnection(ClusterConnection):
     async def handle_get_storage_at(self, req: GetStorageRequest) -> GetStorageResponse:
         res = self.slave_server.get_storage_at(req.address, req.key)
         fail = res is None
-        return GetStorageResponse(error_code=int(fail), result=res or 0)
+        return GetStorageResponse(error_code=int(fail), result=res or b"")
 
 
 MASTER_OP_NONRPC_MAP = {
@@ -1582,7 +1582,7 @@ class SlaveServer:
             return None
         return shard_state.estimate_gas(tx, from_address)
 
-    def get_storage_at(self, address: Address, key: int) -> Optional[int]:
+    def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)

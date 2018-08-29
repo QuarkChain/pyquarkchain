@@ -677,9 +677,9 @@ class GetStorageRequest(Serializable):
 
 
 class GetStorageResponse(Serializable):
-    FIELDS = [("error_code", uint32), ("result", uint256)]
+    FIELDS = [("error_code", uint32), ("result", FixedSizeBytesSerializer(32))]
 
-    def __init__(self, error_code: int, result: int):
+    def __init__(self, error_code: int, result: bytes):
         self.error_code = error_code
         self.result = result
 

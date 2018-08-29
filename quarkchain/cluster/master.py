@@ -416,7 +416,7 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_storage_at(self, address: Address, key: int) -> Optional[int]:
+    async def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
         request = GetStorageRequest(address, key)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_STORAGE_REQUEST, request
@@ -1229,7 +1229,7 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.estimate_gas(tx, from_address)
 
-    async def get_storage_at(self, address: Address, key: int) -> Optional[int]:
+    async def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)

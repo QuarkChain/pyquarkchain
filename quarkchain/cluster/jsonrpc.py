@@ -52,12 +52,6 @@ def quantity_encoder(i):
     return hex(i)
 
 
-def padded_quantity_encoder(i):
-    """Encode integer quantity `data` with padding zeros. In sync with ethereum API."""
-    assert is_numeric(i)
-    return "{0:#0{1}x}".format(i, 66)  # "0x" + 64 char
-
-
 def data_decoder(hex_str):
     """Decode `hexStr` representing unformatted hex_str."""
     if not hex_str.startswith("0x"):
@@ -910,20 +904,7 @@ class JSONRPCServer:
         if shard is not None:
             addr = Address(addr.recipient, shard)
         res = await self.master.get_storage_at(addr, key)
-        return padded_quantity_encoder(res) if res is not None else None
-
-    @public_methods.add
-    @decode_arg("shard", shard_id_decoder)
-    async def getLogs(self, data, shard=None):
-        return await self._get_logs(data, shard=shard)
-
-    @public_methods.add
-    @decode_arg("address", address_decoder)
-    @decode_arg("key", quantity_decoder)
-    # TODO: add block number
-    async def getStorageAt(self, address, key):
-        res = await self.master.get_storage_at(Address.deserialize(address), key)
-        return padded_quantity_encoder(res) if res is not None else None
+        return data_encoder(res) if res is not None else None
 
     ######################## Private Methods ########################
 
@@ -1023,6 +1004,19 @@ class JSONRPCServer:
     @private_methods.add
     async def getJrpcCalls(self):
         return self.counters
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getLogs(self, data, shard=None):
+        return await self._get_logs(data, shard=shard)
+
+    @public_methods.add
+    @decode_arg("address", address_decoder)
+    @decode_arg("key", quantity_decoder)
+    # TODO: add block number
+    async def getStorageAt(self, address, key):
+        res = await self.master.get_storage_at(Address.deserialize(address), key)
+        return data_encoder(res) if res is not None else None
 
     @staticmethod
     def _convert_eth_call_data(data, shard):
