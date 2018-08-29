@@ -49,7 +49,6 @@ class ShardState:
         self.env = env
         self.shard_id = shard_id
         self.diff_calc = self.env.config.MINOR_DIFF_CALCULATOR
-        self.diff_hash_func = self.env.config.DIFF_HASH_FUNC
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
         self.branch = Branch.create(env.config.SHARD_SIZE, shard_id)

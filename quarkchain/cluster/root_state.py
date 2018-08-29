@@ -149,7 +149,6 @@ class RootState:
     def __init__(self, env):
         self.env = env
         self.diff_calc = self.env.config.ROOT_DIFF_CALCULATOR
-        self.diff_hash_func = self.env.config.DIFF_HASH_FUNC
         self.raw_db = env.db
         self.db = RootDb(self.raw_db, env.config.MAX_ROOT_BLOCK_IN_MEMORY)
 

@@ -1232,8 +1232,6 @@ def parse_args():
 
     set_logging_level(env.cluster_config.LOG_LEVEL)
 
-    env.cluster_config.CHAIN.update_env(env)
-
     # initialize database
     if not env.cluster_config.use_mem_db():
         env.db = PersistentDb(

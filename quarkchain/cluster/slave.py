@@ -1582,9 +1582,6 @@ def parse_args():
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
     env.slave_config = env.cluster_config.get_slave_config(args.node_id)
-
-    env.cluster_config.CHAIN.update_env(env)
-
     set_logging_level(env.cluster_config.LOG_LEVEL)
 
     return env, unknown_flags

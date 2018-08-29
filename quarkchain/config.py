@@ -24,7 +24,6 @@ class DefaultConfig:
         self.P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
 
         self.SHARD_SIZE = 8
-        self.SHARD_SIZE_BITS = int_left_most_bit(self.SHARD_SIZE) - 1
 
         # Difficulty related
         self.DIFF_MA_INTERVAL = 60
@@ -107,7 +106,6 @@ class DefaultConfig:
     def set_shard_size(self, shard_size):
         assert is_p2(shard_size)
         self.SHARD_SIZE = shard_size
-        self.SHARD_SIZE_BITS = int_left_most_bit(shard_size) - 1
 
     def copy(self):
         return copy.copy(self)
@@ -159,9 +157,37 @@ class ShardConfig(BaseConfig):
     CONSENSUS_TYPE = ConsensusType.NONE
     CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
 
+    def __init__(self):
+        self._root_config = None
+
+    @property
+    def root_config(self):
+        return self._root_config
+
+    @root_config.setter
+    def root_config(self, value):
+        self._root_config = value
+
+    @property
+    def max_blocks_per_shard_in_one_root_block(self):
+        return self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+
+    @property
+    def max_stale_minor_block_height_diff(self):
+        return int(
+            self.root_config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+            * self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+            / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+        )
+
+    @property
+    def max_minor_blocks_in_memory(self):
+        return self.max_stale_minor_block_height_diff * 2
+
+
     def to_dict(self):
         ret = super().to_dict()
-        ret["CONSENSUS_TYPE"] = self.CONSENSUS_TYPE.value
+        ret["CONSENSUS_TYPE"] = self.CONSENSUS_TYPE.name
         if self.CONSENSUS_TYPE == ConsensusType.NONE:
             del ret["CONSENSUS_CONFIG"]
         else:
@@ -171,19 +197,72 @@ class ShardConfig(BaseConfig):
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
-        config.CONSENSUS_TYPE = ConsensusType(config.CONSENSUS_TYPE)
+        config.CONSENSUS_TYPE = ConsensusType[config.CONSENSUS_TYPE]
         if config.CONSENSUS_TYPE in ConsensusType.pow_types():
             config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
         return config
 
 
 class RootConfig(ShardConfig):
-    pass
+    # To ignore super old blocks from peers
+    # This means the network will fork permanently after a long partition
+    MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
+
+    @property
+    def max_root_blocks_in_memory(self):
+        return self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * 2
 
 
 class QuarkChainConfig(BaseConfig):
+    SHARD_SIZE = 8
+
+    MAX_NEIGHBORS = 32
+
+    # Decimal level
+    QUARKSH_TO_JIAOZI = 10 ** 18
+
+    # Block reward
+    MINOR_BLOCK_DEFAULT_REWARD = 100 * QUARKSH_TO_JIAOZI
+
+    NETWORK_ID = NetworkId.TESTNET_PORSCHE
+    TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 10000
+    BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
+
+    # TODO: Genesis block should be imported from a file
+    GENESIS_ADDRESS = "0x199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
+    GENESIS_KEY = "0xc987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+
+    # P2P
+    P2P_PROTOCOL_VERSION = 0
+    P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
+
+    # Testing related
+    SKIP_ROOT_DIFFICULTY_CHECK = False
+    SKIP_MINOR_DIFFICULTY_CHECK = False
+    SKIP_MINOR_COINBASE_CHECK = False
+
     ROOT = None
     SHARD_LIST = None
+
+    @classmethod
+    def create_default_config(cls, shard_size, root_block_time, minor_block_time):
+        config = QuarkChainConfig()
+        config.SHARD_SIZE = shard_size
+
+        config.ROOT = RootConfig()
+        config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+        config.ROOT.CONSENSUS_CONFIG = POWConfig()
+        config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
+
+        config.SHARD_LIST = []
+        for i in range(shard_size):
+            s = ShardConfig()
+            s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+            s.CONSENSUS_CONFIG = POWConfig()
+            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
+            config.SHARD_LIST.append(s)
+
+        return config
 
     def to_dict(self):
         ret = super().to_dict()
