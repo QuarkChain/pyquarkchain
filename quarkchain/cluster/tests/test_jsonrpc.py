@@ -275,7 +275,7 @@ class TestJSONRPC(unittest.TestCase):
             block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
             self.assertEqual(block1.header.branch.value, 0b11)
 
-    def test_get_minor_block(self):
+    def test_getMinorBlock(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
@@ -612,40 +612,58 @@ class TestJSONRPC(unittest.TestCase):
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(slaves[0].add_block(block)))
 
-            # no filter object as wild cards
-            resp = send_request("eth_getLogs", {}, hex(acc1.full_shard_id))
-            self.assertEqual(1, len(resp))
-            self.assertDictContainsSubset(expected_log_parts, resp[0])
+            for using_eth_endpoint in (True, False):
+                shard_id = hex(acc1.full_shard_id)
+                if using_eth_endpoint:
+                    req = lambda o: send_request("eth_getLogs", o, shard_id)
+                else:
+                    # `None` needed to bypass some request modification
+                    req = lambda o: send_request("getLogs", o, shard_id)
 
-            # filter by contract address
-            contract_addr = mk_contract_address(acc1.recipient, acc1.full_shard_id, 0)
-            filter_obj = {"address": "0x" + contract_addr.hex()}
-            resp = send_request("eth_getLogs", filter_obj, hex(acc1.full_shard_id))
-            self.assertEqual(1, len(resp))
-
-            # filter by topics
-            filter_obj = {
-                "topics": [
-                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
-                ]
-            }
-            filter_obj_nested = {
-                "topics": [
-                    [
-                        "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
-                    ]
-                ]
-            }
-            for f in (filter_obj, filter_obj_nested):
-                resp = send_request("eth_getLogs", f, hex(acc1.full_shard_id))
+                # no filter object as wild cards
+                resp = req({})
                 self.assertEqual(1, len(resp))
                 self.assertDictContainsSubset(expected_log_parts, resp[0])
-                self.assertEqual(
-                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
-                    resp[0]["topics"][0],
-                )
 
-    def test_estimate_gas(self):
+                # filter by contract address
+                contract_addr = mk_contract_address(
+                    acc1.recipient, acc1.full_shard_id, 0
+                )
+                filter_obj = {
+                    "address": "0x"
+                    + contract_addr.hex()
+                    + (
+                        ""
+                        if using_eth_endpoint
+                        else hex(acc1.full_shard_id)[2:].zfill(8)
+                    )
+                }
+                resp = req(filter_obj)
+                self.assertEqual(1, len(resp))
+
+                # filter by topics
+                filter_obj = {
+                    "topics": [
+                        "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                    ]
+                }
+                filter_obj_nested = {
+                    "topics": [
+                        [
+                            "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                        ]
+                    ]
+                }
+                for f in (filter_obj, filter_obj_nested):
+                    resp = req(f)
+                    self.assertEqual(1, len(resp))
+                    self.assertDictContainsSubset(expected_log_parts, resp[0])
+                    self.assertEqual(
+                        "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
+                        resp[0]["topics"][0],
+                    )
+
+    def test_estimateGas(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
@@ -657,7 +675,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertEqual(response, "0x5208")  # 21000
 
-    def test_get_storage_at(self):
+    def test_getStorageAt(self):
         id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
@@ -713,7 +731,7 @@ class TestJSONRPC(unittest.TestCase):
                     "0x0000000000000000000000000000000000000000000000000000000000000000",
                 )
 
-    def test_get_code(self):
+    def test_getCode(self):
         id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
