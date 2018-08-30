@@ -102,8 +102,11 @@ class SyncTask:
         self.shard_conn = shard_conn
         self.shard_state = shard_conn.shard_state
         self.slave_server = shard_conn.slave_server
+
+        shard_id = self.header.branch.get_shard_id()
+        shard_config = self.shard_state.env.quark_chain_config.SHARD_LIST[shard_id]
         self.max_staleness = (
-            self.shard_state.env.config.MAX_STALE_MINOR_BLOCK_HEIGHT_DIFF
+            shard_config.max_stale_minor_block_height_diff
         )
 
     async def sync(self):
@@ -457,7 +460,7 @@ class MasterConnection(ClusterConnection):
         )
 
     def __get_shard_size(self):
-        return self.env.config.SHARD_SIZE
+        return self.env.quark_chain_config.SHARD_SIZE
 
     def close(self):
         for cluster_peer_id, conn_map in self.v_conn_map.items():
@@ -933,7 +936,7 @@ class SlaveConnection(Connection):
         asyncio.ensure_future(self.active_and_loop_forever())
 
     def __get_shard_size(self):
-        return self.slave_server.env.config.SHARD_SIZE
+        return self.slave_server.env.quark_chain_config.SHARD_SIZE
 
     def has_shard(self, shard_id):
         for shard_mask in self.shard_mask_list:
@@ -1151,7 +1154,7 @@ class SlaveServer:
             miner.disable()
 
     def __get_shard_size(self):
-        return self.env.config.SHARD_SIZE
+        return self.env.quark_chain_config.SHARD_SIZE
 
     def add_slave_connection(self, slave):
         self.slave_ids.add(slave.id)

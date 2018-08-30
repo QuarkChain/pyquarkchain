@@ -260,7 +260,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         # a huge number to make xshard tx limit become 0 so that no xshard tx can be
         # included in the block
-        env.config.MAX_BLOCKS_PER_SHARD_IN_ONE_ROOT_BLOCK = 10 ** 18
+        env.quark_chain_config.MAX_NEIGHBORS = 10 ** 18
         state = create_default_shard_state(env=env)
 
         # xshard tx
@@ -987,11 +987,11 @@ class TestShardState(unittest.TestCase):
     def test_shard_state_difficulty(self):
         env = get_test_env()
         env.config.GENESIS_MINOR_DIFFICULTY = 10000
-        env.config.SKIP_MINOR_DIFFICULTY_CHECK = False
+        env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
         )
-        env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
+        env.quark_chain_config.NETWORK_ID = 1  # other network ids will skip difficulty check
         state = create_default_shard_state(env=env, shard_id=0)
 
         # Check new difficulty

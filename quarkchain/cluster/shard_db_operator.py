@@ -190,7 +190,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         so that they can be retried in the future.
         """
         r_hash = r_header.get_hash()
-        while len(self.r_header_pool) < self.env.config.MAX_ROOT_BLOCK_IN_MEMORY:
+        while len(self.r_header_pool) < self.env.quark_chain_config.ROOT.max_root_blocks_in_memory:
             block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
             self.r_minor_header_pool[
                 r_hash
@@ -201,7 +201,8 @@ class ShardDbOperator(TransactionHistoryMixin):
             r_hash = block.header.hash_prev_block
 
         m_hash = m_header.get_hash()
-        while len(self.m_header_pool) < self.env.config.MAX_MINOR_BLOCK_IN_MEMORY:
+        shard_config = self.env.quark_chain_config.SHARD_LIST[self.branch.get_shard_id()]
+        while len(self.m_header_pool) < shard_config.max_minor_blocks_in_memory:
             block = MinorBlock.deserialize(self.db.get(b"mblock_" + m_hash))
             self.m_header_pool[m_hash] = block.header
             self.m_meta_pool[m_hash] = block.meta

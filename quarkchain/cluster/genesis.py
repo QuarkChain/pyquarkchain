@@ -32,7 +32,7 @@ from quarkchain.utils import sha3_256
 def create_genesis_minor_block(env, shard_id, evm_state):
     """ Create a genesis minor block that doesn't depend on any root block
     """
-    branch = Branch.create(env.config.SHARD_SIZE, shard_id)
+    branch = Branch.create(env.quark_chain_config.SHARD_SIZE, shard_id)
 
     meta = MinorBlockMeta(
         hash_merkle_root=bytes(32),
@@ -58,7 +58,7 @@ def create_genesis_root_block(env, minor_block_header_list=[]):
     header = RootBlockHeader(
         version=0,
         height=0,
-        shard_info=ShardInfo.create(env.config.SHARD_SIZE),
+        shard_info=ShardInfo.create(env.quark_chain_config.SHARD_SIZE),
         hash_prev_block=bytes(32),
         hash_merkle_root=calculate_merkle_root(minor_block_header_list),
         create_time=env.config.GENESIS_CREATE_TIME,
@@ -72,12 +72,12 @@ def create_genesis_evm_list(env, db_map=dict()):
     """ Create genesis evm state map.  Basically, it will load account balance from json file to pre-mine.
     """
     evm_list = []
-    for shard_id in range(env.config.SHARD_SIZE):
+    for shard_id in range(env.quark_chain_config.SHARD_SIZE):
         evm_state = EvmState(
             env=env.evm_env, db=db_map[shard_id] if shard_id in db_map else InMemoryDb()
         )
         evm_state.full_shard_id = (
-            env.config.GENESIS_ACCOUNT.full_shard_id & (~(env.config.SHARD_SIZE - 1))
+            env.config.GENESIS_ACCOUNT.full_shard_id & (~(env.quark_chain_config.SHARD_SIZE - 1))
             | shard_id
         )
         evm_state.delta_balance(
@@ -86,7 +86,7 @@ def create_genesis_evm_list(env, db_map=dict()):
 
         if env.config.ACCOUNTS_TO_FUND:
             for address in env.config.ACCOUNTS_TO_FUND:
-                if address.get_shard_id(env.config.SHARD_SIZE) == shard_id:
+                if address.get_shard_id(env.quark_chain_config.SHARD_SIZE) == shard_id:
                     evm_state.full_shard_id = address.full_shard_id
                     evm_state.delta_balance(
                         address.recipient, env.config.ACCOUNTS_TO_FUND_COIN
@@ -102,7 +102,7 @@ def create_genesis_blocks(env, evm_list):
     """
     # List of minor blocks with height 0
     genesis_minor_block_list0 = []
-    for shard_id in range(env.config.SHARD_SIZE):
+    for shard_id in range(env.quark_chain_config.SHARD_SIZE):
         genesis_minor_block_list0.append(
             create_genesis_minor_block(
                 env=env, shard_id=shard_id, evm_state=evm_list[shard_id]

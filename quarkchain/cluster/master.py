@@ -82,7 +82,7 @@ class SyncTask:
         self.peer = peer
         self.master_server = peer.master_server
         self.root_state = peer.root_state
-        self.max_staleness = self.root_state.env.config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+        self.max_staleness = self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
 
     async def sync(self):
         try:
@@ -508,7 +508,7 @@ class MasterServer:
 
     def __get_shard_size(self):
         # TODO: replace it with dynamic size
-        return self.env.config.SHARD_SIZE
+        return self.env.quark_chain_config.SHARD_SIZE
 
     def get_shard_size(self):
         return self.__get_shard_size()

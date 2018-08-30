@@ -37,39 +37,52 @@ class TestShardConfig(unittest.TestCase):
             config.SHARD_LIST.append(s)
 
         expected_json = """{
+    "SHARD_SIZE": 8,
+    "MAX_NEIGHBORS": 32,
+    "MINOR_BLOCK_DEFAULT_REWARD": 100000000000000000000,
+    "NETWORK_ID": 3,
+    "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
+    "BLOCK_EXTRA_DATA_SIZE_LIMIT": 1024,
+    "GENESIS_ADDRESS": "0x199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3",
+    "GENESIS_KEY": "0xc987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3",
+    "P2P_PROTOCOL_VERSION": 0,
+    "P2P_COMMAND_SIZE_LIMIT": 4294967295,
+    "SKIP_ROOT_DIFFICULTY_CHECK": false,
+    "SKIP_MINOR_DIFFICULTY_CHECK": false,
     "ROOT": {
-        "CONSENSUS_TYPE": 3,
+        "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 60,
+        "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
             "TARGET_BLOCK_TIME": 60
         }
     },
     "SHARD_LIST": [
         {
-            "CONSENSUS_TYPE": 2,
+            "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10
             }
         },
         {
-            "CONSENSUS_TYPE": 2,
+            "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10
             }
         },
         {
-            "CONSENSUS_TYPE": 1,
+            "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15
             }
         },
         {
-            "CONSENSUS_TYPE": 1,
+            "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15
             }
         },
         {
-            "CONSENSUS_TYPE": 0
+            "CONSENSUS_TYPE": "NONE"
         }
     ]
 }"""
