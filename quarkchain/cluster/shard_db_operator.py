@@ -190,7 +190,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         so that they can be retried in the future.
         """
         r_hash = r_header.get_hash()
-        while len(self.r_header_pool) < self.env.quark_chain_config.ROOT.max_root_blocks_in_memory:
+        while (
+            len(self.r_header_pool)
+            < self.env.quark_chain_config.ROOT.max_root_blocks_in_memory
+        ):
             block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
             self.r_minor_header_pool[
                 r_hash
@@ -201,7 +204,9 @@ class ShardDbOperator(TransactionHistoryMixin):
             r_hash = block.header.hash_prev_block
 
         m_hash = m_header.get_hash()
-        shard_config = self.env.quark_chain_config.SHARD_LIST[self.branch.get_shard_id()]
+        shard_config = self.env.quark_chain_config.SHARD_LIST[
+            self.branch.get_shard_id()
+        ]
         while len(self.m_header_pool) < shard_config.max_minor_blocks_in_memory:
             block = MinorBlock.deserialize(self.db.get(b"mblock_" + m_hash))
             self.m_header_pool[m_hash] = block.header
@@ -293,7 +298,9 @@ class ShardDbOperator(TransactionHistoryMixin):
     def get_minor_block_meta_by_hash(self, h):
         return self.m_meta_pool.get(h, None)
 
-    def get_minor_block_by_hash(self, h, consistency_check=True):
+    def get_minor_block_by_hash(
+        self, h, consistency_check=True
+    ) -> Optional[MinorBlock]:
         if consistency_check and h not in self.m_header_pool:
             return None
         return MinorBlock.deserialize(self.db.get(b"mblock_" + h))
@@ -307,7 +314,7 @@ class ShardDbOperator(TransactionHistoryMixin):
     def remove_minor_block_index(self, block):
         self.db.remove(b"mi_%d" % block.header.height)
 
-    def get_minor_block_by_height(self, height):
+    def get_minor_block_by_height(self, height) -> Optional[MinorBlock]:
         key = b"mi_%d" % height
         if key not in self.db:
             return None
