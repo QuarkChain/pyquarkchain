@@ -703,7 +703,12 @@ class MinorBlock(Serializable):
         ("tx_list", PrependedSizeListSerializer(4, Transaction)),
     ]
 
-    def __init__(self, header: MinorBlockHeader, meta: MinorBlockMeta, tx_list=None):
+    def __init__(
+        self,
+        header: MinorBlockHeader,
+        meta: MinorBlockMeta,
+        tx_list: List[Transaction] = None,
+    ):
         self.header = header
         self.meta = meta
         self.tx_list = [] if tx_list is None else tx_list
@@ -766,6 +771,9 @@ class MinorBlock(Serializable):
             receipt.bloom,
             logs,
         )
+
+    def get_block_prices(self) -> List[int]:
+        return [tx.code.get_evm_transaction().gasprice for tx in self.tx_list]
 
     def create_block_to_append(
         self,

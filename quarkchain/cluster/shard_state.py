@@ -36,6 +36,16 @@ from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 
 
+class GasPriceSuggestionOracle:
+    def __init__(
+        self, last_price: int, last_head: bytes, check_blocks: int, percentile: int
+    ):
+        self.last_price = last_price
+        self.last_head = last_head
+        self.check_blocks = check_blocks
+        self.percentile = percentile
+
+
 class ShardState:
     """  State of a shard, which includes
     - evm state
@@ -56,6 +66,10 @@ class ShardState:
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
+        # TODO: make the oracle configurable
+        self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
+            last_price=0, last_head=b"", check_blocks=5, percentile=50
+        )
 
         # assure ShardState is in good shape after constructor returns though we still
         # rely on master calling init_from_root_block to bring the cluster into consistency
@@ -230,7 +244,10 @@ class ShardState:
         return evm_tx
 
     def add_tx(self, tx: Transaction):
-        if len(self.tx_queue) > self.env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD:
+        if (
+            len(self.tx_queue)
+            > self.env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
+        ):
             # exceeding tx queue size limit
             return False
 
@@ -341,7 +358,10 @@ class ShardState:
         if block.header.hash_meta != block.meta.get_hash():
             raise ValueError("Hash of meta mismatch")
 
-        if len(block.meta.extra_data) > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT:
+        if (
+            len(block.meta.extra_data)
+            > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
+        ):
             raise ValueError("extra_data in block is too large")
 
         # Make sure merkle tree is valid
@@ -771,7 +791,9 @@ class ShardState:
         """ Fill up the block tx list with tx from the tx queue"""
         poped_txs = []
         xshard_tx_counters = defaultdict(int)
-        shard_config = self.env.quark_chain_config.SHARD_LIST[self.branch.get_shard_id()]
+        shard_config = self.env.quark_chain_config.SHARD_LIST[
+            self.branch.get_shard_id()
+        ]
         max_xshard_tx_per_shard = int(
             block.meta.evm_gas_limit
             / opcodes.GTXXSHARDCOST
@@ -1235,3 +1257,28 @@ class ShardState:
             # try on highest gas but failed
             return None
         return hi
+
+    def gas_price(self) -> Optional[int]:
+        curr_head = self.header_tip.get_hash()
+        if curr_head == self.gas_price_suggestion_oracle.last_head:
+            return self.gas_price_suggestion_oracle.last_price
+        curr_height = self.header_tip.height
+        start_height = curr_height - self.gas_price_suggestion_oracle.check_blocks + 1
+        if start_height < 3:
+            start_height = 3
+        prices = []
+        for i in range(start_height, curr_height + 1):
+            b = self.db.get_minor_block_by_height(i)
+            if not b:
+                Logger.error("Failed to get block {} to retrieve gas price".format(i))
+                continue
+            prices.extend(b.get_block_prices())
+        if not prices:
+            return None
+        prices.sort()
+        price = prices[
+            (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
+        ]
+        self.gas_price_suggestion_oracle.last_price = price
+        self.gas_price_suggestion_oracle.last_head = curr_head
+        return price

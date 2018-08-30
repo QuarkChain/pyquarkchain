@@ -1,3 +1,4 @@
+import random
 import unittest
 
 from quarkchain.cluster.shard_state import ShardState
@@ -22,6 +23,37 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env)
         self.assertEqual(state.root_tip.height, 1)
         self.assertEqual(state.header_tip.height, 1)
+
+    def test_gas_price(self):
+        id_list = [Identity.create_random_identity() for _ in range(5)]
+        acc_list = [Address.create_from_identity(i, full_shard_id=0) for i in id_list]
+        env = get_test_env(genesis_account=acc_list[0], genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        # 5 tx per block, make 3 blocks
+        for _ in range(3):
+            for j in range(5):
+                state.add_tx(
+                    create_transfer_transaction(
+                        shard_state=state,
+                        key=id_list[j].get_key(),
+                        from_address=acc_list[j],
+                        to_address=random.choice(acc_list),
+                        value=0,
+                        gas_price=42 if j == 0 else 0,
+                    )
+                )
+            b = state.create_block_to_mine(address=acc_list[1])
+            state.finalize_and_add_block(b)
+
+        # for testing purposes, update percentile to take max gas price
+        state.gas_price_suggestion_oracle.percentile = 100
+        gas_price = state.gas_price()
+        self.assertEqual(gas_price, 42)
+        # results should be cached (same header). updating oracle shouldn't take effect
+        state.gas_price_suggestion_oracle.percentile = 50
+        gas_price = state.gas_price()
+        self.assertEqual(gas_price, 42)
 
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
@@ -991,7 +1023,9 @@ class TestShardState(unittest.TestCase):
         env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
         )
-        env.quark_chain_config.NETWORK_ID = 1  # other network ids will skip difficulty check
+        env.quark_chain_config.NETWORK_ID = (
+            1
+        )  # other network ids will skip difficulty check
         state = create_default_shard_state(env=env, shard_id=0)
 
         # Check new difficulty
