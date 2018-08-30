@@ -51,6 +51,7 @@ from quarkchain.cluster.rpc import (
     ShardStats,
     EstimateGasRequest,
     GetStorageRequest,
+    GetCodeRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -421,6 +422,11 @@ class SlaveConnection(ClusterConnection):
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_STORAGE_REQUEST, request
         )
+        return resp.result if resp.error_code == 0 else None
+
+    async def get_code(self, address: Address) -> Optional[bytes]:
+        request = GetCodeRequest(address)
+        _, resp, _ = await self.write_rpc_request(ClusterOp.GET_CODE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
     # RPC handlers
@@ -1238,6 +1244,16 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_storage_at(address, key)
+
+    async def get_code(self, address: Address) -> Optional[bytes]:
+        shard_size = self.__get_shard_size()
+        shard_id = address.get_shard_id(shard_size)
+        branch = Branch.create(shard_size, shard_id)
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_code(address)
 
 
 def parse_args():
