@@ -47,11 +47,11 @@ class TestShardState(unittest.TestCase):
             state.finalize_and_add_block(b)
 
         # for testing purposes, update percentile to take max gas price
-        state.gas_price_oracle.percentile = 100
+        state.gas_price_suggestion_oracle.percentile = 100
         gas_price = state.gas_price()
         self.assertEqual(gas_price, 42)
         # results should be cached (same header). updating oracle shouldn't take effect
-        state.gas_price_oracle.percentile = 50
+        state.gas_price_suggestion_oracle.percentile = 50
         gas_price = state.gas_price()
         self.assertEqual(gas_price, 42)
 

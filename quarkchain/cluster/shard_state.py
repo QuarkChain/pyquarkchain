@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from collections import defaultdict
-from typing import Optional, Tuple, List, Union, NamedTuple
+from typing import Optional, Tuple, List, Union
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
@@ -36,7 +36,7 @@ from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 
 
-class GasPriceOracle:
+class GasPriceSuggestionOracle:
     def __init__(
         self, last_price: int, last_head: bytes, check_blocks: int, percentile: int
     ):
@@ -67,7 +67,7 @@ class ShardState:
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
         # TODO: make the oracle configurable
-        self.gas_price_oracle = GasPriceOracle(
+        self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             last_price=0, last_head=b"", check_blocks=5, percentile=50
         )
 
@@ -1259,11 +1259,11 @@ class ShardState:
         return hi
 
     def gas_price(self) -> Optional[int]:
-        curr_header = self.header_tip.get_hash()
-        if curr_header == self.gas_price_oracle.last_head:
-            return self.gas_price_oracle.last_price
+        curr_head = self.header_tip.get_hash()
+        if curr_head == self.gas_price_suggestion_oracle.last_head:
+            return self.gas_price_suggestion_oracle.last_price
         curr_height = self.header_tip.height
-        start_height = curr_height - self.gas_price_oracle.check_blocks + 1
+        start_height = curr_height - self.gas_price_suggestion_oracle.check_blocks + 1
         if start_height < 3:
             start_height = 3
         prices = []
@@ -1276,7 +1276,9 @@ class ShardState:
         if not prices:
             return None
         prices.sort()
-        price = prices[(len(prices) - 1) * self.gas_price_oracle.percentile // 100]
-        self.gas_price_oracle.last_price = price
-        self.gas_price_oracle.last_head = curr_header
+        price = prices[
+            (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
+        ]
+        self.gas_price_suggestion_oracle.last_price = price
+        self.gas_price_suggestion_oracle.last_head = curr_head
         return price
