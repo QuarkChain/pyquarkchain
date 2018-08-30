@@ -15,7 +15,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_with_storage_transaction,
 )
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.evm import opcodes
@@ -106,7 +106,7 @@ class TestJSONRPC(unittest.TestCase):
                 data=b"",
                 from_full_shard_id=acc1.full_shard_id,
                 to_full_shard_id=acc2.full_shard_id,
-                network_id=slaves[0].env.config.NETWORK_ID,
+                network_id=slaves[0].env.quark_chain_config.NETWORK_ID,
             )
             evm_tx.sign(id1.get_key())
             request = dict(
@@ -120,7 +120,7 @@ class TestJSONRPC(unittest.TestCase):
                 nonce="0x0",
                 fromFullShardId="0x00000000",
                 toFullShardId="0x00000001",
-                network_id=hex(slaves[0].env.config.NETWORK_ID),
+                network_id=hex(slaves[0].env.quark_chain_config.NETWORK_ID),
             )
             tx = Transaction(code=Code.create_evm_code(evm_tx))
             response = send_request("sendTransaction", request)

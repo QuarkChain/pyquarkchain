@@ -7,7 +7,8 @@ import numpy
 from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
 
-from quarkchain.config import DEFAULT_ENV, NetworkId, ConsensusType
+from quarkchain.env import DEFAULT_ENV
+from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.utils import check
 from quarkchain.utils import time_ms

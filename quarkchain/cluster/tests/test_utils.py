@@ -10,7 +10,7 @@ from quarkchain.cluster.cluster_config import (
     SlaveConfig,
     SimpleNetworkConfig,
 )
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -25,12 +25,7 @@ def get_test_env(
     shard_size=2,
 ):
     env = DEFAULT_ENV.copy()
-    env.config.set_shard_size(shard_size)
-    env.config.SKIP_MINOR_DIFFICULTY_CHECK = True
-    env.config.SKIP_ROOT_DIFFICULTY_CHECK = True
-    env.config.SKIP_MINOR_COINBASE_CHECK = False
     env.config.GENESIS_ACCOUNT = genesis_account
-    env.config.GENESIS_COIN = genesis_quarkash
     env.config.GENESIS_MINOR_COIN = genesis_minor_quarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesis_account
 
@@ -41,6 +36,9 @@ def get_test_env(
     env.config.LOADTEST_ACCOUNTS = []
 
     env.cluster_config = ClusterConfig()
+    env.quark_chain_config.update(shard_size, 1, 1)
+    env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
+    env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
     assert env.cluster_config.use_mem_db()
@@ -72,7 +70,7 @@ def create_transfer_transaction(
         data=data,
         from_full_shard_id=from_address.full_shard_id,
         to_full_shard_id=to_address.full_shard_id,
-        network_id=shard_state.env.config.NETWORK_ID,
+        network_id=shard_state.env.quark_chain_config.NETWORK_ID,
     )
     evm_tx.sign(key=key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
@@ -114,7 +112,7 @@ def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode)
         data=bytes.fromhex(bytecode),
         from_full_shard_id=from_address.full_shard_id,
         to_full_shard_id=to_full_shard_id,
-        network_id=shard_state.env.config.NETWORK_ID,
+        network_id=shard_state.env.quark_chain_config.NETWORK_ID,
     )
     evm_tx.sign(key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
@@ -156,7 +154,7 @@ class Cluster:
         self.peer = peer
 
     def get_shard_state(self, shard_id):
-        branch_value = self.master.env.config.SHARD_SIZE | shard_id
+        branch_value = self.master.env.quark_chain_config.SHARD_SIZE | shard_id
         for slave in self.slave_list:
             if branch_value in slave.shard_state_map:
                 return slave.shard_state_map[branch_value]
@@ -190,6 +188,7 @@ def create_test_clusters(num_cluster, genesis_account, shard_size, num_slaves):
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
 
+        env.cluster_config.SLAVE_LIST = []
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)

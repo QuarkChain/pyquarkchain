@@ -13,7 +13,7 @@ def create_default_state(env):
     rState = RootState(env=env)
     sStateList = [
         ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
-        for shard_id in range(env.config.SHARD_SIZE)
+        for shard_id in range(env.quark_chain_config.SHARD_SIZE)
     ]
     return (rState, sStateList)
 
@@ -209,11 +209,11 @@ class TestRootState(unittest.TestCase):
     def test_root_state_difficulty(self):
         env = get_test_env()
         env.config.GENESIS_DIFFICULTY = 1000
-        env.config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
         )
-        env.config.NETWORK_ID = 1  # other network ids will skip difficulty check
+        env.quark_chain_config.NETWORK_ID = 1  # other network ids will skip difficulty check
 
         rState, sStates = create_default_state(env)
         b0 = sStates[0].get_tip().create_block_to_append()

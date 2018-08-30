@@ -5,7 +5,7 @@ import socket
 import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import DEFAULT_ENV, BaseConfig
+from quarkchain.config import QuarkChainConfig, BaseConfig
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
 from quarkchain.cluster.monitoring import KafkaSampleLogger
@@ -50,19 +50,6 @@ class P2PConfig(BaseConfig):
     ADDITIONAL_BOOTSTRAPS = ""
 
 
-class ChainConfig(BaseConfig):
-    SHARD_SIZE = DEFAULT_ENV.config.SHARD_SIZE
-    ROOT_BLOCK_INTERVAL_SEC = DEFAULT_ENV.config.ROOT_BLOCK_INTERVAL_SEC
-    MINOR_BLOCK_INTERVAL_SEC = DEFAULT_ENV.config.MINOR_BLOCK_INTERVAL_SEC
-    NETWORK_ID = DEFAULT_ENV.config.NETWORK_ID
-
-    def update_env(self, env):
-        env.config.set_shard_size(self.SHARD_SIZE)
-        names = ["ROOT_BLOCK_INTERVAL_SEC", "MINOR_BLOCK_INTERVAL_SEC", "NETWORK_ID"]
-        for name in names:
-            setattr(env.config, name, getattr(self, name))
-
-
 class MonitoringConfig(BaseConfig):
     """None of the configs here is available in commandline, so just set the json file to change defaults
     """
@@ -86,7 +73,7 @@ class ClusterConfig(BaseConfig):
     MINE = False
     CLEAN = False
 
-    CHAIN = None
+    QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
     SIMPLE_NETWORK = None
@@ -95,12 +82,23 @@ class ClusterConfig(BaseConfig):
     MONITORING = None
 
     def __init__(self):
-        self.CHAIN = ChainConfig()
+        self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []
+        self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
+
+        slave_config = SlaveConfig()
+        slave_config.PORT = 38000
+        slave_config.ID = "S0"
+        slave_config.SHARD_MASK_LIST = [ShardMask(1)]
+        self.SLAVE_LIST.append(slave_config)
+
+        fd, self.json_filepath = tempfile.mkstemp()
+        with os.fdopen(fd, "w") as tmp:
+            tmp.write(self.to_json())
 
     def get_slave_info_list(self):
         results = []
@@ -140,18 +138,14 @@ class ClusterConfig(BaseConfig):
             "--mine", action="store_true", default=ClusterConfig.MINE, dest="mine"
         )
 
-        parser.add_argument("--num_shards", default=ChainConfig.SHARD_SIZE, type=int)
         parser.add_argument(
-            "--root_block_interval_sec",
-            default=ChainConfig.ROOT_BLOCK_INTERVAL_SEC,
-            type=int,
+            "--num_shards", default=QuarkChainConfig.SHARD_SIZE, type=int
         )
+        parser.add_argument("--root_block_interval_sec", default=10, type=int)
+        parser.add_argument("--minor_block_interval_sec", default=3, type=int)
         parser.add_argument(
-            "--minor_block_interval_sec",
-            default=ChainConfig.MINOR_BLOCK_INTERVAL_SEC,
-            type=int,
+            "--network_id", default=QuarkChainConfig.NETWORK_ID, type=int
         )
-        parser.add_argument("--network_id", default=ChainConfig.NETWORK_ID, type=int)
 
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
@@ -227,14 +221,15 @@ class ClusterConfig(BaseConfig):
         config.MINE = args.mine
         config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
-        config.CHAIN.SHARD_SIZE = args.num_shards
-        config.CHAIN.ROOT_BLOCK_INTERVAL_SEC = args.root_block_interval_sec
-        config.CHAIN.MINOR_BLOCK_INTERVAL_SEC = args.minor_block_interval_sec
-        config.CHAIN.NETWORK_ID = args.network_id
+        config.QUARKCHAIN.update(
+            args.num_shards, args.root_block_interval_sec, args.minor_block_interval_sec
+        )
+        config.QUARKCHAIN.NETWORK_ID = args.network_id
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
         if args.devp2p_enable:
+            config.SIMPLE_NETWORK = None
             config.P2P = P2PConfig()
             config.P2P.IP = args.devp2p_ip
             config.P2P.DISCOVERY_PORT = args.devp2p_port
@@ -244,10 +239,12 @@ class ClusterConfig(BaseConfig):
             config.P2P.MAX_PEERS = args.devp2p_max_peers
             config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
         else:
+            config.P2P = None
             config.SIMPLE_NETWORK = SimpleNetworkConfig()
             config.SIMPLE_NETWORK.BOOTSTRAP_HOST = args.simple_network_bootstrap_host
             config.SIMPLE_NETWORK.BOOTSTRAP_PORT = args.simple_network_bootstrap_port
 
+        config.SLAVE_LIST = []
         for i in range(args.num_slaves):
             slave_config = SlaveConfig()
             slave_config.PORT = args.port_start + i
@@ -264,7 +261,7 @@ class ClusterConfig(BaseConfig):
 
     def to_dict(self):
         ret = super().to_dict()
-        ret["CHAIN"] = self.CHAIN.to_dict()
+        ret["QUARKCHAIN"] = self.QUARKCHAIN.to_dict()
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
@@ -279,7 +276,7 @@ class ClusterConfig(BaseConfig):
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
-        config.CHAIN = ChainConfig.from_dict(config.CHAIN)
+        config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]

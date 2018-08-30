@@ -468,7 +468,7 @@ class JSONRPCServer:
     @public_methods.add
     async def networkInfo(self):
         return {
-            "networkId": quantity_encoder(self.master.env.config.NETWORK_ID),
+            "networkId": quantity_encoder(self.master.env.quark_chain_config.NETWORK_ID),
             "shardSize": quantity_encoder(self.master.get_shard_size()),
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
@@ -581,7 +581,7 @@ class JSONRPCServer:
             data_,
             from_full_shard_id=from_full_shard_id,
             to_full_shard_id=to_full_shard_id,
-            network_id=self.master.env.config.NETWORK_ID,
+            network_id=self.master.env.quark_chain_config.NETWORK_ID,
         )
 
         return {
@@ -621,7 +621,7 @@ class JSONRPCServer:
             "fromFullShardId", full_shard_id_decoder, None
         )
         network_id = get_data_default(
-            "networkId", quantity_decoder, self.master.env.config.NETWORK_ID
+            "networkId", quantity_decoder, self.master.env.quark_chain_config.NETWORK_ID
         )
 
         if nonce is None:
@@ -810,7 +810,7 @@ class JSONRPCServer:
 
     @public_methods.add
     async def net_version(self):
-        return quantity_encoder(self.master.env.config.NETWORK_ID)
+        return quantity_encoder(self.master.env.quark_chain_config.NETWORK_ID)
 
     @public_methods.add
     @encode_res(quantity_encoder)
@@ -1095,7 +1095,7 @@ class JSONRPCServer:
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         sender_address = Address.create_from(sender)
 
-        network_id = self.master.env.config.NETWORK_ID
+        network_id = self.master.env.quark_chain_config.NETWORK_ID
 
         nonce = 0  # slave will fill in the real nonce
         evm_tx = EvmTransaction(

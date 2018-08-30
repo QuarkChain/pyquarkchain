@@ -49,10 +49,9 @@ class ShardState:
         self.env = env
         self.shard_id = shard_id
         self.diff_calc = self.env.config.MINOR_DIFF_CALCULATOR
-        self.diff_hash_func = self.env.config.DIFF_HASH_FUNC
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
-        self.branch = Branch.create(env.config.SHARD_SIZE, shard_id)
+        self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, shard_id)
         self.db = ShardDbOperator(self.raw_db, self.env, self.branch)
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
@@ -202,10 +201,10 @@ class ShardState:
 
         evm_tx.set_shard_size(self.branch.get_shard_size())
 
-        if evm_tx.network_id != self.env.config.NETWORK_ID:
+        if evm_tx.network_id != self.env.quark_chain_config.NETWORK_ID:
             raise RuntimeError(
                 "evm tx network id mismatch. expect {} but got {}".format(
-                    self.env.config.NETWORK_ID, evm_tx.network_id
+                    self.env.quark_chain_config.NETWORK_ID, evm_tx.network_id
                 )
             )
 
@@ -231,7 +230,7 @@ class ShardState:
         return evm_tx
 
     def add_tx(self, tx: Transaction):
-        if len(self.tx_queue) > self.env.config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD:
+        if len(self.tx_queue) > self.env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD:
             # exceeding tx queue size limit
             return False
 
@@ -342,7 +341,7 @@ class ShardState:
         if block.header.hash_meta != block.meta.get_hash():
             raise ValueError("Hash of meta mismatch")
 
-        if len(block.meta.extra_data) > self.env.config.BLOCK_EXTRA_DATA_SIZE_LIMIT:
+        if len(block.meta.extra_data) > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT:
             raise ValueError("extra_data in block is too large")
 
         # Make sure merkle tree is valid
@@ -355,8 +354,8 @@ class ShardState:
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
-        if not self.env.config.SKIP_MINOR_DIFFICULTY_CHECK:
-            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
+        if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
+            if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.diff_calc.calculate_diff_with_parent(
                     prev_header, block.header.create_time
                 )
@@ -756,7 +755,7 @@ class ShardState:
                 data=b"",
                 from_full_shard_id=from_full_shard_id,
                 to_full_shard_id=to_full_shard_id,
-                network_id=self.env.config.NETWORK_ID,
+                network_id=self.env.quark_chain_config.NETWORK_ID,
             )
             evm_tx.sign(key=self.env.config.GENESIS_KEY)
             evm_tx.set_shard_size(self.branch.get_shard_size())
@@ -772,11 +771,12 @@ class ShardState:
         """ Fill up the block tx list with tx from the tx queue"""
         poped_txs = []
         xshard_tx_counters = defaultdict(int)
+        shard_config = self.env.quark_chain_config.SHARD_LIST[self.branch.get_shard_id()]
         max_xshard_tx_per_shard = int(
             block.meta.evm_gas_limit
             / opcodes.GTXXSHARDCOST
-            / self.env.config.MAX_NEIGHBORS
-            / self.env.config.MAX_BLOCKS_PER_SHARD_IN_ONE_ROOT_BLOCK
+            / self.env.quark_chain_config.MAX_NEIGHBORS
+            / shard_config.max_blocks_per_shard_in_one_root_block
         )
         while evm_state.gas_used < evm_state.gas_limit:
             evm_tx = self.tx_queue.pop_transaction(

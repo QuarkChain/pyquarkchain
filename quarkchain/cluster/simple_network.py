@@ -50,8 +50,8 @@ class Peer(P2PConnection):
 
     def send_hello(self):
         cmd = HelloCommand(
-            version=self.env.config.P2P_PROTOCOL_VERSION,
-            network_id=self.env.config.NETWORK_ID,
+            version=self.env.quark_chain_config.P2P_PROTOCOL_VERSION,
+            network_id=self.env.quark_chain_config.NETWORK_ID,
             peer_id=self.network.self_id,
             peer_ip=int(self.network.ip),
             peer_port=self.network.port,
@@ -78,10 +78,10 @@ class Peer(P2PConnection):
         if op != CommandOp.HELLO:
             return self.close_with_error("Hello must be the first command")
 
-        if cmd.version != self.env.config.P2P_PROTOCOL_VERSION:
+        if cmd.version != self.env.quark_chain_config.P2P_PROTOCOL_VERSION:
             return self.close_with_error("incompatible protocol version")
 
-        if cmd.network_id != self.env.config.NETWORK_ID:
+        if cmd.network_id != self.env.quark_chain_config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peer_id
@@ -97,7 +97,7 @@ class Peer(P2PConnection):
         # TODO: validate hash and difficulty through a helper function
         if (
             cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.config.SHARD_SIZE
+            != self.env.quark_chain_config.SHARD_SIZE
         ):
             return self.close_with_error(
                 "Shard size from root block header does not match local"

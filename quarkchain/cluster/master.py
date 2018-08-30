@@ -63,7 +63,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
-from quarkchain.config import DEFAULT_ENV
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Branch, ShardMask, Log, Address
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
@@ -84,7 +84,7 @@ class SyncTask:
         self.peer = peer
         self.master_server = peer.master_server
         self.root_state = peer.root_state
-        self.max_staleness = self.root_state.env.config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+        self.max_staleness = self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
 
     async def sync(self):
         try:
@@ -522,7 +522,7 @@ class MasterServer:
 
     def __get_shard_size(self):
         # TODO: replace it with dynamic size
-        return self.env.config.SHARD_SIZE
+        return self.env.quark_chain_config.SHARD_SIZE
 
     def get_shard_size(self):
         return self.__get_shard_size()
@@ -1265,8 +1265,6 @@ def parse_args():
     env.cluster_config = ClusterConfig.create_from_args(args)
 
     set_logging_level(env.cluster_config.LOG_LEVEL)
-
-    env.cluster_config.CHAIN.update_env(env)
 
     # initialize database
     if not env.cluster_config.use_mem_db():

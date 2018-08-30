@@ -149,9 +149,8 @@ class RootState:
     def __init__(self, env):
         self.env = env
         self.diff_calc = self.env.config.ROOT_DIFF_CALCULATOR
-        self.diff_hash_func = self.env.config.DIFF_HASH_FUNC
         self.raw_db = env.db
-        self.db = RootDb(self.raw_db, env.config.MAX_ROOT_BLOCK_IN_MEMORY)
+        self.db = RootDb(self.raw_db, env.quark_chain_config.ROOT.max_root_blocks_in_memory)
 
         persisted_tip = self.db.get_tip_header()
         if persisted_tip:
@@ -236,8 +235,8 @@ class RootState:
             block_hash = block_header.get_hash()
 
         # Check difficulty
-        if not self.env.config.SKIP_ROOT_DIFFICULTY_CHECK:
-            if self.env.config.NETWORK_ID == NetworkId.MAINNET:
+        if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
+            if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.diff_calc.calculate_diff_with_parent(
                     prev_block_header, block_header.create_time
                 )
