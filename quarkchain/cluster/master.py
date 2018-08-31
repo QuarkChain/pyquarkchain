@@ -52,6 +52,7 @@ from quarkchain.cluster.rpc import (
     EstimateGasRequest,
     GetStorageRequest,
     GetCodeRequest,
+    GasPriceRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -84,7 +85,9 @@ class SyncTask:
         self.peer = peer
         self.master_server = peer.master_server
         self.root_state = peer.root_state
-        self.max_staleness = self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+        self.max_staleness = (
+            self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+        )
 
     async def sync(self):
         try:
@@ -427,6 +430,11 @@ class SlaveConnection(ClusterConnection):
     async def get_code(self, address: Address) -> Optional[bytes]:
         request = GetCodeRequest(address)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_CODE_REQUEST, request)
+        return resp.result if resp.error_code == 0 else None
+
+    async def gas_price(self, branch: Branch) -> Optional[int]:
+        request = GasPriceRequest(branch)
+        _, resp, _ = await self.write_rpc_request(ClusterOp.GAS_PRICE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
     # RPC handlers
@@ -1254,6 +1262,13 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_code(address)
+
+    async def gas_price(self, branch: Branch) -> Optional[int]:
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.gas_price(branch)
 
 
 def parse_args():
