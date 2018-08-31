@@ -3,11 +3,15 @@ from builtins import object
 from functools import total_ordering
 import json
 import os
+import pbkdf2
 from random import SystemRandom
 import shutil
 from uuid import UUID, uuid4
+from Crypto.Cipher import AES  # Crypto imports necessary for AES encryption of the private key
+from Crypto.Hash import SHA256
+from Crypto.Util import Counter
 from devp2p.service import BaseService
-from quarkchain.tools import keys
+from quarkchain.core import Address, Identity
 from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import privtopub  # this is different  than the one used in devp2p.crypto
 from quarkchain.evm.utils import decode_hex, encode_hex, encode_int32, is_string, remove_0x_head, sha3, to_string
@@ -18,16 +22,6 @@ log = get_logger('accounts')
 DEFAULT_COINBASE = decode_hex('de0b295669a9fd93d5f28d9ec85e40f4cb697bae')
 
 random = SystemRandom()
-
-
-def mk_privkey(seed):
-    return sha3(seed)
-
-
-def mk_random_privkey():
-    k = hex(random.getrandbits(256))[2:-1].zfill(64)
-    assert len(k) == 64
-    return decode_hex(k)
 
 
 @total_ordering
@@ -43,7 +37,6 @@ class MinType(object):
         return (self is other)
 
 
-
 class Account(object):
 
     """Represents an account.
@@ -54,190 +47,153 @@ class Account(object):
     :ivar path: absolute path to the associated keystore file (`None` for in-memory accounts)
     """
 
-    def __init__(self, keystore, password=None, path=None):
-        self.keystore = keystore
-        try:
-            self._address = decode_hex(self.keystore['address'])
-        except KeyError:
-            self._address = None
-        self.locked = True
-        if password is not None:
-            self.unlock(password)
-        if path is not None:
-            self.path = os.path.abspath(path)
-        else:
-            self.path = None
+    def __init__(self, identity, address):
+        self.id = uuid4() # generates an 128-bit uuid using urandom
+        self.identity = identity
+        self.qkc_address = address
 
-    @classmethod
-    def new(cls, password, key=None, uuid=None, path=None):
-        """Create a new account.
-
-        Note that this creates the account in memory and does not store it on disk.
-
-        :param password: the password used to encrypt the private key
-        :param key: the private key, or `None` to generate a random one
-        :param uuid: an optional id
+    @staticmethod
+    def new(key=None):
+        """
+        Create a new account.
+        :param key: the private key to import, or None to generate a random one
         """
         if key is None:
-            key = mk_random_privkey()
+            identity = Identity.create_random_identity()
+        else:
+            if not isinstance(key, str):
+                raise Exception("Imported key must be a hexadecimal string")
 
-        # [NOTE]: key and password should be bytes
-        if not is_string(key):
-            key = to_string(key)
-        if not is_string(password):
-            password = to_string(password)
+            identity = Identity.create_from_key(bytes.fromhex(key))
+        address = Address.create_from_identity(identity)
+        return Account(identity, address)
 
-        keystore = keys.make_keystore_json(key, password)
-        keystore['id'] = uuid4()
-        return Account(keystore, password, path)
-
-    @classmethod
-    def load(cls, path, password=None):
+    @staticmethod
+    def load(path, password):
         """Load an account from a keystore file.
 
         :param path: full path to the keyfile
         :param password: the password to decrypt the key file or `None` to leave it encrypted
         """
         with open(path) as f:
-            keystore = json.load(f)
-        if not keys.check_keystore_json(keystore):
-            raise ValueError('Invalid keystore file')
-        return Account(keystore, password, path=path)
+            keystore_jsondata = json.load(f)
+        privkey = Account._decode_keystore_json(keystore_jsondata, password).hex()
+        return Account.new(key=privkey)
 
-    def dump(self, include_address=True, include_id=True, write=False):
-        """Dump the keystore for later disk storage.
-
-        The result inherits the entries `'crypto'` and `'version`' from `account.keystore`, and
-        adds `'address'` and `'id'` in accordance with the parameters `'include_address'` and
-        `'include_id`'.
-
-        If address or id are not known, they are not added, even if requested.
-
-        :param include_address: flag denoting if the address should be included or not
-        :param include_id: flag denoting if the id should be included or not
+    def dump(self, password, include_address=True, write=False, directory="~/keystore"):
         """
-        d = {}
-        d['crypto'] = self.keystore['crypto']
-        d['version'] = self.keystore['version']
-        if include_address and self.address is not None:
-            d['address'] = encode_hex(self.address)
-        if include_id and self.uuid is not None:
-            d['id'] = str(self.uuid)
+        Dump the keystore for disk storage.
+        :param password: used to encrypt your private key
+        :param include_address: flag denoting if the address should be included or not
+        """
+        if not is_string(password):
+            password = to_string(password)
 
-        json_str = json.dumps(d, indent=4)
+        keystore_json = self._make_keystore_json(password)
+        if include_address:
+            keystore_json["address"] = self.address
+
+        json_str = json.dumps(keystore_json, indent=4)
         if write:
-            with open(self.path, 'w') as f:
+            path = "{0}/{1}.json".format(directory, str(self.id))
+            with open(path, 'w') as f:
                 f.write(json_str)
         return json_str
 
-    def unlock(self, password):
-        """Unlock the account with a password.
-
-        If the account is already unlocked, nothing happens, even if the password is wrong.
-
-        :raises: :exc:`ValueError` (originating in ethereum.keys) if the password is wrong (and the
-                 account is locked)
+    def _make_keystore_json(self, password):
         """
-        if self.locked:
-            self._privkey = keys.decode_keystore_json(self.keystore, password)
-            self.locked = False
-            self.address  # get address such that it stays accessible after a subsequent lock
+        Generate the keystore json that follows the Version 3 specification:
+        https://github.com/ethereum/wiki/wiki/Web3-Secret-Storage-Definition#definition
 
-    def lock(self):
-        """Relock an unlocked account.
-
-        This method sets `account.privkey` to `None` (unlike `account.address` which is preserved).
-        After calling this method, both `account.privkey` and `account.pubkey` are `None.
-        `account.address` stays unchanged, even if it has been derived from the private key.
+        Uses pbkdf2 for password encryption, and AES-128-CTR as the cipher.
         """
-        self._privkey = None
-        self.locked = True
+        # Get the hash function and default parameters
+        kdfparams = {
+            "prf": "hmac-sha256",
+            "dklen": 32,
+            "c": 262144,
+            "salt": encode_hex(os.urandom(16))
+        }
 
-    @property
-    def address_as_hex(self):
-        return encode_hex(self.address)
+        # Compute derived key
+        derivedkey = pbkdf2.PBKDF2(
+            password,
+            decode_hex(kdfparams["salt"]),
+            kdfparams["c"],
+            SHA256).read(kdfparams["dklen"])
 
-    @property
-    def privkey_as_hex(self):
-        # if already in hex format as a bytestring (like if you import a key), convert to str
-        if len(self.privkey) > 32:
-            return self.privkey.decode("utf-8")
-        return encode_hex(self.privkey)
+        # Produce the encryption key and encrypt using AES
+        enckey = derivedkey[:16]
+        cipherparams = {"iv": encode_hex(os.urandom(16))}
+        iv = int.from_bytes(decode_hex(cipherparams["iv"]), byteorder="big")
+        ctr = Counter.new(128, initial_value=iv, allow_wraparound=True)
+        encryptor = AES.new(enckey, AES.MODE_CTR, counter=ctr)
+        c = encryptor.encrypt(self.identity.key)
 
-    @property
-    def pubkey_as_hex(self):
-        x, y = self.pubkey
-        return encode_hex(sha3(encode_int32(x) + encode_int32(y)))
+        # Compute the MAC
+        mac = sha3(derivedkey[16:32] + c)
 
-    @property
-    def privkey(self):
-        """The account's private key or `None` if the account is locked"""
-        if not self.locked:
-            return self._privkey
-        else:
-            return None
+        # Return the keystore json
+        return {
+            "crypto": {
+                "cipher": "aes-128-ctr",
+                "ciphertext": encode_hex(c),
+                "cipherparams": cipherparams,
+                "kdf": "pbkdf2",
+                "kdfparams": kdfparams,
+                "mac": encode_hex(mac),
+                "version": 1
+            },
+            "id": self.uuid,
+            "version": 3,
+        }
 
-    @property
-    def pubkey(self):
-        """The account's public key or `None` if the account is locked"""
-        if not self.locked:
-            return privtopub(self.privkey)
-        else:
-            return None
+    @staticmethod
+    def _decode_keystore_json(jsondata, password):
+        # Get key derivation function (kdf) and parameters
+        kdfparams = jsondata["crypto"]["kdfparams"]
+
+        # Compute derived key
+        derivedkey = pbkdf2.PBKDF2(
+            password,
+            decode_hex(kdfparams["salt"]),
+            kdfparams["c"],
+            SHA256).read(kdfparams["dklen"])
+
+        assert len(derivedkey) >= 32, \
+            "Derived key must be at least 32 bytes long"
+
+        # Get cipher and parameters and decrypt using AES
+        cipherparams = jsondata["crypto"]["cipherparams"]
+        enckey = derivedkey[:16]
+        iv = int.from_bytes(decode_hex(cipherparams["iv"]), byteorder="big")
+        ctr = Counter.new(128, initial_value=iv, allow_wraparound=True)
+        encryptor = AES.new(enckey, AES.MODE_CTR, counter=ctr)
+        ctext = decode_hex(jsondata["crypto"]["ciphertext"])
+        o = encryptor.decrypt(ctext)
+
+        # Compare the provided MAC with a locally computed MAC
+        mac1 = sha3(derivedkey[16:32] + ctext)
+        mac2 = decode_hex(jsondata["crypto"]["mac"])
+        if mac1 != mac2:
+            raise ValueError("MAC mismatch. Password incorrect?")
+        return o
 
     @property
     def address(self):
-        """The account's address or `None` if the address is not stored in the key file and cannot
-        be reconstructed (because the account is locked)
-        """
-        if self._address:
-            pass
-        elif 'address' in self.keystore:
-            self._address = decode_hex(self.keystore['address'])
-        elif not self.locked:
-            self._address = keys.privtoaddr(self.privkey)
-        else:
-            return None
-        return self._address
+        return self.qkc_address.to_hex()
+
+    @property
+    def privkey(self):
+        return self.identity.key.hex()
 
     @property
     def uuid(self):
-        """An optional unique identifier, formatted according to UUID version 4, or `None` if the
-        account does not have an id
-        """
-        try:
-            return self.keystore['id']
-        except KeyError:
-            return None
-
-    @uuid.setter
-    def uuid(self, value):
-        """Set the UUID. Set it to `None` in order to remove it."""
-        if value is not None:
-            self.keystore['id'] = value
-        elif 'id' in self.keystore:
-            self.keystore.pop('id')
-
-    def sign_tx(self, tx):
-        """Sign a Transaction with the private key of this account.
-
-        If the account is unlocked, this is equivalent to ``tx.sign(account.privkey)``.
-
-        :param tx: the :class:`ethereum.transactions.Transaction` to sign
-        :raises: :exc:`ValueError` if the account is locked
-        """
-        if self.privkey:
-            log.info('signing tx', tx=tx, account=self)
-            tx.sign(self.privkey)
-        else:
-            raise ValueError('Locked account cannot sign tx')
+        return str(self.id)
 
     def __repr__(self):
-        if self.address is not None:
-            address = encode_hex(self.address)
-        else:
-            address = '?'
-        return '<Account(address={address}, id={id})>'.format(address=address, id=self.uuid)
+        return "<Account(address={address}, id={id})>".format(
+            address=self.address, id=self.uuid)
 
 
 ### we don't currently use below, yet ###
