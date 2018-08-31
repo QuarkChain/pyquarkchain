@@ -38,15 +38,10 @@ class MinType(object):
 
 
 class Account(object):
-
-    """Represents an account.
-
-    :ivar keystore: the key store as a dictionary (as decoded from json)
-    :ivar locked: `True` if the account is locked and neither private nor public keys can be
-                  accessed, otherwise `False`
-    :ivar path: absolute path to the associated keystore file (`None` for in-memory accounts)
     """
-
+    An account that represents a (privatekey, address) pair.
+    Uses quarkchain.core's Identity and Address classes.
+    """
     def __init__(self, identity, address):
         self.id = uuid4() # generates an 128-bit uuid using urandom
         self.identity = identity
@@ -78,7 +73,10 @@ class Account(object):
         with open(path) as f:
             keystore_jsondata = json.load(f)
         privkey = Account._decode_keystore_json(keystore_jsondata, password).hex()
-        return Account.new(key=privkey)
+        account = Account.new(key=privkey)
+        if "id" in keystore_jsondata:
+            account.id = keystore_jsondata["id"]
+        return account
 
     def dump(self, password, include_address=True, write=False, directory="~/keystore"):
         """
