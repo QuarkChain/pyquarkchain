@@ -1,0 +1,53 @@
+#! /usr/bin/env python3
+
+import argparse
+import pprint
+from utils import colorify
+
+from quarkchain.accounts import Account
+
+
+def print_account(a):
+    print("Address: {0}".format(colorify("0x" + str(a.address), "blue")))
+    print("Shard ID (uint32): {0}".format(colorify(str(a.qkc_address.full_shard_id), "green")))
+    print("Private Key: {0}".format(colorify(str(a.privkey), "red")))
+    print("UUID: {0}".format(colorify(str(a.uuid), "grey")))
+
+
+
+def main():
+    parser = argparse.ArgumentParser()
+
+    subparsers = parser.add_subparsers(title="quarkchain account management", description="commands to run", dest="cmd")
+
+    parser_new = subparsers.add_parser("new", description="create a new account", help="create a new account")
+    parser_new.add_argument("pw", type=str, help="passwd for encrypting your private key")
+    parser_new.add_argument("--key", default=None, type=str, help="private key you want to use if you already have one")
+    parser_new.add_argument("--dir", default=None, type=str, help="path of the directory for storing the keystore file")
+
+    parser_load = subparsers.add_parser("load", description="reads the keystore file specified and dumps the JSON")
+    parser_load.add_argument("path", type=str, help="path to the keystore file")
+    parser_load.add_argument("pw", type=str, help="password for decrypting your private key")
+
+    args = parser.parse_args()
+
+    if args.cmd == "new":
+        a = Account.new(key=args.key)
+        print("Generated a new account: ")
+        print_account(a)
+
+        if args.dir:
+            print("Writing keystore file (Version 3) to {0}".format(args.dir))
+            a.dump(args.pw, write=True, directory=args.dir)
+            print("Success.")
+        else:
+            print("Raw keystore file (Version 3):")
+            print(a.dump(args.pw, write=False))
+    elif args.cmd == "load":
+        a = Account.load(args.path, args.pw)
+        print("Loaded account: ")
+        print_account(a)
+
+
+if __name__ == "__main__":
+    main()
