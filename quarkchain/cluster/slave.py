@@ -41,6 +41,8 @@ from quarkchain.cluster.rpc import (
     GetStorageResponse,
     GetCodeResponse,
     GetCodeRequest,
+    GasPriceRequest,
+    GasPriceResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -109,9 +111,7 @@ class SyncTask:
 
         shard_id = self.header.branch.get_shard_id()
         shard_config = self.shard_state.env.quark_chain_config.SHARD_LIST[shard_id]
-        self.max_staleness = (
-            shard_config.max_stale_minor_block_height_diff
-        )
+        self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
     async def sync(self):
         try:
@@ -842,6 +842,11 @@ class MasterConnection(ClusterConnection):
         fail = res is None
         return GetCodeResponse(error_code=int(fail), result=res or b"")
 
+    async def handle_gas_price(self, req: GasPriceRequest) -> GasPriceResponse:
+        res = self.slave_server.gas_price(req.branch)
+        fail = res is None
+        return GasPriceResponse(error_code=int(fail), result=res or 0)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -933,6 +938,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_CODE_REQUEST: (
         ClusterOp.GET_CODE_RESPONSE,
         MasterConnection.handle_get_code,
+    ),
+    ClusterOp.GAS_PRICE_REQUEST: (
+        ClusterOp.GAS_PRICE_RESPONSE,
+        MasterConnection.handle_gas_price,
     ),
 }
 
@@ -1611,6 +1620,11 @@ class SlaveServer:
         if branch.value not in self.shard_state_map:
             return None
         return self.shard_state_map[branch.value].get_code(address.recipient)
+
+    def gas_price(self, branch: Branch) -> Optional[int]:
+        if branch.value not in self.shard_state_map:
+            return None
+        return self.shard_state_map[branch.value].gas_price()
 
 
 def parse_args():

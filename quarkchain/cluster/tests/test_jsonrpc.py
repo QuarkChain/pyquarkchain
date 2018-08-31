@@ -764,3 +764,37 @@ class TestJSONRPC(unittest.TestCase):
                     resp,
                     "0x6080604052600080fd00a165627a7a72305820a6ef942c101f06333ac35072a8ff40332c71d0e11cd0e6d86de8cae7b42696550029",
                 )
+
+    def test_gasPrice(self):
+        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            # run for multiple times
+            for _ in range(3):
+                tx = create_transfer_transaction(
+                    shard_state=slaves[0].shard_state_map[branch.value],
+                    key=id1.get_key(),
+                    from_address=acc1,
+                    to_address=acc1,
+                    value=0,
+                    gas_price=12,
+                )
+                self.assertTrue(slaves[0].add_tx(tx))
+
+                _, block = call_async(master.get_next_block_to_mine(address=acc1))
+                self.assertTrue(call_async(slaves[0].add_block(block)))
+
+            for using_eth_endpoint in (True, False):
+                if using_eth_endpoint:
+                    resp = send_request("eth_gasPrice", "0x0")
+                else:
+                    resp = send_request("gasPrice", "0x0")
+
+                self.assertEqual(resp, "0xc")

@@ -699,6 +699,21 @@ class GetCodeResponse(Serializable):
         self.result = result
 
 
+class GasPriceRequest(Serializable):
+    FIELDS = [("branch", Branch)]
+
+    def __init__(self, branch: Branch):
+        self.branch = branch
+
+
+class GasPriceResponse(Serializable):
+    FIELDS = [("error_code", uint32), ("result", uint64)]
+
+    def __init__(self, error_code: int, result: int):
+        self.error_code = error_code
+        self.result = result
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -756,6 +771,8 @@ class ClusterOp:
     GET_STORAGE_RESPONSE = 50 + CLUSTER_OP_BASE
     GET_CODE_REQUEST = 51 + CLUSTER_OP_BASE
     GET_CODE_RESPONSE = 52 + CLUSTER_OP_BASE
+    GAS_PRICE_REQUEST = 53 + CLUSTER_OP_BASE
+    GAS_PRICE_RESPONSE = 54 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -810,4 +827,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_STORAGE_RESPONSE: GetStorageResponse,
     ClusterOp.GET_CODE_REQUEST: GetCodeRequest,
     ClusterOp.GET_CODE_RESPONSE: GetCodeResponse,
+    ClusterOp.GAS_PRICE_REQUEST: GasPriceRequest,
+    ClusterOp.GAS_PRICE_RESPONSE: GasPriceResponse,
 }

@@ -468,7 +468,9 @@ class JSONRPCServer:
     @public_methods.add
     async def networkInfo(self):
         return {
-            "networkId": quantity_encoder(self.master.env.quark_chain_config.NETWORK_ID),
+            "networkId": quantity_encoder(
+                self.master.env.quark_chain_config.NETWORK_ID
+            ),
             "shardSize": quantity_encoder(self.master.get_shard_size()),
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
@@ -806,6 +808,17 @@ class JSONRPCServer:
     async def getJrpcCalls(self):
         return self.counters
 
+    @public_methods.add
+    async def gasPrice(self, shard):
+        shard = shard_id_decoder(shard)
+        if shard is None:
+            return None
+        branch = Branch.create(self.master.get_shard_size(), shard)
+        ret = await self.master.gas_price(branch)
+        if ret is None:
+            return None
+        return quantity_encoder(ret)
+
     ######################## Ethereum JSON RPC ########################
 
     @public_methods.add
@@ -813,9 +826,8 @@ class JSONRPCServer:
         return quantity_encoder(self.master.env.quark_chain_config.NETWORK_ID)
 
     @public_methods.add
-    @encode_res(quantity_encoder)
-    async def eth_gasPrice(self):
-        return 10 ** 9
+    async def eth_gasPrice(self, shard):
+        return await self.gasPrice(shard)
 
     @public_methods.add
     @decode_arg("block_id", block_id_decoder)
