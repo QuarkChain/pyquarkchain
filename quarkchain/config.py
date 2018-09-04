@@ -102,6 +102,38 @@ class BaseConfig:
         return cls.from_dict(json.loads(j))
 
 
+class RootGenesis(BaseConfig):
+    VERSION = 0
+    HEIGHT = 0
+    SHARD_SIZE = 32
+    COINBASE_ADDRESS = bytes(24).hex()
+    COINBASE_AMOUNT = 5
+    HASH_PREV_BLOCK = bytes(32).hex()
+    HASH_MERKLE_ROOT = bytes(32).hex()
+    # 2018/2/2 5 am 7 min 38 sec
+    TIMESTAMP = 1519147489
+    DIFFICULTY = 1000000
+    NONCE = 0
+
+
+class ShardGenesis(BaseConfig):
+    ROOT_HEIGHT = 0  # hash_prev_root_block should be the root block of this height
+    VERSION = 0
+    HEIGHT = 0
+    COINBASE_ADDRESS = bytes(24).hex()
+    COINBASE_AMOUNT = 5
+    HASH_PREV_MINOR_BLOCK = bytes(32).hex()
+    HASH_MERKLE_ROOT = bytes(32).hex()
+    EXTRA_DATA = b"It was the best of times, it was the worst of times, ... - Charles Dickens".hex()
+    TIMESTAMP = RootGenesis.TIMESTAMP
+    DIFFICULTY = 10000
+    NONCE = 0
+    ALLOC = None  # dict() hex address -> qkc amount
+
+    def __init__(self):
+        self.ALLOC = dict()
+
+
 class ConsensusType(Enum):
     NONE = 0  # no shard
     POW_ETHASH = 1
@@ -120,9 +152,11 @@ class POWConfig(BaseConfig):
 class ShardConfig(BaseConfig):
     CONSENSUS_TYPE = ConsensusType.NONE
     CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
+    GENESIS = None  # ShardGenesis
 
     def __init__(self):
         self._root_config = None
+        self.GENESIS = ShardGenesis()
 
     @property
     def root_config(self):
@@ -148,14 +182,15 @@ class ShardConfig(BaseConfig):
     def max_minor_blocks_in_memory(self):
         return self.max_stale_minor_block_height_diff * 2
 
-
     def to_dict(self):
         ret = super().to_dict()
         ret["CONSENSUS_TYPE"] = self.CONSENSUS_TYPE.name
         if self.CONSENSUS_TYPE == ConsensusType.NONE:
             del ret["CONSENSUS_CONFIG"]
+            del ret["GENESIS"]
         else:
             ret["CONSENSUS_CONFIG"] = self.CONSENSUS_CONFIG.to_dict()
+            ret["GENESIS"] = self.GENESIS.to_dict()
         return ret
 
     @classmethod
@@ -164,17 +199,45 @@ class ShardConfig(BaseConfig):
         config.CONSENSUS_TYPE = ConsensusType[config.CONSENSUS_TYPE]
         if config.CONSENSUS_TYPE in ConsensusType.pow_types():
             config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
+            config.GENESIS = ShardGenesis.from_dict(config.GENESIS)
         return config
 
 
-class RootConfig(ShardConfig):
+class RootConfig(BaseConfig):
     # To ignore super old blocks from peers
     # This means the network will fork permanently after a long partition
     MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
 
+    CONSENSUS_TYPE = ConsensusType.NONE
+    CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
+    GENESIS = None  # ShardGenesis
+
+    def __init__(self):
+        self.GENESIS = RootGenesis()
+
     @property
     def max_root_blocks_in_memory(self):
         return self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * 2
+
+    def to_dict(self):
+        ret = super().to_dict()
+        ret["CONSENSUS_TYPE"] = self.CONSENSUS_TYPE.name
+        if self.CONSENSUS_TYPE == ConsensusType.NONE:
+            del ret["CONSENSUS_CONFIG"]
+            del ret["GENESIS"]
+        else:
+            ret["CONSENSUS_CONFIG"] = self.CONSENSUS_CONFIG.to_dict()
+            ret["GENESIS"] = self.GENESIS.to_dict()
+        return ret
+
+    @classmethod
+    def from_dict(cls, d):
+        config = super().from_dict(d)
+        config.CONSENSUS_TYPE = ConsensusType[config.CONSENSUS_TYPE]
+        if config.CONSENSUS_TYPE in ConsensusType.pow_types():
+            config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
+            config.GENESIS = RootGenesis.from_dict(config.GENESIS)
+        return config
 
 
 class QuarkChainConfig(BaseConfig):
@@ -247,6 +310,8 @@ class QuarkChainConfig(BaseConfig):
         config = super().from_dict(d)
         config.ROOT = RootConfig.from_dict(config.ROOT)
         config.SHARD_LIST = [ShardConfig.from_dict(s) for s in config.SHARD_LIST]
+        for s in config.SHARD_LIST:
+            s.root_config = config.ROOT
         return config
 
 
