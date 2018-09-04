@@ -408,7 +408,9 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)}
+                "call",
+                {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)},
+                "latest",
             )
 
             self.assertEqual(response, "0x")
@@ -430,7 +432,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             # insufficient gas
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}
+                "call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}, None
             )
 
             self.assertIsNone(response, "failed tx should return None")
@@ -734,7 +736,7 @@ class TestJSONRPC(unittest.TestCase):
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
                     req = lambda k: send_request(
-                        "eth_getStorageAt", created_addr[:-8], k, "0x0"
+                        "eth_getStorageAt", created_addr[:-8], k, "latest", "0x0"
                     )
                 else:
                     req = lambda k: send_request("getStorageAt", created_addr, k)
@@ -792,7 +794,9 @@ class TestJSONRPC(unittest.TestCase):
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
-                    resp = send_request("eth_getCode", created_addr[:-8], "0x0")
+                    resp = send_request(
+                        "eth_getCode", created_addr[:-8], "latest", "0x0"
+                    )
                 else:
                     resp = send_request("getCode", created_addr)
 

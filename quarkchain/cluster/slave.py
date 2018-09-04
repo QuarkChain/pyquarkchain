@@ -838,12 +838,12 @@ class MasterConnection(ClusterConnection):
         return EstimateGasResponse(error_code=int(fail), result=res or 0)
 
     async def handle_get_storage_at(self, req: GetStorageRequest) -> GetStorageResponse:
-        res = self.slave_server.get_storage_at(req.address, req.key)
+        res = self.slave_server.get_storage_at(req.address, req.key, req.block_height)
         fail = res is None
         return GetStorageResponse(error_code=int(fail), result=res or b"")
 
     async def handle_get_code(self, req: GetCodeRequest) -> GetCodeResponse:
-        res = self.slave_server.get_code(req.address)
+        res = self.slave_server.get_code(req.address, req.block_height)
         fail = res is None
         return GetCodeResponse(error_code=int(fail), result=res or b"")
 
@@ -1615,21 +1615,29 @@ class SlaveServer:
             return None
         return shard_state.estimate_gas(tx, from_address)
 
-    def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
+    def get_storage_at(
+        self, address: Address, key: int, block_height: Optional[int]
+    ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         if branch.value not in self.shard_state_map:
             return None
-        return self.shard_state_map[branch.value].get_storage_at(address.recipient, key)
+        return self.shard_state_map[branch.value].get_storage_at(
+            address.recipient, key, block_height
+        )
 
-    def get_code(self, address: Address) -> Optional[bytes]:
+    def get_code(
+        self, address: Address, block_height: Optional[int]
+    ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         if branch.value not in self.shard_state_map:
             return None
-        return self.shard_state_map[branch.value].get_code(address.recipient)
+        return self.shard_state_map[branch.value].get_code(
+            address.recipient, block_height
+        )
 
     def gas_price(self, branch: Branch) -> Optional[int]:
         if branch.value not in self.shard_state_map:
