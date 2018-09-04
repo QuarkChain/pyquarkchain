@@ -51,7 +51,7 @@ class ShardState:
     """  State of a shard, which includes
     - evm state
     - minor blockchain
-    - root blockchain and cross-shard transaction
+    - root blockchain and cross-shard transactions
     TODO: Support
     - reshard by split
     """
@@ -79,6 +79,9 @@ class ShardState:
         # assure ShardState is in good shape after constructor returns though we still
         # rely on master calling init_from_root_block to bring the cluster into consistency
         self.__init_genesis_state(shard_id)
+
+        # new blocks that passed POW validation and should be made available to whole network
+        self.new_block_pool = dict()
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -655,6 +658,7 @@ class ShardState:
                 "add_block_latency_ms": time_ms() - start_ms,
                 "mined": extra_data.get("mined", 0),
                 "propagation_latency_ms": start_ms - extra_data.get("mined", 0),
+                "num_tx": len(block.tx_list),
             }
             asyncio.ensure_future(
                 self.env.cluster_config.kafka_logger.log_kafka_sample_async(

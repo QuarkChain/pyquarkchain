@@ -295,6 +295,11 @@ class ShardConnection(VirtualConnection):
                 m_block_hash, consistency_check=False
             )
             if m_block is None:
+                # check in new block pool as well
+                m_block = self.shard_state.new_block_pool.get(m_block_hash)
+                if m_block is not None:
+                    # GLOG.info("got block from cache")
+                    m_block_list.append(m_block)
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit
             m_block_list.append(m_block)
@@ -1375,26 +1380,34 @@ class SlaveServer:
         check(all([response.error_code == 0 for _, response, _ in responses]))
 
     async def add_block(self, block):
-        """ Returns true if block is successfully added. False on any error. """
+        """ Returns true if block is successfully added. False on any error.
+        called by 1. local miner (will not run if syncing) 2. SyncTask
+        """
         branch_value = block.header.branch.value
         shard_state = self.shard_state_map.get(branch_value, None)
 
         if not shard_state:
             return False
 
-        old_tip = shard_state.tip()
+        # check POW, and update new_block_pool
+        # broadcast this block to all peers
+        # TODO check POW
+        shard_state.new_block_pool = {
+            h: b
+            for h, b in shard_state.new_block_pool.items()
+            if b.header.height > shard_state.header_tip.height
+        }
+        shard_state.new_block_pool[block.header.get_hash()] = block
+        try:
+            self.master.broadcast_new_tip(block.header.branch)
+        except Exception:
+            Logger.warning_every_sec("broadcast tip failure", 1)
+
         try:
             xshard_list = shard_state.add_block(block)
         except Exception as e:
             Logger.error_exception()
             return False
-
-        # block has been added to local state and let's pass to peers
-        try:
-            if old_tip != shard_state.tip():
-                self.master.broadcast_new_tip(block.header.branch)
-        except Exception:
-            Logger.warning_every_sec("broadcast tip failure", 1)
 
         # block already existed in local shard state
         # but might not have been propagated to other shards and master
