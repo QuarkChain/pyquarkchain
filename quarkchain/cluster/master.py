@@ -845,7 +845,7 @@ class MasterServer:
         )
         return (None, None) if not block else (False, block)
 
-    async def get_account_data(self, address):
+    async def get_account_data(self, address: Address):
         """ Returns a dict where key is Branch and value is AccountBranchData """
         futures = []
         for slave in self.slave_pool:
@@ -869,7 +869,9 @@ class MasterServer:
         check(len(branch_to_account_branch_data) == self.__get_shard_size())
         return branch_to_account_branch_data
 
-    async def get_primary_account_data(self, address):
+    async def get_primary_account_data(
+        self, address: Address, block_height: Optional[int] = None
+    ):
         # TODO: Only query the shard who has the address
         shard_id = address.get_shard_id(self.__get_shard_size())
         branch = Branch.create(self.__get_shard_size(), shard_id)
@@ -877,7 +879,7 @@ class MasterServer:
         if not slaves:
             return None
         slave = slaves[0]
-        request = GetAccountDataRequest(address)
+        request = GetAccountDataRequest(address, block_height)
         _, resp, _ = await slave.write_rpc_request(
             ClusterOp.GET_ACCOUNT_DATA_REQUEST, request
         )

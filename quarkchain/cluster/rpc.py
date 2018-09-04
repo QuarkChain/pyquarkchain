@@ -1,3 +1,4 @@
+import typing
 from typing import List
 
 from quarkchain.core import (
@@ -441,10 +442,11 @@ class GetUnconfirmedHeadersResponse(Serializable):
 
 
 class GetAccountDataRequest(Serializable):
-    FIELDS = [("address", Address)]
+    FIELDS = [("address", Address), ("block_height", Optional(uint64))]
 
-    def __init__(self, address):
+    def __init__(self, address: Address, block_height: typing.Optional[int] = None):
         self.address = address
+        self.block_height = block_height
 
 
 class AccountBranchData(Serializable):

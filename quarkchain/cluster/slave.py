@@ -43,6 +43,7 @@ from quarkchain.cluster.rpc import (
     GetCodeRequest,
     GasPriceRequest,
     GasPriceResponse,
+    GetAccountDataRequest,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -644,8 +645,12 @@ class MasterConnection(ClusterConnection):
             error_code=0, headers_info_list=headers_info_list
         )
 
-    async def handle_get_account_data_request(self, req):
-        account_branch_data_list = self.slave_server.get_account_data(req.address)
+    async def handle_get_account_data_request(
+        self, req: GetAccountDataRequest
+    ) -> GetAccountDataResponse:
+        account_branch_data_list = self.slave_server.get_account_data(
+            req.address, req.block_height
+        )
         return GetAccountDataResponse(
             error_code=0, account_branch_data_list=account_branch_data_list
         )
@@ -1525,17 +1530,22 @@ class SlaveServer:
             return None
         return self.shard_state_map[branch.value].get_balance(address.recipient)
 
-    def get_account_data(self, address):
+    def get_account_data(
+        self, address: Address, block_height: Optional[int]
+    ) -> List[AccountBranchData]:
         results = []
         for branch_value, shard_state in self.shard_state_map.items():
             results.append(
                 AccountBranchData(
                     branch=Branch(branch_value),
                     transaction_count=shard_state.get_transaction_count(
-                        address.recipient
+                        address.recipient, block_height
                     ),
-                    balance=shard_state.get_balance(address.recipient),
-                    is_contract=len(shard_state.get_code(address.recipient)) > 0,
+                    balance=shard_state.get_balance(address.recipient, block_height),
+                    is_contract=len(
+                        shard_state.get_code(address.recipient, block_height)
+                    )
+                    > 0,
                 )
             )
         return results
