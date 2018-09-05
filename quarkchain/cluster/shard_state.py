@@ -753,44 +753,6 @@ class ShardState:
         header_list.reverse()
         return header_list
 
-    def __add_transactions_to_fund_loadtest_accounts(self, block, evm_state):
-        height = block.header.height
-        start_index = (height - 2) * 500
-        shard_mask = self.branch.get_shard_size() - 1
-        for i in range(500):
-            index = start_index + i
-            if index >= len(self.env.config.LOADTEST_ACCOUNTS):
-                return
-            address, key = self.env.config.LOADTEST_ACCOUNTS[index]
-            from_full_shard_id = (
-                self.env.config.GENESIS_ACCOUNT.full_shard_id & (~shard_mask)
-                | self.branch.get_shard_id()
-            )
-            to_full_shard_id = (
-                address.full_shard_id & (~shard_mask) | self.branch.get_shard_id()
-            )
-            gas = 21000
-            evm_tx = EvmTransaction(
-                nonce=evm_state.get_nonce(evm_state.block_coinbase),
-                gasprice=3 * (10 ** 9),
-                startgas=gas,
-                to=address.recipient,
-                value=10 * (10 ** 18),
-                data=b"",
-                from_full_shard_id=from_full_shard_id,
-                to_full_shard_id=to_full_shard_id,
-                network_id=self.env.quark_chain_config.NETWORK_ID,
-            )
-            evm_tx.sign(key=self.env.config.GENESIS_KEY)
-            evm_tx.set_shard_size(self.branch.get_shard_size())
-            try:
-                # tx_wrapper_hash is not needed for in-shard tx
-                apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
-                block.add_tx(Transaction(code=Code.create_evm_code(evm_tx)))
-            except Exception as e:
-                Logger.error_exception()
-                return
-
     def __add_transactions_to_block(self, block: MinorBlock, evm_state: EvmState):
         """ Fill up the block tx list with tx from the tx queue"""
         poped_txs = []
@@ -874,9 +836,6 @@ class ShardState:
             descendant_root_header=self.root_tip,
             ancestor_root_header=ancestor_root_header,
         ).get_hash()
-
-        # fund load test accounts
-        # self.__add_transactions_to_fund_loadtest_accounts(block, evm_state)
 
         self.__add_transactions_to_block(block, evm_state)
 

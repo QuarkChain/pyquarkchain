@@ -114,7 +114,6 @@ class RootGenesis(BaseConfig):
     TIMESTAMP = 1519147489
     DIFFICULTY = 1000000
     NONCE = 0
-    HASH = None  # Block header hash of the genesis block
 
 
 class ShardGenesis(BaseConfig):

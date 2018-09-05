@@ -78,9 +78,6 @@ class GenesisManager:
     def finalize_config(qkc_config: QuarkChainConfig):
         """ Fill in genesis block hashes and coinbase addresses"""
         manager = GenesisManager(qkc_config)
-        qkc_config.ROOT.GENESIS.HASH = (
-            manager.create_root_block().header.get_hash().hex()
-        )
 
         evm_config = get_default_evm_config()
         evm_config["NETWORK_ID"] = qkc_config.NETWORK_ID

@@ -65,8 +65,7 @@ class TestShardConfig(unittest.TestCase):
             "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
             "TIMESTAMP": 1519147489,
             "DIFFICULTY": 1000000,
-            "NONCE": 0,
-            "HASH": null
+            "NONCE": 0
         }
     },
     "SHARD_LIST": [
