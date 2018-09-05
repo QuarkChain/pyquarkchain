@@ -385,6 +385,23 @@ class ShardConnection(VirtualConnection):
             ),
         )
 
+    def send_new_minor(self, header):
+        if self.best_root_block_header_observed:
+            if (
+                self.shard_state.root_tip.height
+                < self.best_root_block_header_observed.height
+            ):
+                return
+            if self.shard_state.root_tip == self.best_root_block_header_observed:
+                if header.height < self.best_minor_block_header_observed.height:
+                    return
+                if header == self.best_minor_block_header_observed:
+                    return
+        self.write_command(
+            op=CommandOp.NEW_MINOR_BLOCK_HEADER_LIST,
+            cmd=NewMinorBlockHeaderListCommand(self.shard_state.root_tip, [header]),
+        )
+
     async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
         self.slave_server.add_tx_list(cmd.transaction_list, self)
 
@@ -722,6 +739,17 @@ class MasterConnection(ClusterConnection):
                 continue
 
             conn_map[branch.value].broadcast_new_tip()
+
+    def broadcast_new_minor(self, branch, header):
+        for cluster_peer_id, conn_map in self.v_conn_map.items():
+            if branch.value not in conn_map:
+                Logger.error(
+                    "Cannot find branch {} in conn {}".format(
+                        branch.value, cluster_peer_id
+                    )
+                )
+                continue
+            conn_map[branch.value].send_new_minor(header)
 
     def broadcast_tx_list(self, branch, tx_list, shard_conn=None):
         for cluster_peer_id, conn_map in self.v_conn_map.items():
@@ -1399,7 +1427,7 @@ class SlaveServer:
         }
         shard_state.new_block_pool[block.header.get_hash()] = block
         try:
-            self.master.broadcast_new_tip(block.header.branch)
+            self.master.broadcast_new_minor(block.header.branch, block.header)
         except Exception:
             Logger.warning_every_sec("broadcast tip failure", 1)
 
