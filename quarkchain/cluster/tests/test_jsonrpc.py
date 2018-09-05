@@ -694,7 +694,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(response, "0x5208")  # 21000
 
     def test_getStorageAt(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        key = bytes.fromhex(
+            "c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+        )
+        id1 = Identity.create_from_key(key)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
@@ -750,7 +753,10 @@ class TestJSONRPC(unittest.TestCase):
                 )
 
     def test_getCode(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        key = bytes.fromhex(
+            "c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+        )
+        id1 = Identity.create_from_key(key)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
@@ -784,7 +790,7 @@ class TestJSONRPC(unittest.TestCase):
                 )
 
     def test_gasPrice(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(

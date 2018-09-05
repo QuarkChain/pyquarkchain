@@ -1,5 +1,5 @@
 import copy
-from quarkchain.config import get_default_evm_config, DefaultConfig
+from quarkchain.config import get_default_evm_config, LegacyConfig
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -8,7 +8,7 @@ from quarkchain.cluster.cluster_config import ClusterConfig
 class Env:
     def __init__(self, db=None, config=None, evm_config=None, cluster_config=None):
         self.db = db or InMemoryDb()
-        self.config = config or DefaultConfig()
+        self.config = config or LegacyConfig()
         self.cluster_config = cluster_config if cluster_config else ClusterConfig()
 
         self.evm_config = evm_config or get_default_evm_config()

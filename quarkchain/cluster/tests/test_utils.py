@@ -26,8 +26,6 @@ def get_test_env(
     shard_size=2,
 ):
     env = DEFAULT_ENV.copy()
-    # env.config.GENESIS_ACCOUNT = genesis_account
-    # env.config.GENESIS_MINOR_COIN = genesis_minor_quarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesis_account
 
     env.db = InMemoryDb()
