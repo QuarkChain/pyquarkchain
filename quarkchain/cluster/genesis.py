@@ -1,4 +1,4 @@
-from quarkchain.env import DEFAULT_ENV
+from quarkchain.env import Env
 from quarkchain.core import (
     MinorBlockMeta,
     MinorBlockHeader,
@@ -7,10 +7,68 @@ from quarkchain.core import (
     ShardInfo,
 )
 from quarkchain.core import RootBlockHeader, RootBlock
-from quarkchain.core import calculate_merkle_root
+from quarkchain.core import calculate_merkle_root, Address
 from quarkchain.db import InMemoryDb
 from quarkchain.evm.state import State as EvmState
-from quarkchain.utils import sha3_256
+from quarkchain.utils import sha3_256, check
+
+
+class GenesisManager:
+    """ Manage the creation of genesis blocks based on the genesis configs from env"""
+    def __init__(self, env: Env):
+        self._env = env
+        self._qkc_config = env.quark_chain_config
+
+    def create_root_block(self):
+        """ Create the genesis root block """
+        genesis = self._qkc_config.ROOT.GENESIS
+        header = RootBlockHeader(
+            version=genesis.VERSION,
+            height=genesis.HEIGHT,
+            shard_info=ShardInfo.create(self._qkc_config.SHARD_SIZE),
+            hash_prev_block=bytes.fromhex(genesis.HASH_PREV_BLOCK),
+            hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
+            create_time=genesis.TIMESTAMP,
+            difficulty=genesis.DIFFICULTY,
+        )
+        return RootBlock(header=header, minor_block_header_list=[])
+
+    def create_minor_block(self, shard_id: int, db=None):
+        """ Create a genesis minor block.
+        State changes will be committed to db if provided.
+        """
+        branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
+        genesis = self._qkc_config.SHARD_LIST[shard_id].GENESIS
+        coinbase_address = Address.create_from(bytes.fromhex(genesis.COINBASE_ADDRESS))
+        check(coinbase_address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
+
+        evm_state = EvmState(env=self._env.evm_env, db=db if db else InMemoryDb())
+        for address_hex, amount_in_wei in genesis.ALLOC.items():
+            address = Address.create_from(bytes.fromhex(address_hex))
+            check(address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
+            evm_state.full_shard_id = address.full_shard_id
+            evm_state.delta_balance(address.recipient, amount_in_wei)
+
+        evm_state.commit()
+
+        meta = MinorBlockMeta(
+            hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
+            hash_evm_state_root=evm_state.trie.root_hash,
+            coinbase_address=coinbase_address,
+            extra_data=bytes.fromhex(genesis.EXTRA_DATA)
+        )
+        header = MinorBlockHeader(
+            version=genesis.VERSION,
+            height=genesis.HEIGHT,
+            branch=branch,
+            hash_prev_minor_block=bytes.fromhex(genesis.HASH_PREV_MINOR_BLOCK),
+            hash_prev_root_block=self.create_root_block().header.get_hash(),
+            hash_meta=sha3_256(meta.serialize()),
+            coinbase_amount=genesis.COINBASE_AMOUNT,
+            create_time=genesis.TIMESTAMP,
+            difficulty=genesis.DIFFICULTY,
+        )
+        return MinorBlock(header=header, meta=meta, tx_list=[])
 
 
 # Structure of genesis blocks
@@ -136,12 +194,8 @@ def create_genesis_blocks(env, evm_list):
     )
 
 
-def main():
-    block = create_genesis_root_block(DEFAULT_ENV)
-    s = block.serialize()
-    print(s.hex())
-    print(len(s))
-
-
 if __name__ == "__main__":
-    main()
+    from quarkchain.env import DEFAULT_ENV
+    m = GenesisManager(DEFAULT_ENV)
+    print(m.create_root_block().serialize().hex())
+    print(m.create_minor_block(0).serialize().hex())

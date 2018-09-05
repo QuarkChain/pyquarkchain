@@ -6,11 +6,23 @@ import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig
-from quarkchain.core import ShardMask
+from quarkchain.core import Address, ShardMask
 from quarkchain.utils import is_p2, check
 from quarkchain.cluster.monitoring import KafkaSampleLogger
+from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
 
 HOST = socket.gethostbyname(socket.gethostname())
+
+
+def update_genesis_config(qkc_config: QuarkChainConfig):
+    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS """
+    for item in ACCOUNTS_TO_FUND:
+        address = Address.create_from(bytes.fromhex(item["address"]))
+        shard = address.get_shard_id(qkc_config.SHARD_SIZE)
+        qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000 * (10 ** 18)
+
+    for i, shard in enumerate(qkc_config.SHARD_LIST):
+        shard.GENESIS.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
 
 
 class MasterConfig(BaseConfig):
@@ -225,6 +237,7 @@ class ClusterConfig(BaseConfig):
             args.num_shards, args.root_block_interval_sec, args.minor_block_interval_sec
         )
         config.QUARKCHAIN.NETWORK_ID = args.network_id
+        update_genesis_config(config.QUARKCHAIN)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 

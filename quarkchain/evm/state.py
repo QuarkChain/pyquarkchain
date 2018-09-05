@@ -135,7 +135,7 @@ class Account(rlp.Serializable):
 # from ethereum.state import State
 class State:
 
-    def __init__(self, root=b'', env=Env(), executing_on_head=False, db=None, **kwargs):
+    def __init__(self, root=BLANK_ROOT, env=Env(), executing_on_head=False, db=None, **kwargs):
         if db is None:
             db = env.db
         self.env = env
