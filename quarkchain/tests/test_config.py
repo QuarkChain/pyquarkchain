@@ -54,6 +54,18 @@ class TestShardConfig(unittest.TestCase):
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
             "TARGET_BLOCK_TIME": 60
+        },
+        "GENESIS": {
+            "VERSION": 0,
+            "HEIGHT": 0,
+            "SHARD_SIZE": 32,
+            "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+            "COINBASE_AMOUNT": 5,
+            "HASH_PREV_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+            "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+            "TIMESTAMP": 1519147489,
+            "DIFFICULTY": 1000000,
+            "NONCE": 0
         }
     },
     "SHARD_LIST": [
@@ -61,24 +73,80 @@ class TestShardConfig(unittest.TestCase):
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10
+            },
+            "GENESIS": {
+                "ROOT_HEIGHT": 0,
+                "VERSION": 0,
+                "HEIGHT": 0,
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+                "COINBASE_AMOUNT": 5,
+                "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                "TIMESTAMP": 1519147489,
+                "DIFFICULTY": 10000,
+                "NONCE": 0,
+                "ALLOC": {}
             }
         },
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10
+            },
+            "GENESIS": {
+                "ROOT_HEIGHT": 0,
+                "VERSION": 0,
+                "HEIGHT": 0,
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+                "COINBASE_AMOUNT": 5,
+                "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                "TIMESTAMP": 1519147489,
+                "DIFFICULTY": 10000,
+                "NONCE": 0,
+                "ALLOC": {}
             }
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15
+            },
+            "GENESIS": {
+                "ROOT_HEIGHT": 0,
+                "VERSION": 0,
+                "HEIGHT": 0,
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+                "COINBASE_AMOUNT": 5,
+                "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                "TIMESTAMP": 1519147489,
+                "DIFFICULTY": 10000,
+                "NONCE": 0,
+                "ALLOC": {}
             }
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15
+            },
+            "GENESIS": {
+                "ROOT_HEIGHT": 0,
+                "VERSION": 0,
+                "HEIGHT": 0,
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+                "COINBASE_AMOUNT": 5,
+                "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                "TIMESTAMP": 1519147489,
+                "DIFFICULTY": 10000,
+                "NONCE": 0,
+                "ALLOC": {}
             }
         },
         {
@@ -86,6 +154,7 @@ class TestShardConfig(unittest.TestCase):
         }
     ]
 }"""
+        print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)
         deserialized_config = QuarkChainConfig.from_json(expected_json)
         self.assertEqual(deserialized_config.to_json(), expected_json)
