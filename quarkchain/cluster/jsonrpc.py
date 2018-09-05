@@ -334,7 +334,8 @@ def encode_res(encoder):
 
 
 def block_height_decoder(data):
-    """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
+    """Decode block height string, which can either be None, 'latest', 'earliest' or a hex number
+    of minor block height"""
     if data is None or data == "latest":
         return None
     if data == "earliest":
@@ -871,31 +872,25 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
-    @decode_arg("block_height", block_height_decoder)
     @decode_arg("shard", shard_id_decoder)
     @encode_res(quantity_encoder)
-    async def eth_getBalance(self, address, block_height=None, shard=None):
+    async def eth_getBalance(self, address, shard=None):
         address = Address.deserialize(address)
         if shard is not None:
             address = Address(address.recipient, shard)
-        account_branch_data = await self.master.get_primary_account_data(
-            address, block_height
-        )
+        account_branch_data = await self.master.get_primary_account_data(address)
         balance = account_branch_data.balance
         return balance
 
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
-    @decode_arg("block_height", block_height_decoder)
     @decode_arg("shard", shard_id_decoder)
     @encode_res(quantity_encoder)
-    async def eth_getTransactionCount(self, address, block_height=None, shard=None):
+    async def eth_getTransactionCount(self, address, shard=None):
         address = Address.deserialize(address)
         if shard is not None:
             address = Address(address.recipient, shard)
-        account_branch_data = await self.master.get_primary_account_data(
-            address, block_height
-        )
+        account_branch_data = await self.master.get_primary_account_data(address)
         return account_branch_data.transaction_count
 
     @public_methods.add
