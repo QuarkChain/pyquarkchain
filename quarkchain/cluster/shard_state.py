@@ -141,7 +141,12 @@ class ShardState:
     def __create_genesis_blocks(self, shard_id):
         genesis_manager = GenesisManager(self.env.quark_chain_config)
         genesis_block = genesis_manager.create_minor_block(
-            shard_id, self.__create_evm_state())
+            shard_id, self.__create_evm_state()
+        )
+        check(
+            genesis_block.header.get_hash()
+            == genesis_manager.get_minor_block_hash(self.branch.get_shard_id())
+        )
         genesis_root = genesis_manager.create_root_block()
 
         self.db.put_minor_block(genesis_block, [])
@@ -150,7 +155,8 @@ class ShardState:
 
         for i in range(self.branch.get_shard_size()):
             self.db.put_minor_block_xshard_tx_list(
-                genesis_manager.get_minor_block_hash(i), CrossShardTransactionList([]))
+                genesis_manager.get_minor_block_hash(i), CrossShardTransactionList([])
+            )
 
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
@@ -397,7 +403,9 @@ class ShardState:
         prev_confirmed_minor_block = self.db.get_last_minor_block_in_root_block(
             block.header.hash_prev_root_block
         )
-        if prev_confirmed_minor_block and not self.__is_same_minor_chain(prev_header, prev_confirmed_minor_block):
+        if prev_confirmed_minor_block and not self.__is_same_minor_chain(
+            prev_header, prev_confirmed_minor_block
+        ):
             raise ValueError(
                 "prev root block's minor block is not in the same chain as the minor block"
             )
@@ -718,7 +726,9 @@ class ShardState:
     def get_unconfirmed_headers_coinbase_amount(self):
         amount = 0
         header = self.header_tip
-        start_height = self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        start_height = (
+            self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        )
         for i in range(header.height - start_height):
             amount += header.coinbase_amount
             header = self.db.get_minor_block_header_by_hash(
@@ -731,7 +741,9 @@ class ShardState:
         """ height in ascending order """
         header_list = []
         header = self.header_tip
-        start_height = self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        start_height = (
+            self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        )
         for i in range(header.height - start_height):
             header_list.append(header)
             header = self.db.get_minor_block_header_by_hash(

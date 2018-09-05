@@ -30,6 +30,15 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
+            # Expect to mine root that includes the genesis minor blocks
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertTrue(is_root)
+            self.assertEqual(block.header.height, 1)
+            self.assertEqual(len(block.minor_block_header_list), 2)
+            self.assertEqual(block.minor_block_header_list[0].height, 0)
+            self.assertEqual(block.minor_block_header_list[1].height, 0)
+            call_async(master.add_root_block(block))
+
             tx = create_transfer_transaction(
                 shard_state=slaves[0].shard_state_map[2 | 0],
                 key=id1.get_key(),
@@ -44,7 +53,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 0 since it has one tx
             is_root, block1 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertFalse(is_root)
-            self.assertEqual(block1.header.height, 2)
+            self.assertEqual(block1.header.height, 1)
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.tx_list), 1)
 
@@ -64,7 +73,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 1 due to proof-of-progress
             is_root, block2 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertFalse(is_root)
-            self.assertEqual(block2.header.height, 2)
+            self.assertEqual(block2.header.height, 1)
             self.assertEqual(block2.header.branch.value, 0b11)
             self.assertEqual(len(block2.tx_list), 0)
 
@@ -87,7 +96,7 @@ class TestCluster(unittest.TestCase):
             # Expect to mine shard 1 for the gas on xshard tx to acc3
             is_root, block3 = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertFalse(is_root)
-            self.assertEqual(block3.header.height, 3)
+            self.assertEqual(block3.header.height, 2)
             self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.tx_list), 0)
 
@@ -271,7 +280,7 @@ class TestCluster(unittest.TestCase):
             )
 
             # Minor block is downloaded
-            self.assertEqual(b1.header.height, 14)
+            self.assertEqual(b1.header.height, 13)
             assert_true_with_timeout(
                 lambda: clusters[1].slave_list[0].shard_state_map[0b10].header_tip
                 == b1.header
@@ -301,7 +310,7 @@ class TestCluster(unittest.TestCase):
                 self.assertTrue(addResult)
                 blockList.append(block)
             self.assertEqual(
-                clusters[0].slave_list[0].shard_state_map[0b10].header_tip.height, 14
+                clusters[0].slave_list[0].shard_state_map[0b10].header_tip.height, 13
             )
 
             # cluster 1 has 12 blocks added
@@ -312,7 +321,7 @@ class TestCluster(unittest.TestCase):
                 addResult = call_async(clusters[1].slave_list[0].add_block(block))
                 self.assertTrue(addResult)
             self.assertEqual(
-                clusters[1].slave_list[0].shard_state_map[0b10].header_tip.height, 13
+                clusters[1].slave_list[0].shard_state_map[0b10].header_tip.height, 12
             )
 
             # reestablish cluster connection
@@ -416,6 +425,7 @@ class TestCluster(unittest.TestCase):
             is_root, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1)
             )
+            self.assertTrue(is_root)
             call_async(master.add_root_block(root_block))
 
             # b4 should include the withdraw of tx1

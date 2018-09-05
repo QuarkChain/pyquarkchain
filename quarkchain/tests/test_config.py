@@ -65,7 +65,8 @@ class TestShardConfig(unittest.TestCase):
             "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
             "TIMESTAMP": 1519147489,
             "DIFFICULTY": 1000000,
-            "NONCE": 0
+            "NONCE": 0,
+            "HASH": null
         }
     },
     "SHARD_LIST": [
@@ -86,7 +87,8 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {}
+                "ALLOC": {},
+                "HASH": null
             }
         },
         {
@@ -106,7 +108,8 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {}
+                "ALLOC": {},
+                "HASH": null
             }
         },
         {
@@ -126,7 +129,8 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {}
+                "ALLOC": {},
+                "HASH": null
             }
         },
         {
@@ -146,7 +150,8 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {}
+                "ALLOC": {},
+                "HASH": null
             }
         },
         {
@@ -154,7 +159,6 @@ class TestShardConfig(unittest.TestCase):
         }
     ]
 }"""
-        print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)
         deserialized_config = QuarkChainConfig.from_json(expected_json)
         self.assertEqual(deserialized_config.to_json(), expected_json)

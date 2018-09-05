@@ -28,17 +28,7 @@ def update_genesis_config(qkc_config: QuarkChainConfig):
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
         qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000 * (10 ** 18)
 
-    manager = GenesisManager(qkc_config)
-    qkc_config.ROOT.GENESIS.HASH = manager.create_root_block().header.get_hash().hex()
-
-    evm_config = get_default_evm_config()
-    evm_config["NETWORK_ID"] = qkc_config.NETWORK_ID
-    evm_env = EvmEnv(config=evm_config)
-    evm_state = EvmState(env=evm_env)
-    for i, shard in enumerate(qkc_config.SHARD_LIST):
-        shard.GENESIS.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
-        shard.GENESIS.HASH = manager.create_minor_block(i, evm_state).header.get_hash().hex()
-
+    GenesisManager.finalize_config(qkc_config)
 
 class MasterConfig(BaseConfig):
     MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
