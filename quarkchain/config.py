@@ -114,6 +114,7 @@ class RootGenesis(BaseConfig):
     TIMESTAMP = 1519147489
     DIFFICULTY = 1000000
     NONCE = 0
+    HASH = None  # Block header hash of the genesis block
 
 
 class ShardGenesis(BaseConfig):
@@ -129,6 +130,7 @@ class ShardGenesis(BaseConfig):
     DIFFICULTY = 10000
     NONCE = 0
     ALLOC = None  # dict() hex address -> qkc amount
+    HASH = None  # Block header hash of the genesis block to avoid repeating computation
 
     def __init__(self):
         self.ALLOC = dict()

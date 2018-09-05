@@ -5,24 +5,39 @@ import socket
 import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig
-from quarkchain.core import Address, ShardMask
+from quarkchain.config import QuarkChainConfig, BaseConfig, get_default_evm_config
+from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
 from quarkchain.cluster.monitoring import KafkaSampleLogger
+
+from quarkchain.cluster.genesis import GenesisManager
 from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
+from quarkchain.evm.config import Env as EvmEnv
+from quarkchain.core import Address
+from quarkchain.evm.state import State as EvmState
+
 
 HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_config(qkc_config: QuarkChainConfig):
-    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS """
+    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS
+    and fill in genesis block hashes """
     for item in ACCOUNTS_TO_FUND:
         address = Address.create_from(bytes.fromhex(item["address"]))
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
         qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000 * (10 ** 18)
 
+    manager = GenesisManager(qkc_config)
+    qkc_config.ROOT.GENESIS.HASH = manager.create_root_block().header.get_hash().hex()
+
+    evm_config = get_default_evm_config()
+    evm_config["NETWORK_ID"] = qkc_config.NETWORK_ID
+    evm_env = EvmEnv(config=evm_config)
+    evm_state = EvmState(env=evm_env)
     for i, shard in enumerate(qkc_config.SHARD_LIST):
         shard.GENESIS.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
+        shard.GENESIS.HASH = manager.create_minor_block(i, evm_state).header.get_hash().hex()
 
 
 class MasterConfig(BaseConfig):
@@ -237,6 +252,7 @@ class ClusterConfig(BaseConfig):
             args.num_shards, args.root_block_interval_sec, args.minor_block_interval_sec
         )
         config.QUARKCHAIN.NETWORK_ID = args.network_id
+
         update_genesis_config(config.QUARKCHAIN)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
