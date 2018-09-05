@@ -134,7 +134,10 @@ class ShardConfig(BaseConfig):
 
     @property
     def max_blocks_per_shard_in_one_root_block(self):
-        return self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+        return (
+            self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+            / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
+        )
 
     @property
     def max_stale_minor_block_height_diff(self):
@@ -147,7 +150,6 @@ class ShardConfig(BaseConfig):
     @property
     def max_minor_blocks_in_memory(self):
         return self.max_stale_minor_block_height_diff * 2
-
 
     def to_dict(self):
         ret = super().to_dict()
@@ -247,9 +249,10 @@ class QuarkChainConfig(BaseConfig):
         config = super().from_dict(d)
         config.ROOT = RootConfig.from_dict(config.ROOT)
         config.SHARD_LIST = [ShardConfig.from_dict(s) for s in config.SHARD_LIST]
+        for s in config.SHARD_LIST:
+            s.root_config = config.ROOT
         return config
 
 
 def get_default_evm_config():
     return dict(quarkchain.evm.config.config_metropolis)
-
