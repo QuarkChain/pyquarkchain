@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Optional, Tuple, List, Union
 
 from quarkchain.cluster.filter import Filter
-from quarkchain.cluster.genesis import GenesisManager
+from quarkchain.genesis import GenesisManager
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator

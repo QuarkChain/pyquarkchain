@@ -1,6 +1,6 @@
 import time
 
-from quarkchain.cluster.genesis import GenesisManager
+from quarkchain.genesis import GenesisManager
 from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader
 from quarkchain.core import (

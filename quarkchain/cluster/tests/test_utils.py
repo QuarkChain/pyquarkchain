@@ -16,7 +16,7 @@ from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check
-from quarkchain.cluster.genesis import GenesisManager
+from quarkchain.genesis import GenesisManager
 
 
 def get_test_env(

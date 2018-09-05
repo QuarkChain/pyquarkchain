@@ -5,17 +5,14 @@ import socket
 import tempfile
 
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig, get_default_evm_config
+from quarkchain.config import QuarkChainConfig, BaseConfig
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 
-from quarkchain.cluster.genesis import GenesisManager
+from quarkchain.genesis import GenesisManager
 from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
-from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.core import Address
-from quarkchain.evm.state import State as EvmState
-
 
 HOST = socket.gethostbyname(socket.gethostname())
 
