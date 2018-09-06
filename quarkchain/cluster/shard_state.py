@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Optional, Tuple, List, Union
 
 from quarkchain.cluster.filter import Filter
-from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
+from quarkchain.genesis import GenesisManager
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
@@ -73,7 +73,7 @@ class ShardState:
 
         # assure ShardState is in good shape after constructor returns though we still
         # rely on master calling init_from_root_block to bring the cluster into consistency
-        self.__create_genesis_blocks(shard_id)
+        self.__init_genesis_state(shard_id)
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -100,8 +100,8 @@ class ShardState:
             )
         )
 
-        if root_block.header.height <= 1:
-            Logger.info("Created genesis block")
+        if root_block.header.height <= 0:
+            Logger.info("Start from genesis block")
             return
 
         shard_size = root_block.header.shard_info.get_shard_size()
@@ -138,43 +138,39 @@ class ShardState:
     def __create_evm_state(self):
         return EvmState(env=self.env.evm_env, db=self.raw_db)
 
-    def __create_genesis_blocks(self, shard_id):
-        evm_list = create_genesis_evm_list(
-            env=self.env, db_map={self.shard_id: self.raw_db}
-        )
-        genesis_root_block0, genesis_root_block1, g_minor_block_list0, g_minor_block_list1 = create_genesis_blocks(
-            env=self.env, evm_list=evm_list
+    def __init_genesis_state(self, shard_id):
+        genesis_manager = GenesisManager(self.env.quark_chain_config)
+
+        # no need to recreate if the db already has it
+        genesis_block = self.db.get_minor_block_by_height(0)
+        if not genesis_block:
+            genesis_block = genesis_manager.create_minor_block(
+                shard_id, self.__create_evm_state()
+            )
+        check(
+            genesis_block.header.get_hash()
+            == genesis_manager.get_minor_block_hash(self.branch.get_shard_id())
         )
 
-        # Add x-shard list to db
-        for m_block1, evm_state in zip(g_minor_block_list1, evm_list):
-            if m_block1.header.branch.get_shard_id() == shard_id:
-                continue
-            self.add_cross_shard_tx_list_by_minor_block_hash(
-                m_block1.header.get_hash(), CrossShardTransactionList(tx_list=[])
+        genesis_root = genesis_manager.create_root_block()
+        self.db.put_minor_block(genesis_block, [])
+        self.db.put_minor_block_index(genesis_block)
+        self.db.put_root_block(genesis_root)
+
+        for i in range(self.branch.get_shard_size()):
+            self.db.put_minor_block_xshard_tx_list(
+                genesis_manager.get_minor_block_hash(i), CrossShardTransactionList([])
             )
 
-        # Local helper variables
-        genesis_minor_block0 = g_minor_block_list0[self.shard_id]
-        genesis_minor_block1 = g_minor_block_list1[self.shard_id]
-        check(genesis_minor_block1.header.branch.get_shard_id() == self.shard_id)
-
-        check(genesis_minor_block0.header.branch == self.branch)
-        self.evm_state = evm_list[self.shard_id]
-        self.db.put_minor_block(genesis_minor_block0, [])
-        self.db.put_minor_block_index(genesis_minor_block0)
-        self.db.put_minor_block(genesis_minor_block1, [])
-        self.db.put_minor_block_index(genesis_minor_block1)
-        self.db.put_root_block(genesis_root_block0, genesis_minor_block0.header)
-        self.db.put_root_block(genesis_root_block1, genesis_minor_block1.header)
-
-        self.root_tip = genesis_root_block1.header
+        self.evm_state = self.__create_evm_state()
+        self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
+        self.root_tip = genesis_root.header
         # Tips that are confirmed by root
-        self.confirmed_header_tip = genesis_minor_block1.header
-        self.confirmed_meta_tip = genesis_minor_block1.header
+        self.confirmed_header_tip = None
+        self.confirmed_meta_tip = None  # TODO: not used? cleanup
         # Tips that are unconfirmed by root
-        self.header_tip = genesis_minor_block1.header
-        self.meta_tip = genesis_minor_block1.meta
+        self.header_tip = genesis_block.header
+        self.meta_tip = genesis_block.meta
 
     def __validate_tx(
         self, tx: Transaction, evm_state, from_address=None, gas=None
@@ -326,7 +322,7 @@ class ShardState:
     def __validate_block(self, block):
         """ Validate a block before running evm transactions
         """
-        if block.header.height <= 1:
+        if block.header.height < 1:
             raise ValueError("unexpected height")
 
         if not self.db.contain_minor_block_by_hash(block.header.hash_prev_minor_block):
@@ -411,7 +407,9 @@ class ShardState:
         prev_confirmed_minor_block = self.db.get_last_minor_block_in_root_block(
             block.header.hash_prev_root_block
         )
-        if not self.__is_same_minor_chain(prev_header, prev_confirmed_minor_block):
+        if prev_confirmed_minor_block and not self.__is_same_minor_chain(
+            prev_header, prev_confirmed_minor_block
+        ):
             raise ValueError(
                 "prev root block's minor block is not in the same chain as the minor block"
             )
@@ -474,6 +472,10 @@ class ShardState:
     def __is_minor_block_linked_to_root_tip(self, m_block):
         """ Determine whether a minor block is a descendant of a minor block confirmed by root tip
         """
+        if not self.confirmed_header_tip:
+            # genesis
+            return True
+
         if m_block.header.height <= self.confirmed_header_tip.height:
             return False
 
@@ -728,7 +730,10 @@ class ShardState:
     def get_unconfirmed_headers_coinbase_amount(self):
         amount = 0
         header = self.header_tip
-        for i in range(header.height - self.confirmed_header_tip.height):
+        start_height = (
+            self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        )
+        for i in range(header.height - start_height):
             amount += header.coinbase_amount
             header = self.db.get_minor_block_header_by_hash(
                 header.hash_prev_minor_block
@@ -740,7 +745,10 @@ class ShardState:
         """ height in ascending order """
         header_list = []
         header = self.header_tip
-        for i in range(header.height - self.confirmed_header_tip.height):
+        start_height = (
+            self.confirmed_header_tip.height if self.confirmed_header_tip else -1
+        )
+        for i in range(header.height - start_height):
             header_list.append(header)
             header = self.db.get_minor_block_header_by_hash(
                 header.hash_prev_minor_block
@@ -748,44 +756,6 @@ class ShardState:
         check(header == self.confirmed_header_tip)
         header_list.reverse()
         return header_list
-
-    def __add_transactions_to_fund_loadtest_accounts(self, block, evm_state):
-        height = block.header.height
-        start_index = (height - 2) * 500
-        shard_mask = self.branch.get_shard_size() - 1
-        for i in range(500):
-            index = start_index + i
-            if index >= len(self.env.config.LOADTEST_ACCOUNTS):
-                return
-            address, key = self.env.config.LOADTEST_ACCOUNTS[index]
-            from_full_shard_id = (
-                self.env.config.GENESIS_ACCOUNT.full_shard_id & (~shard_mask)
-                | self.branch.get_shard_id()
-            )
-            to_full_shard_id = (
-                address.full_shard_id & (~shard_mask) | self.branch.get_shard_id()
-            )
-            gas = 21000
-            evm_tx = EvmTransaction(
-                nonce=evm_state.get_nonce(evm_state.block_coinbase),
-                gasprice=3 * (10 ** 9),
-                startgas=gas,
-                to=address.recipient,
-                value=10 * (10 ** 18),
-                data=b"",
-                from_full_shard_id=from_full_shard_id,
-                to_full_shard_id=to_full_shard_id,
-                network_id=self.env.quark_chain_config.NETWORK_ID,
-            )
-            evm_tx.sign(key=self.env.config.GENESIS_KEY)
-            evm_tx.set_shard_size(self.branch.get_shard_size())
-            try:
-                # tx_wrapper_hash is not needed for in-shard tx
-                apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
-                block.add_tx(Transaction(code=Code.create_evm_code(evm_tx)))
-            except Exception as e:
-                Logger.error_exception()
-                return
 
     def __add_transactions_to_block(self, block: MinorBlock, evm_state: EvmState):
         """ Fill up the block tx list with tx from the tx queue"""
@@ -870,9 +840,6 @@ class ShardState:
             descendant_root_header=self.root_tip,
             ancestor_root_header=ancestor_root_header,
         ).get_hash()
-
-        # fund load test accounts
-        self.__add_transactions_to_fund_loadtest_accounts(block, evm_state)
 
         self.__add_transactions_to_block(block, evm_state)
 

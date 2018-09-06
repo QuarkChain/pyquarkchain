@@ -7,6 +7,7 @@ from quarkchain.cluster.tests.test_utils import get_test_env
 from quarkchain.core import Address
 from quarkchain.core import CrossShardTransactionList
 from quarkchain.diff import EthDifficultyCalculator
+from quarkchain.genesis import GenesisManager
 
 
 def create_default_state(env):
@@ -34,7 +35,7 @@ class TestRootState(unittest.TestCase):
     def test_root_state_simple(self):
         env = get_test_env()
         state = RootState(env=env)
-        self.assertEqual(state.tip.height, 1)
+        self.assertEqual(state.tip.height, 0)
 
     def test_root_state_add_block(self):
         env = get_test_env()
@@ -55,10 +56,10 @@ class TestRootState(unittest.TestCase):
 
         self.assertTrue(rState.add_block(rB))
 
-        self.assertIsNone(rState.get_root_block_by_height(3))
-        self.assertEqual(rState.get_root_block_by_height(2), rB)
+        self.assertIsNone(rState.get_root_block_by_height(2))
+        self.assertEqual(rState.get_root_block_by_height(1), rB)
         self.assertEqual(
-            rState.get_root_block_by_height(1),
+            rState.get_root_block_by_height(0),
             rState.get_root_block_by_hash(rB.header.hash_prev_block),
         )
 
@@ -208,8 +209,9 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_difficulty(self):
         env = get_test_env()
-        env.config.GENESIS_DIFFICULTY = 1000
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
+        env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
+        GenesisManager.finalize_config(env.quark_chain_config)
         env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
         )
@@ -253,7 +255,7 @@ class TestRootState(unittest.TestCase):
             rB0.header.nonce = i
             if (
                 int.from_bytes(rB0.header.get_hash(), byteorder="big")
-                * env.config.GENESIS_DIFFICULTY
+                * env.quark_chain_config.ROOT.GENESIS.DIFFICULTY
                 < 2 ** 256
             ):
                 self.assertTrue(rState.add_block(rB0))
@@ -315,7 +317,7 @@ class TestRootState(unittest.TestCase):
 
         recoveredState = RootState(env=env)
         self.assertEqual(recoveredState.tip, rB0.header)
-        self.assertEqual(recoveredState.db.get_root_block_by_height(2), rB0)
+        self.assertEqual(recoveredState.db.get_root_block_by_height(1), rB0)
         # fork is pruned from recovered state
         self.assertIsNone(
             recoveredState.db.get_root_block_by_hash(rB00.header.get_hash())

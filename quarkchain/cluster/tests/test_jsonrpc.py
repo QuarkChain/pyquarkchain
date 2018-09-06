@@ -190,6 +190,20 @@ class TestJSONRPC(unittest.TestCase):
         ):
             slaves = clusters[0].slave_list
 
+            # Expect to mine root that confirms the genesis minor blocks
+            response = send_request(
+                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
+            )
+            self.assertTrue(response["isRootBlock"])
+            block = RootBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
+
+            self.assertEqual(block.header.height, 1)
+            self.assertEqual(len(block.minor_block_header_list), 2)
+            self.assertEqual(block.minor_block_header_list[0].height, 0)
+            self.assertEqual(block.minor_block_header_list[1].height, 0)
+
+            send_request("addBlock", "0x0", response["blockData"])
+
             tx = create_transfer_transaction(
                 shard_state=slaves[0].shard_state_map[2 | 0],
                 key=id1.get_key(),
@@ -323,18 +337,18 @@ class TestJSONRPC(unittest.TestCase):
             self.assertIsNone(resp)
 
             # By height
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x2", False)
+            resp = send_request("getMinorBlockByHeight", "0x0", "0x1", False)
             self.assertEqual(
                 resp["transactions"][0], "0x" + tx.get_hash().hex() + "0" * 8
             )
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x2", True)
+            resp = send_request("getMinorBlockByHeight", "0x0", "0x1", True)
             self.assertEqual(
                 resp["transactions"][0]["hash"], "0x" + tx.get_hash().hex()
             )
 
-            resp = send_request("getMinorBlockByHeight", "0x1", "0x3", False)
+            resp = send_request("getMinorBlockByHeight", "0x1", "0x2", False)
             self.assertIsNone(resp)
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x5", False)
+            resp = send_request("getMinorBlockByHeight", "0x0", "0x4", False)
             self.assertIsNone(resp)
 
     def test_getTransactionById(self):
@@ -469,6 +483,10 @@ class TestJSONRPC(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(block))
+
             s1, s2 = slaves[0].shard_state_map[2], slaves[1].shard_state_map[3]
             tx_gen = lambda s, f, t: create_transfer_transaction(
                 shard_state=s,
@@ -589,8 +607,8 @@ class TestJSONRPC(unittest.TestCase):
         expected_log_parts = {
             "logIndex": "0x0",
             "transactionIndex": "0x0",
-            "blockNumber": "0x2",
-            "blockHeight": "0x2",
+            "blockNumber": "0x1",
+            "blockHeight": "0x1",
             "data": "0x",
         }
 
@@ -676,7 +694,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(response, "0x5208")  # 21000
 
     def test_getStorageAt(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        key = bytes.fromhex(
+            "c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+        )
+        id1 = Identity.create_from_key(key)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
@@ -732,7 +753,10 @@ class TestJSONRPC(unittest.TestCase):
                 )
 
     def test_getCode(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        key = bytes.fromhex(
+            "c987d4506fb6824639f9a9e3b8834584f5165e94680501d1b0044071cd36c3b3"
+        )
+        id1 = Identity.create_from_key(key)
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
@@ -766,7 +790,7 @@ class TestJSONRPC(unittest.TestCase):
                 )
 
     def test_gasPrice(self):
-        id1 = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
+        id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(

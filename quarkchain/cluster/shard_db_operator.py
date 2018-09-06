@@ -173,6 +173,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.height_to_minor_block_hashes = dict()
 
     def __get_last_minor_block_in_root_block(self, root_block):
+        # genesis root block contains no minor block header
+        if root_block.header.height == 0:
+            return None
+
         l_header = None
         for m_header in root_block.minor_block_header_list:
             if m_header.branch != self.branch:
@@ -224,7 +228,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         )
 
     # ------------------------- Root block db operations --------------------------------
-    def put_root_block(self, root_block, r_minor_header, root_block_hash=None):
+    def put_root_block(self, root_block, r_minor_header=None, root_block_hash=None):
         """ r_minor_header: the minor header of the shard in the root block with largest height
         """
         if root_block_hash is None:
@@ -245,6 +249,7 @@ class ShardDbOperator(TransactionHistoryMixin):
     def contain_root_block_by_hash(self, h):
         return h in self.r_header_pool
 
+    # TODO: make sure all the callers check None
     def get_last_minor_block_in_root_block(self, h):
         if h not in self.r_header_pool:
             return None

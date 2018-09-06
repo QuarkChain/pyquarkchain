@@ -10,6 +10,7 @@ from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionL
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
+from quarkchain.genesis import GenesisManager
 
 
 def create_default_shard_state(env, shard_id=0):
@@ -21,8 +22,8 @@ class TestShardState(unittest.TestCase):
     def test_shard_state_simple(self):
         env = get_test_env()
         state = create_default_shard_state(env)
-        self.assertEqual(state.root_tip.height, 1)
-        self.assertEqual(state.header_tip.height, 1)
+        self.assertEqual(state.root_tip.height, 0)
+        self.assertEqual(state.header_tip.height, 0)
 
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
@@ -515,10 +516,10 @@ class TestShardState(unittest.TestCase):
         b2.header.create_time += 1
 
         state.finalize_and_add_block(b1)
-        self.assertEqual(state.db.get_block_count_by_height(2), 1)
+        self.assertEqual(state.db.get_block_count_by_height(1), 1)
 
         state.finalize_and_add_block(b2)
-        self.assertEqual(state.db.get_block_count_by_height(2), 2)
+        self.assertEqual(state.db.get_block_count_by_height(1), 2)
 
     def test_xshard_tx_sent(self):
         id1 = Identity.create_random_identity()
@@ -957,8 +958,8 @@ class TestShardState(unittest.TestCase):
         b4 = b3.create_block_to_append()
         state0.finalize_and_add_block(b4)
         self.assertEqual(state0.header_tip, b00.header)
-        self.assertEqual(state0.db.get_minor_block_by_height(3), b00)
-        self.assertIsNone(state0.db.get_minor_block_by_height(4))
+        self.assertEqual(state0.db.get_minor_block_by_height(2), b00)
+        self.assertIsNone(state0.db.get_minor_block_by_height(3))
 
         b5 = b1.create_block_to_append()
         state0.add_cross_shard_tx_list_by_minor_block_hash(
@@ -978,8 +979,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.meta_tip, b4.meta)
         self.assertEqual(state0.root_tip, root_block2.header)
 
-        self.assertEqual(state0.db.get_minor_block_by_height(3), b3)
-        self.assertEqual(state0.db.get_minor_block_by_height(4), b4)
+        self.assertEqual(state0.db.get_minor_block_by_height(2), b3)
+        self.assertEqual(state0.db.get_minor_block_by_height(3), b4)
 
     def test_shard_state_fork_resolve_with_higher_root_chain(self):
         id1 = Identity.create_random_identity()
@@ -1018,7 +1019,10 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_difficulty(self):
         env = get_test_env()
-        env.config.GENESIS_MINOR_DIFFICULTY = 10000
+        for shard in env.quark_chain_config.SHARD_LIST:
+            shard.GENESIS.DIFFICULTY = 10000
+        GenesisManager.finalize_config(env.quark_chain_config)
+
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
@@ -1053,7 +1057,7 @@ class TestShardState(unittest.TestCase):
             b0.header.nonce = i
             if (
                 int.from_bytes(b0.header.get_hash(), byteorder="big")
-                * env.config.GENESIS_MINOR_DIFFICULTY
+                * env.quark_chain_config.SHARD_LIST[0].GENESIS.DIFFICULTY
                 < 2 ** 256
             ):
                 self.assertEqual(state.add_block(b0), [])
@@ -1090,7 +1094,7 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(root_block)
 
         recoveredState = ShardState(env=env, shard_id=0)
-        self.assertEqual(recoveredState.header_tip.height, 1)
+        self.assertEqual(recoveredState.header_tip.height, 0)
 
         recoveredState.init_from_root_block(root_block)
         # forks are pruned

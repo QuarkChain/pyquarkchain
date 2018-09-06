@@ -16,6 +16,7 @@ from quarkchain.db import InMemoryDb
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check
+from quarkchain.genesis import GenesisManager
 
 
 def get_test_env(
@@ -25,8 +26,6 @@ def get_test_env(
     shard_size=2,
 ):
     env = DEFAULT_ENV.copy()
-    env.config.GENESIS_ACCOUNT = genesis_account
-    env.config.GENESIS_MINOR_COIN = genesis_minor_quarkash
     env.config.TESTNET_MASTER_ACCOUNT = genesis_account
 
     env.db = InMemoryDb()
@@ -37,6 +36,13 @@ def get_test_env(
 
     env.cluster_config = ClusterConfig()
     env.quark_chain_config.update(shard_size, 1, 1)
+
+    # fund genesis account in all shards
+    for i, shard in enumerate(env.quark_chain_config.SHARD_LIST):
+        shard.GENESIS.ALLOC[genesis_account.address_in_shard(i).serialize().hex()] = genesis_minor_quarkash
+
+    GenesisManager.finalize_config(env.quark_chain_config)
+
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True

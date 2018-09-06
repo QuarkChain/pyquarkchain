@@ -1,6 +1,6 @@
 import time
 
-from quarkchain.cluster.genesis import create_genesis_blocks, create_genesis_evm_list
+from quarkchain.genesis import GenesisManager
 from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader
 from quarkchain.core import (
@@ -8,7 +8,7 @@ from quarkchain.core import (
     Serializable,
     PrependedSizeListSerializer,
 )
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, check
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -159,28 +159,17 @@ class RootState:
                 "Recovered root state with tip height {}".format(self.tip.height)
             )
         else:
-            self.__create_genesis_blocks()
+            self.__create_genesis_block()
             Logger.info("Created genesis root block")
 
-    def __create_genesis_blocks(self):
-        evm_list = create_genesis_evm_list(env=self.env)
-        genesis_root_block0, genesis_root_block1, g_minor_block_list0, g_minor_block_list1 = create_genesis_blocks(
-            env=self.env, evm_list=evm_list
-        )
-
-        self.db.put_root_block(
-            genesis_root_block0, [b.header for b in g_minor_block_list0]
-        )
-        self.db.put_root_block_index(genesis_root_block0)
-        self.db.put_root_block(
-            genesis_root_block1, [b.header for b in g_minor_block_list1]
-        )
-        self.db.put_root_block_index(genesis_root_block1)
-        self.tip = genesis_root_block1.header
-        for b in g_minor_block_list0:
-            self.add_validated_minor_block_hash(b.header.get_hash())
-        for b in g_minor_block_list1:
-            self.add_validated_minor_block_hash(b.header.get_hash())
+    def __create_genesis_block(self):
+        genesis_manager = GenesisManager(self.env.quark_chain_config)
+        genesis_block = genesis_manager.create_root_block()
+        self.db.put_root_block(genesis_block, [])
+        self.db.put_root_block_index(genesis_block)
+        for i in range(genesis_block.header.shard_info.get_shard_size()):
+            self.db.put_minor_block_hash(genesis_manager.get_minor_block_hash(i))
+        self.tip = genesis_block.header
 
     def get_tip_block(self):
         return self.db.get_root_block_by_hash(self.tip.get_hash())
@@ -212,7 +201,7 @@ class RootState:
     def validate_block_header(self, block_header, block_hash=None):
         """ Validate the block header.
         """
-        if block_header.height <= 1:
+        if block_header.height < 1:
             raise ValueError("unexpected height")
 
         if not self.db.contain_root_block_by_hash(block_header.hash_prev_block):
@@ -265,9 +254,15 @@ class RootState:
     def validate_block(self, block, block_hash=None):
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
+
         prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
             block.header.hash_prev_block
         )
+
+        if block.header.height > 1:
+            check(len(prev_last_minor_block_header_list) > 0)
+        else:
+            check(len(prev_last_minor_block_header_list) == 0)
 
         block_hash = self.validate_block_header(block.header, block_hash)
 
@@ -278,7 +273,8 @@ class RootState:
 
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         shard_id = 0
-        prev_header = prev_last_minor_block_header_list[0]
+        # prev_last_minor_block_header_list can be empty for genesis root block
+        prev_header = prev_last_minor_block_header_list[0] if prev_last_minor_block_header_list else None
         last_minor_block_header_list = []
         block_count_in_shard = 0
         for idx, m_header in enumerate(block.minor_block_header_list):
@@ -293,7 +289,7 @@ class RootState:
                             m_header.create_time, block.header.create_time
                         )
                     )
-                if not self.__is_same_chain(
+                if prev_header and not self.__is_same_chain(
                     self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
                     self.db.get_root_block_header_by_hash(
                         prev_header.hash_prev_root_block
@@ -308,7 +304,7 @@ class RootState:
                 )
                 shard_id += 1
                 block_count_in_shard = 0
-                prev_header = prev_last_minor_block_header_list[shard_id]
+                prev_header = prev_last_minor_block_header_list[shard_id] if prev_last_minor_block_header_list else None
 
             if not self.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise ValueError(
@@ -317,8 +313,9 @@ class RootState:
                     )
                 )
 
-            if m_header.hash_prev_minor_block != prev_header.get_hash():
+            if prev_header and m_header.hash_prev_minor_block != prev_header.get_hash():
                 raise ValueError("minor block doesn't link to previous minor block")
+
             block_count_in_shard += 1
             prev_header = m_header
             # TODO: Add coinbase
