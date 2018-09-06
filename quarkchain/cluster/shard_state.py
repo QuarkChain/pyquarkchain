@@ -73,7 +73,7 @@ class ShardState:
 
         # assure ShardState is in good shape after constructor returns though we still
         # rely on master calling init_from_root_block to bring the cluster into consistency
-        self.__create_genesis_blocks(shard_id)
+        self.__init_genesis_state(shard_id)
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -138,17 +138,21 @@ class ShardState:
     def __create_evm_state(self):
         return EvmState(env=self.env.evm_env, db=self.raw_db)
 
-    def __create_genesis_blocks(self, shard_id):
+    def __init_genesis_state(self, shard_id):
         genesis_manager = GenesisManager(self.env.quark_chain_config)
-        genesis_block = genesis_manager.create_minor_block(
-            shard_id, self.__create_evm_state()
-        )
+
+        # no need to recreate if the db already has it
+        genesis_block = self.db.get_minor_block_by_height(0)
+        if not genesis_block:
+            genesis_block = genesis_manager.create_minor_block(
+                shard_id, self.__create_evm_state()
+            )
         check(
             genesis_block.header.get_hash()
             == genesis_manager.get_minor_block_hash(self.branch.get_shard_id())
         )
-        genesis_root = genesis_manager.create_root_block()
 
+        genesis_root = genesis_manager.create_root_block()
         self.db.put_minor_block(genesis_block, [])
         self.db.put_minor_block_index(genesis_block)
         self.db.put_root_block(genesis_root)
