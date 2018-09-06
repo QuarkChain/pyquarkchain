@@ -75,7 +75,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(slaves[0].add_tx(tx))
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
-                self.assertEqual(i + 2, block.header.height)
+                self.assertEqual(i + 1, block.header.height)
                 self.assertTrue(call_async(slaves[0].add_block(block)))
 
             response = send_request(
@@ -94,7 +94,7 @@ class TestJSONRPC(unittest.TestCase):
 
             for i in range(3):
                 response = send_request(
-                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 2)
+                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 1)
                 )
                 self.assertEqual(response, hex(i + 1))
 
@@ -736,7 +736,7 @@ class TestJSONRPC(unittest.TestCase):
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
                     req = lambda k: send_request(
-                        "eth_getStorageAt", created_addr[:-8], k, "latest", "0x0"
+                        "eth_getStorageAt", created_addr[:-8], k, "0x0"
                     )
                 else:
                     req = lambda k: send_request("getStorageAt", created_addr, k)
@@ -794,9 +794,7 @@ class TestJSONRPC(unittest.TestCase):
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
-                    resp = send_request(
-                        "eth_getCode", created_addr[:-8], "latest", "0x0"
-                    )
+                    resp = send_request("eth_getCode", created_addr[:-8], "0x0")
                 else:
                     resp = send_request("getCode", created_addr)
 

@@ -901,22 +901,20 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
-    @decode_arg("block_height", block_height_decoder)
     @decode_arg("shard", shard_id_decoder)
-    async def eth_getCode(self, address, block_height=None, shard=None):
+    async def eth_getCode(self, address, shard=None):
         addr = Address.deserialize(address)
         if shard is not None:
             addr = Address(addr.recipient, shard)
-        res = await self.master.get_code(addr, block_height)
+        res = await self.master.get_code(addr, None)
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
-    @decode_arg("block_height", block_height_decoder)
     @decode_arg("shard", shard_id_decoder)
-    async def eth_call(self, data, block_height=None, shard=None):
+    async def eth_call(self, data, shard=None):
         """ Returns the result of the transaction application without putting in block chain """
         data = self._convert_eth_call_data(data, shard)
-        return await self.call(data, block_height=block_height)
+        return await self.call(data)
 
     @public_methods.add
     async def eth_sendRawTransaction(self, tx_data):
@@ -947,13 +945,12 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
     @decode_arg("key", quantity_decoder)
-    @decode_arg("block_height", block_height_decoder)
     @decode_arg("shard", shard_id_decoder)
-    async def eth_getStorageAt(self, address, key, block_height=None, shard=None):
+    async def eth_getStorageAt(self, address, key, shard=None):
         addr = Address.deserialize(address)
         if shard is not None:
             addr = Address(addr.recipient, shard)
-        res = await self.master.get_storage_at(addr, key, block_height)
+        res = await self.master.get_storage_at(addr, key, None)
         return data_encoder(res) if res is not None else None
 
     ######################## Private Methods ########################
