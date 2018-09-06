@@ -10,8 +10,8 @@ from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
 
 
-def create_default_state(env):
-    rState = RootState(env=env)
+def create_default_state(env, diff_calc=None):
+    rState = RootState(env=env, diff_calc=diff_calc)
     sStateList = [
         ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
         for shard_id in range(env.quark_chain_config.SHARD_SIZE)
@@ -212,12 +212,12 @@ class TestRootState(unittest.TestCase):
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
         GenesisManager.finalize_config(env.quark_chain_config)
-        env.config.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9, diff_factor=2048, minimum_diff=1
-        )
-        env.quark_chain_config.NETWORK_ID = 1  # other network ids will skip difficulty check
+        diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
+        env.quark_chain_config.NETWORK_ID = (
+            1
+        )  # other network ids will skip difficulty check
 
-        rState, sStates = create_default_state(env)
+        rState, sStates = create_default_state(env, diff_calc=diff_calc)
         b0 = sStates[0].get_tip().create_block_to_append()
         add_minor_block_to_cluster(sStates, b0)
         b1 = sStates[1].get_tip().create_block_to_append()

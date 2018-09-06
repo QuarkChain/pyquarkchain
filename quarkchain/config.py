@@ -1,15 +1,9 @@
-import copy
 import json
 from enum import Enum
 
 import quarkchain.db
 import quarkchain.evm.config
 from quarkchain.core import Address
-from quarkchain.diff import EthDifficultyCalculator
-from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
-from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
-from quarkchain.utils import is_p2, int_left_most_bit, sha3_256
-
 
 # Decimal level
 QUARKSH_TO_JIAOZI = 10 ** 18
@@ -19,25 +13,6 @@ class NetworkId:
     MAINNET = 1
     # TESTNET_FORD = 2
     TESTNET_PORSCHE = 3
-
-
-class LegacyConfig:
-    # TODO: Move the parameters elsewhere and delete LegacyConfig
-    def __init__(self):
-        # TODO: Remove proof of progress check?
-        self.PROOF_OF_PROGRESS_BLOCKS = 1
-        self.ROOT_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=45, diff_factor=2048, minimum_diff=1000000
-        )
-        self.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
-            cutoff=9, diff_factor=2048, minimum_diff=10000
-        )
-        self.TESTNET_MASTER_ACCOUNT = Address.create_from(
-            "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
-        )
-
-    def copy(self):
-        return copy.copy(self)
 
 
 def _is_config_field(s: str):
@@ -221,6 +196,9 @@ class QuarkChainConfig(BaseConfig):
     TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 10000
     BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
+    PROOF_OF_PROGRESS_BLOCKS = 1
+    TESTNET_MASTER_ADDRESS = "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
+
     # P2P
     P2P_PROTOCOL_VERSION = 0
     P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
@@ -246,6 +224,10 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
+
+    @property
+    def testnet_master_address(self):
+        return Address.create_from(self.TESTNET_MASTER_ADDRESS)
 
     def update(self, shard_size, root_block_time, minor_block_time):
         self.SHARD_SIZE = shard_size

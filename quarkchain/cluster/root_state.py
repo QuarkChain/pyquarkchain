@@ -1,6 +1,5 @@
 import time
 
-from quarkchain.genesis import GenesisManager
 from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader
 from quarkchain.core import (
@@ -8,6 +7,8 @@ from quarkchain.core import (
     Serializable,
     PrependedSizeListSerializer,
 )
+from quarkchain.diff import EthDifficultyCalculator
+from quarkchain.genesis import GenesisManager
 from quarkchain.utils import Logger, check
 
 
@@ -146,11 +147,19 @@ class RootState:
     """ State of root
     """
 
-    def __init__(self, env):
+    def __init__(self, env, diff_calc=None):
         self.env = env
-        self.diff_calc = self.env.config.ROOT_DIFF_CALCULATOR
+        self.diff_calc = (
+            diff_calc
+            if diff_calc
+            else EthDifficultyCalculator(
+                cutoff=45, diff_factor=2048, minimum_diff=1000000
+            )
+        )
         self.raw_db = env.db
-        self.db = RootDb(self.raw_db, env.quark_chain_config.ROOT.max_root_blocks_in_memory)
+        self.db = RootDb(
+            self.raw_db, env.quark_chain_config.ROOT.max_root_blocks_in_memory
+        )
 
         persisted_tip = self.db.get_tip_header()
         if persisted_tip:
@@ -236,7 +245,7 @@ class RootState:
                     raise ValueError("insufficient difficulty")
             elif (
                 block_header.coinbase_address.recipient
-                != self.env.config.TESTNET_MASTER_ACCOUNT.recipient
+                != self.env.quark_chain_config.testnet_master_address.recipient
             ):
                 raise ValueError("incorrect master to create the block")
 
@@ -274,14 +283,21 @@ class RootState:
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         shard_id = 0
         # prev_last_minor_block_header_list can be empty for genesis root block
-        prev_header = prev_last_minor_block_header_list[0] if prev_last_minor_block_header_list else None
+        prev_header = (
+            prev_last_minor_block_header_list[0]
+            if prev_last_minor_block_header_list
+            else None
+        )
         last_minor_block_header_list = []
         block_count_in_shard = 0
         for idx, m_header in enumerate(block.minor_block_header_list):
             if m_header.branch.get_shard_id() != shard_id:
                 if m_header.branch.get_shard_id() != shard_id + 1:
                     raise ValueError("shard id must be ordered")
-                if block_count_in_shard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+                if (
+                    block_count_in_shard
+                    < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
+                ):
                     raise ValueError("fail to prove progress")
                 if m_header.create_time > block.header.create_time:
                     raise ValueError(
@@ -304,7 +320,11 @@ class RootState:
                 )
                 shard_id += 1
                 block_count_in_shard = 0
-                prev_header = prev_last_minor_block_header_list[shard_id] if prev_last_minor_block_header_list else None
+                prev_header = (
+                    prev_last_minor_block_header_list[shard_id]
+                    if prev_last_minor_block_header_list
+                    else None
+                )
 
             if not self.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise ValueError(
@@ -322,10 +342,10 @@ class RootState:
 
         if (
             shard_id != block.header.shard_info.get_shard_size() - 1
-            and self.env.config.PROOF_OF_PROGRESS_BLOCKS != 0
+            and self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS != 0
         ):
             raise ValueError("fail to prove progress")
-        if block_count_in_shard < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+        if block_count_in_shard < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
             raise ValueError("fail to prove progress")
         if m_header.create_time > block.header.create_time:
             raise ValueError(

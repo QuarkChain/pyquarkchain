@@ -505,7 +505,7 @@ class MasterServer:
         self.__init_root_miner()
 
     def __init_root_miner(self):
-        miner_address = self.env.config.TESTNET_MASTER_ACCOUNT
+        miner_address = self.env.quark_chain_config.testnet_master_address
 
         async def __create_block():
             while True:
@@ -742,7 +742,7 @@ class MasterServer:
         for shard_id in range(self.__get_shard_size()):
             headers = shard_id_to_header_list.get(shard_id, [])
             header_list.extend(headers)
-            if len(headers) < self.env.config.PROOF_OF_PROGRESS_BLOCKS:
+            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
                 # Fallback to create minor block
                 block = await self.__get_minor_block_to_mine(
                     Branch.create(self.__get_shard_size(), shard_id), address

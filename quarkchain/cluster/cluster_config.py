@@ -22,12 +22,12 @@ def update_genesis_config(qkc_config: QuarkChainConfig):
     """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS
     and fill in genesis block hashes """
     for item in ACCOUNTS_TO_FUND:
-        address = Address.create_from(bytes.fromhex(item["address"]))
+        address = Address.create_from(item["address"])
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
         qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (10 ** 18)
 
     for item in LOADTEST_ACCOUNTS:
-        address = Address.create_from(bytes.fromhex(item["address"]))
+        address = Address.create_from(item["address"])
         for i, shard in enumerate(qkc_config.SHARD_LIST):
             shard.GENESIS.ALLOC[address.address_in_shard(i).serialize().hex()] = 1000 * (10 ** 18)
 
