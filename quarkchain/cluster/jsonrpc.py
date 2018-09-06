@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import List, Callable
+from typing import List, Callable, Optional
 
 import aiohttp_cors
 import rlp
@@ -333,12 +333,15 @@ def encode_res(encoder):
     return new_f
 
 
-def block_id_decoder(data):
-    """Decode a block identifier as expected from :meth:`JSONRPCServer.get_block`."""
-    if data in (None, "latest", "earliest", "pending"):
-        return data
-    else:
-        return quantity_decoder(data)
+def block_height_decoder(data):
+    """Decode block height string, which can either be None, 'latest', 'earliest' or a hex number
+    of minor block height"""
+    if data is None or data == "latest":
+        return None
+    if data == "earliest":
+        return 0
+    # TODO: support pending
+    return quantity_decoder(data)
 
 
 def shard_id_decoder(data):
@@ -479,18 +482,20 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("address", address_decoder)
+    @decode_arg("block_height", block_height_decoder)
     @encode_res(quantity_encoder)
-    async def getTransactionCount(self, address):
+    async def getTransactionCount(self, address, block_height=None):
         account_branch_data = await self.master.get_primary_account_data(
-            Address.deserialize(address)
+            Address.deserialize(address), block_height
         )
         return account_branch_data.transaction_count
 
     @public_methods.add
     @decode_arg("address", address_decoder)
-    async def getBalance(self, address):
+    @decode_arg("block_height", block_height_decoder)
+    async def getBalance(self, address, block_height=None):
         account_branch_data = await self.master.get_primary_account_data(
-            Address.deserialize(address)
+            Address.deserialize(address), block_height
         )
         branch = account_branch_data.branch
         balance = account_branch_data.balance
@@ -502,10 +507,17 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("address", address_decoder)
-    async def getAccountData(self, address, include_shards=False):
+    @decode_arg("block_height", block_height_decoder)
+    async def getAccountData(self, address, block_height=None, include_shards=False):
+        # do not allow specify height if client wants info on all shards
+        if include_shards and block_height is not None:
+            return None
+
         address = Address.deserialize(address)
         if not include_shards:
-            account_branch_data = await self.master.get_primary_account_data(address)
+            account_branch_data = await self.master.get_primary_account_data(
+                address, block_height
+            )
             branch = account_branch_data.branch
             balance = account_branch_data.balance
             count = account_branch_data.transaction_count
@@ -830,9 +842,9 @@ class JSONRPCServer:
         return await self.gasPrice(shard)
 
     @public_methods.add
-    @decode_arg("block_id", block_id_decoder)
+    @decode_arg("block_height", block_height_decoder)
     @decode_arg("include_transactions", bool_decoder)
-    async def eth_getBlockByNumber(self, block_id, include_transactions):
+    async def eth_getBlockByNumber(self, block_height, include_transactions):
         """
         NOTE: only support block_id "latest" or hex
         """
@@ -851,9 +863,8 @@ class JSONRPCServer:
                 "stateRoot": block["hashEvmStateRoot"],  # ?
             }
 
-        height = None if block_id == "latest" else block_id
         block = await self.master.get_minor_block_by_height(
-            height, Branch.create(self.master.get_shard_size(), 0)
+            block_height, Branch.create(self.master.get_shard_size(), 0)
         )
         if block is None:
             return None

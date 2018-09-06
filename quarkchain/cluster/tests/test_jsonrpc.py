@@ -64,27 +64,39 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
-            tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
-                key=id1.get_key(),
-                from_address=acc1,
-                to_address=acc1,
-                value=12345,
-            )
-            self.assertTrue(slaves[0].add_tx(tx))
+            for i in range(3):
+                tx = create_transfer_transaction(
+                    shard_state=slaves[0].shard_state_map[branch.value],
+                    key=id1.get_key(),
+                    from_address=acc1,
+                    to_address=acc1,
+                    value=12345,
+                )
+                self.assertTrue(slaves[0].add_tx(tx))
 
-            _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
-
-            response = send_request(
-                "getTransactionCount", "0x" + acc1.serialize().hex()
-            )
-            self.assertEqual(response, "0x1")
+                _, block = call_async(master.get_next_block_to_mine(address=acc1))
+                self.assertEqual(i + 2, block.header.height)
+                self.assertTrue(call_async(slaves[0].add_block(block)))
 
             response = send_request(
                 "getTransactionCount", "0x" + acc2.serialize().hex()
             )
             self.assertEqual(response, "0x0")
+
+            response = send_request(
+                "getTransactionCount", "0x" + acc1.serialize().hex()
+            )
+            self.assertEqual(response, "0x3")
+            response = send_request(
+                "getTransactionCount", "0x" + acc1.serialize().hex(), "latest"
+            )
+            self.assertEqual(response, "0x3")
+
+            for i in range(3):
+                response = send_request(
+                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 2)
+                )
+                self.assertEqual(response, hex(i + 1))
 
     def test_sendTransaction(self):
         id1 = Identity.create_random_identity()

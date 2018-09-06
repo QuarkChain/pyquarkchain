@@ -50,7 +50,7 @@ class ShardState:
     """  State of a shard, which includes
     - evm state
     - minor blockchain
-    - root blockchain and cross-shard transactiond
+    - root blockchain and cross-shard transaction
     TODO: Support
     - reshard by split
     """
@@ -265,19 +265,6 @@ class ShardState:
             Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
             return False
 
-    def execute_tx(self, tx: Transaction, from_address) -> Optional[bytes]:
-        state = self.evm_state.ephemeral_clone()
-        state.gas_used = 0
-        try:
-            evm_tx = self.__validate_tx(tx, state, from_address)
-            success, output = apply_transaction(
-                state, evm_tx, tx_wrapper_hash=bytes(32)
-            )
-            return output if success else None
-        except Exception as e:
-            Logger.warning_every_sec("failed to apply transaction: {}".format(e), 1)
-            return None
-
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
         state = self.__create_evm_state()
         if ephemeral:
@@ -286,7 +273,7 @@ class ShardState:
             block.header.hash_prev_minor_block
         )
         state.timestamp = block.header.create_time
-        state.gas_limit = block.meta.evm_gas_limit  # TODO
+        state.gas_limit = block.meta.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
             state.block_number
@@ -599,7 +586,9 @@ class ShardState:
         # The rest fee goes to root block
         if evm_state.block_fee // 2 != block.header.coinbase_amount:
             raise ValueError("Coinbase reward incorrect")
-        # TODO: Check evm bloom
+
+        if evm_state.bloom != block.header.bloom:
+            raise ValueError("Bloom mismatch")
 
         # TODO: Add block reward to coinbase
         # self.reward_calc.get_block_reward(self):
@@ -685,22 +674,53 @@ class ShardState:
     def get_block_header_by_height(self, height):
         pass
 
-    def get_balance(self, recipient: bytes):
-        # TODO: support specifying block
-        return self.evm_state.get_balance(recipient)
+    def get_balance(self, recipient: bytes, height: Optional[int] = None) -> int:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return 0
+        return evm_state.get_balance(recipient)
 
-    def get_transaction_count(self, recipient: bytes):
-        # TODO: support specifying block
-        return self.evm_state.get_nonce(recipient)
+    def get_transaction_count(
+        self, recipient: bytes, height: Optional[int] = None
+    ) -> int:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return 0
+        return evm_state.get_nonce(recipient)
 
-    def get_code(self, recipient: bytes):
-        # TODO: support specifying block
-        return self.evm_state.get_code(recipient)
+    def get_code(self, recipient: bytes, height: Optional[int] = None) -> bytes:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return b""
+        return evm_state.get_code(recipient)
 
-    def get_storage_at(self, recipient: bytes, key: int) -> bytes:
-        # TODO: support specifying block
-        int_result = self.evm_state.get_storage_data(recipient, key)  # type: int
+    def get_storage_at(
+        self, recipient: bytes, key: int, height: Optional[int] = None
+    ) -> bytes:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return b""
+        int_result = evm_state.get_storage_data(recipient, key)  # type: int
         return int_result.to_bytes(32, byteorder="big")
+
+    def execute_tx(
+        self, tx: Transaction, from_address, height: Optional[int] = None
+    ) -> Optional[bytes]:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return None
+
+        state = evm_state.ephemeral_clone()
+        state.gas_used = 0
+        try:
+            evm_tx = self.__validate_tx(tx, state, from_address)
+            success, output = apply_transaction(
+                state, evm_tx, tx_wrapper_hash=bytes(32)
+            )
+            return output if success else None
+        except Exception as e:
+            Logger.warning_every_sec("failed to apply transaction: {}".format(e), 1)
+            return None
 
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:
@@ -1235,11 +1255,11 @@ class ShardState:
             start_height = 3
         prices = []
         for i in range(start_height, curr_height + 1):
-            b = self.db.get_minor_block_by_height(i)
-            if not b:
+            block = self.db.get_minor_block_by_height(i)
+            if not block:
                 Logger.error("Failed to get block {} to retrieve gas price".format(i))
                 continue
-            prices.extend(b.get_block_prices())
+            prices.extend(block.get_block_prices())
         if not prices:
             return None
         prices.sort()
@@ -1249,3 +1269,15 @@ class ShardState:
         self.gas_price_suggestion_oracle.last_price = price
         self.gas_price_suggestion_oracle.last_head = curr_head
         return price
+
+    def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
+        if height is None or height == self.header_tip.height:
+            return self.evm_state
+
+        # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
+        # so adding 1 is needed here to get the next block
+        block = self.db.get_minor_block_by_height(height + 1)
+        if not block:
+            Logger.error("Failed to get block at height {}".format(height))
+            return None
+        return self._get_evm_state_for_new_block(block)
