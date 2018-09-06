@@ -1119,7 +1119,7 @@ class SlaveServer:
 
     def __init_miner(self, branch_value):
         branch = Branch(branch_value)
-        miner_address = self.env.config.TESTNET_MASTER_ACCOUNT.address_in_branch(branch)
+        miner_address = self.env.quark_chain_config.testnet_master_address.address_in_branch(branch)
 
         def __is_syncing():
             return any(

@@ -5,7 +5,6 @@ from collections import defaultdict
 from typing import Optional, Tuple, List, Union
 
 from quarkchain.cluster.filter import Filter
-from quarkchain.genesis import GenesisManager
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
@@ -27,11 +26,13 @@ from quarkchain.core import (
     MinorBlockMeta,
     TransactionReceipt,
 )
+from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 
@@ -55,10 +56,14 @@ class ShardState:
     - reshard by split
     """
 
-    def __init__(self, env, shard_id, db=None):
+    def __init__(self, env, shard_id, db=None, diff_calc=None):
         self.env = env
         self.shard_id = shard_id
-        self.diff_calc = self.env.config.MINOR_DIFF_CALCULATOR
+        self.diff_calc = (
+            diff_calc
+            if diff_calc
+            else EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=10000)
+        )
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
         self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, shard_id)
@@ -369,7 +374,7 @@ class ShardState:
                     raise ValueError("insufficient difficulty")
             elif (
                 block.meta.coinbase_address.recipient
-                != self.env.config.TESTNET_MASTER_ACCOUNT.recipient
+                != self.env.quark_chain_config.testnet_master_address.recipient
             ):
                 raise ValueError("incorrect master to create the block")
 

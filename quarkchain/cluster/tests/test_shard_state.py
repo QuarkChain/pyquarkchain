@@ -13,8 +13,8 @@ from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
 
 
-def create_default_shard_state(env, shard_id=0):
-    shard_state = ShardState(env=env, shard_id=shard_id)
+def create_default_shard_state(env, shard_id=0, diff_calc=None):
+    shard_state = ShardState(env=env, shard_id=shard_id, diff_calc=diff_calc)
     return shard_state
 
 
@@ -1024,13 +1024,13 @@ class TestShardState(unittest.TestCase):
         GenesisManager.finalize_config(env.quark_chain_config)
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
-        env.config.MINOR_DIFF_CALCULATOR = EthDifficultyCalculator(
+        diff_calc = EthDifficultyCalculator(
             cutoff=9, diff_factor=2048, minimum_diff=1
         )
         env.quark_chain_config.NETWORK_ID = (
             1
         )  # other network ids will skip difficulty check
-        state = create_default_shard_state(env=env, shard_id=0)
+        state = create_default_shard_state(env=env, shard_id=0, diff_calc=diff_calc)
 
         # Check new difficulty
         b0 = state.create_block_to_mine(state.header_tip.create_time + 8)

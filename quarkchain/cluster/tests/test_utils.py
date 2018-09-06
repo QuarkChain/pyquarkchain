@@ -26,16 +26,13 @@ def get_test_env(
     shard_size=2,
 ):
     env = DEFAULT_ENV.copy()
-    env.config.TESTNET_MASTER_ACCOUNT = genesis_account
 
     env.db = InMemoryDb()
     env.set_network_id(1234567890)
 
-    env.config.ACCOUNTS_TO_FUND = []
-    env.config.LOADTEST_ACCOUNTS = []
-
     env.cluster_config = ClusterConfig()
     env.quark_chain_config.update(shard_size, 1, 1)
+    env.quark_chain_config.TESTNET_MASTER_ADDRESS = genesis_account.serialize().hex()
 
     # fund genesis account in all shards
     for i, shard in enumerate(env.quark_chain_config.SHARD_LIST):
