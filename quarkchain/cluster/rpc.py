@@ -218,11 +218,16 @@ class GetTransactionResponse(Serializable):
 
 
 class ExecuteTransactionRequest(Serializable):
-    FIELDS = [("tx", Transaction), ("from_address", Address)]
+    FIELDS = [
+        ("tx", Transaction),
+        ("from_address", Address),
+        ("block_height", Optional(uint64)),
+    ]
 
-    def __init__(self, tx, from_address):
+    def __init__(self, tx, from_address, block_height: typing.Optional[int]):
         self.tx = tx
         self.from_address = from_address
+        self.block_height = block_height
 
 
 class ExecuteTransactionResponse(Serializable):
@@ -671,11 +676,18 @@ class EstimateGasResponse(Serializable):
 
 
 class GetStorageRequest(Serializable):
-    FIELDS = [("address", Address), ("key", uint256)]
+    FIELDS = [
+        ("address", Address),
+        ("key", uint256),
+        ("block_height", Optional(uint64)),
+    ]
 
-    def __init__(self, address: Address, key: int):
+    def __init__(
+        self, address: Address, key: int, block_height: typing.Optional[int] = None
+    ):
         self.address = address
         self.key = key
+        self.block_height = block_height
 
 
 class GetStorageResponse(Serializable):
@@ -687,10 +699,11 @@ class GetStorageResponse(Serializable):
 
 
 class GetCodeRequest(Serializable):
-    FIELDS = [("address", Address)]
+    FIELDS = [("address", Address), ("block_height", Optional(uint64))]
 
-    def __init__(self, address: Address):
+    def __init__(self, address: Address, block_height: typing.Optional[int] = None):
         self.address = address
+        self.block_height = block_height
 
 
 class GetCodeResponse(Serializable):

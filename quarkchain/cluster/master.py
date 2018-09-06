@@ -345,8 +345,10 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.error_code == 0
 
-    async def execute_transaction(self, tx: Transaction, from_address):
-        request = ExecuteTransactionRequest(tx, from_address)
+    async def execute_transaction(
+        self, tx: Transaction, from_address, block_height: Optional[int]
+    ):
+        request = ExecuteTransactionRequest(tx, from_address, block_height)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.EXECUTE_TRANSACTION_REQUEST, request
         )
@@ -420,15 +422,19 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
-        request = GetStorageRequest(address, key)
+    async def get_storage_at(
+        self, address: Address, key: int, block_height: Optional[int]
+    ) -> Optional[bytes]:
+        request = GetStorageRequest(address, key, block_height)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_STORAGE_REQUEST, request
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_code(self, address: Address) -> Optional[bytes]:
-        request = GetCodeRequest(address)
+    async def get_code(
+        self, address: Address, block_height: Optional[int]
+    ) -> Optional[bytes]:
+        request = GetCodeRequest(address, block_height)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_CODE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
@@ -915,7 +921,7 @@ class MasterServer:
         return True
 
     async def execute_transaction(
-        self, tx: Transaction, from_address
+        self, tx: Transaction, from_address, block_height: Optional[int]
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evm_tx = tx.code.get_evm_transaction()
@@ -926,7 +932,7 @@ class MasterServer:
 
         futures = []
         for slave in self.branch_to_slaves[branch.value]:
-            futures.append(slave.execute_transaction(tx, from_address))
+            futures.append(slave.execute_transaction(tx, from_address, block_height))
         responses = await asyncio.gather(*futures)
         # failed response will return as None
         success = all(r is not None for r in responses) and len(set(responses)) == 1
@@ -1245,7 +1251,9 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.estimate_gas(tx, from_address)
 
-    async def get_storage_at(self, address: Address, key: int) -> Optional[bytes]:
+    async def get_storage_at(
+        self, address: Address, key: int, block_height: Optional[int]
+    ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
@@ -1253,9 +1261,11 @@ class MasterServer:
             return None
 
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_storage_at(address, key)
+        return await slave.get_storage_at(address, key, block_height)
 
-    async def get_code(self, address: Address) -> Optional[bytes]:
+    async def get_code(
+        self, address: Address, block_height: Optional[int]
+    ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
         shard_id = address.get_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
@@ -1263,7 +1273,7 @@ class MasterServer:
             return None
 
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_code(address)
+        return await slave.get_code(address, block_height)
 
     async def gas_price(self, branch: Branch) -> Optional[int]:
         if branch.value not in self.branch_to_slaves:

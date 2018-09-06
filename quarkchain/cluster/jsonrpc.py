@@ -741,8 +741,11 @@ class JSONRPCServer:
         return tx_encoder(minor_block, i)
 
     @public_methods.add
-    async def call(self, **data):
-        return await self._call_or_estimate_gas(is_call=True, **data)
+    @decode_arg("block_height", block_height_decoder)
+    async def call(self, data, block_height=None):
+        return await self._call_or_estimate_gas(
+            is_call=True, block_height=block_height, **data
+        )
 
     @public_methods.add
     async def estimateGas(self, **data):
@@ -771,16 +774,19 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("address", address_decoder)
     @decode_arg("key", quantity_decoder)
+    @decode_arg("block_height", block_height_decoder)
     # TODO: add block number
-    async def getStorageAt(self, address, key):
-        res = await self.master.get_storage_at(Address.deserialize(address), key)
+    async def getStorageAt(self, address, key, block_height=None):
+        res = await self.master.get_storage_at(
+            Address.deserialize(address), key, block_height
+        )
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
     @decode_arg("address", address_decoder)
-    # TODO: add block number
-    async def getCode(self, address):
-        res = await self.master.get_code(Address.deserialize(address))
+    @decode_arg("block_height", block_height_decoder)
+    async def getCode(self, address, block_height=None):
+        res = await self.master.get_code(Address.deserialize(address), block_height)
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
@@ -900,15 +906,15 @@ class JSONRPCServer:
         addr = Address.deserialize(address)
         if shard is not None:
             addr = Address(addr.recipient, shard)
-        res = await self.master.get_code(addr)
+        res = await self.master.get_code(addr, None)
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
-    async def eth_call(self, data, shard):
+    async def eth_call(self, data, shard=None):
         """ Returns the result of the transaction application without putting in block chain """
         data = self._convert_eth_call_data(data, shard)
-        return await self.call(**data)
+        return await self.call(data)
 
     @public_methods.add
     async def eth_sendRawTransaction(self, tx_data):
@@ -939,13 +945,12 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
     @decode_arg("key", quantity_decoder)
-    # TODO: add block number
     @decode_arg("shard", shard_id_decoder)
     async def eth_getStorageAt(self, address, key, shard=None):
         addr = Address.deserialize(address)
         if shard is not None:
             addr = Address(addr.recipient, shard)
-        res = await self.master.get_storage_at(addr, key)
+        res = await self.master.get_storage_at(addr, key, None)
         return data_encoder(res) if res is not None else None
 
     ######################## Private Methods ########################
@@ -1135,7 +1140,9 @@ class JSONRPCServer:
 
         tx = Transaction(code=Code.create_evm_code(evm_tx))
         if is_call:
-            res = await self.master.execute_transaction(tx, sender_address)
+            res = await self.master.execute_transaction(
+                tx, sender_address, data["block_height"]
+            )
             return data_encoder(res) if res is not None else None
         else:  # estimate gas
             res = await self.master.estimate_gas(tx, sender_address)

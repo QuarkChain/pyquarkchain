@@ -75,7 +75,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(slaves[0].add_tx(tx))
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
-                self.assertEqual(i + 2, block.header.height)
+                self.assertEqual(i + 1, block.header.height)
                 self.assertTrue(call_async(slaves[0].add_block(block)))
 
             response = send_request(
@@ -94,7 +94,7 @@ class TestJSONRPC(unittest.TestCase):
 
             for i in range(3):
                 response = send_request(
-                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 2)
+                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 1)
                 )
                 self.assertEqual(response, hex(i + 1))
 
@@ -408,7 +408,9 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)}
+                "call",
+                {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)},
+                "latest",
             )
 
             self.assertEqual(response, "0x")
@@ -430,7 +432,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             # insufficient gas
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}
+                "call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}, None
             )
 
             self.assertIsNone(response, "failed tx should return None")
