@@ -292,13 +292,12 @@ class ShardConnection(VirtualConnection):
         m_block_list = []
         for m_block_hash in request.minor_block_hash_list:
             m_block = self.shard_state.db.get_minor_block_by_hash(
-                m_block_hash, consistency_check=False
+                m_block_hash, consistency_check=True
             )
             if m_block is None:
                 # check in new block pool as well
                 m_block = self.shard_state.new_block_pool.get(m_block_hash)
                 if m_block is not None:
-                    # GLOG.info("got block from cache")
                     m_block_list.append(m_block)
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit
@@ -1429,7 +1428,7 @@ class SlaveServer:
         try:
             self.master.broadcast_new_minor(block.header.branch, block.header)
         except Exception:
-            Logger.warning_every_sec("broadcast tip failure", 1)
+            Logger.warning_every_sec("broadcast new minor block failure", 1)
 
         try:
             xshard_list = shard_state.add_block(block)
