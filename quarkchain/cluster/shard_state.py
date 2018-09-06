@@ -1304,10 +1304,12 @@ class ShardState:
         return price
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
-        if height is None:
+        if height is None or height == self.header_tip.height:
             return self.evm_state
 
-        block = self.db.get_minor_block_by_height(height)
+        # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
+        # so adding 1 is needed here to get the next block
+        block = self.db.get_minor_block_by_height(height + 1)
         if not block:
             Logger.error("Failed to get block at height {}".format(height))
             return None

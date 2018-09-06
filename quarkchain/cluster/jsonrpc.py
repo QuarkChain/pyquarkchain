@@ -509,7 +509,7 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     @decode_arg("block_height", block_height_decoder)
     async def getAccountData(self, address, block_height=None, include_shards=False):
-        # can't specify height if client wants info on all shards
+        # do not allow specify height if client wants info on all shards
         if include_shards and block_height is not None:
             return None
 

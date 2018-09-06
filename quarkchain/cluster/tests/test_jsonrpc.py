@@ -96,7 +96,7 @@ class TestJSONRPC(unittest.TestCase):
                 response = send_request(
                     "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 2)
                 )
-                self.assertEqual(response, hex(i))
+                self.assertEqual(response, hex(i + 1))
 
     def test_sendTransaction(self):
         id1 = Identity.create_random_identity()
