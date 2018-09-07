@@ -18,20 +18,26 @@ from quarkchain.core import Address
 HOST = socket.gethostbyname(socket.gethostname())
 
 
-def update_genesis_config(qkc_config: QuarkChainConfig):
+def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
     """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS
     and fill in genesis block hashes """
     for item in ACCOUNTS_TO_FUND:
         address = Address.create_from(item["address"])
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
-        qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (10 ** 18)
+        qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
+            10 ** 18
+        )
 
-    for item in LOADTEST_ACCOUNTS:
-        address = Address.create_from(item["address"])
-        for i, shard in enumerate(qkc_config.SHARD_LIST):
-            shard.GENESIS.ALLOC[address.address_in_shard(i).serialize().hex()] = 1000 * (10 ** 18)
+    if loadtest:
+        for item in LOADTEST_ACCOUNTS:
+            address = Address.create_from(item["address"])
+            for i, shard in enumerate(qkc_config.SHARD_LIST):
+                shard.GENESIS.ALLOC[
+                    address.address_in_shard(i).serialize().hex()
+                ] = 1000 * (10 ** 18)
 
     GenesisManager.finalize_config(qkc_config)
+
 
 class MasterConfig(BaseConfig):
     MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
@@ -92,6 +98,7 @@ class ClusterConfig(BaseConfig):
 
     MINE = False
     CLEAN = False
+    LOADTEST = False
 
     QUARKCHAIN = None
     MASTER = None
@@ -156,6 +163,12 @@ class ClusterConfig(BaseConfig):
         )
         parser.add_argument(
             "--mine", action="store_true", default=ClusterConfig.MINE, dest="mine"
+        )
+        parser.add_argument(
+            "--loadtest",
+            action="store_true",
+            default=ClusterConfig.LOADTEST,
+            dest="loadtest",
         )
 
         parser.add_argument(
@@ -246,7 +259,7 @@ class ClusterConfig(BaseConfig):
         )
         config.QUARKCHAIN.NETWORK_ID = args.network_id
 
-        update_genesis_config(config.QUARKCHAIN)
+        update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
