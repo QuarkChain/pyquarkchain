@@ -1,12 +1,22 @@
-#!/usr/bin/python3
-
 import unittest
 
 from quarkchain.core import Branch, ShardInfo
 from quarkchain.core import Identity, Address
+from quarkchain.core import RootBlockHeader, MinorBlockHeader, MinorBlockMeta
 from quarkchain.core import ShardMask, Optional, Serializable, uint32
 from quarkchain.core import Transaction, ByteBuffer
 from quarkchain.tests.test_utils import create_random_test_transaction
+
+SIZE_LIST = [(RootBlockHeader, 144), (MinorBlockHeader, 424), (MinorBlockMeta, 218)]
+
+
+class TestDataSize(unittest.TestCase):
+    def test_data_size(self):
+        for tup in SIZE_LIST:
+            cls = tup[0]
+            size = tup[1]
+            with self.subTest(cls.__name__):
+                self.assertEqual(len(cls().serialize()), size)
 
 
 class TestTransaction(unittest.TestCase):
