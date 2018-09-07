@@ -259,6 +259,7 @@ class ClusterConfig(BaseConfig):
         )
         config.QUARKCHAIN.NETWORK_ID = args.network_id
 
+        config.LOADTEST = args.loadtest
         update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
