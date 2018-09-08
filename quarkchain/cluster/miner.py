@@ -65,15 +65,7 @@ class Miner:
         If a mining process has already been started, update the process to mine the new block.
         """
         target_block_time = self.get_target_block_time_func()
-        inception = time_ms()
         block = await self.create_block_async_func()
-        self.new_block_info = {
-            "hash": block.header.get_hash().hex(),
-            "height": block.header.height,
-            "inception": inception,
-            "creation_latency_ms": time_ms() - inception,
-            "target_block_time": target_block_time,
-        }
         if self.process:
             self.input.put((block, target_block_time))
             return
@@ -91,33 +83,8 @@ class Miner:
     async def __handle_mined_block(self):
         while True:
             block = await self.output.coro_get()
-            is_root = isinstance(block, RootBlock)
             if not block:
                 return
-            if (
-                block.header.height == self.new_block_info["height"]
-            ):  # avoid possible race condition
-                sample = {
-                    "time": int(time.time()),
-                    "shard": "R"
-                    if is_root
-                    else str(block.header.branch.get_shard_id()),
-                    "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
-                    "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
-                    "total_latency_ms": time_ms() - self.new_block_info["inception"],
-                }
-                sample.update(self.new_block_info)
-                asyncio.ensure_future(
-                    self.env.cluster_config.kafka_logger.log_kafka_sample_async(
-                        self.env.cluster_config.MONITORING.MINER_TOPIC, sample
-                    )
-                )
-            if not is_root:
-                extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
-                extra_data["mined"] = time_ms()
-                # NOTE this actually ruins POW mining; added for perf tracking
-                block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
-                block.header.hash_meta = block.meta.get_hash()
             try:
                 await self.add_block_async_func(block)
             except Exception as ex:
@@ -130,7 +97,6 @@ class Miner:
         shard = "R" if is_root else block.header.branch.get_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
-
         GLOG.log_every_n_seconds(
             GLOG.INFO,
             "[{}] {} [{}] ({:.2f}) {}".format(
@@ -210,6 +176,12 @@ class Miner:
             if time.time() > target_time:
                 Miner.__log_status(block)
                 block.header.nonce = random.randint(0, 2 ** 32 - 1)
+                if not isinstance(block, RootBlock):
+                    extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+                    extra_data["mined"] = time_ms()
+                    # NOTE this actually ruins POW mining; added for perf tracking
+                    block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
+                    block.header.hash_meta = block.meta.get_hash()
                 output.put(block)
                 block, target_block_time = input.get()  # blocking
                 if not block:
