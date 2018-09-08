@@ -23,12 +23,11 @@ class RootDb:
     """ Storage for all validated root blocks and minor blocks
 
     On initialization it will try to recover the recent blocks (max_num_blocks_to_recover) of the best chain
-    from local database.
-    Block referenced by "tipHash" is skipped because it's consistency is not guaranteed within the cluster.
+    from local database with tip referenced by "tipHash".
     Note that we only recover the blocks on the best chain than including the forking blocks because
     we don't save "tipHash"s for the forks and thus their consistency state is hard to reason about.
-    They can always be downloaded again from peers if they ever became the best chain.
-
+    For example, a root block might not be received by all the shards when the cluster is down.
+    Forks can always be downloaded again from peers if they ever became the best chain.
     """
 
     def __init__(self, db, max_num_blocks_to_recover):
@@ -50,24 +49,20 @@ class RootDb:
         if b"tipHash" not in self.db:
             return None
 
-        # The block referenced by tip_hash might not have been fully propagated within the cluster
-        # when the cluster was down, but its parent is guaranteed to have been accepted by all shards.
-        # Therefore we use its parent as the new tip.
         r_hash = self.db.get(b"tipHash")
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-        while (
-            r_block.header.height >= 1
-            and len(self.r_header_pool) < self.max_num_blocks_to_recover
-        ):
-            r_hash = r_block.header.hash_prev_block
-            r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
+        self.tip_header = r_block.header
 
-            if self.tip_header is None:
-                self.tip_header = r_block.header
-
+        while len(self.r_header_pool) < self.max_num_blocks_to_recover:
             self.r_header_pool[r_hash] = r_block.header
             for m_header in r_block.minor_block_header_list:
                 self.m_hash_set.add(m_header.get_hash())
+
+            if r_block.header.height <= 0:
+                break
+
+            r_hash = r_block.header.hash_prev_block
+            r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
 
     def get_tip_header(self):
         return self.tip_header

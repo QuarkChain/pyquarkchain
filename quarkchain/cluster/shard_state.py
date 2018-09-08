@@ -127,7 +127,6 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
         self.confirmed_header_tip = self.header_tip
-        self.confirmed_meta_tip = self.meta_tip
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = self.meta_tip.hash_evm_state_root
         check(
@@ -172,7 +171,6 @@ class ShardState:
         self.root_tip = genesis_root.header
         # Tips that are confirmed by root
         self.confirmed_header_tip = None
-        self.confirmed_meta_tip = None  # TODO: not used? cleanup
         # Tips that are unconfirmed by root
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
@@ -956,9 +954,6 @@ class ShardState:
             # Switch to the longest root block
             self.root_tip = root_block.header
             self.confirmed_header_tip = shard_header
-            self.confirmed_meta_tip = self.db.get_minor_block_meta_by_hash(
-                shard_header.get_hash()
-            )
 
             orig_header_tip = self.header_tip
             orig_block = self.db.get_minor_block_by_height(shard_header.height)

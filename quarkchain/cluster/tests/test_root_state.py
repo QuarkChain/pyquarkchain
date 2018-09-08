@@ -315,9 +315,13 @@ class TestRootState(unittest.TestCase):
 
         self.assertTrue(rState.add_block(rB1))
 
+        # now the longest chain is rB0 <-- rB1
+
         recoveredState = RootState(env=env)
-        self.assertEqual(recoveredState.tip, rB0.header)
+        self.assertEqual(recoveredState.tip, rB1.header)
         self.assertEqual(recoveredState.db.get_root_block_by_height(1), rB0)
+        self.assertEqual(recoveredState.db.get_root_block_by_height(2), rB1)
+
         # fork is pruned from recovered state
         self.assertIsNone(
             recoveredState.db.get_root_block_by_hash(rB00.header.get_hash())
