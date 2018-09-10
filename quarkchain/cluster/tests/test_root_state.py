@@ -11,22 +11,22 @@ from quarkchain.genesis import GenesisManager
 
 
 def create_default_state(env, diff_calc=None):
-    rState = RootState(env=env, diff_calc=diff_calc)
-    sStateList = [
+    r_state = RootState(env=env, diff_calc=diff_calc)
+    s_state_list = [
         ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
         for shard_id in range(env.quark_chain_config.SHARD_SIZE)
     ]
-    return (rState, sStateList)
+    return (r_state, s_state_list)
 
 
-def add_minor_block_to_cluster(sStates, block):
+def add_minor_block_to_cluster(s_states, block):
     shard_id = block.header.branch.get_shard_id()
-    sStates[shard_id].finalize_and_add_block(block)
+    s_states[shard_id].finalize_and_add_block(block)
     block_hash = block.header.get_hash()
     for i in range(block.header.branch.get_shard_size()):
         if i == shard_id:
             continue
-        sStates[i].add_cross_shard_tx_list_by_minor_block_hash(
+        s_states[i].add_cross_shard_tx_list_by_minor_block_hash(
             block_hash, CrossShardTransactionList(tx_list=[])
         )
 
@@ -39,173 +39,173 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_add_block(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
-        b0 = sStates[0].get_tip().create_block_to_append()
-        sStates[0].finalize_and_add_block(b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        sStates[1].finalize_and_add_block(b1)
+        r_state, s_states = create_default_state(env)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        s_states[0].finalize_and_add_block(b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        s_states[1].finalize_and_add_block(b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB))
+        self.assertTrue(r_state.add_block(root_block))
 
-        self.assertIsNone(rState.get_root_block_by_height(2))
-        self.assertEqual(rState.get_root_block_by_height(1), rB)
+        self.assertIsNone(r_state.get_root_block_by_height(2))
+        self.assertEqual(r_state.get_root_block_by_height(1), root_block)
         self.assertEqual(
-            rState.get_root_block_by_height(0),
-            rState.get_root_block_by_hash(rB.header.hash_prev_block),
+            r_state.get_root_block_by_height(0),
+            r_state.get_root_block_by_hash(root_block.header.hash_prev_block),
         )
 
     def test_root_state_and_shard_state_add_block(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
-        b0 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b1)
+        r_state, s_states = create_default_state(env)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB))
+        self.assertTrue(r_state.add_block(root_block))
 
     def test_root_state_add_block_missing_minor_block_header(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
-        b0 = sStates[0].get_tip().create_block_to_append()
-        sStates[0].finalize_and_add_block(b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        sStates[1].finalize_and_add_block(b1)
+        r_state, s_states = create_default_state(env)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        s_states[0].finalize_and_add_block(b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        s_states[1].finalize_and_add_block(b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
         with self.assertRaises(ValueError):
-            rState.add_block(rB)
+            r_state.add_block(root_block)
 
-        rB = (
-            rState.tip.create_block_to_append()
+        root_block = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .finalize()
         )
 
         with self.assertRaises(ValueError):
-            rState.add_block(rB)
+            r_state.add_block(root_block)
 
     def test_root_state_and_shard_state_add_two_blocks(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
+        r_state, s_states = create_default_state(env)
 
-        b0 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b1)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB0 = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block0 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB0))
+        self.assertTrue(r_state.add_block(root_block0))
 
-        b2 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b2)
-        b3 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b3)
+        b2 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b2)
+        b3 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b3)
 
-        rState.add_validated_minor_block_hash(b2.header.get_hash())
-        rState.add_validated_minor_block_hash(b3.header.get_hash())
-        rB1 = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b2.header.get_hash())
+        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        root_block1 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b2.header)
             .add_minor_block_header(b3.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB1))
+        self.assertTrue(r_state.add_block(root_block1))
 
     def test_root_state_and_shard_state_fork(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
+        r_state, s_states = create_default_state(env)
 
-        b0 = sStates[0].get_tip().create_block_to_append()
-        b2 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b0)
-        b1 = sStates[1].get_tip().create_block_to_append(nonce=1)
-        b3 = sStates[1].get_tip().create_block_to_append(nonce=1)
-        add_minor_block_to_cluster(sStates, b1)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        b2 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_states[1].get_tip().create_block_to_append(nonce=1)
+        b3 = s_states[1].get_tip().create_block_to_append(nonce=1)
+        add_minor_block_to_cluster(s_states, b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB0 = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block0 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
-        rB1 = rState.tip.create_block_to_append()
+        root_block1 = r_state.tip.create_block_to_append()
 
-        self.assertTrue(rState.add_block(rB0))
-        self.assertTrue(sStates[0].add_root_block(rB0))
-        self.assertTrue(sStates[1].add_root_block(rB0))
+        self.assertTrue(r_state.add_block(root_block0))
+        self.assertTrue(s_states[0].add_root_block(root_block0))
+        self.assertTrue(s_states[1].add_root_block(root_block0))
 
-        add_minor_block_to_cluster(sStates, b2)
-        add_minor_block_to_cluster(sStates, b3)
+        add_minor_block_to_cluster(s_states, b2)
+        add_minor_block_to_cluster(s_states, b3)
 
-        rState.add_validated_minor_block_hash(b2.header.get_hash())
-        rState.add_validated_minor_block_hash(b3.header.get_hash())
-        rB1 = (
-            rB1.add_minor_block_header(b2.header)
+        r_state.add_validated_minor_block_hash(b2.header.get_hash())
+        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        root_block1 = (
+            root_block1.add_minor_block_header(b2.header)
             .add_minor_block_header(b3.header)
             .finalize()
         )
 
-        self.assertFalse(rState.add_block(rB1))
-        self.assertFalse(sStates[0].add_root_block(rB1))
-        self.assertFalse(sStates[1].add_root_block(rB1))
+        self.assertFalse(r_state.add_block(root_block1))
+        self.assertFalse(s_states[0].add_root_block(root_block1))
+        self.assertFalse(s_states[1].add_root_block(root_block1))
 
         b4 = b2.create_block_to_append()
         b5 = b3.create_block_to_append()
-        add_minor_block_to_cluster(sStates, b4)
-        add_minor_block_to_cluster(sStates, b5)
+        add_minor_block_to_cluster(s_states, b4)
+        add_minor_block_to_cluster(s_states, b5)
 
-        rState.add_validated_minor_block_hash(b4.header.get_hash())
-        rState.add_validated_minor_block_hash(b5.header.get_hash())
-        rB2 = (
-            rB1.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b4.header.get_hash())
+        r_state.add_validated_minor_block_hash(b5.header.get_hash())
+        root_block2 = (
+            root_block1.create_block_to_append()
             .add_minor_block_header(b4.header)
             .add_minor_block_header(b5.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB2))
-        self.assertTrue(sStates[0].add_root_block(rB2))
-        self.assertTrue(sStates[1].add_root_block(rB2))
-        self.assertEqual(rState.tip, rB2.header)
-        self.assertEqual(sStates[0].root_tip, rB2.header)
-        self.assertEqual(sStates[1].root_tip, rB2.header)
+        self.assertTrue(r_state.add_block(root_block2))
+        self.assertTrue(s_states[0].add_root_block(root_block2))
+        self.assertTrue(s_states[1].add_root_block(root_block2))
+        self.assertEqual(r_state.tip, root_block2.header)
+        self.assertEqual(s_states[0].root_tip, root_block2.header)
+        self.assertEqual(s_states[1].root_tip, root_block2.header)
 
     def test_root_state_difficulty(self):
         env = get_test_env()
@@ -217,120 +217,127 @@ class TestRootState(unittest.TestCase):
             1
         )  # other network ids will skip difficulty check
 
-        rState, sStates = create_default_state(env, diff_calc=diff_calc)
-        b0 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b1)
+        r_state, s_states = create_default_state(env, diff_calc=diff_calc)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
 
         # Check new difficulty
-        rB0 = rState.create_block_to_mine(
+        root_block0 = r_state.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.create_time + 9,
+            create_time=r_state.tip.create_time + 9,
         )
-        self.assertEqual(rState.tip.difficulty, rB0.header.difficulty)
-        rB0 = rState.create_block_to_mine(
+        self.assertEqual(r_state.tip.difficulty, root_block0.header.difficulty)
+        root_block0 = r_state.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.create_time + 3,
+            create_time=r_state.tip.create_time + 3,
         )
         self.assertEqual(
-            rState.tip.difficulty + rState.tip.difficulty // 2048, rB0.header.difficulty
+            r_state.tip.difficulty + r_state.tip.difficulty // 2048,
+            root_block0.header.difficulty,
         )
 
-        rB0 = rState.create_block_to_mine(
+        root_block0 = r_state.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
-            create_time=rState.tip.create_time + 26,
+            create_time=r_state.tip.create_time + 26,
         ).finalize()
         self.assertEqual(
-            rState.tip.difficulty - rState.tip.difficulty // 2048, rB0.header.difficulty
+            r_state.tip.difficulty - r_state.tip.difficulty // 2048,
+            root_block0.header.difficulty,
         )
 
         for i in range(0, 2 ** 32):
-            rB0.header.nonce = i
+            root_block0.header.nonce = i
             if (
-                int.from_bytes(rB0.header.get_hash(), byteorder="big")
+                int.from_bytes(root_block0.header.get_hash(), byteorder="big")
                 * env.quark_chain_config.ROOT.GENESIS.DIFFICULTY
                 < 2 ** 256
             ):
-                self.assertTrue(rState.add_block(rB0))
+                self.assertTrue(r_state.add_block(root_block0))
                 break
             else:
                 with self.assertRaises(ValueError):
-                    rState.add_block(rB0)
+                    r_state.add_block(root_block0)
 
     def test_root_state_recovery(self):
         env = get_test_env()
-        rState, sStates = create_default_state(env)
+        r_state, s_states = create_default_state(env)
 
-        b0 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b0)
-        b1 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b1)
+        b0 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b1)
 
-        rState.add_validated_minor_block_hash(b0.header.get_hash())
-        rState.add_validated_minor_block_hash(b1.header.get_hash())
-        rB0 = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b0.header.get_hash())
+        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        root_block0 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
-        rB00 = (
-            rState.tip.create_block_to_append()
+        root_block00 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB0))
+        self.assertTrue(r_state.add_block(root_block0))
 
         # create a fork
-        rB00.header.create_time += 1
-        rB00.finalize()
-        self.assertNotEqual(rB0.header.get_hash(), rB00.header.get_hash())
+        root_block00.header.create_time += 1
+        root_block00.finalize()
+        self.assertNotEqual(
+            root_block0.header.get_hash(), root_block00.header.get_hash()
+        )
 
-        self.assertFalse(rState.add_block(rB00))
-        self.assertEqual(rState.db.get_root_block_by_hash(rB00.header.get_hash()), rB00)
+        self.assertFalse(r_state.add_block(root_block00))
+        self.assertEqual(
+            r_state.db.get_root_block_by_hash(root_block00.header.get_hash()),
+            root_block00,
+        )
 
-        b2 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b2)
-        b3 = sStates[1].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, b3)
+        b2 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b2)
+        b3 = s_states[1].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, b3)
 
-        rState.add_validated_minor_block_hash(b2.header.get_hash())
-        rState.add_validated_minor_block_hash(b3.header.get_hash())
-        rB1 = (
-            rState.tip.create_block_to_append()
+        r_state.add_validated_minor_block_hash(b2.header.get_hash())
+        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        root_block1 = (
+            r_state.tip.create_block_to_append()
             .add_minor_block_header(b2.header)
             .add_minor_block_header(b3.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB1))
+        self.assertTrue(r_state.add_block(root_block1))
 
-        # now the longest chain is rB0 <-- rB1
+        # now the longest chain is root_block0 <-- root_block1
 
-        recoveredState = RootState(env=env)
-        self.assertEqual(recoveredState.tip, rB1.header)
-        self.assertEqual(recoveredState.db.get_root_block_by_height(1), rB0)
-        self.assertEqual(recoveredState.db.get_root_block_by_height(2), rB1)
+        recovered_state = RootState(env=env)
+        self.assertEqual(recovered_state.tip, root_block1.header)
+        self.assertEqual(recovered_state.db.get_root_block_by_height(1), root_block0)
+        self.assertEqual(recovered_state.db.get_root_block_by_height(2), root_block1)
 
         # fork is pruned from recovered state
         self.assertIsNone(
-            recoveredState.db.get_root_block_by_hash(rB00.header.get_hash())
+            recovered_state.db.get_root_block_by_hash(root_block00.header.get_hash())
         )
         self.assertEqual(
-            recoveredState.db.get_root_block_by_hash(
-                rB00.header.get_hash(), consistency_check=False
+            recovered_state.db.get_root_block_by_hash(
+                root_block00.header.get_hash(), consistency_check=False
             ),
-            rB00,
+            root_block00,
         )
 
     def test_add_root_block_with_minor_block_with_wrong_root_block_hash(self):
@@ -350,42 +357,50 @@ class TestRootState(unittest.TestCase):
         where r3 is invalid because m2 depends on r2, which is not in the r3 chain.
         """
         env = get_test_env(shard_size=1)
-        rState, sStates = create_default_state(env)
+        r_state, s_states = create_default_state(env)
 
-        rB0 = rState.get_tip_block()
+        root_block0 = r_state.get_tip_block()
 
-        m1 = sStates[0].get_tip().create_block_to_append()
-        add_minor_block_to_cluster(sStates, m1)
+        m1 = s_states[0].get_tip().create_block_to_append()
+        add_minor_block_to_cluster(s_states, m1)
 
-        rState.add_validated_minor_block_hash(m1.header.get_hash())
-        rB1 = (
-            rB0.create_block_to_append(nonce=0)
+        r_state.add_validated_minor_block_hash(m1.header.get_hash())
+        root_block1 = (
+            root_block0.create_block_to_append(nonce=0)
             .add_minor_block_header(m1.header)
             .finalize()
         )
-        rB2 = (
-            rB0.create_block_to_append(nonce=1)
+        root_block2 = (
+            root_block0.create_block_to_append(nonce=1)
             .add_minor_block_header(m1.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB1))
-        self.assertFalse(rState.add_block(rB2))
-        self.assertTrue(sStates[0].add_root_block(rB1))
-        self.assertFalse(sStates[0].add_root_block(rB2))
+        self.assertTrue(r_state.add_block(root_block1))
+        self.assertFalse(r_state.add_block(root_block2))
+        self.assertTrue(s_states[0].add_root_block(root_block1))
+        self.assertFalse(s_states[0].add_root_block(root_block2))
 
         m2 = m1.create_block_to_append()
-        m2.header.hash_prev_root_block = rB2.header.get_hash()
-        add_minor_block_to_cluster(sStates, m2)
+        m2.header.hash_prev_root_block = root_block2.header.get_hash()
+        add_minor_block_to_cluster(s_states, m2)
 
-        rState.add_validated_minor_block_hash(m2.header.get_hash())
-        rB3 = rB1.create_block_to_append().add_minor_block_header(m2.header).finalize()
+        r_state.add_validated_minor_block_hash(m2.header.get_hash())
+        root_block3 = (
+            root_block1.create_block_to_append()
+            .add_minor_block_header(m2.header)
+            .finalize()
+        )
 
         with self.assertRaises(ValueError):
-            rState.add_block(rB3)
+            r_state.add_block(root_block3)
 
-        rB4 = rB2.create_block_to_append().add_minor_block_header(m2.header).finalize()
-        self.assertTrue(rState.add_block(rB4))
+        root_block4 = (
+            root_block2.create_block_to_append()
+            .add_minor_block_header(m2.header)
+            .finalize()
+        )
+        self.assertTrue(r_state.add_block(root_block4))
 
     def test_add_minor_block_with_wrong_root_block_hash(self):
         """ Test for the following case
@@ -407,44 +422,44 @@ class TestRootState(unittest.TestCase):
         where m3 is invalid because m3 depeonds on r2, whose minor chain is not the same chain as m3
         """
         env = get_test_env(shard_size=1)
-        rState, sStates = create_default_state(env)
+        r_state, s_states = create_default_state(env)
 
-        rB0 = rState.get_tip_block()
+        root_block0 = r_state.get_tip_block()
 
-        m1 = sStates[0].get_tip().create_block_to_append(nonce=0)
-        m2 = sStates[0].get_tip().create_block_to_append(nonce=1)
-        add_minor_block_to_cluster(sStates, m1)
-        add_minor_block_to_cluster(sStates, m2)
+        m1 = s_states[0].get_tip().create_block_to_append(nonce=0)
+        m2 = s_states[0].get_tip().create_block_to_append(nonce=1)
+        add_minor_block_to_cluster(s_states, m1)
+        add_minor_block_to_cluster(s_states, m2)
 
-        rState.add_validated_minor_block_hash(m1.header.get_hash())
-        rState.add_validated_minor_block_hash(m2.header.get_hash())
-        rB1 = (
-            rB0.create_block_to_append(nonce=0)
+        r_state.add_validated_minor_block_hash(m1.header.get_hash())
+        r_state.add_validated_minor_block_hash(m2.header.get_hash())
+        root_block1 = (
+            root_block0.create_block_to_append(nonce=0)
             .add_minor_block_header(m1.header)
             .finalize()
         )
-        rB2 = (
-            rB0.create_block_to_append(nonce=1)
+        root_block2 = (
+            root_block0.create_block_to_append(nonce=1)
             .add_minor_block_header(m2.header)
             .finalize()
         )
 
-        self.assertTrue(rState.add_block(rB1))
-        self.assertFalse(rState.add_block(rB2))
-        self.assertTrue(sStates[0].add_root_block(rB1))
-        self.assertFalse(sStates[0].add_root_block(rB2))
+        self.assertTrue(r_state.add_block(root_block1))
+        self.assertFalse(r_state.add_block(root_block2))
+        self.assertTrue(s_states[0].add_root_block(root_block1))
+        self.assertFalse(s_states[0].add_root_block(root_block2))
 
         m3 = m1.create_block_to_append()
-        m3.header.hash_prev_root_block = rB2.header.get_hash()
+        m3.header.hash_prev_root_block = root_block2.header.get_hash()
         with self.assertRaises(ValueError):
-            add_minor_block_to_cluster(sStates, m3)
+            add_minor_block_to_cluster(s_states, m3)
 
         m4 = m1.create_block_to_append()
-        m4.header.hash_prev_root_block = rB1.header.get_hash()
-        add_minor_block_to_cluster(sStates, m4)
+        m4.header.hash_prev_root_block = root_block1.header.get_hash()
+        add_minor_block_to_cluster(s_states, m4)
 
         # Test recovery
-        sState0Recovered = ShardState(env, shard_id=0, db=sStates[0].raw_db)
-        sState0Recovered.init_from_root_block(rB1)
+        s_state0_recovered = ShardState(env, shard_id=0, db=s_states[0].raw_db)
+        s_state0_recovered.init_from_root_block(root_block1)
         with self.assertRaises(ValueError):
-            add_minor_block_to_cluster(sStates, m3)
+            add_minor_block_to_cluster(s_states, m3)
