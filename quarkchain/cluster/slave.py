@@ -22,6 +22,7 @@ from quarkchain.cluster.p2p_commands import (
     Direction,
     GetMinorBlockHeaderListResponse,
     NewTransactionListCommand,
+    NewBlockMinorCommand,
 )
 from quarkchain.cluster.protocol import (
     ClusterConnection,
@@ -1400,9 +1401,9 @@ class SlaveServer:
     async def handle_new_block(self, block):
         """
         0. if local shard is syncing, doesn't make sense to add, skip
-        1. if block parent is not in local state/DB, discard
-        2. validate: check time, difficulty, POW
-        3. if already in cache or in local state/DB, pass
+        1. if block parent is not in local state/new block pool, discard
+        2. if already in cache or in local state/new block pool, pass
+        3. validate: check time, difficulty, POW
         4. add it to new minor block broadcast cache
         5. broadcast to all peers (minus peer that sent it, optional)
         6. add_block() to local state (then remove from cache)
@@ -1452,7 +1453,8 @@ class SlaveServer:
             Logger.error_exception()
             return False
 
-        # only remove from pool if the block successfully added to state, this may cache failed blocks but prevents them being broadcasted more than needed
+        # only remove from pool if the block successfully added to state,
+        #   this may cache failed blocks but prevents them being broadcasted more than needed
         # TODO add ttl to blocks in new_block_pool
         shard_state.new_block_pool.pop(block.header.get_hash(), None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
