@@ -309,6 +309,7 @@ class ShardConnection(VirtualConnection):
         )
 
     async def handle_new_block_minor_command(self, _op, cmd, _rpc_id):
+        self.best_minor_block_header_observed = cmd.block.header
         await self.slave_server.handle_new_block(cmd.block)
 
     async def handle_new_minor_block_header_list_command(self, _op, cmd, _rpc_id):
