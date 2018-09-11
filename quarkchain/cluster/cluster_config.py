@@ -36,8 +36,6 @@ def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
                     address.address_in_shard(i).serialize().hex()
                 ] = 1000 * (10 ** 18)
 
-    GenesisManager.finalize_config(qkc_config)
-
 
 class MasterConfig(BaseConfig):
     MASTER_TO_SLAVE_CONNECT_RETRY_DELAY = 1.0
@@ -236,6 +234,7 @@ class ClusterConfig(BaseConfig):
         if args.cluster_config:
             with open(args.cluster_config) as f:
                 config = cls.from_json(f.read())
+                update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
                 config.json_filepath = args.cluster_config
                 return config
 
@@ -261,6 +260,7 @@ class ClusterConfig(BaseConfig):
 
         config.LOADTEST = args.loadtest
         update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
+        GenesisManager.finalize_config(qkc_config)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
