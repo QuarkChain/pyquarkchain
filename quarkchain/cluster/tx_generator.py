@@ -3,7 +3,6 @@ import random
 import time
 from typing import Optional
 
-from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
@@ -23,7 +22,8 @@ class Account:
 
 
 class TransactionGenerator:
-    def __init__(self, branch, slave_server):
+    def __init__(self, qkc_config, branch, slave_server):
+        self.qkc_config = qkc_config
         self.branch = branch
         self.slave_server = slave_server
         self.running = False
@@ -40,13 +40,6 @@ class TransactionGenerator:
         The total number of transactions generated each time
         """
         if self.running:
-            return False
-        shard_state = self.slave_server.shard_state_map[self.branch.value]
-        if shard_state.header_tip.height < len(LOADTEST_ACCOUNTS) / 500 + 2:
-            # to allow all the load test accounts to get funded
-            Logger.warning(
-                "Cannot generate transactions since not all the accounts have been funded"
-            )
             return False
 
         self.running = True
@@ -96,7 +89,6 @@ class TransactionGenerator:
     def create_transaction(
         self, account, nonce, x_shard_percent, sample_evm_tx
     ) -> Optional[Transaction]:
-        config = DEFAULT_ENV.config
         shard_size = self.branch.get_shard_size()
         shard_mask = shard_size - 1
         from_shard = self.branch.get_shard_id()
@@ -126,9 +118,9 @@ class TransactionGenerator:
 
         if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
-            to_shard = random.randint(0, config.SHARD_SIZE - 1)
+            to_shard = random.randint(0, self.qkc_config.SHARD_SIZE - 1)
             if to_shard == self.branch.get_shard_id():
-                to_shard = (to_shard + 1) % config.SHARD_SIZE
+                to_shard = (to_shard + 1) % self.qkc_config.SHARD_SIZE
             to_full_shard_id = to_full_shard_id & (~shard_mask) | to_shard
 
         value = sample_evm_tx.value
@@ -144,7 +136,7 @@ class TransactionGenerator:
             data=sample_evm_tx.data,
             from_full_shard_id=from_full_shard_id,
             to_full_shard_id=to_full_shard_id,
-            network_id=config.NETWORK_ID,
+            network_id=self.qkc_config.NETWORK_ID,
         )
         evm_tx.sign(account.key)
         return Transaction(code=Code.create_evm_code(evm_tx))

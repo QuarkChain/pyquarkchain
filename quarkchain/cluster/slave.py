@@ -1101,7 +1101,7 @@ class SlaveServer:
             )
             self.__init_miner(branch_value)
             self.tx_gen_map[branch_value] = TransactionGenerator(
-                Branch(branch_value), self
+                self.env.quark_chain_config, Branch(branch_value), self
             )
 
     def __init_shard_db(self, shard_id):
