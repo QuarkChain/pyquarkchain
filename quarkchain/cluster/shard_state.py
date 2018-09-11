@@ -811,6 +811,7 @@ class ShardState:
                     xshard_tx_counters[evm_tx.to_shard_id()] + 1
                     > max_xshard_tx_per_shard
                 ):
+                    poped_txs.append(evm_tx)  # will be put back later
                     continue
 
             try:
