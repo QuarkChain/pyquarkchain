@@ -74,11 +74,6 @@ class ShardGenesis(BaseConfig):
     def __init__(self):
         self.ALLOC = dict()
 
-    def to_dict(self):
-        ret = super().to_dict()
-        ret["ALLOC"] = dict()
-        return ret
-
 
 class ConsensusType(Enum):
     NONE = 0  # no shard
