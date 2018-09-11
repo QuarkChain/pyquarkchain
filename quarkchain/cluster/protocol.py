@@ -81,7 +81,7 @@ class ProxyConnection(Connection):
 
 
 class ForwardingVirtualConnection:
-    """ A forwarding virtual connection only forward to to a virtual connection
+    """ A forwarding virtual connection only forward writes to to a virtual connection
     No need to inherit AbstractConnection since it does not maintain RPC state.
     """
 
@@ -131,6 +131,7 @@ class VirtualConnection(AbstractConnection):
         self.proxy_conn.write_raw_data(self.get_metadata_to_write(metadata), raw_data)
 
     def get_forwarding_connection(self):
+        """Returns a connection that forwards writes into this virtual connection"""
         return self.forward_conn
 
     def get_metadata_to_write(self, metadata):

@@ -59,7 +59,7 @@ class AbstractConnection:
         self.metadata_class = metadata_class
         if name is None:
             name = "conn_{}".format(self.__get_next_connection_id())
-        self.name = name
+        self.name = name if name else "[connection name missing]"
 
     async def read_metadata_and_raw_data(self):
         raise NotImplementedError()

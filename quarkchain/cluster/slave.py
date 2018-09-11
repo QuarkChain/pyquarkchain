@@ -76,6 +76,7 @@ from quarkchain.cluster.rpc import (
     Pong,
     ExecuteTransactionResponse,
     GetTransactionReceiptResponse,
+    SlaveInfo,
 )
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
@@ -255,7 +256,6 @@ class ShardConnection(VirtualConnection):
         )
         self.cluster_peer_id = cluster_peer_id
         self.shard_state = shard_state
-        self.master_conn = master_conn
         self.slave_server = master_conn.slave_server
         self.synchronizer = Synchronizer()
         self.best_root_block_header_observed = None
@@ -510,59 +510,12 @@ class MasterConnection(ClusterConnection):
         Skip self and slaves already connected.
         """
         result_list = []
+        # TODO: asyncio.gather
         for slave_info in connect_to_slave_request.slave_info_list:
-            if (
-                slave_info.id == self.slave_server.id
-                or slave_info.id in self.slave_server.slave_ids
-            ):
-                result_list.append(bytes())
-                continue
-
-            ip = str(ipaddress.ip_address(slave_info.ip))
-            port = slave_info.port
-            try:
-                reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
-            except Exception as e:
-                err_msg = "Failed to connect {}:{} with exception {}".format(
-                    ip, port, e
-                )
-                Logger.info(err_msg)
-                result_list.append(bytes(err_msg, "ascii"))
-                continue
-
-            slave = SlaveConnection(
-                self.env,
-                reader,
-                writer,
-                self.slave_server,
-                slave_info.id,
-                slave_info.shard_mask_list,
+            result = await self.slave_server.slave_connection_manager.connect_to_slave(
+                slave_info
             )
-            await slave.wait_until_active()
-            # Tell the remote slave who I am
-            id, shard_mask_list = await slave.send_ping()
-            # Verify that remote slave indeed has the id and shard mask list advertised by the master
-            if id != slave.id:
-                result_list.append(
-                    bytes(
-                        "id does not match. expect {} got {}".format(slave.id, id),
-                        "ascii",
-                    )
-                )
-                continue
-            if shard_mask_list != slave.shard_mask_list:
-                result_list.append(
-                    bytes(
-                        "shard mask list does not match. expect {} got {}".format(
-                            slave.shard_mask_list, shard_mask_list
-                        ),
-                        "ascii",
-                    )
-                )
-                continue
-
-            self.slave_server.add_slave_connection(slave)
-            result_list.append(bytes())
+            result_list.append(bytes(result, "ascii"))
         return ConnectToSlavesResponse(result_list)
 
     async def handle_mine_request(self, request):
@@ -992,10 +945,15 @@ class SlaveConnection(Connection):
         self.shard_mask_list = shard_mask_list
         self.shard_state_map = self.slave_server.shard_state_map
 
+        self.ping_received_future = asyncio.get_event_loop().create_future()
+
         asyncio.ensure_future(self.active_and_loop_forever())
 
     def __get_shard_size(self):
         return self.slave_server.env.quark_chain_config.SHARD_SIZE
+
+    async def wait_until_ping_received(self):
+        await self.ping_received_future
 
     def has_shard(self, shard_id):
         for shard_mask in self.shard_mask_list:
@@ -1019,15 +977,17 @@ class SlaveConnection(Connection):
 
     # Cluster RPC handlers
 
-    async def handle_ping(self, ping):
+    async def handle_ping(self, ping: Ping):
         if not self.id:
             self.id = ping.id
             self.shard_mask_list = ping.shard_mask_list
-            self.slave_server.add_slave_connection(self)
+
         if len(self.shard_mask_list) == 0:
             return self.close_with_error(
                 "Empty shard mask list from slave {}".format(self.id)
             )
+
+        self.ping_received_future.set_result(None)
 
         return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
 
@@ -1078,6 +1038,93 @@ SLAVE_OP_RPC_MAP = {
 }
 
 
+class SlaveConnectionManager:
+    """Manage a list of connections to other slaves"""
+
+    def __init__(self, env, slave_server):
+        self.env = env
+        self.slave_server = slave_server
+        self.shard_to_slaves = [[] for _ in range(self.__get_shard_size())]
+        self.slave_connections = set()
+        self.slave_ids = set()  # set(bytes)
+        self.loop = asyncio.get_event_loop()
+
+    def __get_shard_size(self):
+        return self.env.quark_chain_config.SHARD_SIZE
+
+    def close_all(self):
+        for conn in self.slave_connections:
+            conn.close()
+
+    def get_connections_by_shard(self, shard: int):
+        return self.shard_to_slaves[shard]
+
+    def _add_slave_connection(self, slave: SlaveConnection):
+        self.slave_ids.add(slave.id)
+        self.slave_connections.add(slave)
+        for shard_id in range(self.__get_shard_size()):
+            if slave.has_shard(shard_id):
+                self.shard_to_slaves[shard_id].append(slave)
+
+    async def handle_new_connection(self, reader, writer):
+        """ Handle incoming connection """
+        # slave id and shard_mask_list will be set in handle_ping()
+        slave_conn = SlaveConnection(
+            self.env,
+            reader,
+            writer,
+            self.slave_server,
+            None,  # slave id
+            None,  # shard_mask_list
+        )
+        await slave_conn.wait_until_ping_received()
+        slave_conn.name = "{}<->{}".format(
+            self.slave_server.id.decode("ascii"), slave_conn.id.decode("ascii")
+        )
+        self._add_slave_connection(slave_conn)
+
+    async def connect_to_slave(self, slave_info: SlaveInfo) -> str:
+        """ Create a connection to a slave server.
+        Returns empty str on success otherwise return the error message."""
+        if slave_info.id == self.slave_server.id or slave_info.id in self.slave_ids:
+            return ""
+
+        ip = str(ipaddress.ip_address(slave_info.ip))
+        port = slave_info.port
+        try:
+            reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
+        except Exception as e:
+            err_msg = "Failed to connect {}:{} with exception {}".format(ip, port, e)
+            Logger.info(err_msg)
+            return err_msg
+
+        conn_name = "{}<->{}".format(
+            self.slave_server.id.decode("ascii"), slave_info.id.decode("ascii")
+        )
+        slave = SlaveConnection(
+            self.env,
+            reader,
+            writer,
+            self.slave_server,
+            slave_info.id,
+            slave_info.shard_mask_list,
+            conn_name,
+        )
+        await slave.wait_until_active()
+        # Tell the remote slave who I am
+        id, shard_mask_list = await slave.send_ping()
+        # Verify that remote slave indeed has the id and shard mask list advertised by the master
+        if id != slave.id:
+            return "id does not match. expect {} got {}".format(slave.id, id)
+        if shard_mask_list != slave.shard_mask_list:
+            return "shard mask list does not match. expect {} got {}".format(
+                slave.shard_mask_list, shard_mask_list
+            )
+
+        self._add_slave_connection(slave)
+        return ""
+
+
 class SlaveServer:
     """ Slave node in a cluster """
 
@@ -1088,9 +1135,7 @@ class SlaveServer:
         self.shard_mask_list = self.env.slave_config.SHARD_MASK_LIST
 
         # shard id -> a list of slave running the shard
-        self.shard_to_slaves = [[] for i in range(self.__get_shard_size())]
-        self.slave_connections = set()
-        self.slave_ids = set()
+        self.slave_connection_manager = SlaveConnectionManager(env, self)
 
         self.master = None
         self.name = name
@@ -1101,7 +1146,6 @@ class SlaveServer:
         self.shard_state_map = dict()  # type: Dict[int, ShardState]
         self.__init_shards()
         self.shutdown_in_progress = False
-        self.slave_id = 0
 
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
@@ -1217,29 +1261,6 @@ class SlaveServer:
     def __get_shard_size(self):
         return self.env.quark_chain_config.SHARD_SIZE
 
-    def add_slave_connection(self, slave):
-        self.slave_ids.add(slave.id)
-        self.slave_connections.add(slave)
-        for shard_id in range(self.__get_shard_size()):
-            if slave.has_shard(shard_id):
-                self.shard_to_slaves[shard_id].append(slave)
-
-        # self.__log_summary()
-
-    def __log_summary(self):
-        for shard_id, slaves in enumerate(self.shard_to_slaves):
-            Logger.info(
-                "[{}] is run by slave {}".format(shard_id, [s.id for s in slaves])
-            )
-
-    async def __handle_master_connection_lost(self):
-        check(self.master is not None)
-        await self.wait_until_close()
-
-        if not self.shutdown_in_progress:
-            # TODO: May reconnect
-            self.shutdown()
-
     async def __handle_new_connection(self, reader, writer):
         # The first connection should always come from master
         if not self.master:
@@ -1247,19 +1268,7 @@ class SlaveServer:
                 self.env, reader, writer, self, name="{}_master".format(self.name)
             )
             return
-
-        self.slave_id += 1
-        self.slave_connections.add(
-            SlaveConnection(
-                self.env,
-                reader,
-                writer,
-                self,
-                None,
-                None,
-                name="{}_slave_{}".format(self.name, self.slave_id),
-            )
-        )
+        await self.slave_connection_manager.handle_new_connection(reader, writer)
 
     async def __start_server(self):
         """ Run the server until shutdown is called """
@@ -1290,8 +1299,7 @@ class SlaveServer:
         self.shutdown_in_progress = True
         if self.master is not None:
             self.master.close()
-        for slave in self.slave_connections:
-            slave.close()
+        self.slave_connection_manager.close_all()
         self.server.close()
 
     def get_shutdown_future(self):
@@ -1354,7 +1362,9 @@ class SlaveServer:
                     block_hash, request.tx_list
                 )
 
-            for slave_conn in self.shard_to_slaves[branch.get_shard_id()]:
+            for slave_conn in self.slave_connection_manager.get_connections_by_shard(
+                branch.get_shard_id()
+            ):
                 future = slave_conn.write_rpc_request(
                     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request
                 )
@@ -1391,7 +1401,9 @@ class SlaveServer:
                     )
 
             batch_request = BatchAddXshardTxListRequest(request_list)
-            for slave_conn in self.shard_to_slaves[branch.get_shard_id()]:
+            for slave_conn in self.slave_connection_manager.get_connections_by_shard(
+                branch.get_shard_id()
+            ):
                 future = slave_conn.write_rpc_request(
                     ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batch_request
                 )
