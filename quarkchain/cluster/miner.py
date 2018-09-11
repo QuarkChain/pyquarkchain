@@ -45,6 +45,9 @@ class Miner:
         self.process = None
         self.env = env
 
+        self.input = AioQueue()
+        self.output = AioQueue()
+
     def is_enabled(self):
         return self.enabled
 
@@ -70,8 +73,6 @@ class Miner:
             self.input.put((block, target_block_time))
             return
 
-        self.input = AioQueue()
-        self.output = AioQueue()
         self.process = AioProcess(
             target=self.mine_func,
             args=(block, target_block_time, self.input, self.output),

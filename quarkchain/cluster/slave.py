@@ -22,6 +22,7 @@ from quarkchain.cluster.p2p_commands import (
     Direction,
     GetMinorBlockHeaderListResponse,
     NewTransactionListCommand,
+    NewBlockMinorCommand,
 )
 from quarkchain.cluster.protocol import (
     ClusterConnection,
@@ -91,7 +92,7 @@ from quarkchain.core import (
 )
 from quarkchain.db import PersistentDb
 from quarkchain.protocol import Connection
-from quarkchain.utils import check, set_logging_level, Logger
+from quarkchain.utils import check, set_logging_level, Logger, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.neighbor import is_neighbor
 
@@ -301,6 +302,16 @@ class ShardConnection(VirtualConnection):
 
         return GetMinorBlockListResponse(m_block_list)
 
+    def send_new_block(self, block):
+        # TODO do not send seen blocks with this peer, optional
+        self.write_command(
+            op=CommandOp.NEW_BLOCK_MINOR, cmd=NewBlockMinorCommand(block)
+        )
+
+    async def handle_new_block_minor_command(self, _op, cmd, _rpc_id):
+        self.best_minor_block_header_observed = cmd.block.header
+        await self.slave_server.handle_new_block(cmd.block)
+
     async def handle_new_minor_block_header_list_command(self, _op, cmd, _rpc_id):
         # TODO: allow multiple headers if needed
         if len(cmd.minor_block_header_list) != 1:
@@ -398,6 +409,7 @@ class ShardConnection(VirtualConnection):
 OP_NONRPC_MAP = {
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: ShardConnection.handle_new_minor_block_header_list_command,
     CommandOp.NEW_TRANSACTION_LIST: ShardConnection.handle_new_transaction_list_command,
+    CommandOp.NEW_BLOCK_MINOR: ShardConnection.handle_new_block_minor_command,
 }
 
 
@@ -705,6 +717,17 @@ class MasterConnection(ClusterConnection):
         # wait for all the connections to become active before return
         await asyncio.gather(*active_futures)
         return CreateClusterPeerConnectionResponse(error_code=0)
+
+    def broadcast_new_block(self, block):
+        for cluster_peer_id, conn_map in self.v_conn_map.items():
+            if block.header.branch.value not in conn_map:
+                Logger.error(
+                    "Cannot find branch {} in conn {}".format(
+                        block.header.branch.value, cluster_peer_id
+                    )
+                )
+                continue
+            conn_map[block.header.branch.value].send_new_block(block)
 
     def broadcast_new_tip(self, branch):
         for cluster_peer_id, conn_map in self.v_conn_map.items():
@@ -1117,21 +1140,23 @@ class SlaveServer:
         )
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
+    def __is_syncing(self, branch_value):
+        return any(
+            [
+                vs[branch_value].synchronizer.running
+                for vs in self.master.v_conn_map.values()
+            ]
+        )
+
     def __init_miner(self, branch_value):
         branch = Branch(branch_value)
-        miner_address = self.env.quark_chain_config.testnet_master_address.address_in_branch(branch)
-
-        def __is_syncing():
-            return any(
-                [
-                    vs[branch_value].synchronizer.running
-                    for vs in self.master.v_conn_map.values()
-                ]
-            )
+        miner_address = self.env.quark_chain_config.testnet_master_address.address_in_branch(
+            branch
+        )
 
         async def __create_block():
             # hold off mining if the shard is syncing
-            while __is_syncing():
+            while self.__is_syncing(branch_value):
                 await asyncio.sleep(0.1)
 
             return self.shard_state_map[branch_value].create_block_to_mine(
@@ -1140,7 +1165,7 @@ class SlaveServer:
 
         async def __add_block(block):
             # Do not add block if there is a sync in progress
-            if __is_syncing():
+            if self.__is_syncing(branch_value):
                 return
             # Do not add stale block
             if (
@@ -1148,7 +1173,7 @@ class SlaveServer:
                 >= block.header.height
             ):
                 return
-            await self.add_block(block)
+            await self.handle_new_block(block)
 
         def __get_target_block_time():
             return self.artificial_tx_config.target_minor_block_time
@@ -1374,8 +1399,48 @@ class SlaveServer:
         responses = await asyncio.gather(*rpc_futures)
         check(all([response.error_code == 0 for _, response, _ in responses]))
 
+    async def handle_new_block(self, block):
+        """
+        0. if local shard is syncing, doesn't make sense to add, skip
+        1. if block parent is not in local state/new block pool, discard
+        2. if already in cache or in local state/new block pool, pass
+        3. validate: check time, difficulty, POW
+        4. add it to new minor block broadcast cache
+        5. broadcast to all peers (minus peer that sent it, optional)
+        6. add_block() to local state (then remove from cache)
+             also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
+        """
+        if self.__is_syncing(block.header.branch.value):
+            # TODO optinal: queue the block if it came from broadcast to so that once sync is over, catch up immediately
+            return
+
+        branch_value = block.header.branch.value
+        shard_state = self.shard_state_map.get(branch_value, None)
+        if block.header.get_hash() in shard_state.new_block_pool:
+            return
+        if shard_state.db.contain_minor_block_by_hash(block.header.get_hash()):
+            return
+
+        if not shard_state.db.contain_minor_block_by_hash(
+            block.header.hash_prev_minor_block
+        ):
+            if block.header.hash_prev_minor_block not in shard_state.new_block_pool:
+                return
+
+        # TODO check difficulty and POW here
+        # one option is to use __validate_block but we may not need the full check
+        if block.header.create_time > time_ms() // 1000 + 30:
+            return
+
+        shard_state.new_block_pool[block.header.get_hash()] = block
+
+        self.master.broadcast_new_block(block)
+        await self.add_block(block)
+
     async def add_block(self, block):
-        """ Returns true if block is successfully added. False on any error. """
+        """ Returns true if block is successfully added. False on any error.
+        called by 1. local miner (will not run if syncing) 2. SyncTask
+        """
         branch_value = block.header.branch.value
         shard_state = self.shard_state_map.get(branch_value, None)
 
@@ -1389,7 +1454,11 @@ class SlaveServer:
             Logger.error_exception()
             return False
 
-        # block has been added to local state and let's pass to peers
+        # only remove from pool if the block successfully added to state,
+        #   this may cache failed blocks but prevents them being broadcasted more than needed
+        # TODO add ttl to blocks in new_block_pool
+        shard_state.new_block_pool.pop(block.header.get_hash(), None)
+        # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
             if old_tip != shard_state.tip():
                 self.master.broadcast_new_tip(block.header.branch)

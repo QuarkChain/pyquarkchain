@@ -182,6 +182,13 @@ class GetMinorBlockHeaderListResponse(Serializable):
         self.block_header_list = block_header_list
 
 
+class NewBlockMinorCommand(Serializable):
+    FIELDS = [("block", MinorBlock)]
+
+    def __init__(self, block):
+        self.block = block
+
+
 class CommandOp:
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
@@ -196,6 +203,7 @@ class CommandOp:
     GET_MINOR_BLOCK_LIST_RESPONSE = 10
     GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 11
     GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 12
+    NEW_BLOCK_MINOR = 13
 
 
 OP_SERIALIZER_MAP = {
@@ -212,4 +220,5 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE: GetMinorBlockListResponse,
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST: GetMinorBlockHeaderListRequest,
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE: GetMinorBlockHeaderListResponse,
+    CommandOp.NEW_BLOCK_MINOR: NewBlockMinorCommand,
 }
