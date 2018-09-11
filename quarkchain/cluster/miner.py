@@ -47,7 +47,6 @@ class Miner:
 
         self.input = AioQueue()
         self.output = AioQueue()
-        asyncio.ensure_future(self.__handle_mined_block())
 
     def is_enabled(self):
         return self.enabled
@@ -79,6 +78,8 @@ class Miner:
             args=(block, target_block_time, self.input, self.output),
         )
         self.process.start()
+
+        asyncio.ensure_future(self.__handle_mined_block())
 
     async def __handle_mined_block(self):
         while True:
