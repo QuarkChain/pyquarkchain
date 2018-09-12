@@ -19,8 +19,8 @@ HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
-    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS
-    and fill in genesis block hashes """
+    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS,
+    do not fill in genesis block hashes yet """
     for item in ACCOUNTS_TO_FUND:
         address = Address.create_from(item["address"])
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
@@ -35,8 +35,6 @@ def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
                 shard.GENESIS.ALLOC[
                     address.address_in_shard(i).serialize().hex()
                 ] = 1000 * (10 ** 18)
-
-    GenesisManager.finalize_config(qkc_config)
 
 
 class MasterConfig(BaseConfig):
@@ -261,6 +259,7 @@ class ClusterConfig(BaseConfig):
 
         config.LOADTEST = args.loadtest
         update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
+        GenesisManager.finalize_config(config.QUARKCHAIN)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
@@ -322,6 +321,7 @@ class ClusterConfig(BaseConfig):
         else:
             config.SIMPLE_NETWORK = SimpleNetworkConfig.from_dict(d["SIMPLE_NETWORK"])
 
+        update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
         return config
 
 

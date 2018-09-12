@@ -41,6 +41,17 @@ class BaseConfig:
     def from_json(cls, j):
         return cls.from_dict(json.loads(j))
 
+    def __eq__(self, other):
+        d1 = dict()
+        d2 = dict()
+        for k, v in self.__class__.__dict__.items():
+            if _is_config_field(k):
+                d1[k] = getattr(self, k) if k in self.__dict__ else v
+        for k, v in other.__class__.__dict__.items():
+            if _is_config_field(k):
+                d2[k] = getattr(other, k) if k in other.__dict__ else v
+        return d1 == d2
+
 
 class RootGenesis(BaseConfig):
     VERSION = 0
@@ -73,6 +84,11 @@ class ShardGenesis(BaseConfig):
 
     def __init__(self):
         self.ALLOC = dict()
+
+    def to_dict(self):
+        ret = super().to_dict()
+        ret["ALLOC"] = dict()
+        return ret
 
 
 class ConsensusType(Enum):
