@@ -6,6 +6,9 @@ import json
 import numpy
 from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
+from multiprocessing import Queue as MultiProcessingQueue
+
+from typing import Callable, Union, Coroutine, Awaitable
 
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
@@ -18,9 +21,10 @@ class Miner:
     def __init__(
         self,
         consensus_type: ConsensusType,
-        create_block_async_func,
-        add_block_async_func,
-        get_target_block_time_func,
+        create_block_async_func: Callable[[], Awaitable[Union[MinorBlock, RootBlock]]],
+        add_block_async_func: Callable[[Union[MinorBlock, RootBlock]], Awaitable[None]],
+        get_target_block_time_func: Callable[[], float],
+        # TODO: clean this up if confirmed not used
         env,
     ):
         """Mining will happen on a subprocess managed by this class
@@ -37,6 +41,8 @@ class Miner:
             self.mine_func = Miner.mine_ethash
         elif consensus_type == ConsensusType.POW_SHA3SHA3:
             self.mine_func = Miner.mine_sha3sha3
+        else:
+            raise ValueError("Consensus? ( う-´)づ︻╦̵̵̿╤──   \(˚☐˚”)/")
 
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func
@@ -45,8 +51,8 @@ class Miner:
         self.process = None
         self.env = env
 
-        self.input = AioQueue()
-        self.output = AioQueue()
+        self.input_q = AioQueue()  # [(block, target_time)]
+        self.output_q = AioQueue()  # [block]
 
     def is_enabled(self):
         return self.enabled
@@ -59,38 +65,38 @@ class Miner:
         self.enabled = False
 
     def mine_new_block_async(self):
-        if not self.enabled:
-            return False
-        asyncio.ensure_future(self.__mine_new_block())
+        async def handle_mined_block(instance: Miner):
+            while True:
+                block = await instance.output_q.coro_get()
+                if not block:
+                    return
+                try:
+                    await instance.add_block_async_func(block)
+                except Exception as ex:
+                    GLOG.exception(ex)
+                    instance.mine_new_block_async()
 
-    async def __mine_new_block(self):
-        """Get a new block and start mining.
-        If a mining process has already been started, update the process to mine the new block.
-        """
-        target_block_time = self.get_target_block_time_func()
-        block = await self.create_block_async_func()
-        if self.process:
-            self.input.put((block, target_block_time))
-            return
-
-        self.process = AioProcess(
-            target=self.mine_func,
-            args=(block, target_block_time, self.input, self.output),
-        )
-        self.process.start()
-
-        asyncio.ensure_future(self.__handle_mined_block())
-
-    async def __handle_mined_block(self):
-        while True:
-            block = await self.output.coro_get()
-            if not block:
+        async def mine_new_block(instance: Miner):
+            """Get a new block and start mining.
+            If a mining process has already been started, update the process to mine the new block.
+            """
+            target_block_time = instance.get_target_block_time_func()
+            block = await instance.create_block_async_func()
+            if instance.process:
+                instance.input_q.put((block, target_block_time))
                 return
-            try:
-                await self.add_block_async_func(block)
-            except Exception as ex:
-                GLOG.exception(ex)
-                self.mine_new_block_async()
+
+            instance.process = AioProcess(
+                target=instance.mine_func,
+                args=(block, target_block_time, instance.input_q, instance.output_q),
+            )
+            instance.process.start()
+            # asyncio.ensure_future(handle_mined_block(instance))
+            await handle_mined_block(instance)
+
+        if not self.enabled:
+            return
+        return asyncio.ensure_future(mine_new_block(self))
 
     @staticmethod
     def __log_status(block):
@@ -118,29 +124,7 @@ class Miner:
         return metric < 2 ** 256
 
     @staticmethod
-    def mine(block, _, input, output):
-        """PoW"""
-        while True:
-            block.header.nonce += 1
-            metric = (
-                int.from_bytes(block.header.get_hash(), byteorder="big")
-                * block.header.difficulty
-            )
-            if Miner.__check_metric(metric):
-                Miner.__log_status(block)
-                output.put(block)
-                block, _ = input.get()
-            try:
-                block, _ = input.get_nowait()
-            except Exception:
-                # got nothing from queue
-                pass
-            if not block:
-                output.put(None)
-                return
-
-    @staticmethod
-    def __get_block_time(block, target_block_time):
+    def __get_block_time(block, target_block_time) -> float:
         if isinstance(block, MinorBlock):
             # Adjust the target block time to compensate computation time
             gas_used_ratio = block.meta.evm_gas_used / block.meta.evm_gas_limit
@@ -154,7 +138,12 @@ class Miner:
         return numpy.random.exponential(target_block_time)
 
     @staticmethod
-    def simulate_mine(block, target_block_time, input, output):
+    def simulate_mine(
+        block,
+        target_block_time: float,
+        input_q: MultiProcessingQueue,
+        output_q: MultiProcessingQueue,
+    ):
         """Sleep until the target time, or a new block is added to queue"""
         target_time = block.header.create_time + numpy.random.exponential(
             target_block_time
@@ -162,11 +151,10 @@ class Miner:
         while True:
             time.sleep(0.1)
             try:
-                block, target_block_time = (
-                    input.get_nowait()
-                )  # raises if queue is empty
+                # raises if queue is empty
+                block, target_block_time = input_q.get_nowait()
                 if not block:
-                    output.put(None)
+                    output_q.put(None)
                     return
                 target_time = block.header.create_time + Miner.__get_block_time(
                     block, target_block_time
@@ -183,11 +171,29 @@ class Miner:
                     # NOTE this actually ruins POW mining; added for perf tracking
                     block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
                     block.header.hash_meta = block.meta.get_hash()
-                output.put(block)
-                block, target_block_time = input.get()  # blocking
+                output_q.put(block)
+                block, target_block_time = input_q.get(block=True)  # blocking
                 if not block:
-                    output.put(None)
+                    output_q.put(None)
                     return
                 target_time = block.header.create_time + Miner.__get_block_time(
                     block, target_block_time
                 )
+
+    @staticmethod
+    def mine_ethash(
+        block,
+        target_block_time: float,
+        input_q: MultiProcessingQueue,
+        output_q: MultiProcessingQueue,
+    ):
+        pass
+
+    @staticmethod
+    def mine_sha3sha3(
+        block,
+        target_block_time: float,
+        input_q: MultiProcessingQueue,
+        output_q: MultiProcessingQueue,
+    ):
+        pass
