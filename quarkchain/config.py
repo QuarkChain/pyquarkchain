@@ -231,6 +231,7 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
+        self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
         self.SHARD_LIST = []
         for i in range(self.SHARD_SIZE):
@@ -252,6 +253,7 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
+        self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
         self.SHARD_LIST = []
         for i in range(self.SHARD_SIZE):
