@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
+from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -14,10 +15,9 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_creation_with_event_transaction,
     create_contract_with_storage_transaction,
 )
-from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Branch, Code, Identity, Transaction
 from quarkchain.core import MinorBlock, RootBlock
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -66,7 +66,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             for i in range(3):
                 tx = create_transfer_transaction(
-                    shard_state=slaves[0].shard_state_map[branch.value],
+                    shard_state=slaves[0].shards[branch].state,
                     key=id1.get_key(),
                     from_address=acc1,
                     to_address=acc1,
@@ -76,7 +76,7 @@ class TestJSONRPC(unittest.TestCase):
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
                 self.assertEqual(i + 1, block.header.height)
-                self.assertTrue(call_async(slaves[0].add_block(block)))
+                self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
 
             response = send_request(
                 "getTransactionCount", "0x" + acc2.serialize().hex()
@@ -138,10 +138,9 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("sendTransaction", request)
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
-            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 1)
+            self.assertEqual(len(slaves[0].shards[branch].state.tx_queue), 1)
             self.assertEqual(
-                slaves[0].shard_state_map[branch.value].tx_queue.pop_transaction(),
-                evm_tx,
+                slaves[0].shards[branch].state.tx_queue.pop_transaction(), evm_tx
             )
 
     def test_sendTransaction_with_bad_signature(self):
@@ -169,7 +168,7 @@ class TestJSONRPC(unittest.TestCase):
                 toFullShardId="0x00000001",
             )
             self.assertIsNone(send_request("sendTransaction", request))
-            self.assertEqual(len(slaves[0].shard_state_map[branch.value].tx_queue), 0)
+            self.assertEqual(len(slaves[0].shards[branch].state.tx_queue), 0)
 
     def test_sendTransaction_missing_from_full_shard_id(self):
         id1 = Identity.create_random_identity()
@@ -217,7 +216,7 @@ class TestJSONRPC(unittest.TestCase):
             send_request("addBlock", "0x0", response["blockData"])
 
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[2 | 0],
+                shard_state=clusters[0].get_shard_state(0),
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc3,
@@ -236,7 +235,7 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertTrue(send_request("addBlock", "0x2", response["blockData"]))
             self.assertEqual(
-                slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0
+                clusters[0].get_shard_state(1).get_balance(acc3.recipient), 0
             )
 
             # Expect to mine shard 1 due to proof-of-progress
@@ -263,7 +262,7 @@ class TestJSONRPC(unittest.TestCase):
 
             send_request("addBlock", "0x0", response["blockData"])
             self.assertEqual(
-                slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0
+                clusters[0].get_shard_state(1).get_balance(acc3.recipient), 0
             )
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
@@ -316,7 +315,7 @@ class TestJSONRPC(unittest.TestCase):
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -325,7 +324,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
             # By id
             resp = send_request(
@@ -378,7 +377,7 @@ class TestJSONRPC(unittest.TestCase):
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -387,7 +386,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
             resp = send_request(
                 "getTransactionById",
@@ -415,7 +414,7 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertEqual(response, "0x")
             self.assertEqual(
-                len(slaves[0].shard_state_map[branch.value].tx_queue),
+                len(slaves[0].shards[branch].state.tx_queue),
                 0,
                 "should not affect tx queue",
             )
@@ -437,7 +436,7 @@ class TestJSONRPC(unittest.TestCase):
 
             self.assertIsNone(response, "failed tx should return None")
             self.assertEqual(
-                len(slaves[0].shard_state_map[branch.value].tx_queue),
+                len(slaves[0].shards[branch].state.tx_queue),
                 0,
                 "should not affect tx queue",
             )
@@ -464,7 +463,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -473,7 +472,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
             resp = send_request(
                 "getTransactionReceipt",
@@ -501,7 +500,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(is_root)
             call_async(master.add_root_block(block))
 
-            s1, s2 = slaves[0].shard_state_map[2], slaves[1].shard_state_map[3]
+            s1, s2 = clusters[0].get_shard_state(0), clusters[0].get_shard_state(1)
             tx_gen = lambda s, f, t: create_transfer_transaction(
                 shard_state=s,
                 key=id1.get_key(),
@@ -512,9 +511,9 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx_gen(s1, acc1, acc2)))
             _, b1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(b1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(b1)))
             _, b2 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertTrue(call_async(slaves[1].add_block(b2)))
+            self.assertTrue(call_async(clusters[0].get_shard(1).add_block(b2)))
             _, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1, prefer_root=True)
             )
@@ -524,7 +523,7 @@ class TestJSONRPC(unittest.TestCase):
             tx = tx_gen(s2, acc2, acc2)
             self.assertTrue(slaves[1].add_tx(tx))
             _, b3 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertTrue(call_async(slaves[1].add_block(b3)))
+            self.assertTrue(call_async(clusters[0].get_shard(1).add_block(b3)))
 
             # in-shard tx 21000 + receiving x-shard tx 9000
             self.assertEqual(s2.evm_state.gas_used, 30000)
@@ -554,7 +553,7 @@ class TestJSONRPC(unittest.TestCase):
             branch = Branch.create(2, 0)
             to_full_shard_id = acc1.full_shard_id + 2
             tx = create_contract_creation_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=to_full_shard_id,
@@ -562,7 +561,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
             resp = send_request(
                 "getTransactionReceipt",
@@ -595,7 +594,7 @@ class TestJSONRPC(unittest.TestCase):
                 acc1.full_shard_id + 1
             )  # x-shard contract creation should fail
             tx = create_contract_creation_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=to_full_shard_id,
@@ -603,7 +602,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
             resp = send_request(
                 "getTransactionReceipt",
@@ -634,7 +633,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             tx = create_contract_creation_with_event_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=acc1.full_shard_id,
@@ -642,7 +641,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 shard_id = hex(acc1.full_shard_id)
@@ -723,7 +722,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             tx = create_contract_with_storage_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=acc1.full_shard_id,
@@ -731,7 +730,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
@@ -782,7 +781,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             tx = create_contract_with_storage_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_id=acc1.full_shard_id,
@@ -790,7 +789,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
@@ -817,7 +816,7 @@ class TestJSONRPC(unittest.TestCase):
             # run for multiple times
             for _ in range(3):
                 tx = create_transfer_transaction(
-                    shard_state=slaves[0].shard_state_map[branch.value],
+                    shard_state=slaves[0].shards[branch].state,
                     key=id1.get_key(),
                     from_address=acc1,
                     to_address=acc1,
@@ -827,7 +826,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(slaves[0].add_tx(tx))
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
-                self.assertTrue(call_async(slaves[0].add_block(block)))
+                self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:

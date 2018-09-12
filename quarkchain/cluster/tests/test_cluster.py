@@ -40,7 +40,7 @@ class TestCluster(unittest.TestCase):
             call_async(master.add_root_block(block))
 
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[2 | 0],
+                shard_state=slaves[0].shards[Branch(2 | 0)].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc3,
@@ -61,13 +61,17 @@ class TestCluster(unittest.TestCase):
                 master.get_primary_account_data(acc1)
             ).balance
             gasPaid = (opcodes.GTXXSHARDCOST + opcodes.GTXCOST) * 3
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(
+                call_async(
+                    master.add_raw_minor_block(block1.header.branch, block1.serialize())
+                )
+            )
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).balance,
                 originalBalanceAcc1 - 54321 - gasPaid,
             )
             self.assertEqual(
-                slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0
+                slaves[1].shards[Branch(3)].state.get_balance(acc3.recipient), 0
             )
 
             # Expect to mine shard 1 due to proof-of-progress
@@ -77,7 +81,11 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block2.header.branch.value, 0b11)
             self.assertEqual(len(block2.tx_list), 0)
 
-            self.assertTrue(call_async(slaves[1].add_block(block2)))
+            self.assertTrue(
+                call_async(
+                    master.add_raw_minor_block(block2.header.branch, block2.serialize())
+                )
+            )
 
             # Expect to mine root
             is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
@@ -88,9 +96,9 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block.minor_block_header_list[1], block2.header)
 
             self.assertTrue(master.root_state.add_block(block))
-            slaves[1].shard_state_map[3].add_root_block(block)
+            slaves[1].shards[Branch(3)].state.add_root_block(block)
             self.assertEqual(
-                slaves[1].shard_state_map[3].get_balance(acc3.recipient), 0
+                slaves[1].shards[Branch(3)].state.get_balance(acc3.recipient), 0
             )
 
             # Expect to mine shard 1 for the gas on xshard tx to acc3
@@ -100,7 +108,11 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.tx_list), 0)
 
-            self.assertTrue(call_async(slaves[1].add_block(block3)))
+            self.assertTrue(
+                call_async(
+                    master.add_raw_minor_block(block3.header.branch, block3.serialize())
+                )
+            )
             # Expect withdrawTo is included in acc3's balance
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc3)).balance, 54321
@@ -120,7 +132,7 @@ class TestCluster(unittest.TestCase):
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
             tx = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch.value],
+                shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
@@ -129,7 +141,11 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             is_root, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(slaves[0].add_block(block1)))
+            self.assertTrue(
+                call_async(
+                    master.add_raw_minor_block(block1.header.branch, block1.serialize())
+                )
+            )
 
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 1
@@ -149,18 +165,18 @@ class TestCluster(unittest.TestCase):
 
             branch0 = Branch.create(2, 0)
             tx1 = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[branch0.value],
+                shard_state=slaves[0].shards[branch0].state,
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc1,
                 value=12345,
             )
             self.assertTrue(call_async(master.add_transaction(tx1)))
-            self.assertEqual(len(slaves[0].shard_state_map[branch0.value].tx_queue), 1)
+            self.assertEqual(len(slaves[0].shards[branch0].state.tx_queue), 1)
 
             branch1 = Branch.create(2, 1)
             tx2 = create_transfer_transaction(
-                shard_state=slaves[1].shard_state_map[branch1.value],
+                shard_state=slaves[1].shards[branch1].state,
                 key=id1.get_key(),
                 from_address=acc2,
                 to_address=acc1,
@@ -168,14 +184,14 @@ class TestCluster(unittest.TestCase):
                 gas=30000,
             )
             self.assertTrue(call_async(master.add_transaction(tx2)))
-            self.assertEqual(len(slaves[1].shard_state_map[branch1.value].tx_queue), 1)
+            self.assertEqual(len(slaves[1].shards[branch1].state.tx_queue), 1)
 
             # check the tx is received by the other cluster
-            tx_queue = clusters[1].slave_list[0].shard_state_map[branch0.value].tx_queue
+            tx_queue = clusters[1].slave_list[0].shards[branch0].state.tx_queue
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
             self.assertEqual(tx_queue.pop_transaction(), tx1.code.get_evm_transaction())
 
-            tx_queue = clusters[1].slave_list[1].shard_state_map[branch1.value].tx_queue
+            tx_queue = clusters[1].slave_list[1].shards[branch1].state.tx_queue
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
             self.assertEqual(tx_queue.pop_transaction(), tx2.code.get_evm_transaction())
 
@@ -184,18 +200,20 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(2, acc1) as clusters:
-            shard_state = clusters[0].slave_list[0].shard_state_map[0b10]
+            shard_state = clusters[0].slave_list[0].shards[Branch(0b10)].state
             b1 = shard_state.get_tip().create_block_to_append()
             b1.finalize(evm_state=shard_state.run_block(b1))
-            addResult = call_async(clusters[0].slave_list[0].add_block(b1))
+            addResult = call_async(
+                clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
+            )
             self.assertTrue(addResult)
 
             # Make sure the xshard list is added to another slave
             self.assertTrue(
                 clusters[0]
                 .slave_list[1]
-                .shard_state_map[0b11]
-                .contain_remote_minor_block_hash(b1.header.get_hash())
+                .shards[Branch(0b11)]
+                .state.contain_remote_minor_block_hash(b1.header.get_hash())
             )
             self.assertTrue(
                 clusters[0].master.root_state.is_minor_block_validated(
@@ -207,14 +225,14 @@ class TestCluster(unittest.TestCase):
             assert_true_with_timeout(
                 lambda: clusters[1]
                 .slave_list[0]
-                .shard_state_map[0b10]
-                .contain_block_by_hash(b1.header.get_hash())
+                .shards[Branch(0b10)]
+                .state.contain_block_by_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
                 lambda: clusters[1]
                 .slave_list[1]
-                .shard_state_map[0b11]
-                .contain_remote_minor_block_hash(b1.header.get_hash())
+                .shards[Branch(0b11)]
+                .state.contain_remote_minor_block_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
                 lambda: clusters[1].master.root_state.is_minor_block_validated(
@@ -233,29 +251,38 @@ class TestCluster(unittest.TestCase):
             # add blocks in cluster 0
             block_header_list = []
             for i in range(13):
-                shardState0 = clusters[0].slave_list[0].shard_state_map[0b10]
+                shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
                 b1 = shardState0.get_tip().create_block_to_append()
                 b1.finalize(evm_state=shardState0.run_block(b1))
-                addResult = call_async(clusters[0].slave_list[0].add_block(b1))
+                addResult = call_async(
+                    clusters[0].master.add_raw_minor_block(
+                        b1.header.branch, b1.serialize()
+                    )
+                )
                 self.assertTrue(addResult)
                 block_header_list.append(b1.header)
 
-            shardState0 = clusters[0].slave_list[1].shard_state_map[0b11]
+            shardState0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             b2 = shardState0.get_tip().create_block_to_append()
             b2.finalize(evm_state=shardState0.run_block(b2))
-            addResult = call_async(clusters[0].slave_list[1].add_block(b2))
+            addResult = call_async(
+                clusters[0].master.add_raw_minor_block(b2.header.branch, b2.serialize())
+            )
             self.assertTrue(addResult)
             block_header_list.append(b2.header)
 
             # add 1 block in cluster 1
-            shardState1 = clusters[1].slave_list[1].shard_state_map[0b11]
+            shardState1 = clusters[1].slave_list[1].shards[Branch(0b11)].state
             b3 = shardState1.get_tip().create_block_to_append()
             b3.finalize(evm_state=shardState1.run_block(b3))
-            addResult = call_async(clusters[1].slave_list[1].add_block(b3))
+            addResult = call_async(
+                clusters[1].master.add_raw_minor_block(b3.header.branch, b3.serialize())
+            )
             self.assertTrue(addResult)
 
             self.assertEqual(
-                clusters[1].slave_list[1].shard_state_map[0b11].header_tip, b3.header
+                clusters[1].slave_list[1].shards[Branch(0b11)].state.header_tip,
+                b3.header,
             )
 
             # reestablish cluster connection
@@ -282,13 +309,13 @@ class TestCluster(unittest.TestCase):
             # Minor block is downloaded
             self.assertEqual(b1.header.height, 13)
             assert_true_with_timeout(
-                lambda: clusters[1].slave_list[0].shard_state_map[0b10].header_tip
+                lambda: clusters[1].slave_list[0].shards[Branch(0b10)].state.header_tip
                 == b1.header
             )
 
             # The tip is overwritten due to root chain first consensus
             assert_true_with_timeout(
-                lambda: clusters[1].slave_list[1].shard_state_map[0b11].header_tip
+                lambda: clusters[1].slave_list[1].shards[Branch(0b11)].state.header_tip
                 == b2.header
             )
 
@@ -303,25 +330,35 @@ class TestCluster(unittest.TestCase):
             blockList = []
             # cluster 0 has 13 blocks added
             for i in range(13):
-                shardState0 = clusters[0].slave_list[0].shard_state_map[0b10]
+                shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
                 block = shardState0.get_tip().create_block_to_append()
                 block.finalize(evm_state=shardState0.run_block(block))
-                addResult = call_async(clusters[0].slave_list[0].add_block(block))
+                addResult = call_async(
+                    clusters[0].master.add_raw_minor_block(
+                        block.header.branch, block.serialize()
+                    )
+                )
                 self.assertTrue(addResult)
                 blockList.append(block)
             self.assertEqual(
-                clusters[0].slave_list[0].shard_state_map[0b10].header_tip.height, 13
+                clusters[0].slave_list[0].shards[Branch(0b10)].state.header_tip.height,
+                13,
             )
 
             # cluster 1 has 12 blocks added
             for i in range(12):
-                shardState0 = clusters[1].slave_list[0].shard_state_map[0b10]
+                shardState0 = clusters[1].slave_list[0].shards[Branch(0b10)].state
                 block = shardState0.get_tip().create_block_to_append()
                 block.finalize(evm_state=shardState0.run_block(block))
-                addResult = call_async(clusters[1].slave_list[0].add_block(block))
+                addResult = call_async(
+                    clusters[1].master.add_raw_minor_block(
+                        block.header.branch, block.serialize()
+                    )
+                )
                 self.assertTrue(addResult)
             self.assertEqual(
-                clusters[1].slave_list[0].shard_state_map[0b10].header_tip.height, 12
+                clusters[1].slave_list[0].shards[Branch(0b10)].state.header_tip.height,
+                12,
             )
 
             # reestablish cluster connection
@@ -333,10 +370,14 @@ class TestCluster(unittest.TestCase):
             )
 
             # a new block from cluster 0 will trigger sync in cluster 1
-            shardState0 = clusters[0].slave_list[0].shard_state_map[0b10]
+            shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             block = shardState0.get_tip().create_block_to_append()
             block.finalize(evm_state=shardState0.run_block(block))
-            addResult = call_async(clusters[0].slave_list[0].add_block(block))
+            addResult = call_async(
+                clusters[0].master.add_raw_minor_block(
+                    block.header.branch, block.serialize()
+                )
+            )
             self.assertTrue(addResult)
             blockList.append(block)
 
@@ -346,8 +387,8 @@ class TestCluster(unittest.TestCase):
                 assert_true_with_timeout(
                     lambda: clusters[1]
                     .slave_list[0]
-                    .shard_state_map[0b10]
-                    .contain_block_by_hash(block.header.get_hash())
+                    .shards[Branch(0b10)]
+                    .state.contain_block_by_hash(block.header.get_hash())
                 )
                 assert_true_with_timeout(
                     lambda: clusters[1].master.root_state.is_minor_block_validated(
@@ -356,8 +397,8 @@ class TestCluster(unittest.TestCase):
                 )
 
             self.assertEqual(
-                clusters[1].slave_list[0].shard_state_map[0b10].header_tip,
-                clusters[0].slave_list[0].shard_state_map[0b10].header_tip,
+                clusters[1].slave_list[0].shards[Branch(0b10)].state.header_tip,
+                clusters[0].slave_list[0].shards[Branch(0b10)].state.header_tip,
             )
 
     def test_broadcast_cross_shard_transactions(self):
@@ -371,7 +412,7 @@ class TestCluster(unittest.TestCase):
             slaves = clusters[0].slave_list
 
             tx1 = create_transfer_transaction(
-                shard_state=slaves[0].shard_state_map[2 | 0],
+                shard_state=clusters[0].get_shard_state(0),
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc3,
@@ -380,17 +421,17 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx1))
 
-            b1 = slaves[0].shard_state_map[2 | 0].create_block_to_mine(address=acc1)
-            b2 = slaves[0].shard_state_map[2 | 0].create_block_to_mine(address=acc1)
+            b1 = clusters[0].get_shard_state(0).create_block_to_mine(address=acc1)
+            b2 = clusters[0].get_shard_state(0).create_block_to_mine(address=acc1)
             b2.header.create_time += 1
             self.assertNotEqual(b1.header.get_hash(), b2.header.get_hash())
 
-            self.assertTrue(call_async(slaves[0].add_block(b1)))
+            call_async(clusters[0].get_shard(0).add_block(b1))
 
             # expect shard 1 got the CrossShardTransactionList of b1
             xshardTxList = (
-                slaves[1]
-                .shard_state_map[2 | 1]
+                clusters[0]
+                .get_shard_state(1)
                 .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
             )
             self.assertEqual(len(xshardTxList.tx_list), 1)
@@ -399,14 +440,14 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(xshardTxList.tx_list[0].to_address, acc3)
             self.assertEqual(xshardTxList.tx_list[0].value, 54321)
 
-            self.assertTrue(call_async(slaves[0].add_block(b2)))
+            call_async(clusters[0].get_shard(0).add_block(b2))
             # b2 doesn't update tip
-            self.assertEqual(slaves[0].shard_state_map[2 | 0].header_tip, b1.header)
+            self.assertEqual(clusters[0].get_shard_state(0).header_tip, b1.header)
 
             # expect shard 1 got the CrossShardTransactionList of b2
             xshardTxList = (
-                slaves[1]
-                .shard_state_map[2 | 1]
+                clusters[0]
+                .get_shard_state(1)
                 .db.get_minor_block_xshard_tx_list(b2.header.get_hash())
             )
             self.assertEqual(len(xshardTxList.tx_list), 1)
@@ -417,10 +458,10 @@ class TestCluster(unittest.TestCase):
 
             b3 = (
                 slaves[1]
-                .shard_state_map[2 | 1]
-                .create_block_to_mine(address=acc1.address_in_shard(1))
+                .shards[Branch(2 | 1)]
+                .state.create_block_to_mine(address=acc1.address_in_shard(1))
             )
-            self.assertTrue(call_async(slaves[1].add_block(b3)))
+            call_async(master.add_raw_minor_block(b3.header.branch, b3.serialize()))
 
             is_root, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1)
@@ -431,16 +472,23 @@ class TestCluster(unittest.TestCase):
             # b4 should include the withdraw of tx1
             b4 = (
                 slaves[1]
-                .shard_state_map[2 | 1]
-                .create_block_to_mine(address=acc1.address_in_shard(1))
+                .shards[Branch(2 | 1)]
+                .state.create_block_to_mine(address=acc1.address_in_shard(1))
             )
 
             # adding b1, b2, b3 again shouldn't affect b4 to be added later
-            self.assertTrue(call_async(slaves[0].add_block(b1)))
-            self.assertTrue(call_async(slaves[0].add_block(b2)))
-            self.assertTrue(call_async(slaves[1].add_block(b3)))
-
-            self.assertTrue(call_async(slaves[1].add_block(b4)))
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b1.header.branch, b1.serialize()))
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b2.header.branch, b2.serialize()))
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b3.header.branch, b3.serialize()))
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b4.header.branch, b4.serialize()))
+            )
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc3)).balance, 54321
             )
@@ -453,9 +501,16 @@ class TestCluster(unittest.TestCase):
         # create 64 shards so that the neighbor rule can kick in
         # explicitly set num_slaves to 4 so that it does not spin up 64 slaves
         with ClusterContext(1, acc1, 64, num_slaves=4) as clusters:
+            master = clusters[0].master
             slaves = clusters[0].slave_list
-            b1 = slaves[0].shard_state_map[64 | 0].create_block_to_mine(address=acc1)
-            self.assertTrue(call_async(slaves[0].add_block(b1)))
+            b1 = (
+                slaves[0]
+                .shards[Branch(64 | 0)]
+                .state.create_block_to_mine(address=acc1)
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b1.header.branch, b1.serialize()))
+            )
 
             neighbor_shards = [2 ** i for i in range(6)]
             for shard_id in range(64):
