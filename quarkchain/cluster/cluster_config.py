@@ -19,8 +19,8 @@ HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
-    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS
-    and fill in genesis block hashes """
+    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS,
+    do not fill in genesis block hashes yet """
     for item in ACCOUNTS_TO_FUND:
         address = Address.create_from(item["address"])
         shard = address.get_shard_id(qkc_config.SHARD_SIZE)
@@ -234,7 +234,6 @@ class ClusterConfig(BaseConfig):
         if args.cluster_config:
             with open(args.cluster_config) as f:
                 config = cls.from_json(f.read())
-                update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
                 config.json_filepath = args.cluster_config
                 return config
 
@@ -322,6 +321,7 @@ class ClusterConfig(BaseConfig):
         else:
             config.SIMPLE_NETWORK = SimpleNetworkConfig.from_dict(d["SIMPLE_NETWORK"])
 
+        update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
         return config
 
 
