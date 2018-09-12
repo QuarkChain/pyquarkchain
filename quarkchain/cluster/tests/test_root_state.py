@@ -12,10 +12,11 @@ from quarkchain.genesis import GenesisManager
 
 def create_default_state(env, diff_calc=None):
     r_state = RootState(env=env, diff_calc=diff_calc)
-    s_state_list = [
-        ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
-        for shard_id in range(env.quark_chain_config.SHARD_SIZE)
-    ]
+    s_state_list = []
+    for shard_id in range(env.quark_chain_config.SHARD_SIZE):
+        shard_state = ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
+        shard_state.init_genesis_state(r_state.get_tip_block())
+        s_state_list.append(shard_state)
     return (r_state, s_state_list)
 
 

@@ -30,7 +30,7 @@ class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
         ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
-        ("root_tip", RootBlock),
+        ("root_tip", Optional(RootBlock)),   # Initialize ShardState if not None
     ]
 
     def __init__(self, id, shard_mask_list, root_tip):

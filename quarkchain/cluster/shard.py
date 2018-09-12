@@ -17,7 +17,7 @@ from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.core import RootBlock, MinorBlockHeader, Branch, Transaction
+from quarkchain.core import RootBlock, MinorBlock, MinorBlockHeader, Branch, Transaction
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
 
@@ -421,9 +421,36 @@ class Shard:
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
 
-    def add_root_block(self, block: RootBlock):
-        """ Create"""
-        pass
+    async def __try_init_genesis_state(self, root_block: RootBlock):
+        """ If the root block height matches the height required in the shard GENESIS
+        initialize the shard state to the genesis state"""
+        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        if height != root_block.header.height:
+            return
+
+        block = self.state.init_genesis_state(root_block)
+        xshard_list = []
+        await self.slave.broadcast_xshard_tx_list(block, xshard_list)
+        await self.slave.send_minor_block_header_to_master(
+            block.header,
+            len(block.tx_list),
+            len(xshard_list),
+            self.state.get_shard_stats(),
+        )
+
+    async def init_from_root_block(self, root_block: RootBlock):
+        """Called by the master during cluster initialization to create a shard state
+        consistent with root state."""
+        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        if root_block.header.height > height:
+            self.state.init_from_root_block(root_block)
+
+        await self.__try_init_genesis_state(root_block)
+
+    async def add_root_block(self, root_block: RootBlock):
+        switched = self.state.add_root_block(root_block)
+        await self.__try_init_genesis_state(root_block)
+        return switched
 
     def broadcast_new_block(self, block):
         for cluster_peer_id, peer in self.peers.items():
@@ -479,8 +506,6 @@ class Shard:
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
-        branch_value = block.header.branch.value
-
         old_tip = self.state.tip()
         try:
             xshard_list = self.state.add_block(block)
@@ -586,7 +611,7 @@ class Shard:
                 valid_tx_list.append(tx)
         if not valid_tx_list:
             return
-        self.broadcast_tx_list( valid_tx_list, source_peer)
+        self.broadcast_tx_list(valid_tx_list, source_peer)
 
     def add_tx(self, tx: Transaction):
         return self.state.add_tx(tx)

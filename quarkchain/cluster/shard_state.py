@@ -76,10 +76,6 @@ class ShardState:
             last_price=0, last_head=b"", check_blocks=5, percentile=50
         )
 
-        # assure ShardState is in good shape after constructor returns though we still
-        # rely on master calling init_from_root_block to bring the cluster into consistency
-        self.__init_genesis_state(shard_id)
-
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_pool = dict()
 
@@ -99,18 +95,20 @@ class ShardState:
             check(header_tip is not None)
             return header_tip
 
+        check(
+            root_block.header.height
+            > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        )
         check(not self.initialized)
         self.initialized = True
 
         Logger.info(
-            "Initializing shard state from root height {} hash {}".format(
-                root_block.header.height, root_block.header.get_hash().hex()
+            "[{}] Initializing shard state from root height {} hash {}".format(
+                self.shard_id,
+                root_block.header.height,
+                root_block.header.get_hash().hex(),
             )
         )
-
-        if root_block.header.height <= 0:
-            Logger.info("Start from genesis block")
-            return
 
         shard_size = root_block.header.shard_info.get_shard_size()
         check(self.branch == Branch.create(shard_size, self.shard_id))
@@ -119,8 +117,8 @@ class ShardState:
 
         self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
-            "[{}] done recovery from db. shard tip {} {} root tip {} {}".format(
-                self.branch.get_shard_id(),
+            "[{}] Done recovery from db. shard tip {} {}, root tip {} {}".format(
+                self.shard_id,
                 self.header_tip.height,
                 self.header_tip.get_hash().hex(),
                 self.root_tip.height,
@@ -145,38 +143,49 @@ class ShardState:
     def __create_evm_state(self):
         return EvmState(env=self.env.evm_env, db=self.raw_db)
 
-    def __init_genesis_state(self, shard_id):
-        genesis_manager = GenesisManager(self.env.quark_chain_config)
+    def init_genesis_state(self, root_block):
+        """ root_block should have the same height as configured in shard GENESIS """
+        shard_config = self.env.quark_chain_config.SHARD_LIST[self.shard_id]
+        check(root_block.header.height == shard_config.GENESIS.ROOT_HEIGHT)
 
-        # no need to recreate if the db already has it
-        genesis_block = self.db.get_minor_block_by_height(0)
-        if not genesis_block:
-            genesis_block = genesis_manager.create_minor_block(
-                shard_id, self.__create_evm_state()
-            )
-        check(
-            genesis_block.header.get_hash()
-            == genesis_manager.get_minor_block_hash(self.branch.get_shard_id())
+        genesis_manager = GenesisManager(self.env.quark_chain_config)
+        genesis_block = genesis_manager.create_minor_block(
+            root_block, self.shard_id, self.__create_evm_state()
         )
 
-        genesis_root = genesis_manager.create_root_block()
+        expected_genesis_hash = genesis_manager.get_minor_block_hash(self.shard_id)
+        check(
+            not expected_genesis_hash
+            or genesis_block.header.get_hash() == expected_genesis_hash
+        )
+
         self.db.put_minor_block(genesis_block, [])
         self.db.put_minor_block_index(genesis_block)
-        self.db.put_root_block(genesis_root)
+        self.db.put_root_block(root_block)
 
-        for i in range(self.branch.get_shard_size()):
-            self.db.put_minor_block_xshard_tx_list(
-                genesis_manager.get_minor_block_hash(i), CrossShardTransactionList([])
-            )
+        if self.initialized:
+            # already initialized. just return the block without resetting the state.
+            return genesis_block
 
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
-        self.root_tip = genesis_root.header
+        self.root_tip = root_block.header
         # Tips that are confirmed by root
         self.confirmed_header_tip = None
         # Tips that are unconfirmed by root
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
+
+        Logger.info(
+            "[{}] Initialized genensis state at root block {} {}, genesis block hash {}".format(
+                self.shard_id,
+                self.root_tip.height,
+                self.root_tip.get_hash().hex(),
+                self.header_tip.get_hash().hex(),
+            )
+        )
+        self.initialized = True
+        return genesis_block
 
     def __validate_tx(
         self, tx: Transaction, evm_state, from_address=None, gas=None
@@ -918,6 +927,8 @@ class ShardState:
     def add_root_block(self, root_block):
         """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
+        Return True if the new block become head else False.
+        Raise ValueError on any failure.
         """
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")

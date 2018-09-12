@@ -242,6 +242,10 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
 
+    def get_genesis_root_height(self, shard_id):
+        """ Returns the root block height at which the shard shall be created"""
+        return self.SHARD_LIST[shard_id].GENESIS.ROOT_HEIGHT
+
     @property
     def testnet_master_address(self):
         return Address.create_from(self.TESTNET_MASTER_ADDRESS)

@@ -158,7 +158,8 @@ class MasterConnection(ClusterConnection):
     # Cluster RPC handlers
 
     async def handle_ping(self, ping):
-        self.slave_server.init_shard_states(ping.root_tip)
+        if ping.root_tip:
+            await self.slave_server.init_shard_states(ping.root_tip)
         return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
 
     async def handle_connect_to_slaves_request(self, connect_to_slave_request):
@@ -194,9 +195,10 @@ class MasterConnection(ClusterConnection):
         # TODO: handle expect_switch
         error_code = 0
         switched = False
+        # TODO: asyncio.gather
         for shard in self.shards.values():
             try:
-                switched = shard.state.add_root_block(req.root_block)
+                switched = await shard.add_root_block(req.root_block)
             except ValueError:
                 Logger.log_exception()
                 # TODO: May be enum or Unix errno?
@@ -776,11 +778,11 @@ class SlaveServer:
             shard_id = branch.get_shard_id()
             self.shards[branch] = Shard(self.env, shard_id, self)
 
-    def init_shard_states(self, root_tip):
+    async def init_shard_states(self, root_tip: RootBlock):
         """ Will be called when master connects to slaves """
+        # TODO: asyncio.gather
         for _, shard in self.shards.items():
-            # TODO: shard.init_from_root_block
-            shard.state.init_from_root_block(root_tip)
+            await shard.init_from_root_block(root_tip)
 
     def start_mining(self, artificial_tx_config):
         self.artificial_tx_config = artificial_tx_config

@@ -300,8 +300,9 @@ class SlaveConnection(ClusterConnection):
                 return True
         return False
 
-    async def send_ping(self):
-        req = Ping("", [], self.master_server.root_state.get_tip_block())
+    async def send_ping(self, initialize_shard_state=False):
+        root_block = self.master_server.root_state.get_tip_block() if initialize_shard_state else None
+        req = Ping("", [], root_block)
         op, resp, rpc_id = await self.write_rpc_request(
             op=ClusterOp.PING,
             cmd=req,
@@ -622,6 +623,12 @@ class MasterServer:
             if not success:
                 self.shutdown()
 
+    async def __init_shards(self):
+        futures = []
+        for slave in self.slave_pool:
+            futures.append(slave.send_ping(initialize_shard_state=True))
+        await asyncio.gather(*futures)
+
     async def __send_mining_config_to_slaves(self, mining):
         futures = []
         for slave in self.slave_pool:
@@ -666,6 +673,7 @@ class MasterServer:
             Logger.error("Missing some shards. Check cluster config file!")
             return
         await self.__setup_slave_to_slave_connections()
+        await self.__init_shards()
 
         self.cluster_active_future.set_result(None)
 

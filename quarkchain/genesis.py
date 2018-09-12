@@ -1,3 +1,4 @@
+from typing import Optional
 from quarkchain.config import QuarkChainConfig, get_default_evm_config
 from quarkchain.core import (
     Address,
@@ -7,7 +8,7 @@ from quarkchain.core import (
     Branch,
     ShardInfo,
     RootBlockHeader,
-    RootBlock
+    RootBlock,
 )
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.evm.state import State as EvmState
@@ -34,7 +35,9 @@ class GenesisManager:
         )
         return RootBlock(header=header, minor_block_header_list=[])
 
-    def create_minor_block(self, shard_id: int, evm_state: EvmState) -> MinorBlock:
+    def create_minor_block(
+        self, root_block: RootBlock, shard_id: int, evm_state: EvmState
+    ) -> MinorBlock:
         """ Create genesis block for shard.
         Genesis block's hash_prev_root_block is set to the genesis root block.
         Genesis state will be committed to the given evm_state.
@@ -63,7 +66,7 @@ class GenesisManager:
             height=genesis.HEIGHT,
             branch=branch,
             hash_prev_minor_block=bytes.fromhex(genesis.HASH_PREV_MINOR_BLOCK),
-            hash_prev_root_block=self.create_root_block().header.get_hash(),
+            hash_prev_root_block=root_block.header.get_hash(),
             hash_meta=sha3_256(meta.serialize()),
             coinbase_amount=genesis.COINBASE_AMOUNT,
             create_time=genesis.TIMESTAMP,
@@ -71,7 +74,9 @@ class GenesisManager:
         )
         return MinorBlock(header=header, meta=meta, tx_list=[])
 
-    def get_minor_block_hash(self, shard_id: int) -> bytes:
+    def get_minor_block_hash(self, shard_id: int) -> Optional[bytes]:
+        if not self._qkc_config.SHARD_LIST[shard_id].GENESIS.HASH:
+            return None
         return bytes.fromhex(self._qkc_config.SHARD_LIST[shard_id].GENESIS.HASH)
 
     @staticmethod
@@ -82,11 +87,14 @@ class GenesisManager:
         evm_config = get_default_evm_config()
         evm_config["NETWORK_ID"] = qkc_config.NETWORK_ID
         evm_env = EvmEnv(config=evm_config)
+        genesis_root = manager.create_root_block()
         for i, shard in enumerate(qkc_config.SHARD_LIST):
             evm_state = EvmState(env=evm_env)
             shard.GENESIS.COINBASE_ADDRESS = (
                 Address.create_empty_account(i).serialize().hex()
             )
             shard.GENESIS.HASH = (
-                manager.create_minor_block(i, evm_state).header.get_hash().hex()
+                manager.create_minor_block(genesis_root, i, evm_state)
+                .header.get_hash()
+                .hex()
             )
