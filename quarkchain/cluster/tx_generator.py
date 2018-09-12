@@ -22,9 +22,9 @@ class Account:
 
 
 class TransactionGenerator:
-    def __init__(self, qkc_config, branch, slave_server):
+    def __init__(self, qkc_config, shard_id, slave_server):
         self.qkc_config = qkc_config
-        self.branch = branch
+        self.shard_id = shard_id
         self.slave_server = slave_server
         self.running = False
 
@@ -49,7 +49,7 @@ class TransactionGenerator:
     async def __gen(self, num_tx, x_shard_percent, sample_tx: Transaction):
         Logger.info(
             "[{}] start generating {} transactions with {}% cross-shard".format(
-                self.branch.get_shard_id(), num_tx, x_shard_percent
+                self.shard_id, num_tx, x_shard_percent
             )
         )
         if num_tx <= 0:
@@ -60,7 +60,7 @@ class TransactionGenerator:
         sample_evm_tx = sample_tx.code.get_evm_transaction()
         for account in self.accounts:
             in_shard_address = Address(
-                account.address.recipient, self.branch.get_shard_id()
+                account.address.recipient, self.shard_id
             )
             nonce = self.slave_server.get_transaction_count(in_shard_address)
             tx = self.create_transaction(account, nonce, x_shard_percent, sample_evm_tx)
@@ -81,7 +81,7 @@ class TransactionGenerator:
         end_time = time.time()
         Logger.info(
             "[{}] generated {} transactions in {:.2f} seconds".format(
-                self.branch.get_shard_id(), total, end_time - start_time
+                self.shard_id, total, end_time - start_time
             )
         )
         self.running = False
@@ -89,9 +89,9 @@ class TransactionGenerator:
     def create_transaction(
         self, account, nonce, x_shard_percent, sample_evm_tx
     ) -> Optional[Transaction]:
-        shard_size = self.branch.get_shard_size()
+        shard_size = self.qkc_config.SHARD_SIZE
         shard_mask = shard_size - 1
-        from_shard = self.branch.get_shard_id()
+        from_shard = self.shard_id
 
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
@@ -119,7 +119,7 @@ class TransactionGenerator:
         if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
             to_shard = random.randint(0, self.qkc_config.SHARD_SIZE - 1)
-            if to_shard == self.branch.get_shard_id():
+            if to_shard == self.shard_id:
                 to_shard = (to_shard + 1) % self.qkc_config.SHARD_SIZE
             to_full_shard_id = to_full_shard_id & (~shard_mask) | to_shard
 
