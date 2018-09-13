@@ -390,7 +390,7 @@ class Shard:
 
         async def __create_block():
             # hold off mining if the shard is syncing
-            while self.synchronizer.running:
+            while self.synchronizer.running or not self.state.initialized:
                 await asyncio.sleep(0.1)
 
             return self.state.create_block_to_mine(address=miner_address)
@@ -421,13 +421,7 @@ class Shard:
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
 
-    async def __try_init_genesis_state(self, root_block: RootBlock):
-        """ If the root block height matches the height required in the shard GENESIS
-        initialize the shard state to the genesis state"""
-        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
-        if height != root_block.header.height:
-            return
-
+    async def __init_genesis_state(self, root_block: RootBlock):
         block = self.state.init_genesis_state(root_block)
         xshard_list = []
         await self.slave.broadcast_xshard_tx_list(block, xshard_list)
@@ -443,14 +437,19 @@ class Shard:
         consistent with root state."""
         height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
         if root_block.header.height > height:
-            self.state.init_from_root_block(root_block)
+            return self.state.init_from_root_block(root_block)
 
-        await self.__try_init_genesis_state(root_block)
+        if root_block.header.height == height:
+            await self.__init_genesis_state(root_block)
 
     async def add_root_block(self, root_block: RootBlock):
-        switched = self.state.add_root_block(root_block)
-        await self.__try_init_genesis_state(root_block)
-        return switched
+        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        if root_block.header.height > height:
+            return self.state.add_root_block(root_block)
+
+        if root_block.header.height == height:
+            await self.__init_genesis_state(root_block)
+            return True
 
     def broadcast_new_block(self, block):
         for cluster_peer_id, peer in self.peers.items():

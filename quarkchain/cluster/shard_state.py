@@ -145,8 +145,8 @@ class ShardState:
 
     def init_genesis_state(self, root_block):
         """ root_block should have the same height as configured in shard GENESIS """
-        shard_config = self.env.quark_chain_config.SHARD_LIST[self.shard_id]
-        check(root_block.header.height == shard_config.GENESIS.ROOT_HEIGHT)
+        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        check(root_block.header.height == height)
 
         genesis_manager = GenesisManager(self.env.quark_chain_config)
         genesis_block = genesis_manager.create_minor_block(
@@ -930,6 +930,10 @@ class ShardState:
         Return True if the new block become head else False.
         Raise ValueError on any failure.
         """
+        check(
+            root_block.header.height
+            > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        )
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")
 
@@ -947,11 +951,12 @@ class ShardState:
                 continue
 
             if not self.db.contain_remote_minor_block_hash(h):
-                raise ValueError(
-                    "cannot find x_shard tx list for {}-{} {}".format(
-                        m_header.branch.get_shard_id(), m_header.height, h.hex()
+                if self.db.contain_root_block_by_hash(m_header.hash_prev_root_block):
+                    raise ValueError(
+                        "cannot find x_shard tx list for {}-{} {}".format(
+                            m_header.branch.get_shard_id(), m_header.height, h.hex()
+                        )
                     )
-                )
 
         # shard_header cannot be None since PROOF_OF_PROGRESS should be positive
         check(shard_header is not None)

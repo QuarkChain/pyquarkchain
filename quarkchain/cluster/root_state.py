@@ -171,8 +171,6 @@ class RootState:
         genesis_block = genesis_manager.create_root_block()
         self.db.put_root_block(genesis_block, [])
         self.db.put_root_block_index(genesis_block)
-        for i in range(genesis_block.header.shard_info.get_shard_size()):
-            self.db.put_minor_block_hash(genesis_manager.get_minor_block_hash(i))
         self.tip = genesis_block.header
 
     def get_tip_block(self):
@@ -263,11 +261,6 @@ class RootState:
             block.header.hash_prev_block
         )
 
-        if block.header.height > 1:
-            check(len(prev_last_minor_block_header_list) > 0)
-        else:
-            check(len(prev_last_minor_block_header_list) == 0)
-
         block_hash = self.validate_block_header(block.header, block_hash)
 
         # Check the merkle tree
@@ -276,84 +269,81 @@ class RootState:
             raise ValueError("incorrect merkle root")
 
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
-        shard_id = 0
-        # prev_last_minor_block_header_list can be empty for genesis root block
-        prev_header = (
-            prev_last_minor_block_header_list[0]
-            if prev_last_minor_block_header_list
+
+        prev_header_map = dict()  # shard_id -> MinorBlockHeader or None
+        headers_map = dict()  # shard_id -> List[MinorBlockHeader]
+        for shard_id in range(self.env.quark_chain_config.SHARD_SIZE):
+            prev_header_map[shard_id] = None
+            headers_map[shard_id] = []
+        for header in prev_last_minor_block_header_list:
+            prev_header_map[header.branch.get_shard_id()] = header
+
+        shard_id = (
+            block.minor_block_header_list[0].branch.get_shard_id()
+            if block.minor_block_header_list
             else None
         )
-        last_minor_block_header_list = []
-        block_count_in_shard = 0
-        for idx, m_header in enumerate(block.minor_block_header_list):
-            if m_header.branch.get_shard_id() != shard_id:
-                if m_header.branch.get_shard_id() != shard_id + 1:
-                    raise ValueError("shard id must be ordered")
-                if (
-                    block_count_in_shard
-                    < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
-                ):
-                    raise ValueError("fail to prove progress")
-                if m_header.create_time > block.header.create_time:
-                    raise ValueError(
-                        "minor block create time is too large {}>{}".format(
-                            m_header.create_time, block.header.create_time
-                        )
-                    )
-                if prev_header and not self.__is_same_chain(
-                    self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                    self.db.get_root_block_header_by_hash(
-                        prev_header.hash_prev_root_block
-                    ),
-                ):
-                    raise ValueError(
-                        "minor block's prev root block must be in the same chain"
-                    )
-
-                last_minor_block_header_list.append(
-                    block.minor_block_header_list[idx - 1]
-                )
-                shard_id += 1
-                block_count_in_shard = 0
-                prev_header = (
-                    prev_last_minor_block_header_list[shard_id]
-                    if prev_last_minor_block_header_list
-                    else None
-                )
-
+        for m_header in block.minor_block_header_list:
             if not self.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise ValueError(
                     "minor block is not validated. {}-{}".format(
                         m_header.branch.get_shard_id(), m_header.height
                     )
                 )
+            if m_header.create_time > block.header.create_time:
+                raise ValueError(
+                    "minor block create time is larger than root block {} > {}".format(
+                        m_header.create_time, block.header.create_time
+                    )
+                )
+            if not self.__is_same_chain(
+                self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
+                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
+            ):
+                raise ValueError(
+                    "minor block's prev root block must be in the same chain"
+                )
 
-            if prev_header and m_header.hash_prev_minor_block != prev_header.get_hash():
-                raise ValueError("minor block doesn't link to previous minor block")
+            if m_header.branch.get_shard_id() < shard_id:
+                raise ValueError("shard id must be ordered")
+            elif m_header.branch.get_shard_id() > shard_id:
+                shard_id = m_header.branch.get_shard_id()
 
-            block_count_in_shard += 1
-            prev_header = m_header
+            headers_map[m_header.branch.get_shard_id()].append(m_header)
             # TODO: Add coinbase
 
-        if (
-            shard_id != block.header.shard_info.get_shard_size() - 1
-            and self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS != 0
-        ):
-            raise ValueError("fail to prove progress")
-        if block_count_in_shard < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
-            raise ValueError("fail to prove progress")
-        if m_header.create_time > block.header.create_time:
-            raise ValueError(
-                "minor block create time is too large {}>{}".format(
-                    m_header.create_time, block.header.create_time
+        shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+            block.header.height
+        )
+
+        for shard_id in shard_ids_to_check_proof_of_progress:
+            if (
+                len(headers_map[shard_id])
+                < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
+            ):
+                raise ValueError("fail to prove progress")
+
+        last_minor_block_header_list = []
+        for shard_id, headers in headers_map.items():
+            if not headers:
+                continue
+            if shard_id not in shard_ids_to_check_proof_of_progress:
+                raise ValueError(
+                    "found minor block header in root block {} for uninitialized shard {}".format(
+                        block_hash.hex(), shard_id
+                    )
                 )
-            )
-        if not self.__is_same_chain(
-            self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-            self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
-        ):
-            raise ValueError("minor block's prev root block must be in the same chain")
-        last_minor_block_header_list.append(m_header)
+            if prev_header_map[shard_id]:
+                headers = [prev_header_map[shard_id]] + headers
+            for i in range(len(headers) - 1):
+                if headers[i + 1].hash_prev_minor_block != headers[i].get_hash():
+                    raise ValueError(
+                        "minor block {} does not link to previous block {}".format(
+                            headers[i + 1].get_hash(), headers[i].get_hash()
+                        )
+                    )
+
+            last_minor_block_header_list.append(headers[-1])
 
         return block_hash, last_minor_block_header_list
 

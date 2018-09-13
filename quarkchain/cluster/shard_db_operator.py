@@ -174,7 +174,12 @@ class ShardDbOperator(TransactionHistoryMixin):
 
     def __get_last_minor_block_in_root_block(self, root_block):
         # genesis root block contains no minor block header
-        if root_block.header.height == 0:
+        if (
+            root_block.header.height
+            == self.env.quark_chain_config.get_genesis_root_height(
+                self.branch.get_shard_id()
+            )
+        ):
             return None
 
         l_header = None
@@ -203,7 +208,12 @@ class ShardDbOperator(TransactionHistoryMixin):
                 r_hash
             ] = self.__get_last_minor_block_in_root_block(block)
             self.r_header_pool[r_hash] = block.header
-            if block.header.height <= 0:
+            if (
+                block.header.height
+                <= self.env.quark_chain_config.get_genesis_root_height(
+                    self.branch.get_shard_id()
+                )
+            ):
                 break
             r_hash = block.header.hash_prev_block
 

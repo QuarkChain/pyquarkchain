@@ -210,6 +210,8 @@ class MasterConnection(ClusterConnection):
     async def handle_get_eco_info_list_request(self, _req):
         eco_info_list = []
         for branch, shard in self.shards.items():
+            if not shard.state.initialized:
+                continue
             eco_info_list.append(
                 EcoInfo(
                     branch=branch,
@@ -253,6 +255,8 @@ class MasterConnection(ClusterConnection):
     async def handle_get_unconfirmed_header_list_request(self, _req):
         headers_info_list = []
         for branch, shard in self.shards.items():
+            if not shard.state.initialized:
+                continue
             headers_info_list.append(
                 HeadersInfo(
                     branch=branch, header_list=shard.state.get_unconfirmed_header_list()
@@ -776,7 +780,9 @@ class SlaveServer:
         for branch_value in branch_values:
             branch = Branch(branch_value)
             shard_id = branch.get_shard_id()
-            self.shards[branch] = Shard(self.env, shard_id, self)
+            # Only create Shard object if GENESIS is configured
+            if self.env.quark_chain_config.SHARD_LIST[shard_id].GENESIS:
+                self.shards[branch] = Shard(self.env, shard_id, self)
 
     async def init_shard_states(self, root_tip: RootBlock):
         """ Will be called when master connects to slaves """
@@ -870,18 +876,18 @@ class SlaveServer:
         branch_to_add_xshard_tx_list_request = dict()
 
         xshard_map = dict()
-        for shard_id in range(self.__get_shard_size()):
-            xshard_map[shard_id + self.__get_shard_size()] = []
+        for shard_id in self.env.quark_chain_config.get_genesis_shard_ids():
+            branch = Branch.create(self.__get_shard_size(), shard_id)
+            xshard_map[branch] = []
 
         for xshard_tx in xshard_tx_list:
             shard_id = xshard_tx.to_address.get_shard_id(self.__get_shard_size())
-            branch_value = Branch.create(self.__get_shard_size(), shard_id).value
-            xshard_map[branch_value].append(xshard_tx)
+            branch = Branch.create(self.__get_shard_size(), shard_id)
+            xshard_map[branch].append(xshard_tx)
 
-        for branch_value, tx_list in xshard_map.items():
+        for branch, tx_list in xshard_map.items():
             cross_shard_tx_list = CrossShardTransactionList(tx_list)
 
-            branch = Branch(branch_value)
             request = AddXshardTxListRequest(branch, block_hash, cross_shard_tx_list)
             branch_to_add_xshard_tx_list_request[branch] = request
 
