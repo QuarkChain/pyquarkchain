@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional
 
-from quarkchain.core import Address, Branch, Code, Transaction
+from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger
@@ -22,12 +22,11 @@ class Account:
 
 
 class TransactionGenerator:
-    def __init__(self, qkc_config, shard_id, slave_server, branch):
+    def __init__(self, qkc_config, shard):
         self.qkc_config = qkc_config
-        self.shard_id = shard_id
-        self.slave_server = slave_server
+        self.shard_id = shard.shard_id
+        self.shard = shard
         self.running = False
-        self.branch = branch
 
         self.accounts = []
         for item in LOADTEST_ACCOUNTS:
@@ -37,10 +36,8 @@ class TransactionGenerator:
             self.accounts.append(account)
 
     def generate(self, num_tx, x_shard_percent, tx: Transaction):
-        """Generate a bunch of transactions in the network
-        The total number of transactions generated each time
-        """
-        if self.running:
+        """Generate a bunch of transactions in the network """
+        if self.running or not self.shard.state.initialized:
             return False
 
         self.running = True
@@ -60,17 +57,14 @@ class TransactionGenerator:
         total = 0
         sample_evm_tx = sample_tx.code.get_evm_transaction()
         for account in self.accounts:
-            in_shard_address = Address(
-                account.address.recipient, self.shard_id
-            )
-            nonce = self.slave_server.get_transaction_count(in_shard_address)
+            nonce = self.shard.state.get_transaction_count(account.address.recipient)
             tx = self.create_transaction(account, nonce, x_shard_percent, sample_evm_tx)
             if not tx:
                 continue
             tx_list.append(tx)
             total += 1
             if len(tx_list) >= 600 or total >= num_tx:
-                self.slave_server.shards[self.branch].add_tx_list(tx_list)
+                self.shard.add_tx_list(tx_list)
                 tx_list = []
                 await asyncio.sleep(
                     random.uniform(8, 12)

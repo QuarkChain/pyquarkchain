@@ -366,9 +366,8 @@ class Shard:
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
 
-        self.tx_generator = TransactionGenerator(
-            self.env.quark_chain_config, shard_id, slave, Branch.create(self.__get_shard_size(), self.shard_id)
-        )
+        self.tx_generator = TransactionGenerator(self.env.quark_chain_config, self)
+
         self.__init_miner()
 
     def __init_shard_db(self):

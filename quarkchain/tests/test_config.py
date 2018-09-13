@@ -86,8 +86,7 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {},
-                "HASH": null
+                "ALLOC": {}
             }
         },
         {
@@ -107,8 +106,7 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {},
-                "HASH": null
+                "ALLOC": {}
             }
         },
         {
@@ -128,8 +126,7 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {},
-                "HASH": null
+                "ALLOC": {}
             }
         },
         {
@@ -149,8 +146,7 @@ class TestShardConfig(unittest.TestCase):
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
                 "NONCE": 0,
-                "ALLOC": {},
-                "HASH": null
+                "ALLOC": {}
             }
         },
         {
