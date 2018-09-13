@@ -14,7 +14,8 @@ from quarkchain.core import Address, Branch, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.shard import Shard
+from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check
 
@@ -24,6 +25,7 @@ def get_test_env(
     genesis_quarkash=0,
     genesis_minor_quarkash=0,
     shard_size=2,
+    genesis_root_heights=None,
 ):
     env = DEFAULT_ENV.copy()
 
@@ -34,19 +36,24 @@ def get_test_env(
     env.quark_chain_config.update(shard_size, 1, 1)
     env.quark_chain_config.TESTNET_MASTER_ADDRESS = genesis_account.serialize().hex()
 
+    if genesis_root_heights:
+        check(len(genesis_root_heights) == shard_size)
+        for shard_id in range(shard_size):
+            env.quark_chain_config.SHARD_LIST[
+                shard_id
+            ].GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
+
     # fund genesis account in all shards
     for i, shard in enumerate(env.quark_chain_config.SHARD_LIST):
         shard.GENESIS.ALLOC[
             genesis_account.address_in_shard(i).serialize().hex()
         ] = genesis_minor_quarkash
 
-    GenesisManager.finalize_config(env.quark_chain_config)
-
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
-    assert env.cluster_config.use_mem_db()
+    check(env.cluster_config.use_mem_db())
 
     return env
 
@@ -158,14 +165,14 @@ class Cluster:
         self.network = network
         self.peer = peer
 
-    def get_shard(self, shard_id):
+    def get_shard(self, shard_id) -> Shard:
         branch = Branch.create(self.master.env.quark_chain_config.SHARD_SIZE, shard_id)
         for slave in self.slave_list:
             if branch in slave.shards:
                 return slave.shards[branch]
         return None
 
-    def get_shard_state(self, shard_id):
+    def get_shard_state(self, shard_id) -> ShardState:
         shard = self.get_shard(shard_id)
         if not shard:
             return None
@@ -184,14 +191,19 @@ def get_next_port():
     return port
 
 
-def create_test_clusters(num_cluster, genesis_account, shard_size, num_slaves):
+def create_test_clusters(
+    num_cluster, genesis_account, shard_size, num_slaves, genesis_root_heights
+):
     bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
     loop = asyncio.get_event_loop()
 
     for i in range(num_cluster):
         env = get_test_env(
-            genesis_account, genesis_minor_quarkash=1000000, shard_size=shard_size
+            genesis_account,
+            genesis_minor_quarkash=1000000,
+            shard_size=shard_size,
+            genesis_root_heights=genesis_root_heights,
         )
         env.cluster_config.P2P_PORT = bootstrap_port if i == 0 else get_next_port()
         env.cluster_config.JSON_RPC_PORT = get_next_port()
@@ -270,15 +282,21 @@ class ClusterContext(ContextDecorator):
         genesis_account=Address.create_empty_account(),
         shard_size=2,
         num_slaves=None,
+        genesis_root_heights=None,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
         self.shard_size = shard_size
         self.num_slaves = num_slaves if num_slaves else shard_size
+        self.genesis_root_heights = genesis_root_heights
 
     def __enter__(self):
         self.cluster_list = create_test_clusters(
-            self.num_cluster, self.genesis_account, self.shard_size, self.num_slaves
+            self.num_cluster,
+            self.genesis_account,
+            self.shard_size,
+            self.num_slaves,
+            self.genesis_root_heights,
         )
         return self.cluster_list
 

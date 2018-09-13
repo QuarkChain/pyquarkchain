@@ -14,7 +14,9 @@ from quarkchain.genesis import GenesisManager
 
 
 def create_default_shard_state(env, shard_id=0, diff_calc=None):
+    genesis_manager = GenesisManager(env.quark_chain_config)
     shard_state = ShardState(env=env, shard_id=shard_id, diff_calc=diff_calc)
+    shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
 
 
@@ -607,11 +609,23 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=16)
 
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+                .add_minor_block_header(state0.header_tip)
+                .add_minor_block_header(state1.header_tip)
+                .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
         # Add one block in shard 0
         b0 = state0.create_block_to_mine()
         state0.finalize_and_add_block(b0)
 
         b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
         tx = create_transfer_transaction(
             shard_state=state1,
             key=id1.get_key(),
@@ -741,11 +755,23 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+                .add_minor_block_header(state0.header_tip)
+                .add_minor_block_header(state1.header_tip)
+                .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
         # Add one block in shard 0
         b0 = state0.create_block_to_mine()
         state0.finalize_and_add_block(b0)
 
         b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
         tx = create_transfer_transaction(
             shard_state=state1,
             key=id1.get_key(),
@@ -756,7 +782,7 @@ class TestShardState(unittest.TestCase):
         )
         b1.add_tx(tx)
 
-        # Add a x-shard tx from remote peer
+        # Add a x-shard tx from state1
         state0.add_cross_shard_tx_list_by_minor_block_hash(
             h=b1.header.get_hash(),
             tx_list=CrossShardTransactionList(
@@ -785,8 +811,9 @@ class TestShardState(unittest.TestCase):
         state0.finalize_and_add_block(b2)
 
         b3 = b1.create_block_to_append()
+        b3.header.hash_prev_root_block = root_block.header.get_hash()
 
-        # Add a x-shard tx from remote peer
+        # Add a x-shard tx from state1
         state0.add_cross_shard_tx_list_by_minor_block_hash(
             h=b3.header.get_hash(),
             tx_list=CrossShardTransactionList(
@@ -1021,7 +1048,6 @@ class TestShardState(unittest.TestCase):
         env = get_test_env()
         for shard in env.quark_chain_config.SHARD_LIST:
             shard.GENESIS.DIFFICULTY = 10000
-        GenesisManager.finalize_config(env.quark_chain_config)
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         diff_calc = EthDifficultyCalculator(
@@ -1094,7 +1120,6 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(root_block)
 
         recoveredState = ShardState(env=env, shard_id=0)
-        self.assertEqual(recoveredState.header_tip.height, 0)
 
         recoveredState.init_from_root_block(root_block)
         # forks are pruned

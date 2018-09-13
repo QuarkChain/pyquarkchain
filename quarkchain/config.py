@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from typing import List
 
 import quarkchain.db
 import quarkchain.evm.config
@@ -80,7 +81,6 @@ class ShardGenesis(BaseConfig):
     DIFFICULTY = 10000
     NONCE = 0
     ALLOC = None  # dict() hex address -> qkc amount
-    HASH = None  # Block header hash of the genesis block to avoid repeating computation
 
     def __init__(self):
         self.ALLOC = dict()
@@ -150,7 +150,8 @@ class ShardConfig(BaseConfig):
             del ret["GENESIS"]
         else:
             ret["CONSENSUS_CONFIG"] = self.CONSENSUS_CONFIG.to_dict()
-            ret["GENESIS"] = self.GENESIS.to_dict()
+            if self.GENESIS:
+                ret["GENESIS"] = self.GENESIS.to_dict()
         return ret
 
     @classmethod
@@ -159,7 +160,8 @@ class ShardConfig(BaseConfig):
         config.CONSENSUS_TYPE = ConsensusType[config.CONSENSUS_TYPE]
         if config.CONSENSUS_TYPE in ConsensusType.pow_types():
             config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
-            config.GENESIS = ShardGenesis.from_dict(config.GENESIS)
+            if config.GENESIS:
+                config.GENESIS = ShardGenesis.from_dict(config.GENESIS)
         return config
 
 
@@ -170,7 +172,7 @@ class RootConfig(BaseConfig):
 
     CONSENSUS_TYPE = ConsensusType.NONE
     CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
-    GENESIS = None  # ShardGenesis
+    GENESIS = None  # RootGenesis
 
     def __init__(self):
         self.GENESIS = RootGenesis()
@@ -242,6 +244,22 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
 
+    def get_genesis_root_height(self, shard_id) -> int:
+        """ Return the root block height at which the shard shall be created"""
+        return self.SHARD_LIST[shard_id].GENESIS.ROOT_HEIGHT
+
+    def get_genesis_shard_ids(self) -> List[int]:
+        """ Return a list of ids for shards that have GENESIS"""
+        return [i for i, config in enumerate(self.SHARD_LIST) if config.GENESIS]
+
+    def get_initialized_shard_ids_before_root_height(self, root_height) -> List[int]:
+        """ Return a list of ids of the shards that have been initialized before a certain root height"""
+        ids = []
+        for shard_id, config in enumerate(self.SHARD_LIST):
+            if config.GENESIS and config.GENESIS.ROOT_HEIGHT < root_height:
+                ids.append(shard_id)
+        return ids
+
     @property
     def testnet_master_address(self):
         return Address.create_from(self.TESTNET_MASTER_ADDRESS)
@@ -262,6 +280,9 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
+            s.GENESIS.COINBASE_ADDRESS = (
+                Address.create_empty_account(i).serialize().hex()
+            )
             self.SHARD_LIST.append(s)
 
     def to_dict(self):

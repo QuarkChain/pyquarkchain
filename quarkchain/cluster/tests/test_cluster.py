@@ -20,6 +20,40 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(3) as clusters:
             self.assertEqual(len(clusters), 3)
 
+    def test_create_shard_at_different_height(self):
+        acc1 = Address.create_random_account()
+        with ClusterContext(1, acc1, genesis_root_heights=[1, 2]) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            self.assertEqual(len(slaves[0].shards), 0)
+            self.assertEqual(len(slaves[1].shards), 0)
+
+            is_root, root = call_async(master.get_next_block_to_mine(acc1))
+            self.assertTrue(is_root)
+            self.assertEqual(len(root.minor_block_header_list), 0)
+            call_async(master.add_root_block(root))
+
+            # shard 0 created at root height 1
+            self.assertEqual(len(slaves[0].shards), 1)
+            self.assertEqual(len(slaves[1].shards), 0)
+
+            is_root, root = call_async(master.get_next_block_to_mine(acc1))
+            self.assertTrue(is_root)
+            self.assertEqual(len(root.minor_block_header_list), 1)
+            call_async(master.add_root_block(root))
+
+            self.assertEqual(len(slaves[0].shards), 1)
+            # shard 1 created at root height 2
+            self.assertEqual(len(slaves[1].shards), 1)
+
+            # Expect to mine shard 0 due to proof of progress
+            is_root, block = call_async(master.get_next_block_to_mine(acc1))
+            self.assertFalse(is_root)
+            self.assertEqual(block.header.branch.get_shard_id(), 0)
+            self.assertEqual(block.header.height, 1)
+
+
     def test_get_next_block_to_mine(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
@@ -208,8 +242,8 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(addResult)
 
-            # Make sure the xshard list is added to another slave
-            self.assertTrue(
+            # Make sure the xshard list is not broadcasted to the other shard
+            self.assertFalse(
                 clusters[0]
                 .slave_list[1]
                 .shards[Branch(0b11)]
@@ -229,12 +263,6 @@ class TestCluster(unittest.TestCase):
                 .state.contain_block_by_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
-                lambda: clusters[1]
-                .slave_list[1]
-                .shards[Branch(0b11)]
-                .state.contain_remote_minor_block_hash(b1.header.get_hash())
-            )
-            assert_true_with_timeout(
                 lambda: clusters[1].master.root_state.is_minor_block_validated(
                     b1.header.get_hash()
                 )
@@ -249,7 +277,7 @@ class TestCluster(unittest.TestCase):
             clusters[1].peer.close()
 
             # add blocks in cluster 0
-            block_header_list = []
+            block_header_list = [clusters[0].get_shard_state(0).header_tip]
             for i in range(13):
                 shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
                 b1 = shardState0.get_tip().create_block_to_append()
@@ -262,6 +290,7 @@ class TestCluster(unittest.TestCase):
                 self.assertTrue(addResult)
                 block_header_list.append(b1.header)
 
+            block_header_list.append(clusters[0].get_shard_state(1).header_tip)
             shardState0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             b2 = shardState0.get_tip().create_block_to_append()
             b2.finalize(evm_state=shardState0.run_block(b2))
@@ -411,6 +440,12 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            is_root, root_block = call_async(master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root_block))
+
             tx1 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0),
                 key=id1.get_key(),
@@ -503,6 +538,14 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(1, acc1, 64, num_slaves=4) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            is_root, root_block = call_async(
+                master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root_block))
+
             b1 = (
                 slaves[0]
                 .shards[Branch(64 | 0)]

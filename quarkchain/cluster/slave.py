@@ -158,7 +158,8 @@ class MasterConnection(ClusterConnection):
     # Cluster RPC handlers
 
     async def handle_ping(self, ping):
-        self.slave_server.init_shard_states(ping.root_tip)
+        if ping.root_tip:
+            await self.slave_server.init_shards(ping.root_tip)
         return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
 
     async def handle_connect_to_slaves_request(self, connect_to_slave_request):
@@ -194,20 +195,23 @@ class MasterConnection(ClusterConnection):
         # TODO: handle expect_switch
         error_code = 0
         switched = False
+        # TODO: asyncio.gather
         for shard in self.shards.values():
             try:
-                switched = shard.state.add_root_block(req.root_block)
+                switched = await shard.add_root_block(req.root_block)
             except ValueError:
                 Logger.log_exception()
-                # TODO: May be enum or Unix errno?
-                error_code = errno.EBADMSG
-                break
+                return AddRootBlockResponse(errno.EBADMSG, False)
+
+        await self.slave_server.init_shards(req.root_block)
 
         return AddRootBlockResponse(error_code, switched)
 
     async def handle_get_eco_info_list_request(self, _req):
         eco_info_list = []
         for branch, shard in self.shards.items():
+            if not shard.state.initialized:
+                continue
             eco_info_list.append(
                 EcoInfo(
                     branch=branch,
@@ -251,6 +255,8 @@ class MasterConnection(ClusterConnection):
     async def handle_get_unconfirmed_header_list_request(self, _req):
         headers_info_list = []
         for branch, shard in self.shards.items():
+            if not shard.state.initialized:
+                continue
             headers_info_list.append(
                 HeadersInfo(
                     branch=branch, header_list=shard.state.get_unconfirmed_header_list()
@@ -752,38 +758,42 @@ class SlaveServer:
 
         self.master = None
         self.name = name
+        self.mining = False
 
         self.artificial_tx_config = None
         self.shards = dict()  # type: Dict[Branch, Shard]
-        self.__init_shards()
         self.shutdown_in_progress = False
 
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
 
-    def __init_shards(self):
-        """ branch_value -> ShardState mapping """
-        shard_size = self.__get_shard_size()
-        branch_values = set()
+    def cover_shard_id(self, shard_id):
         for shard_mask in self.shard_mask_list:
-            for shard_id in shard_mask.iterate(shard_size):
-                branch_value = shard_id + shard_size
-                branch_values.add(branch_value)
+            if shard_mask.contain_shard_id(shard_id):
+                return True
+        return False
 
-        for branch_value in branch_values:
-            branch = Branch(branch_value)
-            shard_id = branch.get_shard_id()
-            self.shards[branch] = Shard(self.env, shard_id, self)
-
-    def init_shard_states(self, root_tip):
-        """ Will be called when master connects to slaves """
-        for _, shard in self.shards.items():
-            # TODO: shard.init_from_root_block
-            shard.state.init_from_root_block(root_tip)
+    async def init_shards(self, root_block: RootBlock):
+        """ Create shards based on GENESIS config and root block height """
+        # TODO: asyncio.gather
+        for shard_id, shard_config in enumerate(self.env.quark_chain_config.SHARD_LIST):
+            branch = Branch.create(self.env.quark_chain_config.SHARD_SIZE, shard_id)
+            if branch in self.shards:
+                continue
+            if not self.cover_shard_id(shard_id) or not shard_config.GENESIS:
+                continue
+            if root_block.header.height >= shard_config.GENESIS.ROOT_HEIGHT:
+                shard = Shard(self.env, shard_id, self)
+                await shard.init_from_root_block(root_block)
+                self.shards[branch] = shard
+                if self.mining:
+                    shard.miner.enable()
+                    shard.miner.mine_new_block_async()
 
     def start_mining(self, artificial_tx_config):
         self.artificial_tx_config = artificial_tx_config
+        self.mining = True
         for branch, shard in self.shards.items():
             Logger.info(
                 "[{}] start mining with target minor block time {} seconds".format(
@@ -798,6 +808,7 @@ class SlaveServer:
             shard.tx_generator.generate(num_tx_per_shard, x_shard_percent, tx)
 
     def stop_mining(self):
+        self.mining = False
         for branch, shard in self.shards.items():
             Logger.info("[{}] stop mining".format(branch.get_shard_id()))
             shard.miner.disable()
@@ -864,33 +875,40 @@ class SlaveServer:
         check(resp.error_code == 0)
         self.artificial_tx_config = resp.artificial_tx_config
 
-    def __get_branch_to_add_xshard_tx_list_request(self, block_hash, xshard_tx_list):
-        branch_to_add_xshard_tx_list_request = dict()
+    def __get_branch_to_add_xshard_tx_list_request(
+        self, block_hash, xshard_tx_list, prev_root_height
+    ):
+        xshard_map = dict()  # type: Dict[Branch, List[CrossShardTransactionDeposit]]
 
-        xshard_map = dict()
-        for shard_id in range(self.__get_shard_size()):
-            xshard_map[shard_id + self.__get_shard_size()] = []
+        # only broadcast to the shards that have been initialized
+        initialized_shard_ids = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+            prev_root_height
+        )
+        for shard_id in initialized_shard_ids:
+            branch = Branch.create(self.__get_shard_size(), shard_id)
+            xshard_map[branch] = []
 
         for xshard_tx in xshard_tx_list:
             shard_id = xshard_tx.to_address.get_shard_id(self.__get_shard_size())
-            branch_value = Branch.create(self.__get_shard_size(), shard_id).value
-            xshard_map[branch_value].append(xshard_tx)
+            branch = Branch.create(self.__get_shard_size(), shard_id)
+            check(branch in xshard_map)
+            xshard_map[branch].append(xshard_tx)
 
-        for branch_value, tx_list in xshard_map.items():
+        branch_to_add_xshard_tx_list_request = dict()  # type: Dict[Branch, AddXshardTxListRequest]
+        for branch, tx_list in xshard_map.items():
             cross_shard_tx_list = CrossShardTransactionList(tx_list)
 
-            branch = Branch(branch_value)
             request = AddXshardTxListRequest(branch, block_hash, cross_shard_tx_list)
             branch_to_add_xshard_tx_list_request[branch] = request
 
         return branch_to_add_xshard_tx_list_request
 
-    async def broadcast_xshard_tx_list(self, block, xshard_tx_list):
+    async def broadcast_xshard_tx_list(self, block, xshard_tx_list, prev_root_height):
         """ Broadcast x-shard transactions to their recipient shards """
 
         block_hash = block.header.get_hash()
         branch_to_add_xshard_tx_list_request = self.__get_branch_to_add_xshard_tx_list_request(
-            block_hash, xshard_tx_list
+            block_hash, xshard_tx_list, prev_root_height
         )
         rpc_futures = []
         for branch, request in branch_to_add_xshard_tx_list_request.items():
@@ -915,12 +933,19 @@ class SlaveServer:
         check(all([response.error_code == 0 for _, response, _ in responses]))
 
     async def batch_broadcast_xshard_tx_list(
-        self, block_hash_to_xshard_list, source_branch: Branch
+        self,
+        block_hash_to_xshard_list_and_prev_root_height: Dict[bytes, Tuple[List, int]],
+        source_branch: Branch,
     ):
         branch_to_add_xshard_tx_list_request_list = dict()
-        for block_hash, x_shard_list in block_hash_to_xshard_list.items():
+        for (
+            block_hash,
+            x_shard_list_and_prev_root_height,
+        ) in block_hash_to_xshard_list_and_prev_root_height.items():
+            xshard_tx_list = x_shard_list_and_prev_root_height[0]
+            prev_root_height = x_shard_list_and_prev_root_height[1]
             branch_to_add_xshard_tx_list_request = self.__get_branch_to_add_xshard_tx_list_request(
-                block_hash, x_shard_list
+                block_hash, xshard_tx_list, prev_root_height
             )
             for branch, request in branch_to_add_xshard_tx_list_request.items():
                 if branch == source_branch or not is_neighbor(branch, source_branch):

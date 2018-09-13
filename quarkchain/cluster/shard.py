@@ -17,7 +17,7 @@ from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.core import RootBlock, MinorBlockHeader, Branch, Transaction
+from quarkchain.core import RootBlock, MinorBlock, MinorBlockHeader, Branch, Transaction
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
 
@@ -366,9 +366,8 @@ class Shard:
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
 
-        self.tx_generator = TransactionGenerator(
-            self.env.quark_chain_config, shard_id, slave, Branch.create(self.__get_shard_size(), self.shard_id)
-        )
+        self.tx_generator = TransactionGenerator(self.env.quark_chain_config, self)
+
         self.__init_miner()
 
     def __init_shard_db(self):
@@ -390,7 +389,7 @@ class Shard:
 
         async def __create_block():
             # hold off mining if the shard is syncing
-            while self.synchronizer.running:
+            while self.synchronizer.running or not self.state.initialized:
                 await asyncio.sleep(0.1)
 
             return self.state.create_block_to_mine(address=miner_address)
@@ -421,9 +420,30 @@ class Shard:
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
 
-    def add_root_block(self, block: RootBlock):
-        """ Create"""
-        pass
+    async def __init_genesis_state(self, root_block: RootBlock):
+        block = self.state.init_genesis_state(root_block)
+        xshard_list = []
+        await self.slave.broadcast_xshard_tx_list(
+            block, xshard_list, root_block.header.height
+        )
+        await self.slave.send_minor_block_header_to_master(
+            block.header,
+            len(block.tx_list),
+            len(xshard_list),
+            self.state.get_shard_stats(),
+        )
+
+    async def init_from_root_block(self, root_block: RootBlock):
+        """ Either recover state from local db or create genesis state based on config"""
+        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        if root_block.header.height > height:
+            return self.state.init_from_root_block(root_block)
+
+        if root_block.header.height == height:
+            await self.__init_genesis_state(root_block)
+
+    async def add_root_block(self, root_block: RootBlock):
+        return self.state.add_root_block(root_block)
 
     def broadcast_new_block(self, block):
         for cluster_peer_id, peer in self.peers.items():
@@ -479,9 +499,7 @@ class Shard:
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
-        branch_value = block.header.branch.value
-
-        old_tip = self.state.tip()
+        old_tip = self.state.header_tip
         try:
             xshard_list = self.state.add_block(block)
         except Exception as e:
@@ -494,7 +512,7 @@ class Shard:
         self.state.new_block_pool.pop(block.header.get_hash(), None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
-            if old_tip != self.state.tip():
+            if old_tip != self.state.header_tip:
                 self.broadcast_new_tip()
         except Exception:
             Logger.warning_every_sec("broadcast tip failure", 1)
@@ -518,8 +536,10 @@ class Shard:
         # Start mining new one before propagating inside cluster
         # The propagation should be done by the time the new block is mined
         self.miner.mine_new_block_async()
-
-        await self.slave.broadcast_xshard_tx_list(block, xshard_list)
+        prev_root_height = self.state.db.get_root_block_by_hash(
+            block.header.hash_prev_root_block
+        ).header.height
+        await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
         await self.slave.send_minor_block_header_to_master(
             block.header,
             len(block.tx_list),
@@ -562,7 +582,10 @@ class Shard:
                 if future:
                     existing_add_block_futures.append(future)
             else:
-                block_hash_to_x_shard_list[block_hash] = xshard_list
+                prev_root_height = self.state.db.get_root_block_by_hash(
+                    block.header.hash_prev_root_block
+                ).header.height
+                block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
                 self.add_block_futures[block_hash] = self.loop.create_future()
 
         await self.slave.batch_broadcast_xshard_tx_list(
@@ -586,7 +609,7 @@ class Shard:
                 valid_tx_list.append(tx)
         if not valid_tx_list:
             return
-        self.broadcast_tx_list( valid_tx_list, source_peer)
+        self.broadcast_tx_list(valid_tx_list, source_peer)
 
     def add_tx(self, tx: Transaction):
         return self.state.add_tx(tx)
