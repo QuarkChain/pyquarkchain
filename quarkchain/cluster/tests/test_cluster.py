@@ -243,7 +243,7 @@ class TestCluster(unittest.TestCase):
             clusters[1].peer.close()
 
             # add blocks in cluster 0
-            block_header_list = []
+            block_header_list = [clusters[0].get_shard_state(0).header_tip]
             for i in range(13):
                 shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
                 b1 = shardState0.get_tip().create_block_to_append()
@@ -256,6 +256,7 @@ class TestCluster(unittest.TestCase):
                 self.assertTrue(addResult)
                 block_header_list.append(b1.header)
 
+            block_header_list.append(clusters[0].get_shard_state(1).header_tip)
             shardState0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             b2 = shardState0.get_tip().create_block_to_append()
             b2.finalize(evm_state=shardState0.run_block(b2))

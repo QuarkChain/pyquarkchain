@@ -14,7 +14,8 @@ from quarkchain.core import Address, Branch, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.shard import Shard
+from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check
 
@@ -156,14 +157,14 @@ class Cluster:
         self.network = network
         self.peer = peer
 
-    def get_shard(self, shard_id):
+    def get_shard(self, shard_id) -> Shard:
         branch = Branch.create(self.master.env.quark_chain_config.SHARD_SIZE, shard_id)
         for slave in self.slave_list:
             if branch in slave.shards:
                 return slave.shards[branch]
         return None
 
-    def get_shard_state(self, shard_id):
+    def get_shard_state(self, shard_id) -> ShardState:
         shard = self.get_shard(shard_id)
         if not shard:
             return None

@@ -17,6 +17,17 @@ def create_default_state(env, diff_calc=None):
         shard_state = ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
         shard_state.init_genesis_state(r_state.get_tip_block())
         s_state_list.append(shard_state)
+
+    for state in s_state_list:
+        block_hash = state.header_tip.get_hash()
+        for dst_state in s_state_list:
+            if state == dst_state:
+                continue
+            dst_state.add_cross_shard_tx_list_by_minor_block_hash(
+                block_hash, CrossShardTransactionList(tx_list=[])
+            )
+        r_state.add_validated_minor_block_hash(block_hash)
+
     return (r_state, s_state_list)
 
 
@@ -50,7 +61,9 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
         root_block = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
@@ -76,7 +89,9 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
         root_block = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
@@ -124,7 +139,9 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
         root_block0 = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
@@ -162,7 +179,9 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
         root_block0 = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
@@ -178,7 +197,10 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b2.header.get_hash())
         r_state.add_validated_minor_block_hash(b3.header.get_hash())
         root_block1 = (
-            root_block1.add_minor_block_header(b2.header)
+            root_block1
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
+            .add_minor_block_header(b2.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b3.header)
             .finalize()
         )
@@ -218,8 +240,10 @@ class TestRootState(unittest.TestCase):
         )  # other network ids will skip difficulty check
 
         r_state, s_states = create_default_state(env, diff_calc=diff_calc)
+        g0 = s_states[0].header_tip
         b0 = s_states[0].get_tip().create_block_to_append()
         add_minor_block_to_cluster(s_states, b0)
+        g1 = s_states[1].header_tip
         b1 = s_states[1].get_tip().create_block_to_append()
         add_minor_block_to_cluster(s_states, b1)
 
@@ -244,7 +268,7 @@ class TestRootState(unittest.TestCase):
         )
 
         root_block0 = r_state.create_block_to_mine(
-            m_header_list=[b0.header, b1.header],
+            m_header_list=[g0, b0.header, g1, b1.header],
             address=Address.create_empty_account(),
             create_time=r_state.tip.create_time + 26,
         ).finalize()
@@ -279,14 +303,18 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
         root_block0 = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
 
         root_block00 = (
             r_state.tip.create_block_to_append()
+            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b0.header)
+            .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
@@ -358,6 +386,7 @@ class TestRootState(unittest.TestCase):
         """
         env = get_test_env(shard_size=1)
         r_state, s_states = create_default_state(env)
+        genesis_header = s_states[0].header_tip
 
         root_block0 = r_state.get_tip_block()
 
@@ -367,11 +396,13 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(m1.header.get_hash())
         root_block1 = (
             root_block0.create_block_to_append(nonce=0)
+            .add_minor_block_header(genesis_header)
             .add_minor_block_header(m1.header)
             .finalize()
         )
         root_block2 = (
             root_block0.create_block_to_append(nonce=1)
+            .add_minor_block_header(genesis_header)
             .add_minor_block_header(m1.header)
             .finalize()
         )
@@ -423,6 +454,7 @@ class TestRootState(unittest.TestCase):
         """
         env = get_test_env(shard_size=1)
         r_state, s_states = create_default_state(env)
+        genesis_header = s_states[0].header_tip
 
         root_block0 = r_state.get_tip_block()
 
@@ -435,11 +467,13 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(m2.header.get_hash())
         root_block1 = (
             root_block0.create_block_to_append(nonce=0)
+            .add_minor_block_header(genesis_header)
             .add_minor_block_header(m1.header)
             .finalize()
         )
         root_block2 = (
             root_block0.create_block_to_append(nonce=1)
+            .add_minor_block_header(genesis_header)
             .add_minor_block_header(m2.header)
             .finalize()
         )

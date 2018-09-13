@@ -670,19 +670,12 @@ class ShardState:
             )
         return evm_state.xshard_list
 
-    def get_tip(self):
+    def get_tip(self) -> MinorBlock:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
-
-    def tip(self):
-        """ Called in diff.py """
-        return self.header_tip
 
     def finalize_and_add_block(self, block):
         block.finalize(evm_state=self.run_block(block))
         self.add_block(block)
-
-    def get_block_header_by_height(self, height):
-        pass
 
     def get_balance(self, recipient: bytes, height: Optional[int] = None) -> int:
         evm_state = self._get_evm_state_from_height(height)

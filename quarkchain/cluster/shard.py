@@ -499,7 +499,7 @@ class Shard:
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
-        old_tip = self.state.tip()
+        old_tip = self.state.header_tip
         try:
             xshard_list = self.state.add_block(block)
         except Exception as e:
@@ -512,7 +512,7 @@ class Shard:
         self.state.new_block_pool.pop(block.header.get_hash(), None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
-            if old_tip != self.state.tip():
+            if old_tip != self.state.header_tip:
                 self.broadcast_new_tip()
         except Exception:
             Logger.warning_every_sec("broadcast tip failure", 1)
