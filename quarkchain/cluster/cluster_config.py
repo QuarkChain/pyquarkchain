@@ -259,7 +259,6 @@ class ClusterConfig(BaseConfig):
 
         config.LOADTEST = args.loadtest
         update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
-        GenesisManager.finalize_config(config.QUARKCHAIN)
 
         config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
