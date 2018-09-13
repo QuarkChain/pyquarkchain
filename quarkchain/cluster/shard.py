@@ -423,7 +423,9 @@ class Shard:
     async def __init_genesis_state(self, root_block: RootBlock):
         block = self.state.init_genesis_state(root_block)
         xshard_list = []
-        await self.slave.broadcast_xshard_tx_list(block, xshard_list)
+        await self.slave.broadcast_xshard_tx_list(
+            block, xshard_list, root_block.header.height
+        )
         await self.slave.send_minor_block_header_to_master(
             block.header,
             len(block.tx_list),
@@ -432,8 +434,7 @@ class Shard:
         )
 
     async def init_from_root_block(self, root_block: RootBlock):
-        """Called by the master during cluster initialization to create a shard state
-        consistent with root state."""
+        """ Either recover state from local db or create genesis state based on config"""
         height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
         if root_block.header.height > height:
             return self.state.init_from_root_block(root_block)
@@ -442,13 +443,7 @@ class Shard:
             await self.__init_genesis_state(root_block)
 
     async def add_root_block(self, root_block: RootBlock):
-        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
-        if root_block.header.height > height:
-            return self.state.add_root_block(root_block)
-
-        if root_block.header.height == height:
-            await self.__init_genesis_state(root_block)
-            return True
+        return self.state.add_root_block(root_block)
 
     def broadcast_new_block(self, block):
         for cluster_peer_id, peer in self.peers.items():
@@ -541,8 +536,10 @@ class Shard:
         # Start mining new one before propagating inside cluster
         # The propagation should be done by the time the new block is mined
         self.miner.mine_new_block_async()
-
-        await self.slave.broadcast_xshard_tx_list(block, xshard_list)
+        prev_root_height = self.state.db.get_root_block_by_hash(
+            block.header.hash_prev_root_block
+        ).header.height
+        await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
         await self.slave.send_minor_block_header_to_master(
             block.header,
             len(block.tx_list),
@@ -585,7 +582,10 @@ class Shard:
                 if future:
                     existing_add_block_futures.append(future)
             else:
-                block_hash_to_x_shard_list[block_hash] = xshard_list
+                prev_root_height = self.state.db.get_root_block_by_hash(
+                    block.header.hash_prev_root_block
+                ).header.height
+                block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
                 self.add_block_futures[block_hash] = self.loop.create_future()
 
         await self.slave.batch_broadcast_xshard_tx_list(

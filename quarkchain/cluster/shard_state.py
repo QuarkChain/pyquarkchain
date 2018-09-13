@@ -945,7 +945,14 @@ class ShardState:
                 continue
 
             if not self.db.contain_remote_minor_block_hash(h):
-                if self.db.contain_root_block_by_hash(m_header.hash_prev_root_block):
+                prev_root = self.db.get_root_block_by_hash(
+                    m_header.hash_prev_root_block
+                )
+                if (
+                    prev_root
+                    and prev_root.header.height
+                    > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+                ):
                     raise ValueError(
                         "cannot find x_shard tx list for {}-{} {}".format(
                             m_header.branch.get_shard_id(), m_header.height, h.hex()
@@ -1037,8 +1044,18 @@ class ShardState:
             if not self.__is_neighbor(m_header.branch):
                 continue
 
-            h = m_header.get_hash()
-            tx_list.extend(self.db.get_minor_block_xshard_tx_list(h).tx_list)
+            xshard_tx_list = self.db.get_minor_block_xshard_tx_list(m_header.get_hash())
+            prev_root = self.db.get_root_block_by_hash(
+                m_header.hash_prev_root_block
+            )
+            if (
+                not prev_root
+                or prev_root.header.height
+                <= self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+            ):
+                check(xshard_tx_list is None)
+                continue
+            tx_list.extend(xshard_tx_list.tx_list)
 
         # Apply root block coinbase
         if self.branch.is_in_shard(r_block.header.coinbase_address.full_shard_id):

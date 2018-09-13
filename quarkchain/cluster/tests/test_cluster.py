@@ -208,8 +208,8 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(addResult)
 
-            # Make sure the xshard list is added to another slave
-            self.assertTrue(
+            # Make sure the xshard list is not broadcasted to the other shard
+            self.assertFalse(
                 clusters[0]
                 .slave_list[1]
                 .shards[Branch(0b11)]
@@ -227,12 +227,6 @@ class TestCluster(unittest.TestCase):
                 .slave_list[0]
                 .shards[Branch(0b10)]
                 .state.contain_block_by_hash(b1.header.get_hash())
-            )
-            assert_true_with_timeout(
-                lambda: clusters[1]
-                .slave_list[1]
-                .shards[Branch(0b11)]
-                .state.contain_remote_minor_block_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
                 lambda: clusters[1].master.root_state.is_minor_block_validated(
@@ -411,6 +405,12 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            is_root, root_block = call_async(master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root_block))
+
             tx1 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0),
                 key=id1.get_key(),
@@ -503,6 +503,14 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(1, acc1, 64, num_slaves=4) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            is_root, root_block = call_async(
+                master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root_block))
+
             b1 = (
                 slaves[0]
                 .shards[Branch(64 | 0)]
