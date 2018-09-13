@@ -81,7 +81,6 @@ class ShardGenesis(BaseConfig):
     DIFFICULTY = 10000
     NONCE = 0
     ALLOC = None  # dict() hex address -> qkc amount
-    HASH = None  # Block header hash of the genesis block to avoid repeating computation
 
     def __init__(self):
         self.ALLOC = dict()
@@ -173,7 +172,7 @@ class RootConfig(BaseConfig):
 
     CONSENSUS_TYPE = ConsensusType.NONE
     CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
-    GENESIS = None  # ShardGenesis
+    GENESIS = None  # RootGenesis
 
     def __init__(self):
         self.GENESIS = RootGenesis()
@@ -281,6 +280,9 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
+            s.GENESIS.COINBASE_ADDRESS = (
+                Address.create_empty_account(i).serialize().hex()
+            )
             self.SHARD_LIST.append(s)
 
     def to_dict(self):

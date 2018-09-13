@@ -1,5 +1,6 @@
 from typing import Optional
-from quarkchain.config import QuarkChainConfig, get_default_evm_config
+
+from quarkchain.config import QuarkChainConfig
 from quarkchain.core import (
     Address,
     MinorBlockMeta,
@@ -10,7 +11,6 @@ from quarkchain.core import (
     RootBlockHeader,
     RootBlock,
 )
-from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.evm.state import State as EvmState
 from quarkchain.utils import sha3_256, check
 
@@ -73,28 +73,3 @@ class GenesisManager:
             difficulty=genesis.DIFFICULTY,
         )
         return MinorBlock(header=header, meta=meta, tx_list=[])
-
-    def get_minor_block_hash(self, shard_id: int) -> Optional[bytes]:
-        if not self._qkc_config.SHARD_LIST[shard_id].GENESIS.HASH:
-            return None
-        return bytes.fromhex(self._qkc_config.SHARD_LIST[shard_id].GENESIS.HASH)
-
-    @staticmethod
-    def finalize_config(qkc_config: QuarkChainConfig):
-        """ Fill in genesis block hashes and coinbase addresses"""
-        manager = GenesisManager(qkc_config)
-
-        evm_config = get_default_evm_config()
-        evm_config["NETWORK_ID"] = qkc_config.NETWORK_ID
-        evm_env = EvmEnv(config=evm_config)
-        genesis_root = manager.create_root_block()
-        for i, shard in enumerate(qkc_config.SHARD_LIST):
-            evm_state = EvmState(env=evm_env)
-            shard.GENESIS.COINBASE_ADDRESS = (
-                Address.create_empty_account(i).serialize().hex()
-            )
-            shard.GENESIS.HASH = (
-                manager.create_minor_block(genesis_root, i, evm_state)
-                .header.get_hash()
-                .hex()
-            )

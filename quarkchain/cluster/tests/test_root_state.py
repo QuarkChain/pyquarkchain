@@ -212,7 +212,6 @@ class TestRootState(unittest.TestCase):
         env = get_test_env()
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
-        GenesisManager.finalize_config(env.quark_chain_config)
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.quark_chain_config.NETWORK_ID = (
             1
@@ -420,7 +419,7 @@ class TestRootState(unittest.TestCase):
           |      +--+
           +------|m2|
                  +--+
-        where m3 is invalid because m3 depeonds on r2, whose minor chain is not the same chain as m3
+        where m3 is invalid because m3 depends on r2, whose minor chain is not the same chain as m3
         """
         env = get_test_env(shard_size=1)
         r_state, s_states = create_default_state(env)

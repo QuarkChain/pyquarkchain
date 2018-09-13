@@ -257,10 +257,6 @@ class RootState:
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
-        prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
-            block.header.hash_prev_block
-        )
-
         block_hash = self.validate_block_header(block.header, block_hash)
 
         # Check the merkle tree
@@ -269,15 +265,7 @@ class RootState:
             raise ValueError("incorrect merkle root")
 
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
-
-        prev_header_map = dict()  # shard_id -> MinorBlockHeader or None
         headers_map = dict()  # shard_id -> List[MinorBlockHeader]
-        for shard_id in range(self.env.quark_chain_config.SHARD_SIZE):
-            prev_header_map[shard_id] = None
-            headers_map[shard_id] = []
-        for header in prev_last_minor_block_header_list:
-            prev_header_map[header.branch.get_shard_id()] = header
-
         shard_id = (
             block.minor_block_header_list[0].branch.get_shard_id()
             if block.minor_block_header_list
@@ -309,32 +297,53 @@ class RootState:
             elif m_header.branch.get_shard_id() > shard_id:
                 shard_id = m_header.branch.get_shard_id()
 
-            headers_map[m_header.branch.get_shard_id()].append(m_header)
+            headers_map.setdefault(m_header.branch.get_shard_id(), []).append(m_header)
             # TODO: Add coinbase
 
+        # check proof of progress
         shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
             block.header.height
         )
-
         for shard_id in shard_ids_to_check_proof_of_progress:
             if (
-                len(headers_map[shard_id])
+                len(headers_map.get(shard_id, []))
                 < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
             ):
                 raise ValueError("fail to prove progress")
 
+        # check minor block headers are linked
+        prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
+            block.header.hash_prev_block
+        )
+        prev_header_map = dict()  # shard_id -> MinorBlockHeader or None
+        for header in prev_last_minor_block_header_list:
+            prev_header_map[header.branch.get_shard_id()] = header
+
         last_minor_block_header_list = []
         for shard_id, headers in headers_map.items():
-            if not headers:
-                continue
+            check(len(headers) > 0)
+
+            last_minor_block_header_list.append(headers[-1])
+
             if shard_id not in shard_ids_to_check_proof_of_progress:
                 raise ValueError(
                     "found minor block header in root block {} for uninitialized shard {}".format(
                         block_hash.hex(), shard_id
                     )
                 )
-            if prev_header_map[shard_id]:
-                headers = [prev_header_map[shard_id]] + headers
+            prev_header_in_last_root_block = prev_header_map.get(shard_id, None)
+            if not prev_header_in_last_root_block:
+                pass
+                # TODO: enable this check and fix tests
+                # no header in previous root block then it must start with genesis block
+                # if headers[0].height != 0:
+                #     raise ValueError(
+                #         "genesis block height is not 0 for shard {} block hash {}".format(
+                #             shard_id, headers[0].get_hash().hex()
+                #         )
+                #     )
+            else:
+                headers = [prev_header_in_last_root_block] + headers
             for i in range(len(headers) - 1):
                 if headers[i + 1].hash_prev_minor_block != headers[i].get_hash():
                     raise ValueError(
@@ -342,8 +351,6 @@ class RootState:
                             headers[i + 1].get_hash(), headers[i].get_hash()
                         )
                     )
-
-            last_minor_block_header_list.append(headers[-1])
 
         return block_hash, last_minor_block_header_list
 

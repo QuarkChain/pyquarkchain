@@ -153,12 +153,6 @@ class ShardState:
             root_block, self.shard_id, self.__create_evm_state()
         )
 
-        expected_genesis_hash = genesis_manager.get_minor_block_hash(self.shard_id)
-        check(
-            not expected_genesis_hash
-            or genesis_block.header.get_hash() == expected_genesis_hash
-        )
-
         self.db.put_minor_block(genesis_block, [])
         self.db.put_minor_block_index(genesis_block)
         self.db.put_root_block(root_block)

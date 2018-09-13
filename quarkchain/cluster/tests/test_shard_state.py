@@ -1023,7 +1023,6 @@ class TestShardState(unittest.TestCase):
         env = get_test_env()
         for shard in env.quark_chain_config.SHARD_LIST:
             shard.GENESIS.DIFFICULTY = 10000
-        GenesisManager.finalize_config(env.quark_chain_config)
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         diff_calc = EthDifficultyCalculator(

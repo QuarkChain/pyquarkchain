@@ -40,8 +40,6 @@ def get_test_env(
             genesis_account.address_in_shard(i).serialize().hex()
         ] = genesis_minor_quarkash
 
-    GenesisManager.finalize_config(env.quark_chain_config)
-
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
