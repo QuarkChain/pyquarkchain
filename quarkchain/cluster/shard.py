@@ -367,7 +367,7 @@ class Shard:
         self.add_block_futures = dict()
 
         self.tx_generator = TransactionGenerator(
-            self.env.quark_chain_config, shard_id, slave
+            self.env.quark_chain_config, shard_id, slave, Branch.create(self.__get_shard_size(), self.shard_id)
         )
         self.__init_miner()
 

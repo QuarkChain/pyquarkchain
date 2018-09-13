@@ -3,7 +3,7 @@ import random
 import time
 from typing import Optional
 
-from quarkchain.core import Address, Code, Transaction
+from quarkchain.core import Address, Branch, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger
@@ -22,11 +22,12 @@ class Account:
 
 
 class TransactionGenerator:
-    def __init__(self, qkc_config, shard_id, slave_server):
+    def __init__(self, qkc_config, shard_id, slave_server, branch):
         self.qkc_config = qkc_config
         self.shard_id = shard_id
         self.slave_server = slave_server
         self.running = False
+        self.branch = branch
 
         self.accounts = []
         for item in LOADTEST_ACCOUNTS:
@@ -69,7 +70,7 @@ class TransactionGenerator:
             tx_list.append(tx)
             total += 1
             if len(tx_list) >= 600 or total >= num_tx:
-                self.slave_server.add_tx_list(tx_list)
+                self.slave_server.shards[self.branch].add_tx_list(tx_list)
                 tx_list = []
                 await asyncio.sleep(
                     random.uniform(8, 12)
