@@ -26,7 +26,7 @@ class GenesisManager:
         header = RootBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
-            shard_info=ShardInfo.create(self._qkc_config.SHARD_SIZE),
+            shard_info=ShardInfo.create(genesis.SHARD_SIZE),
             hash_prev_block=bytes.fromhex(genesis.HASH_PREV_BLOCK),
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             create_time=genesis.TIMESTAMP,
