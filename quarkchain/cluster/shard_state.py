@@ -154,12 +154,13 @@ class ShardState:
         )
 
         self.db.put_minor_block(genesis_block, [])
-        self.db.put_minor_block_index(genesis_block)
         self.db.put_root_block(root_block)
 
         if self.initialized:
             # already initialized. just return the block without resetting the state.
             return genesis_block
+
+        self.db.put_minor_block_index(genesis_block)
 
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
@@ -484,7 +485,7 @@ class ShardState:
         return header == self.confirmed_header_tip
 
     def __rewrite_block_index_to(self, minor_block, add_tx_back_to_queue=True):
-        """ Find the common ancestor in the current chain and rewrite index till minorblock """
+        """ Find the common ancestor in the current chain and rewrite index till minor_block """
         new_chain = []
         old_chain = []
 
@@ -507,6 +508,8 @@ class ShardState:
             new_chain.append(block)
             if orig_block:
                 old_chain.append(orig_block)
+            if block.header.height <= 0:
+                break
             block = self.db.get_minor_block_by_hash(block.header.hash_prev_minor_block)
 
         for block in old_chain:
@@ -1038,9 +1041,7 @@ class ShardState:
                 continue
 
             xshard_tx_list = self.db.get_minor_block_xshard_tx_list(m_header.get_hash())
-            prev_root = self.db.get_root_block_by_hash(
-                m_header.hash_prev_root_block
-            )
+            prev_root = self.db.get_root_block_by_hash(m_header.hash_prev_root_block)
             if (
                 not prev_root
                 or prev_root.header.height
