@@ -159,7 +159,7 @@ class MasterConnection(ClusterConnection):
 
     async def handle_ping(self, ping):
         if ping.root_tip:
-            await self.slave_server.init_shards(ping.root_tip)
+            await self.slave_server.create_shards(ping.root_tip)
         return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
 
     async def handle_connect_to_slaves_request(self, connect_to_slave_request):
@@ -167,13 +167,13 @@ class MasterConnection(ClusterConnection):
         Master sends in the slave list. Let's connect to them.
         Skip self and slaves already connected.
         """
-        result_list = []
-        # TODO: asyncio.gather
+        futures = []
         for slave_info in connect_to_slave_request.slave_info_list:
-            result = await self.slave_server.slave_connection_manager.connect_to_slave(
-                slave_info
+            futures.append(
+                self.slave_server.slave_connection_manager.connect_to_slave(slave_info)
             )
-            result_list.append(bytes(result, "ascii"))
+        result_str_list = await asyncio.gather(*futures)
+        result_list = [bytes(result_str, "ascii") for result_str in result_str_list]
         return ConnectToSlavesResponse(result_list)
 
     async def handle_mine_request(self, request):
@@ -195,15 +195,14 @@ class MasterConnection(ClusterConnection):
         # TODO: handle expect_switch
         error_code = 0
         switched = False
-        # TODO: asyncio.gather
         for shard in self.shards.values():
             try:
-                switched = await shard.add_root_block(req.root_block)
+                switched = shard.add_root_block(req.root_block)
             except ValueError:
                 Logger.log_exception()
                 return AddRootBlockResponse(errno.EBADMSG, False)
 
-        await self.slave_server.init_shards(req.root_block)
+        await self.slave_server.create_shards(req.root_block)
 
         return AddRootBlockResponse(error_code, switched)
 
@@ -768,28 +767,32 @@ class SlaveServer:
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
 
-    def cover_shard_id(self, shard_id):
+    def __cover_shard_id(self, shard_id):
+        """ Does the shard belong to this slave? """
         for shard_mask in self.shard_mask_list:
             if shard_mask.contain_shard_id(shard_id):
                 return True
         return False
 
-    async def init_shards(self, root_block: RootBlock):
-        """ Create shards based on GENESIS config and root block height """
-        # TODO: asyncio.gather
+    async def create_shards(self, root_block: RootBlock):
+        """ Create shards based on GENESIS config and root block height if they have
+        not been created yet."""
+        futures = []
         for shard_id, shard_config in enumerate(self.env.quark_chain_config.SHARD_LIST):
             branch = Branch.create(self.env.quark_chain_config.SHARD_SIZE, shard_id)
             if branch in self.shards:
                 continue
-            if not self.cover_shard_id(shard_id) or not shard_config.GENESIS:
+            if not self.__cover_shard_id(shard_id) or not shard_config.GENESIS:
                 continue
             if root_block.header.height >= shard_config.GENESIS.ROOT_HEIGHT:
                 shard = Shard(self.env, shard_id, self)
-                await shard.init_from_root_block(root_block)
+                futures.append(shard.init_from_root_block(root_block))
                 self.shards[branch] = shard
                 if self.mining:
                     shard.miner.enable()
                     shard.miner.mine_new_block_async()
+
+        await asyncio.gather(*futures)
 
     def start_mining(self, artificial_tx_config):
         self.artificial_tx_config = artificial_tx_config
@@ -894,7 +897,9 @@ class SlaveServer:
             check(branch in xshard_map)
             xshard_map[branch].append(xshard_tx)
 
-        branch_to_add_xshard_tx_list_request = dict()  # type: Dict[Branch, AddXshardTxListRequest]
+        branch_to_add_xshard_tx_list_request = (
+            dict()
+        )  # type: Dict[Branch, AddXshardTxListRequest]
         for branch, tx_list in xshard_map.items():
             cross_shard_tx_list = CrossShardTransactionList(tx_list)
 
