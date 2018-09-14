@@ -68,7 +68,6 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
-    # global get_cache, hashimoto
     cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
