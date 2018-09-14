@@ -13,10 +13,7 @@ def mkcache(cache_size: int, block_number) -> List[List[int]]:
         cache_seeds.append(new_seed)
 
     seed = cache_seeds[block_number // EPOCH_LENGTH]
-
-    # if specified, override cache size for testing purposes
-    n = cache_size // HASH_BYTES
-    return _get_cache(seed, n)
+    return _get_cache(seed, cache_size // HASH_BYTES)
 
 
 @lru_cache(10)
