@@ -283,7 +283,7 @@ class ShardState:
             block.header.hash_prev_minor_block
         )
         state.timestamp = block.header.create_time
-        state.gas_limit = block.meta.evm_gas_limit
+        state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
             state.block_number

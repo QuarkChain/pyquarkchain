@@ -206,7 +206,7 @@ def minor_block_encoder(block, include_transactions=False):
         "miner": address_encoder(meta.coinbase_address.serialize()),
         "difficulty": quantity_encoder(header.difficulty),
         "extraData": data_encoder(meta.extra_data),
-        "gasLimit": quantity_encoder(meta.evm_gas_limit),
+        "gasLimit": quantity_encoder(header.evm_gas_limit),
         "gasUsed": quantity_encoder(meta.evm_gas_used),
         "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
