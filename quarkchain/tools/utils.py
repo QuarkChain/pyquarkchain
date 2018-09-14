@@ -11,5 +11,6 @@ def colorify(s, color):
 
     return color_map[color] + s + "\033[0m"
 
+
 def underline(s):
     return "\033[4m" + s + "\033[0m"
