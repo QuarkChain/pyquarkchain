@@ -5,7 +5,7 @@ from typing import Tuple, Optional
 from eth_utils import big_endian_to_int, int_to_big_endian
 
 from ethereum.pow import ethash
-from ethereum.pow.ethash_utils import get_full_size, zpad
+from ethereum.pow.ethash_utils import get_full_size, zpad, get_cache_size
 
 try:
     import pyethash
@@ -40,12 +40,12 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
-    if is_test:
-        cache = mkcache(block_number, override_cache_size=1024)
-        full_size = 32 * 1024
-    else:
-        cache = mkcache(block_number)
-        full_size = get_full_size(block_number)
+    cache_size, full_size = (
+        (get_cache_size(block_number), get_full_size(block_number))
+        if not is_test
+        else (1024, 32 * 1024)
+    )
+    cache = mkcache(cache_size, block_number)
     mining_output = hashimoto_light(full_size, cache, header_hash, nonce)
     if mining_output[b"mix digest"] != mixhash:
         return False
@@ -90,12 +90,12 @@ def mine(
     rounds: int = 1000,
     is_test: bool = False,
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
-    if is_test:
-        cache = mkcache(block_number, override_cache_size=1024)
-        full_size = 32 * 1024
-    else:
-        cache = mkcache(block_number)
-        full_size = get_full_size(block_number)
+    cache_size, full_size = (
+        (get_cache_size(block_number), get_full_size(block_number))
+        if not is_test
+        else (1024, 32 * 1024)
+    )
+    cache = mkcache(cache_size, block_number)
     nonce = start_nonce
     target = zpad(int_to_big_endian(2 ** 256 // (difficulty or 1) - 1), 32)
     for i in range(1, rounds + 1):

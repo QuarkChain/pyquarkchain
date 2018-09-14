@@ -27,7 +27,7 @@ class TestEthash(unittest.TestCase):
         ]
         for cache_size, epoch, expected_cache in testcases:
             block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(block_number, override_cache_size=cache_size)
+            cache = mkcache(cache_size, block_number)
             cache_hex = "".join(serialize_hash(ls).hex() for ls in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
@@ -43,13 +43,13 @@ class TestEthash(unittest.TestCase):
         ]
         for epoch, cache_size, dataset_size, expected_dataset in testcases:
             block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(block_number, override_cache_size=cache_size)
+            cache = mkcache(cache_size, block_number)
             dataset = calc_dataset(dataset_size, cache)
             dataset_hex = "".join(serialize_hash(ls).hex() for ls in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
-        cache = mkcache(block_number=0, override_cache_size=1024)
+        cache = mkcache(cache_size=1024, block_number=0)
         dataset = calc_dataset(32 * 1024, cache)
         header = bytes.fromhex(
             "0xc9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"[2:]

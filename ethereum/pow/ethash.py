@@ -7,7 +7,7 @@ from ethereum.pow.ethash_utils import *
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 
-def mkcache(block_number, override_cache_size=None) -> List[List[int]]:
+def mkcache(cache_size: int, block_number) -> List[List[int]]:
     while len(cache_seeds) <= block_number // EPOCH_LENGTH:
         new_seed = serialize_hash(ethash_sha3_256(cache_seeds[-1]))
         cache_seeds.append(new_seed)
@@ -15,7 +15,6 @@ def mkcache(block_number, override_cache_size=None) -> List[List[int]]:
     seed = cache_seeds[block_number // EPOCH_LENGTH]
 
     # if specified, override cache size for testing purposes
-    cache_size = override_cache_size or get_cache_size(block_number)
     n = cache_size // HASH_BYTES
     return _get_cache(seed, n)
 
