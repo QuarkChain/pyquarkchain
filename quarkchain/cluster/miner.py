@@ -8,7 +8,7 @@ from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
 from multiprocessing import Queue as MultiProcessingQueue
 
-from typing import Callable, Union, Coroutine, Awaitable
+from typing import Callable, Union, Awaitable
 
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
@@ -91,7 +91,6 @@ class Miner:
                 args=(block, target_block_time, instance.input_q, instance.output_q),
             )
             instance.process.start()
-            # asyncio.ensure_future(handle_mined_block(instance))
             await handle_mined_block(instance)
 
         if not self.enabled:
