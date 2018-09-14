@@ -531,6 +531,17 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
+        env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state1 = create_default_shard_state(env=env1, shard_id=1)
+
+        # Add a root block to update block gas limit so that xshard tx can be included
+        root_block = (
+            state.root_tip.create_block_to_append()
+            .add_minor_block_header(state.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state.add_root_block(root_block)
 
         tx = create_transfer_transaction(
             shard_state=state,
@@ -613,9 +624,9 @@ class TestShardState(unittest.TestCase):
         # be broadcasted
         root_block = (
             state0.root_tip.create_block_to_append()
-                .add_minor_block_header(state0.header_tip)
-                .add_minor_block_header(state1.header_tip)
-                .finalize()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
         )
         state0.add_root_block(root_block)
         state1.add_root_block(root_block)
@@ -759,9 +770,9 @@ class TestShardState(unittest.TestCase):
         # be broadcasted
         root_block = (
             state0.root_tip.create_block_to_append()
-                .add_minor_block_header(state0.header_tip)
-                .add_minor_block_header(state1.header_tip)
-                .finalize()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
         )
         state0.add_root_block(root_block)
         state1.add_root_block(root_block)
@@ -1050,9 +1061,7 @@ class TestShardState(unittest.TestCase):
             shard.GENESIS.DIFFICULTY = 10000
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
-        diff_calc = EthDifficultyCalculator(
-            cutoff=9, diff_factor=2048, minimum_diff=1
-        )
+        diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.quark_chain_config.NETWORK_ID = (
             1
         )  # other network ids will skip difficulty check

@@ -589,6 +589,12 @@ class TestJSONRPC(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
+            # Add a root block to update block gas limit for xshard tx throttling
+            # so that the following tx can be processed
+            is_root, root_block = call_async(master.get_next_block_to_mine(acc1))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root_block))
+
             branch = Branch.create(2, 0)
             to_full_shard_id = (
                 acc1.full_shard_id + 1

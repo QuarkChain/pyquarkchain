@@ -614,7 +614,7 @@ class MinorBlockMeta(Serializable):
         ("hash_evm_state_root", hash256),
         ("hash_evm_receipt_root", hash256),
         ("coinbase_address", Address),
-        ("evm_gas_limit", uint256),
+        ("evm_gas_limit", uint256),  # TODO: cleanup
         ("evm_gas_used", uint256),
         ("evm_cross_shard_receive_gas_used", uint256),
         ("extra_data", PrependedSizeBytesSerializer(2)),
@@ -659,6 +659,7 @@ class MinorBlockHeader(Serializable):
         ("coinbase_amount", uint256),
         ("hash_prev_minor_block", hash256),
         ("hash_prev_root_block", hash256),
+        ("evm_gas_limit", uint256),
         ("hash_meta", hash256),
         ("create_time", uint64),
         ("difficulty", uint64),
@@ -674,6 +675,7 @@ class MinorBlockHeader(Serializable):
         coinbase_amount: int = 0,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
         hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
+        evm_gas_limit: int = 30000 * 400,  # 400 xshard tx
         hash_meta: bytes = bytes(Constant.HASH_LENGTH),
         create_time: int = 0,
         difficulty: int = 0,
@@ -686,6 +688,7 @@ class MinorBlockHeader(Serializable):
         self.coinbase_amount = coinbase_amount
         self.hash_prev_minor_block = hash_prev_minor_block
         self.hash_prev_root_block = hash_prev_root_block
+        self.evm_gas_limit = evm_gas_limit
         self.hash_meta = hash_meta
         self.create_time = create_time
         self.difficulty = difficulty
