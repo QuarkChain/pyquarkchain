@@ -31,8 +31,6 @@ elif ETHASH_LIB == "pyethash":
 else:
     raise Exception("invalid ethash library set")
 
-TT64M1 = 2 ** 64 - 1
-
 
 @lru_cache(maxsize=32)
 def check_pow(
@@ -55,17 +53,6 @@ def check_pow(
 
 
 class EthashMiner:
-    """
-    Mines on the current head
-    Stores received transactions
-
-    The process of finalising a block involves four stages:
-    1) Validate (or, if mining, determine) uncles;
-    2) validate (or, if mining, determine) transactions;
-    3) apply rewards;
-    4) verify (or, if mining, compute a valid) state and nonce.
-    """
-
     def __init__(
         self,
         block_number: int,
@@ -73,7 +60,6 @@ class EthashMiner:
         header_hash: bytes,
         is_test: bool = False,
     ):
-        self.nonce = 0
         self.block_number = block_number
         self.difficulty = difficulty
         self.header_hash = header_hash
