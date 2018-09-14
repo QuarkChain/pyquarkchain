@@ -126,7 +126,7 @@ class Miner:
     def __get_block_time(block, target_block_time) -> float:
         if isinstance(block, MinorBlock):
             # Adjust the target block time to compensate computation time
-            gas_used_ratio = block.meta.evm_gas_used / block.meta.evm_gas_limit
+            gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
             GLOG.debug(
                 "[{}] target block time {:.2f}".format(

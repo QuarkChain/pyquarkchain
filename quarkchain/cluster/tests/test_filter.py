@@ -21,7 +21,6 @@ class TestFilter(unittest.TestCase):
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
-
         tx = create_contract_creation_with_event_transaction(
             shard_state=state,
             key=id1.get_key(),

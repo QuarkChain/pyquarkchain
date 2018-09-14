@@ -614,7 +614,6 @@ class MinorBlockMeta(Serializable):
         ("hash_evm_state_root", hash256),
         ("hash_evm_receipt_root", hash256),
         ("coinbase_address", Address),
-        ("evm_gas_limit", uint256),
         ("evm_gas_used", uint256),
         ("evm_cross_shard_receive_gas_used", uint256),
         ("extra_data", PrependedSizeBytesSerializer(2)),
@@ -626,7 +625,6 @@ class MinorBlockMeta(Serializable):
         hash_evm_state_root: bytes = bytes(Constant.HASH_LENGTH),
         hash_evm_receipt_root: bytes = bytes(Constant.HASH_LENGTH),
         coinbase_address: Address = Address.create_empty_account(),
-        evm_gas_limit: int = 30000 * 400,  # 400 xshard tx
         evm_gas_used: int = 0,
         evm_cross_shard_receive_gas_used: int = 0,
         extra_data: bytes = b"",
@@ -635,7 +633,6 @@ class MinorBlockMeta(Serializable):
         self.hash_evm_state_root = hash_evm_state_root
         self.hash_evm_receipt_root = hash_evm_receipt_root
         self.coinbase_address = coinbase_address
-        self.evm_gas_limit = evm_gas_limit
         self.evm_gas_used = evm_gas_used
         self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
         self.extra_data = extra_data
@@ -659,6 +656,7 @@ class MinorBlockHeader(Serializable):
         ("coinbase_amount", uint256),
         ("hash_prev_minor_block", hash256),
         ("hash_prev_root_block", hash256),
+        ("evm_gas_limit", uint256),
         ("hash_meta", hash256),
         ("create_time", uint64),
         ("difficulty", uint64),
@@ -674,6 +672,7 @@ class MinorBlockHeader(Serializable):
         coinbase_amount: int = 0,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
         hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
+        evm_gas_limit: int = 30000 * 400,  # 400 xshard tx
         hash_meta: bytes = bytes(Constant.HASH_LENGTH),
         create_time: int = 0,
         difficulty: int = 0,
@@ -686,6 +685,7 @@ class MinorBlockHeader(Serializable):
         self.coinbase_amount = coinbase_amount
         self.hash_prev_minor_block = hash_prev_minor_block
         self.hash_prev_root_block = hash_prev_root_block
+        self.evm_gas_limit = evm_gas_limit
         self.hash_meta = hash_meta
         self.create_time = create_time
         self.difficulty = difficulty
@@ -788,11 +788,7 @@ class MinorBlock(Serializable):
             address = Address.create_empty_account(
                 full_shard_id=self.meta.coinbase_address.full_shard_id
             )
-        meta = MinorBlockMeta(
-            coinbase_address=address,
-            evm_gas_limit=self.meta.evm_gas_limit,
-            extra_data=extra_data,
-        )
+        meta = MinorBlockMeta(coinbase_address=address, extra_data=extra_data)
 
         create_time = (
             self.header.create_time + 1 if create_time is None else create_time
@@ -805,6 +801,7 @@ class MinorBlock(Serializable):
             coinbase_amount=quarkash,
             hash_prev_minor_block=self.header.get_hash(),
             hash_prev_root_block=self.header.hash_prev_root_block,
+            evm_gas_limit=self.header.evm_gas_limit,
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,

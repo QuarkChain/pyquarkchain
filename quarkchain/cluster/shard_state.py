@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from collections import defaultdict
-from typing import Optional, Tuple, List, Union
+from typing import Optional, Tuple, List, Union, Dict
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.neighbor import is_neighbor
@@ -14,6 +14,7 @@ from quarkchain.core import (
     Address,
     Branch,
     Code,
+    RootBlock,
     Transaction,
     Log,
 )
@@ -282,7 +283,7 @@ class ShardState:
             block.header.hash_prev_minor_block
         )
         state.timestamp = block.header.create_time
-        state.gas_limit = block.meta.evm_gas_limit
+        state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
             state.block_number
@@ -780,19 +781,29 @@ class ShardState:
         header_list.reverse()
         return header_list
 
+    def __get_xshard_tx_limits(self, root_block: RootBlock) -> Dict[int, int]:
+        """Return a mapping from shard_id to the max number of xshard tx to the shard of shard_id"""
+        results = dict()
+        shard_config = self.env.quark_chain_config.SHARD_LIST[
+            self.branch.get_shard_id()
+        ]
+        for m_header in root_block.minor_block_header_list:
+            results[m_header.branch.get_shard_id()] = (
+                m_header.evm_gas_limit
+                / opcodes.GTXXSHARDCOST
+                / self.env.quark_chain_config.MAX_NEIGHBORS
+                / shard_config.max_blocks_per_shard_in_one_root_block
+            )
+        return results
+
     def __add_transactions_to_block(self, block: MinorBlock, evm_state: EvmState):
         """ Fill up the block tx list with tx from the tx queue"""
         poped_txs = []
         xshard_tx_counters = defaultdict(int)
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
-        ]
-        max_xshard_tx_per_shard = int(
-            block.meta.evm_gas_limit
-            / opcodes.GTXXSHARDCOST
-            / self.env.quark_chain_config.MAX_NEIGHBORS
-            / shard_config.max_blocks_per_shard_in_one_root_block
+        xshard_tx_limits = self.__get_xshard_tx_limits(
+            self.db.get_root_block_by_hash(block.header.hash_prev_root_block)
         )
+
         while evm_state.gas_used < evm_state.gas_limit:
             evm_tx = self.tx_queue.pop_transaction(
                 max_gas=evm_state.gas_limit - evm_state.gas_used
@@ -807,9 +818,8 @@ class ShardState:
 
             if self.branch != to_branch:
                 check(is_neighbor(self.branch, to_branch))
-                if (
-                    xshard_tx_counters[evm_tx.to_shard_id()] + 1
-                    > max_xshard_tx_per_shard
+                if xshard_tx_counters[evm_tx.to_shard_id()] + 1 > xshard_tx_limits.get(
+                    evm_tx.to_shard_id(), 0
                 ):
                     poped_txs.append(evm_tx)  # will be put back later
                     continue
@@ -1038,9 +1048,7 @@ class ShardState:
                 continue
 
             xshard_tx_list = self.db.get_minor_block_xshard_tx_list(m_header.get_hash())
-            prev_root = self.db.get_root_block_by_hash(
-                m_header.hash_prev_root_block
-            )
+            prev_root = self.db.get_root_block_by_hash(m_header.hash_prev_root_block)
             if (
                 not prev_root
                 or prev_root.header.height
