@@ -85,3 +85,15 @@ class TestEthash(unittest.TestCase):
         )
         validity = check_pow(1, header_hash, mixhash, nonce_found, 100, is_test=True)
         self.assertTrue(validity)
+
+    def test_pyethash(self):
+        header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"
+        miner = EthashMiner(1, 100, header_hash, is_test=False)
+        nonce_found, mixhash = miner.mine(rounds=100)
+        self.assertEqual(int.from_bytes(nonce_found, byteorder="big"), 34)
+        self.assertEqual(
+            mixhash.hex(),
+            "097efd710f5c21aeb45210176c68d3ed6d0c2def8712b64d32dbfb51b25a84d2",
+        )
+        validity = check_pow(1, header_hash, mixhash, nonce_found, 100, is_test=False)
+        self.assertTrue(validity)
