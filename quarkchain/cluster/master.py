@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import ipaddress
+import json
 import random
 import time
 from collections import deque
@@ -69,7 +70,7 @@ from quarkchain.core import Branch, ShardMask, Log, Address
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
-from quarkchain.utils import set_logging_level, Logger, check
+from quarkchain.utils import set_logging_level, Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
 FLAGS = flags.FLAGS
@@ -526,6 +527,12 @@ class MasterServer:
             # This is a hack to get the latest minor block included since testnet does not check difficulty
             # TODO: fix this as it will break real PoW
             block = await __create_block()
+
+            # TODO if above is fixed, below won't be needed...
+            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
+            extra_data["mined"] = time_ms()
+            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+
             await self.add_root_block(block)
 
         def __get_target_block_time():
