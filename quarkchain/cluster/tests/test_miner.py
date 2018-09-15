@@ -37,7 +37,7 @@ class TestMiner(unittest.TestCase):
     async def dummy_create_block_async() -> Optional[RootBlock]:
         if len(TestMiner.added_blocks) >= 5:
             return None  # stop the game
-        return RootBlock(RootBlockHeader(create_time=int(time.time())))
+        return RootBlock(RootBlockHeader(create_time=int(time.time()), extra_data="{}".encode("utf-8")))
 
     @staticmethod
     def get_target_block_time() -> float:
@@ -67,7 +67,7 @@ class TestMiner(unittest.TestCase):
             nonlocal i
             if i >= 5:
                 return None
-            return RootBlock(RootBlockHeader(create_time=int(time.time())))
+            return RootBlock(RootBlockHeader(create_time=int(time.time()), extra_data="{}".encode("utf-8")))
 
         self.miner.add_block_async_func = add
         self.miner.create_block_async_func = create

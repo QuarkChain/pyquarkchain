@@ -822,6 +822,7 @@ class RootBlockHeader(Serializable):
         ("create_time", uint32),
         ("difficulty", uint32),
         ("nonce", uint32),
+        ("extra_data", PrependedSizeBytesSerializer(2)),
     ]
 
     def __init__(
@@ -836,6 +837,7 @@ class RootBlockHeader(Serializable):
         create_time=0,
         difficulty=0,
         nonce=0,
+        extra_data: bytes=b"",
     ):
         fields = {k: v for k, v in locals().items() if k != "self"}
         super(type(self), self).__init__(**fields)
@@ -844,7 +846,7 @@ class RootBlockHeader(Serializable):
         return sha3_256(self.serialize())
 
     def create_block_to_append(
-        self, create_time=None, difficulty=None, address=None, nonce=0
+        self, create_time=None, difficulty=None, address=None, nonce=0, extra_data: bytes=b"",
     ):
         create_time = self.create_time + 1 if create_time is None else create_time
         difficulty = difficulty if difficulty is not None else self.difficulty
@@ -857,6 +859,7 @@ class RootBlockHeader(Serializable):
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,
+            extra_data=extra_data,
         )
         return RootBlock(header)
 

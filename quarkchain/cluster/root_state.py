@@ -1,4 +1,6 @@
 import time
+import json
+import asyncio
 
 from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader
@@ -9,7 +11,7 @@ from quarkchain.core import (
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
-from quarkchain.utils import Logger, check
+from quarkchain.utils import Logger, check, time_ms
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -187,6 +189,11 @@ class RootState:
     def create_block_to_mine(self, m_header_list, address, create_time=None):
         if create_time is None:
             create_time = max(self.tip.create_time + 1, int(time.time()))
+        extra_data = {
+            "inception": time_ms(),
+            "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
+        }
+
         difficulty = self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
         block = self.tip.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
@@ -198,6 +205,9 @@ class RootState:
             coinbase_amount += header.coinbase_amount
 
         coinbase_amount = coinbase_amount // 2
+
+        extra_data["creation_ms"] = time_ms() - extra_data["inception"]
+        block.header.extra_data = json.dumps(extra_data).encode("utf-8")
         return block.finalize(quarkash=coinbase_amount, coinbase_address=address)
 
     def validate_block_header(self, block_header, block_hash=None):
@@ -221,6 +231,12 @@ class RootState:
                     block_header.create_time, prev_block_header.create_time
                 )
             )
+
+        if (
+            len(block_header.extra_data)
+            > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
+        ):
+            raise ValueError("extra_data in block is too large")
 
         if block_hash is None:
             block_hash = block_header.get_hash()
@@ -369,6 +385,7 @@ class RootState:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
+        start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(
             block, block_hash
         )
@@ -376,6 +393,30 @@ class RootState:
         self.db.put_root_block(
             block, last_minor_block_header_list, root_block_hash=block_hash
         )
+
+        decoded_extra_data = block.header.extra_data.decode("utf-8")
+        if decoded_extra_data != "":
+            extra_data = json.loads(decoded_extra_data)
+            sample = {
+                "time": time_ms() // 1000,
+                "shard": "R",
+                "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
+                "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
+                "hash": block.header.get_hash().hex(),
+                "height": block.header.height,
+                "original_cluster": extra_data["cluster"],
+                "inception": extra_data["inception"],
+                "creation_latency_ms": extra_data["creation_ms"],
+                "add_block_latency_ms": time_ms() - start_ms,
+                "mined": extra_data.get("mined", 0),
+                "propagation_latency_ms": start_ms - extra_data.get("mined", 0),
+                "num_tx": len(block.minor_block_header_list),
+            }
+            asyncio.ensure_future(
+                self.env.cluster_config.kafka_logger.log_kafka_sample_async(
+                    self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
+                )
+            )
 
         if self.tip.height < block.header.height:
             self.tip = block.header

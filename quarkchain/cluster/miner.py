@@ -164,7 +164,12 @@ class Miner:
             if time.time() > target_time:
                 Miner.__log_status(block)
                 block.header.nonce = random.randint(0, 2 ** 32 - 1)
-                if not isinstance(block, RootBlock):
+                if isinstance(block, RootBlock):
+                    extra_data = json.loads(block.header.extra_data.decode("utf-8"))
+                    extra_data["mined"] = time_ms()
+                    # NOTE this actually ruins POW mining; added for perf tracking
+                    block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+                else:
                     extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
                     extra_data["mined"] = time_ms()
                     # NOTE this actually ruins POW mining; added for perf tracking
