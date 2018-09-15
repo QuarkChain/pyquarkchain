@@ -1,44 +1,33 @@
 import copy
-from random import randint
-
+from functools import lru_cache
 from typing import Callable, Dict
 
 from ethereum.pow.ethash_utils import *
 
-if sys.version_info.major == 2:
-    from repoze.lru import lru_cache
-else:
-    from functools import lru_cache
-
-
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 
-def mkcache(block_number, override_cache_size=None) -> List[List[int]]:
+def mkcache(cache_size: int, block_number) -> List[List[int]]:
     while len(cache_seeds) <= block_number // EPOCH_LENGTH:
-        new_seed = serialize_hash(sha3_256(cache_seeds[-1]))
+        new_seed = serialize_hash(ethash_sha3_256(cache_seeds[-1]))
         cache_seeds.append(new_seed)
 
     seed = cache_seeds[block_number // EPOCH_LENGTH]
-
-    # if specified, override cache size for testing purposes
-    cache_size = override_cache_size or get_cache_size(block_number)
-    n = cache_size // HASH_BYTES
-    return _get_cache(seed, n)
+    return _get_cache(seed, cache_size // HASH_BYTES)
 
 
-@lru_cache(5)
+@lru_cache(10)
 def _get_cache(seed, n) -> List[List[int]]:
     # Sequentially produce the initial dataset
-    o = [sha3_512(seed)]
+    o = [ethash_sha3_512(seed)]
     for i in range(1, n):
-        o.append(sha3_512(o[-1]))
+        o.append(ethash_sha3_512(o[-1]))
 
     # Use a low-round version of randmemohash
     for _ in range(CACHE_ROUNDS):
         for i in range(n):
             v = o[i][0] % n
-            o[i] = sha3_512(list(map(xor, o[(i - 1 + n) % n], o[v])))
+            o[i] = ethash_sha3_512(list(map(xor, o[(i - 1 + n) % n], o[v])))
 
     return o
 
@@ -49,12 +38,12 @@ def calc_dataset_item(cache: List[List[int]], i: int) -> List[int]:
     # initialize the mix
     mix = copy.copy(cache[i % n])  # type: List[int]
     mix[0] ^= i
-    mix = sha3_512(mix)
+    mix = ethash_sha3_512(mix)
     # fnv it with a lot of random cache nodes based on i
     for j in range(DATASET_PARENTS):
         cache_index = fnv(i ^ j, mix[j % r])
         mix = list(map(fnv, mix, cache[cache_index % n]))
-    return sha3_512(mix)
+    return ethash_sha3_512(mix)
 
 
 def calc_dataset(full_size, cache) -> List[List[int]]:
@@ -74,7 +63,7 @@ def hashimoto(
     w = MIX_BYTES // WORD_BYTES
     mixhashes = MIX_BYTES // HASH_BYTES
     # combine header+nonce into a 64 byte seed
-    s = sha3_512(header + nonce[::-1])
+    s = ethash_sha3_512(header + nonce[::-1])
     mix = []
     for _ in range(MIX_BYTES // HASH_BYTES):
         mix.extend(s)
@@ -91,7 +80,7 @@ def hashimoto(
         cmix.append(fnv(fnv(fnv(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]))
     return {
         b"mix digest": serialize_hash(cmix),
-        b"result": serialize_hash(sha3_256(s + cmix)),
+        b"result": serialize_hash(ethash_sha3_256(s + cmix)),
     }
 
 

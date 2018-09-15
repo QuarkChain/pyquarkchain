@@ -12,7 +12,7 @@ try:
         return keccak.new(digest_bits=512, data=x).digest()
 
 
-except BaseException:
+except Exception:
     import sha3 as _sha3
 
     def _sha3_256(x):
@@ -35,7 +35,6 @@ HASH_BYTES = 64  # hash length in bytes
 DATASET_PARENTS = 256  # number of parents of each dataset element
 CACHE_ROUNDS = 3  # number of rounds in cache production
 ACCESSES = 64  # number of accesses in hashimoto loop
-
 
 FNV_PRIME = 0x01000193
 
@@ -84,11 +83,11 @@ def xor(a, b):
 
 
 # sha3 hash function, outputs 64 bytes
-def sha3_512(x: Union[bytes, List[int]]) -> List[int]:
+def ethash_sha3_512(x: Union[bytes, List[int]]) -> List[int]:
     return hash_words(lambda v: _sha3_512(to_bytes(v)), 64, x)
 
 
-def sha3_256(x: Union[bytes, List[int]]) -> List[int]:
+def ethash_sha3_256(x: Union[bytes, List[int]]) -> List[int]:
     return hash_words(lambda v: _sha3_256(to_bytes(v)), 32, x)
 
 

@@ -2,6 +2,7 @@ import unittest
 
 from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
 from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES, serialize_hash
+from ethereum.pow.ethpow import EthashMiner, check_pow
 
 
 class TestEthash(unittest.TestCase):
@@ -26,7 +27,7 @@ class TestEthash(unittest.TestCase):
         ]
         for cache_size, epoch, expected_cache in testcases:
             block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(block_number, override_cache_size=cache_size)
+            cache = mkcache(cache_size, block_number)
             cache_hex = "".join(serialize_hash(ls).hex() for ls in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
@@ -42,13 +43,13 @@ class TestEthash(unittest.TestCase):
         ]
         for epoch, cache_size, dataset_size, expected_dataset in testcases:
             block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(block_number, override_cache_size=cache_size)
+            cache = mkcache(cache_size, block_number)
             dataset = calc_dataset(dataset_size, cache)
             dataset_hex = "".join(serialize_hash(ls).hex() for ls in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
-        cache = mkcache(block_number=0, override_cache_size=1024)
+        cache = mkcache(cache_size=1024, block_number=0)
         dataset = calc_dataset(32 * 1024, cache)
         header = bytes.fromhex(
             "0xc9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"[2:]
@@ -72,3 +73,15 @@ class TestEthash(unittest.TestCase):
         ):
             self.assertEqual(mining_output[b"mix digest"], expected_digest)
             self.assertEqual(mining_output[b"result"], expected_result)
+
+    def test_ethash_mining(self):
+        header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"
+        miner = EthashMiner(1, 100, header_hash, is_test=True)
+        nonce_found, mixhash = miner.mine(rounds=100)
+        self.assertEqual(int.from_bytes(nonce_found, byteorder="big"), 44)
+        self.assertEqual(
+            mixhash.hex(),
+            "5dd318d2dff0aac95a3af5617db0bfb07eee8b0ab4a42f01d6161336be758106",
+        )
+        validity = check_pow(1, header_hash, mixhash, nonce_found, 100, is_test=True)
+        self.assertTrue(validity)
