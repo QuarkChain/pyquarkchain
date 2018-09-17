@@ -197,7 +197,7 @@ class MasterConnection(ClusterConnection):
         switched = False
         for shard in self.shards.values():
             try:
-                switched = shard.add_root_block(req.root_block)
+                switched = await shard.add_root_block(req.root_block)
             except ValueError:
                 Logger.log_exception()
                 return AddRootBlockResponse(errno.EBADMSG, False)

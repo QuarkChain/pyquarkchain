@@ -856,6 +856,7 @@ class RootBlockHeader(Serializable):
             shard_info=copy.copy(self.shard_info),
             hash_prev_block=self.get_hash(),
             hash_merkle_root=bytes(32),
+            coinbase_address=address if address else Address.create_empty_account(),
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,

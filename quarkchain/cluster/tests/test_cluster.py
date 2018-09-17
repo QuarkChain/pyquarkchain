@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock
+from quarkchain.genesis import GenesisManager
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
@@ -52,7 +52,6 @@ class TestCluster(unittest.TestCase):
             self.assertFalse(is_root)
             self.assertEqual(block.header.branch.get_shard_id(), 0)
             self.assertEqual(block.header.height, 1)
-
 
     def test_get_next_block_to_mine(self):
         id1 = Identity.create_random_identity()
@@ -430,6 +429,66 @@ class TestCluster(unittest.TestCase):
                 clusters[0].slave_list[0].shards[Branch(0b10)].state.header_tip,
             )
 
+    def test_shard_genesis_fork_fork(self):
+        """ Test shard forks at genesis blocks due to root chain fork at GENESIS.ROOT_HEIGHT"""
+        acc1 = Address.create_random_account(0)
+        acc2 = Address.create_random_account(1)
+
+        with ClusterContext(2, acc1, genesis_root_heights=[0, 1]) as clusters:
+            # shutdown cluster connection
+            clusters[1].peer.close()
+
+            master0 = clusters[0].master
+            is_root, root0 = call_async(master0.get_next_block_to_mine(acc1))
+            self.assertTrue(is_root)
+            call_async(master0.add_root_block(root0))
+            genesis0 = clusters[0].get_shard_state(1).db.get_minor_block_by_height(0)
+            self.assertEqual(
+                genesis0.header.hash_prev_root_block, root0.header.get_hash()
+            )
+
+            master1 = clusters[1].master
+            is_root, root1 = call_async(master1.get_next_block_to_mine(acc2))
+            self.assertTrue(is_root)
+            self.assertNotEqual(root0.header.get_hash(), root1.header.get_hash())
+            call_async(master1.add_root_block(root1))
+            genesis1 = clusters[1].get_shard_state(1).db.get_minor_block_by_height(0)
+            self.assertEqual(
+                genesis1.header.hash_prev_root_block, root1.header.get_hash()
+            )
+
+            # let's make cluster1's root chain longer than cluster0's
+            # expect to mine shard 0 due to proof-of-progress
+            is_root, block1 = call_async(master1.get_next_block_to_mine(acc2))
+            self.assertFalse(is_root)
+            self.assertEqual(block1.header.branch.get_shard_id(), 0)
+            result = call_async(
+                master1.add_raw_minor_block(block1.header.branch, block1.serialize())
+            )
+            self.assertTrue(result)
+
+            is_root, root2 = call_async(master1.get_next_block_to_mine(acc2))
+            self.assertTrue(is_root)
+            call_async(master1.add_root_block(root2))
+            self.assertEqual(master1.root_state.tip.height, 2)
+
+            # reestablish cluster connection
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1",
+                    clusters[0].master.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,
+                )
+            )
+            # Expect cluster0's genesis change to genesis1
+            assert_true_with_timeout(
+                lambda: clusters[0]
+                .get_shard_state(1)
+                .db.get_minor_block_by_height(0)
+                .header.get_hash()
+                == genesis1.header.get_hash()
+            )
+            self.assertTrue(clusters[0].get_shard_state(1).root_tip == root2.header)
+
     def test_broadcast_cross_shard_transactions(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
         id1 = Identity.create_random_identity()
@@ -442,7 +501,11 @@ class TestCluster(unittest.TestCase):
 
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
-            is_root, root_block = call_async(master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+            is_root, root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), prefer_root=True
+                )
+            )
             self.assertTrue(is_root)
             call_async(master.add_root_block(root_block))
 
@@ -542,7 +605,10 @@ class TestCluster(unittest.TestCase):
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
             is_root, root_block = call_async(
-                master.get_next_block_to_mine(Address.create_empty_account(), prefer_root=True))
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), prefer_root=True
+                )
+            )
             self.assertTrue(is_root)
             call_async(master.add_root_block(root_block))
 

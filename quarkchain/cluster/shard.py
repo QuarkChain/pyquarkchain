@@ -417,6 +417,10 @@ class Shard:
     def __get_shard_size(self):
         return self.env.quark_chain_config.SHARD_SIZE
 
+    @property
+    def genesis_root_height(self):
+        return self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
 
@@ -435,15 +439,21 @@ class Shard:
 
     async def init_from_root_block(self, root_block: RootBlock):
         """ Either recover state from local db or create genesis state based on config"""
-        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
-        if root_block.header.height > height:
+        if root_block.header.height > self.genesis_root_height:
             return self.state.init_from_root_block(root_block)
 
-        if root_block.header.height == height:
+        if root_block.header.height == self.genesis_root_height:
             await self.__init_genesis_state(root_block)
 
-    def add_root_block(self, root_block: RootBlock):
-        return self.state.add_root_block(root_block)
+    async def add_root_block(self, root_block: RootBlock):
+        check(root_block.header.height >= self.genesis_root_height)
+
+        if root_block.header.height > self.genesis_root_height:
+            return self.state.add_root_block(root_block)
+
+        # this happens when there is a root chain fork
+        if root_block.header.height == self.genesis_root_height:
+            await self.__init_genesis_state(root_block)
 
     def broadcast_new_block(self, block):
         for cluster_peer_id, peer in self.peers.items():

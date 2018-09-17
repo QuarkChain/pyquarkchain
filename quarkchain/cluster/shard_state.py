@@ -145,7 +145,11 @@ class ShardState:
         return EvmState(env=self.env.evm_env, db=self.raw_db)
 
     def init_genesis_state(self, root_block):
-        """ root_block should have the same height as configured in shard GENESIS """
+        """ root_block should have the same height as configured in shard GENESIS.
+        If a genesis block has already been created (probably from another root block
+        with the same height), create and store the new genesis block from root_block
+        without modifying the in-memory state of this ShardState object.
+        """
         height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
         check(root_block.header.height == height)
 
@@ -155,12 +159,15 @@ class ShardState:
         )
 
         self.db.put_minor_block(genesis_block, [])
-        self.db.put_minor_block_index(genesis_block)
         self.db.put_root_block(root_block)
 
         if self.initialized:
             # already initialized. just return the block without resetting the state.
             return genesis_block
+
+        # block index should not be overwritten if there is already a genesis block
+        # this must happen after the above initialization check
+        self.db.put_minor_block_index(genesis_block)
 
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
@@ -485,7 +492,7 @@ class ShardState:
         return header == self.confirmed_header_tip
 
     def __rewrite_block_index_to(self, minor_block, add_tx_back_to_queue=True):
-        """ Find the common ancestor in the current chain and rewrite index till minorblock """
+        """ Find the common ancestor in the current chain and rewrite index till minor_block """
         new_chain = []
         old_chain = []
 
@@ -508,6 +515,8 @@ class ShardState:
             new_chain.append(block)
             if orig_block:
                 old_chain.append(orig_block)
+            if block.header.height <= 0:
+                break
             block = self.db.get_minor_block_by_hash(block.header.hash_prev_minor_block)
 
         for block in old_chain:
