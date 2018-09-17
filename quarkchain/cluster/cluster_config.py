@@ -53,6 +53,7 @@ def update_genesis_alloc(cluser_config):
     try:
         with open(loadtest_file, "r") as f:
             items = json.load(f)
+            qkc_config.loadtest_accounts = items
 
         for item in items:
             address = Address.create_from(item["address"])

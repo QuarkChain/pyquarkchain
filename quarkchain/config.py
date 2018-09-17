@@ -230,6 +230,8 @@ class QuarkChainConfig(BaseConfig):
     SHARD_LIST = None
 
     def __init__(self):
+        self.loadtest_accounts = []  # for TransactionGenerator
+
         self.ROOT = RootConfig()
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
