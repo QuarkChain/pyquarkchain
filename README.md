@@ -24,7 +24,7 @@ To install pypy3 on OSX, first install [Homebrew](https://brew.sh/) and then
 brew install pypy3
 ```
 
-For MacOS
+<b>For MacOS:</b>
 
 Installing GMP
 
