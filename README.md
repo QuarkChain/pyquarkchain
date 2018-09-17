@@ -14,7 +14,7 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 - P2P network allowing clusters to join and leave anytime
 - Fully compatible with Ethereum smart contract
 
-## Development Setup
+## Prerequisites
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
@@ -24,14 +24,29 @@ To install pypy3 on OSX, first install [Homebrew](https://brew.sh/) and then
 brew install pypy3
 ```
 
+For MacOS
+
+Installing GMP
+
+```bash
+brew install gmp
+```
+
+Installing pkg-config
+
+```bash
+brew install pkg-config
+```
+
+## Development Setup
+
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project so that the python modules installed later will only affect this environment.
 
 To clone the code to your target directory
 
-```
+```bash
 git clone git@github.com:QuarkChain/pyquarkchain.git
 cd pyquarkchain
-
 ```
 
 To create a virtual environment
@@ -91,6 +106,34 @@ Run multiple clusters with P2P network (--mine sets exactly 1 cluster to mine)
 
 ```bash
 pypy3 multi_cluster.py --num_clusters=3 --devp2p_enable
+```
+
+## Verify cluster running
+
+The default port number we setup for cluster is 38391. To verify the cluster is ruunig, you can run:
+
+```bash
+curl -X POST --data '{
+    "jsonrpc": "2.0",
+    "method": "networkInfo",
+    "id": 1
+}' localhost:38391 | jq .
+```
+
+An example of output:
+
+```bash
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "networkId": "0x3",
+    "shardSize": "0x8",
+    "syncing": false,
+    "mining": true,
+    "shardServerCount": 4
+  },
+  "id": 1
+}
 ```
 
 ## Issue
