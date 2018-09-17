@@ -5,7 +5,6 @@ from typing import Optional
 
 from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger
 
 
@@ -29,7 +28,7 @@ class TransactionGenerator:
         self.running = False
 
         self.accounts = []
-        for item in LOADTEST_ACCOUNTS:
+        for item in []:  # TODO: fix this
             account = Account(
                 Address.create_from(item["address"]), bytes.fromhex(item["key"])
             )

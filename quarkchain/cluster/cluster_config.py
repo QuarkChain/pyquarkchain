@@ -1,39 +1,71 @@
 import argparse
 import ipaddress
+import json
 import os
 import socket
 import tempfile
 
+from absl import logging as GLOG
+
+from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig
+from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
-from quarkchain.cluster.monitoring import KafkaSampleLogger
-
-from quarkchain.genesis import GenesisManager
-from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
-from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
-from quarkchain.core import Address
 
 HOST = socket.gethostbyname(socket.gethostname())
 
 
-def update_genesis_alloc(qkc_config: QuarkChainConfig, loadtest: bool):
+def update_genesis_alloc(cluser_config):
     """ Update ShardConfig.GENESIS.ALLOC """
-    for item in ACCOUNTS_TO_FUND:
-        address = Address.create_from(item["address"])
-        shard = address.get_shard_id(qkc_config.SHARD_SIZE)
-        qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
-            10 ** 18
-        )
+    ALLOC_FILE = "alloc.json"
+    LOADTEST_FILE = "loadtest.json"
 
-    if loadtest:
-        for item in LOADTEST_ACCOUNTS:
+    if not cluser_config.GENESIS_DIR:
+        return
+    alloc_file = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE)
+    loadtest_file = os.path.join(cluser_config.GENESIS_DIR, LOADTEST_FILE)
+
+    qkc_config = cluser_config.QUARKCHAIN
+
+    # each account in alloc_file is only funded on the shard it belongs to
+    try:
+        with open(alloc_file, "r") as f:
+            items = json.load(f)
+
+        for item in items:
+            address = Address.create_from(item["address"])
+            shard = address.get_shard_id(qkc_config.SHARD_SIZE)
+            qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
+                10 ** 18
+            )
+
+        GLOG.info(
+            "Imported {} accounts from genesis alloc at {}".format(
+                len(items), alloc_file
+            )
+        )
+    except Exception as e:
+        GLOG.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
+
+    # each account in loadtest file is funded on all the shards
+    try:
+        with open(loadtest_file, "r") as f:
+            items = json.load(f)
+
+        for item in items:
             address = Address.create_from(item["address"])
             for i, shard in enumerate(qkc_config.SHARD_LIST):
                 shard.GENESIS.ALLOC[
                     address.address_in_shard(i).serialize().hex()
                 ] = 1000 * (10 ** 18)
+
+        GLOG.info(
+            "Imported {} loadtest accounts from {}".format(len(items), loadtest_file)
+        )
+    except Exception:
+        GLOG.info("No loadtest accounts imported into genesis alloc")
 
 
 class MasterConfig(BaseConfig):
@@ -95,7 +127,7 @@ class ClusterConfig(BaseConfig):
 
     MINE = False
     CLEAN = False
-    LOADTEST = False
+    GENESIS_DIR = None
 
     QUARKCHAIN = None
     MASTER = None
@@ -161,12 +193,9 @@ class ClusterConfig(BaseConfig):
         parser.add_argument(
             "--mine", action="store_true", default=ClusterConfig.MINE, dest="mine"
         )
-        parser.add_argument(
-            "--loadtest",
-            action="store_true",
-            default=ClusterConfig.LOADTEST,
-            dest="loadtest",
-        )
+        pwd = os.path.dirname(os.path.abspath(__file__))
+        default_genesis_dir = os.path.join(pwd, "../genesis_data")
+        parser.add_argument("--genesis_dir", default=default_genesis_dir, type=str)
 
         parser.add_argument(
             "--num_shards", default=QuarkChainConfig.SHARD_SIZE, type=int
@@ -254,7 +283,7 @@ class ClusterConfig(BaseConfig):
             )
             config.QUARKCHAIN.NETWORK_ID = args.network_id
 
-            config.LOADTEST = args.loadtest
+            config.GENESIS_DIR = args.genesis_dir
 
             config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
@@ -298,7 +327,7 @@ class ClusterConfig(BaseConfig):
                 config.json_filepath = args.cluster_config
         else:
             config = __create_from_args_internal()
-        update_genesis_alloc(config.QUARKCHAIN, config.LOADTEST)
+        update_genesis_alloc(config)
         return config
 
     def to_dict(self):
