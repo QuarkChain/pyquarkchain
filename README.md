@@ -14,7 +14,7 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 - P2P network allowing clusters to join and leave anytime
 - Fully compatible with Ethereum smart contract
 
-## Prerequisites
+## Development Setup
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
@@ -31,8 +31,6 @@ brew install pypy3
 brew install gmp
 brew install pkg-config
 ```
-
-## Development Setup
 
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project so that the python modules installed later will only affect this environment.
 
