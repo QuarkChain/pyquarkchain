@@ -1,4 +1,4 @@
-ACCOUNTS_TO_FUND = [
+[
     {
         "address": "68fb978bf0e4c69ba338d4fa5a4e5eaa88438aa868e4d4aa",
         "key": "966a253dd39a1832306487c6218da1425e429fae01c1a40eb50965dff31a04ed"

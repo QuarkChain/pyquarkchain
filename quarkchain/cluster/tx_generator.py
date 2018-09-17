@@ -5,8 +5,8 @@ from typing import Optional
 
 from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
 from quarkchain.utils import Logger
+from quarkchain.config import QuarkChainConfig
 
 
 def random_full_shard_id(shard_size, shard_id):
@@ -16,20 +16,20 @@ def random_full_shard_id(shard_size, shard_id):
 
 
 class Account:
-    def __init__(self, address, key):
+    def __init__(self, address: Address, key: bytes):
         self.address = address
         self.key = key
 
 
 class TransactionGenerator:
-    def __init__(self, qkc_config, shard):
+    def __init__(self, qkc_config: QuarkChainConfig, shard: int):
         self.qkc_config = qkc_config
         self.shard_id = shard.shard_id
         self.shard = shard
         self.running = False
 
         self.accounts = []
-        for item in LOADTEST_ACCOUNTS:
+        for item in qkc_config.loadtest_accounts:
             account = Account(
                 Address.create_from(item["address"]), bytes.fromhex(item["key"])
             )

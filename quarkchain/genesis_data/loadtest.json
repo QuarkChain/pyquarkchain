@@ -1,4 +1,4 @@
-LOADTEST_ACCOUNTS = [
+[
     {
         "address": "b067ac9ebeeecb10bbcd1088317959d58d1e38f6b0ee10d5",
         "key": "ca0143c9aa51c3013f08e83f3b6368a4f3ba5b52c4841c6e0c22c300f7ee6827"

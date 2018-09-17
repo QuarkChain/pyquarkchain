@@ -1,40 +1,72 @@
 import argparse
 import ipaddress
+import json
 import os
 import socket
 import tempfile
 
+from absl import logging as GLOG
+
+from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig
+from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check
-from quarkchain.cluster.monitoring import KafkaSampleLogger
-
-from quarkchain.genesis import GenesisManager
-from quarkchain.testnet.accounts_to_fund import ACCOUNTS_TO_FUND
-from quarkchain.loadtest.accounts import LOADTEST_ACCOUNTS
-from quarkchain.core import Address
 
 HOST = socket.gethostbyname(socket.gethostname())
 
 
-def update_genesis_config(qkc_config: QuarkChainConfig, loadtest: bool):
-    """ Update ShardConfig.GENESIS.ALLOC and ShardConfig.GENESIS.COINBASE_ADDRESS,
-    do not fill in genesis block hashes yet """
-    for item in ACCOUNTS_TO_FUND:
-        address = Address.create_from(item["address"])
-        shard = address.get_shard_id(qkc_config.SHARD_SIZE)
-        qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
-            10 ** 18
-        )
+def update_genesis_alloc(cluser_config):
+    """ Update ShardConfig.GENESIS.ALLOC """
+    ALLOC_FILE = "alloc.json"
+    LOADTEST_FILE = "loadtest.json"
 
-    if loadtest:
-        for item in LOADTEST_ACCOUNTS:
+    if not cluser_config.GENESIS_DIR:
+        return
+    alloc_file = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE)
+    loadtest_file = os.path.join(cluser_config.GENESIS_DIR, LOADTEST_FILE)
+
+    qkc_config = cluser_config.QUARKCHAIN
+
+    # each account in alloc_file is only funded on the shard it belongs to
+    try:
+        with open(alloc_file, "r") as f:
+            items = json.load(f)
+
+        for item in items:
+            address = Address.create_from(item["address"])
+            shard = address.get_shard_id(qkc_config.SHARD_SIZE)
+            qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
+                10 ** 18
+            )
+
+        GLOG.info(
+            "Imported {} accounts from genesis alloc at {}".format(
+                len(items), alloc_file
+            )
+        )
+    except Exception as e:
+        GLOG.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
+
+    # each account in loadtest file is funded on all the shards
+    try:
+        with open(loadtest_file, "r") as f:
+            items = json.load(f)
+            qkc_config.loadtest_accounts = items
+
+        for item in items:
             address = Address.create_from(item["address"])
             for i, shard in enumerate(qkc_config.SHARD_LIST):
                 shard.GENESIS.ALLOC[
                     address.address_in_shard(i).serialize().hex()
                 ] = 1000 * (10 ** 18)
+
+        GLOG.info(
+            "Imported {} loadtest accounts from {}".format(len(items), loadtest_file)
+        )
+    except Exception:
+        GLOG.info("No loadtest accounts imported into genesis alloc")
 
 
 class MasterConfig(BaseConfig):
@@ -96,7 +128,7 @@ class ClusterConfig(BaseConfig):
 
     MINE = False
     CLEAN = False
-    LOADTEST = False
+    GENESIS_DIR = None
 
     QUARKCHAIN = None
     MASTER = None
@@ -162,12 +194,9 @@ class ClusterConfig(BaseConfig):
         parser.add_argument(
             "--mine", action="store_true", default=ClusterConfig.MINE, dest="mine"
         )
-        parser.add_argument(
-            "--loadtest",
-            action="store_true",
-            default=ClusterConfig.LOADTEST,
-            dest="loadtest",
-        )
+        pwd = os.path.dirname(os.path.abspath(__file__))
+        default_genesis_dir = os.path.join(pwd, "../genesis_data")
+        parser.add_argument("--genesis_dir", default=default_genesis_dir, type=str)
 
         parser.add_argument(
             "--num_shards", default=QuarkChainConfig.SHARD_SIZE, type=int
@@ -231,66 +260,75 @@ class ClusterConfig(BaseConfig):
     def create_from_args(cls, args):
         """ Create ClusterConfig either from the JSON file or cmd flags.
         """
+
+        def __create_from_args_internal():
+            check(is_p2(args.num_shards), "--num_shards must be power of 2")
+            check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
+
+            config = ClusterConfig()
+            config.LOG_LEVEL = args.log_level
+            config.DB_PATH_ROOT = args.db_path_root
+
+            config.P2P_PORT = args.p2p_port
+            config.JSON_RPC_PORT = args.json_rpc_port
+            config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
+
+            config.CLEAN = args.clean
+            config.MINE = args.mine
+            config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
+
+            config.QUARKCHAIN.update(
+                args.num_shards,
+                args.root_block_interval_sec,
+                args.minor_block_interval_sec,
+            )
+            config.QUARKCHAIN.NETWORK_ID = args.network_id
+
+            config.GENESIS_DIR = args.genesis_dir
+
+            config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
+
+            if args.devp2p_enable:
+                config.SIMPLE_NETWORK = None
+                config.P2P = P2PConfig()
+                config.P2P.IP = args.devp2p_ip
+                config.P2P.DISCOVERY_PORT = args.devp2p_port
+                config.P2P.BOOTSTRAP_HOST = args.devp2p_bootstrap_host
+                config.P2P.BOOTSTRAP_PORT = args.devp2p_bootstrap_port
+                config.P2P.MIN_PEERS = args.devp2p_min_peers
+                config.P2P.MAX_PEERS = args.devp2p_max_peers
+                config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
+            else:
+                config.P2P = None
+                config.SIMPLE_NETWORK = SimpleNetworkConfig()
+                config.SIMPLE_NETWORK.BOOTSTRAP_HOST = (
+                    args.simple_network_bootstrap_host
+                )
+                config.SIMPLE_NETWORK.BOOTSTRAP_PORT = (
+                    args.simple_network_bootstrap_port
+                )
+
+            config.SLAVE_LIST = []
+            for i in range(args.num_slaves):
+                slave_config = SlaveConfig()
+                slave_config.PORT = args.port_start + i
+                slave_config.ID = "S{}".format(i)
+                slave_config.SHARD_MASK_LIST = [ShardMask(i | args.num_slaves)]
+
+                config.SLAVE_LIST.append(slave_config)
+
+            fd, config.json_filepath = tempfile.mkstemp()
+            with os.fdopen(fd, "w") as tmp:
+                tmp.write(config.to_json())
+            return config
+
         if args.cluster_config:
             with open(args.cluster_config) as f:
                 config = cls.from_json(f.read())
                 config.json_filepath = args.cluster_config
-                return config
-
-        check(is_p2(args.num_shards), "--num_shards must be power of 2")
-        check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
-
-        config = ClusterConfig()
-        config.LOG_LEVEL = args.log_level
-        config.DB_PATH_ROOT = args.db_path_root
-
-        config.P2P_PORT = args.p2p_port
-        config.JSON_RPC_PORT = args.json_rpc_port
-        config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
-
-        config.CLEAN = args.clean
-        config.MINE = args.mine
-        config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
-
-        config.QUARKCHAIN.update(
-            args.num_shards, args.root_block_interval_sec, args.minor_block_interval_sec
-        )
-        config.QUARKCHAIN.NETWORK_ID = args.network_id
-
-        config.LOADTEST = args.loadtest
-        update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
-
-        config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
-
-        if args.devp2p_enable:
-            config.SIMPLE_NETWORK = None
-            config.P2P = P2PConfig()
-            config.P2P.IP = args.devp2p_ip
-            config.P2P.DISCOVERY_PORT = args.devp2p_port
-            config.P2P.BOOTSTRAP_HOST = args.devp2p_bootstrap_host
-            config.P2P.BOOTSTRAP_PORT = args.devp2p_bootstrap_port
-            config.P2P.MIN_PEERS = args.devp2p_min_peers
-            config.P2P.MAX_PEERS = args.devp2p_max_peers
-            config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
         else:
-            config.P2P = None
-            config.SIMPLE_NETWORK = SimpleNetworkConfig()
-            config.SIMPLE_NETWORK.BOOTSTRAP_HOST = args.simple_network_bootstrap_host
-            config.SIMPLE_NETWORK.BOOTSTRAP_PORT = args.simple_network_bootstrap_port
-
-        config.SLAVE_LIST = []
-        for i in range(args.num_slaves):
-            slave_config = SlaveConfig()
-            slave_config.PORT = args.port_start + i
-            slave_config.ID = "S{}".format(i)
-            slave_config.SHARD_MASK_LIST = [ShardMask(i | args.num_slaves)]
-
-            config.SLAVE_LIST.append(slave_config)
-
-        fd, config.json_filepath = tempfile.mkstemp()
-        with os.fdopen(fd, "w") as tmp:
-            tmp.write(config.to_json())
-
+            config = __create_from_args_internal()
+        update_genesis_alloc(config)
         return config
 
     def to_dict(self):
@@ -320,7 +358,6 @@ class ClusterConfig(BaseConfig):
         else:
             config.SIMPLE_NETWORK = SimpleNetworkConfig.from_dict(d["SIMPLE_NETWORK"])
 
-        update_genesis_config(config.QUARKCHAIN, config.LOADTEST)
         return config
 
 
