@@ -7,10 +7,10 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 ## Features
 
 - Cluster implementation allowing multiple processes / physical machines to work together as a single full node
-- State sharding dividing global state onto independent processing and storage units allowing the network capacity to scale linearly by adding more machines
-- Cross-shard transaction allowing token transfers among shard chains
+- State sharding dividing global state onto independent processing and storage units allowing the network capacity to scale linearly by adding more shards
+- Cross-shard transaction allowing native token transfers among shard chains
 - Adding shards dynamically to the network
-- Support of different mining algorithm on different shards
+- Support of different mining algorithms on different shards
 - P2P network allowing clusters to join and leave anytime
 - Fully compatible with Ethereum smart contract
 
