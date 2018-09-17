@@ -2,8 +2,9 @@ import time
 import json
 import asyncio
 
-from quarkchain.config import NetworkId
-from quarkchain.core import RootBlock, MinorBlockHeader
+from ethereum.pow.ethpow import check_pow
+from quarkchain.config import NetworkId, ConsensusType
+from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
 from quarkchain.core import (
     calculate_merkle_root,
     Serializable,
@@ -210,10 +211,11 @@ class RootState:
         block.header.extra_data = json.dumps(extra_data).encode("utf-8")
         return block.finalize(quarkash=coinbase_amount, coinbase_address=address)
 
-    def validate_block_header(self, block_header, block_hash=None):
+    def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.
         """
-        if block_header.height < 1:
+        height = block_header.height
+        if height < 1:
             raise ValueError("unexpected height")
 
         if not self.db.contain_root_block_by_hash(block_header.hash_prev_block):
@@ -222,7 +224,7 @@ class RootState:
             block_header.hash_prev_block
         )
 
-        if prev_block_header.height + 1 != block_header.height:
+        if prev_block_header.height + 1 != height:
             raise ValueError("incorrect block height")
 
         if block_header.create_time <= prev_block_header.create_time:
@@ -238,16 +240,18 @@ class RootState:
         ):
             raise ValueError("extra_data in block is too large")
 
+        header_hash = block_header.get_hash()
         if block_hash is None:
-            block_hash = block_header.get_hash()
+            block_hash = header_hash
 
         # Check difficulty
+        curr_diff = block_header.difficulty
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
             if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.diff_calc.calculate_diff_with_parent(
                     prev_block_header, block_header.create_time
                 )
-                if diff != block_header.difficulty:
+                if diff != curr_diff:
                     raise ValueError("incorrect difficulty")
                 metric = diff * int.from_bytes(block_hash, byteorder="big")
                 if metric >= 2 ** 256:
@@ -257,6 +261,14 @@ class RootState:
                 != self.env.quark_chain_config.testnet_master_address.recipient
             ):
                 raise ValueError("incorrect master to create the block")
+
+        # Check PoW if applicable
+        consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
+        if consensus_type == ConsensusType.POW_ETHASH:
+            nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
+            mixhash = block_header.mixhash
+            if not check_pow(height, header_hash, mixhash, nonce_bytes, curr_diff):
+                raise ValueError("invalid pow proof")
 
         return block_hash
 

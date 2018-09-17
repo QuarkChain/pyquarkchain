@@ -14,7 +14,6 @@ from ethereum.pow.ethpow import EthashMiner
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock
-from quarkchain.utils import check
 from quarkchain.utils import time_ms
 
 
@@ -201,8 +200,8 @@ class Miner:
                 # best case
                 if nonce_found:
                     block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
+                    block.header.mixhash = mixhash
                     Miner._post_process_mined_block(block)
-                    # TODO: adding `mixhash` to header for seal validation
                     output_q.put(block)
                     block, _ = input_q.get(block=True)  # blocking
                     break  # break inner loop to refresh mining params

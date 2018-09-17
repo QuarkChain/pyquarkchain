@@ -4,11 +4,12 @@ import time
 from collections import defaultdict
 from typing import Optional, Tuple, List, Union, Dict
 
+from ethereum.pow.ethpow import check_pow
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
-from quarkchain.config import NetworkId
+from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import (
     calculate_merkle_root,
     Address,
@@ -323,10 +324,11 @@ class ShardState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def __validate_block(self, block):
+    def __validate_block(self, block: MinorBlock):
         """ Validate a block before running evm transactions
         """
-        if block.header.height < 1:
+        height = block.header.height
+        if height < 1:
             raise ValueError("unexpected height")
 
         if not self.db.contain_minor_block_by_hash(block.header.hash_prev_minor_block):
@@ -334,7 +336,7 @@ class ShardState:
             raise ValueError(
                 "[{}] prev block not found, block height {} prev hash {}".format(
                     self.branch.get_shard_id(),
-                    block.header.height,
+                    height,
                     block.header.hash_prev_minor_block.hex(),
                 )
             )
@@ -342,7 +344,7 @@ class ShardState:
             block.header.hash_prev_minor_block
         )
 
-        if block.header.height != prev_header.height + 1:
+        if height != prev_header.height + 1:
             raise ValueError("height mismatch")
 
         if block.header.branch != self.branch:
@@ -374,14 +376,16 @@ class ShardState:
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
+        curr_diff = block.header.difficulty
+        header_hash = block.header.get_hash()
         if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
             if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
                 diff = self.diff_calc.calculate_diff_with_parent(
                     prev_header, block.header.create_time
                 )
-                if diff != block.header.difficulty:
+                if diff != curr_diff:
                     raise ValueError("incorrect difficulty")
-                metric = diff * int.from_bytes(block.header.get_hash(), byteorder="big")
+                metric = diff * int.from_bytes(header_hash, byteorder="big")
                 if metric >= 2 ** 256:
                     raise ValueError("insufficient difficulty")
             elif (
@@ -423,6 +427,16 @@ class ShardState:
             self.db.get_root_block_header_by_hash(prev_header.hash_prev_root_block),
         ):
             raise ValueError("prev root blocks are not on the same chain")
+
+        # Check PoW if applicable
+        consensus_type = self.env.quark_chain_config.SHARD_LIST[
+            self.shard_id
+        ].CONSENSUS_TYPE
+        if consensus_type == ConsensusType.POW_ETHASH:
+            nonce_bytes = block.header.nonce.to_bytes(8, byteorder="big")
+            mixhash = block.header.mixhash
+            if not check_pow(height, header_hash, mixhash, nonce_bytes, curr_diff):
+                raise ValueError("invalid pow proof")
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
