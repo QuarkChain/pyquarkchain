@@ -2,6 +2,18 @@
 
 [![CircleCI](https://circleci.com/gh/QuarkChain/pyquarkchain/tree/master.svg?style=shield&circle-token=c17a071129e4ab6c0911154c955efc236b1a5015)](https://circleci.com/gh/QuarkChain/pyquarkchain/tree/master)
 
+QuarkChain is a sharded blockchain protocol that employs a two-layer architecture - one extensible sharding layer consisting of multiple shard chains processing transactions and one root chain layer securing the network and coordinating cross-shard transactions among shard chains. The capacity of the network scales linearly as the number of shard chains increase while the root chain is always providing strong security guarantee regardless of the number of shards. QuarkChain testnet consistently hit [10,000+ TPS](https://youtu.be/dUldrq3zKwE?t=8m28s) with 256 shards run by 50 clusters consisting of 6450 servers with each loadtest submitting 3,000,000 transactions to the network.
+
+## Features
+
+- Cluster implementation allowing multiple processes / physical machines to work together as a single full node
+- State sharding dividing global state onto independent processing and storage units allowing the network capacity to scale linearly by adding more shards
+- Cross-shard transaction allowing native token transfers among shard chains
+- Adding shards dynamically to the network
+- Support of different mining algorithms on different shards
+- P2P network allowing clusters to join and leave anytime
+- Fully compatible with Ethereum smart contract
+
 ## Development Setup
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
@@ -72,3 +84,14 @@ Run multiple clusters with P2P network (--mine sets exactly 1 cluster to mine)
 ```bash
 pypy3 multi_cluster.py --num_clusters=3 --devp2p_enable
 ```
+
+## Issue
+Please open issues on github to report bugs or make feature requests.
+
+## Contribution
+All the help from community is appreciated! If you are interested in working on features or fixing bugs, please open an issue first
+to describe the task you are planning to do. For small fixes (a few lines of change) feel
+free to open pull requests directly.
+
+## Developer Community
+Join our developer community on [Discord](https://discord.gg/Jbp35ZC).
