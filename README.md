@@ -18,23 +18,17 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
-To install pypy3 on OSX, first install [Homebrew](https://brew.sh/) and then
+To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
+
+```bash
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+```
+
+Then install pypy3 and other dependencies
 
 ```bash
 brew install pypy3
-```
-
-<b>For MacOS:</b>
-
-Installing GMP
-
-```bash
 brew install gmp
-```
-
-Installing pkg-config
-
-```bash
 brew install pkg-config
 ```
 
