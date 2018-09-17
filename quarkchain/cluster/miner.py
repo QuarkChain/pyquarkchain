@@ -8,7 +8,7 @@ from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
 from multiprocessing import Queue as MultiProcessingQueue
 
-from typing import Callable, Union, Awaitable, Dict
+from typing import Callable, Union, Awaitable, Dict, Any
 
 from ethereum.pow.ethpow import EthashMiner
 from quarkchain.env import DEFAULT_ENV
@@ -24,7 +24,7 @@ class Miner:
         consensus_type: ConsensusType,
         create_block_async_func: Callable[[], Awaitable[Union[MinorBlock, RootBlock]]],
         add_block_async_func: Callable[[Union[MinorBlock, RootBlock]], Awaitable[None]],
-        get_target_block_time_func: Callable[[], float],
+        get_mining_param_func: Callable[[], Dict[str, Any]],
         # TODO: clean this up if confirmed not used
         env,
     ):
@@ -32,26 +32,20 @@ class Miner:
 
         create_block_async_func: takes no argument, returns a block (either RootBlock or MinorBlock)
         add_block_async_func: takes a block, add it to chain
-        get_target_block_time_func: takes no argument, returns the target block time in second
+        get_mining_param_func: takes no argument, returns the mining-specific params
         """
-        check(consensus_type == ConsensusType.POW_SIMULATE)
         if consensus_type == ConsensusType.POW_SIMULATE:
             self.mine_func = Miner.simulate_mine
-            self.mining_param_func = lambda: {
-                "target_block_time": self.get_target_block_time_func()
-            }
         elif consensus_type == ConsensusType.POW_ETHASH:
             self.mine_func = Miner.mine_ethash
-            self.mining_param_func = lambda: {}
         elif consensus_type == ConsensusType.POW_SHA3SHA3:
             self.mine_func = Miner.mine_sha3sha3
-            self.mining_param_func = lambda: {}
         else:
             raise ValueError("Consensus? ( う-´)づ︻╦̵̵̿╤──   \(˚☐˚”)/")
 
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func
-        self.get_target_block_time_func = get_target_block_time_func
+        self.get_mining_param_func = get_mining_param_func
         self.enabled = False
         self.process = None
         self.env = env
@@ -86,7 +80,7 @@ class Miner:
             If a mining process has already been started, update the process to mine the new block.
             """
             block = await instance.create_block_async_func()
-            mining_params = instance.mining_param_func()
+            mining_params = instance.get_mining_param_func()
             if instance.process:
                 instance.input_q.put((block, mining_params))
                 return
@@ -186,8 +180,9 @@ class Miner:
         output_q: MultiProcessingQueue,
         mining_params: Dict,
     ):
-        # TODO: make it configurable, or adjustable through `mining_params`
-        ROUNDS = 100
+        # TODO: maybe add rounds to config json
+        rounds = mining_params.get("rounds", 100)
+        is_test = mining_params.get("is_test", False)
         # outer loop for mining forever
         while True:
             # `None` block means termination
@@ -198,26 +193,27 @@ class Miner:
             header_hash = block.header.get_hash()
             block_number = block.header.height
             difficulty = block.header.difficulty
-            miner = EthashMiner(block_number, difficulty, header_hash)
+            miner = EthashMiner(block_number, difficulty, header_hash, is_test)
             start_nonce = 0
             # inner loop for iterating nonce
             while True:
-                nonce_found, mixhash = miner.mine(ROUNDS, start_nonce)
+                nonce_found, mixhash = miner.mine(rounds, start_nonce)
                 # best case
                 if nonce_found:
                     block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
                     Miner._post_process_mined_block(block)
+                    # TODO: adding `mixhash` to header for seal validation
                     output_q.put(block)
-                    block, mining_params = input_q.get(block=True)  # blocking
+                    block, _ = input_q.get(block=True)  # blocking
                     break  # break inner loop to refresh mining params
                 # check if new block arrives. if yes, discard current progress and restart
                 try:
-                    block, mining_params = input_q.get_nowait()
+                    block, _ = input_q.get_nowait()
                     break  # break inner loop to refresh mining params
                 except Exception:  # queue empty
                     pass
                 # update param and keep mining
-                start_nonce += ROUNDS
+                start_nonce += rounds
 
     @staticmethod
     def mine_sha3sha3(

@@ -403,14 +403,16 @@ class Shard:
                 return
             await self.handle_new_block(block)
 
-        def __get_target_block_time():
-            return self.slave.artificial_tx_config.target_minor_block_time
+        def __get_mining_param():
+            return {
+                "target_block_time": self.slave.artificial_tx_config.target_minor_block_time
+            }
 
         self.miner = Miner(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].CONSENSUS_TYPE,
             __create_block,
             __add_block,
-            __get_target_block_time,
+            __get_mining_param,
             self.env,
         )
 
