@@ -26,6 +26,14 @@ brew install pypy3
 
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project so that the python modules installed later will only affect this environment.
 
+To clone the code to your target directory
+
+```
+git clone git@github.com:QuarkChain/pyquarkchain.git
+cd pyquarkchain
+
+```
+
 To create a virtual environment
 
 ```bash
