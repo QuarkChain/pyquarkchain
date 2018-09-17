@@ -144,7 +144,11 @@ class ShardState:
         return EvmState(env=self.env.evm_env, db=self.raw_db)
 
     def init_genesis_state(self, root_block):
-        """ root_block should have the same height as configured in shard GENESIS """
+        """ root_block should have the same height as configured in shard GENESIS.
+        If a genesis block has already been created (probably from another root block
+        with the same height), create and store the new genesis block from root_block
+        without modifying the in-memory state of this ShardState object.
+        """
         height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
         check(root_block.header.height == height)
 
@@ -160,6 +164,8 @@ class ShardState:
             # already initialized. just return the block without resetting the state.
             return genesis_block
 
+        # block index should not be overwritten if there is already a genesis block
+        # this must happen after the above initialization check
         self.db.put_minor_block_index(genesis_block)
 
         self.evm_state = self.__create_evm_state()

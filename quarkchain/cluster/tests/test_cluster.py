@@ -470,6 +470,7 @@ class TestCluster(unittest.TestCase):
             is_root, root2 = call_async(master1.get_next_block_to_mine(acc2))
             self.assertTrue(is_root)
             call_async(master1.add_root_block(root2))
+            self.assertEqual(master1.root_state.tip.height, 2)
 
             # reestablish cluster connection
             call_async(
