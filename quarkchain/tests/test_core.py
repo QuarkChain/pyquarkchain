@@ -1,10 +1,21 @@
 import unittest
 
-from quarkchain.core import Branch, ShardInfo, biguint
-from quarkchain.core import Identity, Address
-from quarkchain.core import RootBlockHeader, MinorBlockHeader, MinorBlockMeta
-from quarkchain.core import ShardMask, Optional, Serializable, uint32
-from quarkchain.core import Transaction, ByteBuffer
+from quarkchain.core import (
+    Branch,
+    ShardInfo,
+    biguint,
+    Identity,
+    Address,
+    RootBlockHeader,
+    MinorBlockHeader,
+    MinorBlockMeta,
+    ShardMask,
+    Optional,
+    Serializable,
+    uint32,
+    Transaction,
+    ByteBuffer,
+)
 from quarkchain.tests.test_utils import create_random_test_transaction
 
 SIZE_LIST = [(RootBlockHeader, 175), (MinorBlockHeader, 481), (MinorBlockMeta, 186)]
