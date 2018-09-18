@@ -10,11 +10,29 @@ from multiprocessing import Queue as MultiProcessingQueue
 
 from typing import Callable, Union, Awaitable, Dict, Any
 
-from ethereum.pow.ethpow import EthashMiner
+from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
-from quarkchain.core import MinorBlock, RootBlock
+from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
 from quarkchain.utils import time_ms
+
+
+def validate_seal(
+    block_header: Union[RootBlockHeader, MinorBlockHeader],
+    consensus_type: ConsensusType,
+) -> None:
+    if consensus_type == ConsensusType.POW_ETHASH:
+        nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
+        if not check_pow(
+            block_header.height,
+            block_header.get_hash(),
+            block_header.mixhash,
+            nonce_bytes,
+            block_header.difficulty,
+        ):
+            raise ValueError("invalid pow proof")
+
+    return
 
 
 class Miner:

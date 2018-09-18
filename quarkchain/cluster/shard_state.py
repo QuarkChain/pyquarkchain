@@ -4,12 +4,12 @@ import time
 from collections import defaultdict
 from typing import Optional, Tuple, List, Union, Dict
 
-from ethereum.pow.ethpow import check_pow
 from quarkchain.cluster.filter import Filter
+from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
-from quarkchain.config import NetworkId, ConsensusType
+from quarkchain.config import NetworkId
 from quarkchain.core import (
     calculate_merkle_root,
     Address,
@@ -432,11 +432,7 @@ class ShardState:
         consensus_type = self.env.quark_chain_config.SHARD_LIST[
             self.shard_id
         ].CONSENSUS_TYPE
-        if consensus_type == ConsensusType.POW_ETHASH:
-            nonce_bytes = block.header.nonce.to_bytes(8, byteorder="big")
-            mixhash = block.header.mixhash
-            if not check_pow(height, header_hash, mixhash, nonce_bytes, curr_diff):
-                raise ValueError("invalid pow proof")
+        validate_seal(block.header, consensus_type)
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None

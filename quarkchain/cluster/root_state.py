@@ -2,8 +2,8 @@ import time
 import json
 import asyncio
 
-from ethereum.pow.ethpow import check_pow
-from quarkchain.config import NetworkId, ConsensusType
+from quarkchain.cluster.miner import validate_seal
+from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
 from quarkchain.core import (
     calculate_merkle_root,
@@ -264,11 +264,7 @@ class RootState:
 
         # Check PoW if applicable
         consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
-        if consensus_type == ConsensusType.POW_ETHASH:
-            nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
-            mixhash = block_header.mixhash
-            if not check_pow(height, header_hash, mixhash, nonce_bytes, curr_diff):
-                raise ValueError("invalid pow proof")
+        validate_seal(block_header, consensus_type)
 
         return block_hash
 
