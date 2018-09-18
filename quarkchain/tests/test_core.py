@@ -1,13 +1,13 @@
 import unittest
 
-from quarkchain.core import Branch, ShardInfo
+from quarkchain.core import Branch, ShardInfo, biguint
 from quarkchain.core import Identity, Address
 from quarkchain.core import RootBlockHeader, MinorBlockHeader, MinorBlockMeta
 from quarkchain.core import ShardMask, Optional, Serializable, uint32
 from quarkchain.core import Transaction, ByteBuffer
 from quarkchain.tests.test_utils import create_random_test_transaction
 
-SIZE_LIST = [(RootBlockHeader, 178), (MinorBlockHeader, 488), (MinorBlockMeta, 186)]
+SIZE_LIST = [(RootBlockHeader, 175), (MinorBlockHeader, 481), (MinorBlockMeta, 186)]
 
 
 class TestDataSize(unittest.TestCase):
@@ -108,3 +108,25 @@ class TestOptional(unittest.TestCase):
         b = v.serialize()
         v1 = Uint32Optional.deserialize(b)
         self.assertEqual(v.value, v1.value)
+
+
+class ABigUint(Serializable):
+    FIELDS = [("value", biguint)]
+
+    def __init__(self, value: int):
+        self.value = value
+
+
+class TestBigUint(unittest.TestCase):
+    def test_big_uint(self):
+        v = ABigUint(9 ** 100)
+        b = v.serialize()
+        self.assertEqual(
+            b.hex(),
+            "281fd5863c3eb0469ec21a937a76f3432ffd73d97e447606b683ecf6f6e4a7ae225bfaff1eaaf8b0a1",
+        )
+        vv = ABigUint.deserialize(b)
+        self.assertEqual(vv.value, v.value)
+
+        v = ABigUint(9 ** 1000)
+        self.assertRaises(RuntimeError, v.serialize)
