@@ -28,9 +28,7 @@ def main():
             if shard != args.shard:
                 continue
             address = Address.create_from_identity(identity, fullShard)
-        result.append(
-            {"address": "0x" + address.to_hex(), "key": "0x" + identity.get_key().hex()}
-        )
+        result.append({"address": address.to_hex(), "key": identity.get_key().hex()})
         args.num_accounts -= 1
         if args.num_accounts == 0:
             break
