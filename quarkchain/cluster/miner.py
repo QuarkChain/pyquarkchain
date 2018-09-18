@@ -41,7 +41,7 @@ class Miner:
         elif consensus_type == ConsensusType.POW_SHA3SHA3:
             self.mine_func = Miner.mine_sha3sha3
         else:
-            raise ValueError("Consensus? ( う-´)づ︻╦̵̵̿╤──   \(˚☐˚”)/")
+            raise ValueError("Consensus? (╯°□°）╯︵ ┻━┻")
 
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func

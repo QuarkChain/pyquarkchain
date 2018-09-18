@@ -68,7 +68,7 @@ class TestMiner(unittest.TestCase):
             nonlocal i, miner
             try:
                 if i % 2 == 0:
-                    raise Exception("( う-´)づ︻╦̵̵̿╤──   \(˚☐˚”)/")
+                    raise Exception("(╯°□°）╯︵ ┻━┻")
                 else:
                     self.added_blocks.append(block)
                     miner.mine_new_block_async()
