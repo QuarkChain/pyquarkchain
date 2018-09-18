@@ -27,9 +27,7 @@ To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
 Then install pypy3 and other dependencies
 
 ```bash
-brew install pypy3
-brew install gmp
-brew install pkg-config
+brew install pypy3 gmp pkg-config
 ```
 
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project so that the python modules installed later will only affect this environment.
@@ -127,6 +125,9 @@ An example of output:
   "id": 1
 }
 ```
+
+For details, check our [developer documentation](https://developers.quarkchain.io).
+
 
 ## Issue
 Please open issues on github to report bugs or make feature requests.
