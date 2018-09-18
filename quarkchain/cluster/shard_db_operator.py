@@ -4,6 +4,7 @@ from quarkchain.cluster.rpc import TransactionDetail
 from quarkchain.core import (
     RootBlock,
     MinorBlock,
+    MinorBlockHeader,
     CrossShardTransactionList,
     Branch,
     Address,
@@ -296,11 +297,13 @@ class ShardDbOperator(TransactionHistoryMixin):
             return 0
         return int.from_bytes(count_bytes, "big")
 
-    def get_minor_block_header_by_hash(self, h, consistency_check=True):
+    def get_minor_block_header_by_hash(
+        self, h, consistency_check=True
+    ) -> Optional[MinorBlockHeader]:
         header = self.m_header_pool.get(h, None)
         if not header and not consistency_check:
             block = self.get_minor_block_by_hash(h, False)
-            header = block.header
+            header = block.header if block else None
         return header
 
     def get_minor_block_evm_root_hash_by_hash(self, h):
@@ -314,11 +317,12 @@ class ShardDbOperator(TransactionHistoryMixin):
         return self.m_meta_pool.get(h, None)
 
     def get_minor_block_by_hash(
-        self, h, consistency_check=True
+        self, h: bytes, consistency_check=True
     ) -> Optional[MinorBlock]:
         if consistency_check and h not in self.m_header_pool:
             return None
-        return MinorBlock.deserialize(self.db.get(b"mblock_" + h))
+        data = self.db.get(b"mblock_" + h, None)
+        return MinorBlock.deserialize(data) if data else None
 
     def contain_minor_block_by_hash(self, h):
         return h in self.m_header_pool
@@ -403,7 +407,6 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.db.put(key, value)
 
     def get(self, key, default=None):
-
         return self.db.get(key, default)
 
     def __getitem__(self, key):

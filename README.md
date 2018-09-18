@@ -112,7 +112,7 @@ curl -X POST --data '{
 
 An example of output:
 
-```bash
+```json
 {
   "jsonrpc": "2.0",
   "result": {
