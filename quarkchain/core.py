@@ -662,6 +662,7 @@ class MinorBlockHeader(Serializable):
         ("difficulty", uint64),
         ("nonce", uint64),
         ("bloom", uint2048),
+        ("mixhash", hash256),
     ]
 
     def __init__(
@@ -678,6 +679,7 @@ class MinorBlockHeader(Serializable):
         difficulty: int = 0,
         nonce: int = 0,
         bloom: int = 0,
+        mixhash: bytes = bytes(Constant.HASH_LENGTH),
     ):
         self.version = version
         self.height = height
@@ -691,6 +693,7 @@ class MinorBlockHeader(Serializable):
         self.difficulty = difficulty
         self.nonce = nonce
         self.bloom = bloom
+        self.mixhash = mixhash
 
     def get_hash(self):
         return sha3_256(self.serialize())
@@ -823,6 +826,7 @@ class RootBlockHeader(Serializable):
         ("difficulty", uint32),
         ("nonce", uint32),
         ("extra_data", PrependedSizeBytesSerializer(2)),
+        ("mixhash", hash256),
     ]
 
     def __init__(
@@ -830,23 +834,39 @@ class RootBlockHeader(Serializable):
         version=0,
         height=0,
         shard_info=ShardInfo.create(1, False),
-        hash_prev_block=bytes(32),
-        hash_merkle_root=bytes(32),
+        hash_prev_block=bytes(Constant.HASH_LENGTH),
+        hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
         coinbase_amount=0,
         create_time=0,
         difficulty=0,
         nonce=0,
-        extra_data: bytes=b"",
+        extra_data: bytes = b"",
+        mixhash: bytes = bytes(Constant.HASH_LENGTH),
     ):
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
+        self.version = version
+        self.height = height
+        self.shard_info = shard_info
+        self.hash_prev_block = hash_prev_block
+        self.hash_merkle_root = hash_merkle_root
+        self.coinbase_address = coinbase_address
+        self.coinbase_amount = coinbase_amount
+        self.create_time = create_time
+        self.difficulty = difficulty
+        self.nonce = nonce
+        self.extra_data = extra_data
+        self.mixhash = mixhash
 
     def get_hash(self):
         return sha3_256(self.serialize())
 
     def create_block_to_append(
-        self, create_time=None, difficulty=None, address=None, nonce=0, extra_data: bytes=b"",
+        self,
+        create_time=None,
+        difficulty=None,
+        address=None,
+        nonce=0,
+        extra_data: bytes = b"",
     ):
         create_time = self.create_time + 1 if create_time is None else create_time
         difficulty = difficulty if difficulty is not None else self.difficulty

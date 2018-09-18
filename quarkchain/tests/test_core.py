@@ -7,7 +7,7 @@ from quarkchain.core import ShardMask, Optional, Serializable, uint32
 from quarkchain.core import Transaction, ByteBuffer
 from quarkchain.tests.test_utils import create_random_test_transaction
 
-SIZE_LIST = [(RootBlockHeader, 146), (MinorBlockHeader, 456), (MinorBlockMeta, 186)]
+SIZE_LIST = [(RootBlockHeader, 178), (MinorBlockHeader, 488), (MinorBlockMeta, 186)]
 
 
 class TestDataSize(unittest.TestCase):
