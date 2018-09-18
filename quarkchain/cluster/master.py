@@ -535,14 +535,16 @@ class MasterServer:
 
             await self.add_root_block(block)
 
-        def __get_target_block_time():
-            return self.get_artificial_tx_config().target_root_block_time
+        def __get_mining_params():
+            return {
+                "target_block_time": self.get_artificial_tx_config().target_root_block_time
+            }
 
         self.root_miner = Miner(
             self.env.quark_chain_config.ROOT.CONSENSUS_TYPE,
             __create_block,
             __add_block,
-            __get_target_block_time,
+            __get_mining_params,
             self.env,
         )
 
@@ -894,7 +896,10 @@ class MasterServer:
                     account_branch_data.branch
                 ] = account_branch_data
 
-        check(len(branch_to_account_branch_data) == len(self.env.quark_chain_config.get_genesis_shard_ids()))
+        check(
+            len(branch_to_account_branch_data)
+            == len(self.env.quark_chain_config.get_genesis_shard_ids())
+        )
         return branch_to_account_branch_data
 
     async def get_primary_account_data(

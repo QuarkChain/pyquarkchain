@@ -86,6 +86,37 @@ class TestEthash(unittest.TestCase):
         validity = check_pow(1, header_hash, mixhash, nonce_found, 100, is_test=True)
         self.assertTrue(validity)
 
+        # other possible outputs (sampled from go-ethereum)
+        testcases = [
+            (
+                503576143155619397,
+                "0xd5a90f02eef0b6f7ba5604e9e65f7828c17996a56e0148f8404d6c8f3dd07f3a",
+            ),
+            (
+                6947843674177790099,
+                "0x966681384550a9232c83158a3be6f7773b55a0ebbd1f9a78f385b9c035aba12c",
+            ),
+            (
+                1041697522366904564,
+                "0xf172fea4c4d31cc03ccbf61db5bd00aff1e14a86e7405d5ed9840ffedaca6391",
+            ),
+            (
+                5854788413119655996,
+                "0x9b90d3b6725546feacde4e96300b6a5831e5ac2430cc951897ad00c457a9035d",
+            ),
+            (
+                1705796197580941570,
+                "0xdf614dcaa7a4d1566c562f99827edeedfb1b0c13dc7b58dc7ea868bcda9f8075",
+            ),
+        ]
+        for nonce_num, mixhash_str in testcases:
+            nonce_found = nonce_num.to_bytes(8, byteorder="big")
+            mixhash = bytes.fromhex(mixhash_str[2:])
+            validity = check_pow(
+                1, header_hash, mixhash, nonce_found, 100, is_test=True
+            )
+            self.assertTrue(validity)
+
     def test_pyethash(self):
         header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"
         miner = EthashMiner(1, 100, header_hash, is_test=False)

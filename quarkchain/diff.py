@@ -14,7 +14,6 @@ class EthDifficultyCalculator:
         raise NotImplementedError()
 
     def calculate_diff_with_parent(self, parent, create_time):
-        # TODO: support uncle
         check(not self.check_uncle)
         check(parent.create_time < create_time)
         sign = max(1 - (create_time - parent.create_time) // self.cutoff, -99)
