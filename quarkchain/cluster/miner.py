@@ -13,7 +13,7 @@ from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
-from quarkchain.utils import time_ms, Logger
+from quarkchain.utils import time_ms, Logger, sha3_256
 
 
 def validate_seal(
@@ -24,11 +24,19 @@ def validate_seal(
         nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
         if not check_pow(
             block_header.height,
-            block_header.get_hash(),
+            block_header.get_hash_for_mining(),
             block_header.mixhash,
             nonce_bytes,
             block_header.difficulty,
         ):
+            raise ValueError("invalid pow proof")
+    elif consensus_type == ConsensusType.POW_SHA3SHA3:
+        nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
+        target = (2 ** 256 // (block_header.difficulty or 1) - 1).to_bytes(
+            32, byteorder="big"
+        )
+        h = sha3_256(sha3_256(block_header.get_hash_for_mining() + nonce_bytes))
+        if not h < target:
             raise ValueError("invalid pow proof")
 
     return
@@ -205,7 +213,7 @@ class Miner:
                 output_q.put(None)
                 return
 
-            header_hash = block.header.get_hash()
+            header_hash = block.header.get_hash_for_mining()
             block_number = block.header.height
             difficulty = block.header.difficulty
             miner = EthashMiner(block_number, difficulty, header_hash, is_test)
@@ -232,12 +240,53 @@ class Miner:
 
     @staticmethod
     def mine_sha3sha3(
-        block,
+        block: Union[MinorBlock, RootBlock],
         input_q: MultiProcessingQueue,
         output_q: MultiProcessingQueue,
         mining_params: Dict,
     ):
-        pass
+        # TODO: control flow similar as `mine_ethash`. should refactor
+
+        def mine(start, end):
+            nonlocal header_hash, target
+            for nonce in range(start, end):
+                nonce_bytes = nonce.to_bytes(8, byteorder="big")
+                h = sha3_256(sha3_256(header_hash + nonce_bytes))
+                if h < target:
+                    return nonce_bytes
+            return None
+
+        # TODO: maybe add rounds to config json
+        rounds = mining_params.get("rounds", 100)
+        # outer loop for mining forever
+        while True:
+            # `None` block means termination
+            if not block:
+                output_q.put(None)
+                return
+
+            header_hash = block.header.get_hash_for_mining()
+            target = (2 ** 256 // (block.header.difficulty or 1) - 1).to_bytes(
+                32, byteorder="big"
+            )
+            start_nonce = 0
+            # inner loop for iterating nonce
+            while True:
+                nonce_found = mine(start_nonce + 1, start_nonce + 1 + rounds)
+                if nonce_found:
+                    block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
+                    Miner._post_process_mined_block(block)
+                    output_q.put(block)
+                    block, _ = input_q.get(block=True)  # blocking
+                    break  # break inner loop to refresh mining params
+                # check if new block arrives. if yes, discard current progress and restart
+                try:
+                    block, _ = input_q.get_nowait()
+                    break  # break inner loop to refresh mining params
+                except Exception:  # queue empty
+                    pass
+                # update param and keep mining
+                start_nonce += rounds
 
     @staticmethod
     def _post_process_mined_block(block: Union[MinorBlock, RootBlock]):

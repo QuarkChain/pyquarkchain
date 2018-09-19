@@ -4,7 +4,7 @@ import time
 import unittest
 from typing import Optional
 
-from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
 
@@ -44,7 +44,11 @@ class TestMiner(unittest.TestCase):
             self.added_blocks.append(block)
             miner.mine_new_block_async()
 
-        for consensus in (ConsensusType.POW_SIMULATE, ConsensusType.POW_ETHASH):
+        for consensus in (
+            ConsensusType.POW_SIMULATE,
+            ConsensusType.POW_ETHASH,
+            ConsensusType.POW_SHA3SHA3,
+        ):
             miner = self.miner_gen(consensus, create, add)
             # should generate 5 blocks and then end
             loop = asyncio.get_event_loop()
@@ -113,3 +117,17 @@ class TestMiner(unittest.TestCase):
         loop.run_until_complete(miner.mine_new_block_async())
         # will only have 1 block mined
         self.assertEqual(len(self.added_blocks), 1)
+
+    def test_sha3sha3(self):
+        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
+        block = RootBlock(
+            RootBlockHeader(
+                create_time=42, extra_data="{}".encode("utf-8"), difficulty=5
+            )
+        )
+        # only process one block, which is passed in
+        miner.input_q.put((None, {}))
+        miner.mine_sha3sha3(block, miner.input_q, miner.output_q, {})
+        mined_block = miner.output_q.get()
+        self.assertEqual(mined_block.header.nonce, 3)
+        validate_seal(mined_block.header, ConsensusType.POW_SHA3SHA3)
