@@ -130,14 +130,14 @@ class ABigUint(Serializable):
 
 class TestBigUint(unittest.TestCase):
     def test_big_uint(self):
-        v = ABigUint(9 ** 100)
-        b = v.serialize()
-        self.assertEqual(
-            b.hex(),
-            "281fd5863c3eb0469ec21a937a76f3432ffd73d97e447606b683ecf6f6e4a7ae225bfaff1eaaf8b0a1",
-        )
-        vv = ABigUint.deserialize(b)
-        self.assertEqual(vv.value, v.value)
+        testcases = [9 ** 10, 2 ** (255 * 8) - 1, 0]
+        for tc in testcases:
+            v = ABigUint(tc)
+            b = v.serialize()
+            vv = ABigUint.deserialize(b)
+            self.assertEqual(vv.value, v.value)
 
-        v = ABigUint(9 ** 1000)
-        self.assertRaises(RuntimeError, v.serialize)
+        testcases = [9 ** 1000, 2 ** (255 * 8)]
+        for tc in testcases:
+            v = ABigUint(tc)
+            self.assertRaises(RuntimeError, v.serialize)

@@ -175,15 +175,12 @@ class BigUintSerializer:
 
     def serialize(self, value, barray):
         value_size_in_byte = (value.bit_length() - 1) // 8 + 1
-        if value_size_in_byte >= 256:
-            raise RuntimeError("value size exceeds limit")
-        barray.extend(value_size_in_byte.to_bytes(1, byteorder="big"))
-        barray.extend(value.to_bytes(value_size_in_byte, byteorder="big"))
-        return barray
+        bs = value.to_bytes(value_size_in_byte, byteorder="big")
+        return self.ser.serialize(bs, barray)
 
     def deserialize(self, bb):
-        size = bb.get_uint(1)
-        return bb.get_uint(size)
+        bs = self.ser.deserialize(bb)
+        return int.from_bytes(bs, byteorder="big")
 
 
 class Serializable:
