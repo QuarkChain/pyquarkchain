@@ -15,7 +15,6 @@ aiohttp_cors==0.7.0
 eth-utils==1.2.0
 eth-keys==0.2.0b3
 eth-bloom==1.0.0
-absl-py==0.4.0
 pyethash>=0.1.27,<1.0.0
 py_ecc==1.4.3
 eth-hash[pycryptodome]==0.1.4

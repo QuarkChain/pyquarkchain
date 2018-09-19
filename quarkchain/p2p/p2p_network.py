@@ -5,7 +5,6 @@ import asyncio
 import ipaddress
 import socket
 import random
-from absl import logging as GLOG
 
 from devp2p import peermanager
 from devp2p.app import BaseApp
@@ -49,7 +48,7 @@ class Devp2pService(WiredService):
     REFRESH_INTERVAL = 300
 
     def __init__(self, app):
-        GLOG.info("Devp2pService init")
+        Logger.info("Devp2pService init")
         self.config = app.config
         self.address = privtopub_raw(decode_hex(self.config["node"]["privkey_hex"]))
         super(Devp2pService, self).__init__(app)
@@ -59,7 +58,7 @@ class Devp2pService(WiredService):
     """
 
     def on_wire_protocol_stop(self, proto):
-        GLOG.info(
+        Logger.info(
             "NODE{} on_wire_protocol_stop proto={}".format(
                 self.config["node_num"], proto
             )
@@ -74,7 +73,7 @@ class Devp2pService(WiredService):
     """
 
     def on_wire_protocol_start(self, proto):
-        GLOG.info(
+        Logger.info(
             "NODE{} on_wire_protocol_start proto={}".format(
                 self.config["node_num"], proto
             )
@@ -87,7 +86,7 @@ class Devp2pService(WiredService):
     def get_connected_peers(self):
         ps = [p for p in self.app.services.peermanager.peers if p]
         aps = [p for p in ps if not p.is_stopped]
-        GLOG.info(
+        Logger.info(
             "I am {} I have {} peers: {}".format(
                 self.app.config["client_version_string"],
                 len(aps),
@@ -108,7 +107,7 @@ class Devp2pService(WiredService):
     def loop(self):
         while True:
             gevent.sleep(self.REFRESH_INTERVAL)
-            GLOG.info("p2p periodic refresh")
+            Logger.info("p2p periodic refresh")
             active_peers = self.get_connected_peers()
             self.app.network.loop.call_soon_threadsafe(
                 asyncio.ensure_future,
@@ -116,7 +115,7 @@ class Devp2pService(WiredService):
             )
 
     def start(self):
-        GLOG.info("Devp2pService start")
+        Logger.info("Devp2pService start")
         super(Devp2pService, self).start()
         gevent.Greenlet.spawn(self.loop)
 
@@ -222,7 +221,7 @@ def devp2p_app(env, network):
     config["client_version_string"] = "{}:{}".format(ip, network.port)
 
     app = Devp2pApp(config, network)
-    GLOG.info("create_app config=%s", app.config)
+    Logger.info("create_app config=%s", app.config)
     # register services
     for service in services:
         assert issubclass(service, BaseService)
@@ -264,7 +263,7 @@ class P2PNetwork:
         await peer.start(is_server=True)
 
     async def refresh_connections(self, peers):
-        GLOG.info("Refreshing connections to {} peers: {}".format(len(peers), peers))
+        Logger.info("Refreshing connections to {} peers: {}".format(len(peers), peers))
         # 1. disconnect peers that are not in devp2p peer list
         to_be_disconnected = []
         for peer_id, peer in self.active_peer_pool.items():
@@ -272,7 +271,7 @@ class P2PNetwork:
             if ip_port not in peers:
                 to_be_disconnected.append(peer)
         if len(to_be_disconnected) > 0:
-            GLOG.info(
+            Logger.info(
                 "Disconnecting peers not in devp2p discovery: {}".format(
                     ["{}:{}".format(peer.ip, peer.port) for peer in to_be_disconnected]
                 )
@@ -287,7 +286,7 @@ class P2PNetwork:
         ]
         to_be_connected = set(peers) - set(active)
         if len(to_be_connected) > 0:
-            GLOG.info(
+            Logger.info(
                 "Connecting to peers from devp2p discovery: {}".format(to_be_connected)
             )
         self_ip_port = "{}:{}".format(self.ip, self.port)
@@ -296,18 +295,18 @@ class P2PNetwork:
                 ip, port = ip_port.split(":")
                 asyncio.ensure_future(self.connect(ip, port))
             else:
-                GLOG.info(
+                Logger.info(
                     "skipping {} to prevent concurrent peer initialization".format(
                         ip_port
                     )
                 )
 
     async def connect(self, ip, port):
-        GLOG.info("connecting {} {}".format(ip, port))
+        Logger.info("connecting {} {}".format(ip, port))
         try:
             reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
         except Exception as e:
-            GLOG.info("failed to connect {} {}: {}".format(ip, port, e))
+            Logger.info("failed to connect {} {}: {}".format(ip, port, e))
             return None
         peer = Peer(
             self.env,
@@ -335,8 +334,8 @@ class P2PNetwork:
     def start_server(self):
         coro = asyncio.start_server(self.new_peer, "0.0.0.0", self.port, loop=self.loop)
         self.server = self.loop.run_until_complete(coro)
-        GLOG.info("Self id {}".format(self.self_id.hex()))
-        GLOG.info(
+        Logger.info("Self id {}".format(self.self_id.hex()))
+        Logger.info(
             "Listening on {} for p2p".format(self.server.sockets[0].getsockname())
         )
 
