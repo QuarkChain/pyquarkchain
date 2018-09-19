@@ -81,10 +81,8 @@ _LOGGING_FILE_PREFIX = os.path.join("logging", "__init__.")
 
 class QKCLogger(logging.getLoggerClass()):
     """https://github.com/abseil/abseil-py/blob/master/absl/logging/__init__.py
-  ABSLLogger
-  """
-
-    _frames_to_skip = set()
+    refer to ABSLLogger
+    """
 
     def findCaller(self, stack_info=False):
         frame = sys._getframe(2)
@@ -109,18 +107,15 @@ class QKCLogger(logging.getLoggerClass()):
 
 
 class Logger:
-    last_debug_time_map = dict()
-    last_info_time_map = dict()
-    last_warning_time_map = dict()
-    last_error_time_map = dict()
-    logger = logging.getLogger()
-
-    LOGGER_SET = False
+    _count_map = dict()
+    _last_debug_time_map = dict()
+    _last_info_time_map = dict()
+    _last_warning_time_map = dict()
+    _last_error_time_map = dict()
     _qkc_logger = None
 
     @classmethod
     def set_logging_level(cls, level):
-        cls.LOGGER_SET = True
         level_map = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
@@ -146,7 +141,7 @@ class Logger:
 
     @classmethod
     def check_logger_set(cls):
-        if not cls.LOGGER_SET:
+        if not cls._qkc_logger:
             cls.set_logging_level("info")
             Logger.warning(
                 "Logger is called before set_logging_level, defaulting to INFO level"
@@ -154,15 +149,26 @@ class Logger:
 
     @classmethod
     def is_enable_for_debug(cls):
-        return cls.logger.is_enabled_for(logging.DEBUG)
+        return cls._qkc_logger.is_enabled_for(logging.DEBUG)
 
     @classmethod
     def is_enable_for_info(cls):
-        return cls.logger.is_enabled_for(logging.INFO)
+        return cls._qkc_logger.is_enabled_for(logging.INFO)
 
     @classmethod
     def is_enable_for_warning(cls):
-        return cls.logger.is_enabled_for(logging.WARNING)
+        return cls._qkc_logger.is_enabled_for(logging.WARNING)
+
+    @classmethod
+    def check_count(cls, n):
+        try:
+            frame = sys._getframe(2)
+        except ValueError:
+            return True
+        key = (frame.f_code.co_filename, frame.f_lineno)
+        count = cls._count_map.get(key, 0)
+        cls._count_map[key] = count + 1
+        return count % n == 0
 
     @classmethod
     def debug(cls, msg, *args, **kwargs):
@@ -178,11 +184,16 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_debug_time_map
-            or time.time() - cls.last_debug_time_map[key] > duration
+            key not in cls._last_debug_time_map
+            or time.time() - cls._last_debug_time_map[key] > duration
         ):
             Logger.debug(msg)
-            cls.last_debug_time_map[key] = time.time()
+            cls._last_debug_time_map[key] = time.time()
+
+    @classmethod
+    def debug_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.debug(msg)
 
     @classmethod
     def info(cls, msg):
@@ -198,11 +209,16 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_info_time_map
-            or time.time() - cls.last_info_time_map[key] > duration
+            key not in cls._last_info_time_map
+            or time.time() - cls._last_info_time_map[key] > duration
         ):
             Logger.info(msg)
-            cls.last_info_time_map[key] = time.time()
+            cls._last_info_time_map[key] = time.time()
+
+    @classmethod
+    def info_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.info(msg)
 
     @classmethod
     def warning(cls, msg):
@@ -218,11 +234,16 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_warning_time_map
-            or time.time() - cls.last_warning_time_map[key] > duration
+            key not in cls._last_warning_time_map
+            or time.time() - cls._last_warning_time_map[key] > duration
         ):
             Logger.warning(msg)
-            cls.last_warning_time_map[key] = time.time()
+            cls._last_warning_time_map[key] = time.time()
+
+    @classmethod
+    def warning_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.warning(msg)
 
     @classmethod
     def error(cls, msg):
@@ -238,11 +259,16 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_error_time_map
-            or time.time() - cls.last_error_time_map[key] > duration
+            key not in cls._last_error_time_map
+            or time.time() - cls._last_error_time_map[key] > duration
         ):
             Logger.error(msg)
-            cls.last_error_time_map[key] = time.time()
+            cls._last_error_time_map[key] = time.time()
+
+    @classmethod
+    def error_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.error(msg)
 
     @staticmethod
     def error_exception():
@@ -261,11 +287,11 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_error_time_map
-            or time.time() - cls.last_error_time_map[key] > duration
+            key not in cls._last_error_time_map
+            or time.time() - cls._last_error_time_map[key] > duration
         ):
             cls.error_exception()
-            cls.last_error_time_map[key] = time.time()
+            cls._last_error_time_map[key] = time.time()
 
     @staticmethod
     def debug_exception():
@@ -356,6 +382,12 @@ def time_ms():
 
 def main():
     Logger.set_logging_level("debug")
+
+    for i in range(100):
+        Logger.debug_every_n("log every 10", 10)
+        Logger.info_every_n("log every 20", 20)
+        Logger.warning_every_n("log every 30", 30)
+        Logger.error_every_n("log every 40", 40)
 
     for i in range(100):
         Logger.debug_every_sec("log every 1s", 1)

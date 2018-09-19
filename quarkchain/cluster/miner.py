@@ -13,7 +13,7 @@ from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
-from quarkchain.utils import time_ms
+from quarkchain.utils import time_ms, Logger
 
 
 def validate_seal(

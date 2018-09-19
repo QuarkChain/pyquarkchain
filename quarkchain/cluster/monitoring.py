@@ -1,6 +1,7 @@
 import json
 import requests
 import aiohttp
+from quarkchain.utils import Logger
 
 
 class KafkaSampleLogger:
