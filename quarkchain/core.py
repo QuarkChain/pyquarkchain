@@ -839,9 +839,9 @@ class RootBlockHeader(Serializable):
         ("hash_merkle_root", hash256),
         ("coinbase_address", Address),
         ("coinbase_amount", uint256),
-        ("create_time", uint32),
+        ("create_time", uint64),
         ("difficulty", biguint),
-        ("nonce", uint32),
+        ("nonce", uint64),
         ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
     ]
