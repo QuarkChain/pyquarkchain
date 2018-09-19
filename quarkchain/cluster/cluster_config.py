@@ -33,8 +33,10 @@ def update_genesis_alloc(cluser_config):
     try:
         with open(alloc_file, "r") as f:
             items = json.load(f)
-
+            # address_hex -> key_hex for jsonrpc faucet drip
+            qkc_config.alloc_accounts = dict()
         for item in items:
+            qkc_config.alloc_accounts[item["address"]] = item["key"]
             address = Address.create_from(item["address"])
             shard = address.get_shard_id(qkc_config.SHARD_SIZE)
             qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
