@@ -167,6 +167,22 @@ class PrependedSizeListSerializer:
         return [self.ser.deserialize(bb) for i in range(size)]
 
 
+class BigUintSerializer:
+    """Not infinity, but pretty big: 2^2048-1"""
+
+    def __init__(self):
+        self.ser = PrependedSizeBytesSerializer(1)
+
+    def serialize(self, value, barray):
+        value_size_in_byte = (value.bit_length() - 1) // 8 + 1
+        bs = value.to_bytes(value_size_in_byte, byteorder="big")
+        return self.ser.serialize(bs, barray)
+
+    def deserialize(self, bb):
+        bs = self.ser.deserialize(bb)
+        return int.from_bytes(bs, byteorder="big")
+
+
 class Serializable:
     def __init__(self, *args, **kwargs):
         for k, v in kwargs.items():
@@ -234,6 +250,7 @@ uint256 = UintSerializer(32)
 uint2048 = UintSerializer(256)
 hash256 = FixedSizeBytesSerializer(32)
 boolean = BooleanSerializer()
+biguint = BigUintSerializer()
 
 
 def serialize_list(l: list, barray: bytearray, serializer=None) -> None:
@@ -659,7 +676,7 @@ class MinorBlockHeader(Serializable):
         ("evm_gas_limit", uint256),
         ("hash_meta", hash256),
         ("create_time", uint64),
-        ("difficulty", uint64),
+        ("difficulty", biguint),
         ("nonce", uint64),
         ("bloom", uint2048),
         ("mixhash", hash256),
@@ -823,7 +840,7 @@ class RootBlockHeader(Serializable):
         ("coinbase_address", Address),
         ("coinbase_amount", uint256),
         ("create_time", uint32),
-        ("difficulty", uint32),
+        ("difficulty", biguint),
         ("nonce", uint32),
         ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
