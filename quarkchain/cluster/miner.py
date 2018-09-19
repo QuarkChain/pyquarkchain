@@ -4,7 +4,6 @@ import time
 import json
 
 import numpy
-from absl import logging as GLOG
 from aioprocessing import AioProcess, AioQueue
 from multiprocessing import Queue as MultiProcessingQueue
 
@@ -14,7 +13,7 @@ from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.config import NetworkId, ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
-from quarkchain.utils import time_ms
+from quarkchain.utils import time_ms, Logger
 
 
 def validate_seal(
@@ -89,7 +88,7 @@ class Miner:
                 try:
                     await instance.add_block_async_func(block)
                 except Exception as ex:
-                    GLOG.exception(ex)
+                    Logger.error(ex)
                     instance.mine_new_block_async()
 
         async def mine_new_block(instance: Miner):
@@ -119,8 +118,7 @@ class Miner:
         shard = "R" if is_root else block.header.branch.get_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
-        GLOG.log_every_n_seconds(
-            GLOG.INFO,
+        Logger.info_every_sec(
             "[{}] {} [{}] ({:.2f}) {}".format(
                 shard,
                 block.header.height,
@@ -144,7 +142,7 @@ class Miner:
             # Adjust the target block time to compensate computation time
             gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
-            GLOG.debug(
+            Logger.debug(
                 "[{}] target block time {:.2f}".format(
                     block.header.branch.get_shard_id(), target_block_time
                 )

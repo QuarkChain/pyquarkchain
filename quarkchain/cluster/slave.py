@@ -5,9 +5,6 @@ import ipaddress
 import sys
 from typing import Optional, Tuple, Dict, List, Union
 
-# absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
-from absl import flags
-
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.p2p_commands import CommandOp, GetMinorBlockListRequest
@@ -76,9 +73,7 @@ from quarkchain.core import (
 )
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
-from quarkchain.utils import check, set_logging_level, Logger
-
-FLAGS = flags.FLAGS
+from quarkchain.utils import check, Logger
 
 
 class MasterConnection(ClusterConnection):
@@ -1141,21 +1136,17 @@ def parse_args():
     ClusterConfig.attach_arguments(parser)
     # Unique Id identifying the node in the cluster
     parser.add_argument("--node_id", default="", type=str)
-    args, unknown_flags = parser.parse_known_args()
+    args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
     env.slave_config = env.cluster_config.get_slave_config(args.node_id)
-    set_logging_level(env.cluster_config.LOG_LEVEL)
 
-    return env, unknown_flags
+    return env
 
 
 def main():
-    env, unknown_flags = parse_args()
-    FLAGS(sys.argv[:1] + unknown_flags)
-    if FLAGS["verbosity"].using_default_value:
-        FLAGS.verbosity = 0  # INFO level
+    env = parse_args()
 
     slave_server = SlaveServer(env)
     slave_server.start_and_loop()

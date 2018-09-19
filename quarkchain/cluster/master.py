@@ -2,18 +2,13 @@ import argparse
 import asyncio
 import ipaddress
 import json
+import psutil
 import random
+import sys
 import time
 from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict
-
-import psutil
-
-# absl has to be imported before Logger (Logger changes default logger by logging.setLoggerClass(SLogger))
-from absl import logging as GLOG
-from absl import flags
-import sys
 
 from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.p2p_commands import (
@@ -70,10 +65,8 @@ from quarkchain.core import Branch, ShardMask, Log, Address
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
-from quarkchain.utils import set_logging_level, Logger, check, time_ms
+from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
-
-FLAGS = flags.FLAGS
 
 
 class SyncTask:
@@ -1313,12 +1306,10 @@ class MasterServer:
 def parse_args():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
-    args, unknown_flags = parser.parse_known_args()
+    args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
-
-    set_logging_level(env.cluster_config.LOG_LEVEL)
 
     # initialize database
     if not env.cluster_config.use_mem_db():
@@ -1327,18 +1318,13 @@ def parse_args():
             clean=env.cluster_config.CLEAN,
         )
 
-    return env, unknown_flags
+    return env
 
 
 def main():
-
     from quarkchain.cluster.jsonrpc import JSONRPCServer
 
-    env, unknown_flags = parse_args()
-    FLAGS(sys.argv[:1] + unknown_flags)
-    if FLAGS["verbosity"].using_default_value:
-        FLAGS.verbosity = 0  # INFO level
-
+    env = parse_args()
     root_state = RootState(env)
 
     master = MasterServer(env, root_state)
