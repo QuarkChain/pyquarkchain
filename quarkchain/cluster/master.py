@@ -538,7 +538,6 @@ class MasterServer:
             __create_block,
             __add_block,
             __get_mining_params,
-            self.env,
         )
 
     def __get_shard_size(self):

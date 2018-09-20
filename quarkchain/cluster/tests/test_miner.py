@@ -14,7 +14,7 @@ class TestMiner(unittest.TestCase):
         super().setUp()
 
         def miner_gen(consensus, create_func, add_func):
-            m = Miner(consensus, create_func, add_func, self.get_mining_params, None)
+            m = Miner(consensus, create_func, add_func, self.get_mining_params)
             m.enable()
             return m
 
