@@ -39,8 +39,6 @@ def validate_seal(
         if not h < target:
             raise ValueError("invalid pow proof")
 
-    return
-
 
 class MiningAlgorithm(ABC):
     @abstractmethod
@@ -121,10 +119,9 @@ class Ethash(MiningAlgorithm):
         nonce_found, mixhash = self.miner.mine(end_nonce - start_nonce, start_nonce)
         if not nonce_found:
             return False
-        else:
-            self.nonce_found = nonce_found
-            self.mixhash = mixhash
-            return True
+        self.nonce_found = nonce_found
+        self.mixhash = mixhash
+        return True
 
     def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
         if not self.nonce_found:
@@ -163,8 +160,6 @@ class Miner:
         create_block_async_func: Callable[[], Awaitable[Union[MinorBlock, RootBlock]]],
         add_block_async_func: Callable[[Union[MinorBlock, RootBlock]], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
-        # TODO: clean this up if confirmed not used
-        env,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -186,9 +181,8 @@ class Miner:
         self.get_mining_param_func = get_mining_param_func
         self.enabled = False
         self.process = None
-        self.env = env
 
-        self.input_q = AioQueue()  # [(block, target_time)]
+        self.input_q = AioQueue()  # [(block, param dict)]
         self.output_q = AioQueue()  # [block]
 
     def is_enabled(self):
@@ -199,6 +193,9 @@ class Miner:
 
     def disable(self):
         """Stop the mining process if there is one"""
+        if self.enabled and self.process:
+            # end the mining process
+            self.input_q.put((None, {}))
         self.enabled = False
 
     def mine_new_block_async(self):
@@ -231,7 +228,7 @@ class Miner:
             await handle_mined_block(instance)
 
         if not self.enabled:
-            return
+            return None
         return asyncio.ensure_future(mine_new_block(self))
 
     @staticmethod
