@@ -1,7 +1,7 @@
 import json
 import requests
 import aiohttp
-from absl import logging as GLOG
+from quarkchain.utils import Logger
 
 
 class KafkaSampleLogger:
@@ -27,7 +27,7 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            GLOG.log(GLOG.ERROR, "Failed to log sample to Kafka: %s", ex)
+            Logger.error("Failed to log sample to Kafka: {}".format(ex))
 
     async def log_kafka_sample_async(self, topic: str, sample: dict):
         """logs sample to Kafka topic asynchronously
@@ -57,6 +57,6 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            GLOG.log_every_n(GLOG.ERROR, "Failed to log sample to Kafka: %s", 100, ex)
+            Logger.error_every_n("Failed to log sample to Kafka: {}".format(ex), 100)
         finally:
             await session.close()

@@ -1,8 +1,11 @@
 import asyncio
 import ctypes
+import io
+import logging
+import os
+import sys
 import time
 import traceback
-import logging
 
 from eth_utils import keccak
 
@@ -73,28 +76,104 @@ def assert_true_with_timeout(f, duration=1):
     asyncio.get_event_loop().run_until_complete(d())
 
 
+_LOGGING_FILE_PREFIX = os.path.join("logging", "__init__.")
+
+
+class QKCLogger(logging.getLoggerClass()):
+    """https://github.com/abseil/abseil-py/blob/master/absl/logging/__init__.py
+    refer to ABSLLogger
+    """
+
+    def findCaller(self, stack_info=False):
+        frame = sys._getframe(2)
+        f_to_skip = {func for func in dir(Logger) if callable(getattr(Logger, func))}
+
+        while frame:
+            code = frame.f_code
+            if _LOGGING_FILE_PREFIX not in code.co_filename and (
+                "utils.py" not in code.co_filename or code.co_name not in f_to_skip
+            ):
+                if not stack_info:
+                    return (code.co_filename, frame.f_lineno, code.co_name, "")
+                else:
+                    sinfo = None
+                    if stack_info:
+                        out = io.StringIO()
+                        out.write(u"Stack (most recent call last):\n")
+                        traceback.print_stack(frame, file=out)
+                        sinfo = out.getvalue().rstrip(u"\n")
+                    return (code.co_filename, frame.f_lineno, code.co_name, sinfo)
+            frame = frame.f_back
+
+
 class Logger:
-    last_debug_time_map = dict()
-    last_info_time_map = dict()
-    last_warning_time_map = dict()
-    last_error_time_map = dict()
-    logger = logging.getLogger()
+    _count_map = dict()
+    _last_debug_time_map = dict()
+    _last_info_time_map = dict()
+    _last_warning_time_map = dict()
+    _last_error_time_map = dict()
+    _qkc_logger = None
+
+    @classmethod
+    def set_logging_level(cls, level):
+        level_map = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL,
+        }
+        level = level.upper()
+        if level not in level_map:
+            raise RuntimeError("invalid level {}".format(level))
+
+        original_logger_class = logging.getLoggerClass()
+        logging.setLoggerClass(QKCLogger)
+        cls._qkc_logger = logging.getLogger("qkc")
+        logging.setLoggerClass(original_logger_class)
+
+        logging.root.setLevel(level_map[level])
+
+        formatter = QKCLogFormatter()
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+        logging.root.addHandler(handler)
+
+    @classmethod
+    def check_logger_set(cls):
+        if not cls._qkc_logger:
+            cls.set_logging_level("info")
+            Logger.warning(
+                "Logger is called before set_logging_level, defaulting to INFO level"
+            )
 
     @classmethod
     def is_enable_for_debug(cls):
-        return cls.logger.is_enabled_for(logging.DEBUG)
+        return cls._qkc_logger.is_enabled_for(logging.DEBUG)
 
     @classmethod
     def is_enable_for_info(cls):
-        return cls.logger.is_enabled_for(logging.INFO)
+        return cls._qkc_logger.is_enabled_for(logging.INFO)
 
     @classmethod
     def is_enable_for_warning(cls):
-        return cls.logger.is_enabled_for(logging.WARNING)
+        return cls._qkc_logger.is_enabled_for(logging.WARNING)
 
-    @staticmethod
-    def debug(msg, *args, **kwargs):
-        logging.debug(msg, *args, **kwargs)
+    @classmethod
+    def check_count(cls, n):
+        try:
+            frame = sys._getframe(2)
+        except ValueError:
+            return True
+        key = (frame.f_code.co_filename, frame.f_lineno)
+        count = cls._count_map.get(key, 0)
+        cls._count_map[key] = count + 1
+        return count % n == 0
+
+    @classmethod
+    def debug(cls, msg, *args, **kwargs):
+        Logger.check_logger_set()
+        cls._qkc_logger.debug(msg, *args, **kwargs)
 
     @classmethod
     def debug_every_sec(cls, msg, duration):
@@ -105,15 +184,21 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_debug_time_map
-            or time.time() - cls.last_debug_time_map[key] > duration
+            key not in cls._last_debug_time_map
+            or time.time() - cls._last_debug_time_map[key] > duration
         ):
             Logger.debug(msg)
-            cls.last_debug_time_map[key] = time.time()
+            cls._last_debug_time_map[key] = time.time()
 
-    @staticmethod
-    def info(msg):
-        logging.info(msg)
+    @classmethod
+    def debug_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.debug(msg)
+
+    @classmethod
+    def info(cls, msg):
+        Logger.check_logger_set()
+        cls._qkc_logger.info(msg)
 
     @classmethod
     def info_every_sec(cls, msg, duration):
@@ -124,15 +209,21 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_info_time_map
-            or time.time() - cls.last_info_time_map[key] > duration
+            key not in cls._last_info_time_map
+            or time.time() - cls._last_info_time_map[key] > duration
         ):
             Logger.info(msg)
-            cls.last_info_time_map[key] = time.time()
+            cls._last_info_time_map[key] = time.time()
 
-    @staticmethod
-    def warning(msg):
-        logging.warning(msg)
+    @classmethod
+    def info_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.info(msg)
+
+    @classmethod
+    def warning(cls, msg):
+        Logger.check_logger_set()
+        cls._qkc_logger.warning(msg)
 
     @classmethod
     def warning_every_sec(cls, msg, duration):
@@ -143,15 +234,21 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_warning_time_map
-            or time.time() - cls.last_warning_time_map[key] > duration
+            key not in cls._last_warning_time_map
+            or time.time() - cls._last_warning_time_map[key] > duration
         ):
             Logger.warning(msg)
-            cls.last_warning_time_map[key] = time.time()
+            cls._last_warning_time_map[key] = time.time()
 
-    @staticmethod
-    def error(msg):
-        logging.error(msg)
+    @classmethod
+    def warning_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.warning(msg)
+
+    @classmethod
+    def error(cls, msg):
+        Logger.check_logger_set()
+        cls._qkc_logger.error(msg)
 
     @classmethod
     def error_every_sec(cls, msg, duration):
@@ -162,11 +259,16 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_error_time_map
-            or time.time() - cls.last_error_time_map[key] > duration
+            key not in cls._last_error_time_map
+            or time.time() - cls._last_error_time_map[key] > duration
         ):
             Logger.error(msg)
-            cls.last_error_time_map[key] = time.time()
+            cls._last_error_time_map[key] = time.time()
+
+    @classmethod
+    def error_every_n(cls, msg, n):
+        if cls.check_count(n):
+            Logger.error(msg)
 
     @staticmethod
     def error_exception():
@@ -185,19 +287,19 @@ class Logger:
         key = stack_list[-2]
 
         if (
-            key not in cls.last_error_time_map
-            or time.time() - cls.last_error_time_map[key] > duration
+            key not in cls._last_error_time_map
+            or time.time() - cls._last_error_time_map[key] > duration
         ):
             cls.error_exception()
-            cls.last_error_time_map[key] = time.time()
+            cls._last_error_time_map[key] = time.time()
 
     @staticmethod
     def debug_exception():
         Logger.debug(traceback.format_exc())
 
-    @staticmethod
-    def fatal(msg):
-        logging.critical(msg)
+    @classmethod
+    def fatal(cls, msg):
+        cls._qkc_logger.critical(msg)
         crash()
 
     @staticmethod
@@ -214,37 +316,6 @@ BOLD_SEQ = "\033[1m"
 """
 
 
-def set_logging_level(level):
-    level_map = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL,
-    }
-    level = level.upper()
-    if level not in level_map:
-        raise RuntimeError("invalid level {}".format(level))
-
-    logging.addLevelName(
-        logging.DEBUG, "\033[1;33m%s\033[1;0m" % logging.getLevelName(logging.DEBUG)
-    )
-    logging.addLevelName(
-        logging.WARNING, "\033[1;35m%s\033[1;0m" % logging.getLevelName(logging.WARNING)
-    )
-    logging.addLevelName(
-        logging.ERROR, "\033[1;31m%s\033[1;0m" % logging.getLevelName(logging.ERROR)
-    )
-    logging.addLevelName(
-        logging.CRITICAL,
-        "\033[1;41m%s\033[1;0m" % logging.getLevelName(logging.CRITICAL),
-    )
-
-    logging.basicConfig(
-        format="%(asctime)s:%(levelname)s:%(message)s", level=level_map[level]
-    )
-
-
 class QKCLogFormatter(logging.Formatter):
     def format(self, record):
         prefix = get_qkc_log_prefix(record)
@@ -253,18 +324,30 @@ class QKCLogFormatter(logging.Formatter):
 
 def get_colored_initial_for_level(level: int):
     mapping = {
-        logging.CRITICAL: "\033[1;41mC\033[1;0m",
-        logging.ERROR: "\033[1;31mE\033[1;0m",
-        logging.WARNING: "\033[1;35mW\033[1;0m",
+        logging.CRITICAL: "\033[1;41mC",
+        logging.ERROR: "\033[1;31mE",
+        logging.WARNING: "\033[1;35mW",
         logging.INFO: "I",
-        logging.DEBUG: "\033[1;33mD\033[1;0m",
+        logging.DEBUG: "\033[1;33mD",
+        logging.NOTSET: "?",
+    }
+    return mapping[level]
+
+
+def get_end_color_for_level(level: int):
+    mapping = {
+        logging.CRITICAL: "\033[1;0m",
+        logging.ERROR: "\033[1;0m",
+        logging.WARNING: "\033[1;0m",
+        logging.INFO: "",
+        logging.DEBUG: "\033[1;0m",
         logging.NOTSET: "?",
     }
     return mapping[level]
 
 
 def get_qkc_log_prefix(record: logging.LogRecord):
-    """Returns the absl log prefix for the log record.
+    """Returns the absl-like log prefix for the log record.
   Args:
     record: logging.LogRecord, the record to get prefix for.
   """
@@ -273,11 +356,13 @@ def get_qkc_log_prefix(record: logging.LogRecord):
 
     level = record.levelno
     severity = get_colored_initial_for_level(level)
+    end_severity = get_end_color_for_level(level)
 
-    return "%s%02d%02d %02d:%02d:%02d.%06d %s:%d] " % (
+    return "%s%02d%02d%s %02d:%02d:%02d.%06d %s:%d] " % (
         severity,
         created_tuple.tm_mon,
         created_tuple.tm_mday,
+        end_severity,
         created_tuple.tm_hour,
         created_tuple.tm_min,
         created_tuple.tm_sec,
@@ -296,7 +381,13 @@ def time_ms():
 
 
 def main():
-    set_logging_level("debug")
+    Logger.set_logging_level("debug")
+
+    for i in range(100):
+        Logger.debug_every_n("log every 10", 10)
+        Logger.info_every_n("log every 20", 20)
+        Logger.warning_every_n("log every 30", 30)
+        Logger.error_every_n("log every 40", 40)
 
     for i in range(100):
         Logger.debug_every_sec("log every 1s", 1)

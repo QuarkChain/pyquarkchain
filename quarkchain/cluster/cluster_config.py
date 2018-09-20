@@ -5,14 +5,12 @@ import os
 import socket
 import tempfile
 
-from absl import logging as GLOG
-
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig
 from quarkchain.core import Address
 from quarkchain.core import ShardMask
-from quarkchain.utils import is_p2, check
+from quarkchain.utils import is_p2, check, Logger
 
 HOST = socket.gethostbyname(socket.gethostname())
 
@@ -43,13 +41,13 @@ def update_genesis_alloc(cluser_config):
                 10 ** 18
             )
 
-        GLOG.info(
+        Logger.info(
             "Imported {} accounts from genesis alloc at {}".format(
                 len(items), alloc_file
             )
         )
     except Exception as e:
-        GLOG.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
+        Logger.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
 
     # each account in loadtest file is funded on all the shards
     try:
@@ -64,11 +62,11 @@ def update_genesis_alloc(cluser_config):
                     address.address_in_shard(i).serialize().hex()
                 ] = 1000 * (10 ** 18)
 
-        GLOG.info(
+        Logger.info(
             "Imported {} loadtest accounts from {}".format(len(items), loadtest_file)
         )
     except Exception:
-        GLOG.info("No loadtest accounts imported into genesis alloc")
+        Logger.info("No loadtest accounts imported into genesis alloc")
 
 
 class MasterConfig(BaseConfig):
@@ -330,6 +328,7 @@ class ClusterConfig(BaseConfig):
                 config.json_filepath = args.cluster_config
         else:
             config = __create_from_args_internal()
+        Logger.set_logging_level(config.LOG_LEVEL)
         update_genesis_alloc(config)
         return config
 
