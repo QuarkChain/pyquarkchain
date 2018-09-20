@@ -116,3 +116,5 @@ venv.bak/
 # IPython notebook
 *.ipynb
 
+# Local config
+/cluster-config.json
