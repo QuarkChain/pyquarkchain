@@ -42,13 +42,12 @@ class TestMiner(unittest.TestCase):
         async def add(block):
             nonlocal miner
             self.added_blocks.append(block)
-            miner.mine_new_block_async()
 
         for consensus in (ConsensusType.POW_SIMULATE, ConsensusType.POW_ETHASH):
             miner = self.miner_gen(consensus, create, add)
             # should generate 5 blocks and then end
             loop = asyncio.get_event_loop()
-            loop.run_until_complete(miner.mine_new_block_async())
+            loop.run_until_complete(miner._mine_new_block_async())
             self.assertEqual(len(self.added_blocks), 5)
 
     def test_simulate_mine_handle_block_exception(self):
@@ -71,14 +70,13 @@ class TestMiner(unittest.TestCase):
                     raise Exception("(╯°□°）╯︵ ┻━┻")
                 else:
                     self.added_blocks.append(block)
-                    miner.mine_new_block_async()
             finally:
                 i += 1
 
         miner = self.miner_gen(ConsensusType.POW_SIMULATE, create, add)
         # only 2 blocks can be added
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(miner.mine_new_block_async())
+        loop.run_until_complete(miner._mine_new_block_async())
         self.assertEqual(len(self.added_blocks), 2)
 
     def test_mine_ethash_new_block_overwrite(self):
@@ -110,6 +108,6 @@ class TestMiner(unittest.TestCase):
         for _ in range(5):
             miner.input_q.put((block, {}))
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(miner.mine_new_block_async())
+        loop.run_until_complete(miner._mine_new_block_async())
         # will only have 1 block mined
         self.assertEqual(len(self.added_blocks), 1)

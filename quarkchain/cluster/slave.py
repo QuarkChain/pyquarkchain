@@ -784,8 +784,7 @@ class SlaveServer:
                 futures.append(shard.init_from_root_block(root_block))
                 self.shards[branch] = shard
                 if self.mining:
-                    shard.miner.enable()
-                    shard.miner.mine_new_block_async()
+                    shard.miner.start()
 
         await asyncio.gather(*futures)
 
@@ -798,8 +797,7 @@ class SlaveServer:
                     branch.get_shard_id(), artificial_tx_config.target_minor_block_time
                 )
             )
-            shard.miner.enable()
-            shard.miner.mine_new_block_async()
+            shard.miner.start()
 
     def create_transactions(self, num_tx_per_shard, x_shard_percent, tx: Transaction):
         for shard in self.shards.values():

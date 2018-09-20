@@ -545,9 +545,6 @@ class Shard:
 
         self.add_block_futures[block.header.get_hash()] = self.loop.create_future()
 
-        # Start mining new one before propagating inside cluster
-        # The propagation should be done by the time the new block is mined
-        self.miner.mine_new_block_async()
         prev_root_height = self.state.db.get_root_block_by_hash(
             block.header.hash_prev_root_block
         ).header.height

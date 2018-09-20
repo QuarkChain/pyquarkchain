@@ -645,8 +645,7 @@ class MasterServer:
 
     async def start_mining(self):
         await self.__send_mining_config_to_slaves(True)
-        self.root_miner.enable()
-        self.root_miner.mine_new_block_async()
+        self.root_miner.start()
         Logger.warning(
             "Mining started with root block time {} s, minor block time {} s".format(
                 self.get_artificial_tx_config().target_root_block_time,
@@ -992,8 +991,6 @@ class MasterServer:
             )
             result_list = await asyncio.gather(*future_list)
             check(all([resp.error_code == 0 for _, resp, _ in result_list]))
-
-            self.root_miner.mine_new_block_async()
 
     async def add_raw_minor_block(self, branch, block_data):
         if branch.value not in self.branch_to_slaves:
