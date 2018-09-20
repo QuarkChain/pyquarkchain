@@ -10,7 +10,6 @@ from quarkchain.config import (
 
 
 class TestShardConfig(unittest.TestCase):
-
     def testBasic(self):
         config = QuarkChainConfig()
         config.ROOT = RootConfig()
