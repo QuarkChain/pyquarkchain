@@ -20,6 +20,7 @@ from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID
 from quarkchain.cluster.p2p_commands import CommandOp
 from quarkchain.cluster.p2p_commands import GetPeerListRequest
 from quarkchain.cluster.simple_network import Peer
+from quarkchain.utils import Logger
 
 
 class Devp2pProtocol(BaseProtocol):
@@ -221,7 +222,7 @@ def devp2p_app(env, network):
     config["client_version_string"] = "{}:{}".format(ip, network.port)
 
     app = Devp2pApp(config, network)
-    Logger.info("create_app config=%s", app.config)
+    Logger.info("create_app config={}".format(app.config))
     # register services
     for service in services:
         assert issubclass(service, BaseService)

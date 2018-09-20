@@ -185,6 +185,10 @@ class Miner:
         self.input_q = AioQueue()  # [(block, param dict)]
         self.output_q = AioQueue()  # [block]
 
+    def start(self):
+        self.enable()
+        self._mine_new_block_async()
+
     def is_enabled(self):
         return self.enabled
 
@@ -198,17 +202,18 @@ class Miner:
             self.input_q.put((None, {}))
         self.enabled = False
 
-    def mine_new_block_async(self):
+    def _mine_new_block_async(self):
         async def handle_mined_block(instance: Miner):
             while True:
                 block = await instance.output_q.coro_get()
                 if not block:
                     return
+                # start mining before processing and propagating mined block
+                instance._mine_new_block_async()
                 try:
                     await instance.add_block_async_func(block)
                 except Exception as ex:
                     Logger.error(ex)
-                    instance.mine_new_block_async()
 
         async def mine_new_block(instance: Miner):
             """Get a new block and start mining.
