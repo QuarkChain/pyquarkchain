@@ -12,6 +12,9 @@ logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 
+WIDTH = 80
+
+
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -23,9 +26,14 @@ def fstr(v: float):
 def basic(ip: str):
     endpoint = "http://{}:38491".format(ip)
     s = jsonrpcclient.request(endpoint, "getStats")
-    return "shard_size={}\nshard_server_count={}".format(
-        s["shardSize"], s["shardServerCount"]
-    )
+    msg = "-" * WIDTH + "\n"
+    msg += "{:^80}\n".format("QuarkChain Stats")
+    msg += "-" * WIDTH + "\n"
+    msg += "IP:        {}\n".format(ip)
+    msg += "Shards:    {}\n".format(s["shardSize"])
+    msg += "Servers:   {}\n".format(s["shardServerCount"])
+    msg += "-" * WIDTH
+    return msg
 
 
 def stats(ip: str):
@@ -47,9 +55,13 @@ def main():
     args = parser.parse_args()
 
     print(basic(args.ip))
-    print("timestamp,tps,pending_tx,confirmed_tx,bps,sbps")
+    format = "{:22} {:>10} {:>12} {:>13} {:>9} {:>9}"
+    print(
+        format.format("Timestamp", "TPS", "Pending tx", "Confirmed tx", "BPS", "SBPS")
+    )
+    print("-" * WIDTH)
     while True:
-        print(",".join(stats(args.ip)))
+        print(format.format(*stats(args.ip)))
         time.sleep(10)
 
 
