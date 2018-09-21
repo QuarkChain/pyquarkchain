@@ -1,10 +1,9 @@
-import time
 from typing import List, Optional
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.core import Address, Log, MinorBlock
 from quarkchain.evm.bloom import bloom
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, time_ms
 
 
 class Filter:
@@ -13,7 +12,7 @@ class Filter:
     TODO: For now only supports filtering logs.
     """
 
-    TIMEOUT = 10  # seconds
+    TIMEOUT = 10 * 1000  # ms, = 10 sec
 
     def __init__(
         self,
@@ -78,7 +77,7 @@ class Filter:
             if not should_skip_block:
                 ret.append(block)
 
-            if (1 + i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+            if (1 + i) % 100 == 0 and time_ms() - self.start_ts > Filter.TIMEOUT:
                 raise Exception("Filter timeout")
 
         return ret
@@ -95,7 +94,7 @@ class Filter:
                         continue
                     if self._log_topics_match(log):
                         ret.append(log)
-            if (1 + b_i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+            if (1 + b_i) % 100 == 0 and time_ms() - self.start_ts > Filter.TIMEOUT:
                 raise Exception("Filter timeout")
         return ret
 
@@ -114,7 +113,7 @@ class Filter:
         return True
 
     def run(self) -> List[Log]:
-        self.start_ts = time.time()
+        self.start_ts = time_ms()
         candidate_blocks = self._get_block_candidates()
         logs = self._get_logs(candidate_blocks)
         return logs

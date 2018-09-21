@@ -4,7 +4,6 @@ import ipaddress
 import json
 import psutil
 import random
-import sys
 import time
 from collections import deque
 from threading import Thread
@@ -177,13 +176,13 @@ class SyncTask:
         return resp.root_block_list
 
     async def __add_block(self, root_block):
-        start = time.time()
+        start_sec = time.time()
         await self.__sync_minor_blocks(root_block.minor_block_header_list)
         await self.master_server.add_root_block(root_block)
-        elapse = time.time() - start
+        elapse_sec = time.time() - start_sec
         Logger.info(
             "[R] syncing root block {} {} took {:.2f} seconds".format(
-                root_block.header.height, root_block.header.get_hash().hex(), elapse
+                root_block.header.height, root_block.header.get_hash().hex(), elapse_sec
             )
         )
 
@@ -1097,7 +1096,8 @@ class MasterServer:
     def update_tx_count_history(self, tx_count, xshard_tx_count, timestamp):
         """ maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 12 hours window
         Note that this is also counting transactions on forks and thus larger than if only couting the best chains. """
-        minute = int(timestamp / 60) * 60
+        ms_per_min, ms_per_hour = 60000, 60000 * 60
+        minute = int(timestamp / ms_per_min) * ms_per_min
         if len(self.tx_count_history) == 0 or self.tx_count_history[-1][0] < minute:
             self.tx_count_history.append((minute, tx_count, xshard_tx_count))
         else:
@@ -1108,7 +1108,7 @@ class MasterServer:
 
         while (
             len(self.tx_count_history) > 0
-            and self.tx_count_history[0][0] < time.time() - 3600 * 12
+            and self.tx_count_history[0][0] < time_ms() - 12 * ms_per_hour
         ):
             self.tx_count_history.popleft()
 

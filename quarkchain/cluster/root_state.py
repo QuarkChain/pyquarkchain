@@ -184,12 +184,12 @@ class RootState:
 
     def get_next_block_difficulty(self, create_time=None):
         if create_time is None:
-            create_time = max(self.tip.create_time + 1, int(time.time()))
+            create_time = max(self.tip.create_time + 1, time_ms())
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
     def create_block_to_mine(self, m_header_list, address, create_time=None):
         if create_time is None:
-            create_time = max(self.tip.create_time + 1, int(time.time()))
+            create_time = max(self.tip.create_time + 1, time_ms())
         extra_data = {
             "inception": time_ms(),
             "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,

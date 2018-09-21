@@ -52,7 +52,7 @@ class TransactionGenerator:
         )
         if num_tx <= 0:
             return
-        start_time = time.time()
+        start_time_sec = time.time()
         tx_list = []
         total = 0
         sample_evm_tx = sample_tx.code.get_evm_transaction()
@@ -73,10 +73,9 @@ class TransactionGenerator:
             if total >= num_tx:
                 break
 
-        end_time = time.time()
         Logger.info(
             "[{}] generated {} transactions in {:.2f} seconds".format(
-                self.shard_id, total, end_time - start_time
+                self.shard_id, total, time.time() - start_time_sec
             )
         )
         self.running = False

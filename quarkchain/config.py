@@ -103,7 +103,7 @@ class ConsensusType(Enum):
 
 
 class POWConfig(BaseConfig):
-    TARGET_BLOCK_TIME = 10
+    TARGET_BLOCK_TIME = 10 * 1000
 
 
 class ShardConfig(BaseConfig):

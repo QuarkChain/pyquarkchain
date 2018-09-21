@@ -1,12 +1,12 @@
 import asyncio
 import functools
-import time
 import unittest
 from typing import Optional
 
 from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
+from quarkchain.utils import time_ms
 
 
 class TestMiner(unittest.TestCase):
@@ -34,9 +34,7 @@ class TestMiner(unittest.TestCase):
             if len(self.added_blocks) >= 5:
                 return None  # stop the game
             return RootBlock(
-                RootBlockHeader(
-                    create_time=int(time.time()), extra_data="{}".encode("utf-8")
-                )
+                RootBlockHeader(create_time=time_ms(), extra_data="{}".encode("utf-8"))
             )
 
         async def add(block):
@@ -62,9 +60,7 @@ class TestMiner(unittest.TestCase):
             if i >= 5:
                 return None
             return RootBlock(
-                RootBlockHeader(
-                    create_time=int(time.time()), extra_data="{}".encode("utf-8")
-                )
+                RootBlockHeader(create_time=time_ms(), extra_data="{}".encode("utf-8"))
             )
 
         async def add(block):

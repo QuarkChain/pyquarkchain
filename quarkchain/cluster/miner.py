@@ -130,7 +130,7 @@ class Miner:
         is_root = isinstance(block, RootBlock)
         shard = "R" if is_root else block.header.branch.get_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
-        elapsed = time.time() - block.header.create_time
+        elapsed = time_ms() - block.header.create_time
         Logger.info_every_sec(
             "[{}] {} [{}] ({:.2f}) {}".format(
                 shard,
@@ -188,7 +188,7 @@ class Miner:
             except Exception:
                 # got nothing from queue
                 pass
-            if time.time() > target_time:
+            if time_ms() > target_time:
                 Miner.__log_status(block)
                 block.header.nonce = random.randint(0, 2 ** 32 - 1)
                 Miner._post_process_mined_block(block)

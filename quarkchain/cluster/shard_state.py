@@ -557,7 +557,7 @@ class ShardState:
         Returns a list of CrossShardTransactionDeposit from block.
         Raises on any error.
         """
-        start_time = time.time()
+        start_time_sec = time.time()
         start_ms = time_ms()
         if self.header_tip.height - block.header.height > 700:
             Logger.info(
@@ -663,7 +663,7 @@ class ShardState:
         )
         Logger.debug(
             "Add block took {} seconds for {} tx".format(
-                time.time() - start_time, len(block.tx_list)
+                time.time() - start_time_sec, len(block.tx_list)
             )
         )
         if block.meta.extra_data.decode("utf-8") != "":
@@ -747,7 +747,7 @@ class ShardState:
 
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:
-            create_time = max(int(time.time()), self.header_tip.create_time + 1)
+            create_time = max(time_ms(), self.header_tip.create_time + 1)
         return self.diff_calc.calculate_diff_with_parent(self.header_tip, create_time)
 
     def get_next_block_reward(self):
@@ -863,13 +863,13 @@ class ShardState:
     def create_block_to_mine(self, create_time=None, address=None, gas_limit=None):
         """ Create a block to append and include TXs to maximize rewards
         """
-        start_time = time.time()
+        start_time_sec = time.time()
         extra_data = {
             "inception": time_ms(),
             "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
         }
         if not create_time:
-            create_time = max(int(time.time()), self.header_tip.create_time + 1)
+            create_time = max(time_ms(), self.header_tip.create_time + 1)
         difficulty = self.get_next_block_difficulty(create_time)
         block = self.get_tip().create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
@@ -907,10 +907,9 @@ class ShardState:
         block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
         block.finalize(evm_state=evm_state)
 
-        end_time = time.time()
         Logger.debug(
             "Create block to mine took {} seconds for {} tx".format(
-                end_time - start_time, len(block.tx_list)
+                time.time() - start_time_sec, len(block.tx_list)
             )
         )
         return block
