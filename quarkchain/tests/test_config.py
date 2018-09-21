@@ -71,7 +71,7 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 10
+                "TARGET_BLOCK_TIME": 10000
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,
@@ -91,7 +91,7 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 10
+                "TARGET_BLOCK_TIME": 10000
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,
