@@ -1,5 +1,4 @@
 import unittest
-from quarkchain.genesis import GenesisManager
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
