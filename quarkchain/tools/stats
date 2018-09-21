@@ -5,6 +5,8 @@ import logging
 import time
 from datetime import datetime
 import jsonrpcclient
+import psutil
+import numpy
 
 
 # disable jsonrpcclient verbose logging
@@ -12,7 +14,7 @@ logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 
-WIDTH = 80
+LINE = "-" * 100
 
 
 def now():
@@ -26,13 +28,23 @@ def fstr(v: float):
 def basic(ip: str):
     endpoint = "http://{}:38491".format(ip)
     s = jsonrpcclient.request(endpoint, "getStats")
-    msg = "-" * WIDTH + "\n"
-    msg += "{:^80}\n".format("QuarkChain Stats")
-    msg += "-" * WIDTH + "\n"
-    msg += "IP:        {}\n".format(ip)
-    msg += "Shards:    {}\n".format(s["shardSize"])
-    msg += "Servers:   {}\n".format(s["shardServerCount"])
-    msg += "-" * WIDTH
+
+    msg = LINE + "\n"
+    msg += "{:^100}\n".format("QuarkChain Cluster Stats")
+    msg += LINE + "\n"
+    msg += "CPU:                {}\n".format(psutil.cpu_count())
+    msg += "Memory:             {} GB\n".format(
+        int(psutil.virtual_memory().total / 1024 / 1024 / 1024)
+    )
+    msg += "IP:                 {}\n".format(ip)
+    msg += "Shards:             {}\n".format(s["shardSize"])
+    msg += "Servers:            {}\n".format(s["shardServerCount"])
+    msg += "Shard Interval:     {}\n".format(s["minor_block_interval"])
+    msg += "Root Interval:      {}\n".format(s["root_block_interval"])
+    msg += "Syncing:            {}\n".format(s["syncing"])
+    msg += "Mining:             {}\n".format(s["mining"])
+    msg += "Peers:              {}\n".format(", ".join(s["peers"]))
+    msg += LINE
     return msg
 
 
@@ -46,6 +58,8 @@ def stats(ip: str):
         str(s["totalTxCount"]),
         fstr(s["blockCount60s"] / 60),
         fstr(s["staleBlockCount60s"] / 60),
+        str(s["rootHeight"]),
+        fstr(numpy.mean([s["cpus"]])),
     )
 
 
@@ -55,11 +69,20 @@ def main():
     args = parser.parse_args()
 
     print(basic(args.ip))
-    format = "{:22} {:>10} {:>12} {:>13} {:>9} {:>9}"
+    format = "{:22} {:>10} {:>12} {:>13} {:>9} {:>9} {:>9} {:>9}"
     print(
-        format.format("Timestamp", "TPS", "Pending tx", "Confirmed tx", "BPS", "SBPS")
+        format.format(
+            "Timestamp",
+            "TPS",
+            "Pending tx",
+            "Confirmed tx",
+            "BPS",
+            "SBPS",
+            "ROOT",
+            "CPU",
+        )
     )
-    print("-" * WIDTH)
+    print(LINE)
     while True:
         print(format.format(*stats(args.ip)))
         time.sleep(10)
