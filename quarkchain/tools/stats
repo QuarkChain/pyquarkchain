@@ -1,0 +1,49 @@
+#! /usr/bin/env python3
+
+import argparse
+import logging
+import time
+from datetime import datetime
+import jsonrpcclient
+
+
+# disable jsonrpcclient verbose logging
+logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
+logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+
+
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def fstr(v: float):
+    return "{:.2f}".format(v)
+
+
+def stats(ip: str):
+    endpoint = "http://{}:38491".format(ip)
+    s = jsonrpcclient.request(endpoint, "getStats")
+    return (
+        now(),
+        fstr(s["txCount60s"] / 60),
+        str(s["pendingTxCount"]),
+        str(s["totalTxCount"]),
+        fstr(s["blockCount60s"] / 60),
+        fstr(s["staleBlockCount60s"] / 60),
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ip", default="localhost", type=str)
+    args = parser.parse_args()
+
+    print("timestamp,tps,pending_tx,confirmed_tx,bps,sbps")
+    while True:
+        print(",".join(stats(args.ip)))
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    # query stats from local cluster and output in csv format
+    main()
