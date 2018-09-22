@@ -16,6 +16,8 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 
 ## Development Setup
 
+**Check out our [Developer Guide](https://developers.quarkchain.io/#basic-concepts) to understand the basic concepts in QuarkChain**
+
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
 To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
@@ -92,42 +94,56 @@ cd quarkchain/cluster
 pypy3 cluster.py --mine
 ```
 
-Run multiple clusters with P2P network (--mine sets exactly 1 cluster to mine)
+Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster)
 
 ```bash
-pypy3 multi_cluster.py --num_clusters=3 --devp2p_enable
+pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
 ```
 
-## Verify cluster running
-
-The default port number we setup for cluster is 38391. To verify the cluster is ruunig, you can run:
-
+Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--devp2p_ip` and `--devp2p_bootstrap_host` to connect the clusters.
+First start the bootstrap cluster whose public ip is `$BOOTSTRAP_IP`
 ```bash
-curl -X POST --data '{
-    "jsonrpc": "2.0",
-    "method": "networkInfo",
-    "id": 1
-}' localhost:38391 | jq .
+pypy3 cluster.py --mine --devp2p_enable --devp2p_ip=$BOOTSTRAP_IP
+```
+Then start other clusters
+```bash
+pypy3 cluster.py --devp2p_enable --devp2p_ip=$CLUSER_PUBLIC_IP --devp2p_bootstrap_host=$BOOTSTRAP_IP
 ```
 
-An example of output:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "networkId": "0x3",
-    "shardSize": "0x8",
-    "syncing": false,
-    "mining": true,
-    "shardServerCount": 4
-  },
-  "id": 1
-}
+## Monitor Cluster
+Use the [`stats`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/tools/stats) tool in the repo to monitor the status of a cluster. It queries the given cluster through JSON RPC every 10 seconds and produces an entry.
+```bash
+$ quarkchain/tools/stats --ip=localhost
+----------------------------------------------------------------------------------------------------
+                                      QuarkChain Cluster Stats                                      
+----------------------------------------------------------------------------------------------------
+CPU:                8
+Memory:             16 GB
+IP:                 localhost
+Shards:             8
+Servers:            4
+Shard Interval:     60
+Root Interval:      10
+Syncing:            False
+Mining:             False
+Peers:              127.0.0.1:38293, 127.0.0.1:38292
+----------------------------------------------------------------------------------------------------
+Timestamp                     TPS   Pending tx  Confirmed tx       BPS      SBPS      ROOT       CPU
+----------------------------------------------------------------------------------------------------
+2018-09-21 16:35:07          0.00            0             0      0.00      0.00        84     12.50
+2018-09-21 16:35:17          0.00            0          9000      0.02      0.00        84      7.80
+2018-09-21 16:35:27          0.00            0         18000      0.07      0.00        84      6.90
+2018-09-21 16:35:37          0.00            0         18000      0.07      0.00        84      4.49
+2018-09-21 16:35:47          0.00            0         18000      0.10      0.00        84      6.10
 ```
 
-For details, check our [developer documentation](https://developers.quarkchain.io).
+## JSON RPC
+JSON RPCs are defined in [`jsonrpc.py`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/cluster/jsonrpc.py). Note that there are two JSON RPC ports. By default they are 38491 for private RPCs and 38391 for public RPCs. Since you are running your own clusters you get access to both. 
 
+Public RPCs are documented in the [Developer Guide](https://developers.quarkchain.io/#json-rpc).
+
+## Loadtest
+Follow [this wiki page](https://github.com/QuarkChain/pyquarkchain/wiki/Loadtest) to loadtest your cluster and see how fast it processes large volumn of transacations.
 
 ## Issue
 Please open issues on github to report bugs or make feature requests.
