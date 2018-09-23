@@ -14,40 +14,42 @@ python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
  3 files changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index 6c30a0f..264ccb1 100644
+index e59be92..7af6160 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
-@@ -129,8 +129,8 @@ def validate_transaction(state, tx):
+@@ -154,8 +154,8 @@ def validate_transaction(state, tx):
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
- 
+
 -    # assert config_fork_specific_validation(
 -    #     state.config, state.block_number, tx)
 +    assert config_fork_specific_validation(
 +        state.config, state.block_number, tx)
- 
+
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
-@@ -176,7 +176,7 @@ def apply_message(state, msg=None, **kwargs):
+@@ -201,7 +201,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
- 
- 
+
+
 -def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 +def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash=b""):
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
      TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
      """
-@@ -399,7 +399,7 @@ def _apply_msg(ext, msg, code):
- 
- 
+@@ -442,9 +442,7 @@ def _apply_msg(ext, msg, code):
+
+
  def mk_contract_address(sender, full_shard_id, nonce):
--    return utils.sha3(rlp.encode([utils.normalize_address(sender), full_shard_id, nonce]))[12:]
+-    return utils.sha3(
+-        rlp.encode([utils.normalize_address(sender), full_shard_id, nonce])
+-    )[12:]
 +    return utils.sha3(rlp.encode([utils.normalize_address(sender), nonce]))[12:]
- 
- 
+
+
  def create_contract(ext, msg):
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index c4d792a..149d252 100644
+index 600f091..4a47b2c 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -56,15 +56,15 @@ class Account(rlp.Serializable):
@@ -56,7 +58,7 @@ index c4d792a..149d252 100644
          ('code_hash', hash32),
 -        ('full_shard_id', BigEndianInt(4)),
      ]
- 
+
 -    def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
 +    def __init__(self, nonce, balance, storage, code_hash, full_shard_id=0, env=None, address=None, db=None):
          self.db = env.db if db is None else db
@@ -70,7 +72,7 @@ index c4d792a..149d252 100644
          self.storage_trie = SecureTrie(Trie(self.db))
          self.storage_trie.root_hash = self.storage
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
-index a2929c5..415a8a3 100644
+index 7ee7221..6836d93 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
 @@ -72,7 +72,7 @@ class Transaction(rlp.Serializable):
@@ -79,9 +81,8 @@ index a2929c5..415a8a3 100644
          self.data = None
 -        self.shard_size = 0
 +        self.shard_size = 1
- 
-         to = utils.normalize_address(to, allow_blank=True)
- 
--- 
-2.15.2 (Apple Git-101.1)
 
+         to = utils.normalize_address(to, allow_blank=True)
+
+--
+2.15.2 (Apple Git-101.1)
