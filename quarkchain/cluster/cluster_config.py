@@ -115,6 +115,7 @@ class MonitoringConfig(BaseConfig):
     KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
     PROPAGATION_TOPIC = "block_propagation"
+    ERRORS = "error"
 
 
 class ClusterConfig(BaseConfig):
@@ -329,6 +330,7 @@ class ClusterConfig(BaseConfig):
         else:
             config = __create_from_args_internal()
         Logger.set_logging_level(config.LOG_LEVEL)
+        Logger.set_kafka_logger(config.kafka_logger)
         update_genesis_alloc(config)
         return config
 

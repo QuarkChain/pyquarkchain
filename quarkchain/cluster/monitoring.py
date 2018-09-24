@@ -39,7 +39,7 @@ class KafkaSampleLogger:
         sample_rate: pre-sampled record shall set this to sample rate, e.g., 100 means one sample is logged out of 100
         column type shall be log int, str, or vector of str
         """
-        if self.cluster_config.MONITORING.KAFKA_REST_ADDRESS == "":
+        if not self.cluster_config.MONITORING.KAFKA_REST_ADDRESS or not topic:
             return
         url = "http://{}/topics/{}".format(
             self.cluster_config.MONITORING.KAFKA_REST_ADDRESS, topic
