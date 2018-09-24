@@ -2,6 +2,7 @@ import asyncio
 import random
 import time
 import json
+from abc import ABC, abstractmethod
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
@@ -10,8 +11,7 @@ from multiprocessing import Queue as MultiProcessingQueue
 from typing import Callable, Union, Awaitable, Dict, Any
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
-from quarkchain.env import DEFAULT_ENV
-from quarkchain.config import NetworkId, ConsensusType
+from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
 from quarkchain.utils import time_ms, Logger, sha3_256
 
@@ -39,7 +39,119 @@ def validate_seal(
         if not h < target:
             raise ValueError("invalid pow proof")
 
-    return
+
+class MiningAlgorithm(ABC):
+    @abstractmethod
+    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+        pass
+
+    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+        """Post-process block to track block propagation latency"""
+        if isinstance(block, RootBlock):
+            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
+            extra_data["mined"] = time_ms()
+            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+        else:
+            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+            extra_data["mined"] = time_ms()
+            block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
+            block.header.hash_meta = block.meta.get_hash()
+
+    @staticmethod
+    def _log_status(block: Union[RootBlock, MinorBlock]):
+        is_root = isinstance(block, RootBlock)
+        shard = "R" if is_root else block.header.branch.get_shard_id()
+        count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
+        elapsed = time.time() - block.header.create_time
+        Logger.info_every_sec(
+            "[{}] {} [{}] ({:.2f}) {}".format(
+                shard,
+                block.header.height,
+                count,
+                elapsed,
+                block.header.get_hash().hex(),
+            ),
+            60,
+        )
+
+
+class Simulate(MiningAlgorithm):
+    def __init__(self, block: Union[MinorBlock, RootBlock], **kwargs):
+        target_block_time = kwargs["target_block_time"]
+        self.target_time = block.header.create_time + self._get_block_time(
+            block, target_block_time
+        )
+
+    @staticmethod
+    def _get_block_time(block, target_block_time) -> float:
+        if isinstance(block, MinorBlock):
+            # Adjust the target block time to compensate computation time
+            gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
+            target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
+            Logger.debug(
+                "[{}] target block time {:.2f}".format(
+                    block.header.branch.get_shard_id(), target_block_time
+                )
+            )
+        return numpy.random.exponential(target_block_time)
+
+    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+        time.sleep(0.1)
+        return time.time() > self.target_time
+
+    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+        self._log_status(block)
+        block.header.nonce = random.randint(0, 2 ** 32 - 1)
+        super().post_process_mined_block(block)
+
+
+class Ethash(MiningAlgorithm):
+    def __init__(self, block: Union[MinorBlock, RootBlock], **kwargs):
+        is_test = kwargs.get("is_test", False)
+        self.miner = EthashMiner(
+            block.header.height,
+            block.header.difficulty,
+            block.header.get_hash_for_mining(),
+            is_test=is_test,
+        )
+        self.nonce_found, self.mixhash = None, None
+
+    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+        nonce_found, mixhash = self.miner.mine(end_nonce - start_nonce, start_nonce)
+        if not nonce_found:
+            return False
+        self.nonce_found = nonce_found
+        self.mixhash = mixhash
+        return True
+
+    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+        if not self.nonce_found:
+            raise RuntimeError("cannot post process since no nonce found")
+        block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
+        block.header.mixhash = self.mixhash
+        super().post_process_mined_block(block)
+
+
+class DoubleSHA256(MiningAlgorithm):
+    def __init__(self, block: Union[MinorBlock, RootBlock]):
+        self.target = (2 ** 256 // (block.header.difficulty or 1) - 1).to_bytes(
+            32, byteorder="big"
+        )
+        self.header_hash = block.header.get_hash_for_mining()
+        self.nonce_found = None
+
+    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+        for nonce in range(start_nonce, end_nonce):
+            nonce_bytes = nonce.to_bytes(8, byteorder="big")
+            h = sha3_256(sha3_256(self.header_hash + nonce_bytes))
+            if h < self.target:
+                self.nonce_found = nonce_bytes
+                return True
+        return False
+
+    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+        block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
+        super().post_process_mined_block(block)
 
 
 class Miner:
@@ -49,8 +161,6 @@ class Miner:
         create_block_async_func: Callable[[], Awaitable[Union[MinorBlock, RootBlock]]],
         add_block_async_func: Callable[[Union[MinorBlock, RootBlock]], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
-        # TODO: clean this up if confirmed not used
-        env,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -72,9 +182,8 @@ class Miner:
         self.get_mining_param_func = get_mining_param_func
         self.enabled = False
         self.process = None
-        self.env = env
 
-        self.input_q = AioQueue()  # [(block, target_time)]
+        self.input_q = AioQueue()  # [(block, param dict)]
         self.output_q = AioQueue()  # [block]
 
     def start(self):
@@ -89,6 +198,9 @@ class Miner:
 
     def disable(self):
         """Stop the mining process if there is one"""
+        if self.enabled and self.process:
+            # end the mining process
+            self.input_q.put((None, {}))
         self.enabled = False
 
     def _mine_new_block_async(self):
@@ -122,46 +234,8 @@ class Miner:
             await handle_mined_block(instance)
 
         if not self.enabled:
-            return
+            return None
         return asyncio.ensure_future(mine_new_block(self))
-
-    @staticmethod
-    def __log_status(block):
-        is_root = isinstance(block, RootBlock)
-        shard = "R" if is_root else block.header.branch.get_shard_id()
-        count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
-        elapsed = time.time() - block.header.create_time
-        Logger.info_every_sec(
-            "[{}] {} [{}] ({:.2f}) {}".format(
-                shard,
-                block.header.height,
-                count,
-                elapsed,
-                block.header.get_hash().hex(),
-            ),
-            60,
-        )
-
-    @staticmethod
-    def __check_metric(metric):
-        # Testnet does not check difficulty
-        if DEFAULT_ENV.config.NETWORK_ID != NetworkId.MAINNET:
-            return True
-        return metric < 2 ** 256
-
-    @staticmethod
-    def __get_block_time(block, target_block_time) -> float:
-        if isinstance(block, MinorBlock):
-            # Adjust the target block time to compensate computation time
-            gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
-            target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
-            Logger.debug(
-                "[{}] target block time {:.2f}".format(
-                    block.header.branch.get_shard_id(), target_block_time
-                )
-            )
-
-        return numpy.random.exponential(target_block_time)
 
     @staticmethod
     def simulate_mine(
@@ -170,36 +244,7 @@ class Miner:
         output_q: MultiProcessingQueue,
         mining_params: Dict,
     ):
-        """Sleep until the target time, or a new block is added to queue"""
-        target_time = block.header.create_time + numpy.random.exponential(
-            mining_params["target_block_time"]
-        )
-        while True:
-            time.sleep(0.1)
-            try:
-                # raises if queue is empty
-                block, mining_params = input_q.get_nowait()
-                if not block:
-                    output_q.put(None)
-                    return
-                target_time = block.header.create_time + Miner.__get_block_time(
-                    block, mining_params["target_block_time"]
-                )
-            except Exception:
-                # got nothing from queue
-                pass
-            if time.time() > target_time:
-                Miner.__log_status(block)
-                block.header.nonce = random.randint(0, 2 ** 32 - 1)
-                Miner._post_process_mined_block(block)
-                output_q.put(block)
-                block, mining_params = input_q.get(block=True)  # blocking
-                if not block:
-                    output_q.put(None)
-                    return
-                target_time = block.header.create_time + Miner.__get_block_time(
-                    block, mining_params["target_block_time"]
-                )
+        Miner._mine_loop(block, input_q, output_q, mining_params, Simulate)
 
     @staticmethod
     def mine_ethash(
@@ -208,40 +253,7 @@ class Miner:
         output_q: MultiProcessingQueue,
         mining_params: Dict,
     ):
-        # TODO: maybe add rounds to config json
-        rounds = mining_params.get("rounds", 100)
-        is_test = mining_params.get("is_test", False)
-        # outer loop for mining forever
-        while True:
-            # `None` block means termination
-            if not block:
-                output_q.put(None)
-                return
-
-            header_hash = block.header.get_hash_for_mining()
-            block_number = block.header.height
-            difficulty = block.header.difficulty
-            miner = EthashMiner(block_number, difficulty, header_hash, is_test)
-            start_nonce = 0
-            # inner loop for iterating nonce
-            while True:
-                nonce_found, mixhash = miner.mine(rounds, start_nonce)
-                # best case
-                if nonce_found:
-                    block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
-                    block.header.mixhash = mixhash
-                    Miner._post_process_mined_block(block)
-                    output_q.put(block)
-                    block, _ = input_q.get(block=True)  # blocking
-                    break  # break inner loop to refresh mining params
-                # check if new block arrives. if yes, discard current progress and restart
-                try:
-                    block, _ = input_q.get_nowait()
-                    break  # break inner loop to refresh mining params
-                except Exception:  # queue empty
-                    pass
-                # update param and keep mining
-                start_nonce += rounds
+        Miner._mine_loop(block, input_q, output_q, mining_params, Ethash)
 
     @staticmethod
     def mine_sha3sha3(
@@ -250,17 +262,16 @@ class Miner:
         output_q: MultiProcessingQueue,
         mining_params: Dict,
     ):
-        # TODO: control flow similar as `mine_ethash`. should refactor
+        Miner._mine_loop(block, input_q, output_q, mining_params, DoubleSHA256)
 
-        def mine(start, end):
-            nonlocal header_hash, target
-            for nonce in range(start, end):
-                nonce_bytes = nonce.to_bytes(8, byteorder="big")
-                h = sha3_256(sha3_256(header_hash + nonce_bytes))
-                if h < target:
-                    return nonce_bytes
-            return None
-
+    @staticmethod
+    def _mine_loop(
+        block: Union[MinorBlock, RootBlock],
+        input_q: MultiProcessingQueue,
+        output_q: MultiProcessingQueue,
+        mining_params: Dict,
+        mining_algo_gen: Callable[..., MiningAlgorithm],
+    ):
         # TODO: maybe add rounds to config json
         rounds = mining_params.get("rounds", 100)
         # outer loop for mining forever
@@ -270,17 +281,13 @@ class Miner:
                 output_q.put(None)
                 return
 
-            header_hash = block.header.get_hash_for_mining()
-            target = (2 ** 256 // (block.header.difficulty or 1) - 1).to_bytes(
-                32, byteorder="big"
-            )
             start_nonce = 0
+            mining_algo = mining_algo_gen(block, **mining_params)
             # inner loop for iterating nonce
             while True:
-                nonce_found = mine(start_nonce + 1, start_nonce + 1 + rounds)
-                if nonce_found:
-                    block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
-                    Miner._post_process_mined_block(block)
+                found = mining_algo.mine(start_nonce + 1, start_nonce + 1 + rounds)
+                if found:
+                    mining_algo.post_process_mined_block(block)
                     output_q.put(block)
                     block, _ = input_q.get(block=True)  # blocking
                     break  # break inner loop to refresh mining params
@@ -292,15 +299,3 @@ class Miner:
                     pass
                 # update param and keep mining
                 start_nonce += rounds
-
-    @staticmethod
-    def _post_process_mined_block(block: Union[MinorBlock, RootBlock]):
-        if isinstance(block, RootBlock):
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
-        else:
-            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
-            block.header.hash_meta = block.meta.get_hash()
