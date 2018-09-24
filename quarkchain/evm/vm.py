@@ -683,7 +683,15 @@ def vm_execute(ext, msg, code):
                 ingas = compustate.gas
                 if ext.post_anti_dos_hardfork():
                     ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
-                create_msg = Message(msg.to, b"", value, ingas, cd, msg.depth + 1)
+                create_msg = Message(
+                    msg.to,
+                    b"",
+                    value,
+                    ingas,
+                    cd,
+                    msg.depth + 1,
+                    to_full_shard_id=msg.from_full_shard_id,
+                )
                 o, gas, data = ext.create(create_msg)
                 if o:
                     stk.append(utils.coerce_to_int(data))
