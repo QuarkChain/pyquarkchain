@@ -1,0 +1,93 @@
+#! /usr/bin/env python3
+
+import argparse
+import logging
+import time
+from datetime import datetime
+import jsonrpcclient
+import psutil
+import numpy
+
+
+# disable jsonrpcclient verbose logging
+logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
+logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+
+
+LINE = "-" * 100
+
+
+def now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def fstr(v: float):
+    return "{:.2f}".format(v)
+
+
+def basic(ip: str):
+    endpoint = "http://{}:38491".format(ip)
+    s = jsonrpcclient.request(endpoint, "getStats")
+
+    msg = LINE + "\n"
+    msg += "{:^100}\n".format("QuarkChain Cluster Stats")
+    msg += LINE + "\n"
+    msg += "CPU:                {}\n".format(psutil.cpu_count())
+    msg += "Memory:             {} GB\n".format(
+        int(psutil.virtual_memory().total / 1024 / 1024 / 1024)
+    )
+    msg += "IP:                 {}\n".format(ip)
+    msg += "Shards:             {}\n".format(s["shardSize"])
+    msg += "Servers:            {}\n".format(s["shardServerCount"])
+    msg += "Shard Interval:     {}\n".format(s["minor_block_interval"])
+    msg += "Root Interval:      {}\n".format(s["root_block_interval"])
+    msg += "Syncing:            {}\n".format(s["syncing"])
+    msg += "Mining:             {}\n".format(s["mining"])
+    msg += "Peers:              {}\n".format(", ".join(s["peers"]))
+    msg += LINE
+    return msg
+
+
+def stats(ip: str):
+    endpoint = "http://{}:38491".format(ip)
+    s = jsonrpcclient.request(endpoint, "getStats")
+    return (
+        now(),
+        fstr(s["txCount60s"] / 60),
+        str(s["pendingTxCount"]),
+        str(s["totalTxCount"]),
+        fstr(s["blockCount60s"] / 60),
+        fstr(s["staleBlockCount60s"] / 60),
+        str(s["rootHeight"]),
+        fstr(numpy.mean([s["cpus"]])),
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ip", default="localhost", type=str)
+    args = parser.parse_args()
+
+    print(basic(args.ip))
+    format = "{:22} {:>10} {:>12} {:>13} {:>9} {:>9} {:>9} {:>9}"
+    print(
+        format.format(
+            "Timestamp",
+            "TPS",
+            "Pending tx",
+            "Confirmed tx",
+            "BPS",
+            "SBPS",
+            "ROOT",
+            "CPU",
+        )
+    )
+    print(LINE)
+    while True:
+        print(format.format(*stats(args.ip)))
+        time.sleep(10)
+
+
+if __name__ == "__main__":
+    # query stats from local cluster
+    main()

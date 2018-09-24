@@ -376,6 +376,7 @@ def time_ms():
     """currently pypy only has Python 3.5.3, but a new nice feature added by Python 3.7 is time.time_ns()
     this function provides the same behavior but there is no precision gain
     see https://www.python.org/dev/peps/pep-0564/
+    You shall use `time.time_ns() // 1e6` if using >=Python 3.7
     """
     return int(time.time() * 1e3)
 

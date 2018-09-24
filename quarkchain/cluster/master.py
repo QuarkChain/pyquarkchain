@@ -1185,6 +1185,12 @@ class MasterServer:
             "syncing": self.synchronizer.running,
             "mining": self.root_miner.is_enabled(),
             "shards": shards,
+            "peers": [
+                "{}:{}".format(peer.ip, peer.port)
+                for _, peer in self.network.active_peer_pool.items()
+            ],
+            "minor_block_interval": self.get_artificial_tx_config().target_minor_block_time,
+            "root_block_interval": self.get_artificial_tx_config().target_root_block_time,
             "cpus": psutil.cpu_percent(percpu=True),
             "txCountHistory": tx_count_history,
         }
