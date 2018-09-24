@@ -690,8 +690,7 @@ def vm_execute(ext, msg, code):
                     ingas,
                     cd,
                     msg.depth + 1,
-                    from_full_shard_id=msg.from_full_shard_id,
-                    to_full_shard_id=msg.to_full_shard_id,
+                    to_full_shard_id=msg.from_full_shard_id,
                 )
                 o, gas, data = ext.create(create_msg)
                 if o:
