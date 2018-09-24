@@ -27,7 +27,7 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            Logger.error("Failed to log sample to Kafka: {}".format(ex))
+            Logger.error_only("Failed to log sample to Kafka: {}".format(ex))
 
     async def log_kafka_sample_async(self, topic: str, sample: dict):
         """logs sample to Kafka topic asynchronously
@@ -57,6 +57,8 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            Logger.error_every_n("Failed to log sample to Kafka: {}".format(ex), 100)
+            Logger.error_only_every_n(
+                "Failed to log sample to Kafka: {}".format(ex), 100
+            )
         finally:
             await session.close()

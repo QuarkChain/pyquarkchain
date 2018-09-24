@@ -334,6 +334,18 @@ class Logger:
                 )
             )
 
+    @classmethod
+    def error_only(cls, msg):
+        """used by KafkaSampleLogger to avoid circular calls
+        """
+        cls.check_logger_set()
+        cls._qkc_logger.error(msg)
+
+    @classmethod
+    def error_only_every_n(cls, msg, n):
+        if cls.check_count(n):
+            cls.error_only(msg)
+
 
 """
 # Color reference
