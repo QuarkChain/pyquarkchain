@@ -27,7 +27,7 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            Logger.error("Failed to log sample to Kafka: {}".format(ex))
+            Logger.error_only("Failed to log sample to Kafka: {}".format(ex))
 
     async def log_kafka_sample_async(self, topic: str, sample: dict):
         """logs sample to Kafka topic asynchronously
@@ -39,7 +39,7 @@ class KafkaSampleLogger:
         sample_rate: pre-sampled record shall set this to sample rate, e.g., 100 means one sample is logged out of 100
         column type shall be log int, str, or vector of str
         """
-        if self.cluster_config.MONITORING.KAFKA_REST_ADDRESS == "":
+        if not self.cluster_config.MONITORING.KAFKA_REST_ADDRESS or not topic:
             return
         url = "http://{}/topics/{}".format(
             self.cluster_config.MONITORING.KAFKA_REST_ADDRESS, topic
@@ -57,6 +57,8 @@ class KafkaSampleLogger:
                     "non-OK response status code: {}".format(response.status_code)
                 )
         except Exception as ex:
-            Logger.error_every_n("Failed to log sample to Kafka: {}".format(ex), 100)
+            Logger.error_only_every_n(
+                "Failed to log sample to Kafka: {}".format(ex), 100
+            )
         finally:
             await session.close()

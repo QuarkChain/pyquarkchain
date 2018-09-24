@@ -113,6 +113,7 @@ class Logger:
     _last_warning_time_map = dict()
     _last_error_time_map = dict()
     _qkc_logger = None
+    _kafka_logger = None
 
     @classmethod
     def set_logging_level(cls, level):
@@ -138,6 +139,10 @@ class Logger:
         handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         logging.root.addHandler(handler)
+
+    @classmethod
+    def set_kafka_logger(cls, kafka_logger):
+        cls._kafka_logger = kafka_logger
 
     @classmethod
     def check_logger_set(cls):
@@ -172,7 +177,7 @@ class Logger:
 
     @classmethod
     def debug(cls, msg, *args, **kwargs):
-        Logger.check_logger_set()
+        cls.check_logger_set()
         cls._qkc_logger.debug(msg, *args, **kwargs)
 
     @classmethod
@@ -197,7 +202,7 @@ class Logger:
 
     @classmethod
     def info(cls, msg):
-        Logger.check_logger_set()
+        cls.check_logger_set()
         cls._qkc_logger.info(msg)
 
     @classmethod
@@ -222,7 +227,7 @@ class Logger:
 
     @classmethod
     def warning(cls, msg):
-        Logger.check_logger_set()
+        cls.check_logger_set()
         cls._qkc_logger.warning(msg)
 
     @classmethod
@@ -247,8 +252,9 @@ class Logger:
 
     @classmethod
     def error(cls, msg):
-        Logger.check_logger_set()
+        cls.check_logger_set()
         cls._qkc_logger.error(msg)
+        cls.send_log_to_kafka("error", msg)
 
     @classmethod
     def error_every_sec(cls, msg, duration):
@@ -270,9 +276,15 @@ class Logger:
         if cls.check_count(n):
             Logger.error(msg)
 
+    @classmethod
+    def exception(cls, msg):
+        cls.check_logger_set()
+        cls._qkc_logger.error(msg)
+        cls.send_log_to_kafka("exception", msg)
+
     @staticmethod
     def error_exception():
-        Logger.error(traceback.format_exc())
+        Logger.exception(traceback.format_exc())
 
     @staticmethod
     def log_exception():
@@ -305,6 +317,34 @@ class Logger:
     @staticmethod
     def fatal_exception(msg):
         Logger.fatal(traceback.format_exc())
+
+    @classmethod
+    def send_log_to_kafka(cls, level_str, msg):
+        if cls._kafka_logger:
+            sample = {
+                "time": time_ms() // 1000,
+                "network": cls._kafka_logger.cluster_config.MONITORING.NETWORK_NAME,
+                "cluster": cls._kafka_logger.cluster_config.MONITORING.CLUSTER_ID,
+                "level": level_str,
+                "message": msg,
+            }
+            asyncio.ensure_future(
+                cls._kafka_logger.log_kafka_sample_async(
+                    cls._kafka_logger.cluster_config.MONITORING.ERRORS, sample
+                )
+            )
+
+    @classmethod
+    def error_only(cls, msg):
+        """used by KafkaSampleLogger to avoid circular calls
+        """
+        cls.check_logger_set()
+        cls._qkc_logger.error(msg)
+
+    @classmethod
+    def error_only_every_n(cls, msg, n):
+        if cls.check_count(n):
+            cls.error_only(msg)
 
 
 """
@@ -373,10 +413,10 @@ def get_qkc_log_prefix(record: logging.LogRecord):
 
 
 def time_ms():
-    """currently pypy only has Python 3.5.3, but a new nice feature added by Python 3.7 is time.time_ns()
-    this function provides the same behavior but there is no precision gain
+    """currently pypy only has Python 3.5.3, so we are missing Python 3.7's time.time_ns() with better precision
     see https://www.python.org/dev/peps/pep-0564/
-    You shall use `time.time_ns() // 1e6` if using >=Python 3.7
+
+    the function here is a convenience; you shall use `time.time_ns() // 1e6` if using >=Python 3.7
     """
     return int(time.time() * 1e3)
 
