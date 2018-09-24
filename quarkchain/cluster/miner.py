@@ -46,6 +46,7 @@ class MiningAlgorithm(ABC):
         pass
 
     def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+        """Post-process block to track block propagation latency"""
         if isinstance(block, RootBlock):
             extra_data = json.loads(block.header.extra_data.decode("utf-8"))
             extra_data["mined"] = time_ms()
