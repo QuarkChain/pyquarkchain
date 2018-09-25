@@ -582,11 +582,7 @@ class TestJSONRPC(unittest.TestCase):
                     resp["contractAddress"],
                     "0x"
                     + contract_address.hex()
-                    + (
-                        to_full_shard_id.to_bytes(4, "big").hex()
-                        if not endpoint.startswith("eth")
-                        else ""
-                    ),
+                    + to_full_shard_id.to_bytes(4, "big").hex(),
                 )
 
     def test_getTransactionReceipt_on_contract_creation_failure(self):
