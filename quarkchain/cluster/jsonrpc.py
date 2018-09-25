@@ -922,7 +922,10 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_getTransactionReceipt(self, tx_id):
-        receipt = await self.master.get_transaction_receipt(tx_id)
+        tx_hash, full_shard_id = tx_id
+        shard_size = self.master.get_shard_size()
+        branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
+        receipt = await self.master.get_transaction_receipt(tx_id, branch)
         if not receipt:
             return None
         if receipt["contractAddress"]:
