@@ -448,8 +448,9 @@ class TestJSONRPC(unittest.TestCase):
         with ClusterContext(1, acc1) as clusters, jrpc_server_context(
             clusters[0].master
         ):
-            resp = send_request("getTransactionReceipt", "0x" + bytes(36).hex())
-            self.assertIsNone(resp)
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(endpoint, "0x" + bytes(36).hex())
+                self.assertIsNone(resp)
 
     def test_getTransactionReceipt_on_transfer(self):
         id1 = Identity.create_random_identity()
@@ -474,16 +475,17 @@ class TestJSONRPC(unittest.TestCase):
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
-            resp = send_request(
-                "getTransactionReceipt",
-                "0x"
-                + tx.get_hash().hex()
-                + acc1.full_shard_id.to_bytes(4, "big").hex(),
-            )
-            self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
-            self.assertEqual(resp["status"], "0x1")
-            self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
-            self.assertIsNone(resp["contractAddress"])
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(
+                    endpoint,
+                    "0x"
+                    + tx.get_hash().hex()
+                    + acc1.full_shard_id.to_bytes(4, "big").hex(),
+                )
+                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["status"], "0x1")
+                self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
+                self.assertIsNone(resp["contractAddress"])
 
     def test_getTransactionReceipt_on_x_shard_transfer(self):
         id1 = Identity.create_random_identity()
@@ -528,17 +530,19 @@ class TestJSONRPC(unittest.TestCase):
             # in-shard tx 21000 + receiving x-shard tx 9000
             self.assertEqual(s2.evm_state.gas_used, 30000)
             self.assertEqual(s2.evm_state.xshard_receive_gas_used, 9000)
-            resp = send_request(
-                "getTransactionReceipt",
-                "0x"
-                + tx.get_hash().hex()
-                + acc2.full_shard_id.to_bytes(4, "big").hex(),
-            )
-            self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
-            self.assertEqual(resp["status"], "0x1")
-            self.assertEqual(resp["cumulativeGasUsed"], hex(30000))
-            self.assertEqual(resp["gasUsed"], hex(21000))
-            self.assertIsNone(resp["contractAddress"])
+
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(
+                    endpoint,
+                    "0x"
+                    + tx.get_hash().hex()
+                    + acc2.full_shard_id.to_bytes(4, "big").hex(),
+                )
+                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["status"], "0x1")
+                self.assertEqual(resp["cumulativeGasUsed"], hex(30000))
+                self.assertEqual(resp["gasUsed"], hex(21000))
+                self.assertIsNone(resp["contractAddress"])
 
     def test_getTransactionReceipt_on_contract_creation(self):
         id1 = Identity.create_random_identity()
@@ -563,21 +567,23 @@ class TestJSONRPC(unittest.TestCase):
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
-            resp = send_request(
-                "getTransactionReceipt",
-                "0x" + tx.get_hash().hex() + branch.serialize().hex(),
-            )
-            self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
-            self.assertEqual(resp["status"], "0x1")
-            self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(
+                    endpoint, "0x" + tx.get_hash().hex() + branch.serialize().hex()
+                )
+                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["status"], "0x1")
+                self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
 
-            contract_address = mk_contract_address(acc1.recipient, to_full_shard_id, 0)
-            self.assertEqual(
-                resp["contractAddress"],
-                "0x"
-                + contract_address.hex()
-                + to_full_shard_id.to_bytes(4, "big").hex(),
-            )
+                contract_address = mk_contract_address(
+                    acc1.recipient, to_full_shard_id, 0
+                )
+                self.assertEqual(
+                    resp["contractAddress"],
+                    "0x"
+                    + contract_address.hex()
+                    + to_full_shard_id.to_bytes(4, "big").hex(),
+                )
 
     def test_getTransactionReceipt_on_contract_creation_failure(self):
         id1 = Identity.create_random_identity()
@@ -610,14 +616,14 @@ class TestJSONRPC(unittest.TestCase):
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
 
-            resp = send_request(
-                "getTransactionReceipt",
-                "0x" + tx.get_hash().hex() + branch.serialize().hex(),
-            )
-            self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
-            self.assertEqual(resp["status"], "0x0")
-            self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
-            self.assertIsNone(resp["contractAddress"])
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(
+                    endpoint, "0x" + tx.get_hash().hex() + branch.serialize().hex()
+                )
+                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["status"], "0x0")
+                self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
+                self.assertIsNone(resp["contractAddress"])
 
     def test_getLogs(self):
         id1 = Identity.create_random_identity()

@@ -8,7 +8,7 @@ import sys
 import time
 from collections import deque
 from threading import Thread
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Tuple
 
 from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.p2p_commands import (
@@ -61,7 +61,14 @@ from quarkchain.cluster.rpc import (
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.core import Branch, ShardMask, Log, Address
+from quarkchain.core import (
+    Branch,
+    ShardMask,
+    Log,
+    Address,
+    TransactionReceipt,
+    MinorBlock,
+)
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
@@ -1228,7 +1235,9 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transaction_by_hash(tx_hash, branch)
 
-    async def get_transaction_receipt(self, tx_hash, branch):
+    async def get_transaction_receipt(
+        self, tx_hash, branch
+    ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         if branch.value not in self.branch_to_slaves:
             return None
 

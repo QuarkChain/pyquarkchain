@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import List, Callable, Optional
+from typing import List, Callable
 
 import aiohttp_cors
 import rlp
@@ -761,8 +761,6 @@ class JSONRPCServer:
         if not resp:
             return None
         minor_block, i, receipt = resp
-        if len(minor_block.tx_list) <= i:
-            return None
 
         return receipt_encoder(minor_block, i, receipt)
 
@@ -922,15 +920,7 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_getTransactionReceipt(self, tx_id):
-        tx_hash, full_shard_id = tx_id
-        shard_size = self.master.get_shard_size()
-        branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
-        receipt = await self.master.get_transaction_receipt(tx_id, branch)
-        if not receipt:
-            return None
-        if receipt["contractAddress"]:
-            receipt["contractAddress"] = receipt["contractAddress"][:42]
-        return receipt
+        return await self.getTransactionReceipt(tx_id)
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
