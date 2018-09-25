@@ -761,8 +761,6 @@ class JSONRPCServer:
         if not resp:
             return None
         minor_block, i, receipt = resp
-        if len(minor_block.tx_list) <= i:
-            return None
 
         return receipt_encoder(minor_block, i, receipt)
 
@@ -921,16 +919,19 @@ class JSONRPCServer:
         return await self.sendRawTransaction(tx_data)
 
     @public_methods.add
+    @decode_arg("tx_id", id_decoder)
     async def eth_getTransactionReceipt(self, tx_id):
         tx_hash, full_shard_id = tx_id
         shard_size = self.master.get_shard_size()
         branch = Branch.create(shard_size, (shard_size - 1) & full_shard_id)
-        receipt = await self.master.get_transaction_receipt(tx_id, branch)
-        if not receipt:
+        resp = await self.master.get_transaction_receipt(tx_hash, branch)
+        if not resp:
             return None
-        if receipt["contractAddress"]:
-            receipt["contractAddress"] = receipt["contractAddress"][:42]
-        return receipt
+        minor_block, i, receipt = resp
+        ret = receipt_encoder(minor_block, i, receipt)
+        if ret["contractAddress"]:
+            ret["contractAddress"] = ret["contractAddress"][:42]
+        return ret
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
