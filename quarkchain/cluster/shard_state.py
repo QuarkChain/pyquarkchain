@@ -361,7 +361,7 @@ class ShardState:
             raise ValueError("Hash of meta mismatch")
 
         if (
-            len(block.header.extra_data)
+            len(block.meta.extra_data)
             > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
         ):
             raise ValueError("extra_data in block is too large")
@@ -666,8 +666,8 @@ class ShardState:
                 time.time() - start_time, len(block.tx_list)
             )
         )
-        if block.header.extra_data.decode("utf-8") != "":
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
+        if block.meta.extra_data.decode("utf-8") != "":
+            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
             sample = {
                 "time": time_ms() // 1000,
                 "shard": str(block.header.branch.get_shard_id()),
@@ -904,7 +904,7 @@ class ShardState:
         evm_state.commit()
 
         extra_data["creation_ms"] = time_ms() - extra_data["inception"]
-        block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+        block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
         block.finalize(evm_state=evm_state)
 
         end_time = time.time()
