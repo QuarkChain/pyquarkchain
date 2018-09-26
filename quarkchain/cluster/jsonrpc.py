@@ -835,6 +835,54 @@ class JSONRPCServer:
             return None
         return quantity_encoder(ret)
 
+    @public_methods.add
+    @decode_arg("from_address", address_decoder)
+    @decode_arg("to_address", address_decoder)
+    async def donate(self, from_address, to_address):
+        """Faucet function to send 1 token from from_address to to_address.
+        from_address must be one of the addresses in genesis_data/alloc.json.
+        Only allow one pending tx at a time.
+        Return tx id if success else None
+        """
+        key = self.master.env.quark_chain_config.alloc_accounts.get(
+            from_address.hex(), None
+        )
+        if not key:
+            return None
+
+        from_address = Address.deserialize(from_address)
+        to_address = Address.deserialize(to_address)
+
+        # Do nothing if there is already a pending tx
+        result = await self.master.get_transactions_by_address(
+            from_address, bytes(1), 1
+        )
+        if result:
+            tx_list, next_token = result
+            if tx_list:
+                return None
+
+        account_branch_data = await self.master.get_primary_account_data(from_address)
+        nonce = account_branch_data.transaction_count
+        network_id = self.master.env.quark_chain_config.NETWORK_ID
+        evm_tx = EvmTransaction(
+            nonce,
+            10 ** 9,
+            30000,
+            to_address.recipient,
+            1 * (10 ** 18),
+            b"",
+            from_full_shard_id=from_address.full_shard_id,
+            to_full_shard_id=to_address.full_shard_id,
+            network_id=network_id,
+        )
+        evm_tx.sign(key)
+        tx = Transaction(code=Code.create_evm_code(evm_tx))
+        success = await self.master.add_transaction(tx)
+        if not success:
+            return None
+        return id_encoder(tx.get_hash(), from_address.full_shard_id)
+
     ######################## Ethereum JSON RPC ########################
 
     @public_methods.add
@@ -947,54 +995,6 @@ class JSONRPCServer:
         return data_encoder(res) if res is not None else None
 
     ######################## Private Methods ########################
-
-    @private_methods.add
-    @decode_arg("from_address", address_decoder)
-    @decode_arg("to_address", address_decoder)
-    async def donate(self, from_address, to_address):
-        """Faucet function to send 1 token from from_address to to_address.
-        from_address must be one of the addresses in genesis_data/alloc.json.
-        Only allow one pending tx at a time.
-        Return tx id if success else None
-        """
-        key = self.master.env.quark_chain_config.alloc_accounts.get(
-            from_address.hex(), None
-        )
-        if not key:
-            return None
-
-        from_address = Address.deserialize(from_address)
-        to_address = Address.deserialize(to_address)
-
-        # Do nothing if there is already a pending tx
-        result = await self.master.get_transactions_by_address(
-            from_address, bytes(1), 1
-        )
-        if result:
-            tx_list, next_token = result
-            if tx_list:
-                return None
-
-        account_branch_data = await self.master.get_primary_account_data(from_address)
-        nonce = account_branch_data.transaction_count
-        network_id = self.master.env.quark_chain_config.NETWORK_ID
-        evm_tx = EvmTransaction(
-            nonce,
-            10 ** 9,
-            30000,
-            to_address.recipient,
-            1 * (10 ** 18),
-            b"",
-            from_full_shard_id=from_address.full_shard_id,
-            to_full_shard_id=to_address.full_shard_id,
-            network_id=network_id,
-        )
-        evm_tx.sign(key)
-        tx = Transaction(code=Code.create_evm_code(evm_tx))
-        success = await self.master.add_transaction(tx)
-        if not success:
-            return None
-        return id_encoder(tx.get_hash(), from_address.full_shard_id)
 
     @private_methods.add
     @decode_arg("coinbase_address", address_decoder)
