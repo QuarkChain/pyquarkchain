@@ -633,6 +633,7 @@ class MinorBlockMeta(Serializable):
         ("coinbase_address", Address),
         ("evm_gas_used", uint256),
         ("evm_cross_shard_receive_gas_used", uint256),
+        ("extra_data", PrependedSizeBytesSerializer(2)),
     ]
 
     def __init__(
@@ -643,6 +644,7 @@ class MinorBlockMeta(Serializable):
         coinbase_address: Address = Address.create_empty_account(),
         evm_gas_used: int = 0,
         evm_cross_shard_receive_gas_used: int = 0,
+        extra_data: bytes = b"",
     ):
         self.hash_merkle_root = hash_merkle_root
         self.hash_evm_state_root = hash_evm_state_root
@@ -650,6 +652,7 @@ class MinorBlockMeta(Serializable):
         self.coinbase_address = coinbase_address
         self.evm_gas_used = evm_gas_used
         self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
+        self.extra_data = extra_data
 
     def get_hash(self):
         return sha3_256(self.serialize())
@@ -676,7 +679,6 @@ class MinorBlockHeader(Serializable):
         ("difficulty", biguint),
         ("nonce", uint64),
         ("bloom", uint2048),
-        ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
     ]
 
@@ -694,7 +696,6 @@ class MinorBlockHeader(Serializable):
         difficulty: int = 0,
         nonce: int = 0,
         bloom: int = 0,
-        extra_data: bytes = b"",
         mixhash: bytes = bytes(Constant.HASH_LENGTH),
     ):
         self.version = version
@@ -709,14 +710,13 @@ class MinorBlockHeader(Serializable):
         self.difficulty = difficulty
         self.nonce = nonce
         self.bloom = bloom
-        self.extra_data = extra_data
         self.mixhash = mixhash
 
     def get_hash(self):
         return sha3_256(self.serialize())
 
     def get_hash_for_mining(self):
-        return sha3_256(self.serialize_without(["nonce", "mixhash", "extra_data"]))
+        return sha3_256(self.serialize_without(["nonce", "mixhash", "hash_meta"]))
 
 
 class MinorBlock(Serializable):
@@ -811,7 +811,7 @@ class MinorBlock(Serializable):
             address = Address.create_empty_account(
                 full_shard_id=self.meta.coinbase_address.full_shard_id
             )
-        meta = MinorBlockMeta(coinbase_address=address)
+        meta = MinorBlockMeta(coinbase_address=address, extra_data=extra_data)
 
         create_time = (
             self.header.create_time + 1 if create_time is None else create_time
@@ -828,7 +828,6 @@ class MinorBlock(Serializable):
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,
-            extra_data=extra_data,
         )
 
         return MinorBlock(header, meta, [])
