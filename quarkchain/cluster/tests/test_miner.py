@@ -13,9 +13,11 @@ class TestMiner(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        def miner_gen(consensus, create_func, add_func):
-            m = Miner(consensus, create_func, add_func, self.get_mining_params)
-            m.enable()
+        def miner_gen(consensus, create_func, add_func, **kwargs):
+            m = Miner(
+                consensus, create_func, add_func, self.get_mining_params, **kwargs
+            )
+            m.enabled = True
             return m
 
         self.miner_gen = miner_gen
@@ -125,7 +127,36 @@ class TestMiner(unittest.TestCase):
         )
         # only process one block, which is passed in
         miner.input_q.put((None, {}))
-        miner.mine_sha3sha3(block, miner.input_q, miner.output_q, {})
+        miner._mine_loop(
+            ConsensusType.POW_SHA3SHA3, block, miner.input_q, miner.output_q, {}
+        )
         mined_block = miner.output_q.get()
         self.assertEqual(mined_block.header.nonce, 3)
         validate_seal(mined_block.header, ConsensusType.POW_SHA3SHA3)
+
+    def test_only_remote_decorator(self):
+        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
+        self.assertRaises(ValueError, miner.get_work)
+        self.assertRaises(ValueError, miner.submit_work, b"", 42, b"")
+
+    def test_get_work(self):
+        block = RootBlock(RootBlockHeader(create_time=123, extra_data=b"{}"))
+
+        async def create():
+            nonlocal block
+            return block
+
+        async def add(block_to_add):
+            nonlocal miner
+            self.added_blocks.append(block_to_add)
+
+        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, create, add, remote=True)
+
+        # no current work
+        work = miner.get_work()
+        self.assertIsNone(work)
+
+        # TODO: more tests
+
+    def test_submit_work(self):
+        pass

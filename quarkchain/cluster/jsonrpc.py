@@ -118,19 +118,11 @@ def id_decoder(hex_str):
     return data_bytes[:32], int.from_bytes(data_bytes[32:], byteorder="big")
 
 
-def block_hash_decoder(hex_str):
+def hash_decoder(hex_str):
     """Decode a block hash."""
     decoded = data_decoder(hex_str)
     if len(decoded) != 32:
-        raise InvalidParams("Block hashes must be 32 bytes long")
-    return decoded
-
-
-def tx_hash_decoder(hex_str):
-    """Decode a transaction hash."""
-    decoded = data_decoder(hex_str)
-    if len(decoded) != 32:
-        raise InvalidParams("Transaction hashes must be 32 bytes long")
+        raise InvalidParams("Hashes must be 32 bytes long")
     return decoded
 
 
@@ -834,6 +826,21 @@ class JSONRPCServer:
         if ret is None:
             return None
         return quantity_encoder(ret)
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    @decode_arg("header_hash", hash_decoder)
+    @decode_arg("nonce", quantity_decoder)
+    @decode_arg("mixhash", hash_decoder)
+    async def submitWork(self, shard, header_hash, nonce, mixhash):
+        # TODO: to be implemented
+        return False
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getWork(self, shard):
+        # TODO: to be implemented
+        return None
 
     ######################## Ethereum JSON RPC ########################
 
