@@ -59,7 +59,6 @@ class GenesisManager:
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
             coinbase_address=coinbase_address,
-            extra_data=bytes.fromhex(genesis.EXTRA_DATA),
         )
         header = MinorBlockHeader(
             version=genesis.VERSION,
@@ -71,5 +70,6 @@ class GenesisManager:
             coinbase_amount=genesis.COINBASE_AMOUNT,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
+            extra_data=bytes.fromhex(genesis.EXTRA_DATA),
         )
         return MinorBlock(header=header, meta=meta, tx_list=[])
