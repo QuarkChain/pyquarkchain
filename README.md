@@ -14,9 +14,11 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 - P2P network allowing clusters to join and leave anytime
 - Fully compatible with Ethereum smart contract
 
-## Development Setup
+## Design
 
-**Check out the [Wiki](https://github.com/QuarkChain/pyquarkchain/wiki) to understand the basic concepts in QuarkChain**
+Check out the [Wiki](https://github.com/QuarkChain/pyquarkchain/wiki) to understand the design of QuarkChain.
+
+## Development Setup
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
