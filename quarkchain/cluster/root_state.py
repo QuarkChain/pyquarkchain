@@ -190,7 +190,7 @@ class RootState:
     def create_block_to_mine(self, m_header_list, address, create_time=None):
         if create_time is None:
             create_time = max(self.tip.create_time + 1, int(time.time()))
-        extra_data = {
+        tracking_data = {
             "inception": time_ms(),
             "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
         }
@@ -207,8 +207,8 @@ class RootState:
 
         coinbase_amount = coinbase_amount // 2
 
-        extra_data["creation_ms"] = time_ms() - extra_data["inception"]
-        block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+        tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
+        block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         return block.finalize(quarkash=coinbase_amount, coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
@@ -282,6 +282,12 @@ class RootState:
             raise ValueError("previous hash block mismatch")
 
         block_hash = self.validate_block_header(block.header, block_hash)
+
+        if (
+            len(block.tracking_data)
+            > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
+        ):
+            raise ValueError("tracking_data in block is too large")
 
         # Check the merkle tree
         merkle_hash = calculate_merkle_root(block.minor_block_header_list)
@@ -402,9 +408,9 @@ class RootState:
             block, last_minor_block_header_list, root_block_hash=block_hash
         )
 
-        decoded_extra_data = block.header.extra_data.decode("utf-8")
-        if decoded_extra_data != "":
-            extra_data = json.loads(decoded_extra_data)
+        tracking_data_str = block.tracking_data.decode("utf-8")
+        if tracking_data_str != "":
+            tracking_data = json.loads(tracking_data_str)
             sample = {
                 "time": time_ms() // 1000,
                 "shard": "R",
@@ -412,12 +418,12 @@ class RootState:
                 "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                 "hash": block.header.get_hash().hex(),
                 "height": block.header.height,
-                "original_cluster": extra_data["cluster"],
-                "inception": extra_data["inception"],
-                "creation_latency_ms": extra_data["creation_ms"],
+                "original_cluster": tracking_data["cluster"],
+                "inception": tracking_data["inception"],
+                "creation_latency_ms": tracking_data["creation_ms"],
                 "add_block_latency_ms": time_ms() - start_ms,
-                "mined": extra_data.get("mined", 0),
-                "propagation_latency_ms": start_ms - extra_data.get("mined", 0),
+                "mined": tracking_data.get("mined", 0),
+                "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.minor_block_header_list),
             }
             asyncio.ensure_future(
