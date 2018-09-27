@@ -1,6 +1,5 @@
 import asyncio
 import copy
-import functools
 import random
 import time
 import json
@@ -156,7 +155,6 @@ class DoubleSHA256(MiningAlgorithm):
         super().post_process_mined_block(block)
 
 
-# noinspection PyArgumentList
 class Miner:
     def __init__(
         self,
@@ -250,6 +248,7 @@ class Miner:
 
         if now is None:  # clock open for mock
             now = time.time()
+        # 5 sec interval magic number
         if not self.current_work or now - self.current_work.header.create_time > 5:
             block = await self.create_block_async_func()
             self.current_work = block
