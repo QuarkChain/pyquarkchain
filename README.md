@@ -16,7 +16,7 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 
 ## Development Setup
 
-**Check out our [Developer Guide](https://developers.quarkchain.io/#basic-concepts) to understand the basic concepts in QuarkChain**
+**Check out the [Wiki](https://github.com/QuarkChain/pyquarkchain/wiki) to understand the basic concepts in QuarkChain**
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
@@ -138,9 +138,11 @@ Timestamp                     TPS   Pending tx  Confirmed tx       BPS      SBPS
 ```
 
 ## JSON RPC
-JSON RPCs are defined in [`jsonrpc.py`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/cluster/jsonrpc.py). Note that there are two JSON RPC ports. By default they are 38491 for private RPCs and 38391 for public RPCs. Since you are running your own clusters you get access to both. 
+JSON RPCs are defined in [`jsonrpc.py`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/cluster/jsonrpc.py). Note that there are two JSON RPC ports. By default they are 38491 for private RPCs and 38391 for public RPCs. Since you are running your own clusters you get access to both.
 
-Public RPCs are documented in the [Developer Guide](https://developers.quarkchain.io/#json-rpc).
+Public RPCs are documented in the [Developer Guide](https://developers.quarkchain.io/#json-rpc). You can use the client library [quarkchain-web3.js](https://github.com/QuarkChain/quarkchain-web3.js) to query account state, send transactions, deploy and call smart contracts. Here is [a simple example](https://gist.github.com/qcgg/1ab0352c5b2299270b5795648cca83d8) to deploy smart contract on QuarkChain using the client library.
+
+You may find a list of accounts with tokens preallocated through the genesis blocks [here](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/genesis_data/alloc.json). Feel free to use any of them to issue transactions.
 
 ## Loadtest
 Follow [this wiki page](https://github.com/QuarkChain/pyquarkchain/wiki/Loadtest) to loadtest your cluster and see how fast it processes large volumn of transacations.
