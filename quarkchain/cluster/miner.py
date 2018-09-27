@@ -189,17 +189,6 @@ class Miner:
         # header hash -> work, updated only by remote miner get & put
         self.work_map = {}  # type: Dict[bytes, Union[MinorBlock, RootBlock]]
 
-    # noinspection PyMethodParameters
-    def only_remote(f):
-        # noinspection PyCallingNonCallable
-        @functools.wraps(f)
-        def wrap(self, *args, **kwargs):
-            if not self.remote:
-                raise ValueError("Should only be used for remote miner")
-            f(self, *args, **kwargs)
-
-        return wrap
-
     def start(self):
         self.enabled = True
         self._mine_new_block_async()
@@ -250,40 +239,40 @@ class Miner:
             instance.process.start()
             await handle_mined_block(instance)
 
-        async def loop_for_work_gen(instance: Miner):
-            # refresh current work
-            while instance.enabled:
-                block = await instance.create_block_async_func()
-                instance.current_work = block
-                # remove stale works.
-                now = time.time()
-                # TODO: for now, same param as go-ethereum
-                instance.work_map = {
-                    h: block
-                    for h, block in instance.work_map.items()
-                    if now - block.header.create_time < 7 * 12
-                }
-                await asyncio.sleep(5)
-
-        if not self.enabled:
+        # no-op if enabled or mining remotely
+        if not self.enabled or self.remote:
             return None
-        if self.remote:
-            return asyncio.ensure_future(loop_for_work_gen(self))
-        else:
-            return asyncio.ensure_future(mine_new_block(self))
+        return asyncio.ensure_future(mine_new_block(self))
 
-    @only_remote
-    def get_work(self) -> Optional[Tuple[bytes, int, int]]:
-        if not self.current_work:
-            return None
+    async def get_work(self, now=None) -> Optional[Tuple[bytes, int, int]]:
+        if not self.remote:
+            raise ValueError("Should only be used for remote miner")
+
+        if now is None:  # clock open for mock
+            now = time.time()
+        if not self.current_work or now - self.current_work.header.create_time > 5:
+            block = await self.create_block_async_func()
+            self.current_work = block
+
         header = self.current_work.header
         header_hash = header.get_hash_for_mining()
         # store in memory for future retrieval during work submission
         self.work_map[header_hash] = self.current_work
+
+        # clean up worker map
+        # TODO: for now, same param as go-ethereum
+        self.work_map = {
+            h: b
+            for h, b in self.work_map.items()
+            if now - b.header.create_time < 7 * 12
+        }
+
         return header_hash, header.height, header.difficulty
 
-    @only_remote
     async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
+        if not self.remote:
+            raise ValueError("Should only be used for remote miner")
+
         if header_hash not in self.work_map:
             return False
         block = self.work_map[header_hash]
@@ -298,6 +287,7 @@ class Miner:
         try:
             await self.add_block_async_func(block)
             del self.work_map[header_hash]
+            self.current_work = None
             return True
         except Exception as ex:
             Logger.error(ex)

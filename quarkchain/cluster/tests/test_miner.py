@@ -4,9 +4,10 @@ import time
 import unittest
 from typing import Optional
 
-from quarkchain.cluster.miner import Miner, validate_seal
+from quarkchain.cluster.miner import Miner, validate_seal, DoubleSHA256
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
+from quarkchain.utils import sha3_256
 
 
 class TestMiner(unittest.TestCase):
@@ -134,29 +135,88 @@ class TestMiner(unittest.TestCase):
         self.assertEqual(mined_block.header.nonce, 3)
         validate_seal(mined_block.header, ConsensusType.POW_SHA3SHA3)
 
-    def test_only_remote_decorator(self):
-        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
-        self.assertRaises(ValueError, miner.get_work)
-        self.assertRaises(ValueError, miner.submit_work, b"", 42, b"")
+    def test_only_remote(self):
+        async def go():
+            miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
+            with self.assertRaises(ValueError):
+                await miner.get_work()
+            with self.assertRaises(ValueError):
+                await miner.submit_work(b"", 42, b"")
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(go())
 
     def test_get_work(self):
-        block = RootBlock(RootBlockHeader(create_time=123, extra_data=b"{}"))
+        now = 42
 
         async def create():
-            nonlocal block
+            nonlocal now
+            return RootBlock(RootBlockHeader(create_time=now, extra_data=b"{}"))
+
+        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, create, None, remote=True)
+
+        async def go():
+            nonlocal now
+            # no current work, will generate a new one
+            work = await miner.get_work(now=now)
+            self.assertEqual(len(work), 3)
+            self.assertEqual(len(miner.work_map), 1)
+            h = list(miner.work_map.keys())[0]
+            self.assertEqual(work[0], h)
+            # cache hit
+            now += 1
+            work = await miner.get_work(now=now)
+            self.assertEqual(work[0], h)
+            self.assertEqual(len(miner.work_map), 1)
+            # new work if interval passed
+            now += 10
+            work = await miner.get_work(now=now)
+            self.assertEqual(len(miner.work_map), 2)
+            self.assertNotEqual(work[0], h)
+            # work map cleaned up if too much time passed
+            now += 100
+            await miner.get_work(now=now)
+            self.assertEqual(len(miner.work_map), 1)  # only new work itself
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(go())
+
+    def test_submit_work(self):
+        now = 42
+        block = RootBlock(
+            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=2)
+        )
+
+        async def create():
             return block
 
         async def add(block_to_add):
-            nonlocal miner
             self.added_blocks.append(block_to_add)
 
         miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, create, add, remote=True)
 
-        # no current work
-        work = miner.get_work()
-        self.assertIsNone(work)
+        async def go():
+            work = await miner.get_work(now=now)
+            self.assertEqual(work[1], 0)  # block height
+            self.assertEqual(work[2], 2)  # diff
+            # submitted block doesn't exist
+            res = await miner.submit_work(b"lolwut", 0, sha3_256(b""))
+            self.assertFalse(res)
 
-        # TODO: more tests
+            solver = DoubleSHA256(block)
+            solver.mine(100, 200)
+            sol = int.from_bytes(solver.nonce_found, byteorder="big")
+            self.assertGreater(sol, 100)
+            non_sol = sol - 1
+            # invalid pow proof
+            res = await miner.submit_work(work[0], non_sol, sha3_256(b""))
+            self.assertFalse(res)
+            # valid submission
+            res = await miner.submit_work(work[0], sol, sha3_256(b""))
+            self.assertTrue(res)
+            self.assertEqual(miner.work_map, {})
+            self.assertEqual(len(self.added_blocks), 1)
+            self.assertIsNone(miner.current_work)
 
-    def test_submit_work(self):
-        pass
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(go())
