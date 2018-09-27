@@ -529,9 +529,9 @@ class MasterServer:
             block = await __create_block()
 
             # TODO if above is fixed, below won't be needed...
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
+            tracking_data = json.loads(block.tracking_data.decode("utf-8"))
+            tracking_data["mined"] = time_ms()
+            block.tracking_data = json.dumps(tracking_data).encode("utf-8")
 
             await self.add_root_block(block)
 
