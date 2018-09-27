@@ -366,6 +366,12 @@ class ShardState:
         ):
             raise ValueError("extra_data in block is too large")
 
+        if (
+            len(block.tracking_data)
+            > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
+        ):
+            raise ValueError("tracking_data in block is too large")
+
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
         if merkle_hash != block.meta.hash_merkle_root:
@@ -666,8 +672,9 @@ class ShardState:
                 time.time() - start_time, len(block.tx_list)
             )
         )
-        if block.meta.extra_data.decode("utf-8") != "":
-            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
+        tracking_data_str = block.tracking_data.decode("utf-8")
+        if tracking_data_str != "":
+            tracking_data = json.loads(tracking_data_str)
             sample = {
                 "time": time_ms() // 1000,
                 "shard": str(block.header.branch.get_shard_id()),
@@ -675,12 +682,12 @@ class ShardState:
                 "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                 "hash": block.header.get_hash().hex(),
                 "height": block.header.height,
-                "original_cluster": extra_data["cluster"],
-                "inception": extra_data["inception"],
-                "creation_latency_ms": extra_data["creation_ms"],
+                "original_cluster": tracking_data["cluster"],
+                "inception": tracking_data["inception"],
+                "creation_latency_ms": tracking_data["creation_ms"],
                 "add_block_latency_ms": time_ms() - start_ms,
-                "mined": extra_data.get("mined", 0),
-                "propagation_latency_ms": start_ms - extra_data.get("mined", 0),
+                "mined": tracking_data.get("mined", 0),
+                "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.tx_list),
             }
             asyncio.ensure_future(
@@ -864,7 +871,7 @@ class ShardState:
         """ Create a block to append and include TXs to maximize rewards
         """
         start_time = time.time()
-        extra_data = {
+        tracking_data = {
             "inception": time_ms(),
             "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
         }
@@ -903,10 +910,10 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        extra_data["creation_ms"] = time_ms() - extra_data["inception"]
-        block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
         block.finalize(evm_state=evm_state)
 
+        tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
+        block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         end_time = time.time()
         Logger.debug(
             "Create block to mine took {} seconds for {} tx".format(

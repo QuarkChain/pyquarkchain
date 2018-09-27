@@ -47,15 +47,9 @@ class MiningAlgorithm(ABC):
 
     def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
         """Post-process block to track block propagation latency"""
-        if isinstance(block, RootBlock):
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
-        else:
-            extra_data = json.loads(block.meta.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.meta.extra_data = json.dumps(extra_data).encode("utf-8")
-            block.header.hash_meta = block.meta.get_hash()
+        tracking_data = json.loads(block.tracking_data.decode("utf-8"))
+        tracking_data["mined"] = time_ms()
+        block.tracking_data = json.dumps(tracking_data).encode("utf-8")
 
     @staticmethod
     def _log_status(block: Union[RootBlock, MinorBlock]):

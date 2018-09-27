@@ -724,6 +724,10 @@ class MinorBlock(Serializable):
         ("header", MinorBlockHeader),
         ("meta", MinorBlockMeta),
         ("tx_list", PrependedSizeListSerializer(4, Transaction)),
+        (
+            "tracking_data",
+            PrependedSizeBytesSerializer(2),
+        ),  # for logging purpose, not signed
     ]
 
     def __init__(
@@ -731,10 +735,12 @@ class MinorBlock(Serializable):
         header: MinorBlockHeader,
         meta: MinorBlockMeta,
         tx_list: List[Transaction] = None,
+        tracking_data: bytes = b"",
     ):
         self.header = header
         self.meta = meta
         self.tx_list = [] if tx_list is None else tx_list
+        self.tracking_data = tracking_data
 
     def calculate_merkle_root(self):
         return calculate_merkle_root(self.tx_list)
@@ -830,7 +836,7 @@ class MinorBlock(Serializable):
             nonce=nonce,
         )
 
-        return MinorBlock(header, meta, [])
+        return MinorBlock(header, meta, [], b"")
 
 
 class RootBlockHeader(Serializable):
@@ -912,13 +918,18 @@ class RootBlock(Serializable):
     FIELDS = [
         ("header", RootBlockHeader),
         ("minor_block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
+        (
+            "tracking_data",
+            PrependedSizeBytesSerializer(2),
+        ),  # for logging purpose, not signed
     ]
 
-    def __init__(self, header, minor_block_header_list=None):
+    def __init__(self, header, minor_block_header_list=None, tracking_data=b""):
         self.header = header
         self.minor_block_header_list = (
             [] if minor_block_header_list is None else minor_block_header_list
         )
+        self.tracking_data = tracking_data
 
     def finalize(self, quarkash=0, coinbase_address=Address.create_empty_account()):
         self.header.hash_merkle_root = calculate_merkle_root(
