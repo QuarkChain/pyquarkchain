@@ -9,6 +9,8 @@ from quarkchain.core import (
     TransactionReceipt,
     Log,
     FixedSizeBytesSerializer,
+    biguint,
+    Constant,
 )
 from quarkchain.core import (
     Transaction,
@@ -30,7 +32,7 @@ class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
         ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
-        ("root_tip", Optional(RootBlock)),   # Initialize ShardState if not None
+        ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
     def __init__(self, id, shard_mask_list, root_tip):
@@ -729,6 +731,34 @@ class GasPriceResponse(Serializable):
         self.result = result
 
 
+class GetWorkRequest(Serializable):
+    FIELDS = [("branch", Branch)]
+
+    def __init__(self, branch: Branch):
+        self.branch = branch
+
+
+class GetWorkResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+        ("header_hash", hash256),
+        ("height", uint64),
+        ("difficulty", biguint),
+    ]
+
+    def __init__(
+        self,
+        error_code: int,
+        header_hash: bytes = bytes(Constant.HASH_LENGTH),
+        height: int = 0,
+        difficulty: int = 0,
+    ):
+        self.error_code = error_code
+        self.header_hash = header_hash
+        self.height = height
+        self.difficulty = difficulty
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -788,6 +818,8 @@ class ClusterOp:
     GET_CODE_RESPONSE = 52 + CLUSTER_OP_BASE
     GAS_PRICE_REQUEST = 53 + CLUSTER_OP_BASE
     GAS_PRICE_RESPONSE = 54 + CLUSTER_OP_BASE
+    GET_WORK_REQUEST = 55 + CLUSTER_OP_BASE
+    GET_WORK_RESPONSE = 56 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -844,4 +876,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_CODE_RESPONSE: GetCodeResponse,
     ClusterOp.GAS_PRICE_REQUEST: GasPriceRequest,
     ClusterOp.GAS_PRICE_RESPONSE: GasPriceResponse,
+    ClusterOp.GET_WORK_REQUEST: GetWorkRequest,
+    ClusterOp.GET_WORK_RESPONSE: GetWorkResponse,
 }

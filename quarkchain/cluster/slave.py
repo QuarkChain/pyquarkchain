@@ -6,6 +6,7 @@ import sys
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.cluster.miner import MiningWork
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.p2p_commands import CommandOp, GetMinorBlockListRequest
 from quarkchain.cluster.protocol import (
@@ -27,6 +28,8 @@ from quarkchain.cluster.rpc import (
     GasPriceRequest,
     GasPriceResponse,
     GetAccountDataRequest,
+    GetWorkRequest,
+    GetWorkResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -441,6 +444,17 @@ class MasterConnection(ClusterConnection):
         fail = res is None
         return GasPriceResponse(error_code=int(fail), result=res or 0)
 
+    async def handle_get_work(self, req: GetWorkRequest) -> GetWorkResponse:
+        res = await self.slave_server.get_work(req.branch)
+        if not res:
+            return GetWorkResponse(error_code=1)
+        return GetWorkResponse(
+            error_code=0,
+            header_hash=res.hash,
+            height=res.height,
+            difficulty=res.difficulty,
+        )
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -536,6 +550,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GAS_PRICE_REQUEST: (
         ClusterOp.GAS_PRICE_RESPONSE,
         MasterConnection.handle_gas_price,
+    ),
+    ClusterOp.GET_WORK_REQUEST: (
+        ClusterOp.GET_WORK_RESPONSE,
+        MasterConnection.handle_get_work,
     ),
 }
 
@@ -1127,6 +1145,16 @@ class SlaveServer:
         if not shard:
             return None
         return shard.state.gas_price()
+
+    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+        shard = self.shards.get(branch, None)
+        if not shard:
+            return None
+        try:
+            return await shard.miner.get_work()
+        except Exception:
+            Logger.log_exception()
+            return None
 
 
 def parse_args():

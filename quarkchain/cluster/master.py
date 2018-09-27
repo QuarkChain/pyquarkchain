@@ -4,13 +4,12 @@ import ipaddress
 import json
 import psutil
 import random
-import sys
 import time
 from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
-from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
@@ -49,6 +48,8 @@ from quarkchain.cluster.rpc import (
     GetStorageRequest,
     GetCodeRequest,
     GasPriceRequest,
+    GetWorkRequest,
+    GetWorkResponse,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -60,6 +61,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
@@ -449,6 +451,16 @@ class SlaveConnection(ClusterConnection):
         _, resp, _ = await self.write_rpc_request(ClusterOp.GAS_PRICE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
+    async def get_work(self, branch) -> Optional[MiningWork]:
+        request = GetWorkRequest(branch)
+        _, resp, _ = await self.write_rpc_request(ClusterOp.GET_WORK_REQUEST, request)
+        get_work_resp = resp  # type: GetWorkResponse
+        if get_work_resp.error_code != 0:
+            return None
+        return MiningWork(
+            get_work_resp.header_hash, get_work_resp.height, get_work_resp.difficulty
+        )
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -540,11 +552,13 @@ class MasterServer:
                 "target_block_time": self.get_artificial_tx_config().target_root_block_time
             }
 
+        root_config = self.env.quark_chain_config.ROOT  # type: RootConfig
         self.root_miner = Miner(
-            self.env.quark_chain_config.ROOT.CONSENSUS_TYPE,
+            root_config.CONSENSUS_TYPE,
             __create_block,
             __add_block,
             __get_mining_params,
+            remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
     def __get_shard_size(self):
@@ -1041,7 +1055,7 @@ class MasterServer:
             )
         return future_list
 
-    # ------------------------------ Cluster Peer Connnection Management --------------
+    # ------------------------------ Cluster Peer Connection Management --------------
     def get_peer(self, cluster_peer_id):
         if self.network is None:
             return None
@@ -1089,7 +1103,7 @@ class MasterServer:
     async def create_transactions(
         self, num_tx_per_shard, xshard_percent, tx: Transaction
     ):
-        """Create transactions and add to the network for loadtesting"""
+        """Create transactions and add to the network for load testing"""
         futures = []
         for slave in self.slave_pool:
             request = GenTxRequest(num_tx_per_shard, xshard_percent, tx)
@@ -1312,6 +1326,15 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.gas_price(branch)
+
+    async def get_work(self, branch: Optional[Branch]) -> Optional[MiningWork]:
+        if not branch:  # get root chain work
+            return await self.root_miner.get_work()
+
+        if branch.value not in self.branch_to_slaves:
+            return None
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_work(branch)
 
 
 def parse_args():
