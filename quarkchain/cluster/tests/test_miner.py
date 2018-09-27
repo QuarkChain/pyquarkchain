@@ -37,8 +37,9 @@ class TestMiner(unittest.TestCase):
             if len(self.added_blocks) >= 5:
                 return None  # stop the game
             return RootBlock(
-                RootBlockHeader(create_time=int(time.time())),
-                tracking_data="{}".encode("utf-8"),
+                RootBlockHeader(
+                    create_time=int(time.time()), extra_data="{}".encode("utf-8")
+                )
             )
 
         async def add(block):
@@ -64,8 +65,9 @@ class TestMiner(unittest.TestCase):
             if i >= 5:
                 return None
             return RootBlock(
-                RootBlockHeader(create_time=int(time.time())),
-                tracking_data="{}".encode("utf-8"),
+                RootBlockHeader(
+                    create_time=int(time.time()), extra_data="{}".encode("utf-8")
+                )
             )
 
         async def add(block):
@@ -90,9 +92,9 @@ class TestMiner(unittest.TestCase):
         block = RootBlock(
             RootBlockHeader(
                 create_time=42,  # so we have deterministic hash
+                extra_data="{}".encode("utf-8"),
                 difficulty=5,  # low probability on successful mining at first try
-            ),
-            tracking_data="{}".encode("utf-8"),
+            )
         )
 
         async def create():
@@ -120,8 +122,9 @@ class TestMiner(unittest.TestCase):
     def test_sha3sha3(self):
         miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
         block = RootBlock(
-            RootBlockHeader(create_time=42, difficulty=5),
-            tracking_data="{}".encode("utf-8"),
+            RootBlockHeader(
+                create_time=42, extra_data="{}".encode("utf-8"), difficulty=5
+            )
         )
         # only process one block, which is passed in
         miner.input_q.put((None, {}))
