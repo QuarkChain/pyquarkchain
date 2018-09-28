@@ -207,6 +207,7 @@ def create_test_clusters(
     genesis_root_heights,
     remote_mining=False,
 ):
+    # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
         cutoff=45, diff_factor=2048, minimum_diff=10
     )

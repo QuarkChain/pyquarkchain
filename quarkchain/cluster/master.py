@@ -464,7 +464,7 @@ class SlaveConnection(ClusterConnection):
         )
 
     async def submit_work(
-        self, branch, header_hash: bytes, nonce: int, mixhash: bytes
+        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
     ) -> bool:
         request = SubmitWorkRequest(branch, header_hash, nonce, mixhash)
         _, resp, _ = await self.write_rpc_request(
