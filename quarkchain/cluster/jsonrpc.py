@@ -833,8 +833,10 @@ class JSONRPCServer:
     @decode_arg("nonce", quantity_decoder)
     @decode_arg("mixhash", hash_decoder)
     async def submitWork(self, shard, header_hash, nonce, mixhash):
-        # TODO: to be implemented
-        return False
+        branch = None  # `None` means getting work from root chain
+        if shard is not None:
+            branch = Branch.create(self.master.get_shard_size(), shard)
+        return await self.master.submit_work(branch, header_hash, nonce, mixhash)
 
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)

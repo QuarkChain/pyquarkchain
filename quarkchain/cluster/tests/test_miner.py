@@ -204,7 +204,8 @@ class TestMiner(unittest.TestCase):
             self.assertFalse(res)
 
             solver = DoubleSHA256(block)
-            solver.mine(100, 200)
+            mined = solver.mine(100, 200)
+            self.assertTrue(mined)
             sol = int.from_bytes(solver.nonce_found, byteorder="big")
             self.assertGreater(sol, 100)  # ensure non-solution is tried
             non_sol = sol - 1
