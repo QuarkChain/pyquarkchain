@@ -102,7 +102,7 @@ Run multiple clusters with P2P network on a single machine (--mine turns on mini
 pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
 ```
 
-Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--devp2p_ip` and `--devp2p_bootstrap_host` to connect the clusters.
+Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--devp2p_ip` and `--devp2p_bootstrap_host` to connect the clusters. You need to figure out the IPs yourself before starting the clusters, just make sure that the machines are reachable from other clusters using the IP you specified. (Make sure ports are open in firewall as well)
 First start the bootstrap cluster whose public ip is `$BOOTSTRAP_IP`
 ```bash
 pypy3 cluster.py --mine --devp2p_enable --devp2p_ip=$BOOTSTRAP_IP
