@@ -546,19 +546,6 @@ class MasterServer:
                     return block
                 await asyncio.sleep(1)
 
-        async def __add_block(block):
-            # Root block should include latest minor block headers while it's being mined
-            # This is a hack to get the latest minor block included since testnet does not check difficulty
-            # FIXME: fix this as it will break real PoW
-            block = await __create_block()
-
-            # TODO if above is fixed, below won't be needed...
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
-
-            await self.add_root_block(block)
-
         def __get_mining_params():
             return {
                 "target_block_time": self.get_artificial_tx_config().target_root_block_time
@@ -568,7 +555,7 @@ class MasterServer:
         self.root_miner = Miner(
             root_config.CONSENSUS_TYPE,
             __create_block,
-            __add_block,
+            self.add_root_block,
             __get_mining_params,
             remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
