@@ -162,17 +162,17 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(len(work), 3)
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
-            self.assertEqual(work[0], h)
+            self.assertEqual(work.hash, h)
             # cache hit
             now += 1
             work = await miner.get_work(now=now)
-            self.assertEqual(work[0], h)
+            self.assertEqual(work.hash, h)
             self.assertEqual(len(miner.work_map), 1)
             # new work if interval passed
             now += 10
             work = await miner.get_work(now=now)
             self.assertEqual(len(miner.work_map), 2)
-            self.assertNotEqual(work[0], h)
+            self.assertNotEqual(work.hash, h)
             # work map cleaned up if too much time passed
             now += 100
             await miner.get_work(now=now)
@@ -197,8 +197,8 @@ class TestMiner(unittest.TestCase):
 
         async def go():
             work = await miner.get_work(now=now)
-            self.assertEqual(work[1], 0)  # block height
-            self.assertEqual(work[2], 2)  # diff
+            self.assertEqual(work.height, 0)
+            self.assertEqual(work.difficulty, 2)
             # submitted block doesn't exist
             res = await miner.submit_work(b"lolwut", 0, sha3_256(b""))
             self.assertFalse(res)
@@ -206,13 +206,13 @@ class TestMiner(unittest.TestCase):
             solver = DoubleSHA256(block)
             solver.mine(100, 200)
             sol = int.from_bytes(solver.nonce_found, byteorder="big")
-            self.assertGreater(sol, 100)
+            self.assertGreater(sol, 100)  # ensure non-solution is tried
             non_sol = sol - 1
             # invalid pow proof
-            res = await miner.submit_work(work[0], non_sol, sha3_256(b""))
+            res = await miner.submit_work(work.hash, non_sol, sha3_256(b""))
             self.assertFalse(res)
-            # valid submission
-            res = await miner.submit_work(work[0], sol, sha3_256(b""))
+            # valid submission, also check internal state afterwards
+            res = await miner.submit_work(work.hash, sol, sha3_256(b""))
             self.assertTrue(res)
             self.assertEqual(miner.work_map, {})
             self.assertEqual(len(self.added_blocks), 1)

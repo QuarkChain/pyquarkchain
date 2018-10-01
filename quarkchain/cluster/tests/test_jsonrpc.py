@@ -847,3 +847,28 @@ class TestJSONRPC(unittest.TestCase):
                     resp = send_request("gasPrice", "0x0")
 
                 self.assertEqual(resp, "0xc")
+
+    def test_getWork(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        with ClusterContext(
+            1, acc1, remote_mining=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            tx = create_transfer_transaction(
+                shard_state=slaves[0].shards[branch].state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=0,
+                gas_price=12,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            resp = send_request("getWork", "0x0")
+            self.assertIsInstance(resp, list)
+            self.assertEqual(len(resp[0]), 66)
+            self.assertEqual(resp[1:], ["0x1", "0x2710"])

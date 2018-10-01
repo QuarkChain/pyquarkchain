@@ -9,7 +9,7 @@ import numpy
 from aioprocessing import AioProcess, AioQueue
 from multiprocessing import Queue as MultiProcessingQueue
 
-from typing import Callable, Union, Awaitable, Dict, Any, Optional, Tuple
+from typing import Callable, Union, Awaitable, Dict, Any, Optional, NamedTuple
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.config import ConsensusType
@@ -155,6 +155,11 @@ class DoubleSHA256(MiningAlgorithm):
         super().post_process_mined_block(block)
 
 
+MiningWork = NamedTuple(
+    "MiningWork", [("hash", bytes), ("height", int), ("difficulty", int)]
+)
+
+
 class Miner:
     def __init__(
         self,
@@ -242,7 +247,7 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block(self))
 
-    async def get_work(self, now=None) -> Optional[Tuple[bytes, int, int]]:
+    async def get_work(self, now=None) -> MiningWork:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -266,7 +271,7 @@ class Miner:
             if now - b.header.create_time < 7 * 12
         }
 
-        return header_hash, header.height, header.difficulty
+        return MiningWork(header_hash, header.height, header.difficulty)
 
     async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
         if not self.remote:

@@ -839,8 +839,17 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
     async def getWork(self, shard):
-        # TODO: to be implemented
-        return None
+        branch = None  # `None` means getting work from root chain
+        if shard is not None:
+            branch = Branch.create(self.master.get_shard_size(), shard)
+        ret = await self.master.get_work(branch)
+        if ret is None:
+            return None
+        return [
+            data_encoder(ret.hash),
+            quantity_encoder(ret.height),
+            quantity_encoder(ret.difficulty),
+        ]
 
     @decode_arg("from_address", address_decoder)
     @decode_arg("to_address", address_decoder)

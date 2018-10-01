@@ -104,11 +104,13 @@ class ConsensusType(Enum):
 
 class POWConfig(BaseConfig):
     TARGET_BLOCK_TIME = 10
+    REMOTE_MINE = False
 
 
 class ShardConfig(BaseConfig):
     CONSENSUS_TYPE = ConsensusType.NONE
-    CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
+    # Only set when CONSENSUS_TYPE is not NONE
+    CONSENSUS_CONFIG = None  # type: POWConfig
     GENESIS = None  # ShardGenesis
 
     def __init__(self):
@@ -172,7 +174,8 @@ class RootConfig(BaseConfig):
     MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
 
     CONSENSUS_TYPE = ConsensusType.NONE
-    CONSENSUS_CONFIG = None  # Only set when CONSENSUS_TYPE is not NONE
+    # Only set when CONSENSUS_TYPE is not NONE
+    CONSENSUS_CONFIG = None  # type: POWConfig
     GENESIS = None  # RootGenesis
 
     def __init__(self):
@@ -226,7 +229,7 @@ class QuarkChainConfig(BaseConfig):
     SKIP_ROOT_DIFFICULTY_CHECK = False
     SKIP_MINOR_DIFFICULTY_CHECK = False
 
-    ROOT = None
+    ROOT = None  # type: RootConfig
     SHARD_LIST = None
 
     def __init__(self):
@@ -238,7 +241,7 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
         self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
-        self.SHARD_LIST = []
+        self.SHARD_LIST = []  # type: List[ShardConfig]
         for i in range(self.SHARD_SIZE):
             s = ShardConfig()
             s.root_config = self.ROOT
