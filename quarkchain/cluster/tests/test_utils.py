@@ -10,8 +10,10 @@ from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
+from quarkchain.config import ConsensusType
 from quarkchain.core import Address, Branch, Transaction, Code, ShardMask
 from quarkchain.db import InMemoryDb
+from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
@@ -37,18 +39,23 @@ def get_test_env(
     env.quark_chain_config.TESTNET_MASTER_ADDRESS = genesis_account.serialize().hex()
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
+        env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+        env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 10
 
     if genesis_root_heights:
         check(len(genesis_root_heights) == shard_size)
         for shard_id in range(shard_size):
-            shard_config = env.quark_chain_config.SHARD_LIST[shard_id]
-            shard_config.GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
+            shard = env.quark_chain_config.SHARD_LIST[shard_id]
+            shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
 
     # fund genesis account in all shards
     for i, shard in enumerate(env.quark_chain_config.SHARD_LIST):
         addr = genesis_account.address_in_shard(i).serialize().hex()
         shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
+        if remote_mining:
+            shard.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+            shard.GENESIS.DIFFICULTY = 10
 
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
@@ -200,6 +207,11 @@ def create_test_clusters(
     genesis_root_heights,
     remote_mining=False,
 ):
+    # so we can have lower minimum diff
+    easy_diff_calc = EthDifficultyCalculator(
+        cutoff=45, diff_factor=2048, minimum_diff=10
+    )
+
     bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
     loop = asyncio.get_event_loop()
@@ -238,12 +250,17 @@ def create_test_clusters(
             slave_server.start()
             slave_server_list.append(slave_server)
 
-        root_state = RootState(env)
+        root_state = RootState(env, diff_calc=easy_diff_calc)
         master_server = MasterServer(env, root_state, name="cluster{}_master".format(i))
         master_server.start()
 
         # Wait until the cluster is ready
         loop.run_until_complete(master_server.cluster_active_future)
+
+        # Substitute diff calculate with an easier one
+        for slave in slave_server_list:
+            for shard in slave.shards.values():
+                shard.state.diff_calc = easy_diff_calc
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, master_server)

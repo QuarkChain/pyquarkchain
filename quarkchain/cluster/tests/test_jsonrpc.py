@@ -8,6 +8,7 @@ from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
+from quarkchain.cluster.miner import DoubleSHA256
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
@@ -848,16 +849,17 @@ class TestJSONRPC(unittest.TestCase):
 
                 self.assertEqual(resp, "0xc")
 
-    def test_getWork(self):
+    def test_getWork_and_submitWork(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(
-            1, acc1, remote_mining=True
+            1, acc1, remote_mining=True, shard_size=1
         ) as clusters, jrpc_server_context(clusters[0].master):
+            master = clusters[0].master
             slaves = clusters[0].slave_list
 
-            branch = Branch.create(2, 0)
+            branch = Branch.create(1, 0)
             tx = create_transfer_transaction(
                 shard_state=slaves[0].shards[branch].state,
                 key=id1.get_key(),
@@ -868,7 +870,30 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            resp = send_request("getWork", "0x0")
-            self.assertIsInstance(resp, list)
-            self.assertEqual(len(resp[0]), 66)
-            self.assertEqual(resp[1:], ["0x1", "0x2710"])
+            for shard_id in ["0x0", None]:  # shard, then root
+                resp = send_request("getWork", shard_id)
+                self.assertEqual(resp[1:], ["0x1", "0xa"])  # height and diff
+
+                header_hash_hex = resp[0]
+                _, block = call_async(master.get_next_block_to_mine(address=acc1))
+                self.assertEqual(
+                    header_hash_hex[2:], block.header.get_hash_for_mining().hex()
+                )
+                # solve it and submit
+                solver = DoubleSHA256(block)
+                mined = solver.mine(0, 1000)
+                self.assertTrue(mined)
+                nonce_found = "0x" + solver.nonce_found.hex()
+                mixhash = "0x" + sha3_256(b"").hex()
+                resp = send_request(
+                    "submitWork", shard_id, header_hash_hex, nonce_found, mixhash
+                )
+                # FIXME: also verify root chain block addition after fixing https://github.com/QuarkChain/pyquarkchain/issues/130
+                if shard_id is not None:
+                    self.assertTrue(resp)
+
+            # TODO: Uncomment after fixing https://github.com/QuarkChain/pyquarkchain/issues/130
+            # show progress
+            # _, new_block = call_async(master.get_next_block_to_mine(address=acc1))
+            # self.assertIsInstance(new_block, MinorBlock)
+            # self.assertEqual(new_block.header.height, 2)

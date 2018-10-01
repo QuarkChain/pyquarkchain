@@ -30,6 +30,8 @@ from quarkchain.cluster.rpc import (
     GetAccountDataRequest,
     GetWorkRequest,
     GetWorkResponse,
+    SubmitWorkRequest,
+    SubmitWorkResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -455,6 +457,17 @@ class MasterConnection(ClusterConnection):
             difficulty=res.difficulty,
         )
 
+    async def handle_submit_work(self, req: SubmitWorkRequest) -> SubmitWorkResponse:
+        try:
+            res = await self.slave_server.submit_work(
+                req.branch, req.header_hash, req.nonce, req.mixhash
+            )
+        except Exception:
+            Logger.log_exception()
+            return SubmitWorkResponse(error_code=1, success=False)
+
+        return SubmitWorkResponse(error_code=0, success=res)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -554,6 +567,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_WORK_REQUEST: (
         ClusterOp.GET_WORK_RESPONSE,
         MasterConnection.handle_get_work,
+    ),
+    ClusterOp.SUBMIT_WORK_REQUEST: (
+        ClusterOp.SUBMIT_WORK_RESPONSE,
+        MasterConnection.handle_submit_work,
     ),
 }
 
@@ -1155,6 +1172,12 @@ class SlaveServer:
         except Exception:
             Logger.log_exception()
             return None
+
+    async def submit_work(
+        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
+    ) -> bool:
+        """Will raise exceptions if server error, instead of returning None, because Optional[bool] is quite misleading."""
+        return await self.shards[branch].miner.submit_work(header_hash, nonce, mixhash)
 
 
 def parse_args():

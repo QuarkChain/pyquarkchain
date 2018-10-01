@@ -50,6 +50,8 @@ from quarkchain.cluster.rpc import (
     GasPriceRequest,
     GetWorkRequest,
     GetWorkResponse,
+    SubmitWorkRequest,
+    SubmitWorkResponse,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -451,7 +453,7 @@ class SlaveConnection(ClusterConnection):
         _, resp, _ = await self.write_rpc_request(ClusterOp.GAS_PRICE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
-    async def get_work(self, branch) -> Optional[MiningWork]:
+    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
         request = GetWorkRequest(branch)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_WORK_REQUEST, request)
         get_work_resp = resp  # type: GetWorkResponse
@@ -460,6 +462,16 @@ class SlaveConnection(ClusterConnection):
         return MiningWork(
             get_work_resp.header_hash, get_work_resp.height, get_work_resp.difficulty
         )
+
+    async def submit_work(
+        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
+    ) -> bool:
+        request = SubmitWorkRequest(branch, header_hash, nonce, mixhash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.SUBMIT_WORK_REQUEST, request
+        )
+        submit_work_resp = resp  # type: SubmitWorkResponse
+        return submit_work_resp.error_code == 0 and submit_work_resp.success
 
     # RPC handlers
 
@@ -537,7 +549,7 @@ class MasterServer:
         async def __add_block(block):
             # Root block should include latest minor block headers while it's being mined
             # This is a hack to get the latest minor block included since testnet does not check difficulty
-            # TODO: fix this as it will break real PoW
+            # FIXME: fix this as it will break real PoW
             block = await __create_block()
 
             # TODO if above is fixed, below won't be needed...
@@ -1335,6 +1347,17 @@ class MasterServer:
             return None
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_work(branch)
+
+    async def submit_work(
+        self, branch: Optional[Branch], header_hash: bytes, nonce: int, mixhash: bytes
+    ) -> bool:
+        if not branch:  # submit root chain work
+            return await self.root_miner.submit_work(header_hash, nonce, mixhash)
+
+        if branch.value not in self.branch_to_slaves:
+            return False
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.submit_work(branch, header_hash, nonce, mixhash)
 
 
 def parse_args():

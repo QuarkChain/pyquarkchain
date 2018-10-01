@@ -173,7 +173,7 @@ class RootConfig(BaseConfig):
     # This means the network will fork permanently after a long partition
     MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
 
-    CONSENSUS_TYPE = ConsensusType.NONE
+    CONSENSUS_TYPE = ConsensusType.NONE  # type: ConsensusType
     # Only set when CONSENSUS_TYPE is not NONE
     CONSENSUS_CONFIG = None  # type: POWConfig
     GENESIS = None  # RootGenesis
