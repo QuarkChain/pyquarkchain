@@ -417,7 +417,7 @@ class Branch(Serializable):
         return (full_shard_id & (self.get_shard_size() - 1)) == self.get_shard_id()
 
     @staticmethod
-    def create(shard_size, shard_id):
+    def create(shard_size: int, shard_id: int):
         assert is_p2(shard_size)
         return Branch(shard_size | shard_id)
 
