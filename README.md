@@ -39,7 +39,7 @@ It's is highly recommended to use [virtual environment](https://docs.python.org/
 To clone the code to your target directory
 
 ```bash
-git clone git@github.com:QuarkChain/pyquarkchain.git
+git clone https://github.com/QuarkChain/pyquarkchain.git
 cd pyquarkchain
 ```
 
