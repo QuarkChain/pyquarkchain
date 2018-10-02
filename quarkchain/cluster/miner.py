@@ -153,6 +153,8 @@ class DoubleSHA256(MiningAlgorithm):
         return False
 
     def post_process_mined_block(self, block: Block):
+        if not self.nonce_found:
+            raise RuntimeError("cannot post process since no nonce found")
         block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
         super().post_process_mined_block(block)
 
@@ -223,6 +225,9 @@ class Miner:
                     # This is a hack to get the latest minor block included since testnet does not check difficulty
                     if instance.consensus_type == ConsensusType.POW_SIMULATE:
                         block = await self.create_block_async_func()
+                        Simulate(block, target_block_time=0).post_process_mined_block(
+                            block
+                        )
                     await instance.add_block_async_func(block)
                 except Exception as ex:
                     Logger.error(ex)
