@@ -847,7 +847,7 @@ class MasterServer:
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return (None, None)
+                return None, None
             for eco_info in response.eco_info_list:
                 branch_value_to_eco_info[eco_info.branch.value] = eco_info
 

@@ -343,7 +343,7 @@ class EcoInfo(Serializable):
         ("branch", Branch),
         ("height", uint64),
         ("coinbase_amount", uint256),
-        ("difficulty", uint64),
+        ("difficulty", biguint),
         ("unconfirmed_headers_coinbase_amount", uint256),
     ]
 
