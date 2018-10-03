@@ -19,14 +19,26 @@ from eth_hash.auto import keccak
 
 from eth_keys import keys
 
-from cancel_token import CancelToken
+from quarkchain.p2p.cancel_token.token import CancelToken
 
-from eth.chains.ropsten import ROPSTEN_GENESIS_HEADER
-
-from trinity.protocol.les.proto import LESProtocol, LESProtocolV2
 
 from quarkchain.p2p import discovery
 from quarkchain.p2p import kademlia
+
+from quarkchain.core import MinorBlockHeader
+
+from quarkchain.p2p.protocol import (
+    Protocol,
+)
+
+
+class LESProtocol(Protocol):
+    name = 'les'
+    version = 1
+
+
+class LESProtocolV2(LESProtocol):
+    version = 2
 
 
 # Force our tests to fail quickly if they accidentally make network requests.
@@ -411,9 +423,9 @@ def test_topic_table():
 
 
 def test_get_v5_topic():
-    les_topic = discovery.get_v5_topic(LESProtocol, ROPSTEN_GENESIS_HEADER.hash)
+    les_topic = discovery.get_v5_topic(LESProtocol, MinorBlockHeader().get_hash())
     assert les_topic == b'LES@41941023680923e0'
-    les2_topic = discovery.get_v5_topic(LESProtocolV2, ROPSTEN_GENESIS_HEADER.hash)
+    les2_topic = discovery.get_v5_topic(LESProtocolV2, MinorBlockHeader().get_hash())
     assert les2_topic == b'LES2@41941023680923e0'
 
 
