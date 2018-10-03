@@ -22,6 +22,8 @@ Check out the [Wiki](https://github.com/QuarkChain/pyquarkchain/wiki) to underst
 
 QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
 
+### OSX
+
 To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
 
 ```bash
@@ -75,6 +77,44 @@ Once all the modules are installed, try running all the unit tests under `pyquar
 ```
 pypy3 -m unittest
 ```
+
+### Linux
+
+Using Ubuntu as the example, with similar procedures as in OSX, following snippet should be the minimum viable setup.
+
+```bash
+#!/bin/bash
+
+sudo apt-get update
+
+sudo apt-get install -y git gcc make libffi-dev pkg-config zlib1g-dev libbz2-dev \
+libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev \
+libgc-dev python-cffi \
+liblzma-dev libncursesw5-dev libgmp-dev liblz4-dev librocksdb-dev \
+libsnappy-dev zlib1g-dev libbz2-dev libzstd-dev
+
+wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
+sudo tar -x -C /opt -f  pypy3-v6.0.0-linux64.tar.bz2
+sudo mv /opt/pypy3-v6.0.0-linux64 /opt/pypy3
+sudo ln -s /opt/pypy3/bin/pypy3 /usr/local/bin/pypy3
+
+curl https://bootstrap.pypa.io/get-pip.py > get-pip.py
+pypy3 get-pip.py --user
+export PATH=~/.local/bin:$PATH
+rm get-pip.py
+
+git clone https://github.com/QuarkChain/pyquarkchain.git
+cd pyquarkchain
+pip install --user -e .
+
+# https://github.com/ethereum/pyethapp/issues/274#issuecomment-385268798
+pip uninstall pyelliptic
+pip install --user https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10.tar.gz#egg=pyelliptic
+
+pypy3 -m unittest  # voila
+```
+
+Furthermore, we provided a public AMI in US West (Oregon) Region *QuarkChain Sample AMI* **ami-03845bc95e90d1c12** using this setup.
 
 ## Development Flow
 
