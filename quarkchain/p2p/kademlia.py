@@ -10,10 +10,10 @@ from typing import Any, cast, Iterable, Iterator, List, Sized, Tuple
 from urllib import parse as urlparse
 
 from eth_utils import big_endian_to_int, decode_hex
-
 from eth_keys import datatypes, keys
-
 from eth_hash.auto import keccak
+
+from quarkchain.utils import Logger
 
 k_b = 8  # 8 bits per hop
 
@@ -135,6 +135,8 @@ class KBucket(Sized):
     k = k_bucket_size
 
     def __init__(self, start: int, end: int) -> None:
+        if start >= end:
+            raise ValueError("wrong KBucket range")
         self.start = start
         self.end = end
         self.nodes = []
@@ -216,9 +218,7 @@ class KBucket(Sized):
         return self.end < other.start
 
 
-class RoutingTable:
-    logger = logging.getLogger("p2p.kademlia.RoutingTable")
-
+class RoutingTable(Sized):
     def __init__(self, node: Node) -> None:
         self._initialized_at = time.monotonic()
         self.this_node = node
@@ -227,7 +227,7 @@ class RoutingTable:
     def get_random_nodes(self, count: int) -> Iterator[Node]:
         if count > len(self):
             if time.monotonic() - self._initialized_at > 30:
-                self.logger.warning(
+                Logger.warning(
                     "Cannot get %d nodes as RoutingTable contains only %d nodes",
                     count,
                     len(self),

@@ -27,6 +27,13 @@ def test_routingtable_split_bucket():
     assert old_bucket not in table.buckets
 
 
+def test_routingtable_wrong_split():
+    table = kademlia.RoutingTable(random_node())
+    with pytest.raises(ValueError):
+        for i in range(1000):
+            table.split_bucket(0)
+
+
 def test_routingtable_add_node():
     table = kademlia.RoutingTable(random_node())
     for i in range(table.buckets[0].k):
@@ -72,6 +79,19 @@ def test_routingtable_neighbours():
         node_a = nearest_bucket.nodes[0]
         node_b = random_node(node_a.id + 1)
         assert node_a == table.neighbours(node_b.id)[0]
+
+
+def test_routingtable_edgecase_neighbours():
+    # tests the edge cases where sorting by midpoint distance is not enough
+    table = kademlia.RoutingTable(random_node(0))
+    table.buckets = [kademlia.KBucket(0, 127), kademlia.KBucket(128, 1024)]
+    table.add_node(random_node(126))
+    table.add_node(random_node(129))
+    assert [(b.start, b.end) for b in table.buckets_by_distance_to(128)] == [
+        (0, 127),
+        (128, 1024),
+    ]
+    assert [n.id for n in table.neighbours(128)] == [129, 126]
 
 
 def test_routingtable_get_random_nodes():
