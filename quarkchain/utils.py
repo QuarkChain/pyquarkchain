@@ -117,6 +117,9 @@ class Logger:
 
     @classmethod
     def set_logging_level(cls, level):
+        if cls._qkc_logger:
+            Logger.warning("logging_level has already been set")
+            return
         level_map = {
             "DEBUG": logging.DEBUG,
             "INFO": logging.INFO,
@@ -147,9 +150,9 @@ class Logger:
     @classmethod
     def check_logger_set(cls):
         if not cls._qkc_logger:
-            cls.set_logging_level("info")
+            cls.set_logging_level("warning")
             Logger.warning(
-                "Logger is called before set_logging_level, defaulting to INFO level"
+                "Logger is called before set_logging_level, defaulting to warning level"
             )
 
     @classmethod

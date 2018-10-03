@@ -52,7 +52,8 @@ class TestShardConfig(unittest.TestCase):
         "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 60,
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-            "TARGET_BLOCK_TIME": 60
+            "TARGET_BLOCK_TIME": 60,
+            "REMOTE_MINE": false
         },
         "GENESIS": {
             "VERSION": 0,
@@ -71,7 +72,8 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 10
+                "TARGET_BLOCK_TIME": 10,
+                "REMOTE_MINE": false
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,
@@ -91,7 +93,8 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 10
+                "TARGET_BLOCK_TIME": 10,
+                "REMOTE_MINE": false
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,
@@ -111,7 +114,8 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 15
+                "TARGET_BLOCK_TIME": 15,
+                "REMOTE_MINE": false
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,
@@ -131,7 +135,8 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 15
+                "TARGET_BLOCK_TIME": 15,
+                "REMOTE_MINE": false
             },
             "GENESIS": {
                 "ROOT_HEIGHT": 0,

@@ -4,13 +4,12 @@ import ipaddress
 import json
 import psutil
 import random
-import sys
 import time
 from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
-from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
@@ -49,6 +48,10 @@ from quarkchain.cluster.rpc import (
     GetStorageRequest,
     GetCodeRequest,
     GasPriceRequest,
+    GetWorkRequest,
+    GetWorkResponse,
+    SubmitWorkRequest,
+    SubmitWorkResponse,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -60,6 +63,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
@@ -449,6 +453,26 @@ class SlaveConnection(ClusterConnection):
         _, resp, _ = await self.write_rpc_request(ClusterOp.GAS_PRICE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
+    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+        request = GetWorkRequest(branch)
+        _, resp, _ = await self.write_rpc_request(ClusterOp.GET_WORK_REQUEST, request)
+        get_work_resp = resp  # type: GetWorkResponse
+        if get_work_resp.error_code != 0:
+            return None
+        return MiningWork(
+            get_work_resp.header_hash, get_work_resp.height, get_work_resp.difficulty
+        )
+
+    async def submit_work(
+        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
+    ) -> bool:
+        request = SubmitWorkRequest(branch, header_hash, nonce, mixhash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.SUBMIT_WORK_REQUEST, request
+        )
+        submit_work_resp = resp  # type: SubmitWorkResponse
+        return submit_work_resp.error_code == 0 and submit_work_resp.success
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -522,29 +546,18 @@ class MasterServer:
                     return block
                 await asyncio.sleep(1)
 
-        async def __add_block(block):
-            # Root block should include latest minor block headers while it's being mined
-            # This is a hack to get the latest minor block included since testnet does not check difficulty
-            # TODO: fix this as it will break real PoW
-            block = await __create_block()
-
-            # TODO if above is fixed, below won't be needed...
-            extra_data = json.loads(block.header.extra_data.decode("utf-8"))
-            extra_data["mined"] = time_ms()
-            block.header.extra_data = json.dumps(extra_data).encode("utf-8")
-
-            await self.add_root_block(block)
-
         def __get_mining_params():
             return {
                 "target_block_time": self.get_artificial_tx_config().target_root_block_time
             }
 
+        root_config = self.env.quark_chain_config.ROOT  # type: RootConfig
         self.root_miner = Miner(
-            self.env.quark_chain_config.ROOT.CONSENSUS_TYPE,
+            root_config.CONSENSUS_TYPE,
             __create_block,
-            __add_block,
+            self.add_root_block,
             __get_mining_params,
+            remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
     def __get_shard_size(self):
@@ -821,7 +834,7 @@ class MasterServer:
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return (None, None)
+                return None, None
             for eco_info in response.eco_info_list:
                 branch_value_to_eco_info[eco_info.branch.value] = eco_info
 
@@ -1041,7 +1054,7 @@ class MasterServer:
             )
         return future_list
 
-    # ------------------------------ Cluster Peer Connnection Management --------------
+    # ------------------------------ Cluster Peer Connection Management --------------
     def get_peer(self, cluster_peer_id):
         if self.network is None:
             return None
@@ -1089,7 +1102,7 @@ class MasterServer:
     async def create_transactions(
         self, num_tx_per_shard, xshard_percent, tx: Transaction
     ):
-        """Create transactions and add to the network for loadtesting"""
+        """Create transactions and add to the network for load testing"""
         futures = []
         for slave in self.slave_pool:
             request = GenTxRequest(num_tx_per_shard, xshard_percent, tx)
@@ -1312,6 +1325,26 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.gas_price(branch)
+
+    async def get_work(self, branch: Optional[Branch]) -> Optional[MiningWork]:
+        if not branch:  # get root chain work
+            return await self.root_miner.get_work()
+
+        if branch.value not in self.branch_to_slaves:
+            return None
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_work(branch)
+
+    async def submit_work(
+        self, branch: Optional[Branch], header_hash: bytes, nonce: int, mixhash: bytes
+    ) -> bool:
+        if not branch:  # submit root chain work
+            return await self.root_miner.submit_work(header_hash, nonce, mixhash)
+
+        if branch.value not in self.branch_to_slaves:
+            return False
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.submit_work(branch, header_hash, nonce, mixhash)
 
 
 def parse_args():

@@ -52,7 +52,7 @@ jobs:
           paths:
             - /opt/pypy3-v6.0.0-linux64
           key: pip-v1-{{ checksum "requirements.txt" }}
-        
+
       # Run tests!
       - run:
           name: Run Unit Tests
@@ -64,6 +64,11 @@ jobs:
           command: |
             git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch
             pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
+
+      - run:
+          name: Run P2P Tests
+          command: |
+            pypy3 -m pytest quarkchain/p2p
 
       - store_artifacts:
           path: test-reports

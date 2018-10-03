@@ -9,6 +9,8 @@ from quarkchain.core import (
     TransactionReceipt,
     Log,
     FixedSizeBytesSerializer,
+    biguint,
+    Constant,
 )
 from quarkchain.core import (
     Transaction,
@@ -30,7 +32,7 @@ class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
         ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
-        ("root_tip", Optional(RootBlock)),   # Initialize ShardState if not None
+        ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
     def __init__(self, id, shard_mask_list, root_tip):
@@ -341,7 +343,7 @@ class EcoInfo(Serializable):
         ("branch", Branch),
         ("height", uint64),
         ("coinbase_amount", uint256),
-        ("difficulty", uint64),
+        ("difficulty", biguint),
         ("unconfirmed_headers_coinbase_amount", uint256),
     ]
 
@@ -729,6 +731,57 @@ class GasPriceResponse(Serializable):
         self.result = result
 
 
+class GetWorkRequest(Serializable):
+    FIELDS = [("branch", Branch)]
+
+    def __init__(self, branch: Branch):
+        self.branch = branch
+
+
+class GetWorkResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+        ("header_hash", hash256),
+        ("height", uint64),
+        ("difficulty", biguint),
+    ]
+
+    def __init__(
+        self,
+        error_code: int,
+        header_hash: bytes = bytes(Constant.HASH_LENGTH),
+        height: int = 0,
+        difficulty: int = 0,
+    ):
+        self.error_code = error_code
+        self.header_hash = header_hash
+        self.height = height
+        self.difficulty = difficulty
+
+
+class SubmitWorkRequest(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("header_hash", hash256),
+        ("nonce", uint64),
+        ("mixhash", hash256),
+    ]
+
+    def __init__(self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes):
+        self.branch = branch
+        self.header_hash = header_hash
+        self.nonce = nonce
+        self.mixhash = mixhash
+
+
+class SubmitWorkResponse(Serializable):
+    FIELDS = [("error_code", uint32), ("success", boolean)]
+
+    def __init__(self, error_code: int, success: bool):
+        self.error_code = error_code
+        self.success = success
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -788,6 +841,10 @@ class ClusterOp:
     GET_CODE_RESPONSE = 52 + CLUSTER_OP_BASE
     GAS_PRICE_REQUEST = 53 + CLUSTER_OP_BASE
     GAS_PRICE_RESPONSE = 54 + CLUSTER_OP_BASE
+    GET_WORK_REQUEST = 55 + CLUSTER_OP_BASE
+    GET_WORK_RESPONSE = 56 + CLUSTER_OP_BASE
+    SUBMIT_WORK_REQUEST = 57 + CLUSTER_OP_BASE
+    SUBMIT_WORK_RESPONSE = 58 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -844,4 +901,8 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_CODE_RESPONSE: GetCodeResponse,
     ClusterOp.GAS_PRICE_REQUEST: GasPriceRequest,
     ClusterOp.GAS_PRICE_RESPONSE: GasPriceResponse,
+    ClusterOp.GET_WORK_REQUEST: GetWorkRequest,
+    ClusterOp.GET_WORK_RESPONSE: GetWorkResponse,
+    ClusterOp.SUBMIT_WORK_REQUEST: SubmitWorkRequest,
+    ClusterOp.SUBMIT_WORK_RESPONSE: SubmitWorkResponse,
 }

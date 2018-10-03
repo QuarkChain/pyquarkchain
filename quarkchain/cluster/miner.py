@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import random
 import time
 import json
@@ -8,12 +9,14 @@ import numpy
 from aioprocessing import AioProcess, AioQueue
 from multiprocessing import Queue as MultiProcessingQueue
 
-from typing import Callable, Union, Awaitable, Dict, Any
+from typing import Callable, Union, Awaitable, Dict, Any, Optional, NamedTuple
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
 from quarkchain.utils import time_ms, Logger, sha3_256
+
+Block = Union[MinorBlock, RootBlock]
 
 
 def validate_seal(
@@ -45,14 +48,14 @@ class MiningAlgorithm(ABC):
     def mine(self, start_nonce: int, end_nonce: int) -> bool:
         pass
 
-    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+    def post_process_mined_block(self, block: Block):
         """Post-process block to track block propagation latency"""
         extra_data = json.loads(block.header.extra_data.decode("utf-8"))
         extra_data["mined"] = time_ms()
         block.header.extra_data = json.dumps(extra_data).encode("utf-8")
 
     @staticmethod
-    def _log_status(block: Union[RootBlock, MinorBlock]):
+    def _log_status(block: Block):
         is_root = isinstance(block, RootBlock)
         shard = "R" if is_root else block.header.branch.get_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
@@ -70,7 +73,7 @@ class MiningAlgorithm(ABC):
 
 
 class Simulate(MiningAlgorithm):
-    def __init__(self, block: Union[MinorBlock, RootBlock], **kwargs):
+    def __init__(self, block: Block, **kwargs):
         target_block_time = kwargs["target_block_time"]
         self.target_time = block.header.create_time + self._get_block_time(
             block, target_block_time
@@ -93,14 +96,14 @@ class Simulate(MiningAlgorithm):
         time.sleep(0.1)
         return time.time() > self.target_time
 
-    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+    def post_process_mined_block(self, block: Block):
         self._log_status(block)
         block.header.nonce = random.randint(0, 2 ** 32 - 1)
         super().post_process_mined_block(block)
 
 
 class Ethash(MiningAlgorithm):
-    def __init__(self, block: Union[MinorBlock, RootBlock], **kwargs):
+    def __init__(self, block: Block, **kwargs):
         is_test = kwargs.get("is_test", False)
         self.miner = EthashMiner(
             block.header.height,
@@ -118,7 +121,7 @@ class Ethash(MiningAlgorithm):
         self.mixhash = mixhash
         return True
 
-    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+    def post_process_mined_block(self, block: Block):
         if not self.nonce_found:
             raise RuntimeError("cannot post process since no nonce found")
         block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
@@ -127,7 +130,7 @@ class Ethash(MiningAlgorithm):
 
 
 class DoubleSHA256(MiningAlgorithm):
-    def __init__(self, block: Union[MinorBlock, RootBlock]):
+    def __init__(self, block: Block):
         self.target = (2 ** 256 // (block.header.difficulty or 1) - 1).to_bytes(
             32, byteorder="big"
         )
@@ -143,18 +146,26 @@ class DoubleSHA256(MiningAlgorithm):
                 return True
         return False
 
-    def post_process_mined_block(self, block: Union[MinorBlock, RootBlock]):
+    def post_process_mined_block(self, block: Block):
+        if not self.nonce_found:
+            raise RuntimeError("cannot post process since no nonce found")
         block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
         super().post_process_mined_block(block)
+
+
+MiningWork = NamedTuple(
+    "MiningWork", [("hash", bytes), ("height", int), ("difficulty", int)]
+)
 
 
 class Miner:
     def __init__(
         self,
         consensus_type: ConsensusType,
-        create_block_async_func: Callable[[], Awaitable[Union[MinorBlock, RootBlock]]],
-        add_block_async_func: Callable[[Union[MinorBlock, RootBlock]], Awaitable[None]],
+        create_block_async_func: Callable[[], Awaitable[Block]],
+        add_block_async_func: Callable[[Block], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
+        remote: bool = False,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -162,14 +173,7 @@ class Miner:
         add_block_async_func: takes a block, add it to chain
         get_mining_param_func: takes no argument, returns the mining-specific params
         """
-        if consensus_type == ConsensusType.POW_SIMULATE:
-            self.mine_func = Miner.simulate_mine
-        elif consensus_type == ConsensusType.POW_ETHASH:
-            self.mine_func = Miner.mine_ethash
-        elif consensus_type == ConsensusType.POW_SHA3SHA3:
-            self.mine_func = Miner.mine_sha3sha3
-        else:
-            raise ValueError("Consensus? (╯°□°）╯︵ ┻━┻")
+        self.consensus_type = consensus_type
 
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func
@@ -180,15 +184,20 @@ class Miner:
         self.input_q = AioQueue()  # [(block, param dict)]
         self.output_q = AioQueue()  # [block]
 
+        if not remote and consensus_type != ConsensusType.POW_SIMULATE:
+            Logger.warning("Mining locally, could be slow and error-prone")
+        # remote miner specific attributes
+        self.remote = remote
+        self.current_work = None  # type: Optional[Block]
+        # header hash -> work, updated only by remote miner get & put
+        self.work_map = {}  # type: Dict[bytes, Block]
+
     def start(self):
-        self.enable()
+        self.enabled = True
         self._mine_new_block_async()
 
     def is_enabled(self):
         return self.enabled
-
-    def enable(self):
-        self.enabled = True
 
     def disable(self):
         """Stop the mining process if there is one"""
@@ -206,6 +215,13 @@ class Miner:
                 # start mining before processing and propagating mined block
                 instance._mine_new_block_async()
                 try:
+                    # Root block should include latest minor block headers while it's being mined
+                    # This is a hack to get the latest minor block included since testnet does not check difficulty
+                    if instance.consensus_type == ConsensusType.POW_SIMULATE:
+                        block = await self.create_block_async_func()
+                        Simulate(block, target_block_time=0).post_process_mined_block(
+                            block
+                        )
                     await instance.add_block_async_func(block)
                 except Exception as ex:
                     Logger.error(ex)
@@ -221,51 +237,87 @@ class Miner:
                 return
 
             instance.process = AioProcess(
-                target=instance.mine_func,
-                args=(block, instance.input_q, instance.output_q, mining_params),
+                target=instance._mine_loop,
+                args=(
+                    instance.consensus_type,
+                    block,
+                    instance.input_q,
+                    instance.output_q,
+                    mining_params,
+                ),
             )
             instance.process.start()
             await handle_mined_block(instance)
 
-        if not self.enabled:
+        # no-op if enabled or mining remotely
+        if not self.enabled or self.remote:
             return None
         return asyncio.ensure_future(mine_new_block(self))
 
-    @staticmethod
-    def simulate_mine(
-        block,
-        input_q: MultiProcessingQueue,
-        output_q: MultiProcessingQueue,
-        mining_params: Dict,
-    ):
-        Miner._mine_loop(block, input_q, output_q, mining_params, Simulate)
+    async def get_work(self, now=None) -> MiningWork:
+        if not self.remote:
+            raise ValueError("Should only be used for remote miner")
 
-    @staticmethod
-    def mine_ethash(
-        block: Union[MinorBlock, RootBlock],
-        input_q: MultiProcessingQueue,
-        output_q: MultiProcessingQueue,
-        mining_params: Dict,
-    ):
-        Miner._mine_loop(block, input_q, output_q, mining_params, Ethash)
+        if now is None:  # clock open for mock
+            now = time.time()
+        # 5 sec interval magic number
+        if not self.current_work or now - self.current_work.header.create_time > 5:
+            block = await self.create_block_async_func()
+            self.current_work = block
 
-    @staticmethod
-    def mine_sha3sha3(
-        block: Union[MinorBlock, RootBlock],
-        input_q: MultiProcessingQueue,
-        output_q: MultiProcessingQueue,
-        mining_params: Dict,
-    ):
-        Miner._mine_loop(block, input_q, output_q, mining_params, DoubleSHA256)
+        header = self.current_work.header
+        header_hash = header.get_hash_for_mining()
+        # store in memory for future retrieval during work submission
+        self.work_map[header_hash] = self.current_work
+
+        # clean up worker map
+        # TODO: for now, same param as go-ethereum
+        self.work_map = {
+            h: b
+            for h, b in self.work_map.items()
+            if now - b.header.create_time < 7 * 12
+        }
+
+        return MiningWork(header_hash, header.height, header.difficulty)
+
+    async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
+        if not self.remote:
+            raise ValueError("Should only be used for remote miner")
+
+        if header_hash not in self.work_map:
+            return False
+        block = self.work_map[header_hash]
+        header = copy.copy(block.header)
+        header.nonce, header.mixhash = nonce, mixhash
+        try:
+            validate_seal(header, self.consensus_type)
+        except ValueError:
+            return False
+
+        block.header = header  # actual update
+        try:
+            await self.add_block_async_func(block)
+            del self.work_map[header_hash]
+            self.current_work = None
+            return True
+        except Exception as ex:
+            Logger.error(ex)
+            return False
 
     @staticmethod
     def _mine_loop(
-        block: Union[MinorBlock, RootBlock],
+        consensus_type: ConsensusType,
+        block: Block,
         input_q: MultiProcessingQueue,
         output_q: MultiProcessingQueue,
         mining_params: Dict,
-        mining_algo_gen: Callable[..., MiningAlgorithm],
     ):
+        consensus_to_mining_algo = {
+            ConsensusType.POW_SIMULATE: Simulate,
+            ConsensusType.POW_ETHASH: Ethash,
+            ConsensusType.POW_SHA3SHA3: DoubleSHA256,
+        }
+        mining_algo_gen = consensus_to_mining_algo[consensus_type]
         # TODO: maybe add rounds to config json
         rounds = mining_params.get("rounds", 100)
         # outer loop for mining forever

@@ -17,6 +17,7 @@ from quarkchain.cluster.miner import Miner
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
+from quarkchain.config import ShardConfig
 from quarkchain.core import RootBlock, MinorBlock, MinorBlockHeader, Branch, Transaction
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
@@ -408,11 +409,15 @@ class Shard:
                 "target_block_time": self.slave.artificial_tx_config.target_minor_block_time
             }
 
+        shard_config = self.env.quark_chain_config.SHARD_LIST[
+            self.shard_id
+        ]  # type: ShardConfig
         self.miner = Miner(
-            self.env.quark_chain_config.SHARD_LIST[self.shard_id].CONSENSUS_TYPE,
+            shard_config.CONSENSUS_TYPE,
             __create_block,
             __add_block,
             __get_mining_param,
+            remote=shard_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
     def __get_shard_size(self):

@@ -118,19 +118,11 @@ def id_decoder(hex_str):
     return data_bytes[:32], int.from_bytes(data_bytes[32:], byteorder="big")
 
 
-def block_hash_decoder(hex_str):
+def hash_decoder(hex_str):
     """Decode a block hash."""
     decoded = data_decoder(hex_str)
     if len(decoded) != 32:
-        raise InvalidParams("Block hashes must be 32 bytes long")
-    return decoded
-
-
-def tx_hash_decoder(hex_str):
-    """Decode a transaction hash."""
-    decoded = data_decoder(hex_str)
-    if len(decoded) != 32:
-        raise InvalidParams("Transaction hashes must be 32 bytes long")
+        raise InvalidParams("Hashes must be 32 bytes long")
     return decoded
 
 
@@ -836,6 +828,31 @@ class JSONRPCServer:
         return quantity_encoder(ret)
 
     @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    @decode_arg("header_hash", hash_decoder)
+    @decode_arg("nonce", quantity_decoder)
+    @decode_arg("mixhash", hash_decoder)
+    async def submitWork(self, shard, header_hash, nonce, mixhash):
+        branch = None  # `None` means getting work from root chain
+        if shard is not None:
+            branch = Branch.create(self.master.get_shard_size(), shard)
+        return await self.master.submit_work(branch, header_hash, nonce, mixhash)
+
+    @public_methods.add
+    @decode_arg("shard", shard_id_decoder)
+    async def getWork(self, shard):
+        branch = None  # `None` means getting work from root chain
+        if shard is not None:
+            branch = Branch.create(self.master.get_shard_size(), shard)
+        ret = await self.master.get_work(branch)
+        if ret is None:
+            return None
+        return [
+            data_encoder(ret.hash),
+            quantity_encoder(ret.height),
+            quantity_encoder(ret.difficulty),
+        ]
+
     @decode_arg("from_address", address_decoder)
     @decode_arg("to_address", address_decoder)
     async def donate(self, from_address, to_address):
