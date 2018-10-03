@@ -18,7 +18,7 @@ from quarkchain.core import (
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 
-SIZE_LIST = [(RootBlockHeader, 183), (MinorBlockHeader, 481), (MinorBlockMeta, 186)]
+SIZE_LIST = [(RootBlockHeader, 183), (MinorBlockHeader, 483), (MinorBlockMeta, 184)]
 
 
 class TestDataSize(unittest.TestCase):
