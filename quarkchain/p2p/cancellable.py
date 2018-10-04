@@ -3,11 +3,11 @@ from typing import (
     TypeVar,
 )
 
-from cancel_token import CancelToken
+from quarkchain.p2p.cancel_token.token import CancelToken
 
 
 class CancellableMixin:
-    cancel_token: CancelToken = None
+    cancel_token = None # : CancelToken
 
     _TReturn = TypeVar('_TReturn')
 

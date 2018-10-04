@@ -1,8 +1,8 @@
 import asyncio
-
+import gc
 import pytest
 
-from p2p.service import BaseService
+from quarkchain.p2p.service import BaseService
 
 
 class ParentService(BaseService):
@@ -62,6 +62,10 @@ async def test_service_tasks_do_not_leak_memory():
     # allow the coro to exit
     await asyncio.sleep(0)
 
+    # due to pypy, either use gc.collect or call service.gc()
+    # gc.collect() # https://bitbucket.org/pypy/pypy/issues/1269/weakrefweakset-does-not-work-correctly
+    service.gc()
+
     # confirm that task is no longer tracked:
     assert len(service._tasks) == 0
 
@@ -90,6 +94,9 @@ async def test_service_children_do_not_leak_memory():
 
     # remove the final reference to the child service
     del child
+
+    # gc.collect() DOES NOT work here... have to use parent.gc()
+    parent.gc()
 
     # confirm that child service is no longer tracked:
     assert len(parent._child_services) == 0
