@@ -853,6 +853,7 @@ class JSONRPCServer:
             quantity_encoder(ret.difficulty),
         ]
 
+    @public_methods.add
     @decode_arg("from_address", address_decoder)
     @decode_arg("to_address", address_decoder)
     async def donate(self, from_address, to_address):
