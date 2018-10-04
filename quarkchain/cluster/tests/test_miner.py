@@ -3,7 +3,7 @@ import time
 import unittest
 from typing import Optional
 
-from quarkchain.cluster.miner import Miner, validate_seal, DoubleSHA256
+from quarkchain.cluster.miner import Miner, validate_seal, DoubleSHA256, MiningWork
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.utils import sha3_256
@@ -89,14 +89,16 @@ class TestMiner(unittest.TestCase):
             RootBlockHeader(create_time=42, difficulty=5),
             tracking_data="{}".encode("utf-8"),
         )
-        # only process one block, which is passed in
+        work = MiningWork(block.header.get_hash_for_mining(), 42, 5)
+        # only process one block, which is passed in. `None` means termination right after
         miner.input_q.put((None, {}))
         miner._mine_loop(
-            ConsensusType.POW_SHA3SHA3, block, miner.input_q, miner.output_q, {}
+            ConsensusType.POW_SHA3SHA3, work, {}, miner.input_q, miner.output_q
         )
-        mined_block = miner.output_q.get()
-        self.assertEqual(mined_block.header.nonce, 3)
-        validate_seal(mined_block.header, ConsensusType.POW_SHA3SHA3)
+        mined_res = miner.output_q.get()
+        self.assertEqual(mined_res.nonce, 3)
+        block.header.nonce = mined_res.nonce
+        validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
 
     def test_only_remote(self):
         async def go():
@@ -166,10 +168,8 @@ class TestMiner(unittest.TestCase):
             res = await miner.submit_work(b"lolwut", 0, sha3_256(b""))
             self.assertFalse(res)
 
-            solver = DoubleSHA256(block)
-            mined = solver.mine(100, 200)
-            self.assertTrue(mined)
-            sol = int.from_bytes(solver.nonce_found, byteorder="big")
+            solver = DoubleSHA256(work)
+            sol = solver.mine(100, 200).nonce
             self.assertGreater(sol, 100)  # ensure non-solution is tried
             non_sol = sol - 1
             # invalid pow proof
