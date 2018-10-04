@@ -2,7 +2,6 @@
 
 import unittest
 from quarkchain.p2p.p2p_network import parse_additional_bootstraps
-from quarkchain.p2p.monitoring import crawl_recursive, crawl_bfs
 
 
 class TestBootstrap(unittest.TestCase):
@@ -21,12 +20,3 @@ class TestBootstrap(unittest.TestCase):
                 b"enode://c118d844bd0587b61f92b6061caee4f85743bba831d70a5954196b5cce4d5a456d020f340f8bfe599ffa9d2028202949cbb1eeb4d94404046742244bf4ce3cd3@0.0.0.0:29000",
             ],
         )
-
-    def test_crawl(self):
-        cache = {}
-        res = {}
-        # crawl_recursive(cache, "54.152.237.112", 38291, 38291 + 200, ip_lookup={})
-        # res = crawl_bfs("54.152.237.112", 38291, 38291 + 200)
-        dfs = {k: set(v) for k, v in cache.items()}
-        bfs = {k: set(v) for k, v in res.items()}
-        self.assertEqual(dfs, bfs)
