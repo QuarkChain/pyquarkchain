@@ -76,6 +76,7 @@ Once all the modules are installed, try running all the unit tests under `pyquar
 
 ```
 pypy3 -m unittest
+pypy3 -m pytest quarkchain/p2p # some tests are written in py.test
 ```
 
 ### Linux
