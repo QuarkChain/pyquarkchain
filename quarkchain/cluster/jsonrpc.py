@@ -420,6 +420,8 @@ class JSONRPCServer:
         # Use armor to prevent the handler from being cancelled when
         # aiohttp server loses connection to client
         response = await armor(self.handlers.dispatch(request))
+        if "error" in response:
+            Logger.error(response)
         if response.is_notification:
             return web.Response()
         return web.json_response(response, status=response.http_status)

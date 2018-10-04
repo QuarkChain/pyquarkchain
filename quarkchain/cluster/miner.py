@@ -234,7 +234,7 @@ class Miner:
         if not self.current_work or now - self.current_work.header.create_time > 5:
             block = await self.create_block_async_func()
             if not block:
-                raise RuntimeError("Created empty block")
+                raise RuntimeError("Failed to create block")
             self.current_work = block
 
         header = self.current_work.header
