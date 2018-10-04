@@ -41,7 +41,7 @@ def time_since(start_time: datetime.datetime) -> Tuple[int, int, int, int]:
 CPU_EMPTY_VALUES = {None, 0}
 
 
-_executor: Executor = None
+_executor = None # : Executor
 
 
 def get_asyncio_executor(cpu_count: int=None) -> Executor:

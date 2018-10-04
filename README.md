@@ -33,7 +33,7 @@ To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
 Then install pypy3 and other dependencies
 
 ```bash
-brew install pypy3 gmp pkg-config
+brew install pypy3 gmp pkg-config openssl
 ```
 
 It's is highly recommended to use [virtual environment](https://docs.python.org/3/library/venv.html) creating an isolated python environment for your project so that the python modules installed later will only affect this environment.
@@ -69,6 +69,9 @@ brew install rocksdb
 To install the required modules for the project. Under `pyquarkchain` dir where `setup.py` is located
 
 ```bash
+# you may want to set the following if cryptography complains about header files: (https://github.com/pyca/cryptography/issues/3489)
+# export CPPFLAGS=-I/usr/local/opt/openssl/include
+# export LDFLAGS=-L/usr/local/opt/openssl/lib
 pip install -e .
 ```
 

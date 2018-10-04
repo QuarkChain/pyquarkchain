@@ -12,15 +12,14 @@ from typing import (
 )
 from weakref import WeakSet
 
-from cancel_token import CancelToken, OperationCancelled
 from eth_utils import (
     ValidationError,
 )
 
-from eth.tools.logging import TraceLogger
-
-from p2p.cancellable import CancellableMixin
-from p2p.utils import get_asyncio_executor
+from quarkchain.utils import Logger
+from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
+from quarkchain.p2p.cancellable import CancellableMixin
+from quarkchain.p2p.utils import get_asyncio_executor
 
 
 class ServiceEvents:
@@ -33,18 +32,15 @@ class ServiceEvents:
 
 
 class BaseService(ABC, CancellableMixin):
-    logger: TraceLogger = None
     # Use a WeakSet so that we don't have to bother updating it when tasks finish.
-    _child_services: 'WeakSet[BaseService]'
-    _tasks: 'WeakSet[asyncio.Future[Any]]'
-    _finished_callbacks: List[Callable[['BaseService'], None]]
+    _child_services = None # : 'WeakSet[BaseService]'
+    _tasks = None # : 'WeakSet[asyncio.Future[Any]]'
+    _finished_callbacks = None # : List[Callable[['BaseService'], None]]
     # Number of seconds cancel() will wait for run() to finish.
     _wait_until_finished_timeout = 5
 
     # the custom event loop to run in, or None if the default loop should be used
-    _loop: asyncio.AbstractEventLoop = None
-
-    _logger: TraceLogger = None
+    _loop = None # : asyncio.AbstractEventLoop
 
     def __init__(self,
                  token: CancelToken=None,
@@ -67,13 +63,8 @@ class BaseService(ABC, CancellableMixin):
         self._executor = get_asyncio_executor()
 
     @property
-    def logger(self) -> TraceLogger:
-        if self._logger is None:
-            self._logger = cast(
-                TraceLogger,
-                logging.getLogger(self.__module__ + '.' + self.__class__.__name__)
-            )
-        return self._logger
+    def logger(self) -> Logger:
+        return Logger
 
     def get_event_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
@@ -131,7 +122,7 @@ class BaseService(ABC, CancellableMixin):
         """
         @functools.wraps(awaitable)  # type: ignore
         async def _run_task_wrapper() -> None:
-            self.logger.trace("Running task %s", awaitable)
+            self.logger.debug("Running task %s", awaitable)
             try:
                 await awaitable
             except OperationCancelled:
@@ -140,7 +131,7 @@ class BaseService(ABC, CancellableMixin):
                 self.logger.warning("Task %s finished unexpectedly: %s", awaitable, e)
                 self.logger.debug("Task failure traceback", exc_info=True)
             else:
-                self.logger.trace("Task %s finished with no errors", awaitable)
+                self.logger.debug("Task %s finished with no errors", awaitable)
         self._tasks.add(asyncio.ensure_future(_run_task_wrapper()))
 
     def run_daemon_task(self, awaitable: Awaitable[Any]) -> None:
@@ -330,6 +321,14 @@ class BaseService(ABC, CancellableMixin):
         Called after the service's _run() method returns.
         """
         pass
+
+    def gc(self) -> None:
+        for cs in self._child_services.copy():
+            if cs.events.finished.is_set():
+                self._child_services.remove(cs)
+        for t in self._tasks.copy():
+            if t.done():
+                self._tasks.remove(t)
 
 
 def service_timeout(timeout: int) -> Callable[..., Any]:

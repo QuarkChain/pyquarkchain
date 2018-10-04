@@ -16,11 +16,7 @@ from eth_utils import (
 from eth_keys import keys
 from eth_keys import datatypes
 
-from eth.utils.padding import (
-    pad32,
-)
-
-from p2p.exceptions import DecryptionError
+from quarkchain.p2p.exceptions import DecryptionError
 
 from .constants import (
     PUBKEY_LEN,
@@ -33,6 +29,10 @@ CURVE = ec.SECP256K1()
 # ECIES using AES256 and HMAC-SHA-256-32
 KEY_LEN = 32
 
+ZERO_BYTE = b'\x00'
+
+def pad32(value: bytes) -> bytes:
+    return value.rjust(32, ZERO_BYTE)
 
 def generate_privkey() -> datatypes.PrivateKey:
     """Generate a new SECP256K1 private key and return it"""
