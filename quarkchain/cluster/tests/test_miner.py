@@ -96,7 +96,7 @@ class TestMiner(unittest.TestCase):
             ConsensusType.POW_SHA3SHA3, work, {}, miner.input_q, miner.output_q
         )
         mined_res = miner.output_q.get()
-        self.assertEqual(mined_res.nonce, 3)
+        self.assertEqual(mined_res.nonce, 8)
         block.header.nonce = mined_res.nonce
         validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
 
@@ -149,7 +149,7 @@ class TestMiner(unittest.TestCase):
     def test_submit_work(self):
         now = 42
         block = RootBlock(
-            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=2)
+            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
 
         async def create():
@@ -163,7 +163,7 @@ class TestMiner(unittest.TestCase):
         async def go():
             work = await miner.get_work(now=now)
             self.assertEqual(work.height, 0)
-            self.assertEqual(work.difficulty, 2)
+            self.assertEqual(work.difficulty, 5)
             # submitted block doesn't exist
             res = await miner.submit_work(b"lolwut", 0, sha3_256(b""))
             self.assertFalse(res)
