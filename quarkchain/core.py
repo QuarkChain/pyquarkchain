@@ -716,7 +716,7 @@ class MinorBlockHeader(Serializable):
         return sha3_256(self.serialize())
 
     def get_hash_for_mining(self):
-        return sha3_256(self.serialize_without(["nonce", "mixhash", "extra_data"]))
+        return sha3_256(self.serialize_without(["nonce", "mixhash"]))
 
 
 class MinorBlock(Serializable):
@@ -888,7 +888,7 @@ class RootBlockHeader(Serializable):
         return sha3_256(self.serialize())
 
     def get_hash_for_mining(self):
-        return sha3_256(self.serialize_without(["nonce", "mixhash", "extra_data"]))
+        return sha3_256(self.serialize_without(["nonce", "mixhash"]))
 
     def create_block_to_append(
         self,
