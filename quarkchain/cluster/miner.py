@@ -43,126 +43,74 @@ def validate_seal(
             raise ValueError("invalid pow proof")
 
 
+MiningWork = NamedTuple(
+    "MiningWork", [("hash", bytes), ("height", int), ("difficulty", int)]
+)
+
+MiningResult = NamedTuple(
+    "MiningResult", [("header_hash", bytes), ("nonce", int), ("mixhash", bytes)]
+)
+
+
 class MiningAlgorithm(ABC):
     @abstractmethod
-    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+    def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         pass
-
-    def post_process_mined_block(self, block: Block):
-        """Post-process block to track block propagation latency"""
-        tracking_data = json.loads(block.tracking_data.decode("utf-8"))
-        tracking_data["mined"] = time_ms()
-        block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-
-    @staticmethod
-    def _log_status(block: Block):
-        is_root = isinstance(block, RootBlock)
-        shard = "R" if is_root else block.header.branch.get_shard_id()
-        count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
-        elapsed = time.time() - block.header.create_time
-        Logger.info_every_sec(
-            "[{}] {} [{}] ({:.2f}) {}".format(
-                shard,
-                block.header.height,
-                count,
-                elapsed,
-                block.header.get_hash().hex(),
-            ),
-            60,
-        )
 
 
 class Simulate(MiningAlgorithm):
-    def __init__(self, block: Block, **kwargs):
-        target_block_time = kwargs["target_block_time"]
-        self.target_time = block.header.create_time + self._get_block_time(
-            block, target_block_time
-        )
+    def __init__(self, work: MiningWork, **kwargs):
+        self.target_time = kwargs["target_time"]
+        self.work = work
 
-    @staticmethod
-    def _get_block_time(block, target_block_time) -> float:
-        if isinstance(block, MinorBlock):
-            # Adjust the target block time to compensate computation time
-            gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
-            target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
-            Logger.debug(
-                "[{}] target block time {:.2f}".format(
-                    block.header.branch.get_shard_id(), target_block_time
-                )
-            )
-        return numpy.random.exponential(target_block_time)
-
-    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+    def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         time.sleep(0.1)
-        return time.time() > self.target_time
-
-    def post_process_mined_block(self, block: Block):
-        self._log_status(block)
-        block.header.nonce = random.randint(0, 2 ** 32 - 1)
-        super().post_process_mined_block(block)
+        if time.time() > self.target_time:
+            return MiningResult(
+                self.work.hash, random.randint(0, 2 ** 32 - 1), bytes(32)
+            )
+        return None
 
 
 class Ethash(MiningAlgorithm):
-    def __init__(self, block: Block, **kwargs):
+    def __init__(self, work: MiningWork, **kwargs):
         is_test = kwargs.get("is_test", False)
         self.miner = EthashMiner(
-            block.header.height,
-            block.header.difficulty,
-            block.header.get_hash_for_mining(),
-            is_test=is_test,
+            work.height, work.difficulty, work.hash, is_test=is_test
         )
-        self.nonce_found, self.mixhash = None, None
 
-    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+    def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         nonce_found, mixhash = self.miner.mine(end_nonce - start_nonce, start_nonce)
         if not nonce_found:
-            return False
-        self.nonce_found = nonce_found
-        self.mixhash = mixhash
-        return True
-
-    def post_process_mined_block(self, block: Block):
-        if not self.nonce_found:
-            raise RuntimeError("cannot post process since no nonce found")
-        block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
-        block.header.mixhash = self.mixhash
-        super().post_process_mined_block(block)
+            return None
+        return MiningResult(
+            self.miner.header_hash,
+            int.from_bytes(nonce_found, byteorder="big"),
+            mixhash,
+        )
 
 
 class DoubleSHA256(MiningAlgorithm):
-    def __init__(self, block: Block):
-        self.target = (2 ** 256 // (block.header.difficulty or 1) - 1).to_bytes(
+    def __init__(self, work: MiningWork, **kwargs):
+        self.target = (2 ** 256 // (work.difficulty or 1) - 1).to_bytes(
             32, byteorder="big"
         )
-        self.header_hash = block.header.get_hash_for_mining()
-        self.nonce_found = None
+        self.header_hash = work.hash
 
-    def mine(self, start_nonce: int, end_nonce: int) -> bool:
+    def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         for nonce in range(start_nonce, end_nonce):
             nonce_bytes = nonce.to_bytes(8, byteorder="big")
             h = sha3_256(sha3_256(self.header_hash + nonce_bytes))
             if h < self.target:
-                self.nonce_found = nonce_bytes
-                return True
-        return False
-
-    def post_process_mined_block(self, block: Block):
-        if not self.nonce_found:
-            raise RuntimeError("cannot post process since no nonce found")
-        block.header.nonce = int.from_bytes(self.nonce_found, byteorder="big")
-        super().post_process_mined_block(block)
-
-
-MiningWork = NamedTuple(
-    "MiningWork", [("hash", bytes), ("height", int), ("difficulty", int)]
-)
+                return MiningResult(self.header_hash, nonce, bytes(32))
+        return None
 
 
 class Miner:
     def __init__(
         self,
         consensus_type: ConsensusType,
-        create_block_async_func: Callable[[], Awaitable[Block]],
+        create_block_async_func: Callable[[], Awaitable[Optional[Block]]],
         add_block_async_func: Callable[[Block], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
         remote: bool = False,
@@ -181,16 +129,17 @@ class Miner:
         self.enabled = False
         self.process = None
 
-        self.input_q = AioQueue()  # [(block, param dict)]
-        self.output_q = AioQueue()  # [block]
+        self.input_q = AioQueue()  # [(MiningWork, param dict)]
+        self.output_q = AioQueue()  # [MiningResult]
+
+        # header hash -> work
+        self.work_map = {}  # type: Dict[bytes, Block]
 
         if not remote and consensus_type != ConsensusType.POW_SIMULATE:
             Logger.warning("Mining locally, could be slow and error-prone")
         # remote miner specific attributes
         self.remote = remote
         self.current_work = None  # type: Optional[Block]
-        # header hash -> work, updated only by remote miner get & put
-        self.work_map = {}  # type: Dict[bytes, Block]
 
     def start(self):
         self.enabled = True
@@ -207,52 +156,73 @@ class Miner:
         self.enabled = False
 
     def _mine_new_block_async(self):
-        async def handle_mined_block(instance: Miner):
+        async def handle_mined_block():
             while True:
-                block = await instance.output_q.coro_get()
-                if not block:
-                    return
+                res = await self.output_q.coro_get()  # type: MiningResult
+                if not res:
+                    return  # empty result means ending
                 # start mining before processing and propagating mined block
-                instance._mine_new_block_async()
+                self._mine_new_block_async()
+                block = self.work_map[res.header_hash]
+                block.header.nonce = res.nonce
+                block.header.mixhash = res.mixhash
+                del self.work_map[res.header_hash]
+                self._track(block)
                 try:
-                    # Root block should include latest minor block headers while it's being mined
+                    # FIXME: Root block should include latest minor block headers while it's being mined
                     # This is a hack to get the latest minor block included since testnet does not check difficulty
-                    if instance.consensus_type == ConsensusType.POW_SIMULATE:
+                    if self.consensus_type == ConsensusType.POW_SIMULATE:
                         block = await self.create_block_async_func()
-                        Simulate(block, target_block_time=0).post_process_mined_block(
-                            block
-                        )
-                    await instance.add_block_async_func(block)
+                        block.header.nonce = random.randint(0, 2 ** 32 - 1)
+                        self._track(block)
+                        self._log_status(block)
+                    await self.add_block_async_func(block)
                 except Exception as ex:
                     Logger.error(ex)
 
-        async def mine_new_block(instance: Miner):
+        async def mine_new_block():
             """Get a new block and start mining.
             If a mining process has already been started, update the process to mine the new block.
             """
-            block = await instance.create_block_async_func()
-            mining_params = instance.get_mining_param_func()
-            if instance.process:
-                instance.input_q.put((block, mining_params))
+            block = await self.create_block_async_func()
+            if not block:
+                self.input_q.put((None, {}))
+                return
+            mining_params = self.get_mining_param_func()
+            # handle mining simulation's timing
+            if "target_block_time" in mining_params:
+                target_block_time = mining_params["target_block_time"]
+                mining_params["target_time"] = (
+                    block.header.create_time
+                    + self._get_block_time(block, target_block_time)
+                )
+            work = MiningWork(
+                block.header.get_hash_for_mining(),
+                block.header.height,
+                block.header.difficulty,
+            )
+            self.work_map[work.hash] = block
+            if self.process:
+                self.input_q.put((work, mining_params))
                 return
 
-            instance.process = AioProcess(
-                target=instance._mine_loop,
+            self.process = AioProcess(
+                target=self._mine_loop,
                 args=(
-                    instance.consensus_type,
-                    block,
-                    instance.input_q,
-                    instance.output_q,
+                    self.consensus_type,
+                    work,
                     mining_params,
+                    self.input_q,
+                    self.output_q,
                 ),
             )
-            instance.process.start()
-            await handle_mined_block(instance)
+            self.process.start()
+            await handle_mined_block()
 
         # no-op if enabled or mining remotely
         if not self.enabled or self.remote:
             return None
-        return asyncio.ensure_future(mine_new_block(self))
+        return asyncio.ensure_future(mine_new_block())
 
     async def get_work(self, now=None) -> MiningWork:
         if not self.remote:
@@ -263,6 +233,8 @@ class Miner:
         # 5 sec interval magic number
         if not self.current_work or now - self.current_work.header.create_time > 5:
             block = await self.create_block_async_func()
+            if not block:
+                raise RuntimeError("Failed to create block")
             self.current_work = block
 
         header = self.current_work.header
@@ -307,10 +279,10 @@ class Miner:
     @staticmethod
     def _mine_loop(
         consensus_type: ConsensusType,
-        block: Block,
+        work: MiningWork,
+        mining_params: Dict,
         input_q: MultiProcessingQueue,
         output_q: MultiProcessingQueue,
-        mining_params: Dict,
     ):
         consensus_to_mining_algo = {
             ConsensusType.POW_SIMULATE: Simulate,
@@ -320,28 +292,74 @@ class Miner:
         mining_algo_gen = consensus_to_mining_algo[consensus_type]
         # TODO: maybe add rounds to config json
         rounds = mining_params.get("rounds", 100)
+        progress = {}
         # outer loop for mining forever
         while True:
-            # `None` block means termination
-            if not block:
+            # empty work means termination
+            if not work:
                 output_q.put(None)
                 return
 
-            start_nonce = 0
-            mining_algo = mining_algo_gen(block, **mining_params)
+            mining_algo = mining_algo_gen(work, **mining_params)
+            # progress tracking if mining param contains shard info
+            if "shard" in mining_params:
+                shard = mining_params["shard"]
+                # skip blocks with lower height
+                if shard in progress and progress[shard] >= work.height:
+                    continue
             # inner loop for iterating nonce
+            start_nonce = 0
             while True:
-                found = mining_algo.mine(start_nonce + 1, start_nonce + 1 + rounds)
-                if found:
-                    mining_algo.post_process_mined_block(block)
-                    output_q.put(block)
-                    block, _ = input_q.get(block=True)  # blocking
+                res = mining_algo.mine(start_nonce + 1, start_nonce + 1 + rounds)
+                if res:
+                    output_q.put(res)
+                    if "shard" in mining_params:
+                        progress[mining_params["shard"]] = work.height
+                    work, mining_params = input_q.get(block=True)
                     break  # break inner loop to refresh mining params
-                # check if new block arrives. if yes, discard current progress and restart
+                # no result for mining, check if new work arrives
+                # if yes, discard current work and restart
                 try:
-                    block, _ = input_q.get_nowait()
+                    work, mining_params = input_q.get_nowait()
                     break  # break inner loop to refresh mining params
                 except Exception:  # queue empty
                     pass
                 # update param and keep mining
                 start_nonce += rounds
+
+    @staticmethod
+    def _track(block: Block):
+        """Post-process block to track block propagation latency"""
+        tracking_data = json.loads(block.tracking_data.decode("utf-8"))
+        tracking_data["mined"] = time_ms()
+        block.tracking_data = json.dumps(tracking_data).encode("utf-8")
+
+    @staticmethod
+    def _log_status(block: Block):
+        is_root = isinstance(block, RootBlock)
+        shard = "R" if is_root else block.header.branch.get_shard_id()
+        count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
+        elapsed = time.time() - block.header.create_time
+        Logger.info_every_sec(
+            "[{}] {} [{}] ({:.2f}) {}".format(
+                shard,
+                block.header.height,
+                count,
+                elapsed,
+                block.header.get_hash().hex(),
+            ),
+            60,
+        )
+
+    @staticmethod
+    def _get_block_time(block: Block, target_block_time) -> float:
+        if isinstance(block, MinorBlock):
+            # Adjust the target block time to compensate computation time
+            gas_used_ratio = block.meta.evm_gas_used / block.header.evm_gas_limit
+            target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
+            Logger.debug(
+                "[{}] target block time {:.2f}".format(
+                    block.header.branch.get_shard_id(), target_block_time
+                )
+            )
+        return numpy.random.exponential(target_block_time)

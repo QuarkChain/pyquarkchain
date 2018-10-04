@@ -8,7 +8,7 @@ from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
-from quarkchain.cluster.miner import DoubleSHA256
+from quarkchain.cluster.miner import DoubleSHA256, MiningWork
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
@@ -884,13 +884,12 @@ class TestJSONRPC(unittest.TestCase):
                     header_hash_hex[2:], block.header.get_hash_for_mining().hex()
                 )
                 # solve it and submit
-                solver = DoubleSHA256(block)
-                mined = solver.mine(0, 10000)
-                self.assertTrue(mined)
-                nonce_found = "0x" + solver.nonce_found.hex()
+                work = MiningWork(bytes.fromhex(resp[0][2:]), 1, 10)
+                solver = DoubleSHA256(work)
+                nonce = solver.mine(0, 10000).nonce
                 mixhash = "0x" + sha3_256(b"").hex()
                 resp = send_request(
-                    "submitWork", shard_id, header_hash_hex, nonce_found, mixhash
+                    "submitWork", shard_id, header_hash_hex, hex(nonce), mixhash
                 )
                 self.assertTrue(resp)
 

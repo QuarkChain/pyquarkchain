@@ -1176,7 +1176,7 @@ class SlaveServer:
     async def submit_work(
         self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
     ) -> bool:
-        """Will raise exceptions if server error, instead of returning None, because Optional[bool] is quite misleading."""
+        """Will raise exceptions if server error, instead of returning None."""
         return await self.shards[branch].miner.submit_work(header_hash, nonce, mixhash)
 
 
