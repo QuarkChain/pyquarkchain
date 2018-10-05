@@ -13,7 +13,7 @@ from quarkchain.cluster.p2p_commands import (
     NewTransactionListCommand,
     NewBlockMinorCommand,
 )
-from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
@@ -299,13 +299,17 @@ class SyncTask:
         return self.shard_state.db.contain_minor_block_by_hash(block_hash)
 
     def __validate_block_headers(self, block_header_list):
-        # TODO: check difficulty and other stuff?
         for i in range(len(block_header_list) - 1):
-            block, prev = block_header_list[i : i + 2]
-            if block.height != prev.height + 1:
+            header, prev = block_header_list[i : i + 2]
+            if header.height != prev.height + 1:
                 return False
-            if block.hash_prev_minor_block != prev.get_hash():
+            if header.hash_prev_minor_block != prev.get_hash():
                 return False
+            shard_id = header.branch.get_shard_id()
+            consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
+                shard_id
+            ].CONSENSUS_TYPE
+            validate_seal(header, consensus_type)
         return True
 
     async def __download_block_headers(self, block_hash):
@@ -501,8 +505,14 @@ class Shard:
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
                 return
 
-        # TODO check difficulty and POW here
-        # one option is to use __validate_block but we may not need the full check
+        shard_id = block.header.branch.get_shard_id()
+        consensus_type = self.env.quark_chain_config.SHARD_LIST[shard_id].CONSENSUS_TYPE
+        try:
+            validate_seal(block.header, consensus_type)
+        except Exception as e:
+            Logger.warning("[{}] Got block with bad seal: {}".format(shard_id, str(e)))
+            return
+
         if block.header.create_time > time_ms() // 1000 + 30:
             return
 
