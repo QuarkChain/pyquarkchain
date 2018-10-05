@@ -145,7 +145,7 @@ to
 options.compression = rocksdb.CompressionType.snappy_compression
 ```
 
-then running `pypy3 quarkchain/cluster/cluster.py  --mine` should suceed.
+then running `pypy3 quarkchain/cluster/cluster.py  --mine` should succeed.
 
 ## Development Flow
 
