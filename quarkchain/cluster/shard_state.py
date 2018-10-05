@@ -382,20 +382,12 @@ class ShardState:
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
-        curr_diff = block.header.difficulty
-        header_hash = block.header.get_hash()
         if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
-            if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.diff_calc.calculate_diff_with_parent(
-                    prev_header, block.header.create_time
-                )
-                if diff != curr_diff:
-                    raise ValueError("incorrect difficulty")
-            elif (
-                block.meta.coinbase_address.recipient
-                != self.env.quark_chain_config.testnet_master_address.recipient
-            ):
-                raise ValueError("incorrect master to create the block")
+            diff = self.diff_calc.calculate_diff_with_parent(
+                prev_header, block.header.create_time
+            )
+            if diff != block.header.difficulty:
+                raise ValueError("incorrect difficulty")
 
         if not self.branch.is_in_shard(block.meta.coinbase_address.full_shard_id):
             raise ValueError("coinbase output must be in local shard")

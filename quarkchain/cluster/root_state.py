@@ -3,6 +3,7 @@ import json
 import asyncio
 
 from quarkchain.cluster.miner import validate_seal
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
 from quarkchain.core import (
@@ -245,19 +246,17 @@ class RootState:
             block_hash = header_hash
 
         # Check difficulty
-        curr_diff = block_header.difficulty
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
-            if self.env.quark_chain_config.NETWORK_ID == NetworkId.MAINNET:
-                diff = self.diff_calc.calculate_diff_with_parent(
-                    prev_block_header, block_header.create_time
-                )
-                if diff != curr_diff:
-                    raise ValueError("incorrect difficulty")
-            elif (
-                block_header.coinbase_address.recipient
-                != self.env.quark_chain_config.testnet_master_address.recipient
+            diff = self.diff_calc.calculate_diff_with_parent(
+                prev_block_header, block_header.create_time
+            )
+            # lower the difficulty for root block signed by guardian
+            if block_header.verify_signature(
+                self.env.quark_chain_config.guardian_public_key
             ):
-                raise ValueError("incorrect master to create the block")
+                diff = Guardian.adjust_difficulty(diff, block_header.height)
+            if diff != block_header.difficulty:
+                raise ValueError("incorrect difficulty")
 
         # Check PoW if applicable
         consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE

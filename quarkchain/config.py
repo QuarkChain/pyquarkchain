@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from typing import List
-
+from eth_keys import KeyAPI
 import quarkchain.db
 import quarkchain.evm.config
 from quarkchain.core import Address
@@ -220,6 +220,7 @@ class QuarkChainConfig(BaseConfig):
 
     PROOF_OF_PROGRESS_BLOCKS = 1
     TESTNET_MASTER_ADDRESS = "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
+    GUARDIAN_PUBLIC_KEY = "00" * 64  # TODO: update this
 
     # P2P
     P2P_PROTOCOL_VERSION = 0
@@ -269,6 +270,12 @@ class QuarkChainConfig(BaseConfig):
     @property
     def testnet_master_address(self):
         return Address.create_from(self.TESTNET_MASTER_ADDRESS)
+
+    @property
+    def guardian_public_key(self) -> KeyAPI.PublicKey:
+        return KeyAPI.PublicKey(
+            public_key_bytes=bytes.fromhex(self.GUARDIAN_PUBLIC_KEY)
+        )
 
     def update(self, shard_size, root_block_time, minor_block_time):
         self.SHARD_SIZE = shard_size
