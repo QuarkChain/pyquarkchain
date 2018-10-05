@@ -9,14 +9,14 @@ from typing import (
 
 from eth_hash.auto import keccak
 
-from cancel_token import CancelToken
+from quarkchain.p2p.cancel_token.token import CancelToken
 
-from p2p import auth
-from p2p import constants
-from p2p import ecies
-from p2p import kademlia
-from p2p.auth import decode_authentication
-from p2p.peer import (
+from quarkchain.p2p import auth
+from quarkchain.p2p import constants
+from quarkchain.p2p import ecies
+from quarkchain.p2p import kademlia
+from quarkchain.p2p.auth import decode_authentication
+from quarkchain.p2p.peer import (
     BasePeer,
     BasePeerFactory,
     PeerConnection,
@@ -106,7 +106,7 @@ async def get_directly_linked_peers_without_handshake(
     use_eip8 = False
     initiator = auth.HandshakeInitiator(alice_remote, alice_private_key, use_eip8, cancel_token)
 
-    f_alice: 'asyncio.Future[BasePeer]' = asyncio.Future()
+    f_alice = asyncio.Future() # : 'asyncio.Future[BasePeer]'
     handshake_finished = asyncio.Event()
 
     (

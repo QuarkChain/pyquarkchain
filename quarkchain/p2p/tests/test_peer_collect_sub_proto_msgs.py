@@ -3,13 +3,10 @@ import logging
 
 import pytest
 
-from p2p.tools.paragon import BroadcastData, GetSum
-from p2p.tools.paragon.helpers import (
+from quarkchain.p2p.tools.paragon import BroadcastData, GetSum
+from quarkchain.p2p.tools.paragon.helpers import (
     get_directly_linked_peers,
 )
-
-
-logger = logging.getLogger('testing.p2p.PeerSubscriber')
 
 
 @pytest.mark.asyncio
