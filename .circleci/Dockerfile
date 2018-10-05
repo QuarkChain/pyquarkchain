@@ -7,7 +7,8 @@ WORKDIR /opt
 
 # set up basic system packages
 RUN apt-get update
-RUN apt-get install -y git build-essential wget pkg-config libgmp-dev libssl-dev ca-certificates
+# for libxml2 and libxslt1: https://stackoverflow.com/questions/5178416/libxml-install-error-using-pip
+RUN apt-get install -y git build-essential wget pkg-config libgmp-dev libssl-dev ca-certificates python3-dev libxml2-dev libxslt1-dev
 
 # install rocksdb
 RUN apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev

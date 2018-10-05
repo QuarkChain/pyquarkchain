@@ -6,7 +6,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: qcgg/circleci-pypy3-rocksdb:0.0.1
+      - image: qcdll/circleci-pypy3-rocksdb
 
     working_directory: ~/repo
 
