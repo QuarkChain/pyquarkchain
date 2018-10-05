@@ -4,20 +4,20 @@ from concurrent.futures import (
 )
 import ipaddress
 from typing import (
-    AsyncGenerator,
+    List,
     NamedTuple,
 )
 from urllib.parse import urlparse
 
-from cancel_token import (
+from quarkchain.p2p.cancel_token.token import (
     CancelToken,
     OperationCancelled,
 )
-from p2p.exceptions import (
+from quarkchain.p2p.exceptions import (
     NoInternalAddressMatchesDevice,
 )
+from quarkchain.p2p.service import BaseService
 import netifaces
-from p2p.service import BaseService
 import upnpclient
 
 
@@ -25,9 +25,9 @@ import upnpclient
 UPNP_DISCOVER_TIMEOUT_SECONDS = 30
 
 
-class PortMapping(NamedTuple):
-    internal: str  # of the form "192.2.3.4:56"
-    external: str  # of the form "192.2.3.4:56"
+class PortMapping:
+    internal = "" # : str  # of the form "192.2.3.4:56"
+    external = "" # : str  # of the form "192.2.3.4:56"
 
 
 def find_internal_ip_on_device_network(upnp_dev: upnpclient.upnp.Device) -> str:
@@ -64,7 +64,7 @@ class UPnPService(BaseService):
         """
         super().__init__(token)
         self.port = port
-        self._mapping: PortMapping = None  # when called externally, this never returns None
+        self._mapping = None  # : PortMapping when called externally, this never returns None
 
     async def _run(self) -> None:
         """Run an infinite loop refreshing our NAT port mapping.
@@ -93,7 +93,8 @@ class UPnPService(BaseService):
         """
         self.logger.info("Setting up NAT portmap...")
         try:
-            async for upnp_dev in self._discover_upnp_devices():
+            devices = await self._discover_upnp_devices()
+            for upnp_dev in devices:
                 try:
                     external_ip = await self._add_nat_portmap(upnp_dev)
                 except NoInternalAddressMatchesDevice as exc:
@@ -147,7 +148,7 @@ class UPnPService(BaseService):
         self.logger.info("NAT port forwarding successfully set up: %r", self._mapping)
         return external_ip
 
-    async def _discover_upnp_devices(self) -> AsyncGenerator[upnpclient.upnp.Device, None]:
+    async def _discover_upnp_devices(self) -> List[upnpclient.upnp.Device]:
         loop = asyncio.get_event_loop()
         # Use loop.run_in_executor() because upnpclient.discover() is blocking and may take a
         # while to complete. We must use a ThreadPoolExecutor() because the
@@ -169,9 +170,11 @@ class UPnPService(BaseService):
             return
 
         # Now we loop over all of the devices until we find one that we can use.
+        retv = []
         for device in devices:
             try:
                 device.WANIPConn1
             except AttributeError:
                 continue
-            yield device
+            retv.append(device)
+        return retv
