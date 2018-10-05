@@ -1088,19 +1088,6 @@ class TestShardState(unittest.TestCase):
             state.header_tip.difficulty - state.header_tip.difficulty // 2048 * 2,
         )
 
-        for i in range(0, 2 ** 32):
-            b0.header.nonce = i
-            if (
-                int.from_bytes(b0.header.get_hash(), byteorder="big")
-                * env.quark_chain_config.SHARD_LIST[0].GENESIS.DIFFICULTY
-                < 2 ** 256
-            ):
-                self.assertEqual(state.add_block(b0), [])
-                break
-            else:
-                with self.assertRaises(ValueError):
-                    state.add_block(b0)
-
     def test_shard_state_recovery_from_root_block(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)

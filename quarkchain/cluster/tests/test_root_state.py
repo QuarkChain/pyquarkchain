@@ -14,7 +14,9 @@ def create_default_state(env, diff_calc=None):
     r_state = RootState(env=env, diff_calc=diff_calc)
     s_state_list = []
     for shard_id in range(env.quark_chain_config.SHARD_SIZE):
-        shard_state = ShardState(env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb())
+        shard_state = ShardState(
+            env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb()
+        )
         shard_state.init_genesis_state(r_state.get_tip_block())
         s_state_list.append(shard_state)
 
@@ -197,8 +199,9 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b2.header.get_hash())
         r_state.add_validated_minor_block_hash(b3.header.get_hash())
         root_block1 = (
-            root_block1
-            .add_minor_block_header(s_states[0].db.get_minor_block_by_height(0).header)
+            root_block1.add_minor_block_header(
+                s_states[0].db.get_minor_block_by_height(0).header
+            )
             .add_minor_block_header(b2.header)
             .add_minor_block_header(s_states[1].db.get_minor_block_by_height(0).header)
             .add_minor_block_header(b3.header)
@@ -276,19 +279,6 @@ class TestRootState(unittest.TestCase):
             r_state.tip.difficulty - r_state.tip.difficulty // 2048,
             root_block0.header.difficulty,
         )
-
-        for i in range(0, 2 ** 32):
-            root_block0.header.nonce = i
-            if (
-                int.from_bytes(root_block0.header.get_hash(), byteorder="big")
-                * env.quark_chain_config.ROOT.GENESIS.DIFFICULTY
-                < 2 ** 256
-            ):
-                self.assertTrue(r_state.add_block(root_block0))
-                break
-            else:
-                with self.assertRaises(ValueError):
-                    r_state.add_block(root_block0)
 
     def test_root_state_recovery(self):
         env = get_test_env()
