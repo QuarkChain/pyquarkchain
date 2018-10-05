@@ -1,5 +1,7 @@
 import unittest
 
+from eth_keys import KeyAPI
+
 from quarkchain.core import (
     Branch,
     ShardInfo,
@@ -18,7 +20,7 @@ from quarkchain.core import (
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 
-SIZE_LIST = [(RootBlockHeader, 183), (MinorBlockHeader, 483), (MinorBlockMeta, 184)]
+SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 483), (MinorBlockMeta, 184)]
 
 
 class TestDataSize(unittest.TestCase):
@@ -141,3 +143,15 @@ class TestBigUint(unittest.TestCase):
         for tc in testcases:
             v = ABigUint(tc)
             self.assertRaises(RuntimeError, v.serialize)
+
+
+class TestRootBlockHeaderSignature(unittest.TestCase):
+    def test_signature(self):
+        header = RootBlockHeader()
+        private_key = KeyAPI.PrivateKey(Identity.create_random_identity().get_key())
+        self.assertEqual(header.signature, bytes(65))
+        self.assertFalse(header.verify_signature(private_key.public_key))
+
+        header.sign_with_private_key(private_key)
+        self.assertNotEqual(header.signature, bytes(65))
+        self.assertTrue(header.verify_signature(private_key.public_key))

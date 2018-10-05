@@ -11,6 +11,7 @@ from typing import List
 
 import ecdsa
 import rlp
+import eth_keys
 from eth_keys import KeyAPI
 
 import quarkchain.evm.messages
@@ -854,6 +855,7 @@ class RootBlockHeader(Serializable):
         ("nonce", uint64),
         ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
+        ("signature", FixedSizeBytesSerializer(65)),
     ]
 
     def __init__(
@@ -870,6 +872,7 @@ class RootBlockHeader(Serializable):
         nonce=0,
         extra_data: bytes = b"",
         mixhash: bytes = bytes(Constant.HASH_LENGTH),
+        signature: bytes = bytes(65),
     ):
         self.version = version
         self.height = height
@@ -883,12 +886,27 @@ class RootBlockHeader(Serializable):
         self.nonce = nonce
         self.extra_data = extra_data
         self.mixhash = mixhash
+        self.signature = signature
 
     def get_hash(self):
-        return sha3_256(self.serialize())
+        return sha3_256(self.serialize_without(["signature"]))
 
     def get_hash_for_mining(self):
-        return sha3_256(self.serialize_without(["nonce", "mixhash"]))
+        return sha3_256(self.serialize_without(["nonce", "mixhash", "signature"]))
+
+    def sign_with_private_key(self, private_key: KeyAPI.PrivateKey):
+        self.signature = private_key.sign_msg_hash(self.get_hash()).to_bytes()
+
+    def verify_signature(self, public_key: KeyAPI.PublicKey):
+        try:
+            return public_key.verify_msg_hash(
+                self.get_hash(), KeyAPI.Signature(signature_bytes=self.signature)
+            )
+        except eth_keys.exceptions.BadSignature:
+            return False
+
+    def is_signed(self):
+        return self.signature != bytes(65)
 
     def create_block_to_append(
         self,
