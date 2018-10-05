@@ -253,9 +253,6 @@ class RootState:
                 )
                 if diff != curr_diff:
                     raise ValueError("incorrect difficulty")
-                metric = diff * int.from_bytes(block_hash, byteorder="big")
-                if metric >= 2 ** 256:
-                    raise ValueError("insufficient difficulty")
             elif (
                 block_header.coinbase_address.recipient
                 != self.env.quark_chain_config.testnet_master_address.recipient

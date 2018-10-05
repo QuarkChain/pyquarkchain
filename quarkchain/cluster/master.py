@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import ipaddress
-import json
 import psutil
 import random
 import time
@@ -9,7 +8,7 @@ from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
-from quarkchain.cluster.miner import Miner, MiningWork
+from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
@@ -162,12 +161,14 @@ class SyncTask:
 
     def __validate_block_headers(self, block_header_list):
         # TODO: check difficulty and other stuff?
+        consensus_type = self.root_state.env.quark_chain_config.ROOT.CONSENSUS_TYPE
         for i in range(len(block_header_list) - 1):
-            block, prev = block_header_list[i : i + 2]
-            if block.height != prev.height + 1:
+            header, prev = block_header_list[i : i + 2]
+            if header.height != prev.height + 1:
                 return False
-            if block.hash_prev_block != prev.get_hash():
+            if header.hash_prev_block != prev.get_hash():
                 return False
+            validate_seal(header, consensus_type)
         return True
 
     async def __download_block_headers(self, block_hash):
