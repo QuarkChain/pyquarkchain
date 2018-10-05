@@ -120,7 +120,7 @@ pypy3 -m unittest  # should succeed
 
 Furthermore, we provided a public AMI in US West (Oregon) Region *QuarkChain Sample AMI* **ami-03845bc95e90d1c12** using this setup.
 
-However, `librocksdb-dev` installed in this way won't have support for LZ4 compression, running `pypy3 quarkchain/cluster/cluster.py` would fail with the error `Compression type LZ4 is not linked with the binary`. To fix this, you can either build rocksdb from source:
+However, `librocksdb-dev` installed in this way won't have support for LZ4 compression, running `pypy3 quarkchain/cluster/cluster.py` would fail with the error `Compression type LZ4 is not linked with the binary`. To fix this, you can either build rocksdb from source (which will detect LZ4 support automatically):
 
 ```bash
 # make sure librocksdb-dev is uninstalled: sudo apt-get purge librocksdb-dev
