@@ -124,8 +124,13 @@ However, `librocksdb-dev` installed in this way won't have support for LZ4 compr
 
 ```bash
 # make sure librocksdb-dev is uninstalled: sudo apt-get purge librocksdb-dev
+# cd ~  # or wherever you like
 git clone https://github.com/facebook/rocksdb.git
-cd rocksdb && make shared_lib && make install-shared  # will probably take 10~20 min
+cd rocksdb && make shared_lib  # will probably take 10~20 min
+sudo make install-shared
+# go back to pyquarkchain directory
+pip uninstall python-rocksdb
+pip install --user --no-cache-dir python-rocksdb  # force reinstalling
 ```
 
 or change the the compression type in `quarkchain/db.py` 
