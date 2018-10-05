@@ -2,7 +2,6 @@ import enum
 from typing import (
     cast,
     Dict,
-    TYPE_CHECKING
 )
 
 from cytoolz import assoc
@@ -10,18 +9,12 @@ from cytoolz import assoc
 import rlp
 from rlp import sedes
 
-from p2p.exceptions import MalformedMessage
-
-from p2p.protocol import (
+from quarkchain.p2p.exceptions import MalformedMessage
+from quarkchain.p2p.protocol import (
     Command,
     Protocol,
     _DecodedMsgType,
 )
-
-if TYPE_CHECKING:
-    from p2p.peer import (  # noqa: F401
-        BasePeer
-    )
 
 
 class Hello(Command):
@@ -87,7 +80,7 @@ class P2PProtocol(Protocol):
     _commands = [Hello, Ping, Pong, Disconnect]
     cmd_length = 16
 
-    def __init__(self, peer: 'BasePeer') -> None:
+    def __init__(self, peer) -> None:
         # For the base protocol the cmd_id_offset is always 0.
         super().__init__(peer, cmd_id_offset=0)
 

@@ -3,7 +3,6 @@ import collections
 import contextlib
 import datetime
 import functools
-import logging
 import operator
 import struct
 from abc import (
@@ -25,8 +24,6 @@ from typing import (
     Type,
 )
 
-import sha3
-
 from cytoolz import groupby
 
 import rlp
@@ -42,14 +39,13 @@ from eth_utils import (
 
 from eth_keys import datatypes
 
-from cancel_token import CancelToken, OperationCancelled
+from quarkchain.utils import Logger
+from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
 
-from lahja import Endpoint
-
-from p2p import auth
-from p2p import protocol
-from p2p.kademlia import Node
-from p2p.exceptions import (
+from quarkchain.p2p import auth
+from quarkchain.p2p import protocol
+from quarkchain.p2p.kademlia import Node
+from quarkchain.p2p.exceptions import (
     BadAckMessage,
     DecryptionError,
     HandshakeFailure,
@@ -61,14 +57,14 @@ from p2p.exceptions import (
     UnknownProtocolCommand,
     UnreachablePeer,
 )
-from p2p.service import BaseService
-from p2p.utils import (
+from quarkchain.p2p.service import BaseService
+from quarkchain.p2p.utils import (
     get_devp2p_cmd_id,
     roundup_16,
     sxor,
     time_since,
 )
-from p2p.p2p_proto import (
+from quarkchain.p2p.p2p_proto import (
     Disconnect,
     DisconnectReason,
     Hello,
@@ -84,12 +80,6 @@ from .constants import (
     HEADER_LEN,
     MAC_LEN,
 )
-
-from .events import (
-    PeerCountRequest,
-    PeerCountResponse,
-)
-
 
 async def handshake(remote: Node, factory: 'BasePeerFactory') -> 'BasePeer':
     """Perform the auth and P2P handshakes with the given remote.
@@ -132,13 +122,13 @@ async def handshake(remote: Node, factory: 'BasePeerFactory') -> 'BasePeer':
     return peer
 
 
-class PeerConnection(NamedTuple):
-    reader: asyncio.StreamReader
-    writer: asyncio.StreamWriter
-    aes_secret: bytes
-    mac_secret: bytes
-    egress_mac: sha3.keccak_256
-    ingress_mac: sha3.keccak_256
+class PeerConnection:
+    reader = None # : asyncio.StreamReader
+    writer = None # : asyncio.StreamWriter
+    aes_secret = None # : bytes
+    mac_secret = None # : bytes
+    egress_mac = None # : sha3.keccak_256
+    ingress_mac = None # : sha3.keccak_256
 
 
 class BasePeerBootManager(BaseService):
@@ -162,11 +152,11 @@ class BasePeer(BaseService):
     conn_idle_timeout = CONN_IDLE_TIMEOUT
     # Must be defined in subclasses. All items here must be Protocol classes representing
     # different versions of the same P2P sub-protocol (e.g. ETH, LES, etc).
-    _supported_sub_protocols: List[Type[protocol.Protocol]] = []
+    _supported_sub_protocols = [] # : List[Type[protocol.Protocol]]
     # FIXME: Must be configurable.
     listen_port = 30303
     # Will be set upon the successful completion of a P2P handshake.
-    sub_proto: protocol.Protocol = None
+    sub_proto = None # : protocol.Protocol
 
     def __init__(self,
                  remote: Node,
@@ -197,7 +187,7 @@ class BasePeer(BaseService):
         # dial-out)
         # TODO: rename to `dial_in` and have a computed property for `dial_out`
         self.inbound = inbound
-        self._subscribers: List[PeerSubscriber] = []
+        self._subscribers = [] # : List[PeerSubscriber]
 
         # Uptime tracker for how long the peer has been running.
         # TODO: this should move to begin within the `_run` method (or maybe as
@@ -206,7 +196,7 @@ class BasePeer(BaseService):
 
         # A counter of the number of messages this peer has received for each
         # message type.
-        self.received_msgs: Dict[protocol.Command, int] = collections.defaultdict(int)
+        self.received_msgs = collections.defaultdict(int) # : Dict[protocol.Command, int]
 
         # Encryption and Cryptography *stuff*
         self.egress_mac = connection.egress_mac
@@ -599,14 +589,14 @@ class BasePeer(BaseService):
         return hash(self.remote)
 
 
-class PeerMessage(NamedTuple):
-    peer: BasePeer
-    command: protocol.Command
-    payload: protocol.PayloadType
+class PeerMessage:
+    peer = None # : BasePeer
+    command = None # : protocol.Command
+    payload = None # : protocol.PayloadType
 
 
 class PeerSubscriber(ABC):
-    _msg_queue: 'asyncio.Queue[PeerMessage]' = None
+    _msg_queue = None # : 'asyncio.Queue[PeerMessage]'
 
     @property
     @abstractmethod
@@ -703,7 +693,7 @@ class PeerSubscriber(ABC):
 
 
 class MsgBuffer(PeerSubscriber):
-    logger = logging.getLogger('p2p.peer.MsgBuffer')
+    logger = Logger
     msg_queue_maxsize = 500
     subscription_msg_types = {protocol.Command}
 
@@ -753,7 +743,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                  context: BasePeerContext,
                  max_peers: int = DEFAULT_MAX_PEERS,
                  token: CancelToken = None,
-                 event_bus: Endpoint = None
+                 event_bus = None
                  ) -> None:
         super().__init__(token)
 
@@ -761,24 +751,25 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.max_peers = max_peers
         self.context = context
 
-        self.connected_nodes: Dict[Node, BasePeer] = {}
-        self._subscribers: List[PeerSubscriber] = []
+        self.connected_nodes = {} # : Dict[Node, BasePeer]
+        self._subscribers = [] # : List[PeerSubscriber]
         self.event_bus = event_bus
         if self.event_bus is not None:
-            self.run_task(self.handle_peer_count_requests())
+            # self.run_task(self.handle_peer_count_requests())
+            pass
 
-    async def handle_peer_count_requests(self) -> None:
-        async def f() -> None:
-            # FIXME: There must be a way to cancel event_bus.stream() when our token is triggered,
-            # but for the time being we just wrap everything in self.wait().
-            async for req in self.event_bus.stream(PeerCountRequest):
-                # We are listening for all `PeerCountRequest` events but we ensure to only send a
-                # `PeerCountResponse` to the callsite that made the request.  We do that by
-                # retrieving a `BroadcastConfig` from the request via the
-                # `event.broadcast_config()` API.
-                self.event_bus.broadcast(PeerCountResponse(len(self)), req.broadcast_config())
-
-        await self.wait(f())
+    # async def handle_peer_count_requests(self) -> None:
+    #     async def f() -> None:
+    #         # FIXME: There must be a way to cancel event_bus.stream() when our token is triggered,
+    #         # but for the time being we just wrap everything in self.wait().
+    #         async for req in self.event_bus.stream(PeerCountRequest):
+    #             # We are listening for all `PeerCountRequest` events but we ensure to only send a
+    #             # `PeerCountResponse` to the callsite that made the request.  We do that by
+    #             # retrieving a `BroadcastConfig` from the request via the
+    #             # `event.broadcast_config()` API.
+    #             self.event_bus.broadcast(PeerCountResponse(len(self)), req.broadcast_config())
+    #
+    #     await self.wait(f())
 
     def __len__(self) -> int:
         return len(self.connected_nodes)

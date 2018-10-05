@@ -1,10 +1,10 @@
-from p2p.peer import (
+from quarkchain.p2p.peer import (
     BasePeer,
     BasePeerContext,
     BasePeerPool,
     BasePeerFactory,
 )
-from p2p.protocol import (
+from quarkchain.p2p.protocol import (
     Command,
     _DecodedMsgType,
 )
@@ -14,7 +14,7 @@ from .proto import ParagonProtocol
 
 class ParagonPeer(BasePeer):
     _supported_sub_protocols = [ParagonProtocol]
-    sub_proto: ParagonProtocol = None
+    sub_proto = None # : ParagonProtocol
 
     async def send_sub_proto_handshake(self) -> None:
         pass
@@ -30,14 +30,14 @@ class ParagonPeer(BasePeer):
 class ParagonContext(BasePeerContext):
     # nothing magic here.  Simply an example of how the context class can be
     # used to store data specific to a certain peer class.
-    paragon: str = "paragon"
+    paragon = "paragon" # : str
 
 
 class ParagonPeerFactory(BasePeerFactory):
     peer_class = ParagonPeer
-    context: ParagonContext
+    context = None # : ParagonContext
 
 
 class ParagonPeerPool(BasePeerPool):
     peer_factory_class = ParagonPeerFactory
-    context: ParagonContext
+    context = None # : ParagonContext

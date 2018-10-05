@@ -1,6 +1,6 @@
 from rlp import sedes
 
-from p2p.protocol import (
+from quarkchain.p2p.protocol import (
     Command,
 )
 

@@ -3,14 +3,13 @@ import logging
 
 import pytest
 
-from p2p.peer import PeerSubscriber
-from p2p.protocol import Command
+from quarkchain.utils import Logger
 
-from p2p.tools.paragon import GetSum
-from p2p.tools.paragon.helpers import get_directly_linked_peers
+from quarkchain.p2p.peer import PeerSubscriber
+from quarkchain.p2p.protocol import Command
 
-
-logger = logging.getLogger('testing.p2p.PeerSubscriber')
+from quarkchain.p2p.tools.paragon import GetSum
+from quarkchain.p2p.tools.paragon.helpers import get_directly_linked_peers
 
 
 class GetSumSubscriber(PeerSubscriber):

@@ -1,6 +1,5 @@
-import logging
-
-from p2p.protocol import (
+from quarkchain.utils import Logger
+from quarkchain.p2p.protocol import (
     Protocol,
 )
 
@@ -19,7 +18,7 @@ class ParagonProtocol(Protocol):
         GetSum, Sum,
     ]
     cmd_length = 3
-    logger = logging.getLogger("p2p.tools.paragon.proto.ParagonProtocol")
+    logger = Logger
 
     #
     # Broadcast
