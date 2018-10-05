@@ -115,10 +115,37 @@ pip install --user -e .
 pip uninstall pyelliptic
 pip install --user https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10.tar.gz#egg=pyelliptic
 
-pypy3 -m unittest  # voila
+pypy3 -m unittest  # should succeed
 ```
 
 Furthermore, we provided a public AMI in US West (Oregon) Region *QuarkChain Sample AMI* **ami-03845bc95e90d1c12** using this setup.
+
+However, `librocksdb-dev` installed in this way won't have support for LZ4 compression, running `pypy3 quarkchain/cluster/cluster.py` would fail with the error `Compression type LZ4 is not linked with the binary`. To fix this, you can either build rocksdb from source (which will detect LZ4 support automatically):
+
+```bash
+# make sure librocksdb-dev is uninstalled: sudo apt-get purge librocksdb-dev
+# cd ~  # or wherever you like
+git clone https://github.com/facebook/rocksdb.git
+cd rocksdb && make shared_lib  # will probably take 10~20 min
+sudo make install-shared
+# go back to pyquarkchain directory
+pip uninstall python-rocksdb
+pip install --user --no-cache-dir python-rocksdb  # force reinstalling
+```
+
+or change the the compression type in `quarkchain/db.py` 
+
+```python
+options.compression = rocksdb.CompressionType.lz4_compression
+```
+
+to 
+
+```python
+options.compression = rocksdb.CompressionType.snappy_compression
+```
+
+then running `pypy3 quarkchain/cluster/cluster.py  --mine` should suceed.
 
 ## Development Flow
 
