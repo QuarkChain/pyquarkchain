@@ -41,10 +41,10 @@ def time_since(start_time: datetime.datetime) -> Tuple[int, int, int, int]:
 CPU_EMPTY_VALUES = {None, 0}
 
 
-_executor = None # : Executor
+_executor = None  # : Executor
 
 
-def get_asyncio_executor(cpu_count: int=None) -> Executor:
+def get_asyncio_executor(cpu_count: int = None) -> Executor:
     """
     Returns a global `ProcessPoolExecutor` instance.
 
@@ -67,7 +67,7 @@ def get_asyncio_executor(cpu_count: int=None) -> Executor:
             if os_cpu_count in CPU_EMPTY_VALUES:
                 # Need this because os.cpu_count() returns None when the # of
                 # CPUs is indeterminable.
-                logger = logging.getLogger('p2p')
+                logger = logging.getLogger("p2p")
                 logger.warning(
                     "Could not determine number of CPUs, defaulting to 1 instead of %s",
                     os_cpu_count,

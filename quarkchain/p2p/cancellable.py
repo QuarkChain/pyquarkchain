@@ -1,27 +1,28 @@
-from typing import (
-    Awaitable,
-    TypeVar,
-)
+from typing import Awaitable, TypeVar
 
 from quarkchain.p2p.cancel_token.token import CancelToken
 
 
 class CancellableMixin:
-    cancel_token = None # : CancelToken
+    cancel_token = None  # : CancelToken
 
-    _TReturn = TypeVar('_TReturn')
+    _TReturn = TypeVar("_TReturn")
 
-    async def wait(self,
-                   awaitable: Awaitable[_TReturn],
-                   token: CancelToken = None,
-                   timeout: float = None) -> _TReturn:
+    async def wait(
+        self,
+        awaitable: Awaitable[_TReturn],
+        token: CancelToken = None,
+        timeout: float = None,
+    ) -> _TReturn:
         """See wait_first()"""
         return await self.wait_first(awaitable, token=token, timeout=timeout)
 
-    async def wait_first(self,
-                         *awaitables: Awaitable[_TReturn],
-                         token: CancelToken = None,
-                         timeout: float = None) -> _TReturn:
+    async def wait_first(
+        self,
+        *awaitables: Awaitable[_TReturn],
+        token: CancelToken = None,
+        timeout: float = None
+    ) -> _TReturn:
         """
         Wait for the first awaitable to complete, unless we timeout or the token chain is triggered.
 
