@@ -877,7 +877,8 @@ class TestJSONRPC(unittest.TestCase):
                 header_hash_hex = resp[0]
                 _, block = call_async(
                     master.get_next_block_to_mine(
-                        address=acc1, prefer_root=shard_id is None
+                        address=master.env.quark_chain_config.testnet_master_address,
+                        prefer_root=shard_id is None,
                     )
                 )
                 self.assertEqual(

@@ -150,8 +150,10 @@ class TestRootBlockHeaderSignature(unittest.TestCase):
         header = RootBlockHeader()
         private_key = KeyAPI.PrivateKey(Identity.create_random_identity().get_key())
         self.assertEqual(header.signature, bytes(65))
+        self.assertFalse(header.is_signed())
         self.assertFalse(header.verify_signature(private_key.public_key))
 
         header.sign_with_private_key(private_key)
         self.assertNotEqual(header.signature, bytes(65))
+        self.assertTrue(header.is_signed())
         self.assertTrue(header.verify_signature(private_key.public_key))

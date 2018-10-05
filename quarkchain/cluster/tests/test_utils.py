@@ -36,7 +36,7 @@ def get_test_env(
 
     env.cluster_config = ClusterConfig()
     env.quark_chain_config.update(shard_size, 1, 1)
-    env.quark_chain_config.TESTNET_MASTER_ADDRESS = genesis_account.serialize().hex()
+
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
         env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
