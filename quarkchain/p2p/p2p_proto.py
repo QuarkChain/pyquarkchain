@@ -1,8 +1,5 @@
 import enum
-from typing import (
-    cast,
-    Dict,
-)
+from typing import cast, Dict
 
 from cytoolz import assoc
 
@@ -10,28 +7,28 @@ import rlp
 from rlp import sedes
 
 from quarkchain.p2p.exceptions import MalformedMessage
-from quarkchain.p2p.protocol import (
-    Command,
-    Protocol,
-    _DecodedMsgType,
-)
+from quarkchain.p2p.protocol import Command, Protocol, _DecodedMsgType
 
 
 class Hello(Command):
     _cmd_id = 0
     decode_strict = False
     structure = [
-        ('version', sedes.big_endian_int),
-        ('client_version_string', sedes.text),
-        ('capabilities', sedes.CountableList(sedes.List([sedes.text, sedes.big_endian_int]))),
-        ('listen_port', sedes.big_endian_int),
-        ('remote_pubkey', sedes.binary)
+        ("version", sedes.big_endian_int),
+        ("client_version_string", sedes.text),
+        (
+            "capabilities",
+            sedes.CountableList(sedes.List([sedes.text, sedes.big_endian_int])),
+        ),
+        ("listen_port", sedes.big_endian_int),
+        ("remote_pubkey", sedes.binary),
     ]
 
 
 @enum.unique
 class DisconnectReason(enum.Enum):
     """More details at https://github.com/ethereum/wiki/wiki/%C3%90%CE%9EVp2p-Wire-Protocol#p2p"""
+
     disconnect_requested = 0
     tcp_sub_system_error = 1
     bad_protocol = 2
@@ -49,7 +46,7 @@ class DisconnectReason(enum.Enum):
 
 class Disconnect(Command):
     _cmd_id = 1
-    structure = [('reason', sedes.big_endian_int)]
+    structure = [("reason", sedes.big_endian_int)]
 
     def get_reason_name(self, reason_id: int) -> str:
         try:
@@ -63,7 +60,9 @@ class Disconnect(Command):
         except rlp.exceptions.ListDeserializationError:
             self.logger.warning("Malformed Disconnect message: %s", data)
             raise MalformedMessage(f"Malformed Disconnect message: {data}")
-        return assoc(raw_decoded, 'reason_name', self.get_reason_name(raw_decoded['reason']))
+        return assoc(
+            raw_decoded, "reason_name", self.get_reason_name(raw_decoded["reason"])
+        )
 
 
 class Ping(Command):
@@ -75,7 +74,7 @@ class Pong(Command):
 
 
 class P2PProtocol(Protocol):
-    name = 'p2p'
+    name = "p2p"
     version = 4
     _commands = [Hello, Ping, Pong, Disconnect]
     cmd_length = 16
@@ -87,11 +86,14 @@ class P2PProtocol(Protocol):
     def send_handshake(self) -> None:
         # TODO: move import out once this is in the trinity codebase
         from trinity.utils.version import construct_trinity_client_identifier
-        data = dict(version=self.version,
-                    client_version_string=construct_trinity_client_identifier(),
-                    capabilities=self.peer.capabilities,
-                    listen_port=self.peer.listen_port,
-                    remote_pubkey=self.peer.privkey.public_key.to_bytes())
+
+        data = dict(
+            version=self.version,
+            client_version_string=construct_trinity_client_identifier(),
+            capabilities=self.peer.capabilities,
+            listen_port=self.peer.listen_port,
+            remote_pubkey=self.peer.privkey.public_key.to_bytes(),
+        )
         header, body = Hello(self.cmd_id_offset).encode(data)
         self.send(header, body)
 
