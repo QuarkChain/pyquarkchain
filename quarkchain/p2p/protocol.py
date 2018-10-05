@@ -1,44 +1,31 @@
 from abc import ABC
 import struct
-from typing import (
-    Any,
-    Dict,
-    Generic,
-    List,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import Any, Dict, Generic, List, Tuple, Type, TypeVar, Union
 
 import rlp
 from rlp import sedes
 
 from quarkchain.utils import Logger
-from quarkchain.p2p.exceptions import (
-    MalformedMessage,
-)
+from quarkchain.p2p.exceptions import MalformedMessage
 from quarkchain.p2p.utils import get_devp2p_cmd_id
 
-NULL_BYTE = b'\x00'
+NULL_BYTE = b"\x00"
 
 PayloadType = Union[
-    Dict[str, Any],
-    List[rlp.Serializable],
-    Tuple[rlp.Serializable, ...],
+    Dict[str, Any], List[rlp.Serializable], Tuple[rlp.Serializable, ...]
 ]
 
 # A payload to be delivered with a request
-TRequestPayload = TypeVar('TRequestPayload', bound=PayloadType, covariant=True)
+TRequestPayload = TypeVar("TRequestPayload", bound=PayloadType, covariant=True)
 
 # for backwards compatibility for internal references in p2p:
 _DecodedMsgType = PayloadType
 
 
 class Command:
-    _cmd_id = None # : int
+    _cmd_id = None  # : int
     decode_strict = True
-    structure = [] # : List[Tuple[str, Any]]
+    structure = []  # : List[Tuple[str, Any]]
 
     _logger = Logger
 
@@ -79,24 +66,28 @@ class Command:
             decoder = self.structure
         else:
             decoder = sedes.List(
-                [type_ for _, type_ in self.structure], strict=self.decode_strict)
+                [type_ for _, type_ in self.structure], strict=self.decode_strict
+            )
         try:
             data = rlp.decode(rlp_data, sedes=decoder, recursive_cache=True)
         except rlp.DecodingError as err:
-            raise MalformedMessage(f"Malformed {type(self).__name__} message: {err!r}") from err
+            raise MalformedMessage(
+                f"Malformed {type(self).__name__} message: {err!r}"
+            ) from err
 
         if isinstance(self.structure, sedes.CountableList):
             return data
         return {
-            field_name # : value
-            for ((field_name, _), value)
-            in zip(self.structure, data)
+            field_name  # : value
+            for ((field_name, _), value) in zip(self.structure, data)
         }
 
     def decode(self, data: bytes) -> PayloadType:
         packet_type = get_devp2p_cmd_id(data)
         if packet_type != self.cmd_id:
-            raise MalformedMessage(f"Wrong packet type: {packet_type}, expected {self.cmd_id}")
+            raise MalformedMessage(
+                f"Wrong packet type: {packet_type}, expected {self.cmd_id}"
+            )
         return self.decode_payload(data[1:])
 
     def encode(self, data: PayloadType) -> Tuple[bytes, bytes]:
@@ -107,11 +98,11 @@ class Command:
             raise ValueError("Frame size has to fit in a 3-byte integer")
 
         # Drop the first byte as, per the spec, frame_size must be a 3-byte int.
-        header = struct.pack('>I', frame_size)[1:]
+        header = struct.pack(">I", frame_size)[1:]
         # All clients seem to ignore frame header data, so we do the same, although I'm not sure
         # why geth uses the following value:
         # https://github.com/ethereum/go-ethereum/blob/master/p2p/rlpx.go#L556
-        zero_header = b'\xc2\x80\x80'
+        zero_header = b"\xc2\x80\x80"
         header += zero_header
         header = _pad_to_16_byte_boundary(header)
 
@@ -124,30 +115,33 @@ class BaseRequest(ABC, Generic[TRequestPayload]):
     Must define command_payload during init. This is the data that will
     be sent to the peer with the request command.
     """
+
     # Defined at init time, with specific parameters:
-    command_payload = None # : TRequestPayload
+    command_payload = None  # : TRequestPayload
 
     # Defined as class attributes in subclasses
     # outbound command type
-    cmd_type = None # : Type[Command]
+    cmd_type = None  # : Type[Command]
     # response command type
-    response_type = None # : Type[Command]
+    response_type = None  # : Type[Command]
 
 
 class Protocol:
     peer = None
     logger = Logger
-    name = None # : str
-    version = None # : int
-    cmd_length = None # : int
+    name = None  # : str
+    version = None  # : int
+    cmd_length = None  # : int
     # List of Command classes that this protocol supports.
-    _commands = [] # : List[Type[Command]]
+    _commands = []  # : List[Type[Command]]
 
     def __init__(self, peer, cmd_id_offset: int) -> None:
         self.peer = peer
         self.cmd_id_offset = cmd_id_offset
         self.commands = [cmd_class(cmd_id_offset) for cmd_class in self._commands]
-        self.cmd_by_type = {cmd_class: cmd_class(cmd_id_offset) for cmd_class in self._commands}
+        self.cmd_by_type = {
+            cmd_class: cmd_class(cmd_id_offset) for cmd_class in self._commands
+        }
         self.cmd_by_id = dict((cmd.cmd_id, cmd) for cmd in self.commands)
 
     def send(self, header: bytes, body: bytes) -> None:

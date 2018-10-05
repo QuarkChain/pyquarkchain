@@ -1,11 +1,6 @@
 import asyncio
 import os
-from typing import (
-    Any,
-    Callable,
-    cast,
-    Tuple,
-)
+from typing import Any, Callable, cast, Tuple
 
 from eth_hash.auto import keccak
 
@@ -16,17 +11,10 @@ from quarkchain.p2p import constants
 from quarkchain.p2p import ecies
 from quarkchain.p2p import kademlia
 from quarkchain.p2p.auth import decode_authentication
-from quarkchain.p2p.peer import (
-    BasePeer,
-    BasePeerFactory,
-    PeerConnection,
-)
+from quarkchain.p2p.peer import BasePeer, BasePeerFactory, PeerConnection
 
 
-from .peer import (
-    ParagonPeerFactory,
-    ParagonContext,
-)
+from .peer import ParagonPeerFactory, ParagonContext
 
 
 class MockTransport:
@@ -72,8 +60,8 @@ def get_directly_connected_streams() -> TConnectedStreams:
 
 
 async def get_directly_linked_peers_without_handshake(
-        alice_factory: BasePeerFactory = None,
-        bob_factory: BasePeerFactory = None) -> Tuple[BasePeer, BasePeer]:
+    alice_factory: BasePeerFactory = None, bob_factory: BasePeerFactory = None
+) -> Tuple[BasePeer, BasePeer]:
     """
     See get_directly_linked_peers().
 
@@ -99,14 +87,18 @@ async def get_directly_linked_peers_without_handshake(
     bob_private_key = bob_factory.privkey
 
     alice_remote = kademlia.Node(
-        bob_private_key.public_key, kademlia.Address('0.0.0.0', 0, 0))
+        bob_private_key.public_key, kademlia.Address("0.0.0.0", 0, 0)
+    )
     bob_remote = kademlia.Node(
-        alice_private_key.public_key, kademlia.Address('0.0.0.0', 0, 0))
+        alice_private_key.public_key, kademlia.Address("0.0.0.0", 0, 0)
+    )
 
     use_eip8 = False
-    initiator = auth.HandshakeInitiator(alice_remote, alice_private_key, use_eip8, cancel_token)
+    initiator = auth.HandshakeInitiator(
+        alice_remote, alice_private_key, use_eip8, cancel_token
+    )
 
-    f_alice = asyncio.Future() # : 'asyncio.Future[BasePeer]'
+    f_alice = asyncio.Future()  # : 'asyncio.Future[BasePeer]'
     handshake_finished = asyncio.Event()
 
     (
@@ -116,7 +108,8 @@ async def get_directly_linked_peers_without_handshake(
 
     async def do_handshake() -> None:
         aes_secret, mac_secret, egress_mac, ingress_mac = await auth._handshake(
-            initiator, alice_reader, alice_writer, cancel_token)
+            initiator, alice_reader, alice_writer, cancel_token
+        )
 
         connection = PeerConnection(
             reader=alice_reader,
@@ -126,10 +119,7 @@ async def get_directly_linked_peers_without_handshake(
             egress_mac=egress_mac,
             ingress_mac=ingress_mac,
         )
-        alice = alice_factory.create_peer(
-            alice_remote,
-            connection,
-        )
+        alice = alice_factory.create_peer(alice_remote, connection)
 
         f_alice.set_result(alice)
         handshake_finished.set()
@@ -137,11 +127,14 @@ async def get_directly_linked_peers_without_handshake(
     asyncio.ensure_future(do_handshake())
 
     use_eip8 = False
-    responder = auth.HandshakeResponder(bob_remote, bob_private_key, use_eip8, cancel_token)
+    responder = auth.HandshakeResponder(
+        bob_remote, bob_private_key, use_eip8, cancel_token
+    )
     auth_cipher = await bob_reader.read(constants.ENCRYPTED_AUTH_MSG_LEN)
 
     initiator_ephemeral_pubkey, initiator_nonce, _ = decode_authentication(
-        auth_cipher, bob_private_key)
+        auth_cipher, bob_private_key
+    )
     responder_nonce = keccak(os.urandom(constants.HASH_LEN))
     auth_ack_msg = responder.create_auth_ack_message(responder_nonce)
     auth_ack_ciphertext = responder.encrypt_auth_ack_message(auth_ack_msg)
@@ -151,8 +144,12 @@ async def get_directly_linked_peers_without_handshake(
     alice = await f_alice
 
     aes_secret, mac_secret, egress_mac, ingress_mac = responder.derive_secrets(
-        initiator_nonce, responder_nonce, initiator_ephemeral_pubkey,
-        auth_cipher, auth_ack_ciphertext)
+        initiator_nonce,
+        responder_nonce,
+        initiator_ephemeral_pubkey,
+        auth_cipher,
+        auth_ack_ciphertext,
+    )
     assert egress_mac.digest() == alice.ingress_mac.digest()
     assert ingress_mac.digest() == alice.egress_mac.digest()
     connection = PeerConnection(
@@ -163,25 +160,23 @@ async def get_directly_linked_peers_without_handshake(
         egress_mac=egress_mac,
         ingress_mac=ingress_mac,
     )
-    bob = bob_factory.create_peer(
-        bob_remote,
-        connection,
-    )
+    bob = bob_factory.create_peer(bob_remote, connection)
 
     return alice, bob
 
 
 async def get_directly_linked_peers(
-        request: Any, event_loop: asyncio.AbstractEventLoop,
-        alice_factory: BasePeerFactory = None,
-        bob_factory: BasePeerFactory = None) -> Tuple[BasePeer, BasePeer]:
+    request: Any,
+    event_loop: asyncio.AbstractEventLoop,
+    alice_factory: BasePeerFactory = None,
+    bob_factory: BasePeerFactory = None,
+) -> Tuple[BasePeer, BasePeer]:
     """Create two peers with their readers/writers connected directly.
 
     The first peer's reader will write directly to the second's writer, and vice-versa.
     """
     alice, bob = await get_directly_linked_peers_without_handshake(
-        alice_factory,
-        bob_factory,
+        alice_factory, bob_factory
     )
 
     # Perform the base protocol (P2P) handshake.
@@ -198,11 +193,10 @@ async def get_directly_linked_peers(
     asyncio.ensure_future(bob.run())
 
     def finalizer() -> None:
-        event_loop.run_until_complete(asyncio.gather(
-            alice.cancel(),
-            bob.cancel(),
-            loop=event_loop,
-        ))
+        event_loop.run_until_complete(
+            asyncio.gather(alice.cancel(), bob.cancel(), loop=event_loop)
+        )
+
     request.addfinalizer(finalizer)
 
     # wait for start
