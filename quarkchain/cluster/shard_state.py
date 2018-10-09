@@ -1266,14 +1266,13 @@ class ShardState:
     def estimate_gas(self, tx: Transaction, from_address) -> Optional[int]:
         """Estimate a tx's gas usage by binary searching."""
         evm_tx_start_gas = tx.code.get_evm_transaction().startgas
-        evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
-        evm_state.gas_used = 0
         # binary search. similar as in go-ethereum
         lo = 21000 - 1
-        hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else evm_state.gas_limit
+        hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else self.evm_state.gas_limit
         cap = hi
 
         def run_tx(gas):
+            evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
             evm_state.gas_used = 0
             evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
             success, _ = apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
