@@ -1,4 +1,5 @@
 import enum
+import sys
 from typing import cast, Dict
 
 from cytoolz import assoc
@@ -9,7 +10,6 @@ from .rlp_sedes import text
 
 from quarkchain.p2p.exceptions import MalformedMessage
 from quarkchain.p2p.protocol import Command, Protocol, _DecodedMsgType
-
 
 
 class Hello(Command):
@@ -75,6 +75,22 @@ class Pong(Command):
     _cmd_id = 3
 
 
+def construct_quark_chain_client_identifier() -> str:
+    __version__ = 2.0
+    """
+    Constructs the client identifier string
+
+    e.g. 'QuarkChain/v1.2.3/darwin-amd64/python3.6.5'
+    """
+    return "QuarkChain/{0}/{platform}/{imp.name}{v.major}.{v.minor}.{v.micro}".format(
+        __version__,
+        platform=sys.platform,
+        v=sys.version_info,
+        # mypy Doesn't recognize the `sys` module as having an `implementation` attribute.
+        imp=sys.implementation,  # type: ignore
+    )
+
+
 class P2PProtocol(Protocol):
     name = "p2p"
     version = 4
@@ -86,12 +102,9 @@ class P2PProtocol(Protocol):
         super().__init__(peer, cmd_id_offset=0)
 
     def send_handshake(self) -> None:
-        # TODO: move import out once this is in the trinity codebase
-        from trinity.utils.version import construct_trinity_client_identifier
-
         data = dict(
             version=self.version,
-            client_version_string=construct_trinity_client_identifier(),
+            client_version_string=construct_quark_chain_client_identifier(),
             capabilities=self.peer.capabilities,
             listen_port=self.peer.listen_port,
             remote_pubkey=self.peer.privkey.public_key.to_bytes(),
