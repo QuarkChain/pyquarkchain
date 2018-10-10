@@ -277,7 +277,7 @@ class TestCluster(unittest.TestCase):
 
             # add blocks in cluster 0
             block_header_list = [clusters[0].get_shard_state(0).header_tip]
-            for i in range(13):
+            for i in range(7):
                 shardState0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
                 b1 = shardState0.get_tip().create_block_to_append()
                 b1.finalize(evm_state=shardState0.run_block(b1))
@@ -335,7 +335,7 @@ class TestCluster(unittest.TestCase):
             )
 
             # Minor block is downloaded
-            self.assertEqual(b1.header.height, 13)
+            self.assertEqual(b1.header.height, 7)
             assert_true_with_timeout(
                 lambda: clusters[1].slave_list[0].shards[Branch(0b10)].state.header_tip
                 == b1.header

@@ -35,7 +35,7 @@ def get_test_env(
     env.set_network_id(1234567890)
 
     env.cluster_config = ClusterConfig()
-    env.quark_chain_config.update(shard_size, 1, 1)
+    env.quark_chain_config.update(shard_size, 10, 1)
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
