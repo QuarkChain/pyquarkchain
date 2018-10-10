@@ -118,8 +118,6 @@ pip install --user https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10
 pypy3 -m unittest  # should succeed
 ```
 
-Furthermore, we provided a public AMI in US West (Oregon) Region *QuarkChain Sample AMI* **ami-03845bc95e90d1c12** using this setup.
-
 However, `librocksdb-dev` installed in this way won't have support for LZ4 compression, running `pypy3 quarkchain/cluster/cluster.py` would fail with the error `Compression type LZ4 is not linked with the binary`. To fix this, you can either build rocksdb from source (which will detect LZ4 support automatically):
 
 ```bash
@@ -146,6 +144,19 @@ options.compression = rocksdb.CompressionType.snappy_compression
 ```
 
 then running `pypy3 quarkchain/cluster/cluster.py  --mine` should succeed.
+
+### Docker
+You can build a docker image with all the dependencies installed using this [Dockerfile](https://gist.github.com/ninjaahhh/6be0aec07da608ea6cd4483d01cd706a) or download the image directly from docker cloud.
+```
+docker pull ninjaahhh/pyquarkchain:tps
+docker run -it -p 38291:38291 -p 38391:38391 -p 38491:38491 -p 29000:29000 -p 29000:29000/udp ninjaahhh/pyquarkchain:tps
+# inside the container
+pypy3 pyquarkchain/quarkchain/cluster/cluster.py --mine
+
+```
+
+### AWS AMI
+We provided a public AMI in **US West** (Oregon) Region **QuarkChain Sample AMI - ami-03845bc95e90d1c12** using this setup.
 
 ## Development Flow
 
