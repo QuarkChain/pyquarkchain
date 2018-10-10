@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.constant_time import bytes_eq
 
 from eth_utils import to_tuple
 
-
+from eth_hash.preimage import BasePreImage
 from eth_keys import datatypes
 
 from quarkchain.utils import Logger
@@ -110,13 +110,17 @@ async def handshake(remote: Node, factory: "BasePeerFactory") -> "BasePeer":
     return peer
 
 
-class PeerConnection:
-    reader = None  # : asyncio.StreamReader
-    writer = None  # : asyncio.StreamWriter
-    aes_secret = None  # : bytes
-    mac_secret = None  # : bytes
-    egress_mac = None  # : sha3.keccak_256
-    ingress_mac = None  # : sha3.keccak_256
+PeerConnection = NamedTuple(
+    "PeerConnection",
+    [
+        ("reader", asyncio.StreamReader),
+        ("writer", asyncio.StreamWriter),
+        ("aes_secret", bytes),
+        ("mac_secret", bytes),
+        ("egress_mac", BasePreImage),
+        ("ingress_mac", BasePreImage),
+    ],
+)
 
 
 class BasePeerBootManager(BaseService):
@@ -305,7 +309,7 @@ class BasePeer(BaseService):
     def get_protocol_command_for(self, msg: bytes) -> protocol.Command:
         """Return the Command corresponding to the cmd_id encoded in the given msg."""
         cmd_id = get_devp2p_cmd_id(msg)
-        self.logger.trace("Got msg with cmd_id: %s", cmd_id)
+        self.logger.debug("Got msg with cmd_id: %s", cmd_id)
         if cmd_id < self.base_protocol.cmd_length:
             return self.base_protocol.cmd_by_id[cmd_id]
         elif cmd_id < self.sub_proto.cmd_id_offset + self.sub_proto.cmd_length:
@@ -314,7 +318,7 @@ class BasePeer(BaseService):
             raise UnknownProtocolCommand(f"No protocol found for cmd_id {cmd_id}")
 
     async def read(self, n: int) -> bytes:
-        self.logger.trace("Waiting for %s bytes from %s", n, self.remote)
+        self.logger.debug("Waiting for %s bytes from %s", n, self.remote)
         try:
             return await self.wait(
                 self.reader.readexactly(n), timeout=self.conn_idle_timeout
@@ -401,7 +405,7 @@ class BasePeer(BaseService):
             )
             raise
         else:
-            self.logger.trace("Successfully decoded %s msg: %s", cmd, decoded_msg)
+            self.logger.debug("Successfully decoded %s msg: %s", cmd, decoded_msg)
             self.received_msgs[cmd] += 1
             return cmd, decoded_msg
 
@@ -534,7 +538,7 @@ class BasePeer(BaseService):
 
     def send(self, header: bytes, body: bytes) -> None:
         cmd_id = rlp.decode(body[:1], sedes=rlp.sedes.big_endian_int)
-        self.logger.trace("Sending msg with cmd id %d to %s", cmd_id, self)
+        self.logger.debug("Sending msg with cmd id %d to %s", cmd_id, self)
         if self.is_closing:
             self.logger.error(
                 "Attempted to send msg with cmd id %d to disconnected peer %s",
@@ -606,10 +610,14 @@ class BasePeer(BaseService):
         return hash(self.remote)
 
 
-class PeerMessage:
-    peer = None  # : BasePeer
-    command = None  # : protocol.Command
-    payload = None  # : protocol.PayloadType
+PeerMessage = NamedTuple(
+    "PeerMessage",
+    [
+        ("peer", BasePeer),
+        ("command", protocol.Command),
+        ("payload", protocol.PayloadType),
+    ],
+)
 
 
 class PeerSubscriber(ABC):
@@ -672,7 +680,7 @@ class PeerSubscriber(ABC):
 
         if not self.is_subscription_command(type(cmd)):
             if hasattr(self, "logger"):
-                self.logger.trace(  # type: ignore
+                self.logger.debug(  # type: ignore
                     "Discarding %s msg from %s; not subscribed to msg type; "
                     "subscriptions: %s",
                     cmd,
@@ -683,7 +691,7 @@ class PeerSubscriber(ABC):
 
         try:
             if hasattr(self, "logger"):
-                self.logger.trace(  # type: ignore
+                self.logger.debug(  # type: ignore
                     "Adding %s msg from %s to queue; queue_size=%d",
                     cmd,
                     peer,
@@ -903,7 +911,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             UnreachablePeer,
         )
         try:
-            self.logger.trace("Connecting to %s...", remote)
+            self.logger.debug("Connecting to %s...", remote)
             # We use self.wait() as well as passing our CancelToken to handshake() as a workaround
             # for https://github.com/ethereum/py-evm/issues/670.
             peer = await self.wait(handshake(remote, self.get_peer_factory()))
