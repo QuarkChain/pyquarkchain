@@ -143,7 +143,7 @@ class TestShardState(unittest.TestCase):
         b1 = state.create_block_to_mine(address=acc3, gas_limit=49999)
         self.assertEqual(len(b1.tx_list), 0)
 
-        b1 = state.create_block_to_mine(address=acc3, gas_limit=50000)
+        b1 = state.create_block_to_mine(address=acc3)
         self.assertEqual(len(b1.tx_list), 1)
 
         # Should succeed
@@ -383,7 +383,7 @@ class TestShardState(unittest.TestCase):
         )
         b1 = state.create_block_to_mine(address=acc3, gas_limit=40000)
         self.assertEqual(len(b1.tx_list), 1)
-        b1 = state.create_block_to_mine(address=acc3, gas_limit=90000)
+        b1 = state.create_block_to_mine(address=acc3)
         self.assertEqual(len(b1.tx_list), 2)
 
         # Should succeed

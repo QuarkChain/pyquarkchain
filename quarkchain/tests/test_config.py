@@ -87,9 +87,16 @@ class TestShardConfig(unittest.TestCase):
                 "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
+                "GAS_LIMIT": 12000000,
                 "NONCE": 0,
                 "ALLOC": {}
-            }
+            },
+            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+            "GAS_LIMIT_MINIMUM": 5000,
+            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         },
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
@@ -108,9 +115,16 @@ class TestShardConfig(unittest.TestCase):
                 "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
+                "GAS_LIMIT": 12000000,
                 "NONCE": 0,
                 "ALLOC": {}
-            }
+            },
+            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+            "GAS_LIMIT_MINIMUM": 5000,
+            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
@@ -129,9 +143,16 @@ class TestShardConfig(unittest.TestCase):
                 "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
+                "GAS_LIMIT": 12000000,
                 "NONCE": 0,
                 "ALLOC": {}
-            }
+            },
+            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+            "GAS_LIMIT_MINIMUM": 5000,
+            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
@@ -150,15 +171,29 @@ class TestShardConfig(unittest.TestCase):
                 "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
                 "TIMESTAMP": 1519147489,
                 "DIFFICULTY": 10000,
+                "GAS_LIMIT": 12000000,
                 "NONCE": 0,
                 "ALLOC": {}
-            }
+            },
+            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+            "GAS_LIMIT_MINIMUM": 5000,
+            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         },
         {
-            "CONSENSUS_TYPE": "NONE"
+            "CONSENSUS_TYPE": "NONE",
+            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+            "GAS_LIMIT_MINIMUM": 5000,
+            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         }
     ]
 }"""
+        print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)
         deserialized_config = QuarkChainConfig.from_json(expected_json)
         self.assertEqual(deserialized_config.to_json(), expected_json)

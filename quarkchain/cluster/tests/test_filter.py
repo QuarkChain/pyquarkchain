@@ -28,7 +28,7 @@ class TestFilter(unittest.TestCase):
             to_full_shard_id=acc1.full_shard_id,
         )
         self.assertTrue(state.add_tx(tx))
-        b = state.create_block_to_mine(address=acc1, gas_limit=1000000)
+        b = state.create_block_to_mine(address=acc1)
         hit_block = b  # will be used later
         state.finalize_and_add_block(b)
         start_height = b.header.height
@@ -49,7 +49,7 @@ class TestFilter(unittest.TestCase):
                 gas=40000,
             )
             self.assertTrue(state.add_tx(tx))
-            b = state.create_block_to_mine(address=acc1, gas_limit=100000)
+            b = state.create_block_to_mine(address=acc1)
             state.finalize_and_add_block(b)
         self.assertEqual(b.header.height, start_height + 10)
 
