@@ -79,6 +79,7 @@ class ShardGenesis(BaseConfig):
     EXTRA_DATA = b"It was the best of times, it was the worst of times, ... - Charles Dickens".hex()
     TIMESTAMP = RootGenesis.TIMESTAMP
     DIFFICULTY = 10000
+    GAS_LIMIT = 30000 * 400  # 400 xshard tx
     NONCE = 0
     ALLOC = None  # dict() hex address -> qkc amount
 
@@ -112,6 +113,15 @@ class ShardConfig(BaseConfig):
     # Only set when CONSENSUS_TYPE is not NONE
     CONSENSUS_CONFIG = None  # type: POWConfig
     GENESIS = None  # ShardGenesis
+
+    # Gas Limit
+    GAS_LIMIT_EMA_DENOMINATOR = 1024
+    GAS_LIMIT_ADJUSTMENT_FACTOR = 1024
+    GAS_LIMIT_MINIMUM = 5000
+    GAS_LIMIT_MAXIMUM = 2 ** 63 - 1
+
+    GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR = 3
+    GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR = 2
 
     def __init__(self):
         self._root_config = None

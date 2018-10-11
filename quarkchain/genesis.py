@@ -66,6 +66,7 @@ class GenesisManager:
             branch=branch,
             hash_prev_minor_block=bytes.fromhex(genesis.HASH_PREV_MINOR_BLOCK),
             hash_prev_root_block=root_block.header.get_hash(),
+            evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
             coinbase_amount=genesis.COINBASE_AMOUNT,
             create_time=genesis.TIMESTAMP,
