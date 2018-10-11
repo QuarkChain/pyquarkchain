@@ -6,7 +6,6 @@ from cytoolz import assoc
 
 import rlp
 from rlp import sedes
-from .rlp_sedes import text
 
 from quarkchain.p2p.exceptions import MalformedMessage
 from quarkchain.p2p.protocol import Command, Protocol, _DecodedMsgType
@@ -17,10 +16,10 @@ class Hello(Command):
     decode_strict = False
     structure = [
         ("version", sedes.big_endian_int),
-        ("client_version_string", text.text),
+        ("client_version_string", sedes.text),
         (
             "capabilities",
-            sedes.CountableList(sedes.List([text.text, sedes.big_endian_int])),
+            sedes.CountableList(sedes.List([sedes.text, sedes.big_endian_int])),
         ),
         ("listen_port", sedes.big_endian_int),
         ("remote_pubkey", sedes.binary),

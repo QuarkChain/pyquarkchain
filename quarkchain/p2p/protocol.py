@@ -69,7 +69,7 @@ class Command:
                 [type_ for _, type_ in self.structure], strict=self.decode_strict
             )
         try:
-            data = rlp.decode(rlp_data, sedes=decoder)  # , recursive_cache=True)
+            data = rlp.decode(rlp_data, sedes=decoder, recursive_cache=True)
         except rlp.DecodingError as err:
             raise MalformedMessage(
                 f"Malformed {type(self).__name__} message: {err!r}"
