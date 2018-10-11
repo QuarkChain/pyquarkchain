@@ -60,15 +60,15 @@ jobs:
             pypy3 -m unittest
 
       - run:
+          name: Run P2P Tests
+          command: |
+            pypy3 -m pytest quarkchain/p2p
+
+      - run:
           name: Run EVM Tests
           command: |
             git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch
             pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
-
-      - run:
-          name: Run P2P Tests
-          command: |
-            pypy3 -m pytest quarkchain/p2p
 
       - store_artifacts:
           path: test-reports

@@ -95,7 +95,9 @@ def compute_state_test_unit(state, txdata, indices, konfig):
         if 'secretKey' in txdata:
             tx.sign(decode_hex(remove_0x_head(txdata['secretKey'])))
         else:
+            tx._in_mutable_context = True
             tx.v = parse_int_or_hex(txdata['v'])
+            tx._in_mutable_context = False
         # Run it
         prev = state.to_dict()
         success, output = apply_transaction(state, tx)

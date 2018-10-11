@@ -14,10 +14,10 @@ python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
  3 files changed, 8 insertions(+), 8 deletions(-)
 
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index e59be92..7af6160 100644
+index 0a32dd3..f043e1f 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
-@@ -154,8 +154,8 @@ def validate_transaction(state, tx):
+@@ -136,8 +136,8 @@ def validate_transaction(state, tx):
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
 
@@ -28,7 +28,7 @@ index e59be92..7af6160 100644
 
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
-@@ -201,7 +201,7 @@ def apply_message(state, msg=None, **kwargs):
+@@ -183,7 +183,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
 
 
@@ -37,7 +37,7 @@ index e59be92..7af6160 100644
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
      TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
      """
-@@ -442,9 +442,7 @@ def _apply_msg(ext, msg, code):
+@@ -424,9 +424,7 @@ def _apply_msg(ext, msg, code):
 
 
  def mk_contract_address(sender, full_shard_id, nonce):
@@ -49,15 +49,18 @@ index e59be92..7af6160 100644
 
  def create_contract(ext, msg):
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 600f091..4a47b2c 100644
+index ca4094b..0541f25 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
-@@ -56,15 +56,15 @@ class Account(rlp.Serializable):
+@@ -55,24 +55,23 @@ class _Account(rlp.Serializable):
          ('balance', big_endian_int),
          ('storage', trie_root),
          ('code_hash', hash32),
 -        ('full_shard_id', BigEndianInt(4)),
      ]
+
+
+ class Account(rlp.Serializable):
 
 -    def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
 +    def __init__(self, nonce, balance, storage, code_hash, full_shard_id=0, env=None, address=None, db=None):
@@ -65,20 +68,43 @@ index 600f091..4a47b2c 100644
          assert isinstance(db, Db)
          self.env = env
          self.address = address
--        super(Account, self).__init__(nonce, balance, storage, code_hash, full_shard_id)
+
+-        acc = _Account(nonce, balance, storage, code_hash, full_shard_id)
++        acc = _Account(nonce, balance, storage, code_hash)
+         self.nonce = acc.nonce
+         self.balance = acc.balance
+         self.storage = acc.storage
+         self.code_hash = acc.code_hash
+-        self.full_shard_id = acc.full_shard_id
 +        self.full_shard_id = full_shard_id
-+        super(Account, self).__init__(nonce, balance, storage, code_hash)
+
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
-         self.storage_trie.root_hash = self.storage
+@@ -194,7 +193,6 @@ class State:
+                 balance=o.balance,
+                 storage=o.storage,
+                 code_hash=o.code_hash,
+-                full_shard_id=o.full_shard_id,
+                 env=self.env,
+                 address=address,
+                 db=self.db,
+@@ -399,7 +397,7 @@ class State:
+                 self.deletes.extend(acct.storage_trie.deletes)
+                 self.changed[addr] = True
+                 if self.account_exists(addr) or allow_empties:
+-                    _acct = _Account(acct.nonce, acct.balance, acct.storage, acct.code_hash, acct.full_shard_id)
++                    _acct = _Account(acct.nonce, acct.balance, acct.storage, acct.code_hash)
+                     self.trie.update(addr, rlp.encode(_acct))
+                     if self.executing_on_head:
+                         self.db.put(b'address:' + addr, rlp.encode(_acct))
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
-index 7ee7221..6836d93 100644
+index c4758ec..02be464 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
-@@ -72,7 +72,7 @@ class Transaction(rlp.Serializable):
+@@ -71,7 +71,7 @@ class Transaction(rlp.Serializable):
+
      def __init__(self, nonce, gasprice, startgas, to, value, data,
                   v=0, r=0, s=0, from_full_shard_id=0, to_full_shard_id=0, network_id=1, version=0):
-         self.data = None
 -        self.shard_size = 0
 +        self.shard_size = 1
 

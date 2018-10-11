@@ -4,7 +4,7 @@ from quarkchain.evm.transactions import Transaction
 from quarkchain.evm.transaction_queue import OrderableTx, TransactionQueue
 
 
-def make_test_tx(s=100000, g=50, data='', nonce=0):
+def make_test_tx(s=100000, g=50, data=b'', nonce=0):
         return Transaction(nonce=nonce, startgas=s, gasprice=g,
                            value=0, data=data, to=b'\x35' * 20)
 
@@ -38,10 +38,10 @@ class TestTransactionQueue(unittest.TestCase):
         print('Test successful')
 
     def test_diff(self):
-        tx1 = make_test_tx(data='foo')
-        tx2 = make_test_tx(data='bar')
-        tx3 = make_test_tx(data='baz')
-        tx4 = make_test_tx(data='foobar')
+        tx1 = make_test_tx(data=b'foo')
+        tx2 = make_test_tx(data=b'bar')
+        tx3 = make_test_tx(data=b'baz')
+        tx4 = make_test_tx(data=b'foobar')
         q1 = TransactionQueue()
         for tx in [tx1, tx2, tx3, tx4]:
             q1.add_transaction(tx)

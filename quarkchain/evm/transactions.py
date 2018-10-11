@@ -71,7 +71,6 @@ class Transaction(rlp.Serializable):
 
     def __init__(self, nonce, gasprice, startgas, to, value, data,
                  v=0, r=0, s=0, from_full_shard_id=0, to_full_shard_id=0, network_id=1, version=0):
-        self.data = None
         self.shard_size = 0
 
         to = utils.normalize_address(to, allow_blank=True)
@@ -129,7 +128,10 @@ class Transaction(rlp.Serializable):
             self.network_id = network_id
         key = normalize_key(key)
 
+        self._in_mutable_context = True
         self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
+        self.version = 0
+        self._in_mutable_context = False
 
         self._sender = utils.privtoaddr(key)
         return self
@@ -140,7 +142,7 @@ class Transaction(rlp.Serializable):
 
     @property
     def hash_unsigned(self):
-        return sha3_256(rlp.encode(self, UnsignedTransaction))
+        return sha3_256(rlp.encode(unsigned_tx_from_tx(self), UnsignedTransaction))
 
     @property
     def hash_typed(self):
@@ -148,7 +150,7 @@ class Transaction(rlp.Serializable):
 
     def to_dict(self):
         d = {}
-        for name, _ in self.__class__.fields:
+        for name, _ in self.__class__._meta.fields:
             d[name] = getattr(self, name)
             if name in ('to', 'data'):
                 d[name] = '0x' + encode_hex(d[name])
@@ -228,3 +230,16 @@ class UnsignedTransaction(rlp.Serializable):
         (field, sedes) for field, sedes in Transaction._meta.fields
         if field not in ['v', 'r', 's', 'version']
     ]
+
+def unsigned_tx_from_tx(tx):
+    return UnsignedTransaction(
+        nonce=tx.nonce,
+        gasprice=tx.gasprice,
+        startgas=tx.startgas,
+        to=tx.to,
+        value=tx.value,
+        data=tx.data,
+        from_full_shard_id=tx.from_full_shard_id,
+        to_full_shard_id=tx.to_full_shard_id,
+        network_id=tx.network_id,
+    )
