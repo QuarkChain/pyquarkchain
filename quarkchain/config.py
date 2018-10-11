@@ -136,9 +136,9 @@ class ShardConfig(BaseConfig):
         self._root_config = value
 
     @property
-    def max_blocks_per_shard_in_one_root_block(self):
+    def max_blocks_per_shard_in_one_root_block(self) -> int:
         # TODO: need to add a constant to counter the block time variance
-        return (
+        return int(
             self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
             / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
         )

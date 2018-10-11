@@ -852,21 +852,7 @@ class ShardState:
 
         return coinbase
 
-    def get_unconfirmed_headers_coinbase_amount(self):
-        amount = 0
-        header = self.header_tip
-        start_height = (
-            self.confirmed_header_tip.height if self.confirmed_header_tip else -1
-        )
-        for i in range(header.height - start_height):
-            amount += header.coinbase_amount
-            header = self.db.get_minor_block_header_by_hash(
-                header.hash_prev_minor_block
-            )
-        check(header == self.confirmed_header_tip)
-        return amount
-
-    def get_unconfirmed_header_list(self):
+    def __get_all_unconfirmed_header_list(self) -> List[MinorBlockHeader]:
         """ height in ascending order """
         header_list = []
         header = self.header_tip
@@ -882,18 +868,33 @@ class ShardState:
         header_list.reverse()
         return header_list
 
-    def __get_xshard_tx_limits(self, root_block: RootBlock) -> Dict[int, int]:
-        """Return a mapping from shard_id to the max number of xshard tx to the shard of shard_id"""
-        results = dict()
+    def get_unconfirmed_header_list(self) -> List[MinorBlockHeader]:
+        headers = self.__get_all_unconfirmed_header_list()
+        max_blocks = self.__get_max_blocks_in_one_root_block()
+        return headers[0:max_blocks]
+
+    def get_unconfirmed_headers_coinbase_amount(self) -> int:
+        amount = 0
+        headers = self.get_unconfirmed_header_list()
+        for header in headers:
+            amount += header.coinbase_amount
+        return amount
+
+    def __get_max_blocks_in_one_root_block(self) -> int:
         shard_config = self.env.quark_chain_config.SHARD_LIST[
             self.branch.get_shard_id()
         ]
+        return shard_config.max_blocks_per_shard_in_one_root_block
+
+    def __get_xshard_tx_limits(self, root_block: RootBlock) -> Dict[int, int]:
+        """Return a mapping from shard_id to the max number of xshard tx to the shard of shard_id"""
+        results = dict()
         for m_header in root_block.minor_block_header_list:
-            results[m_header.branch.get_shard_id()] = (
+            results[m_header.branch.get_shard_id()] = int(
                 m_header.evm_gas_limit
                 / opcodes.GTXXSHARDCOST
                 / self.env.quark_chain_config.MAX_NEIGHBORS
-                / shard_config.max_blocks_per_shard_in_one_root_block
+                / self.__get_max_blocks_in_one_root_block()
             )
         return results
 
@@ -1046,14 +1047,13 @@ class ShardState:
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")
 
-        shard_header = None
+        shard_headers = []
         for m_header in root_block.minor_block_header_list:
             h = m_header.get_hash()
             if m_header.branch == self.branch:
                 if not self.db.contain_minor_block_by_hash(h):
                     raise ValueError("cannot find minor block in local shard")
-                if shard_header is None or shard_header.height < m_header.height:
-                    shard_header = m_header
+                shard_headers.append(m_header)
                 continue
 
             if not self.__is_neighbor(m_header.branch):
@@ -1075,7 +1075,15 @@ class ShardState:
                     )
 
         # shard_header cannot be None since PROOF_OF_PROGRESS should be positive
-        check(shard_header is not None)
+        check(len(shard_headers) > 0)
+
+        if len(shard_headers) > self.__get_max_blocks_in_one_root_block():
+            raise ValueError(
+                "Too many minor blocks in the root block for shard {}".format(
+                    self.branch.get_shard_id()
+                )
+            )
+        shard_header = shard_headers[-1]
 
         self.db.put_root_block(root_block, shard_header)
         check(

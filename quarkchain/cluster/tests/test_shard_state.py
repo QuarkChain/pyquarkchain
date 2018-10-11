@@ -1020,6 +1020,37 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.db.get_minor_block_by_height(2), b3)
         self.assertEqual(state0.db.get_minor_block_by_height(3), b4)
 
+    def test_shard_state_add_root_block_too_many_minor_blocks(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        env = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=1
+        )
+        state = create_default_shard_state(env=env, shard_id=0)
+
+        headers = [state.header_tip]
+        for i in range(10):
+            b = state.get_tip().create_block_to_append(address=acc1)
+            state.finalize_and_add_block(b)
+            headers.append(b.header)
+
+        root_block = (
+            state.root_tip.create_block_to_append()
+            .extend_minor_block_header_list(headers)
+            .finalize()
+        )
+
+        # Too many blocks
+        self.assertRaises(ValueError, state.add_root_block, root_block)
+
+        self.assertEqual(state.get_unconfirmed_header_list(), headers[:10])
+
+        # 10 blocks is okay
+        root_block.minor_block_header_list = headers[:10]
+        root_block.finalize()
+        state.add_root_block(root_block)
+
     def test_shard_state_fork_resolve_with_higher_root_chain(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
