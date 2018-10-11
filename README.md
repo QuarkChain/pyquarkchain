@@ -131,13 +131,13 @@ pip uninstall python-rocksdb
 pip install --user --no-cache-dir python-rocksdb  # force reinstalling
 ```
 
-or change the the compression type in `quarkchain/db.py` 
+or change the the compression type in `quarkchain/db.py`
 
 ```python
 options.compression = rocksdb.CompressionType.lz4_compression
 ```
 
-to 
+to
 
 ```python
 options.compression = rocksdb.CompressionType.snappy_compression
@@ -156,7 +156,7 @@ pypy3 pyquarkchain/quarkchain/cluster/cluster.py --mine
 ```
 
 ### AWS AMI
-We provided a public AMI in **US West** (Oregon) Region **QuarkChain Sample AMI - ami-03845bc95e90d1c12** using this setup.
+We provided a public AMI in **US West** (Oregon) Region **QuarkChain Sample AMI - ami-0bc201609b49cc40f** using this setup.
 
 ## Development Flow
 
