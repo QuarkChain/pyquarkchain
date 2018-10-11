@@ -1,5 +1,5 @@
 from devp2p.crypto import ecdsa_sign, mk_privkey, privtopub, ecdsa_recover, ECCx
-from rlp.utils import decode_hex
+from quarkchain.tools.rlp_utils import decode_hex
 import pyelliptic
 
 

@@ -1,4 +1,4 @@
-from rlp.utils import decode_hex
+from quarkchain.tools.rlp_utils import decode_hex
 
 from quarkchain.evm import utils
 from quarkchain.db import InMemoryDb, Db

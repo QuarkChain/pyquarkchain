@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from devp2p import crypto
-from rlp.utils import decode_hex
+from quarkchain.tools.rlp_utils import decode_hex
 import random
 import pytest
 

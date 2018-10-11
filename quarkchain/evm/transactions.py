@@ -6,7 +6,7 @@ from quarkchain.evm.exceptions import InvalidTransaction
 from quarkchain.evm.utils import TT256, mk_contract_address, ecsign, ecrecover_to_pub, normalize_key
 from quarkchain.evm.utils import encode_hex
 from rlp.sedes import big_endian_int, binary, BigEndianInt
-from rlp.utils import str_to_bytes, ascii_chr
+from quarkchain.tools.rlp_utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
 from quarkchain.utils import sha3_256, is_p2, check
@@ -223,4 +223,8 @@ class Transaction(rlp.Serializable):
             raise InvalidTransaction("Invalid signature S value!")
 
 
-UnsignedTransaction = Transaction.exclude(['v', 'r', 's', 'version'])
+class UnsignedTransaction(rlp.Serializable):
+    fields = [
+        (field, sedes) for field, sedes in Transaction._meta.fields
+        if field not in ['v', 'r', 's', 'version']
+    ]
