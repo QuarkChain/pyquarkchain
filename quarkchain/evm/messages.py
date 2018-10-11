@@ -7,7 +7,7 @@ import quarkchain.core
 from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.sedes.binary import Binary
-from quarkchain.tools.rlp_utils import decode_hex, encode_hex
+from quarkchain.rlp.utils import decode_hex, encode_hex
 from quarkchain.evm import utils  # FIXME: use eth_utils
 from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions

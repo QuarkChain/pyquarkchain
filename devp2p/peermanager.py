@@ -14,7 +14,7 @@ from devp2p import kademlia
 from .peer import Peer
 from devp2p import crypto
 from devp2p import utils
-from quarkchain.tools.rlp_utils import decode_hex
+from quarkchain.rlp.utils import decode_hex
 
 from devp2p import slogging
 log = slogging.get_logger('p2p.peermgr')
