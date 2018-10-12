@@ -6,8 +6,6 @@ import pytest
 from quarkchain.p2p.tools.paragon import BroadcastData, GetSum
 from quarkchain.p2p.tools.paragon.helpers import get_directly_linked_peers
 
-from quarkchain.utils import Logger
-Logger.set_logging_level('debug')
 @pytest.mark.asyncio
 async def test_peer_subscriber_filters_messages(request, event_loop):
     peer, remote = await get_directly_linked_peers(request, event_loop)
@@ -18,7 +16,7 @@ async def test_peer_subscriber_filters_messages(request, event_loop):
         remote.sub_proto.send_broadcast_data(b"broadcast-b")
         remote.sub_proto.send_get_sum(7, 8)
         remote.sub_proto.send_broadcast_data(b"broadcast-c")
-        await asyncio.sleep(0.01)
+        await asyncio.sleep(0.1)
 
     assert collector not in peer._subscribers
 

@@ -41,7 +41,7 @@ async def test_peer_subscriber_filters_messages(request, event_loop):
     remote.sub_proto.send_broadcast_data(b"value-b")
 
     # yeild to let remote and peer transmit.
-    await asyncio.sleep(0.02)
+    await asyncio.sleep(0.2)
 
     assert get_sum_subscriber.queue_size == 2
     assert all_subscriber.queue_size == 5

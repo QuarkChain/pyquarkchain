@@ -86,9 +86,9 @@ class BaseService(ABC, CancellableMixin):
                 self.events.started.set()
                 await self._run()
         except OperationCancelled as e:
-            self.logger.debug("%s finished: %s", self, e)
+            self.logger.debug("%s finished: %s" % (self, e))
         except Exception:
-            self.logger.exception("Unexpected error in %r, exiting", self)
+            self.logger.exception("Unexpected error in %r, exiting" % self)
         finally:
             # Trigger our cancel token to ensure all pending asyncio tasks and background
             # coroutines started by this service exit cleanly.
@@ -101,7 +101,7 @@ class BaseService(ABC, CancellableMixin):
                 callback(self)
 
             self.events.finished.set()
-            self.logger.debug("%s halted cleanly", self)
+            self.logger.debug("%s halted cleanly" % self)
 
     def add_finished_callback(
         self, finished_callback: Callable[["BaseService"], None]
@@ -118,16 +118,16 @@ class BaseService(ABC, CancellableMixin):
 
         @functools.wraps(awaitable)  # type: ignore
         async def _run_task_wrapper() -> None:
-            self.logger.debug("Running task %s", awaitable)
+            self.logger.debug("Running task %s" % awaitable)
             try:
                 await awaitable
             except OperationCancelled:
                 pass
             except Exception as e:
-                self.logger.warning("Task %s finished unexpectedly: %s", awaitable, e)
-                self.logger.debug("Task failure traceback", exc_info=True)
+                self.logger.warning("Task %s finished unexpectedly: %s" % (awaitable, e))
+                self.logger.debug("Task failure traceback")
             else:
-                self.logger.debug("Task %s finished with no errors", awaitable)
+                self.logger.debug("Task %s finished with no errors" % awaitable)
 
         self._tasks.add(asyncio.ensure_future(_run_task_wrapper()))
 
@@ -145,9 +145,8 @@ class BaseService(ABC, CancellableMixin):
             finally:
                 if not self.is_cancelled:
                     self.logger.debug(
-                        "%s finished while %s is still running, terminating as well",
-                        awaitable,
-                        self,
+                        "%s finished while %s is still running, terminating as well" %
+                        (awaitable, self)
                     )
                     self.cancel_token.trigger()
 
@@ -194,15 +193,14 @@ class BaseService(ABC, CancellableMixin):
                 pass
             except Exception as e:
                 self.logger.warning(
-                    "Daemon Service %s finished unexpectedly: %s", service, e
+                    "Daemon Service %s finished unexpectedly: %s" % (service, e)
                 )
-                self.logger.debug("Daemon Service failure traceback", exc_info=True)
+                self.logger.debug("Daemon Service failure traceback")
             finally:
                 if not self.is_cancelled:
                     self.logger.debug(
-                        "%s finished while %s is still running, terminating as well",
-                        service,
-                        self,
+                        "%s finished while %s is still running, terminating as well" %
+                        (service, self)
                     )
                     self.cancel_token.trigger()
 
@@ -232,7 +230,7 @@ class BaseService(ABC, CancellableMixin):
         """
         if self._child_services:
             self.logger.debug(
-                "Waiting for child services: %s", list(self._child_services)
+                "Waiting for child services: %s" % list(self._child_services)
             )
             await asyncio.gather(
                 *[
@@ -242,7 +240,7 @@ class BaseService(ABC, CancellableMixin):
             )
             self.logger.debug("All child services finished")
         if self._tasks:
-            self.logger.debug("Waiting for tasks: %s", list(self._tasks))
+            self.logger.debug("Waiting for tasks: %s" % list(self._tasks))
             await asyncio.gather(*self._tasks)
             self.logger.debug("All tasks finished")
 
@@ -252,13 +250,13 @@ class BaseService(ABC, CancellableMixin):
     def cancel_nowait(self) -> None:
         if self.is_cancelled:
             self.logger.warning(
-                "Tried to cancel %s, but it was already cancelled", self
+                "Tried to cancel %s, but it was already cancelled" % self
             )
             return
         elif not self.is_running:
             raise ValidationError("Cannot cancel a service that has not been started")
 
-        self.logger.debug("Cancelling %s", self)
+        self.logger.debug("Cancelling %s" % self)
         self.events.cancelled.set()
         self.cancel_token.trigger()
 
@@ -273,21 +271,21 @@ class BaseService(ABC, CancellableMixin):
         except asyncio.futures.TimeoutError:
             self.logger.info(
                 "Timed out waiting for %s to finish its cleanup, forcibly cancelling pending "
-                "tasks and exiting anyway",
+                "tasks and exiting anyway" %
                 self,
             )
             if self._tasks:
-                self.logger.debug("Pending tasks: %s", list(self._tasks))
+                self.logger.debug("Pending tasks: %s" % list(self._tasks))
             if self._child_services:
                 self.logger.debug(
-                    "Pending child services: %s", list(self._child_services)
+                    "Pending child services: %s" % list(self._child_services)
                 )
             self._forcibly_cancel_all_tasks()
             # Sleep a bit because the Future.cancel() method just schedules the callbacks, so we
             # need to give the event loop a chance to actually call them.
             await asyncio.sleep(0.5)
         else:
-            self.logger.debug("%s finished cleanly", self)
+            self.logger.debug("%s finished cleanly" % self)
 
     def _forcibly_cancel_all_tasks(self) -> None:
         for task in self._tasks:
