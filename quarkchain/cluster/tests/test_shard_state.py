@@ -1030,7 +1030,7 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0)
 
         headers = [state.header_tip]
-        for i in range(10):
+        for i in range(13):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
             headers.append(b.header)
@@ -1044,10 +1044,10 @@ class TestShardState(unittest.TestCase):
         # Too many blocks
         self.assertRaises(ValueError, state.add_root_block, root_block)
 
-        self.assertEqual(state.get_unconfirmed_header_list(), headers[:10])
+        self.assertEqual(state.get_unconfirmed_header_list(), headers[:13])
 
         # 10 blocks is okay
-        root_block.minor_block_header_list = headers[:10]
+        root_block.minor_block_header_list = headers[:13]
         root_block.finalize()
         state.add_root_block(root_block)
 
