@@ -507,7 +507,7 @@ class Multiplexer(object):
                 return packet
         else:
             # body normal, chunked-0: rlp(packet-type) [|| rlp(packet-data)] || padding
-            item, end = rlp.codec.consume_item(body, 0)
+            item, per_item_rlp, end = rlp.codec.consume_item(body, 0)
             cmd_id = rlp.sedes.big_endian_int.deserialize(item)
             if chunked_0:
                 payload = bytearray(body[end:])

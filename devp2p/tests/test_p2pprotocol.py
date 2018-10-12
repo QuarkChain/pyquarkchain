@@ -13,7 +13,7 @@ from quarkchain.rlp.utils import decode_hex
 class PeerMock(object):
     packets = []
     config = dict(p2p=dict(listen_port=3000),
-                  node=dict(id='\x00' * 64), client_version_string='devp2p 0.1.1')
+                  node=dict(id='\x00' * 64), client_version_string=b'devp2p 0.1.1')
     capabilities = [(b'p2p', 2), (b'eth', 57)]
     stopped = False
     hello_received = False

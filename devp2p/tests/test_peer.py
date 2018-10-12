@@ -144,7 +144,7 @@ def test_offset_dispatch():
         pubkey = crypto.privtopub(privkey)
         wired_services = services
         config = {
-            'client_version_string': 'mock',
+            'client_version_string': b'mock',
             'p2p': {'listen_port': 3006},
             'node': {
                 'privkey_hex': encode_hex(privkey),

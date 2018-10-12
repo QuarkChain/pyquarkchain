@@ -43,7 +43,7 @@ def create_app(node_num, config, services, app_class):
     config['p2p']['listen_port'] = base_port + node_num
     config['p2p']['min_peers'] = min(10, min_peers)
     config['p2p']['max_peers'] = max_peers
-    config['client_version_string'] = 'NODE{}'.format(node_num)
+    config['client_version_string'] = ('NODE{}'.format(node_num)).encode('utf-8')
 
     app = app_class(config)
     log.info('create_app', config=app.config)
