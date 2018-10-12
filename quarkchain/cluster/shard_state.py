@@ -1368,33 +1368,32 @@ class ShardState:
             Logger.error_exception()
             return None
 
-    def estimate_gas(self, tx: Transaction, from_address) -> Optional[int]:
+    def estimate_gas(self, tx: Transaction, from_address) -> int:
         """Estimate a tx's gas usage by binary searching."""
         evm_tx_start_gas = tx.code.get_evm_transaction().startgas
         # binary search. similar as in go-ethereum
         lo = 21000 - 1
         hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else self.evm_state.gas_limit
-        cap = hi
 
         def run_tx(gas):
-            evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
-            evm_state.gas_used = 0
-            evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
-            success, _ = apply_transaction(evm_state, evm_tx, tx_wrapper_hash=bytes(32))
-            return success
+            try:
+                evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
+                evm_state.gas_used = 0
+                evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
+                success, _ = apply_transaction(
+                    evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+                )
+                return success
+            except Exception:
+                return False
 
         while lo + 1 < hi:
             mid = (lo + hi) // 2
-            try:
-                if run_tx(mid):
-                    hi = mid
-                else:
-                    lo = mid
-            except Exception:
+            if run_tx(mid):
+                hi = mid
+            else:
                 lo = mid
-        if hi == cap and not run_tx(hi):
-            # try on highest gas but failed
-            return None
+
         return hi
 
     def gas_price(self) -> Optional[int]:
