@@ -1,5 +1,5 @@
 import devp2p.crypto as crypto
-from rlp.utils import decode_hex
+from quarkchain.rlp.utils import decode_hex
 
 
 def test_ecies_enc():

@@ -2,7 +2,7 @@ from devp2p.rlpxcipher import RLPxSession, FormatError
 from devp2p.crypto import mk_privkey, ECCx, sha3
 from devp2p.multiplexer import Multiplexer, Packet
 from devp2p.utils import remove_chars
-from rlp.utils import decode_hex, str_to_bytes
+from quarkchain.rlp.utils import decode_hex, str_to_bytes
 import struct
 
 

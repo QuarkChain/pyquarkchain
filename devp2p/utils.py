@@ -1,8 +1,8 @@
 from __future__ import print_function
 import struct
 import rlp
-from rlp.utils import encode_hex, decode_hex, str_to_bytes, bytes_to_str
-from rlp.utils import safe_ord
+from quarkchain.rlp.utils import encode_hex, decode_hex, str_to_bytes, bytes_to_str
+from quarkchain.rlp.utils import safe_ord
 import collections
 import sys
 

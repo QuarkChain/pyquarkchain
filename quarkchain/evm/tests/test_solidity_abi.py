@@ -93,8 +93,10 @@ class TestTypedSignature(unittest.TestCase):
     def test_recover(self):
         """
         """
+        self.raw_tx._in_mutable_context = True
         self.raw_tx.version = 1
         self.raw_tx.r = 0xb5145678e43df2b7ea8e0e969e51dbf72c956dd52e234c95393ad68744394855
         self.raw_tx.s = 0x44515b465dbbf746a484239c11adb98f967e35347e17e71b84d850d8e5c38a6a
         self.raw_tx.v = 0x1b
+        self.raw_tx._in_mutable_context = False
         assert self.raw_tx.sender == bytes.fromhex('8b74a79290a437aa9589be3227d9bb81b22beff1')

@@ -8,7 +8,7 @@ import gevent
 import gevent.socket
 import ipaddress
 import rlp
-from rlp.utils import decode_hex, is_integer, str_to_bytes, bytes_to_str, safe_ord
+from quarkchain.rlp.utils import decode_hex, is_integer, str_to_bytes, bytes_to_str, safe_ord
 from gevent.server import DatagramServer
 
 from devp2p import slogging

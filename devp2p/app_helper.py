@@ -5,7 +5,7 @@ from devp2p.service import BaseService
 from devp2p.discovery import NodeDiscovery
 from devp2p.crypto import privtopub as privtopub_raw, sha3
 from devp2p.utils import host_port_pubkey_to_uri, update_config_with_defaults
-from rlp.utils import encode_hex
+from quarkchain.rlp.utils import encode_hex
 import gevent
 import copy
 from .slogging import get_logger

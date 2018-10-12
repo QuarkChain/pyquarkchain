@@ -49,8 +49,7 @@ STATE_DEFAULTS = {
 }
 
 
-class Account(rlp.Serializable):
-
+class _Account(rlp.Serializable):
     fields = [
         ('nonce', big_endian_int),
         ('balance', big_endian_int),
@@ -59,12 +58,22 @@ class Account(rlp.Serializable):
         ('full_shard_id', BigEndianInt(4)),
     ]
 
+
+class Account(rlp.Serializable):
+
     def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
         self.db = env.db if db is None else db
         assert isinstance(db, Db)
         self.env = env
         self.address = address
-        super(Account, self).__init__(nonce, balance, storage, code_hash, full_shard_id)
+
+        acc = _Account(nonce, balance, storage, code_hash, full_shard_id)
+        self.nonce = acc.nonce
+        self.balance = acc.balance
+        self.storage = acc.storage
+        self.code_hash = acc.code_hash
+        self.full_shard_id = acc.full_shard_id
+
         self.storage_cache = {}
         self.storage_trie = SecureTrie(Trie(self.db))
         self.storage_trie.root_hash = self.storage
@@ -179,7 +188,17 @@ class State:
         else:
             rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
-            o = rlp.decode(rlpdata, Account, env=self.env, address=address, db=self.db)
+            o = rlp.decode(rlpdata, _Account)
+            o = Account(
+                nonce=o.nonce,
+                balance=o.balance,
+                storage=o.storage,
+                code_hash=o.code_hash,
+                full_shard_id=o.full_shard_id,
+                env=self.env,
+                address=address,
+                db=self.db,
+            )
         else:
             o = Account.blank_account(
                 self.env, address, self.full_shard_id, self.config['ACCOUNT_INITIAL_NONCE'], db=self.db)
@@ -380,9 +399,10 @@ class State:
                 self.deletes.extend(acct.storage_trie.deletes)
                 self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
-                    self.trie.update(addr, rlp.encode(acct))
+                    _acct = _Account(acct.nonce, acct.balance, acct.storage, acct.code_hash, acct.full_shard_id)
+                    self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:
-                        self.db.put(b'address:' + addr, rlp.encode(acct))
+                        self.db.put(b'address:' + addr, rlp.encode(_acct))
                 else:
                     self.trie.delete(addr)
                     if self.executing_on_head:

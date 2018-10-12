@@ -12,7 +12,7 @@ from .crypto import ECIESDecryptionError
 from devp2p import slogging
 import gevent.socket
 from devp2p import rlpxcipher
-from rlp.utils import decode_hex
+from quarkchain.rlp.utils import decode_hex
 
 log = slogging.get_logger('p2p.peer')
 

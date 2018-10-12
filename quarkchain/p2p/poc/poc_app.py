@@ -15,7 +15,7 @@ from devp2p.utils import (
 )
 from devp2p import app_helper
 import rlp
-from rlp.utils import encode_hex, decode_hex, is_integer
+from quarkchain.rlp.utils import encode_hex, decode_hex, is_integer
 import gevent
 
 try:

@@ -4,7 +4,7 @@ from devp2p.app import BaseApp
 from devp2p.multiplexer import Packet
 from devp2p.utils import remove_chars
 import pytest
-from rlp.utils import decode_hex
+from quarkchain.rlp.utils import decode_hex
 # notify peer of successfulll handshake!
 # so other protocols get registered
 # so other protocols can do their handshake

@@ -4,7 +4,7 @@ import struct
 import os
 import rlp
 from rlp import sedes
-from rlp.utils import safe_ord, str_to_bytes, ascii_chr
+from quarkchain.rlp.utils import safe_ord, str_to_bytes, ascii_chr
 from devp2p.crypto import sha3
 from Crypto.Hash import keccak
 from devp2p.crypto import ECCx

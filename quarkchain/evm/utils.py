@@ -2,7 +2,7 @@ from py_ecc.secp256k1 import privtopub, ecdsa_raw_sign, ecdsa_raw_recover
 import sys
 import rlp
 from rlp.sedes import big_endian_int, BigEndianInt, Binary
-from rlp.utils import decode_hex, encode_hex, ascii_chr, str_to_bytes
+from quarkchain.rlp.utils import decode_hex, encode_hex, ascii_chr, str_to_bytes
 import random
 from quarkchain.utils import sha3_256 as sha3
 

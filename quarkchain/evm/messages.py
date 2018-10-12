@@ -7,7 +7,7 @@ import quarkchain.core
 from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.sedes.binary import Binary
-from rlp.utils import decode_hex, encode_hex
+from quarkchain.rlp.utils import decode_hex, encode_hex
 from quarkchain.evm import utils  # FIXME: use eth_utils
 from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
@@ -92,27 +92,6 @@ class Receipt(rlp.Serializable):
         ("contract_full_shard_id", BigEndianInt(4)),
     ]
 
-    def __init__(
-        self,
-        state_root,
-        gas_used,
-        logs,
-        contract_address,
-        contract_full_shard_id,
-        bloom=None,
-    ):
-        # does not call super.__init__ as bloom should not be an attribute but
-        # a property
-        self.state_root = state_root
-        self.gas_used = gas_used
-        self.logs = logs
-        if bloom is not None and bloom != self.bloom:
-            raise ValueError("Invalid bloom filter")
-        self.contract_address = contract_address
-        self.contract_full_shard_id = contract_full_shard_id
-        self._cached_rlp = None
-        self._mutable = True
-
     @property
     def bloom(self):
         bloomables = [x.bloomables() for x in self.logs]
@@ -120,12 +99,15 @@ class Receipt(rlp.Serializable):
 
 
 def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
+    bloomables = [x.bloomables() for x in logs]
+    ret_bloom = bloom.bloom_from_list(utils.flatten(bloomables))
     o = Receipt(
-        b"\x01" if success else b"",
-        state.gas_used,
-        logs,
-        contract_address,
-        contract_full_shard_id,
+        state_root=b"\x01" if success else b"",
+        gas_used=state.gas_used,
+        bloom=ret_bloom,
+        logs=logs,
+        contract_address=contract_address,
+        contract_full_shard_id=contract_full_shard_id,
     )
     return o
 

@@ -5,7 +5,7 @@ import sys
 import pyelliptic
 
 import bitcoin
-from rlp.utils import str_to_bytes, safe_ord, ascii_chr
+from quarkchain.rlp.utils import str_to_bytes, safe_ord, ascii_chr
 from hashlib import sha256
 import struct
 from coincurve import PrivateKey, PublicKey

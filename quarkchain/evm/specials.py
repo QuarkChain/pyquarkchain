@@ -1,7 +1,7 @@
 # -*- coding: utf8 -*-
 from py_ecc.secp256k1 import privtopub, ecdsa_raw_recover, N as secp256k1n
 import hashlib
-from rlp.utils import ascii_chr
+from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32

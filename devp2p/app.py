@@ -6,7 +6,7 @@ from .service import BaseService
 from .slogging import get_logger
 from devp2p import utils
 from devp2p import crypto
-from rlp.utils import decode_hex
+from quarkchain.rlp.utils import decode_hex
 from devp2p import __version__
 log = get_logger('app')
 

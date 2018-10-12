@@ -1,7 +1,7 @@
 from devp2p import peermanager
 from devp2p import crypto
 from devp2p.app import BaseApp
-from rlp.utils import encode_hex
+from quarkchain.rlp.utils import encode_hex
 import devp2p.muxsession
 import rlp
 import devp2p.p2p_protocol

@@ -1,7 +1,7 @@
 # Modified based on pyethereum under MIT license
 import sys
 import copy
-from rlp.utils import encode_hex, ascii_chr
+from quarkchain.rlp.utils import encode_hex, ascii_chr
 from quarkchain.evm import utils
 from quarkchain.evm import opcodes
 from quarkchain.evm.slogging import get_logger

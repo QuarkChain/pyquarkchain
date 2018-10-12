@@ -11,7 +11,7 @@ import devp2p.p2p_protocol
 import time
 import gevent
 import copy
-from rlp.utils import encode_hex, decode_hex, str_to_bytes
+from quarkchain.rlp.utils import encode_hex, decode_hex, str_to_bytes
 
 
 def get_connected_apps():

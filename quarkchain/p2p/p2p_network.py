@@ -13,7 +13,7 @@ from devp2p.protocol import BaseProtocol
 from devp2p.service import BaseService, WiredService
 from devp2p.crypto import privtopub as privtopub_raw, sha3
 from devp2p.utils import host_port_pubkey_to_uri, update_config_with_defaults
-from rlp.utils import decode_hex, encode_hex
+from quarkchain.rlp.utils import decode_hex, encode_hex
 
 from quarkchain.core import random_bytes
 from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID
