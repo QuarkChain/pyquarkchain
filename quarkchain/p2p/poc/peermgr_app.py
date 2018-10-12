@@ -79,7 +79,7 @@ class ExampleApp(BaseApp):
     )
     client_version_string = "%s/v%s" % (client_name, client_version)
     default_config = dict(BaseApp.default_config)
-    default_config["client_version_string"] = client_version_string
+    default_config["client_version_string"] = client_version_string.encode('utf-8')
     default_config["post_app_start_callback"] = None
 
 

@@ -101,7 +101,7 @@ class ExampleApp(BaseApp):
     )
     client_version_string = "%s/v%s" % (client_name, client_version)
     default_config = dict(BaseApp.default_config)
-    default_config["client_version_string"] = client_version_string
+    default_config["client_version_string"] = client_version_string.encode('utf-8')
     default_config["post_app_start_callback"] = None
 
 
@@ -158,7 +158,7 @@ def main():
     config["p2p"]["listen_port"] = args.node_port
     config["p2p"]["min_peers"] = min(10, min_peers)
     config["p2p"]["max_peers"] = max_peers
-    config["client_version_string"] = "NODE{}".format(args.node_num)
+    config["client_version_string"] = "NODE{}".format(args.node_num).encode('utf-8')
 
     app = ExampleApp(config)
     log.info("create_app", config=app.config)

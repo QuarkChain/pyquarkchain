@@ -160,7 +160,7 @@ class ExampleApp(BaseApp):
     version = '0.1'
     client_version = '%s/%s/%s' % (version, sys.platform,
                                    'py%d.%d.%d' % sys.version_info[:3])
-    client_version_string = '%s/v%s' % (client_name, client_version)
+    client_version_string = ('%s/v%s' % (client_name, client_version)).encode('utf-8')
     default_config = dict(BaseApp.default_config)
     default_config['client_version_string'] = client_version_string
     default_config['post_app_start_callback'] = None
