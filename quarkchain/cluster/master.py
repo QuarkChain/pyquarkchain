@@ -341,7 +341,9 @@ class SlaveConnection(ClusterConnection):
         return True
 
     def close(self):
-        Logger.info("Lost connection with slave {}".format(self.id))
+        Logger.info(
+            "Lost connection with slave {}. Shutting down master ...".format(self.id)
+        )
         super().close()
         self.master_server.shutdown()
 
