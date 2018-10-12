@@ -25,9 +25,13 @@ import upnpclient
 UPNP_DISCOVER_TIMEOUT_SECONDS = 30
 
 
-class PortMapping:
-    internal = "" # : str  # of the form "192.2.3.4:56"
-    external = "" # : str  # of the form "192.2.3.4:56"
+PortMapping = NamedTuple(
+    "PortMapping",
+    [
+        ("internal", str),  # of the form "192.2.3.4:56"
+        ("external", str),  # of the form "192.2.3.4:56"
+    ],
+)
 
 
 def find_internal_ip_on_device_network(upnp_dev: upnpclient.upnp.Device) -> str:

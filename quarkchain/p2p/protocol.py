@@ -78,7 +78,7 @@ class Command:
         if isinstance(self.structure, sedes.CountableList):
             return data
         return {
-            field_name  # : value
+            field_name: value
             for ((field_name, _), value) in zip(self.structure, data)
         }
 
