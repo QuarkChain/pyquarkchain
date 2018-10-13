@@ -30,7 +30,7 @@ from typing import (
     Union,
 )
 
-import cytoolz
+import toolz
 
 import rlp
 
@@ -563,7 +563,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
             token = self.parity_pong_tokens.pop(token)
         else:
             # This is a pong from a non-buggy node, so just cleanup self.parity_pong_tokens.
-            self.parity_pong_tokens = cytoolz.valfilter(
+            self.parity_pong_tokens = toolz.valfilter(
                 lambda val: val != token, self.parity_pong_tokens)
 
         pingid = self._mkpingid(token, remote)
@@ -755,7 +755,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
             n.address.to_endpoint() + [n.pubkey.to_bytes()]
             for n in nodes)
         max_neighbours = self._get_max_neighbours_per_packet()
-        for batch in cytoolz.partition_all(max_neighbours, encoded_nodes):
+        for batch in toolz.partition_all(max_neighbours, encoded_nodes):
             message = _pack_v5(CMD_TOPIC_NODES.id, (echo, batch), self.privkey)
             self.logger.trace('>>> topic_nodes to %s: %s', node, batch)
             self.send_v5(node, message)
@@ -932,7 +932,7 @@ class DiscoveryByTopicProtocol(DiscoveryProtocol):
             for n in query_nodes)
         replies = await asyncio.gather(
             *[self.wait_topic_nodes(n, echo) for n, echo in expected_echoes])
-        seen_nodes = set(cytoolz.concat(replies))
+        seen_nodes = set(toolz.concat(replies))
         self.logger.debug(
             "Got %d nodes for the %s topic: %s", len(seen_nodes), self.topic, seen_nodes)
         for node in seen_nodes:

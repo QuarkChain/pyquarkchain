@@ -2,7 +2,7 @@ import enum
 import sys
 from typing import cast, Dict
 
-from cytoolz import assoc
+from toolz import assoc
 
 import rlp
 from rlp import sedes

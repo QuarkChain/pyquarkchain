@@ -21,7 +21,7 @@ from typing import (
     Type,
 )
 
-from cytoolz import groupby
+from toolz import groupby
 
 import rlp
 
