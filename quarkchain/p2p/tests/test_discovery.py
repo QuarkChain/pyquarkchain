@@ -46,6 +46,10 @@ class LESProtocolV2(LESProtocol):
 def short_timeout(monkeypatch):
     monkeypatch.setattr(kademlia, 'k_request_timeout', 0.01)
 
+# this needs to be done so that test_topic_query can work correctly
+@pytest.fixture
+def short_timeout_undo(monkeypatch):
+    monkeypatch.undo()
 
 def test_ping_pong():
     alice = get_discovery_protocol(b"alice")
@@ -356,7 +360,7 @@ def test_find_node_neighbours_v5():
 
 
 @pytest.mark.asyncio
-async def test_topic_query(event_loop):
+async def test_topic_query(event_loop, short_timeout_undo):
     bob = await get_listening_discovery_protocol(event_loop)
     les_nodes = [random_node() for _ in range(10)]
     topic = b'les'
