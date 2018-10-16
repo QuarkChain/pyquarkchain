@@ -1,5 +1,5 @@
 import unittest
-from tools.monitoring import crawl_recursive, crawl_bfs
+from quarkchain.tools.monitoring import crawl_recursive, crawl_bfs
 
 
 class TestCrawl(unittest.TestCase):
