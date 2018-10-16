@@ -55,14 +55,9 @@ jobs:
 
       # Run tests!
       - run:
-          name: Run Unit Tests
+          name: Run unittest/py.test Tests
           command: |
-            pypy3 -m unittest
-
-      - run:
-          name: Run P2P Tests
-          command: |
-            pypy3 -m pytest quarkchain/p2p
+            pypy3 -m pytest quarkchain
 
       - run:
           name: Run EVM Tests
