@@ -643,7 +643,9 @@ class ShardState:
         if self.header_tip.height - block.header.height > 700:
             Logger.info(
                 "[{}] drop old block {} << {}".format(
-                    block.header.height, self.header_tip.height
+                    self.branch.get_shard_id(),
+                    block.header.height,
+                    self.header_tip.height,
                 )
             )
             return None
