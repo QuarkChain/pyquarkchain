@@ -4,126 +4,46 @@
 import rlp
 from quarkchain import utils
 from quarkchain.evm.fast_rlp import encode_optimized
+from rlp.sedes import big_endian_int
+from quarkchain.evm.utils import int_to_big_endian, big_endian_to_int
+from quarkchain.evm.trie import (
+    to_bytes,
+    bin_to_nibbles,
+    nibbles_to_bin,
+    with_terminator,
+    without_terminator,
+    adapt_terminator,
+    pack_nibbles,
+    unpack_to_nibbles,
+    starts_with,
+    is_key_value_type,
+)
 
 rlp_encode = encode_optimized
 
 bin_to_nibbles_cache = {}
 
 
-def to_bytes(value):
-    if isinstance(value, bytes):
-        return value
-    if isinstance(value, str):
-        return bytes(value, "utf-8")
-    if isinstance(value, int):
-        return bytes(str(value), "utf-8")
-
-
 hti = {}
 for i, c in enumerate("0123456789abcdef"):
     hti[c] = i
 
+itoh = {}
+for i, c in enumerate("0123456789abcdef"):
+    itoh[i] = c
 
-def bin_to_nibbles(s):
-    """convert bytes s to nibbles (half-bytes)
 
-    >>> bin_to_nibbles("")
-    []
-    >>> bin_to_nibbles("h")
-    [6, 8]
-    >>> bin_to_nibbles("he")
-    [6, 8, 6, 5]
-    >>> bin_to_nibbles("hello")
-    [6, 8, 6, 5, 6, 12, 6, 12, 6, 15]
+def nibbles_to_address(nibbles):
+    """convert nibbles to address (hex public key address starting with "0x")
+    >>> nibbles_to_address([2, 4, 13, 13])
+    "0x24dd"
     """
-    return [hti[c] for c in s.hex()]
-
-
-def nibbles_to_bin(nibbles):
     if any(x > 15 or x < 0 for x in nibbles):
         raise Exception("nibbles can only be [0,..15]")
-
-    if len(nibbles) % 2:
-        raise Exception("nibbles must be of even numbers")
-
-    res = bytearray()
-    for i in range(0, len(nibbles), 2):
-        res.append(16 * nibbles[i] + nibbles[i + 1])
-    return bytes(res)
-
-
-NIBBLE_TERMINATOR = 16
-
-
-def with_terminator(nibbles):
-    nibbles = nibbles[:]
-    if not nibbles or nibbles[-1] != NIBBLE_TERMINATOR:
-        nibbles.append(NIBBLE_TERMINATOR)
-    return nibbles
-
-
-def without_terminator(nibbles):
-    nibbles = nibbles[:]
-    if nibbles and nibbles[-1] == NIBBLE_TERMINATOR:
-        del nibbles[-1]
-    return nibbles
-
-
-def adapt_terminator(nibbles, has_terminator):
-    if has_terminator:
-        return with_terminator(nibbles)
-    else:
-        return without_terminator(nibbles)
-
-
-def pack_nibbles(nibbles):
-    """pack nibbles to binary
-
-    :param nibbles: a nibbles sequence. may have a terminator
-    """
-
-    if nibbles[-1:] == [NIBBLE_TERMINATOR]:
-        flags = 2
-        nibbles = nibbles[:-1]
-    else:
-        flags = 0
-
-    oddlen = len(nibbles) % 2
-    flags |= oddlen  # set lowest bit if odd number of nibbles
-    if oddlen:
-        nibbles = [flags] + nibbles
-    else:
-        nibbles = [flags, 0] + nibbles
-    o = bytearray()
-    for i in range(0, len(nibbles), 2):
-        o.append(16 * nibbles[i] + nibbles[i + 1])
-    return bytes(o)
-
-
-def unpack_to_nibbles(bindata):
-    """unpack packed binary data to nibbles
-
-    :param bindata: binary packed from nibbles
-    :return: nibbles sequence, may have a terminator
-    """
-    o = bin_to_nibbles(bindata)
-    flags = o[0]
-    if flags & 2:
-        o.append(NIBBLE_TERMINATOR)
-    if flags & 1 == 1:
-        o = o[1:]
-    else:
-        o = o[2:]
-    return o
-
-
-def starts_with(full, part):
-    """ test whether the items in the part is
-    the leading items of the full
-    """
-    if len(full) < len(part):
-        return False
-    return full[: len(part)] == part
+    res = "0x"
+    for n in nibbles:
+        res += itoh[n]
+    return res
 
 
 (NODE_TYPE_BLANK, NODE_TYPE_LEAF, NODE_TYPE_EXTENSION, NODE_TYPE_BRANCH) = tuple(
@@ -131,20 +51,19 @@ def starts_with(full, part):
 )
 
 
-def is_key_value_type(node_type):
-    return node_type in [NODE_TYPE_LEAF, NODE_TYPE_EXTENSION]
-
-
+NIBBLE_TERMINATOR = 16
 BLANK_NODE = b""
 BLANK_ROOT = utils.sha3_256(rlp.encode(b""))
 
 
-class Trie(object):
+class Stake_Trie(object):
     def __init__(self, db, root_hash=BLANK_ROOT):
         """it also present a dictionary like interface
 
         :param db key value database
-        :root: blank or trie node in form of [key, value] or [v0,v1..v15,v]
+        :root: blank or stake trie node in form of [key, [value, token]] or [[v0, token],[v1, token]..[v15, token],[v, token]]
+        :token: the total numbers of tokens rooted at that node (i.e., the number of tokens below it)
+        All operations that modify the trie must adjust the token information
         """
         self.db = db  # Pass in a database object directly
         self.set_root_hash(root_hash)
@@ -209,21 +128,37 @@ class Trie(object):
             self._delete_child_storage(self._decode_to_node(node[1]))
 
     def _encode_node(self, node, put_in_db=True):
+        """
+        All the operations that modify the trie must adjust the stake information
+        """
         if node == BLANK_NODE:
             return BLANK_NODE
         # assert isinstance(node, list)
+        node_type = self._get_node_type(node)
+        stake_sum = 0
+        if is_key_value_type(node_type):
+            stake_sum = big_endian_to_int(node[1][1])
+        elif node_type == NODE_TYPE_BRANCH:
+            for i in range(17):
+                if node[i] != BLANK_NODE:
+                    stake_sum += big_endian_to_int(node[i][1])
+
         rlpnode = rlp_encode(node)
-        if len(rlpnode) < 32:
-            return node
+        # may fix
+        # if len(rlpnode) < 32:
+        #    return node
 
         hashkey = utils.sha3_256(rlpnode)
         if put_in_db:
             self.db.put(hashkey, rlpnode)
-        return hashkey
+        return [hashkey, int_to_big_endian(stake_sum)]
 
     def _decode_to_node(self, encoded):
         if encoded == BLANK_NODE:
             return BLANK_NODE
+
+        encoded = encoded[0]
+
         if isinstance(encoded, list):
             return encoded
         o = rlp.decode(self.db[encoded])
@@ -261,14 +196,14 @@ class Trie(object):
         if node_type == NODE_TYPE_BRANCH:
             # already reach the expected node
             if not key:
-                return node[-1]
+                return node[-1][1]
             sub_node = self._decode_to_node(node[key[0]])
             return self._get(sub_node, key[1:])
 
         # key value node
         curr_key = without_terminator(unpack_to_nibbles(node[0]))
         if node_type == NODE_TYPE_LEAF:
-            return node[1] if key == curr_key else BLANK_NODE
+            return node[1][1] if key == curr_key else BLANK_NODE
 
         if node_type == NODE_TYPE_EXTENSION:
             # traverse child nodes
@@ -294,11 +229,11 @@ class Trie(object):
         node_type = self._get_node_type(node)
 
         if node_type == NODE_TYPE_BLANK:
-            return [pack_nibbles(with_terminator(key)), value]
+            return [pack_nibbles(with_terminator(key)), [value, value]]
 
         elif node_type == NODE_TYPE_BRANCH:
             if not key:
-                node[-1] = value
+                node[-1] = [value, value]
             else:
                 new_node = self._update_and_delete_storage(
                     self._decode_to_node(node[key[0]]), key[1:], value
@@ -333,7 +268,7 @@ class Trie(object):
 
         if remain_key == [] == remain_curr_key:
             if not is_inner:
-                return [node[0], value]
+                return [node[0], [value, value]]
             new_node = self._update_and_delete_storage(
                 self._decode_to_node(node[1]), remain_key, value
             )
@@ -347,7 +282,7 @@ class Trie(object):
                 new_node = [BLANK_NODE] * 17
                 new_node[-1] = node[1]
                 new_node[remain_key[0]] = self._encode_node(
-                    [pack_nibbles(with_terminator(remain_key[1:])), value]
+                    [pack_nibbles(with_terminator(remain_key[1:])), [value, value]]
                 )
         else:
             new_node = [BLANK_NODE] * 17
@@ -364,10 +299,10 @@ class Trie(object):
                 )
 
             if remain_key == []:
-                new_node[-1] = value
+                new_node[-1] = [value, value]
             else:
                 new_node[remain_key[0]] = self._encode_node(
-                    [pack_nibbles(with_terminator(remain_key[1:])), value]
+                    [pack_nibbles(with_terminator(remain_key[1:])), [value, value]]
                 )
 
         if prefix_length:
@@ -405,159 +340,10 @@ class Trie(object):
             return curr_key
 
         if node_type == NODE_TYPE_EXTENSION:
-            curr_key = without_terminator(unpack_to_nibbles(node[0]))
             sub_node = self._decode_to_node(node[1])
             return curr_key + self._getany(
                 sub_node, reverse=reverse, path=path + curr_key
             )
-
-    def _split(self, node, key):
-        node_type = self._get_node_type(node)
-        if node_type == NODE_TYPE_BLANK:
-            return BLANK_NODE, BLANK_NODE
-        elif not key:
-            return BLANK_NODE, node
-        elif node_type == NODE_TYPE_BRANCH:
-            b1 = node[: key[0]]
-            b1 += [""] * (17 - len(b1))
-            b2 = node[key[0] + 1 :]
-            b2 = [""] * (17 - len(b2)) + b2
-            b1[16], b2[16] = b2[16], b1[16]
-            sub = self._decode_to_node(node[key[0]])
-            sub1, sub2 = self._split(sub, key[1:])
-            b1[key[0]] = self._encode_node(sub1) if sub1 else ""
-            b2[key[0]] = self._encode_node(sub2) if sub2 else ""
-            return (
-                self._normalize_branch_node(b1)
-                if len([x for x in b1 if x])
-                else BLANK_NODE,
-                self._normalize_branch_node(b2)
-                if len([x for x in b2 if x])
-                else BLANK_NODE,
-            )
-
-        descend_key = without_terminator(unpack_to_nibbles(node[0]))
-        if node_type == NODE_TYPE_LEAF:
-            if descend_key < key:
-                return node, BLANK_NODE
-            else:
-                return BLANK_NODE, node
-        elif node_type == NODE_TYPE_EXTENSION:
-            sub_node = self._decode_to_node(node[1])
-            sub_key = key[len(descend_key) :]
-            if starts_with(key, descend_key):
-                sub1, sub2 = self._split(sub_node, sub_key)
-                subtype1 = self._get_node_type(sub1)
-                subtype2 = self._get_node_type(sub2)
-                if not sub1:
-                    o1 = BLANK_NODE
-                elif subtype1 in (NODE_TYPE_LEAF, NODE_TYPE_EXTENSION):
-                    new_key = key[: len(descend_key)] + unpack_to_nibbles(sub1[0])
-                    o1 = [pack_nibbles(new_key), sub1[1]]
-                else:
-                    o1 = [
-                        pack_nibbles(key[: len(descend_key)]),
-                        self._encode_node(sub1),
-                    ]
-                if not sub2:
-                    o2 = BLANK_NODE
-                elif subtype2 in (NODE_TYPE_LEAF, NODE_TYPE_EXTENSION):
-                    new_key = key[: len(descend_key)] + unpack_to_nibbles(sub2[0])
-                    o2 = [pack_nibbles(new_key), sub2[1]]
-                else:
-                    o2 = [
-                        pack_nibbles(key[: len(descend_key)]),
-                        self._encode_node(sub2),
-                    ]
-                return o1, o2
-            elif descend_key < key[: len(descend_key)]:
-                return node, BLANK_NODE
-            elif descend_key > key[: len(descend_key)]:
-                return BLANK_NODE, node
-            else:
-                return BLANK_NODE, BLANK_NODE
-
-    def split(self, key):
-        key = bin_to_nibbles(key)
-        r1, r2 = self._split(self.root_node, key)
-        t1, t2 = Trie(self.db), Trie(self.db)
-        t1.root_node, t2.root_node = r1, r2
-        return t1, t2
-
-    def _merge(self, node1, node2):
-        # assert isinstance(node1, list) or not node1
-        # assert isinstance(node2, list) or not node2
-        node_type1 = self._get_node_type(node1)
-        node_type2 = self._get_node_type(node2)
-        if not node1:
-            return node2
-        if not node2:
-            return node1
-        if node_type1 != NODE_TYPE_BRANCH and node_type2 != NODE_TYPE_BRANCH:
-            descend_key1 = unpack_to_nibbles(node1[0])
-            descend_key2 = unpack_to_nibbles(node2[0])
-            # find longest common prefix
-            prefix_length = 0
-            for i in range(min(len(descend_key1), len(descend_key2))):
-                if descend_key1[i] != descend_key2[i]:
-                    break
-                prefix_length = i + 1
-            if prefix_length:
-                sub1 = (
-                    self._decode_to_node(node1[1])
-                    if node_type1 == NODE_TYPE_EXTENSION
-                    else node1[1]
-                )
-                new_sub1 = (
-                    [pack_nibbles(descend_key1[prefix_length:]), sub1]
-                    if descend_key1[prefix_length:]
-                    else sub1
-                )
-                sub2 = (
-                    self._decode_to_node(node2[1])
-                    if node_type2 == NODE_TYPE_EXTENSION
-                    else node2[1]
-                )
-                new_sub2 = (
-                    [pack_nibbles(descend_key2[prefix_length:]), sub2]
-                    if descend_key2[prefix_length:]
-                    else sub2
-                )
-                return [
-                    pack_nibbles(descend_key1[:prefix_length]),
-                    self._encode_node(self._merge(new_sub1, new_sub2)),
-                ]
-
-        nodes = [[node1], [node2]]
-        for (node, node_type) in zip(nodes, [node_type1, node_type2]):
-            if node_type != NODE_TYPE_BRANCH:
-                new_node = [BLANK_NODE] * 17
-                curr_key = unpack_to_nibbles(node[0][0])
-                new_node[curr_key[0]] = (
-                    self._encode_node([pack_nibbles(curr_key[1:]), node[0][1]])
-                    if curr_key[0] < 16 and curr_key[1:]
-                    else node[0][1]
-                )
-                node[0] = new_node
-        node1, node2 = nodes[0][0], nodes[1][0]
-        assert len([i for i in range(17) if node1[i] and node2[i]]) <= 1
-        new_node = [
-            self._encode_node(
-                self._merge(
-                    self._decode_to_node(node1[i]), self._decode_to_node(node2[i])
-                )
-            )
-            if node1[i] and node2[i]
-            else node1[i] or node2[i]
-            for i in range(17)
-        ]
-        return new_node
-
-    @classmethod
-    def unsafe_merge(cls, trie1, trie2):
-        t = Trie(trie1.db)
-        t.root_node = t._merge(trie1.root_node, trie2.root_node)
-        return t
 
     def _iter(self, node, key, reverse=False, path=[]):
         # print('iter', node, key, 'reverse =', reverse, 'path =', path)
@@ -641,6 +427,7 @@ class Trie(object):
             return
         # assert isinstance(node, list)
         encoded = self._encode_node(node, put_in_db=False)
+        encoded = encoded[0]
         if len(encoded) < 32:
             return
         """
@@ -823,7 +610,7 @@ class Trie(object):
             if node_type == NODE_TYPE_EXTENSION:
                 sub_tree = self._iter_branch(self._decode_to_node(node[1]))
             else:
-                sub_tree = [(to_bytes(NIBBLE_TERMINATOR), node[1])]
+                sub_tree = [(to_bytes(NIBBLE_TERMINATOR), node[1][1])]
 
             # prepend key of this node to the keys of children
             for sub_key, sub_value in sub_tree:
@@ -837,7 +624,7 @@ class Trie(object):
                     full_key = (bytes(str(i), "ascii") + b"+" + sub_key).strip(b"+")
                     yield (full_key, sub_value)
             if node[16]:
-                yield (to_bytes(NIBBLE_TERMINATOR), node[-1])
+                yield (to_bytes(NIBBLE_TERMINATOR), node[-1][1])
 
     def iter_branch(self):
         for key_str, value in self._iter_branch(self.root_node):
@@ -869,7 +656,7 @@ class Trie(object):
             if node_type == NODE_TYPE_EXTENSION:
                 sub_dict = self._to_dict(self._decode_to_node(node[1]))
             else:
-                sub_dict = {to_bytes(NIBBLE_TERMINATOR): node[1]}
+                sub_dict = {to_bytes(NIBBLE_TERMINATOR): node[1][1]}
 
             # prepend key of this node to the keys of children
             res = {}
@@ -888,7 +675,7 @@ class Trie(object):
                     res[full_key] = sub_value
 
             if node[16]:
-                res[to_bytes(NIBBLE_TERMINATOR)] = node[-1]
+                res[to_bytes(NIBBLE_TERMINATOR)] = node[-1][1]
             return res
 
     def to_dict(self):
@@ -907,24 +694,6 @@ class Trie(object):
         if not isinstance(key, bytes):
             raise Exception("Key must be bytes")
         return self._get(self.root_node, bin_to_nibbles(to_bytes(key)))
-
-    def __len__(self):
-        return self._get_size(self.root_node)
-
-    def __getitem__(self, key):
-        return self.get(key)
-
-    def __setitem__(self, key, value):
-        return self.update(key, value)
-
-    def __delitem__(self, key):
-        return self.delete(key)
-
-    def __iter__(self):
-        return iter(self.to_dict())
-
-    def __contains__(self, key):
-        return self.get(key) != BLANK_NODE
 
     def update(self, key, value):
         """
@@ -952,6 +721,119 @@ class Trie(object):
             return True
         return self.root_hash in self.db
 
+    # New functions for POS (Photon)
+    def _get_total_stake(self, node):
+        """Get the total stake
+
+        :param node: node in form of list, or BLANK_NODE
+        """
+        if node == BLANK_NODE:
+            return 0
+
+        node_type = self._get_node_type(node)
+
+        if is_key_value_type(node_type):
+            stake_is_node = node_type == NODE_TYPE_EXTENSION
+            if stake_is_node:
+                return self._get_total_stake(self._decode_to_node(node[1]))
+            else:
+                return big_endian_to_int(node[1][1])
+        elif node_type == NODE_TYPE_BRANCH:
+            tokens = [
+                self._get_total_stake(self._decode_to_node(node[x])) for x in range(16)
+            ]
+            tokens = tokens + [big_endian_to_int(node[-1][1]) if node[-1] else 0]
+            return sum(tokens)
+
+    def _get_total_stake_from_root_node(self, node):
+        """ Get the total stake directly from root node informaiton
+
+        :param node: node in form of list, or BLANK_NODE
+        """
+        if node == BLANK_NODE:
+            return 0
+
+        node_type = self._get_node_type(node)
+
+        if is_key_value_type(node_type):
+            return big_endian_to_int(node[1][1])
+        else:
+            stake_sum = 0
+            for i in range(17):
+                if node[i] != BLANK_NODE:
+                    stake_sum += big_endian_to_int(node[i][1])
+            return stake_sum
+
+    def _select_staker(self, node, value):
+        """ Get the selected staker address given the pseudo-randomly value
+
+        :param node: node in form of list, or BLANK_NODE
+        :value: pseudo-randomly selected value
+        """
+        node_type = self._get_node_type(node)
+        assert value >= 0
+
+        if node_type == NODE_TYPE_BLANK:
+            return None
+
+        if node_type == NODE_TYPE_BRANCH:
+            scan_range = list(range(17))
+            for i in scan_range:
+                if node[i] != BLANK_NODE:
+                    if big_endian_to_int(node[i][1]) >= value:
+                        sub_node = self._decode_to_node(node[i])
+                        o = self._select_staker(sub_node, value)
+                        return [i] + o if o is not None else None
+                    else:
+                        value = value - big_endian_to_int(node[i][1])
+            return None
+
+        if node_type == NODE_TYPE_LEAF:
+            descend_key = without_terminator(unpack_to_nibbles(node[0]))
+            return descend_key if value <= big_endian_to_int(node[1][1]) else None
+
+        elif node_type == NODE_TYPE_EXTENSION:
+            descend_key = without_terminator(unpack_to_nibbles(node[0]))
+            if value <= big_endian_to_int(node[1][1]):
+                sub_node = self._decode_to_node(node[1])
+                o = self._select_staker(sub_node, value)
+                return descend_key + o if o else None
+            else:
+                return None
+
+        return None
+
+    def _check_total_tokens(self):
+        if self.root_node != BLANK_NODE:
+            assert self._get_total_stake(
+                self.root_node
+            ) == self._get_total_stake_from_root_node(self.root_node)
+
+    def get_total_stake(self):
+        return self._get_total_stake_from_root_node(self.root_node)
+
+    def select_staker(self, value):
+        o = self._select_staker(self.root_node, value)
+        return nibbles_to_address(o)
+
+    def __len__(self):
+        return self._get_size(self.root_node)
+
+    def __getitem__(self, key):
+        return self.get(key)
+
+    def __setitem__(self, key, value):
+        return self.update(key, value)
+
+    def __delitem__(self, key):
+        return self.delete(key)
+
+    def __iter__(self):
+        return iter(self.to_dict())
+
+    def __contains__(self, key):
+        return self.get(key) != BLANK_NODE
+
 
 if __name__ == "__main__":
     import sys
@@ -967,9 +849,9 @@ if __name__ == "__main__":
 
     if len(sys.argv) >= 2:
         if sys.argv[1] == "insert":
-            t = Trie(_db, bytes.fromhex(sys.argv[3]))
+            t = Stake_Trie(_db, bytes.fromhex(sys.argv[3]))
             t.update(bytes(sys.argv[4], "ascii"), bytes(sys.argv[5], "ascii"))
             print(encode_node(t.root_hash))
         elif sys.argv[1] == "get":
-            t = Trie(_db, bytes.fromhex(sys.argv[3]))
+            t = Stake_Trie(_db, bytes.fromhex(sys.argv[3]))
             print(t.get(bytes(sys.argv[4], "ascii")))
