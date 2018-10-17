@@ -127,9 +127,6 @@ class SyncTask:
                 )
             )
             block_header_list = await self.__download_block_headers(block_hash)
-            Logger.info(
-                "[R] downloaded headers from peer".format(len(block_header_list))
-            )
             if not self.__validate_block_headers(block_header_list):
                 # TODO: tag bad peer
                 raise RuntimeError("Bad peer sending discontinuing block headers")
@@ -140,14 +137,23 @@ class SyncTask:
 
         block_header_chain.reverse()
 
+        Logger.info(
+            "[R] going to download {} blocks ({} - {})".format(
+                len(block_header_chain),
+                block_header_chain[0].height,
+                block_header_chain[-1].height,
+            )
+        )
+
         while len(block_header_chain) > 0:
+            block_chain = await self.__download_blocks(block_header_chain[:100])
             Logger.info(
-                "[R] syncing from {} {}".format(
-                    block_header_chain[0].height, block_header_chain[0].get_hash().hex()
+                "[R] downloaded {} blocks ({} - {}) from peer".format(
+                    len(block_chain),
+                    block_chain[0].header.height,
+                    block_chain[-1].header.height,
                 )
             )
-            block_chain = await self.__download_blocks(block_header_chain[:100])
-            Logger.info("[R] downloaded {} blocks from peer".format(len(block_chain)))
             if len(block_chain) != len(block_header_chain[:100]):
                 # TODO: tag bad peer
                 raise RuntimeError("Bad peer missing blocks for headers they have")
@@ -189,6 +195,11 @@ class SyncTask:
         return resp.root_block_list
 
     async def __add_block(self, root_block):
+        Logger.info(
+            "[R] syncing root block {} {}".format(
+                root_block.header.height, root_block.header.get_hash().hex()
+            )
+        )
         start = time.time()
         await self.__sync_minor_blocks(root_block.minor_block_header_list)
         await self.master_server.add_root_block(root_block)
@@ -244,16 +255,33 @@ class Synchronizer:
 
     def add_task(self, header, peer):
         self.queue.append((header, peer))
+        Logger.info(
+            "[R] added {} {} to sync queue (running={})".format(
+                header.height, header.get_hash().hex(), self.running
+            )
+        )
         if not self.running:
             self.running = True
             asyncio.ensure_future(self.__run())
 
     async def __run(self):
+        Logger.info("[R] synchronizer started!")
         while len(self.queue) > 0:
             header, peer = self.queue.popleft()
             task = SyncTask(header, peer)
+            Logger.info(
+                "[R] start sync task {} {}".format(
+                    header.height, header.get_hash().hex()
+                )
+            )
             await task.sync()
+            Logger.info(
+                "[R] done sync task {} {}".format(
+                    header.height, header.get_hash().hex()
+                )
+            )
         self.running = False
+        Logger.info("[R] synchronizer finished!")
 
 
 class SlaveConnection(ClusterConnection):
