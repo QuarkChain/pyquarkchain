@@ -1,10 +1,10 @@
 import time
 import json
 import asyncio
+from typing import Optional
 
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.guardian import Guardian
-from quarkchain.config import NetworkId
 from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
 from quarkchain.core import (
     calculate_merkle_root,
@@ -246,6 +246,7 @@ class RootState:
             block_hash = header_hash
 
         # Check difficulty
+        diff = None  # type: Optional[int]
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
             diff = self.diff_calc.calculate_diff_with_parent(
                 prev_block_header, block_header.create_time
@@ -260,7 +261,7 @@ class RootState:
 
         # Check PoW if applicable
         consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
-        validate_seal(block_header, consensus_type)
+        validate_seal(block_header, consensus_type, adjusted_diff=diff)
 
         return block_hash
 

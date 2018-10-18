@@ -22,7 +22,9 @@ Block = Union[MinorBlock, RootBlock]
 def validate_seal(
     block_header: Union[RootBlockHeader, MinorBlockHeader],
     consensus_type: ConsensusType,
+    adjusted_diff: int = None,  # for overriding
 ) -> None:
+    diff = adjusted_diff if adjusted_diff is not None else block_header.difficulty
     if consensus_type == ConsensusType.POW_ETHASH:
         nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
         if not check_pow(
@@ -30,14 +32,12 @@ def validate_seal(
             block_header.get_hash_for_mining(),
             block_header.mixhash,
             nonce_bytes,
-            block_header.difficulty,
+            diff,
         ):
             raise ValueError("invalid pow proof")
     elif consensus_type == ConsensusType.POW_SHA3SHA3:
         nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
-        target = (2 ** 256 // (block_header.difficulty or 1) - 1).to_bytes(
-            32, byteorder="big"
-        )
+        target = (2 ** 256 // (diff or 1) - 1).to_bytes(32, byteorder="big")
         h = sha3_256(sha3_256(block_header.get_hash_for_mining() + nonce_bytes))
         if not h < target:
             raise ValueError("invalid pow proof")
