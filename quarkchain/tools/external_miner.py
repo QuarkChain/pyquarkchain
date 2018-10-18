@@ -16,6 +16,9 @@ from quarkchain.config import ConsensusType
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
+logger = logging.getLogger("quarkchain.tools.external_miner")
+logger.setLevel(logging.INFO)
+
 
 def get_work_rpc(
     shard: Optional[int], host: str = "localhost", jrpc_port: int = 38391
@@ -87,7 +90,7 @@ class ExternalMiner(threading.Thread):
                     }
                     if self.process:
                         self.input_q.put((work, mining_params))
-                        logging.info(
+                        logger.info(
                             "Pushed work to %s height %d"
                             % (repr_shard(shard_id), work.height)
                         )
@@ -98,7 +101,7 @@ class ExternalMiner(threading.Thread):
                             args=(work, mining_params, self.input_q, self.output_q),
                         )
                         self.process.start()
-                        logging.info(
+                        logger.info(
                             "Started mining process for %s" % repr_shard(shard_id)
                         )
                     # bookkeeping
@@ -120,10 +123,10 @@ class ExternalMiner(threading.Thread):
                     break
                 except Exception:
                     #  network errors and try next one
-                    logging.error("Failed to submit work, backing off...")
+                    logger.error("Failed to submit work, backing off...")
                     time.sleep(0.5)
 
-            logging.info(
+            logger.info(
                 "Mining result submission result: %s for %s height %d"
                 % (
                     "success" if success else "failure",
@@ -172,7 +175,3 @@ if __name__ == "__main__":
     for config_list in worker_configs:
         ext_miner = ExternalMiner(config_list)
         ext_miner.start()
-        # break
-
-    # import ipdb; ipdb.set_trace()
-    # print(1)
