@@ -819,8 +819,13 @@ class ShardState:
 
         state = evm_state.ephemeral_clone()
         state.gas_used = 0
+
+        # Use the maximum gas allowed if gas is 0
+        evm_tx = tx.code.get_evm_transaction()
+        gas = evm_tx.startgas if evm_tx.startgas else state.gas_limit
+
         try:
-            evm_tx = self.__validate_tx(tx, state, from_address)
+            evm_tx = self.__validate_tx(tx, state, from_address, gas)
             success, output = apply_transaction(
                 state, evm_tx, tx_wrapper_hash=bytes(32)
             )
