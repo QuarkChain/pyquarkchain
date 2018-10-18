@@ -420,6 +420,28 @@ class TestJSONRPC(unittest.TestCase):
                 "should not affect tx queue",
             )
 
+    def test_call_success_default_gas(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+
+        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
+            clusters[0].master
+        ):
+            slaves = clusters[0].slave_list
+
+            branch = Branch.create(2, 0)
+            # gas is not specified in the request
+            response = send_request(
+                "call", {"to": "0x" + acc1.serialize().hex()}, "latest"
+            )
+
+            self.assertEqual(response, "0x")
+            self.assertEqual(
+                len(slaves[0].shards[branch].state.tx_queue),
+                0,
+                "should not affect tx queue",
+            )
+
     def test_call_failure(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
