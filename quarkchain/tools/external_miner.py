@@ -65,7 +65,7 @@ class ExternalMiner(threading.Thread):
     def run(self):
         work_map = {}  # type: Dict[bytes, Tuple[MiningWork, int]]
 
-        # the thread to get work
+        # start the thread to get work
         def get_work():
             # hash -> shard
             nonlocal work_map, self
@@ -78,7 +78,9 @@ class ExternalMiner(threading.Thread):
                         work = get_work_rpc(shard_id)
                     except Exception:
                         # ignore network errors and try next one
+                        logger.error("Failed to get work")
                         continue
+                    # skip duplicate work
                     if (
                         shard_id in existing_work
                         and existing_work[shard_id].hash == work.hash
@@ -95,7 +97,7 @@ class ExternalMiner(threading.Thread):
                             % (repr_shard(shard_id), work.height)
                         )
                     else:
-                        # the process to mine
+                        # start the process to mine
                         self.process = AioProcess(
                             target=Miner.mine_loop,
                             args=(work, mining_params, self.input_q, self.output_q),
@@ -122,7 +124,6 @@ class ExternalMiner(threading.Thread):
                     success = submit_work_rpc(shard_id, res)
                     break
                 except Exception:
-                    #  network errors and try next one
                     logger.error("Failed to submit work, backing off...")
                     time.sleep(0.5)
 
