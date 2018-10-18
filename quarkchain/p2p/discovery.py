@@ -1237,8 +1237,8 @@ def get_v5_topic(proto: Type[protocol.Protocol], genesis_hash: Hash32) -> bytes:
 def _test() -> None:
     import argparse
     import signal
-    from p2p import constants
-    from p2p import ecies
+    from quarkchain.p2p import constants
+    from quarkchain.p2p import ecies
 
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
@@ -1302,4 +1302,5 @@ def _test() -> None:
 
 
 if __name__ == "__main__":
+    Logger.set_logging_level("debug")
     _test()

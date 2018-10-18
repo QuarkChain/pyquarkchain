@@ -105,6 +105,12 @@ class QKCLogger(logging.getLoggerClass()):
                     return (code.co_filename, frame.f_lineno, code.co_name, sinfo)
             frame = frame.f_back
 
+    def trace(self, msg, *args, **kwargs):
+        """
+        log as debug for now
+        """
+        self.debug(msg, *args, **kwargs)
+
 
 class Logger:
     _count_map = dict()
