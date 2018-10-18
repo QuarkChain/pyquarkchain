@@ -105,9 +105,10 @@ class QKCLogger(logging.getLoggerClass()):
                     return (code.co_filename, frame.f_lineno, code.co_name, sinfo)
             frame = frame.f_back
 
-    def trace(self, msg, *args, **kwargs):
+    def trace(self, msg: str, *args, **kwargs) -> None:
         """
         log as debug for now
+        see https://github.com/ethereum/py-evm/blob/master/eth/tools/logging.py
         """
         self.debug(msg, *args, **kwargs)
 
