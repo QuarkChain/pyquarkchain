@@ -189,6 +189,7 @@ class Miner:
                 self.input_q.put((None, {}))
                 return
             mining_params = self.get_mining_param_func()
+            mining_params["consensus_type"] = self.consensus_type
             # handle mining simulation's timing
             if "target_block_time" in mining_params:
                 target_block_time = mining_params["target_block_time"]
@@ -207,14 +208,8 @@ class Miner:
                 return
 
             self.process = AioProcess(
-                target=self._mine_loop,
-                args=(
-                    self.consensus_type,
-                    work,
-                    mining_params,
-                    self.input_q,
-                    self.output_q,
-                ),
+                target=self.mine_loop,
+                args=(work, mining_params, self.input_q, self.output_q),
             )
             self.process.start()
             await handle_mined_block()
@@ -277,8 +272,7 @@ class Miner:
             return False
 
     @staticmethod
-    def _mine_loop(
-        consensus_type: ConsensusType,
+    def mine_loop(
         work: MiningWork,
         mining_params: Dict,
         input_q: MultiProcessingQueue,
@@ -289,7 +283,6 @@ class Miner:
             ConsensusType.POW_ETHASH: Ethash,
             ConsensusType.POW_SHA3SHA3: DoubleSHA256,
         }
-        mining_algo_gen = consensus_to_mining_algo[consensus_type]
         # TODO: maybe add rounds to config json
         rounds = mining_params.get("rounds", 100)
         progress = {}
@@ -300,12 +293,16 @@ class Miner:
                 output_q.put(None)
                 return
 
+            consensus_type = mining_params["consensus_type"]
+            mining_algo_gen = consensus_to_mining_algo[consensus_type]
             mining_algo = mining_algo_gen(work, **mining_params)
             # progress tracking if mining param contains shard info
             if "shard" in mining_params:
                 shard = mining_params["shard"]
                 # skip blocks with lower height
-                if shard in progress and progress[shard] >= work.height:
+                if shard in progress and progress[shard] > work.height:
+                    # get newer work and restart mining
+                    work, mining_params = input_q.get(block=True)
                     continue
             # inner loop for iterating nonce
             start_nonce = 0

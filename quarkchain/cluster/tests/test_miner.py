@@ -92,8 +92,11 @@ class TestMiner(unittest.TestCase):
         work = MiningWork(block.header.get_hash_for_mining(), 42, 5)
         # only process one block, which is passed in. `None` means termination right after
         miner.input_q.put((None, {}))
-        miner._mine_loop(
-            ConsensusType.POW_SHA3SHA3, work, {}, miner.input_q, miner.output_q
+        miner.mine_loop(
+            work,
+            {"consensus_type": ConsensusType.POW_SHA3SHA3},
+            miner.input_q,
+            miner.output_q,
         )
         mined_res = miner.output_q.get()
         self.assertEqual(mined_res.nonce, 8)

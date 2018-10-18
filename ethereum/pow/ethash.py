@@ -1,6 +1,6 @@
 import copy
 from functools import lru_cache
-from typing import Callable, Dict
+from typing import Callable, Dict, List
 
 from ethereum.pow.ethash_utils import *
 

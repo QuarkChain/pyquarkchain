@@ -416,6 +416,8 @@ class Shard:
         shard_config = self.env.quark_chain_config.SHARD_LIST[
             self.shard_id
         ]  # type: ShardConfig
+        if self.shard_id == 0:
+            print("asd")
         self.miner = Miner(
             shard_config.CONSENSUS_TYPE,
             __create_block,
