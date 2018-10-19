@@ -381,7 +381,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         elif cmd == CMD_NEIGHBOURS:
             return self.recv_neighbours_v4
         else:
-            raise ValueError(f"Unknown command: {cmd}")
+            raise ValueError("Unknown command: {}".format(cmd))
 
     def _get_max_neighbours_per_packet(self) -> int:
         if self._max_neighbours_per_packet_cache is not None:
@@ -624,7 +624,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         elif cmd == CMD_TOPIC_NODES:
             return self.recv_topic_nodes
         else:
-            raise ValueError(f"Unknown command: {cmd}")
+            raise ValueError("Unknown command: {}".format(cmd))
 
     def receive_v5(self, address: kademlia.Address, message: bytes) -> None:
         try:
@@ -744,7 +744,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
     def send_topic_register(
             self, node: kademlia.Node, topics: List[bytes], idx: int, pong: bytes) -> None:
         if idx >= len(topics):
-            raise ValueError(f"Invalid topic idx: {idx}")
+            raise ValueError("Invalid topic idx: {}".format(idx))
         message = _pack_v5(CMD_TOPIC_REGISTER.id, (topics, idx, pong), self.privkey)
         self.logger.trace('>>> topic_register to %s: %s', node, topics[idx])
         self.send_v5(node, message)
@@ -803,10 +803,10 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
             got_pong, raw_pong, wait_periods = await self.wait_pong_v5(node, token)
         except AlreadyWaitingDiscoveryResponse:
             raise UnableToGetDiscV5Ticket(
-                f"Failed to get ticket from {node}, already waiting for pong")
+                "Failed to get ticket from {}, already waiting for pong".format(node))
 
         if not got_pong:
-            raise UnableToGetDiscV5Ticket(f"failed to get ticket from {node}")
+            raise UnableToGetDiscV5Ticket("failed to get ticket from {}".format(node))
 
         return Ticket(node, raw_pong, topics, wait_periods)
 
@@ -1201,7 +1201,7 @@ class CallbackManager(UserDict):
             if not self.locked(key):
                 del self[key]
             else:
-                raise AlreadyWaitingDiscoveryResponse(f"Already waiting on callback for: {key}")
+                raise AlreadyWaitingDiscoveryResponse("Already waiting on callback for: {}".format(key))
 
         lock = CallbackLock(callback)
         self[key] = lock
@@ -1246,13 +1246,10 @@ def _test() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('-bootnode', type=str, help="The enode to use as bootnode")
     parser.add_argument('-v5', action="store_true")
-    parser.add_argument('-trace', action="store_true")
+    parser.add_argument('-level', type=str, default="debug", help="logging level")
     args = parser.parse_args()
 
-    log_level = logging.DEBUG
-    if args.trace:
-        log_level = TRACE_LEVEL_NUM
-    logging.basicConfig(level=log_level, format='%(asctime)s %(levelname)s: %(message)s')
+    Logger.set_logging_level(args.level)
 
     listen_host = '127.0.0.1'
     # Listen on a port other than 30303 so that we can test against a local geth instance
@@ -1302,5 +1299,4 @@ def _test() -> None:
 
 
 if __name__ == "__main__":
-    Logger.set_logging_level("debug")
     _test()

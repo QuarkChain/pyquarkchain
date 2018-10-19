@@ -86,7 +86,7 @@ class QKCLogger(logging.getLoggerClass()):
 
     def findCaller(self, stack_info=False):
         frame = sys._getframe(2)
-        f_to_skip = {func for func in dir(Logger) if callable(getattr(Logger, func))}
+        f_to_skip = {func for func in dir(Logger) if callable(getattr(Logger, func))}.union({func for func in dir(QKCLogger) if callable(getattr(QKCLogger, func))})
 
         while frame:
             code = frame.f_code
