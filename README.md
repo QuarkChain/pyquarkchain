@@ -158,6 +158,10 @@ pypy3 pyquarkchain/quarkchain/cluster/cluster.py --mine
 
 ### AWS AMI
 We provided a public AMI in **US West** (Oregon) Region **QuarkChain Sample AMI - ami-0bc201609b49cc40f** using this setup.
+You may need to run the following command since we upgraded our dependencies recently.
+```
+pip install --user --upgrade rlp==1.0.3
+```
 
 ## Development Flow
 
