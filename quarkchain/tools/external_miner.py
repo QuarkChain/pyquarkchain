@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import logging
 import random
@@ -74,11 +75,16 @@ class ExternalMiner(threading.Thread):
         # start the thread to get work
         def get_work(configs, stopper, input_q, output_q):
             nonlocal work_map
+            configs = copy.copy(configs)
             # shard -> work
             existing_work = {}  # type: Dict[int, MiningWork]
             mining_thread = None
             while not stopper.is_set():
+                total_wait_time = random.uniform(2.0, 3.0)
+                random.shuffle(configs)
                 for config in configs:
+                    # random sleep between each shard
+                    time.sleep(total_wait_time / len(configs))
                     shard_id = config["shard_id"]
                     try:
                         work = get_work_rpc(shard_id)
@@ -116,8 +122,6 @@ class ExternalMiner(threading.Thread):
                         mining_thread.start()
                         print("Started mining thread on %s" % repr_shard(shard_id))
 
-                # random sleep
-                time.sleep(random.uniform(2.0, 3.0))
             # loop stopped, notify the mining thread
             if mining_thread:
                 input_q.put((None, {}))

@@ -4,7 +4,7 @@ set -u; set -e
 
 type jq >/dev/null 2>&1 || { echo >&2 "Please install jq."; exit 1; }
 
-# c -> config, p -> process, t -> thread
+# c -> config, p -> process number, t -> threads per miner process
 # eg: external_miner_manager.sh -c ~/Documents/config.json -p 9 -t 1
 while getopts ":c:p:t:" opt; do
 	case ${opt} in
