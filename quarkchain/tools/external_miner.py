@@ -101,7 +101,7 @@ class ExternalMiner(threading.Thread):
                         "shard": shard_id,
                     }
                     if mining_thread:
-                        input_q.put((work, mining_params), timeout=10)
+                        input_q.put((work, mining_params))
                         print(
                             "Added work to queue of %s height %d"
                             % (repr_shard(shard_id), work.height)
@@ -196,7 +196,9 @@ def main():
         config_json = json.load(f)
 
     # 1 worker config <-> 1 mining thread <-> 1 or more shards
-    worker_configs = [[] for _ in range(args.worker)]  # type: List[List[Dict]]
+    worker_configs = [
+        [] for _ in range(min(args.worker, len(args.shards)))
+    ]  # type: List[List[Dict]]
 
     for worker_i, shard_str in zip(cycle(range(args.worker)), args.shards):
         if shard_str.isnumeric():
@@ -211,7 +213,7 @@ def main():
 
     miners = []
     stopper = threading.Event()
-    for i, config_list in enumerate(worker_configs):
+    for config_list in worker_configs:
         ext_miner = ExternalMiner(config_list, stopper)
         ext_miner.start()
         miners.append(ext_miner)
