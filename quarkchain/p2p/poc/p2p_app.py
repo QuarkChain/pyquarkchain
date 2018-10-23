@@ -65,7 +65,7 @@ def main():
             await discovery.stop()
 
     for sig in [signal.SIGINT, signal.SIGTERM]:
-        loop.add_signal_handler(sig, discovery.cancel_token.trigger)
+        loop.add_signal_handler(sig, cancel_token.trigger)
 
     loop.run_until_complete(run())
     loop.close()
