@@ -187,3 +187,16 @@ class TestMiner(unittest.TestCase):
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
+
+    def test_validate_seal_with_adjusted_diff(self):
+        diff = 1000
+        block = RootBlock(
+            RootBlockHeader(create_time=42, difficulty=diff),
+            tracking_data="{}".encode("utf-8"),
+        )
+        block.header.nonce = 0
+        with self.assertRaises(ValueError):
+            validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
+
+        # significantly lowering the diff should pass
+        validate_seal(block.header, ConsensusType.POW_SHA3SHA3, adjusted_diff=1)
