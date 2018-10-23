@@ -648,7 +648,11 @@ class ShardState:
                     self.header_tip.height,
                 )
             )
-            return None
+            raise ValueError(
+                "block is too old {} << {}".format(
+                    block.header.height, self.header_tip.height
+                )
+            )
         if self.db.contain_minor_block_by_hash(block.header.get_hash()):
             return None
 
