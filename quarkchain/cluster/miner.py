@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
-from multiprocessing import Queue as MultiProcessingQueue
+from queue import Queue
 
 from typing import Callable, Union, Awaitable, Dict, Any, Optional, NamedTuple
 
@@ -273,10 +273,7 @@ class Miner:
 
     @staticmethod
     def mine_loop(
-        work: MiningWork,
-        mining_params: Dict,
-        input_q: MultiProcessingQueue,
-        output_q: MultiProcessingQueue,
+        work: Optional[MiningWork], mining_params: Dict, input_q: Queue, output_q: Queue
     ):
         consensus_to_mining_algo = {
             ConsensusType.POW_SIMULATE: Simulate,
@@ -284,7 +281,7 @@ class Miner:
             ConsensusType.POW_SHA3SHA3: DoubleSHA256,
         }
         # TODO: maybe add rounds to config json
-        rounds = mining_params.get("rounds", 100)
+        rounds = mining_params.get("rounds", 1000)
         progress = {}
         # outer loop for mining forever
         while True:
@@ -299,8 +296,8 @@ class Miner:
             # progress tracking if mining param contains shard info
             if "shard" in mining_params:
                 shard = mining_params["shard"]
-                # skip blocks with lower height
-                if shard in progress and progress[shard] > work.height:
+                # skip blocks with height lower or equal
+                if shard in progress and progress[shard] >= work.height:
                     # get newer work and restart mining
                     work, mining_params = input_q.get(block=True)
                     continue
