@@ -80,7 +80,9 @@ class Ethash(MiningAlgorithm):
         )
 
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
-        nonce_found, mixhash = self.miner.mine(end_nonce - start_nonce, start_nonce)
+        nonce_found, mixhash = self.miner.mine(
+            rounds=end_nonce - start_nonce, start_nonce=start_nonce
+        )
         if not nonce_found:
             return None
         return MiningResult(
