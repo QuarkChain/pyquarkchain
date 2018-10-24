@@ -2,15 +2,10 @@ import warnings
 from functools import lru_cache
 from typing import Tuple, Optional, List, Union
 
-from eth_utils import big_endian_to_int, int_to_big_endian
+from eth_utils import big_endian_to_int
 
 from ethereum.pow import ethash
-from ethereum.pow.ethash_utils import (
-    get_full_size,
-    zpad,
-    get_cache_size,
-    serialize_cache,
-)
+from ethereum.pow.ethash_utils import get_full_size, get_cache_size
 
 try:
     import pyethash
@@ -84,7 +79,8 @@ def check_pow(
     mining_output = mining_gen(block_number, full_size, cache, header_hash, nonce)
     if mining_output[b"mix digest"] != mixhash:
         return False
-    return big_endian_to_int(mining_output[b"result"]) <= 2 ** 256 // (difficulty or 1)
+    result = int.from_bytes(mining_output[b"result"], byteorder="big")
+    return result <= 2 ** 256 // (difficulty or 1)
 
 
 class EthashMiner:
@@ -139,7 +135,7 @@ def mine(
 
     cache = cache_gen(cache_size, block_number)
     nonce = start_nonce
-    target = zpad(int_to_big_endian(2 ** 256 // (difficulty or 1) - 1), 32)
+    target = (2 ** 256 // (difficulty or 1)).to_bytes(32, byteorder="big")
     for i in range(1, rounds + 1):
         # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
