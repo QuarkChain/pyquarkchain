@@ -1,3 +1,10 @@
+"""
+Example runs:
+# realistic number on a single machine
+python trinity_network.py --num_apps=10
+# running too many nodes will work, but since we only bootstrap once, not all discover tables would be fully populated
+python trinity_network.py --num_apps=100
+"""
 import argparse
 import asyncio
 import json
@@ -11,7 +18,7 @@ PORT = 29000
 
 async def run_app(bootnode, listen_host, listen_port, max_peers, privkey):
     cmd = (
-        "python trinity_app.py "
+        "python trinity_discovery.py "
         "--bootnode={} "
         "--listen_host={} "
         "--listen_port={} "

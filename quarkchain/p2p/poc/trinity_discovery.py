@@ -1,3 +1,10 @@
+"""
+Example runs:
+# this is the correct private key for the default bootnode, discovery will figure out that it is bootnode itself and won't bond at all
+python p2p/poc/p2p_app.py --privkey=31552f186bf90908ce386fb547dd0410bf443309125cc43fd0ffd642959bf6d9
+# after bootnode is up, running a new node will populate discovery table of both nodes
+python trinity_discovery.py --listen_port=29001
+"""
 import argparse
 import asyncio
 import signal
