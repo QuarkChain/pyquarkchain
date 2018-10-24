@@ -1,5 +1,5 @@
 import datetime
-from concurrent.futures import Executor, ProcessPoolExecutor
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 import logging
 import os
 import signal
@@ -45,6 +45,15 @@ _executor = None  # : Executor
 
 
 def get_asyncio_executor(cpu_count: int = None) -> Executor:
+    global _executor
+
+    """
+    I don't see a need for ProcessPoolExecutor in QuarkChain, just use thread executor
+    """
+    if _executor is None:
+        _executor = ThreadPoolExecutor(max_workers=1)
+    return _executor
+
     """
     Returns a global `ProcessPoolExecutor` instance.
 
@@ -57,7 +66,6 @@ def get_asyncio_executor(cpu_count: int = None) -> Executor:
     where we need this in more than one process we will need to come up with a
     different solution
     """
-    global _executor
 
     if _executor is None:
         # Use CPU_COUNT - 1 processes to make sure we always leave one CPU idle

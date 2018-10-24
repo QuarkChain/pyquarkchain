@@ -24,10 +24,7 @@ class ParagonServer(BaseServer):
 
 
 def main():
-    Logger.set_logging_level("info")
-
     parser = argparse.ArgumentParser()
-
     parser.add_argument(
         "--privkey",
         default="",
@@ -40,8 +37,10 @@ def main():
         help="port for discovery UDP and P2P TCP connection",
         type=int,
     )
-
+    parser.add_argument("--logging_level", default="info", type=str)
     args = parser.parse_args()
+
+    Logger.set_logging_level(args.logging_level)
 
     if args.privkey:
         privkey = keys.PrivateKey(bytes.fromhex(args.privkey))
