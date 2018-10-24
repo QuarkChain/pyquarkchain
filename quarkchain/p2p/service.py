@@ -158,11 +158,11 @@ class BaseService(ABC, CancellableMixin):
         """
         if child_service.is_running:
             raise ValidationError(
-                f"Can't start service {child_service!r}, child of {self!r}: it's already running"
+                "Can't start service {}, child of {}: it's already running".format(repr(child_service), repr(self))
             )
         elif child_service.is_cancelled:
             raise ValidationError(
-                f"Can't restart {child_service!r}, child of {self!r}: it's already completed"
+                "Can't restart {}, child of {}: it's already completed".format(repr(child_service), repr(self))
             )
 
         self._child_services.add(child_service)
@@ -176,11 +176,11 @@ class BaseService(ABC, CancellableMixin):
         """
         if service.is_running:
             raise ValidationError(
-                f"Can't start daemon {service!r}, child of {self!r}: it's already running"
+                "Can't start daemon {}, child of {}: it's already running".format(repr(service), repr(self))
             )
         elif service.is_cancelled:
             raise ValidationError(
-                f"Can't restart daemon {service!r}, child of {self!r}: it's already completed"
+                "Can't restart daemon {}, child of {}: it's already completed".format(repr(service), repr(self))
             )
 
         self._child_services.add(service)

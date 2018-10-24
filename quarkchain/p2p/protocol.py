@@ -42,7 +42,7 @@ class Command:
         return self.cmd_id_offset == 0
 
     def __str__(self) -> str:
-        return f"{type(self).__name__} (cmd_id={self.cmd_id})"
+        return "{} (cmd_id={})".format(type(self).__name__, self.cmd_id)
 
     def encode_payload(self, data: Union[PayloadType, sedes.CountableList]) -> bytes:
         if isinstance(data, dict):  # convert dict to ordered list
@@ -52,7 +52,7 @@ class Command:
             data_keys = sorted(data.keys())
             if data_keys != expected_keys:
                 raise ValueError(
-                    f"Keys in data dict ({data_keys}) do not match expected keys ({expected_keys})"
+                    "Keys in data dict ({}) do not match expected keys ({})".format(data_keys, expected_keys)
                 )
             data = [data[name] for name, _ in self.structure]
         if isinstance(self.structure, sedes.CountableList):
@@ -72,7 +72,7 @@ class Command:
             data = rlp.decode(rlp_data, sedes=decoder, recursive_cache=True)
         except rlp.DecodingError as err:
             raise MalformedMessage(
-                f"Malformed {type(self).__name__} message: {err!r}"
+                "Malformed {} message: {}".format(type(self).__name__, repr(err))
             ) from err
 
         if isinstance(self.structure, sedes.CountableList):
@@ -86,7 +86,7 @@ class Command:
         packet_type = get_devp2p_cmd_id(data)
         if packet_type != self.cmd_id:
             raise MalformedMessage(
-                f"Wrong packet type: {packet_type}, expected {self.cmd_id}"
+                "Wrong packet type: {}, expected {}".format(packet_type, self.cmd_id)
             )
         return self.decode_payload(data[1:])
 
