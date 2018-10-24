@@ -11,7 +11,7 @@ PORT = 29000
 
 async def run_app(bootnode, listen_host, listen_port, max_peers, privkey):
     cmd = (
-        "python trinity_app.py "
+        "python trinity_discovery.py "
         "--bootnode={} "
         "--listen_host={} "
         "--listen_port={} "
