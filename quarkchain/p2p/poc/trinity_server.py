@@ -1,4 +1,5 @@
 import asyncio
+import numpy.random
 
 from abc import abstractmethod
 from typing import Sequence, Tuple
@@ -30,6 +31,8 @@ from quarkchain.p2p.peer import BasePeer, PeerConnection
 from quarkchain.p2p.service import BaseService
 from quarkchain.p2p.kademlia import Address, Node
 from quarkchain.p2p.nat import UPnPService
+
+from quarkchain.utils import Logger
 
 
 DIAL_IN_OUT_RATIO = 0.75
@@ -189,7 +192,7 @@ class BaseServer(BaseService):
             initiator_remote, self.privkey, got_eip8, self.cancel_token
         )
 
-        responder_nonce = secrets.token_bytes(HASH_LEN)
+        responder_nonce = numpy.random.bytes(HASH_LEN)
         auth_ack_msg = responder.create_auth_ack_message(responder_nonce)
         auth_ack_ciphertext = responder.encrypt_auth_ack_message(auth_ack_msg)
 
