@@ -388,7 +388,7 @@ class Shard:
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self):
-        miner_address = self.env.quark_chain_config.testnet_master_address.address_in_branch(
+        miner_address = self.env.quark_chain_config.miner_address.address_in_branch(
             Branch.create(self.__get_shard_size(), self.shard_id)
         )
 

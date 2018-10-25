@@ -195,7 +195,7 @@ def minor_block_encoder(block, include_transactions=False):
         "nonce": quantity_encoder(header.nonce),
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
-        "miner": address_encoder(meta.coinbase_address.serialize()),
+        "miner": address_encoder(header.coinbase_address.serialize()),
         "difficulty": quantity_encoder(header.difficulty),
         "extraData": data_encoder(header.extra_data),
         "gasLimit": quantity_encoder(header.evm_gas_limit),

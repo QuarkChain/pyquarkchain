@@ -1,5 +1,3 @@
-from typing import Optional
-
 from quarkchain.config import QuarkChainConfig
 from quarkchain.core import (
     Address,
@@ -43,8 +41,11 @@ class GenesisManager:
         Genesis state will be committed to the given evm_state.
         """
         branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
-        genesis = self._qkc_config.SHARD_LIST[shard_id].GENESIS
-        coinbase_address = Address.create_from(bytes.fromhex(genesis.COINBASE_ADDRESS))
+        shard_config = self._qkc_config.SHARD_LIST[shard_id]
+        genesis = shard_config.GENESIS
+        coinbase_address = Address.create_from(
+            bytes.fromhex(shard_config.COINBASE_ADDRESS)
+        )
         check(coinbase_address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
 
         for address_hex, amount_in_wei in genesis.ALLOC.items():
@@ -58,7 +59,6 @@ class GenesisManager:
         meta = MinorBlockMeta(
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
-            coinbase_address=coinbase_address,
         )
         header = MinorBlockHeader(
             version=genesis.VERSION,
@@ -68,7 +68,8 @@ class GenesisManager:
             hash_prev_root_block=root_block.header.get_hash(),
             evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
-            coinbase_amount=genesis.COINBASE_AMOUNT,
+            coinbase_address=coinbase_address,
+            coinbase_amount=shard_config.COINBASE_AMOUNT,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),
