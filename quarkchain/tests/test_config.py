@@ -194,7 +194,7 @@ class TestShardConfig(unittest.TestCase):
         }
     ],
     "MINER_ADDRESS": "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3",
-    "REWARD_TAX": 0.5
+    "REWARD_TAX_RATE": 0.5
 }"""
         print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)
