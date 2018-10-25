@@ -282,8 +282,6 @@ class Miner:
             ConsensusType.POW_ETHASH: Ethash,
             ConsensusType.POW_SHA3SHA3: DoubleSHA256,
         }
-        # TODO: maybe add rounds to config json
-        rounds = mining_params.get("rounds", 1000)
         progress = {}
         # outer loop for mining forever
         while True:
@@ -303,8 +301,10 @@ class Miner:
                     # get newer work and restart mining
                     work, mining_params = input_q.get(block=True)
                     continue
-            # inner loop for iterating nonce
+
             start_nonce = 0
+            rounds = mining_params.get("rounds", 100)
+            # inner loop for iterating nonce
             while True:
                 res = mining_algo.mine(start_nonce + 1, start_nonce + 1 + rounds)
                 if res:

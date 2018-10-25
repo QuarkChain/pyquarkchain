@@ -19,6 +19,8 @@ from quarkchain.config import ConsensusType
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
+cluster_host = "localhost"
+
 
 def get_work_rpc(
     shard: Optional[int], host: str = "localhost", jrpc_port: int = 38391, timeout=3
@@ -69,6 +71,7 @@ class ExternalMiner(threading.Thread):
         self.output_q = Queue()
 
     def run(self):
+        global cluster_host
         # header hash -> (work, shard)
         work_map = {}  # type: Dict[bytes, Tuple[MiningWork, Optional[int]]]
 
@@ -87,7 +90,7 @@ class ExternalMiner(threading.Thread):
                     time.sleep(total_wait_time / len(configs))
                     shard_id = config["shard_id"]
                     try:
-                        work = get_work_rpc(shard_id)
+                        work = get_work_rpc(shard_id, host=cluster_host)
                     except Exception as e:
                         # ignore network errors and try next one
                         print("Failed to get work", e)
@@ -105,6 +108,7 @@ class ExternalMiner(threading.Thread):
                     mining_params = {
                         "consensus_type": config["consensus_type"],
                         "shard": shard_id,
+                        "rounds": 100,
                     }
                     if mining_thread:
                         input_q.put((work, mining_params))
@@ -146,7 +150,7 @@ class ExternalMiner(threading.Thread):
             work, shard_id = work_map.pop(res.header_hash)
             while True:
                 try:
-                    success = submit_work_rpc(shard_id, res)
+                    success = submit_work_rpc(shard_id, res, host=cluster_host)
                     break
                 except Exception as e:
                     print("Failed to submit work, backing off...", e)
@@ -194,10 +198,17 @@ def main():
     parser.add_argument(
         "--worker", type=int, help="number of worker threads", default=1
     )
+    parser.add_argument(
+        "--host", type=str, help="host address of the cluster", default="localhost"
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
         config_json = json.load(f)
+
+    global cluster_host
+    if args.host:
+        cluster_host = args.host
 
     # 1 worker config <-> 1 mining thread <-> 1 or more shards
     worker_configs = [
