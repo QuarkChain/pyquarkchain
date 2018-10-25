@@ -214,7 +214,9 @@ class KBucket(Sized):
 
     def __lt__(self, other: "KBucket") -> bool:
         if not isinstance(other, self.__class__):
-            raise TypeError("Cannot compare KBucket with type {}".format(other.__class__))
+            raise TypeError(
+                "Cannot compare KBucket with type {}".format(other.__class__)
+            )
         return self.end < other.start
 
 
@@ -228,9 +230,9 @@ class RoutingTable(Sized):
         if count > len(self):
             if time.monotonic() - self._initialized_at > 30:
                 Logger.warning(
-                    "Cannot get %d nodes as RoutingTable contains only %d nodes",
-                    count,
-                    len(self),
+                    "Cannot get {} nodes as RoutingTable contains only {} nodes".format(
+                        count, len(self)
+                    )
                 )
             count = len(self)
         seen = []

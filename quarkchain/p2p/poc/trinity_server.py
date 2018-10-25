@@ -51,7 +51,7 @@ class BaseServer(BaseService):
         network_id: int,
         max_peers: int = DEFAULT_MAX_PEERS,
         bootstrap_nodes: Tuple[Node, ...] = None,
-        preferred_nodes: Sequence[Node] = None,
+        preferred_nodes: Sequence[Node] = [],
         use_discv5: bool = False,
         token: CancelToken = None,
     ) -> None:
@@ -130,7 +130,7 @@ class BaseServer(BaseService):
         # it as that means if it crashes we'd be terminated as well.
         self.run_child_service(self.upnp_service)
         self.syncer = self._make_syncer()
-        await self.syncer.run()
+        await self.cancel_token.wait()
 
     async def _cleanup(self) -> None:
         self.logger.info("Closing server...")
