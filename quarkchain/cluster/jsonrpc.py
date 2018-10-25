@@ -742,7 +742,7 @@ class JSONRPCServer:
         )
 
     @public_methods.add
-    async def estimateGas(self, **data):
+    async def estimateGas(self, data):
         return await self._call_or_estimate_gas(is_call=False, **data)
 
     @public_methods.add

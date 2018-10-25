@@ -408,9 +408,7 @@ class TestJSONRPC(unittest.TestCase):
 
             branch = Branch.create(2, 0)
             response = send_request(
-                "call",
-                {"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)},
-                "latest",
+                "call", [{"to": "0x" + acc1.serialize().hex(), "gas": hex(21000)}]
             )
 
             self.assertEqual(response, "0x")
@@ -737,7 +735,7 @@ class TestJSONRPC(unittest.TestCase):
             clusters[0].master
         ):
             response = send_request(
-                "estimateGas", {"to": "0x" + acc1.serialize().hex()}
+                "estimateGas", [{"to": "0x" + acc1.serialize().hex()}]
             )
             self.assertEqual(response, "0x5208")  # 21000
 
