@@ -74,7 +74,7 @@ def main():
     )
 
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+    # loop.set_debug(True)
 
     for sig in [signal.SIGINT, signal.SIGTERM]:
         loop.add_signal_handler(sig, cancel_token.trigger)

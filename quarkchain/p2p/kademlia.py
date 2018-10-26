@@ -229,10 +229,11 @@ class RoutingTable(Sized):
     def get_random_nodes(self, count: int) -> Iterator[Node]:
         if count > len(self):
             if time.monotonic() - self._initialized_at > 30:
-                Logger.warning(
+                Logger.warning_every_n(
                     "Cannot get {} nodes as RoutingTable contains only {} nodes".format(
                         count, len(self)
-                    )
+                    ),
+                    100,
                 )
             count = len(self)
         seen = []

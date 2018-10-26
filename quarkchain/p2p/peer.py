@@ -929,6 +929,14 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         Connect to the given remote and return a Peer instance when successful.
         Returns None if the remote is unreachable, times out or is useless.
         """
+        if remote.pubkey == self.privkey.public_key:
+            Logger.warning_every_n(
+                "Skipping {} that has the same public key as local node, quite possible we are trying to connect to ourselves".format(
+                    remote
+                ),
+                100,
+            )
+            return None
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
