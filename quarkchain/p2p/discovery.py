@@ -404,7 +404,10 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
                 if (not self.ping_callbacks.locked(n) and not self.pong_callbacks.locked(n))
             ))
             if not any(bonded):
-                self.logger.info("Failed to bond with bootstrap nodes %s", self.bootstrap_nodes)
+                self.logger.info(
+                    "Failed to bond with bootstrap nodes, we may be the first node, or the bootnodes are not up %s",
+                    self.bootstrap_nodes
+                )
                 return
             await self.lookup_random()
         except OperationCancelled as e:

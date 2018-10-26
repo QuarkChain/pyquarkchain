@@ -7,6 +7,7 @@ from .proto import ParagonProtocol
 class ParagonPeer(BasePeer):
     _supported_sub_protocols = [ParagonProtocol]
     sub_proto = None  # : ParagonProtocol
+    peer_idle_timeout = None  # do not timeout for connected paragon peers
 
     async def send_sub_proto_handshake(self) -> None:
         pass

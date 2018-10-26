@@ -143,6 +143,7 @@ class BasePeerContext:
 
 class BasePeer(BaseService):
     conn_idle_timeout = CONN_IDLE_TIMEOUT
+    peer_idle_timeout = CONN_IDLE_TIMEOUT  # override this for connected peer
     # Must be defined in subclasses. All items here must be Protocol classes representing
     # different versions of the same P2P sub-protocol (e.g. ETH, LES, etc).
     _supported_sub_protocols = []  # : List[Type[protocol.Protocol]]
@@ -268,12 +269,12 @@ class BasePeer(BaseService):
         Raises HandshakeFailure if the handshake is not successful.
         """
         await self.send_sub_proto_handshake()
-        cmd, msg = await self.read_msg()
+        cmd, msg = await self.read_msg(timeout=self.conn_idle_timeout)
         if isinstance(cmd, Ping):
             # Parity sends a Ping before the sub-proto handshake, so respond to that and read the
             # next one, which hopefully will be the actual handshake.
             self.base_protocol.send_pong()
-            cmd, msg = await self.read_msg()
+            cmd, msg = await self.read_msg(timeout=self.conn_idle_timeout)
         if isinstance(cmd, Disconnect):
             msg = cast(Dict[str, Any], msg)
             # Peers sometimes send a disconnect msg before they send the sub-proto handshake.
@@ -293,7 +294,7 @@ class BasePeer(BaseService):
         self.base_protocol.send_handshake()
 
         try:
-            cmd, msg = await self.read_msg()
+            cmd, msg = await self.read_msg(timeout=self.conn_idle_timeout)
         except rlp.DecodingError:
             raise HandshakeFailure("Got invalid rlp data during handshake")
         except MalformedMessage as e:
@@ -326,12 +327,10 @@ class BasePeer(BaseService):
                 "No protocol found for cmd_id {}".format(cmd_id)
             )
 
-    async def read(self, n: int) -> bytes:
+    async def read(self, n: int, timeout: int) -> bytes:
         self.logger.debug("Waiting for %s bytes from %s", n, self.remote)
         try:
-            return await self.wait(
-                self.reader.readexactly(n), timeout=self.conn_idle_timeout
-            )
+            return await self.wait(self.reader.readexactly(n), timeout=timeout)
         except (
             asyncio.IncompleteReadError,
             ConnectionResetError,
@@ -365,7 +364,7 @@ class BasePeer(BaseService):
         self.run_child_service(self.boot_manager)
         while self.is_operational:
             try:
-                cmd, msg = await self.read_msg()
+                cmd, msg = await self.read_msg(timeout=self.peer_idle_timeout)
             except (PeerConnectionLost, TimeoutError) as err:
                 self.logger.debug(
                     "%s stopped responding (%r), disconnecting", self.remote, err
@@ -389,14 +388,14 @@ class BasePeer(BaseService):
                 self.logger.debug("%r disconnected: %s", self, e)
                 return
 
-    async def read_msg(self) -> Tuple[protocol.Command, protocol.PayloadType]:
-        header_data = await self.read(HEADER_LEN + MAC_LEN)
+    async def read_msg(self, timeout) -> Tuple[protocol.Command, protocol.PayloadType]:
+        header_data = await self.read(HEADER_LEN + MAC_LEN, timeout=timeout)
         header = self.decrypt_header(header_data)
         frame_size = self.get_frame_size(header)
         # The frame_size specified in the header does not include the padding to 16-byte boundary,
         # so need to do this here to ensure we read all the frame's data.
         read_size = roundup_16(frame_size)
-        frame_data = await self.read(read_size + MAC_LEN)
+        frame_data = await self.read(read_size + MAC_LEN, timeout=timeout)
         msg = self.decrypt_body(frame_data, frame_size)
         cmd = self.get_protocol_command_for(msg)
         # NOTE: This used to be a bottleneck but it doesn't seem to be so anymore. If we notice
