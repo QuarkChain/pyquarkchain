@@ -858,12 +858,16 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("from_address", address_decoder)
     @decode_arg("to_address", address_decoder)
-    async def donate(self, from_address, to_address):
-        """Faucet function to send 1 token from from_address to to_address.
+    @decode_arg("value", quantity_decoder)
+    async def donate(self, from_address, to_address, value=hex(10 ** 18)):
+        """Faucet function to send value (default 1 token) from from_address to to_address.
         from_address must be one of the addresses in genesis_data/alloc.json.
         Only allow one pending tx at a time.
         Return tx id if success else None
         """
+        if value > 100 * (10 ** 18):
+            return None
+
         key = self.master.env.quark_chain_config.alloc_accounts.get(
             from_address.hex(), None
         )
@@ -890,7 +894,7 @@ class JSONRPCServer:
             10 ** 9,
             30000,
             to_address.recipient,
-            1 * (10 ** 18),
+            value,
             b"",
             from_full_shard_id=from_address.full_shard_id,
             to_full_shard_id=to_address.full_shard_id,
