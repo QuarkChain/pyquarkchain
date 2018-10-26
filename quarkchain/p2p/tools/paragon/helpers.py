@@ -74,6 +74,7 @@ async def get_directly_linked_peers_without_handshake(
             privkey=ecies.generate_privkey(),
             context=ParagonContext(),
             token=cancel_token,
+            listen_port=30303,
         )
 
     if bob_factory is None:
@@ -81,6 +82,7 @@ async def get_directly_linked_peers_without_handshake(
             privkey=ecies.generate_privkey(),
             context=ParagonContext(),
             token=cancel_token,
+            listen_port=30303,
         )
 
     alice_private_key = alice_factory.privkey

@@ -136,6 +136,7 @@ class BaseService(ABC, CancellableMixin):
                 self.logger.debug("Task %s finished with no errors" % awaitable)
 
         self._tasks.add(asyncio.ensure_future(_run_task_wrapper()))
+        self.gc()
 
     def run_daemon_task(self, awaitable: Awaitable[Any]) -> None:
         """Run the given awaitable in the background.
