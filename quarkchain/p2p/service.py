@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import asyncio
 import functools
 import logging
+import traceback
 from typing import Any, Awaitable, Callable, List, Optional, cast
 from weakref import WeakSet
 
@@ -128,7 +129,9 @@ class BaseService(ABC, CancellableMixin):
                 self.logger.warning(
                     "Task %s finished unexpectedly: %s" % (awaitable, e)
                 )
-                self.logger.debug("Task failure traceback")
+                self.logger.debug(
+                    "Task failure traceback: {}".format(traceback.format_exc())
+                )
             else:
                 self.logger.debug("Task %s finished with no errors" % awaitable)
 
@@ -206,7 +209,11 @@ class BaseService(ABC, CancellableMixin):
                 self.logger.warning(
                     "Daemon Service %s finished unexpectedly: %s" % (service, e)
                 )
-                self.logger.debug("Daemon Service failure traceback")
+                self.logger.debug(
+                    "Daemon Service failure traceback: {}".format(
+                        traceback.format_exc()
+                    )
+                )
             finally:
                 if not self.is_cancelled:
                     self.logger.debug(

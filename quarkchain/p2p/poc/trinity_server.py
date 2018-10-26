@@ -54,6 +54,7 @@ class BaseServer(BaseService):
         preferred_nodes: Sequence[Node] = [],
         use_discv5: bool = False,
         token: CancelToken = None,
+        upnp: bool = False,
     ) -> None:
         super().__init__(token)
         self.privkey = privkey
@@ -63,7 +64,9 @@ class BaseServer(BaseService):
         self.bootstrap_nodes = bootstrap_nodes
         self.preferred_nodes = preferred_nodes
         self.use_discv5 = use_discv5
-        self.upnp_service = UPnPService(port, token=self.cancel_token)
+        self.upnp_service = None
+        if upnp:
+            self.upnp_service = UPnPService(port, token=self.cancel_token)
         self.peer_pool = self._make_peer_pool()
 
         if not bootstrap_nodes:
@@ -90,11 +93,10 @@ class BaseServer(BaseService):
 
     async def _run(self) -> None:
         self.logger.info("Running server...")
-        mapped_external_ip = await self.upnp_service.add_nat_portmap()
-        if mapped_external_ip is None:
-            external_ip = "0.0.0.0"
-        else:
-            external_ip = mapped_external_ip
+        mapped_external_ip = None
+        if self.upnp_service:
+            mapped_external_ip = await self.upnp_service.add_nat_portmap()
+        external_ip = mapped_external_ip or "0.0.0.0"
         await self._start_tcp_listener()
         self.logger.info(
             "enode://%s@%s:%s",
@@ -126,9 +128,10 @@ class BaseServer(BaseService):
         )
         self.run_daemon(self.peer_pool)
         self.run_daemon(self.discovery)
-        # UPNP service is still experimental and not essential, so we don't use run_daemon() for
-        # it as that means if it crashes we'd be terminated as well.
-        self.run_child_service(self.upnp_service)
+        if self.upnp_service:
+            # UPNP service is still experimental and not essential, so we don't use run_daemon() for
+            # it as that means if it crashes we'd be terminated as well.
+            self.run_child_service(self.upnp_service)
         self.syncer = self._make_syncer()
         await self.cancel_token.wait()
 

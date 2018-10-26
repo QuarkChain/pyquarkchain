@@ -981,7 +981,8 @@ class DiscoveryService(BaseService):
             self.logger.debug("Already connected to %s peers; sleeping", len(self.peer_pool))
             return
 
-        self.run_task(self.maybe_lookup_random_node())
+        if self._last_lookup + self._lookup_interval < time.time():
+            self.run_task(self.maybe_lookup_random_node())
 
         await self.peer_pool.connect_to_nodes(
             self.proto.get_nodes_to_connect(self.peer_pool.max_peers))
