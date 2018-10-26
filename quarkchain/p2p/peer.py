@@ -819,6 +819,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             # self.run_task(self.handle_peer_count_requests())
             pass
         self.listen_port = listen_port
+        self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
 
     # async def handle_peer_count_requests(self) -> None:
     #     async def f() -> None:
@@ -978,6 +979,17 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             )
         return None
 
+    @contextlib.contextmanager
+    def dialout_registry(self, pubkey: datatypes.PublicKey) -> Iterator[None]:
+        """
+        register all dialed out connections to prevent double connection
+        """
+        self.dialedout_pubkeys.add(pubkey)
+        try:
+            yield
+        finally:
+            self.dialedout_pubkeys.remove(pubkey)
+
     async def connect_to_nodes(self, nodes: Iterator[Node]) -> None:
         for node in nodes:
             if self.is_full:
@@ -986,9 +998,10 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             # TODO: Consider changing connect() to raise an exception instead of returning None,
             # as discussed in
             # https://github.com/ethereum/py-evm/pull/139#discussion_r152067425
-            peer = await self.connect(node)
-            if peer is not None:
-                await self.start_peer(peer)
+            with self.dialout_registry(node.pubkey):
+                peer = await self.connect(node)
+                if peer is not None:
+                    await self.start_peer(peer)
 
     def _peer_finished(self, peer: BaseService) -> None:
         """Remove the given peer from our list of connected nodes.

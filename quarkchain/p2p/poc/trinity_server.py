@@ -225,6 +225,14 @@ class BaseServer(BaseService):
             remote=initiator_remote, connection=connection, inbound=True
         )
 
+        if (
+            peer.remote in self.peer_pool.connected_nodes
+            or peer.remote.pubkey in self.peer_pool.dialedout_pubkeys
+        ):
+            self.logger.debug("already connected or dialed, disconnecting...")
+            await peer.disconnect(DisconnectReason.already_connected)
+            return
+
         if self.peer_pool.is_full:
             await peer.disconnect(DisconnectReason.too_many_peers)
             return
