@@ -795,6 +795,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
 
     _report_interval = 60
     _peer_boot_timeout = DEFAULT_PEER_BOOT_TIMEOUT
+    _fill_pool_ratio = 0.65 # only proactively fill peer pool to _fill_pool_ratio*max_peers
 
     def __init__(
         self,
@@ -852,6 +853,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
     @property
     def is_full(self) -> bool:
         return len(self) >= self.max_peers
+
+    def should_stop_filling(self) -> bool:
+        return len(self) >= self.max_peers * self._fill_pool_ratio
 
     def is_valid_connection_candidate(self, candidate: Node) -> bool:
         # connect to no more then 2 nodes with the same IP
