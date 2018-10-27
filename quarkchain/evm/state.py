@@ -1,9 +1,19 @@
 # Modified based on pyethereum under MIT license
 import rlp
-from quarkchain.evm.utils import hash32, trie_root, \
-    big_endian_int, encode_hex, \
-    big_endian_to_int, parse_as_bin, parse_as_int, \
-    decode_hex, sha3, is_string, is_numeric, BigEndianInt
+from quarkchain.evm.utils import (
+    hash32,
+    trie_root,
+    big_endian_int,
+    encode_hex,
+    big_endian_to_int,
+    parse_as_bin,
+    parse_as_int,
+    decode_hex,
+    sha3,
+    is_string,
+    is_numeric,
+    BigEndianInt,
+)
 from quarkchain.evm import utils
 from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
@@ -14,17 +24,17 @@ from quarkchain.evm.common import FakeHeader
 import copy
 
 
-BLANK_HASH = utils.sha3(b'')
-BLANK_ROOT = utils.sha3rlp(b'')
+BLANK_HASH = utils.sha3(b"")
+BLANK_ROOT = utils.sha3rlp(b"")
 
-THREE = b'\x00' * 19 + b'\x03'
+THREE = b"\x00" * 19 + b"\x03"
 
 
 def snapshot_form(val):
     if is_numeric(val):
         return str(val)
     elif is_string(val):
-        return '0x' + encode_hex(val)
+        return "0x" + encode_hex(val)
 
 
 STATE_DEFAULTS = {
@@ -33,7 +43,7 @@ STATE_DEFAULTS = {
     "xshard_receive_gas_used": 0,
     "gas_limit": 3141592,
     "block_number": 0,
-    "block_coinbase": b'\x00' * 20,
+    "block_coinbase": b"\x00" * 20,
     "block_difficulty": 1,
     "block_fee": 0,
     "timestamp": 0,
@@ -51,17 +61,18 @@ STATE_DEFAULTS = {
 
 class _Account(rlp.Serializable):
     fields = [
-        ('nonce', big_endian_int),
-        ('balance', big_endian_int),
-        ('storage', trie_root),
-        ('code_hash', hash32),
-        ('full_shard_id', BigEndianInt(4)),
+        ("nonce", big_endian_int),
+        ("balance", big_endian_int),
+        ("storage", trie_root),
+        ("code_hash", hash32),
+        ("full_shard_id", BigEndianInt(4)),
     ]
 
 
 class Account(rlp.Serializable):
-
-    def __init__(self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None):
+    def __init__(
+        self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None
+    ):
         self.db = env.db if db is None else db
         assert isinstance(db, Db)
         self.env = env
@@ -107,7 +118,8 @@ class Account(rlp.Serializable):
         if key not in self.storage_cache:
             v = self.storage_trie.get(utils.encode_int32(key))
             self.storage_cache[key] = utils.big_endian_to_int(
-                rlp.decode(v) if v else b'')
+                rlp.decode(v) if v else b""
+            )
         return self.storage_cache[key]
 
     def set_storage_data(self, key, value):
@@ -117,8 +129,17 @@ class Account(rlp.Serializable):
     def blank_account(cls, env, address, full_shard_id, initial_nonce=0, db=None):
         if db is None:
             db = env.db
-        db.put(BLANK_HASH, b'')
-        o = cls(initial_nonce, 0, trie.BLANK_ROOT, BLANK_HASH, full_shard_id, env, address, db=db)
+        db.put(BLANK_HASH, b"")
+        o = cls(
+            initial_nonce,
+            0,
+            trie.BLANK_ROOT,
+            BLANK_HASH,
+            full_shard_id,
+            env,
+            address,
+            db=db,
+        )
         o.existent_at_start = False
         return o
 
@@ -128,23 +149,31 @@ class Account(rlp.Serializable):
     @property
     def exists(self):
         if self.is_blank():
-            return self.touched or (
-                self.existent_at_start and not self.deleted)
+            return self.touched or (self.existent_at_start and not self.deleted)
         return True
 
     def to_dict(self):
         odict = self.storage_trie.to_dict()
         for k, v in self.storage_cache.items():
             odict[utils.encode_int(k)] = rlp.encode(utils.encode_int(v))
-        return {'balance': str(self.balance), 'nonce': str(self.nonce), 'code': '0x' + encode_hex(self.code),
-                'storage': {'0x' + encode_hex(key.lstrip(b'\x00') or b'\x00'):
-                            '0x' + encode_hex(rlp.decode(val)) for key, val in odict.items()}}
+        return {
+            "balance": str(self.balance),
+            "nonce": str(self.nonce),
+            "code": "0x" + encode_hex(self.code),
+            "storage": {
+                "0x"
+                + encode_hex(key.lstrip(b"\x00") or b"\x00"): "0x"
+                + encode_hex(rlp.decode(val))
+                for key, val in odict.items()
+            },
+        }
 
 
 # from ethereum.state import State
 class State:
-
-    def __init__(self, root=BLANK_ROOT, env=Env(), executing_on_head=False, db=None, **kwargs):
+    def __init__(
+        self, root=BLANK_ROOT, env=Env(), executing_on_head=False, db=None, **kwargs
+    ):
         if db is None:
             db = env.db
         self.env = env
@@ -169,9 +198,13 @@ class State:
 
     def get_block_hash(self, n):
         if self.block_number < n or n > 256 or n < 0:
-            o = b'\x00' * 32
+            o = b"\x00" * 32
         else:
-            o = self.prev_headers[n].get_hash() if self.prev_headers[n] else b'\x00' * 32
+            o = (
+                self.prev_headers[n].get_hash()
+                if self.prev_headers[n]
+                else b"\x00" * 32
+            )
         return o
 
     def add_block_header(self, block_header):
@@ -182,9 +215,9 @@ class State:
             return self.cache[address]
         if self.executing_on_head and False:
             try:
-                rlpdata = self.db[b'address:' + address]
+                rlpdata = self.db[b"address:" + address]
             except KeyError:
-                rlpdata = b''
+                rlpdata = b""
         else:
             rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
@@ -201,27 +234,30 @@ class State:
             )
         else:
             o = Account.blank_account(
-                self.env, address, self.full_shard_id, self.config['ACCOUNT_INITIAL_NONCE'], db=self.db)
+                self.env,
+                address,
+                self.full_shard_id,
+                self.config["ACCOUNT_INITIAL_NONCE"],
+                db=self.db,
+            )
         self.cache[address] = o
         o._mutable = True
         o._cached_rlp = None
         return o
 
     def get_balance(self, address):
-        return self.get_and_cache_account(
-            utils.normalize_address(address)).balance
+        return self.get_and_cache_account(utils.normalize_address(address)).balance
 
     def get_code(self, address):
-        return self.get_and_cache_account(
-            utils.normalize_address(address)).code
+        return self.get_and_cache_account(utils.normalize_address(address)).code
 
     def get_nonce(self, address):
-        return self.get_and_cache_account(
-            utils.normalize_address(address)).nonce
+        return self.get_and_cache_account(utils.normalize_address(address)).nonce
 
     def get_full_shard_id(self, address):
         return self.get_and_cache_account(
-            utils.normalize_address(address)).full_shard_id
+            utils.normalize_address(address)
+        ).full_shard_id
 
     def set_and_journal(self, acct, param, val):
         # self.journal.append((acct, param, getattr(acct, param)))
@@ -231,44 +267,45 @@ class State:
 
     def set_balance(self, address, value):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        self.set_and_journal(acct, 'balance', value)
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "balance", value)
+        self.set_and_journal(acct, "touched", True)
 
     def set_code(self, address, value):
         # assert is_string(value)
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        self.set_and_journal(acct, 'code', value)
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "code", value)
+        self.set_and_journal(acct, "touched", True)
 
     def set_nonce(self, address, value):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        self.set_and_journal(acct, 'nonce', value)
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "nonce", value)
+        self.set_and_journal(acct, "touched", True)
 
     def delta_balance(self, address, value):
         address = utils.normalize_address(address)
         acct = self.get_and_cache_account(address)
         newbal = acct.balance + value
-        self.set_and_journal(acct, 'balance', newbal)
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "balance", newbal)
+        self.set_and_journal(acct, "touched", True)
 
     def increment_nonce(self, address):
         address = utils.normalize_address(address)
         acct = self.get_and_cache_account(address)
         newnonce = acct.nonce + 1
-        self.set_and_journal(acct, 'nonce', newnonce)
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "nonce", newnonce)
+        self.set_and_journal(acct, "touched", True)
 
     def get_storage_data(self, address, key):
         return self.get_and_cache_account(
-            utils.normalize_address(address)).get_storage_data(key)
+            utils.normalize_address(address)
+        ).get_storage_data(key)
 
     def set_storage_data(self, address, key, value):
         acct = self.get_and_cache_account(utils.normalize_address(address))
         preval = acct.get_storage_data(key)
         acct.set_storage_data(key, value)
         self.journal.append(lambda: acct.set_storage_data(key, preval))
-        self.set_and_journal(acct, 'touched', True)
+        self.set_and_journal(acct, "touched", True)
 
     def add_suicide(self, address):
         self.suicides.append(address)
@@ -290,8 +327,11 @@ class State:
         self.journal.append(lambda: setattr(self.refunds, preval))
 
     def snapshot(self):
-        return (self.trie.root_hash, len(self.journal), {
-                k: copy.copy(getattr(self, k)) for k in STATE_DEFAULTS})
+        return (
+            self.trie.root_hash,
+            len(self.journal),
+            {k: copy.copy(getattr(self, k)) for k in STATE_DEFAULTS},
+        )
 
     def revert(self, snapshot):
         h, L, auxvars = snapshot
@@ -309,7 +349,9 @@ class State:
             self.cache = {}
         for k in STATE_DEFAULTS:
             setattr(self, k, copy.copy(auxvars[k]))
-        if three_touched and 2675000 < self.block_number < 2675200:  # Compatibility with weird geth+parity bug
+        if (
+            three_touched and 2675000 < self.block_number < 2675200
+        ):  # Compatibility with weird geth+parity bug
             self.delta_balance(THREE, 0)
 
     def set_param(self, k, v):
@@ -319,50 +361,51 @@ class State:
 
     def is_SERENITY(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['SERENITY_FORK_BLKNUM']
+            return self.block_number == self.config["SERENITY_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['SERENITY_FORK_BLKNUM']
+            return self.block_number >= self.config["SERENITY_FORK_BLKNUM"]
 
     def is_HOMESTEAD(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['HOMESTEAD_FORK_BLKNUM']
+            return self.block_number == self.config["HOMESTEAD_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['HOMESTEAD_FORK_BLKNUM']
+            return self.block_number >= self.config["HOMESTEAD_FORK_BLKNUM"]
 
     def is_METROPOLIS(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['METROPOLIS_FORK_BLKNUM']
+            return self.block_number == self.config["METROPOLIS_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['METROPOLIS_FORK_BLKNUM']
+            return self.block_number >= self.config["METROPOLIS_FORK_BLKNUM"]
 
     def is_CONSTANTINOPLE(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['CONSTANTINOPLE_FORK_BLKNUM']
+            return self.block_number == self.config["CONSTANTINOPLE_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['CONSTANTINOPLE_FORK_BLKNUM']
+            return self.block_number >= self.config["CONSTANTINOPLE_FORK_BLKNUM"]
 
     def is_ANTI_DOS(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['ANTI_DOS_FORK_BLKNUM']
+            return self.block_number == self.config["ANTI_DOS_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['ANTI_DOS_FORK_BLKNUM']
+            return self.block_number >= self.config["ANTI_DOS_FORK_BLKNUM"]
 
     def is_SPURIOUS_DRAGON(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['SPURIOUS_DRAGON_FORK_BLKNUM']
+            return self.block_number == self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['SPURIOUS_DRAGON_FORK_BLKNUM']
+            return self.block_number >= self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
 
     def is_DAO(self, at_fork_height=False):
         if at_fork_height:
-            return self.block_number == self.config['DAO_FORK_BLKNUM']
+            return self.block_number == self.config["DAO_FORK_BLKNUM"]
         else:
-            return self.block_number >= self.config['DAO_FORK_BLKNUM']
+            return self.block_number >= self.config["DAO_FORK_BLKNUM"]
 
     def account_exists(self, address):
         if self.is_SPURIOUS_DRAGON():
             o = not self.get_and_cache_account(
-                utils.normalize_address(address)).is_blank()
+                utils.normalize_address(address)
+            ).is_blank()
         else:
             a = self.get_and_cache_account(address)
             if a.deleted and not a.touched:
@@ -389,8 +432,7 @@ class State:
         return False
 
     def account_to_dict(self, address):
-        return self.get_and_cache_account(
-            utils.normalize_address(address)).to_dict()
+        return self.get_and_cache_account(utils.normalize_address(address)).to_dict()
 
     def commit(self, allow_empties=False):
         for addr, acct in self.cache.items():
@@ -399,15 +441,21 @@ class State:
                 self.deletes.extend(acct.storage_trie.deletes)
                 self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
-                    _acct = _Account(acct.nonce, acct.balance, acct.storage, acct.code_hash, acct.full_shard_id)
+                    _acct = _Account(
+                        acct.nonce,
+                        acct.balance,
+                        acct.storage,
+                        acct.code_hash,
+                        acct.full_shard_id,
+                    )
                     self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:
-                        self.db.put(b'address:' + addr, rlp.encode(_acct))
+                        self.db.put(b"address:" + addr, rlp.encode(_acct))
                 else:
                     self.trie.delete(addr)
                     if self.executing_on_head:
                         try:
-                            self.db.remove(b'address:' + addr)
+                            self.db.remove(b"address:" + addr)
                         except KeyError:
                             pass
         self.deletes.extend(self.trie.deletes)
@@ -418,37 +466,32 @@ class State:
     def to_dict(self):
         for addr in self.trie.to_dict().keys():
             self.get_and_cache_account(addr)
-        return {encode_hex(addr): acct.to_dict()
-                for addr, acct in self.cache.items()}
+        return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
 
     def del_account(self, address):
         self.set_balance(address, 0)
         self.set_nonce(address, 0)
-        self.set_code(address, b'')
+        self.set_code(address, b"")
         self.reset_storage(address)
         self.set_and_journal(
-            self.get_and_cache_account(
-                utils.normalize_address(address)),
-            'deleted',
-            True)
+            self.get_and_cache_account(utils.normalize_address(address)),
+            "deleted",
+            True,
+        )
         self.set_and_journal(
-            self.get_and_cache_account(
-                utils.normalize_address(address)),
-            'touched',
-            False)
+            self.get_and_cache_account(utils.normalize_address(address)),
+            "touched",
+            False,
+        )
         # self.set_and_journal(self.get_and_cache_account(utils.normalize_address(address)), 'existent_at_start', False)
 
     def reset_storage(self, address):
         acct = self.get_and_cache_account(address)
         pre_cache = acct.storage_cache
         acct.storage_cache = {}
-        self.journal.append(lambda: setattr(acct, 'storage_cache', pre_cache))
+        self.journal.append(lambda: setattr(acct, "storage_cache", pre_cache))
         pre_root = acct.storage_trie.root_hash
-        self.journal.append(
-            lambda: setattr(
-                acct.storage_trie,
-                'root_hash',
-                pre_root))
+        self.journal.append(lambda: setattr(acct.storage_trie, "root_hash", pre_root))
         acct.storage_trie.root_hash = BLANK_ROOT
 
     # Creates a snapshot from a state
@@ -457,7 +500,7 @@ class State:
         if root_only:
             # Smaller snapshot format that only includes the state root
             # (requires original DB to re-initialize)
-            snapshot["state_root"] = '0x' + encode_hex(self.trie.root_hash)
+            snapshot["state_root"] = "0x" + encode_hex(self.trie.root_hash)
         else:
             # "Full" snapshot
             snapshot["alloc"] = self.to_dict()
@@ -468,13 +511,17 @@ class State:
             if is_numeric(default):
                 snapshot[k] = str(v)
             elif isinstance(default, (str, bytes)):
-                snapshot[k] = '0x' + encode_hex(v)
-            elif k == 'prev_headers' and not no_prevblocks:
-                snapshot[k] = [prev_header_to_dict(
-                    h) for h in v[:self.config['PREV_HEADER_DEPTH']]]
-            elif k == 'recent_uncles' and not no_prevblocks:
-                snapshot[k] = {str(n): ['0x' + encode_hex(h)
-                                        for h in headers] for n, headers in v.items()}
+                snapshot[k] = "0x" + encode_hex(v)
+            elif k == "prev_headers" and not no_prevblocks:
+                snapshot[k] = [
+                    prev_header_to_dict(h)
+                    for h in v[: self.config["PREV_HEADER_DEPTH"]]
+                ]
+            elif k == "recent_uncles" and not no_prevblocks:
+                snapshot[k] = {
+                    str(n): ["0x" + encode_hex(h) for h in headers]
+                    for n, headers in v.items()
+                }
         return snapshot
 
     # Creates a state from a snapshot
@@ -486,41 +533,39 @@ class State:
                 if len(addr) == 40:
                     addr = decode_hex(addr)
                 assert len(addr) == 20
-                if 'wei' in data:
-                    state.set_balance(addr, parse_as_int(data['wei']))
-                if 'balance' in data:
-                    state.set_balance(addr, parse_as_int(data['balance']))
-                if 'code' in data:
-                    state.set_code(addr, parse_as_bin(data['code']))
-                if 'nonce' in data:
-                    state.set_nonce(addr, parse_as_int(data['nonce']))
-                if 'storage' in data:
-                    for k, v in data['storage'].items():
+                if "wei" in data:
+                    state.set_balance(addr, parse_as_int(data["wei"]))
+                if "balance" in data:
+                    state.set_balance(addr, parse_as_int(data["balance"]))
+                if "code" in data:
+                    state.set_code(addr, parse_as_bin(data["code"]))
+                if "nonce" in data:
+                    state.set_nonce(addr, parse_as_int(data["nonce"]))
+                if "storage" in data:
+                    for k, v in data["storage"].items():
                         state.set_storage_data(
                             addr,
                             big_endian_to_int(parse_as_bin(k)),
-                            big_endian_to_int(parse_as_bin(v)))
+                            big_endian_to_int(parse_as_bin(v)),
+                        )
         elif "state_root" in snapshot_data:
             state.trie.root_hash = parse_as_bin(snapshot_data["state_root"])
         else:
-            raise Exception(
-                "Must specify either alloc or state root parameter")
+            raise Exception("Must specify either alloc or state root parameter")
         for k, default in STATE_DEFAULTS.items():
             default = copy.copy(default)
             v = snapshot_data[k] if k in snapshot_data else None
             if is_numeric(default):
-                setattr(state, k, parse_as_int(v)
-                        if k in snapshot_data else default)
+                setattr(state, k, parse_as_int(v) if k in snapshot_data else default)
             elif is_string(default):
-                setattr(state, k, parse_as_bin(v)
-                        if k in snapshot_data else default)
-            elif k == 'prev_headers':
+                setattr(state, k, parse_as_bin(v) if k in snapshot_data else default)
+            elif k == "prev_headers":
                 if k in snapshot_data:
                     headers = [dict_to_prev_header(h) for h in v]
                 else:
                     headers = default
                 setattr(state, k, headers)
-            elif k == 'recent_uncles':
+            elif k == "recent_uncles":
                 if k in snapshot_data:
                     uncles = {}
                     for height, _uncles in v.items():
@@ -553,13 +598,13 @@ class State:
 
 def prev_header_to_dict(h):
     return {
-        "hash": '0x' + encode_hex(h.hash),
+        "hash": "0x" + encode_hex(h.hash),
         "number": str(h.number),
         "timestamp": str(h.timestamp),
         "difficulty": str(h.difficulty),
         "gas_used": str(h.gas_used),
         "gas_limit": str(h.gas_limit),
-        "uncles_hash": '0x' + encode_hex(h.uncles_hash)
+        "uncles_hash": "0x" + encode_hex(h.uncles_hash),
     }
 
 
@@ -567,10 +612,14 @@ BLANK_UNCLES_HASH = sha3(rlp.encode([]))
 
 
 def dict_to_prev_header(h):
-    return FakeHeader(hash=parse_as_bin(h['hash']),
-                      number=parse_as_int(h['number']),
-                      timestamp=parse_as_int(h['timestamp']),
-                      difficulty=parse_as_int(h['difficulty']),
-                      gas_used=parse_as_int(h.get('gas_used', '0')),
-                      gas_limit=parse_as_int(h['gas_limit']),
-                      uncles_hash=parse_as_bin(h.get('uncles_hash', '0x' + encode_hex(BLANK_UNCLES_HASH))))
+    return FakeHeader(
+        hash=parse_as_bin(h["hash"]),
+        number=parse_as_int(h["number"]),
+        timestamp=parse_as_int(h["timestamp"]),
+        difficulty=parse_as_int(h["difficulty"]),
+        gas_used=parse_as_int(h.get("gas_used", "0")),
+        gas_limit=parse_as_int(h["gas_limit"]),
+        uncles_hash=parse_as_bin(
+            h.get("uncles_hash", "0x" + encode_hex(BLANK_UNCLES_HASH))
+        ),
+    )
