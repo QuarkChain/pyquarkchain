@@ -36,6 +36,7 @@ from quarkchain.utils import Logger
 
 
 DIAL_IN_OUT_RATIO = 0.75
+NO_SAME_IP = False
 
 
 class BaseServer(BaseService):
@@ -236,7 +237,7 @@ class BaseServer(BaseService):
         if self.peer_pool.is_full:
             await peer.disconnect(DisconnectReason.too_many_peers)
             return
-        elif not self.peer_pool.is_valid_connection_candidate(peer.remote):
+        elif NO_SAME_IP and not self.peer_pool.is_valid_connection_candidate(peer.remote):
             await peer.disconnect(DisconnectReason.useless_peer)
             return
 

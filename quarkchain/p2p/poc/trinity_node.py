@@ -1,3 +1,13 @@
+"""
+Example runs:
+
+# run bootnode, this will fire up both UDP(discovery) and TCP(P2P) server
+# note the default private key is correct key for bootnode
+python trinity_node.py --logging_level=debug
+
+# run a different node on a new port, note we need to leave private key empty to automatically generate a new one
+python trinity_node.py --privkey="" --listen_port=29001 --logging_level=debug
+"""
 import argparse
 import asyncio
 from eth_keys import keys

@@ -980,7 +980,7 @@ class DiscoveryService(BaseService):
 
     async def maybe_connect_to_more_peers(self) -> None:
         """Connect to more peers if we're not yet maxed out to max_peers"""
-        if self.peer_pool.is_full:
+        if self.peer_pool.is_full or self.peer_pool.should_stop_filling():
             self.logger.debug("Already connected to %s peers; sleeping", len(self.peer_pool))
             return
 
