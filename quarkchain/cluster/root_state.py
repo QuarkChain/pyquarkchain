@@ -210,7 +210,7 @@ class RootState:
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-        return block.finalize(quarkash=coinbase_amount, coinbase_address=address)
+        return block.finalize(coinbase_amount=coinbase_amount, coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.

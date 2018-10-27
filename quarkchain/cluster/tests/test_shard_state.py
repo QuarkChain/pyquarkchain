@@ -6,6 +6,7 @@ from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
 )
+from quarkchain.config import QUARKSH_TO_JIAOZI
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
@@ -572,7 +573,7 @@ class TestShardState(unittest.TestCase):
         )
         self.assertEqual(
             state.get_balance(id1.recipient),
-            10000000 - 888888 - opcodes.GTXCOST - opcodes.GTXXSHARDCOST,
+            10000000 - 888888 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
         )
         # Make sure the xshard gas is not used by local block
         self.assertEqual(
@@ -752,8 +753,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.get_balance(acc3.recipient), 0)
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, 0)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
     def test_xshard_for_two_root_blocks(self):
         id1 = Identity.create_random_identity()
@@ -854,7 +855,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(b5.header.hash_prev_root_block, root_block0.header.get_hash())
         b6 = state0.create_block_to_mine(address=acc3, gas_limit=opcodes.GTXXSHARDCOST)
         self.assertEqual(b6.header.hash_prev_root_block, root_block0.header.get_hash())
-        # There are two x-shard txs: one is root block coinbase with zero gas, and anonther is from shard 1
+        # There are two x-shard txs: one is root block coinbase with zero gas, and another is from shard 1
         b7 = state0.create_block_to_mine(
             address=acc3, gas_limit=2 * opcodes.GTXXSHARDCOST
         )
@@ -1181,8 +1182,11 @@ class TestShardState(unittest.TestCase):
         # Should succeed
         state.finalize_and_add_block(b1)
         b1.finalize(evm_state=state.run_block(b1))
-        b1.meta.hash_evm_receipt_root = b"00" * 32
-        self.assertRaises(ValueError, state.add_block(b1))
+        b1.meta.hash_evm_receipt_root = bytes(32)
+        # low-level db operation to clear existing records
+        del state.db.m_header_pool[b1.header.get_hash()]
+        with self.assertRaises(ValueError):
+            state.add_block(b1)
 
     def test_not_update_tip_on_root_fork(self):
         """ block's hash_prev_root_block must be on the same chain with root_tip to update tip.

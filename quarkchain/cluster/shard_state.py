@@ -143,7 +143,9 @@ class ShardState:
         )
 
     def __create_evm_state(self):
-        return EvmState(env=self.env.evm_env, db=self.raw_db)
+        return EvmState(
+            env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
+        )
 
     def init_genesis_state(self, root_block):
         """ root_block should have the same height as configured in shard GENESIS.
@@ -555,10 +557,6 @@ class ShardState:
                     )
                 )
                 raise e
-
-        # Put only half of block fee to coinbase address
-        check(evm_state.get_balance(evm_state.block_coinbase) >= evm_state.block_fee)
-        evm_state.delta_balance(evm_state.block_coinbase, -evm_state.block_fee // 2)
 
         # Update actual root hash
         evm_state.commit()
@@ -1002,10 +1000,6 @@ class ShardState:
 
         self.__add_transactions_to_block(block, evm_state)
 
-        # Put only half of block fee to coinbase address
-        check(evm_state.get_balance(evm_state.block_coinbase) >= evm_state.block_fee)
-        evm_state.delta_balance(evm_state.block_coinbase, -evm_state.block_fee // 2)
-
         # Update actual root hash
         evm_state.commit()
 
@@ -1205,6 +1199,7 @@ class ShardState:
 
     def __run_one_cross_shard_tx_list_by_root_block_hash(self, r_hash, evm_state):
         tx_list = self.__get_cross_shard_tx_list_by_root_block_hash(r_hash)
+        local_fee_rate = 1.0 - self.env.quark_chain_config.REWARD_TAX_RATE
 
         for tx in tx_list:
             evm_state.delta_balance(tx.to_address.recipient, tx.value)
@@ -1213,10 +1208,10 @@ class ShardState:
                 + (opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0),
                 evm_state.gas_limit,
             )
-            evm_state.block_fee += opcodes.GTXXSHARDCOST * tx.gas_price
-            evm_state.delta_balance(
-                evm_state.block_coinbase, opcodes.GTXXSHARDCOST * tx.gas_price
-            )
+            xshard_fee = int(opcodes.GTXXSHARDCOST * tx.gas_price * local_fee_rate)
+            evm_state.block_fee += xshard_fee
+            evm_state.delta_balance(evm_state.block_coinbase, xshard_fee)
+
         evm_state.xshard_receive_gas_used = evm_state.gas_used
 
         return tx_list

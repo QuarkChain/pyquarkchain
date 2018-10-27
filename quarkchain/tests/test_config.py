@@ -38,7 +38,6 @@ class TestShardConfig(unittest.TestCase):
         expected_json = """{
     "SHARD_SIZE": 8,
     "MAX_NEIGHBORS": 32,
-    "MINOR_BLOCK_DEFAULT_REWARD": 100000000000000000000,
     "NETWORK_ID": 3,
     "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
     "BLOCK_EXTRA_DATA_SIZE_LIMIT": 1024,
@@ -66,7 +65,7 @@ class TestShardConfig(unittest.TestCase):
             "NONCE": 0
         },
         "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-        "COINBASE_AMOUNT": 5
+        "COINBASE_AMOUNT": 120000000000000000000
     },
     "SHARD_LIST": [
         {
@@ -89,7 +88,7 @@ class TestShardConfig(unittest.TestCase):
                 "ALLOC": {}
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5,
+            "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,
             "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
             "GAS_LIMIT_MINIMUM": 5000,
@@ -117,7 +116,7 @@ class TestShardConfig(unittest.TestCase):
                 "ALLOC": {}
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5,
+            "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,
             "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
             "GAS_LIMIT_MINIMUM": 5000,
@@ -145,7 +144,7 @@ class TestShardConfig(unittest.TestCase):
                 "ALLOC": {}
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5,
+            "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,
             "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
             "GAS_LIMIT_MINIMUM": 5000,
@@ -173,7 +172,7 @@ class TestShardConfig(unittest.TestCase):
                 "ALLOC": {}
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5,
+            "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,
             "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
             "GAS_LIMIT_MINIMUM": 5000,
@@ -184,7 +183,7 @@ class TestShardConfig(unittest.TestCase):
         {
             "CONSENSUS_TYPE": "NONE",
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5,
+            "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,
             "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
             "GAS_LIMIT_MINIMUM": 5000,

@@ -111,7 +111,7 @@ class ShardConfig(BaseConfig):
     GENESIS = None  # type: ShardGenesis
 
     COINBASE_ADDRESS = bytes(24).hex()
-    COINBASE_AMOUNT = 5
+    COINBASE_AMOUNT = 5 * QUARKSH_TO_JIAOZI
 
     # Gas Limit
     GAS_LIMIT_EMA_DENOMINATOR = 1024
@@ -191,7 +191,7 @@ class RootConfig(BaseConfig):
     GENESIS = None  # type: RootGenesis
 
     COINBASE_ADDRESS = bytes(24).hex()
-    COINBASE_AMOUNT = 5
+    COINBASE_AMOUNT = 120 * QUARKSH_TO_JIAOZI
 
     def __init__(self):
         self.GENESIS = RootGenesis()
@@ -225,9 +225,6 @@ class QuarkChainConfig(BaseConfig):
     SHARD_SIZE = 8
 
     MAX_NEIGHBORS = 32
-
-    # Block reward
-    MINOR_BLOCK_DEFAULT_REWARD = 100 * QUARKSH_TO_JIAOZI
 
     NETWORK_ID = NetworkId.TESTNET_PORSCHE
     TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 10000
