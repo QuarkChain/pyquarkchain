@@ -298,7 +298,7 @@ class ShardState:
         ] = []  # TODO [x.hash for x in block.uncles]
         # TODO: Create a account with shard info if the account is not created
         # Right now the full_shard_id for coinbase actually comes from the first tx that got applied
-        state.block_coinbase = block.meta.coinbase_address.recipient
+        state.block_coinbase = block.header.coinbase_address.recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
         state.prev_headers = []  # TODO: state.add_block_header(block.header)
@@ -464,7 +464,7 @@ class ShardState:
             raise ValueError("incorrect merkle root")
 
         # Check the first transaction of the block
-        if not self.branch.is_in_shard(block.meta.coinbase_address.full_shard_id):
+        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_id):
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
@@ -475,7 +475,7 @@ class ShardState:
             if diff != block.header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-        if not self.branch.is_in_shard(block.meta.coinbase_address.full_shard_id):
+        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_id):
             raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
@@ -707,7 +707,8 @@ class ShardState:
             raise ValueError("Bloom mismatch")
 
         # TODO: Add block reward to coinbase
-        # self.reward_calc.get_block_reward(self):
+        self.reward_calc.get_block_reward()
+
         self.db.put_minor_block(block, x_shard_receive_tx_list)
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)

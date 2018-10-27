@@ -897,7 +897,7 @@ class TestJSONRPC(unittest.TestCase):
                 header_hash_hex = resp[0]
                 _, block = call_async(
                     master.get_next_block_to_mine(
-                        address=master.env.quark_chain_config.testnet_master_address,
+                        address=master.env.quark_chain_config.miner_address,
                         prefer_root=shard_id is None,
                     )
                 )

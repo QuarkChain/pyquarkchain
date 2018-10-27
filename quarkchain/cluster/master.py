@@ -566,7 +566,7 @@ class MasterServer:
         self.__init_root_miner()
 
     def __init_root_miner(self):
-        miner_address = self.env.quark_chain_config.testnet_master_address
+        miner_address = self.env.quark_chain_config.miner_address
 
         async def __create_block():
             while True:
@@ -815,7 +815,7 @@ class MasterServer:
                 )
                 return (None, None) if not block else (False, block)
 
-        return (True, self.root_state.create_block_to_mine(header_list, address))
+        return True, self.root_state.create_block_to_mine(header_list, address)
 
     async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
