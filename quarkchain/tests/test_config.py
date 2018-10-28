@@ -65,7 +65,7 @@ class TestShardConfig(unittest.TestCase):
             "DIFFICULTY": 1000000,
             "NONCE": 0
         },
-        "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+        "COINBASE_ADDRESS": "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3",
         "COINBASE_AMOUNT": 120000000000000000000
     },
     "SHARD_LIST": [
@@ -193,7 +193,6 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         }
     ],
-    "MINER_ADDRESS": "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3",
     "REWARD_TAX_RATE": 0.5
 }"""
         print(config.to_json())

@@ -202,11 +202,15 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount = 0
+        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+        reward_tax_rate = self.env.quark_chain_config.REWARD_TAX_RATE
+        minor_block_fee = 0
         for header in m_header_list:
-            coinbase_amount += header.coinbase_amount
-
-        coinbase_amount = coinbase_amount // 2
+            minor_block_fee += header.coinbase_amount
+        # note the minor block fee is after tax
+        coinbase_amount += int(
+            minor_block_fee / (1 - reward_tax_rate) * reward_tax_rate
+        )
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")

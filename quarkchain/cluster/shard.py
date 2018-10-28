@@ -18,7 +18,14 @@ from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.config import ShardConfig
-from quarkchain.core import RootBlock, MinorBlock, MinorBlockHeader, Branch, Transaction
+from quarkchain.core import (
+    RootBlock,
+    MinorBlock,
+    MinorBlockHeader,
+    Branch,
+    Transaction,
+    Address,
+)
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
 
@@ -388,8 +395,8 @@ class Shard:
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self):
-        miner_address = self.env.quark_chain_config.miner_address.address_in_branch(
-            Branch.create(self.__get_shard_size(), self.shard_id)
+        miner_address = Address.create_from(
+            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_ADDRESS
         )
 
         async def __create_block():

@@ -895,10 +895,17 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertEqual(resp[1:], ["0x1", "0xa"])  # height and diff
 
                 header_hash_hex = resp[0]
+                if shard_id is not None:  # shard 0
+                    miner_address = Address.create_from(
+                        master.env.quark_chain_config.SHARD_LIST[0].COINBASE_ADDRESS
+                    )
+                else:  # root
+                    miner_address = Address.create_from(
+                        master.env.quark_chain_config.ROOT.COINBASE_ADDRESS
+                    )
                 _, block = call_async(
                     master.get_next_block_to_mine(
-                        address=master.env.quark_chain_config.miner_address,
-                        prefer_root=shard_id is None,
+                        address=miner_address, prefer_root=shard_id is None
                     )
                 )
                 self.assertEqual(
@@ -914,7 +921,7 @@ class TestJSONRPC(unittest.TestCase):
                 )
                 self.assertTrue(resp)
 
-            # show progress
+            # show progress on shard 0
             _, new_block = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertIsInstance(new_block, MinorBlock)
             self.assertEqual(new_block.header.height, 2)
