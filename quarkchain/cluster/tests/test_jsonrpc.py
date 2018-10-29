@@ -136,7 +136,7 @@ class TestJSONRPC(unittest.TestCase):
                 network_id=hex(slaves[0].env.quark_chain_config.NETWORK_ID),
             )
             tx = Transaction(code=Code.create_evm_code(evm_tx))
-            response = send_request("sendTransaction", request)
+            response = send_request("sendTransaction", [request])
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
             self.assertEqual(len(slaves[0].shards[branch].state.tx_queue), 1)
@@ -168,7 +168,7 @@ class TestJSONRPC(unittest.TestCase):
                 fromFullShardId="0x00000000",
                 toFullShardId="0x00000001",
             )
-            self.assertIsNone(send_request("sendTransaction", request))
+            self.assertIsNone(send_request("sendTransaction", [request]))
             self.assertEqual(len(slaves[0].shards[branch].state.tx_queue), 0)
 
     def test_sendTransaction_missing_from_full_shard_id(self):
