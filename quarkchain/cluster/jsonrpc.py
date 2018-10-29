@@ -606,7 +606,7 @@ class JSONRPCServer:
         }
 
     @public_methods.add
-    async def sendTransaction(self, **data):
+    async def sendTransaction(self, data):
         def get_data_default(key, decoder, default=None):
             if key in data:
                 return decoder(data[key])
