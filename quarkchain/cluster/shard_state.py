@@ -697,7 +697,7 @@ class ShardState:
                 )
             )
 
-        coinbase_amount = int(
+        coinbase_amount = round(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
             * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
@@ -783,7 +783,7 @@ class ShardState:
 
     def finalize_and_add_block(self, block):
         evm_state = self.run_block(block)
-        coinbase_amount = int(
+        coinbase_amount = round(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
             * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
@@ -1010,7 +1010,7 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        coinbase_amount = int(
+        coinbase_amount = round(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
             * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
@@ -1220,7 +1220,7 @@ class ShardState:
                 + (opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0),
                 evm_state.gas_limit,
             )
-            xshard_fee = int(opcodes.GTXXSHARDCOST * tx.gas_price * local_fee_rate)
+            xshard_fee = round(opcodes.GTXXSHARDCOST * tx.gas_price * local_fee_rate)
             evm_state.block_fee += xshard_fee
             evm_state.delta_balance(evm_state.block_coinbase, xshard_fee)
 
