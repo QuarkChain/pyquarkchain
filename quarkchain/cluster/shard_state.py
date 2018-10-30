@@ -697,9 +697,10 @@ class ShardState:
                 )
             )
 
-        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
-        ].COINBASE_AMOUNT
+        coinbase_amount = int(
+            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
+            * self.env.quark_chain_config.REWARD_TAX_RATE
+        )
         coinbase_amount += evm_state.block_fee
         if coinbase_amount != block.header.coinbase_amount:
             raise ValueError("Coinbase reward incorrect")
@@ -782,9 +783,10 @@ class ShardState:
 
     def finalize_and_add_block(self, block):
         evm_state = self.run_block(block)
-        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
-        ].COINBASE_AMOUNT
+        coinbase_amount = int(
+            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
+            * self.env.quark_chain_config.REWARD_TAX_RATE
+        )
         coinbase_amount += evm_state.block_fee
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
         self.add_block(block)
@@ -1008,9 +1010,10 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
-        ].COINBASE_AMOUNT
+        coinbase_amount = int(
+            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
+            * self.env.quark_chain_config.REWARD_TAX_RATE
+        )
         coinbase_amount += evm_state.block_fee
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
 

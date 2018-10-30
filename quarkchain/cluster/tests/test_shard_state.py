@@ -6,7 +6,6 @@ from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
 )
-from quarkchain.config import QUARKSH_TO_JIAOZI
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator

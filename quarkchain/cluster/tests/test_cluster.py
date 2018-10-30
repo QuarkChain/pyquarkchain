@@ -234,9 +234,12 @@ class TestCluster(unittest.TestCase):
 
         with ClusterContext(2, acc1) as clusters:
             shard_state = clusters[0].slave_list[0].shards[Branch(0b10)].state
-            coinbase_amount = shard_state.env.quark_chain_config.SHARD_LIST[
-                shard_state.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state.env.quark_chain_config.SHARD_LIST[
+                    shard_state.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             b1 = shard_state.get_tip().create_block_to_append()
             evm_state = shard_state.run_block(b1)
             b1.finalize(
@@ -285,9 +288,12 @@ class TestCluster(unittest.TestCase):
             # add blocks in cluster 0
             block_header_list = [clusters[0].get_shard_state(0).header_tip]
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
-            coinbase_amount = shard_state0.env.quark_chain_config.SHARD_LIST[
-                shard_state0.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state0.env.quark_chain_config.SHARD_LIST[
+                    shard_state0.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             for i in range(7):
                 b1 = shard_state0.get_tip().create_block_to_append()
                 evm_state = shard_state0.run_block(b1)
@@ -305,9 +311,12 @@ class TestCluster(unittest.TestCase):
 
             block_header_list.append(clusters[0].get_shard_state(1).header_tip)
             shard_state0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
-            coinbase_amount = shard_state0.env.quark_chain_config.SHARD_LIST[
-                shard_state0.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state0.env.quark_chain_config.SHARD_LIST[
+                    shard_state0.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             b2 = shard_state0.get_tip().create_block_to_append()
             evm_state = shard_state0.run_block(b2)
             b2.finalize(
@@ -322,9 +331,12 @@ class TestCluster(unittest.TestCase):
 
             # add 1 block in cluster 1
             shard_state1 = clusters[1].slave_list[1].shards[Branch(0b11)].state
-            coinbase_amount = shard_state1.env.quark_chain_config.SHARD_LIST[
-                shard_state1.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state1.env.quark_chain_config.SHARD_LIST[
+                    shard_state1.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             b3 = shard_state1.get_tip().create_block_to_append()
             evm_state = shard_state1.run_block(b3)
             b3.finalize(
@@ -386,9 +398,12 @@ class TestCluster(unittest.TestCase):
             block_list = []
             # cluster 0 has 13 blocks added
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
-            coinbase_amount = shard_state0.env.quark_chain_config.SHARD_LIST[
-                shard_state0.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state0.env.quark_chain_config.SHARD_LIST[
+                    shard_state0.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             for i in range(13):
                 block = shard_state0.get_tip().create_block_to_append()
                 evm_state = shard_state0.run_block(block)
@@ -410,9 +425,12 @@ class TestCluster(unittest.TestCase):
 
             # cluster 1 has 12 blocks added
             shard_state0 = clusters[1].slave_list[0].shards[Branch(0b10)].state
-            coinbase_amount = shard_state0.env.quark_chain_config.SHARD_LIST[
-                shard_state0.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state0.env.quark_chain_config.SHARD_LIST[
+                    shard_state0.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             for i in range(12):
                 block = shard_state0.get_tip().create_block_to_append()
                 evm_state = shard_state0.run_block(block)
@@ -441,9 +459,12 @@ class TestCluster(unittest.TestCase):
 
             # a new block from cluster 0 will trigger sync in cluster 1
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
-            coinbase_amount = shard_state0.env.quark_chain_config.SHARD_LIST[
-                shard_state0.shard_id
-            ].COINBASE_AMOUNT
+            coinbase_amount = (
+                shard_state0.env.quark_chain_config.SHARD_LIST[
+                    shard_state0.shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
             block = shard_state0.get_tip().create_block_to_append()
             evm_state = shard_state0.run_block(block)
             block.finalize(
