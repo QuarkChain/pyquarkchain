@@ -921,7 +921,8 @@ class TestShardState(unittest.TestCase):
         state0.finalize_and_add_block(b2)
 
         b1 = state1.get_tip().create_block_to_append()
-        b1.finalize(evm_state=state1.run_block(b1))
+        evm_state = state1.run_block(b1)
+        b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
         # Create a root block containing the block with the x-shard tx
         state0.add_cross_shard_tx_list_by_minor_block_hash(
@@ -966,7 +967,8 @@ class TestShardState(unittest.TestCase):
         state0.finalize_and_add_block(b2)
 
         b1 = state1.get_tip().create_block_to_append()
-        b1.finalize(evm_state=state1.run_block(b1))
+        evm_state = state1.run_block(b1)
+        b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
         # Create a root block containing the block with the x-shard tx
         state0.add_cross_shard_tx_list_by_minor_block_hash(
@@ -1181,7 +1183,8 @@ class TestShardState(unittest.TestCase):
 
         # Should succeed
         state.finalize_and_add_block(b1)
-        b1.finalize(evm_state=state.run_block(b1))
+        evm_state = state.run_block(b1)
+        b1.finalize(evm_state=evm_state, coinbase_amount=b1.header.coinbase_amount)
         b1.meta.hash_evm_receipt_root = bytes(32)
         # low-level db operation to clear existing records
         del state.db.m_header_pool[b1.header.get_hash()]

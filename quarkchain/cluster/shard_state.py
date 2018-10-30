@@ -697,15 +697,15 @@ class ShardState:
                 )
             )
 
-        # The rest fee goes to root block
-        if evm_state.block_fee // 2 != block.header.coinbase_amount:
+        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
+            self.shard_id
+        ].COINBASE_AMOUNT
+        coinbase_amount += evm_state.block_fee
+        if coinbase_amount != block.header.coinbase_amount:
             raise ValueError("Coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
             raise ValueError("Bloom mismatch")
-
-        # TODO: Add block reward to coinbase
-        self.reward_calc.get_block_reward()
 
         self.db.put_minor_block(block, x_shard_receive_tx_list)
 
@@ -781,7 +781,12 @@ class ShardState:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
 
     def finalize_and_add_block(self, block):
-        block.finalize(evm_state=self.run_block(block))
+        evm_state = self.run_block(block)
+        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
+            self.shard_id
+        ].COINBASE_AMOUNT
+        coinbase_amount += evm_state.block_fee
+        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
         self.add_block(block)
 
     def get_balance(self, recipient: bytes, height: Optional[int] = None) -> int:
@@ -1003,7 +1008,11 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        block.finalize(evm_state=evm_state)
+        coinbase_amount = self.env.quark_chain_config.SHARD_LIST[
+            self.shard_id
+        ].COINBASE_AMOUNT
+        coinbase_amount += evm_state.block_fee
+        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
