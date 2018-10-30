@@ -699,7 +699,7 @@ class ShardState:
 
         coinbase_amount = int(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
-            * self.env.quark_chain_config.REWARD_TAX_RATE
+            * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
         coinbase_amount += evm_state.block_fee
         if coinbase_amount != block.header.coinbase_amount:
@@ -785,7 +785,7 @@ class ShardState:
         evm_state = self.run_block(block)
         coinbase_amount = int(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
-            * self.env.quark_chain_config.REWARD_TAX_RATE
+            * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
         coinbase_amount += evm_state.block_fee
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
@@ -1012,7 +1012,7 @@ class ShardState:
 
         coinbase_amount = int(
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
-            * self.env.quark_chain_config.REWARD_TAX_RATE
+            * (1 - self.env.quark_chain_config.REWARD_TAX_RATE)
         )
         coinbase_amount += evm_state.block_fee
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
