@@ -208,7 +208,7 @@ class RootState:
         for header in m_header_list:
             minor_block_fee += header.coinbase_amount
         # note the minor block fee is after tax
-        coinbase_amount += int(
+        coinbase_amount += round(
             minor_block_fee / (1 - reward_tax_rate) * reward_tax_rate
         )
 
