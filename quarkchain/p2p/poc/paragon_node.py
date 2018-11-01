@@ -3,10 +3,10 @@ Example runs:
 
 # run bootnode, this will fire up both UDP(discovery) and TCP(P2P) server
 # note the default private key is correct key for bootnode
-python trinity_node.py --logging_level=debug
+python paragon_node.py --logging_level=debug
 
 # run a different node on a new port, note we need to leave private key empty to automatically generate a new one
-python trinity_node.py --privkey="" --listen_port=29001 --logging_level=debug
+python paragon_node.py --privkey="" --listen_port=29001 --logging_level=debug
 """
 import argparse
 import asyncio
@@ -25,6 +25,10 @@ NETWORK_ID = 999
 
 
 class ParagonServer(BaseServer):
+    """
+    a server using ParagonPeerPool (that creates paragon peers for demonstration purposes)
+    """
+
     def _make_peer_pool(self):
         return ParagonPeerPool(
             privkey=self.privkey,
