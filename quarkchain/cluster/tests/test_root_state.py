@@ -255,14 +255,27 @@ class TestRootState(unittest.TestCase):
         r_state.add_validated_minor_block_hash(b0.header.get_hash())
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
 
+        # Test coinbase
+        original_reward_tax_rate = env.quark_chain_config.REWARD_TAX_RATE
+        for tax_rate in [0.8, 0.6, 0.9]:
+            env.quark_chain_config.REWARD_TAX_RATE = tax_rate
+            root_block_tmp = r_state.create_block_to_mine(
+                m_header_list=[b0.header, b1.header],
+                address=Address.create_empty_account(),
+                create_time=r_state.tip.create_time + 9,
+            )
+            # still use minor block's coinbase amount, 1
+            self.assertEqual(
+                root_block_tmp.header.coinbase_amount,
+                round((1 + 1) / (1 - tax_rate) * tax_rate + 5),
+            )
+        env.quark_chain_config.REWARD_TAX_RATE = original_reward_tax_rate
+
         # Check new difficulty
         root_block0 = r_state.create_block_to_mine(
             m_header_list=[b0.header, b1.header],
             address=Address.create_empty_account(),
             create_time=r_state.tip.create_time + 9,
-        )
-        self.assertEqual(
-            root_block0.header.coinbase_amount, round((1 + 1) / 0.2 * 0.8 + 5)
         )
         self.assertEqual(r_state.tip.difficulty, root_block0.header.difficulty)
         root_block0 = r_state.create_block_to_mine(

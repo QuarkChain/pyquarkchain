@@ -1056,15 +1056,6 @@ class ShardState:
         Return True if the new block become head else False.
         Raise ValueError on any failure.
         """
-
-        def reward():
-            shard_size = self.branch.get_shard_size()
-            coinbase_address = root_block.header.coinbase_address
-            if coinbase_address.get_shard_id(shard_size) == self.shard_id:
-                amount = root_block.header.coinbase_amount
-                self.evm_state.delta_balance(coinbase_address.recipient, amount)
-                self.evm_state.commit()
-
         check(
             root_block.header.height
             > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
@@ -1167,7 +1158,6 @@ class ShardState:
                             root_block.header.height,
                         )
                     )
-            reward()
             return True
 
         check(
@@ -1178,7 +1168,6 @@ class ShardState:
                 ),
             )
         )
-        reward()
         return False
 
     def __is_neighbor(self, remote_branch: Branch):

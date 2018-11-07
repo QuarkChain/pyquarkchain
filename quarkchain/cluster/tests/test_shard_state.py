@@ -950,7 +950,6 @@ class TestShardState(unittest.TestCase):
     def test_shard_state_add_root_block(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
 
         env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -978,17 +977,16 @@ class TestShardState(unittest.TestCase):
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
-            .finalize(coinbase_address=acc2, coinbase_amount=42)  # fake amount
+            .finalize()
         )
         root_block1 = (
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(b2.header)
             .add_minor_block_header(b1.header)
-            .finalize(coinbase_address=acc2, coinbase_amount=42)
+            .finalize()
         )
 
         state0.add_root_block(root_block)
-        self.assertEqual(state0.get_balance(acc2.recipient), 42)
 
         b00 = b0.create_block_to_append()
         state0.finalize_and_add_block(b00)
@@ -1012,7 +1010,7 @@ class TestShardState(unittest.TestCase):
             .add_minor_block_header(b3.header)
             .add_minor_block_header(b4.header)
             .add_minor_block_header(b5.header)
-            .finalize(coinbase_address=acc2, coinbase_amount=42)
+            .finalize()
         )
 
         self.assertFalse(state0.add_root_block(root_block1))
@@ -1020,8 +1018,6 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.header_tip, b4.header)
         self.assertEqual(state0.meta_tip, b4.meta)
         self.assertEqual(state0.root_tip, root_block2.header)
-        # 2 root blocks are mined successfully
-        self.assertEqual(state0.get_balance(acc2.recipient), 42 * 2)
 
         self.assertEqual(state0.db.get_minor_block_by_height(2), b3)
         self.assertEqual(state0.db.get_minor_block_by_height(3), b4)
