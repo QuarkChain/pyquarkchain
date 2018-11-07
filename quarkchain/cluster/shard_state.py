@@ -773,7 +773,7 @@ class ShardState:
             )
         return evm_state.xshard_list
 
-    def get_coinbase_amount(self):
+    def get_coinbase_amount(self) -> int:
         local_fee_rate = (
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
