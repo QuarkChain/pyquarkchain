@@ -44,7 +44,7 @@ class ParagonServer(BaseServer):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--bootnode",
+        "--bootnodes",
         default="enode://c571e0db93d17cc405cb57640826b70588a6a28785f38b21be471c609ca12fcb06cb306ac44872908f5bed99046031a5af82072d484e3ef9029560c1707193a0@127.0.0.1:29000",
         type=str,
     )
@@ -78,11 +78,17 @@ def main():
         privkey = ecies.generate_privkey()
 
     cancel_token = CancelToken("server")
+    if args.bootnodes:
+        bootstrap_nodes = args.bootnodes.split(",")
+    else:
+        bootstrap_nodes = []
     server = ParagonServer(
         privkey=privkey,
         port=args.listen_port,
         network_id=NETWORK_ID,
-        bootstrap_nodes=tuple([kademlia.Node.from_uri(args.bootnode)]),
+        bootstrap_nodes=tuple(
+            [kademlia.Node.from_uri(enode) for enode in bootstrap_nodes]
+        ),
         token=cancel_token,
         upnp=args.upnp,
     )

@@ -234,8 +234,8 @@ def devp2p_app(env, network):
 
 
 class P2PNetwork(AbstractNetwork):
-    def __init__(self, env, master_server):
-        self.loop = asyncio.get_event_loop()
+    def __init__(self, env, master_server, loop):
+        self.loop = loop
         self.env = env
         self.active_peer_pool = dict()  # peer id => peer
         self.self_id = random_bytes(32)

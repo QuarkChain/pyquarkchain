@@ -104,6 +104,12 @@ class P2PConfig(BaseConfig):
     MIN_PEERS = 2
     MAX_PEERS = 10
     ADDITIONAL_BOOTSTRAPS = ""
+    # *new p2p module*
+    NEW_MODULE = False
+    BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
+    PRIV_KEY = ""
+    # MAX_PEERS
+    UPNP = False
 
 
 class MonitoringConfig(BaseConfig):
@@ -255,6 +261,40 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
         parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
         parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
+        # *new p2p module*
+        parser.add_argument(
+            "--p2p",
+            action="store_true",
+            default=False,
+            dest="p2p",
+            help="enables new p2p module",
+        )
+        parser.add_argument(
+            "--max_peers",
+            default=P2PConfig.MAX_PEERS,
+            type=int,
+            help="max peer for new p2p module",
+        )
+        parser.add_argument(
+            "--bootnodes",
+            default="",
+            type=str,
+            help="comma seperated enodes in the format: enode://PUBKEY@IP:PORT",
+        )
+        parser.add_argument(
+            "--upnp",
+            action="store_true",
+            default=False,
+            dest="upnp",
+            help="if true, automatically runs a upnp service that sets port mapping on upnp-enabled devices",
+        )
+        parser.add_argument(
+            "--privkey",
+            default="",
+            type=str,
+            help="if empty, will be automatically generated; but note that it will be lost upon node reboot",
+        )
+
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
     @classmethod
@@ -289,7 +329,7 @@ class ClusterConfig(BaseConfig):
 
             config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
-            if args.devp2p_enable:
+            if args.devp2p_enable or args.p2p:
                 config.SIMPLE_NETWORK = None
                 config.P2P = P2PConfig()
                 config.P2P.IP = args.devp2p_ip
@@ -299,6 +339,13 @@ class ClusterConfig(BaseConfig):
                 config.P2P.MIN_PEERS = args.devp2p_min_peers
                 config.P2P.MAX_PEERS = args.devp2p_max_peers
                 config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
+                # *new p2p module*
+                config.P2P.NEW_MODULE = args.p2p
+                if config.P2P.NEW_MODULE:
+                    config.P2P.BOOT_NODES = args.bootnodes
+                    config.P2P.PRIV_KEY = args.privkey
+                    config.P2P.MAX_PEERS = args.max_peers
+                    config.P2P.UPNP = args.upnp
             else:
                 config.P2P = None
                 config.SIMPLE_NETWORK = SimpleNetworkConfig()

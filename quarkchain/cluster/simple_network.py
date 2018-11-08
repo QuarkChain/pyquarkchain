@@ -303,6 +303,7 @@ OP_RPC_MAP = {
 
 class AbstractNetwork:
     active_peer_pool = None  # type: Dict[int, Peer]
+    cluster_peer_pool = None  # type: Dict[int, Peer]
 
     @abstractmethod
     def start(self) -> None:
@@ -330,8 +331,8 @@ class SimpleNetwork(AbstractNetwork):
     """Fully connected P2P network for inter-cluster communication
     """
 
-    def __init__(self, env, master_server):
-        self.loop = asyncio.get_event_loop()
+    def __init__(self, env, master_server, loop):
+        self.loop = loop
         self.env = env
         self.active_peer_pool = dict()  # peer id => peer
         self.self_id = random_bytes(32)
