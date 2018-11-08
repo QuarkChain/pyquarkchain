@@ -19,7 +19,7 @@ from quarkchain.core import random_bytes
 from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID
 from quarkchain.cluster.p2p_commands import CommandOp
 from quarkchain.cluster.p2p_commands import GetPeerListRequest
-from quarkchain.cluster.simple_network import Peer
+from quarkchain.cluster.simple_network import Peer, AbstractNetwork
 from quarkchain.utils import Logger
 
 
@@ -135,7 +135,7 @@ class Devp2pApp(BaseApp):
     )
     client_version_string = "%s/v%s" % (client_name, client_version)
     default_config = dict(BaseApp.default_config)
-    default_config["client_version_string"] = client_version_string.encode('utf-8')
+    default_config["client_version_string"] = client_version_string.encode("utf-8")
     default_config["post_app_start_callback"] = None
 
     def __init__(self, config, network):
@@ -219,7 +219,7 @@ def devp2p_app(env, network):
     config["p2p"]["min_peers"] = min_peers
     config["p2p"]["max_peers"] = max_peers
     ip = network.ip
-    config["client_version_string"] = "{}:{}".format(ip, network.port).encode('utf-8')
+    config["client_version_string"] = "{}:{}".format(ip, network.port).encode("utf-8")
 
     app = Devp2pApp(config, network)
     Logger.info("create_app config={}".format(app.config))
@@ -233,7 +233,7 @@ def devp2p_app(env, network):
     serve_app(app)
 
 
-class P2PNetwork:
+class P2PNetwork(AbstractNetwork):
     def __init__(self, env, master_server):
         self.loop = asyncio.get_event_loop()
         self.env = env

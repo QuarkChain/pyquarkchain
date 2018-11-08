@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import asyncio
 import ipaddress
 import socket
@@ -300,7 +301,32 @@ OP_RPC_MAP = {
 }
 
 
-class SimpleNetwork:
+class AbstractNetwork:
+    active_peer_pool = None  # type: Dict[int, Peer]
+
+    @abstractmethod
+    def start(self) -> None:
+        """
+        start the network server and discovery on the provided loop
+        """
+        pass
+
+    @abstractmethod
+    def iterate_peers(self):
+        """
+        returns list of currently connected peers (for broadcasting)
+        """
+        pass
+
+    @abstractmethod
+    def get_peer_by_cluster_peer_id(self):
+        """
+        lookup peer by cluster_peer_id, used by virtual shard connections
+        """
+        pass
+
+
+class SimpleNetwork(AbstractNetwork):
     """Fully connected P2P network for inter-cluster communication
     """
 
