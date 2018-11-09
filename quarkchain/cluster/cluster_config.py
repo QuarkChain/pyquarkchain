@@ -110,6 +110,7 @@ class P2PConfig(BaseConfig):
     PRIV_KEY = ""
     # MAX_PEERS
     UPNP = False
+    NETWORK_ID = 2  # not settable in command line
 
 
 class MonitoringConfig(BaseConfig):
