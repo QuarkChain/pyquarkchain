@@ -1,5 +1,6 @@
-#include <cstdint>
 #include <climits>
+#include <cstdint>
+#include <cstring>
 
 #include <array>
 #include <chrono>
@@ -94,11 +95,53 @@ void qkc_hash(
     }
 
     /*
-     * Truncate mix directly.
-     * Similar to ETH, compression and post-sha3 can be applied.
+     * Compress
      */
     for (uint32_t i = 0; i < result.size(); i++) {
-        result[i] = mix[i];
+        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
+    }
+}
+
+void qkc_hash_sorted_list(
+        std::vector<uint64_t>& slist,
+        std::array<uint64_t, 8>& seed,
+        std::array<uint64_t, 8>& result) {
+    std::array<uint64_t, 16> mix;
+    for (uint32_t i = 0; i < mix.size(); i++) {
+        mix[i] = seed[i % seed.size()];
+    }
+
+    for (uint32_t i = 0; i < ACCESS_ROUND; i ++) {
+        std::array<uint64_t, 16> new_data;
+        uint64_t p = fnv64(i ^ seed[0], mix[i % mix.size()]);
+        for (uint32_t j = 0; j < mix.size(); j++) {
+            // Find the pth element and remove it
+            uint32_t idx = p % slist.size();
+            new_data[j] = slist[idx];
+            slist.erase(slist.begin() + idx);
+
+            // Generate random data and insert it
+            // if the vector doesn't contain it.
+            p = fnv64(p, new_data[j]);
+            auto it = std::lower_bound(slist.begin(), slist.end(), p);
+            if (it == slist.end() || *it != p) {
+                slist.insert(it, p);
+            }
+
+            // Find the next element index (ordered)
+            p = fnv64(p, new_data[j]);
+        }
+
+        for (uint32_t j = 0; j < mix.size(); j++) {
+            mix[j] = fnv64(mix[j], new_data[j]);
+        }
+    }
+
+    /*
+     * Compress
+     */
+    for (uint32_t i = 0; i < result.size(); i++) {
+        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
     }
 }
 
@@ -107,21 +150,53 @@ void qkc_hash(
 } // org
 
 
-int main() {
+void test_sorted_list() {
+    std::cout << "Testing sorted list implementation" << std::endl;
+    ordered_set_t oset;
 
-    ordered_set_t oset ;
+    org::quarkchain::generate_init_set(
+        oset, 431, org::quarkchain::INIT_SET_ENTRIES);
 
-    auto t_start = std::chrono::high_resolution_clock::now();
+    std::vector<uint64_t> slist;
+    for (auto v : oset) {
+        slist.push_back(v);
+    }
+
+    std::uniform_int_distribution<uint64_t> dist(0, ULLONG_MAX);
+    std::default_random_engine generator(475);
+    std::array<uint64_t, 8> seed;
+    for (uint32_t j = 0; j < 8; j++) {
+        seed[j] = dist(generator);
+    }
+
+    std::array<uint64_t, 8> result0;
+    std::array<uint64_t, 8> result1;
+    org::quarkchain::qkc_hash(oset, seed, result0);
+    org::quarkchain::qkc_hash_sorted_list(slist, seed, result1);
+
+    for (uint32_t i = 0; i < result0.size(); i++) {
+        if (result0[i] != result1[i]) {
+            std::cout << "Test failed" << std::endl;
+            return;
+        }
+    }
+    std::cout << "Test passed" << std::endl;
+}
+
+void test_qkc_hash_perf() {
+    ordered_set_t oset;
+
+    auto t_start = std::chrono::steady_clock::now();
     org::quarkchain::generate_init_set(
         oset, 1, org::quarkchain::INIT_SET_ENTRIES);
-    auto used_time = std::chrono::high_resolution_clock::now() - t_start;
+    auto used_time = std::chrono::steady_clock::now() - t_start;
     std::cout << "Generate time: "
               << std::chrono::duration<double, std::milli>(used_time).count()
               << std::endl;
 
-    t_start = std::chrono::high_resolution_clock::now();
+    t_start = std::chrono::steady_clock::now();
     ordered_set_t noset = oset;
-    used_time = std::chrono::high_resolution_clock::now() - t_start;
+    used_time = std::chrono::steady_clock::now() - t_start;
     std::cout << "Copy time: "
               << std::chrono::duration<double, std::milli>(used_time).count()
               << std::endl;
@@ -129,8 +204,8 @@ int main() {
     std::uniform_int_distribution<uint64_t> dist(0, ULLONG_MAX);
     std::default_random_engine generator(475);
 
-    t_start = std::chrono::high_resolution_clock::now();
-    uint32_t count = 10000;
+    t_start = std::chrono::steady_clock::now();
+    uint32_t count = 1000;
     std::array<uint64_t, 8> seed;
     std::array<uint64_t, 8> result;
     for (uint32_t i = 0; i < count; i++) {
@@ -138,12 +213,76 @@ int main() {
             seed[j] = dist(generator);
         }
 
-        // TODO: Reset oset.
-        org::quarkchain::qkc_hash(oset, seed, result);
+        ordered_set_t new_oset(oset);
+        org::quarkchain::qkc_hash(new_oset, seed, result);
     }
-    used_time = std::chrono::high_resolution_clock::now() - t_start;
-    std::cout << std::chrono::duration<double, std::milli>(used_time).count()
+    used_time = std::chrono::steady_clock::now() - t_start;
+    std::cout << "Duration: "
+              << std::chrono::duration<double, std::milli>(used_time).count()
               << std::endl;
+}
+
+void test_qkc_hash_slist_perf() {
+    ordered_set_t oset;
+
+    auto t_start = std::chrono::steady_clock::now();
+    org::quarkchain::generate_init_set(
+        oset, 1, org::quarkchain::INIT_SET_ENTRIES);
+    auto used_time = std::chrono::steady_clock::now() - t_start;
+    std::cout << "Generate time: "
+              << std::chrono::duration<double, std::milli>(used_time).count()
+              << std::endl;
+
+    std::vector<uint64_t> slist;
+    for (auto v : oset) {
+        slist.push_back(v);
+    }
+    t_start = std::chrono::steady_clock::now();
+    std::vector<uint64_t> nslist(slist);
+    used_time = std::chrono::steady_clock::now() - t_start;
+    std::cout << "Copy time: "
+              << std::chrono::duration<double, std::milli>(used_time).count()
+              << std::endl;
+
+    std::uniform_int_distribution<uint64_t> dist(0, ULLONG_MAX);
+    std::default_random_engine generator(475);
+
+    t_start = std::chrono::steady_clock::now();
+    uint32_t count = 1000;
+    std::array<uint64_t, 8> seed;
+    std::array<uint64_t, 8> result;
+    for (uint32_t i = 0; i < count; i++) {
+        for (uint32_t j = 0; j < 8; j++) {
+            seed[j] = dist(generator);
+        }
+
+        std::vector<uint64_t> new_slist(slist);
+        org::quarkchain::qkc_hash_sorted_list(new_slist, seed, result);
+    }
+    used_time = std::chrono::steady_clock::now() - t_start;
+    std::cout << "Duration: "
+              << std::chrono::duration<double, std::milli>(used_time).count()
+              << std::endl;
+}
+
+int main(int argc, char** argv) {
+    if (argc <= 1) {
+        std::cout << "Must specify command in "
+                     "qkc_perf, slist_test, slist_perf"
+                  << std::endl;
+        return -1;
+    }
+
+    if (strcmp(argv[1], "qkc_perf") == 0) {
+        test_qkc_hash_perf();
+    } else if (strcmp(argv[1], "slist_perf") == 0) {
+        test_qkc_hash_slist_perf();
+    } else if (strcmp(argv[1], "slist_test") == 0) {
+        test_sorted_list();
+    } else {
+        std::cout << "Unrecognized command: " << argv[1] << std::endl;
+        return -1;
+    }
 
     return 0;
 }
