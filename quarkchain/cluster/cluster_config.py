@@ -220,7 +220,7 @@ class ClusterConfig(BaseConfig):
         parser.add_argument(
             "--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str
         )
-        parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT)
+        parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT, type=int)
         parser.add_argument(
             "--json_rpc_port", default=ClusterConfig.JSON_RPC_PORT, type=int
         )

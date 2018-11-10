@@ -6,6 +6,7 @@ from eth_keys import keys
 from quarkchain.cluster.simple_network import Peer, AbstractNetwork
 from quarkchain.p2p import ecies
 from quarkchain.p2p.cancel_token.token import CancelToken
+from quarkchain.p2p.kademlia import Node
 from quarkchain.p2p.peer import BasePeer, BasePeerContext, BasePeerPool, BasePeerFactory
 from quarkchain.p2p.protocol import Command, _DecodedMsgType
 from quarkchain.p2p.protocol import Protocol
@@ -85,10 +86,9 @@ class P2PManager(AbstractNetwork):
             privkey=privkey,
             port=env.cluster_config.P2P_PORT,
             network_id=env.cluster_config.P2P.NETWORK_ID,
-            bootstrap_nodes=tuple(
-                [kademlia.Node.from_uri(enode) for enode in bootstrap_nodes]
-            ),
+            bootstrap_nodes=tuple([Node.from_uri(enode) for enode in bootstrap_nodes]),
             token=self.cancel_token,
+            max_peers=env.cluster_config.P2P.MAX_PEERS,
             upnp=env.cluster_config.P2P.UPNP,
         )
 
