@@ -1,1 +1,1 @@
-g++ qkchash.cpp -std=gnu++17 -O3
+g++ qkchash.cpp -std=gnu++17 -O3 -Wall

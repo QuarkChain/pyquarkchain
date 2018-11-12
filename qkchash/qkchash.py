@@ -1,4 +1,5 @@
 import bisect
+import ctypes
 import sha3
 import time
 import unittest
@@ -113,12 +114,80 @@ class TestSelect(unittest.TestCase):
             self.assertEqual(select(data[:], i), sdata[i])
 
 
+def list_to_uint64_array(l):
+    array = (ctypes.c_uint64 * len(l))()
+    for i in range(len(l)):
+        array[i] = l[i]
+    return array
+
+
+class QkcHashCache:
+    def __init__(self, native, ptr):
+        self._ptr = ptr
+        self._native = native
+
+    def copy(self):
+        return QkcHashCache(self._native,
+                            self._native._cache_copy(self._ptr))
+
+    def __del__(self):
+        self._native._cache_destroy(self._ptr)
+
+
+class QkcHashNative:
+    def __init__(self):
+        self._lib = ctypes.CDLL("libqkchash.so")
+
+        self._hash_func = self._lib.qkc_hash
+        self._hash_func.restype = None
+        self._hash_func.argtypes = \
+            (ctypes.c_void_p,                   # cache pointer
+             ctypes.POINTER(ctypes.c_uint64),   # input seed
+             ctypes.POINTER(ctypes.c_uint64))   # output result
+
+        self._cache_create = self._lib.cache_create
+        self._cache_create.restype = ctypes.c_void_p
+        self._cache_create.argtypes = \
+            (ctypes.POINTER(ctypes.c_uint64),   # cache array pointer
+             ctypes.c_uint32)                   # cache size
+
+        self._cache_destroy = self._lib.cache_destroy
+        self._cache_destroy.restype = None
+        self._cache_destroy.argtypes = (ctypes.c_void_p,)
+
+        self._cache_copy = self._lib.cache_copy
+        self._cache_copy.restype = ctypes.c_void_p
+        self._cache_copy.argtypes = (ctypes.c_void_p,)
+
+    def make_cache(self, entries, seed):
+        cache = list_to_uint64_array(make_cache(entries, seed))
+        ptr = self._cache_create(cache, len(cache))
+        return QkcHashCache(self, ptr)
+
+    def dup_cache(self, cache):
+        return cache.copy()
+
+    def calculate_hash(self, header, nonce, cache):
+        s = sha3_512(header + nonce[::-1])
+        seed = list_to_uint64_array(s)
+        result = (ctypes.c_uint64 * 8)()
+
+        self._hash_func(cache._ptr,
+                        seed,
+                        result)
+
+        return {
+            "mix digest": serialize_hash(result),
+            "result": serialize_hash(sha3_256(s + result[:])),
+        }
+
+
 def qkchash(header, nonce, cache):
     s = sha3_512(header + nonce[::-1])
     lcache = cache[:]
     lcache_set = set(cache)
 
-    mix = s
+    mix = []
     for i in range(2):
         mix.extend(s)
 
@@ -154,7 +223,7 @@ def qkchash(header, nonce, cache):
     }
 
 
-if __name__ == '__main__':
+def test_qkchash_perf():
     N = 10
     start_time = time.time()
     cache = make_cache(CACHE_ENTRIES, bytes())
@@ -162,7 +231,27 @@ if __name__ == '__main__':
     print("make_cache time: %.2f" % (used_time))
 
     start_time = time.time()
+    h0 = []
     for nonce in range(N):
-        h = qkchash(bytes(4), nonce.to_bytes(4, byteorder="big"), cache)
+        h0.append(qkchash(bytes(4), nonce.to_bytes(4, byteorder="big"), cache))
     used_time = time.time() - start_time
-    print("Time used: %.2f, hashs per sec: %.2f" % (used_time, N / used_time))
+    print("Python version, time used: %.2f, hashes per sec: %.2f" % (used_time, N / used_time))
+
+    # Native version
+    native = QkcHashNative()
+    cache = native.make_cache(CACHE_ENTRIES, bytes())
+
+    start_time = time.time()
+    h1 = []
+    N = 1000
+    for nonce in range(N):
+        dup_cache = native.dup_cache(cache)
+        h1.append(native.calculate_hash(bytes(4), nonce.to_bytes(4, byteorder="big"), dup_cache))
+    used_time = time.time() - start_time
+    print("Native version, time used: %.2f, hashes per sec: %.2f" % (used_time, N / used_time))
+
+    print("Equal: ", h0 == h1[0:len(h0)])
+
+
+if __name__ == '__main__':
+    test_qkchash_perf()
