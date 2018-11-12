@@ -150,6 +150,38 @@ void qkc_hash_sorted_list(
 } // org
 
 
+extern "C" void *cache_create(uint64_t *cache_ptr,
+                              uint32_t cache_size) {
+    ordered_set_t *oset = new ordered_set_t();
+    for (uint32_t i = 0; i < cache_size; i++) {
+        oset->insert(cache_ptr[i]);
+    }
+    return oset;
+}
+
+extern "C" void *cache_copy(void *ptr) {
+    return new ordered_set_t(*(ordered_set_t *)ptr);
+}
+
+extern "C" void cache_destroy(void *ptr) {
+    auto cache = (ordered_set_t *)ptr;
+    delete cache;
+}
+
+extern "C" void qkc_hash(void *cache_ptr,
+                         uint64_t* seed_ptr,
+                         uint64_t* result_ptr) {
+    ordered_set_t *oset = (ordered_set_t *)cache_ptr;
+
+    std::array<uint64_t, 8> seed;
+    std::array<uint64_t, 8> result;
+    std::copy(seed_ptr, seed_ptr + seed.size(), seed.begin());
+
+    org::quarkchain::qkc_hash(*oset, seed, result);
+
+    std::copy(result.begin(), result.end(), result_ptr);
+}
+
 void test_sorted_list() {
     std::cout << "Testing sorted list implementation" << std::endl;
     ordered_set_t oset;
