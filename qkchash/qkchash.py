@@ -4,6 +4,8 @@ import sha3
 import time
 import unittest
 
+from typing import List, Dict
+
 FNV_PRIME_64 = 0x100000001b3
 UINT64_MAX = 2 ** 64
 
@@ -180,7 +182,7 @@ class QkcHashNative:
         }
 
 
-def qkchash(header, nonce, cache):
+def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
     s = sha3_512(header + nonce[::-1])
     lcache = cache[:]
     lcache_set = set(cache)
