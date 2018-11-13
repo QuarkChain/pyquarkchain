@@ -14,7 +14,7 @@ from typing import Callable, Union, Awaitable, Dict, Any, Optional, NamedTuple
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
-from quarkchain.utils import time_ms, Logger, sha3_256
+from quarkchain.utils import time_ms, Logger, sha256
 
 Block = Union[MinorBlock, RootBlock]
 
@@ -38,7 +38,7 @@ def validate_seal(
     elif consensus_type == ConsensusType.POW_SHA3SHA3:
         nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
         target = (2 ** 256 // (diff or 1) - 1).to_bytes(32, byteorder="big")
-        h = sha3_256(sha3_256(block_header.get_hash_for_mining() + nonce_bytes))
+        h = sha256(sha256(block_header.get_hash_for_mining() + nonce_bytes))
         if not h < target:
             raise ValueError("invalid pow proof")
 
@@ -102,7 +102,7 @@ class DoubleSHA256(MiningAlgorithm):
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         for nonce in range(start_nonce, end_nonce):
             nonce_bytes = nonce.to_bytes(8, byteorder="big")
-            h = sha3_256(sha3_256(self.header_hash + nonce_bytes))
+            h = sha256(sha256(self.header_hash + nonce_bytes))
             if h < self.target:
                 return MiningResult(self.header_hash, nonce, bytes(32))
         return None
