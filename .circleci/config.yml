@@ -7,7 +7,7 @@ jobs:
   build:
     docker:
       - image: qcdll/circleci-pypy3-rocksdb
-    parallelism: 4
+    parallelism: 2
 
     working_directory: ~/repo
 
@@ -58,13 +58,12 @@ jobs:
       - run:
           name: Run unittest/py.test Tests
           command: |
-            pypy3 -m pytest quarkchain
+            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then pypy3 -m pytest quarkchain; fi
 
       - run:
           name: Run EVM Tests
           command: |
-            git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch
-            pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
+            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch && pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
 
       - store_artifacts:
           path: test-reports
