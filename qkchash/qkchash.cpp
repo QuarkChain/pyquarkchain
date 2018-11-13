@@ -97,8 +97,8 @@ void qkc_hash(
     /*
      * Compress
      */
-    for (uint32_t i = 0; i < result.size(); i++) {
-        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
+    for (uint32_t i = 0; i < result.size(); i += 4) {
+        result[i] = fnv64(fnv64(fnv64(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]);
     }
 }
 
@@ -140,8 +140,8 @@ void qkc_hash_sorted_list(
     /*
      * Compress
      */
-    for (uint32_t i = 0; i < result.size(); i++) {
-        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
+    for (uint32_t i = 0; i < result.size(); i += 4) {
+        result[i] = fnv64(fnv64(fnv64(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]);
     }
 }
 
