@@ -42,7 +42,7 @@ jobs:
       # Download and cache python modules
       - restore_cache:
           keys:
-          - pip-v1-{{ checksum "requirements.txt" }}
+          - pip-v2-{{ checksum "requirements.txt" }}
 
       - run:
           name: Install Project Dependencies
@@ -52,7 +52,7 @@ jobs:
       - save_cache:
           paths:
             - /opt/pypy3-v6.0.0-linux64
-          key: pip-v1-{{ checksum "requirements.txt" }}
+          key: pip-v2-{{ checksum "requirements.txt" }}
 
       # Run tests!
       - run:
