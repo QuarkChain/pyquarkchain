@@ -1,9 +1,15 @@
-To compile the library on Linux, need to run:
+To build `qkchash` executable and `libqkchash.so` run
 ```bash
-g++ -shared -o libqkchash.so -fPIC qkchash.cpp -O3 -std=gnu++17
+make
 ```
+By default it uses `g++` to compile the C++ code.
+You may use a different binary by overriding the `CC` variable. For example to use `g++-7` run
+```bash
+make CC=g++-7
+```
+Read `Makefile ` for more details.
 
-And run:
+To test the python wrapper run
 ```
 LD_LIBRARY_PATH=. python3 qkchash.py
 ```
