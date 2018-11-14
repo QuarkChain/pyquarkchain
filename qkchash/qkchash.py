@@ -18,7 +18,7 @@ def serialize_hash(h):
 
 def deserialize_hash(h):
     return [
-        int.from_bytes(h[i: i + WORD_BYTES], byteorder="little")
+        int.from_bytes(h[i : i + WORD_BYTES], byteorder="little")
         for i in range(0, len(h), WORD_BYTES)
     ]
 
@@ -97,7 +97,6 @@ def select(data, n):
 
 
 class TestSelect(unittest.TestCase):
-
     def test_simple(self):
         data = [1, 0, 2, 4, 3]
         self.assertEqual(select(data[:], 0), 0)
@@ -127,8 +126,7 @@ class QkcHashCache:
         self._native = native
 
     def copy(self):
-        return QkcHashCache(self._native,
-                            self._native._cache_copy(self._ptr))
+        return QkcHashCache(self._native, self._native._cache_copy(self._ptr))
 
     def __del__(self):
         self._native._cache_destroy(self._ptr)
@@ -140,16 +138,18 @@ class QkcHashNative:
 
         self._hash_func = self._lib.qkc_hash
         self._hash_func.restype = None
-        self._hash_func.argtypes = \
-            (ctypes.c_void_p,                   # cache pointer
-             ctypes.POINTER(ctypes.c_uint64),   # input seed
-             ctypes.POINTER(ctypes.c_uint64))   # output result
+        self._hash_func.argtypes = (
+            ctypes.c_void_p,  # cache pointer
+            ctypes.POINTER(ctypes.c_uint64),  # input seed
+            ctypes.POINTER(ctypes.c_uint64),
+        )  # output result
 
         self._cache_create = self._lib.cache_create
         self._cache_create.restype = ctypes.c_void_p
-        self._cache_create.argtypes = \
-            (ctypes.POINTER(ctypes.c_uint64),   # cache array pointer
-             ctypes.c_uint32)                   # cache size
+        self._cache_create.argtypes = (
+            ctypes.POINTER(ctypes.c_uint64),  # cache array pointer
+            ctypes.c_uint32,
+        )  # cache size
 
         self._cache_destroy = self._lib.cache_destroy
         self._cache_destroy.restype = None
@@ -170,11 +170,9 @@ class QkcHashNative:
     def calculate_hash(self, header, nonce, cache):
         s = sha3_512(header + nonce[::-1])
         seed = list_to_uint64_array(s)
-        result = (ctypes.c_uint64 * 8)()
+        result = (ctypes.c_uint64 * 4)()
 
-        self._hash_func(cache._ptr,
-                        seed,
-                        result)
+        self._hash_func(cache._ptr, seed, result)
 
         return {
             "mix digest": serialize_hash(result),
@@ -215,8 +213,8 @@ def qkchash(header, nonce, cache):
             mix[j] = fnv64(mix[j], new_data[j])
 
     cmix = []
-    for i in range(0, len(mix), 2):
-        cmix.append(fnv64(mix[i], mix[i + 1]))
+    for i in range(0, len(mix), 4):
+        cmix.append(fnv64(fnv64(fnv64(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]))
     return {
         "mix digest": serialize_hash(cmix),
         "result": serialize_hash(sha3_256(s + cmix)),
@@ -235,7 +233,10 @@ def test_qkchash_perf():
     for nonce in range(N):
         h0.append(qkchash(bytes(4), nonce.to_bytes(4, byteorder="big"), cache))
     used_time = time.time() - start_time
-    print("Python version, time used: %.2f, hashes per sec: %.2f" % (used_time, N / used_time))
+    print(
+        "Python version, time used: %.2f, hashes per sec: %.2f"
+        % (used_time, N / used_time)
+    )
 
     # Native version
     native = QkcHashNative()
@@ -246,12 +247,19 @@ def test_qkchash_perf():
     N = 1000
     for nonce in range(N):
         dup_cache = native.dup_cache(cache)
-        h1.append(native.calculate_hash(bytes(4), nonce.to_bytes(4, byteorder="big"), dup_cache))
+        h1.append(
+            native.calculate_hash(
+                bytes(4), nonce.to_bytes(4, byteorder="big"), dup_cache
+            )
+        )
     used_time = time.time() - start_time
-    print("Native version, time used: %.2f, hashes per sec: %.2f" % (used_time, N / used_time))
+    print(
+        "Native version, time used: %.2f, hashes per sec: %.2f"
+        % (used_time, N / used_time)
+    )
 
-    print("Equal: ", h0 == h1[0:len(h0)])
+    print("Equal: ", h0 == h1[0 : len(h0)])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_qkchash_perf()

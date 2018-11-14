@@ -66,7 +66,7 @@ void generate_init_set(ordered_set_t& oset, uint64_t seed, uint32_t size) {
 void qkc_hash(
         ordered_set_t& oset,
         std::array<uint64_t, 8>& seed,
-        std::array<uint64_t, 8>& result) {
+        std::array<uint64_t, 4>& result) {
     std::array<uint64_t, 16> mix;
     for (uint32_t i = 0; i < mix.size(); i++) {
         mix[i] = seed[i % seed.size()];
@@ -98,14 +98,15 @@ void qkc_hash(
      * Compress
      */
     for (uint32_t i = 0; i < result.size(); i++) {
-        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
+        uint32_t j = i * 4;
+        result[i] = fnv64(fnv64(fnv64(mix[j], mix[j + 1]), mix[j + 2]), mix[j + 3]);
     }
 }
 
 void qkc_hash_sorted_list(
         std::vector<uint64_t>& slist,
         std::array<uint64_t, 8>& seed,
-        std::array<uint64_t, 8>& result) {
+        std::array<uint64_t, 4>& result) {
     std::array<uint64_t, 16> mix;
     for (uint32_t i = 0; i < mix.size(); i++) {
         mix[i] = seed[i % seed.size()];
@@ -141,7 +142,8 @@ void qkc_hash_sorted_list(
      * Compress
      */
     for (uint32_t i = 0; i < result.size(); i++) {
-        result[i] = fnv64(mix[i * 2], mix[i * 2 + 1]);
+        uint32_t j = i * 4;
+        result[i] = fnv64(fnv64(fnv64(mix[j], mix[j + 1]), mix[j + 2]), mix[j + 3]);
     }
 }
 
@@ -174,7 +176,7 @@ extern "C" void qkc_hash(void *cache_ptr,
     ordered_set_t *oset = (ordered_set_t *)cache_ptr;
 
     std::array<uint64_t, 8> seed;
-    std::array<uint64_t, 8> result;
+    std::array<uint64_t, 4> result;
     std::copy(seed_ptr, seed_ptr + seed.size(), seed.begin());
 
     org::quarkchain::qkc_hash(*oset, seed, result);
@@ -201,8 +203,8 @@ void test_sorted_list() {
         seed[j] = dist(generator);
     }
 
-    std::array<uint64_t, 8> result0;
-    std::array<uint64_t, 8> result1;
+    std::array<uint64_t, 4> result0;
+    std::array<uint64_t, 4> result1;
     org::quarkchain::qkc_hash(oset, seed, result0);
     org::quarkchain::qkc_hash_sorted_list(slist, seed, result1);
 
@@ -239,7 +241,7 @@ void test_qkc_hash_perf() {
     t_start = std::chrono::steady_clock::now();
     uint32_t count = 1000;
     std::array<uint64_t, 8> seed;
-    std::array<uint64_t, 8> result;
+    std::array<uint64_t, 4> result;
     for (uint32_t i = 0; i < count; i++) {
         for (uint32_t j = 0; j < 8; j++) {
             seed[j] = dist(generator);
@@ -282,7 +284,7 @@ void test_qkc_hash_slist_perf() {
     t_start = std::chrono::steady_clock::now();
     uint32_t count = 1000;
     std::array<uint64_t, 8> seed;
-    std::array<uint64_t, 8> result;
+    std::array<uint64_t, 4> result;
     for (uint32_t i = 0; i < count; i++) {
         for (uint32_t j = 0; j < 8; j++) {
             seed[j] = dist(generator);
