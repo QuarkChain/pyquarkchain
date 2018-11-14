@@ -63,7 +63,10 @@ class QuarkPeer(BasePeer):
         pass
 
     async def do_sub_proto_handshake(self) -> None:
+        """ overrides BasePeer.do_sub_proto_handshake()
+        """
         self.secure_peer = SecurePeer(self)
+        Logger.info("starting peer")
         await self.secure_peer.start()
 
     def decrypt_raw_bytes(self, data: bytes, size: int) -> bytes:
@@ -205,6 +208,7 @@ class SecurePeer(Peer):
 
     async def start(self) -> str:
         """ Override Peer.start()
+        exchange hello command, establish cluster connections in master
         """
         self.send_hello()
 
