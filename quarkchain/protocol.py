@@ -229,8 +229,8 @@ class Connection(AbstractConnection):
     def __init__(
         self,
         env,
-        reader,
-        writer,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
         op_ser_map,
         op_non_rpc_map,
         op_rpc_map,

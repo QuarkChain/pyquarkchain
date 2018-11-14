@@ -11,6 +11,9 @@ ROOT_BRANCH = Branch(ROOT_SHARD_ID)
 
 
 class ProxyConnection(Connection):
+    """
+    A connection that forwards received data to other connections based on metadata
+    """
     def __init__(
         self,
         env,
@@ -35,7 +38,7 @@ class ProxyConnection(Connection):
             name=name,
         )
 
-    def get_connection_to_forward(self, metadata):
+    def get_connection_to_forward(self, metadata) -> AbstractConnection:
         """ Returns the Connection object to forward a request for metadata.
         Returns None if the request should not be forwarded for metadata.
 
