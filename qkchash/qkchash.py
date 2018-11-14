@@ -170,7 +170,7 @@ class QkcHashNative:
     def calculate_hash(self, header, nonce, cache):
         s = sha3_512(header + nonce[::-1])
         seed = list_to_uint64_array(s)
-        result = (ctypes.c_uint64 * 8)()
+        result = (ctypes.c_uint64 * 4)()
 
         self._hash_func(cache._ptr, seed, result)
 
