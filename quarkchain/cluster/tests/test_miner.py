@@ -3,7 +3,7 @@ import time
 import unittest
 from typing import Optional
 
-from quarkchain.cluster.miner import Miner, validate_seal, DoubleSHA256, MiningWork
+from quarkchain.cluster.miner import DoubleSHA256, Miner, MiningWork, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
 from quarkchain.utils import sha3_256
@@ -102,6 +102,27 @@ class TestMiner(unittest.TestCase):
         self.assertEqual(mined_res.nonce, 9)
         block.header.nonce = mined_res.nonce
         validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
+
+    def test_qkchash(self):
+        miner = self.miner_gen(ConsensusType.POW_QKCHASH, None, None)
+        block = RootBlock(
+            RootBlockHeader(create_time=42, difficulty=5),
+            tracking_data="{}".encode("utf-8"),
+        )
+        work = MiningWork(block.header.get_hash_for_mining(), 42, 5)
+        # only process one block, which is passed in. `None` means termination right after
+        miner.input_q.put((None, {}))
+        miner.mine_loop(
+            work,
+            {"consensus_type": ConsensusType.POW_QKCHASH},
+            miner.input_q,
+            miner.output_q,
+        )
+        mined_res = miner.output_q.get()
+        self.assertEqual(mined_res.nonce, 6)
+        block.header.nonce = mined_res.nonce
+        block.header.mixhash = mined_res.mixhash
+        validate_seal(block.header, ConsensusType.POW_QKCHASH)
 
     def test_only_remote(self):
         async def go():
