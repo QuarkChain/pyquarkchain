@@ -1,20 +1,20 @@
 import asyncio
 import copy
+import json
 import random
 import time
-import json
 from abc import ABC, abstractmethod
+from queue import Queue
+from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
-from queue import Queue
-
-from typing import Callable, Union, Awaitable, Dict, Any, Optional, NamedTuple
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
+from qkchash.qkcpow import QkchashMiner, check_pow as qkchash_check_pow
 from quarkchain.config import ConsensusType
-from quarkchain.core import MinorBlock, RootBlock, RootBlockHeader, MinorBlockHeader
-from quarkchain.utils import time_ms, Logger, sha256
+from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
+from quarkchain.utils import Logger, sha256, time_ms
 
 Block = Union[MinorBlock, RootBlock]
 
@@ -25,8 +25,8 @@ def validate_seal(
     adjusted_diff: int = None,  # for overriding
 ) -> None:
     diff = adjusted_diff if adjusted_diff is not None else block_header.difficulty
+    nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
     if consensus_type == ConsensusType.POW_ETHASH:
-        nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
         if not check_pow(
             block_header.height,
             block_header.get_hash_for_mining(),
@@ -35,8 +35,12 @@ def validate_seal(
             diff,
         ):
             raise ValueError("invalid pow proof")
+    elif consensus_type == ConsensusType.POW_QKCHASH:
+        if not qkchash_check_pow(
+            block_header.get_hash_for_mining(), block_header.mixhash, nonce_bytes, diff
+        ):
+            raise ValueError("invalid pow proof")
     elif consensus_type == ConsensusType.POW_SHA3SHA3:
-        nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
         target = (2 ** 256 // (diff or 1) - 1).to_bytes(32, byteorder="big")
         h = sha256(sha256(block_header.get_hash_for_mining() + nonce_bytes))
         if not h < target:
@@ -78,6 +82,23 @@ class Ethash(MiningAlgorithm):
         self.miner = EthashMiner(
             work.height, work.difficulty, work.hash, is_test=is_test
         )
+
+    def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
+        nonce_found, mixhash = self.miner.mine(
+            rounds=end_nonce - start_nonce, start_nonce=start_nonce
+        )
+        if not nonce_found:
+            return None
+        return MiningResult(
+            self.miner.header_hash,
+            int.from_bytes(nonce_found, byteorder="big"),
+            mixhash,
+        )
+
+
+class Qkchash(MiningAlgorithm):
+    def __init__(self, work: MiningWork, **kwargs):
+        self.miner = QkchashMiner(work.difficulty, work.hash)
 
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         nonce_found, mixhash = self.miner.mine(
@@ -280,6 +301,7 @@ class Miner:
         consensus_to_mining_algo = {
             ConsensusType.POW_SIMULATE: Simulate,
             ConsensusType.POW_ETHASH: Ethash,
+            ConsensusType.POW_QKCHASH: Qkchash,
             ConsensusType.POW_SHA3SHA3: DoubleSHA256,
         }
         progress = {}

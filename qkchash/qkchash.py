@@ -1,8 +1,10 @@
 import bisect
 import ctypes
-import sha3
 import time
 import unittest
+from typing import Dict, List
+
+from Crypto.Hash import keccak
 
 FNV_PRIME_64 = 0x100000001b3
 UINT64_MAX = 2 ** 64
@@ -40,11 +42,11 @@ serialize_dataset = serialize_cache
 
 
 def sha3_512(x):
-    return hash_words(lambda v: sha3.sha3_512(v).digest(), 64, x)
+    return hash_words(lambda v: keccak.new(digest_bits=512, data=v).digest(), 64, x)
 
 
 def sha3_256(x):
-    return hash_words(lambda v: sha3.sha3_256(v).digest(), 32, x)
+    return hash_words(lambda v: keccak.new(digest_bits=256, data=v).digest(), 32, x)
 
 
 def fnv64(v1, v2):
@@ -180,7 +182,7 @@ class QkcHashNative:
         }
 
 
-def qkchash(header, nonce, cache):
+def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
     s = sha3_512(header + nonce[::-1])
     lcache = cache[:]
     lcache_set = set(cache)
