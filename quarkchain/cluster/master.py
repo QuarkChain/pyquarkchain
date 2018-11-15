@@ -75,6 +75,7 @@ from quarkchain.core import (
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
+from quarkchain.p2p.server import P2PManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
@@ -539,7 +540,7 @@ class MasterServer:
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.root_state = root_state
-        self.network = None  # will be set by SimpleNetwork
+        self.network = None  # will be set by network constructor
         self.cluster_config = env.cluster_config
 
         # branch value -> a list of slave running the shard
@@ -1410,21 +1411,25 @@ def main():
     if env.cluster_config.MINE:
         asyncio.ensure_future(master.start_mining())
 
-    network = (
-        P2PNetwork(env, master)
-        if env.cluster_config.use_p2p()
-        else SimpleNetwork(env, master)
-    )
+    loop = asyncio.get_event_loop()
+
+    network = None
+    if env.cluster_config.use_p2p():
+        if env.cluster_config.P2P.NEW_MODULE:
+            network = P2PManager(env, master, loop)
+        else:
+            network = P2PNetwork(env, master, loop)
+    else:
+        network = SimpleNetwork(env, master, loop)
     network.start()
 
-    if env.cluster_config.use_p2p():
+    if env.cluster_config.use_p2p() and not env.cluster_config.P2P.NEW_MODULE:
         thread = Thread(target=devp2p_app, args=[env, network], daemon=True)
         thread.start()
 
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
 
-    loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(master.shutdown_future)
     except KeyboardInterrupt:

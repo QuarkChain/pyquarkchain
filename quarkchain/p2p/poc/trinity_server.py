@@ -1,5 +1,5 @@
 import asyncio
-import numpy.random
+import os
 
 from abc import abstractmethod
 from typing import Sequence, Tuple
@@ -196,7 +196,7 @@ class BaseServer(BaseService):
             initiator_remote, self.privkey, got_eip8, self.cancel_token
         )
 
-        responder_nonce = numpy.random.bytes(HASH_LEN)
+        responder_nonce = os.urandom(HASH_LEN)
         auth_ack_msg = responder.create_auth_ack_message(responder_nonce)
         auth_ack_ciphertext = responder.encrypt_auth_ack_message(auth_ack_msg)
 
