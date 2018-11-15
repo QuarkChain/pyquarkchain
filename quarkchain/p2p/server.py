@@ -17,7 +17,11 @@ from quarkchain.p2p.kademlia import Node
 from quarkchain.p2p.peer import BasePeer, BasePeerContext, BasePeerPool, BasePeerFactory
 from quarkchain.p2p.protocol import Command, _DecodedMsgType, NULL_BYTE, Protocol
 from .constants import HEADER_LEN, MAC_LEN
-from quarkchain.p2p.exceptions import DecryptionError, PeerConnectionLost
+from quarkchain.p2p.exceptions import (
+    DecryptionError,
+    PeerConnectionLost,
+    HandshakeFailure,
+)
 from quarkchain.p2p.utils import sxor
 
 
@@ -66,8 +70,13 @@ class QuarkPeer(BasePeer):
         """ overrides BasePeer.do_sub_proto_handshake()
         """
         self.secure_peer = SecurePeer(self)
-        Logger.info("starting peer")
-        await self.secure_peer.start()
+        Logger.info("starting peer hello exchange")
+        start_state = await self.secure_peer.start()
+        if start_state:
+            # returns None if successful
+            raise HandshakeFailure(
+                "hello message exchange failed: {}".format(start_state)
+            )
 
     def decrypt_raw_bytes(self, data: bytes, size: int) -> bytes:
         """
@@ -116,6 +125,9 @@ class QuarkPeer(BasePeer):
         """
         self.run_child_service(self.boot_manager)
         self.secure_peer.add_sync_task()
+        if self.secure_peer.state == ConnectionState.CONNECTING:
+            self.secure_peer.state = ConnectionState.ACTIVE
+            self.secure_peer.active_future.set_result(None)
         while self.is_operational:
             try:
                 metadata, raw_data = await self.secure_peer.read_metadata_and_raw_data()
@@ -195,7 +207,7 @@ class SecurePeer(Peer):
 
     def __init__(self, quark_peer: QuarkPeer):
         cluster_peer_id = quark_peer.remote.id % 2 ** 64
-        super.__init__(
+        super().__init__(
             env=self.env,
             reader=None,
             writer=None,
@@ -266,12 +278,13 @@ class SecurePeer(Peer):
     def write_raw_data(self, metadata, raw_data):
         """ Override Connection.write_raw_data()
         """
-        self.quark_peer.send_raw_bytes(metadata.serialize() + raw_data)
+        # NOTE QuarkChain serialization returns bytearray
+        self.quark_peer.send_raw_bytes(bytes(metadata.serialize() + raw_data))
 
     async def read_metadata_and_raw_data(self):
         """ Override Connection.read_metadata_and_raw_data()
         """
-        data = self.quark_peer.read_raw_bytes(timeout=None)
+        data = await self.quark_peer.read_raw_bytes(timeout=None)
         metadata_bytes = data[: self.metadata_class.get_byte_size()]
         metadata = self.metadata_class.deserialize(metadata_bytes)
         return metadata, data[self.metadata_class.get_byte_size() :]
@@ -363,7 +376,8 @@ class P2PManager(AbstractNetwork):
         SecurePeer.network = self
         SecurePeer.master_server = master_server
 
-        self.self_id = privkey.public_key.to_bytes()
+        # used in HelloCommand.peer_id which is hash256
+        self.self_id = privkey.public_key.to_bytes()[:32]
         self.ip = ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))
         self.port = env.cluster_config.P2P_PORT
 
