@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from fractions import Fraction
 from typing import List
 from eth_keys import KeyAPI
 import quarkchain.db
@@ -112,7 +113,7 @@ class ShardConfig(BaseConfig):
     GENESIS = None  # type: ShardGenesis
 
     COINBASE_ADDRESS = bytes(24).hex()
-    COINBASE_AMOUNT = 5
+    COINBASE_AMOUNT = 5 * QUARKSH_TO_JIAOZI
 
     # Gas Limit
     GAS_LIMIT_EMA_DENOMINATOR = 1024
@@ -192,7 +193,7 @@ class RootConfig(BaseConfig):
     GENESIS = None  # type: RootGenesis
 
     COINBASE_ADDRESS = bytes(24).hex()
-    COINBASE_AMOUNT = 5
+    COINBASE_AMOUNT = 120 * QUARKSH_TO_JIAOZI
 
     def __init__(self):
         self.GENESIS = RootGenesis()
@@ -226,9 +227,6 @@ class QuarkChainConfig(BaseConfig):
     SHARD_SIZE = 8
 
     MAX_NEIGHBORS = 32
-
-    # Block reward
-    MINOR_BLOCK_DEFAULT_REWARD = 100 * QUARKSH_TO_JIAOZI
 
     NETWORK_ID = NetworkId.TESTNET_PORSCHE
     TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD = 10000
@@ -269,6 +267,13 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
+
+    @property
+    def reward_tax_rate(self) -> Fraction:
+        ret = Fraction(self.REWARD_TAX_RATE).limit_denominator()
+        # a simple heuristic to make sure it's at least a percent number
+        assert ret.denominator <= 100
+        return ret
 
     def get_genesis_root_height(self, shard_id) -> int:
         """ Return the root block height at which the shard shall be created"""

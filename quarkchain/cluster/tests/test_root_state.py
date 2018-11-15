@@ -7,7 +7,6 @@ from quarkchain.cluster.tests.test_utils import get_test_env
 from quarkchain.core import Address
 from quarkchain.core import CrossShardTransactionList
 from quarkchain.diff import EthDifficultyCalculator
-from quarkchain.genesis import GenesisManager
 
 
 def create_default_state(env, diff_calc=None):

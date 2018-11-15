@@ -1,5 +1,5 @@
 import copy
-from quarkchain.config import get_default_evm_config
+from quarkchain.config import get_default_evm_config, QuarkChainConfig
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.cluster_config import ClusterConfig

@@ -752,13 +752,13 @@ class MinorBlock(Serializable):
         self.meta.hash_merkle_root = self.calculate_merkle_root()
         return self
 
-    def finalize(self, evm_state, hash_prev_root_block=None):
+    def finalize(self, evm_state, coinbase_amount, hash_prev_root_block=None):
         if hash_prev_root_block is not None:
             self.header.hash_prev_root_block = hash_prev_root_block
         self.meta.hash_evm_state_root = evm_state.trie.root_hash
         self.meta.evm_gas_used = evm_state.gas_used
         self.meta.evm_cross_shard_receive_gas_used = evm_state.xshard_receive_gas_used
-        self.header.coinbase_amount = evm_state.block_fee // 2
+        self.header.coinbase_amount = coinbase_amount
         self.finalize_merkle_root()
         self.meta.hash_evm_receipt_root = mk_receipt_sha(
             evm_state.receipts, evm_state.db
@@ -809,7 +809,7 @@ class MinorBlock(Serializable):
         self,
         create_time=None,
         address=None,
-        quarkash=0,
+        coinbase_amount=0,
         difficulty=None,
         extra_data=b"",
         nonce=0,
@@ -829,7 +829,7 @@ class MinorBlock(Serializable):
             height=self.header.height + 1,
             branch=self.header.branch,
             coinbase_address=address,
-            coinbase_amount=quarkash,
+            coinbase_amount=coinbase_amount,
             hash_prev_minor_block=self.header.get_hash(),
             hash_prev_root_block=self.header.hash_prev_root_block,
             evm_gas_limit=self.header.evm_gas_limit,
@@ -949,15 +949,17 @@ class RootBlock(Serializable):
         self.header = header
         self.minor_block_header_list = (
             [] if minor_block_header_list is None else minor_block_header_list
-        )
+        )  # type: List[MinorBlockHeader]
         self.tracking_data = tracking_data
 
-    def finalize(self, quarkash=0, coinbase_address=Address.create_empty_account()):
+    def finalize(
+        self, coinbase_amount=0, coinbase_address=Address.create_empty_account()
+    ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount = quarkash
+        self.header.coinbase_amount = coinbase_amount
         self.header.coinbase_address = coinbase_address
         return self
 

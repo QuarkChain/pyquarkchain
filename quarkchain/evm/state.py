@@ -172,7 +172,13 @@ class Account(rlp.Serializable):
 # from ethereum.state import State
 class State:
     def __init__(
-        self, root=BLANK_ROOT, env=Env(), executing_on_head=False, db=None, **kwargs
+        self,
+        root=BLANK_ROOT,
+        env=Env(),
+        qkc_config=None,
+        executing_on_head=False,
+        db=None,
+        **kwargs
     ):
         if db is None:
             db = env.db
@@ -187,6 +193,7 @@ class State:
         self.deletes = []
         self.changed = {}
         self.executing_on_head = executing_on_head
+        self.qkc_config = qkc_config
 
     @property
     def db(self):
@@ -593,6 +600,7 @@ class State:
             assert not acct.touched or not acct.deleted
         s.journal = copy.copy(self.journal)
         s.cache = {}
+        s.qkc_config = self.qkc_config
         return s
 
 

@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 from collections import defaultdict
+from fractions import Fraction
 from typing import Optional, Tuple, List, Union, Dict
 
 from quarkchain.cluster.filter import Filter
@@ -9,7 +10,6 @@ from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
-from quarkchain.config import NetworkId
 from quarkchain.core import (
     calculate_merkle_root,
     Address,
@@ -143,7 +143,9 @@ class ShardState:
         )
 
     def __create_evm_state(self):
-        return EvmState(env=self.env.evm_env, db=self.raw_db)
+        return EvmState(
+            env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
+        )
 
     def init_genesis_state(self, root_block):
         """ root_block should have the same height as configured in shard GENESIS.
@@ -556,10 +558,6 @@ class ShardState:
                 )
                 raise e
 
-        # Put only half of block fee to coinbase address
-        check(evm_state.get_balance(evm_state.block_coinbase) >= evm_state.block_fee)
-        evm_state.delta_balance(evm_state.block_coinbase, -evm_state.block_fee // 2)
-
         # Update actual root hash
         evm_state.commit()
         return evm_state
@@ -698,16 +696,12 @@ class ShardState:
                     evm_state.xshard_receive_gas_used,
                 )
             )
-
-        # The rest fee goes to root block
-        if evm_state.block_fee // 2 != block.header.coinbase_amount:
+        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
+        if coinbase_amount != block.header.coinbase_amount:
             raise ValueError("Coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
             raise ValueError("Bloom mismatch")
-
-        # TODO: Add block reward to coinbase
-        self.reward_calc.get_block_reward()
 
         self.db.put_minor_block(block, x_shard_receive_tx_list)
 
@@ -779,11 +773,24 @@ class ShardState:
             )
         return evm_state.xshard_list
 
+    def get_coinbase_amount(self) -> int:
+        local_fee_rate = (
+            1 - self.env.quark_chain_config.reward_tax_rate
+        )  # type: Fraction
+        coinbase_amount = (
+            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
+            * local_fee_rate.numerator
+            // local_fee_rate.denominator
+        )
+        return coinbase_amount
+
     def get_tip(self) -> MinorBlock:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
 
     def finalize_and_add_block(self, block):
-        block.finalize(evm_state=self.run_block(block))
+        evm_state = self.run_block(block)
+        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
+        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
         self.add_block(block)
 
     def get_balance(self, recipient: bytes, height: Optional[int] = None) -> int:
@@ -1002,14 +1009,11 @@ class ShardState:
 
         self.__add_transactions_to_block(block, evm_state)
 
-        # Put only half of block fee to coinbase address
-        check(evm_state.get_balance(evm_state.block_coinbase) >= evm_state.block_fee)
-        evm_state.delta_balance(evm_state.block_coinbase, -evm_state.block_fee // 2)
-
         # Update actual root hash
         evm_state.commit()
 
-        block.finalize(evm_state=evm_state)
+        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
+        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
@@ -1205,6 +1209,9 @@ class ShardState:
 
     def __run_one_cross_shard_tx_list_by_root_block_hash(self, r_hash, evm_state):
         tx_list = self.__get_cross_shard_tx_list_by_root_block_hash(r_hash)
+        local_fee_rate = (
+            1 - self.env.quark_chain_config.reward_tax_rate
+        )  # type: Fraction
 
         for tx in tx_list:
             evm_state.delta_balance(tx.to_address.recipient, tx.value)
@@ -1213,10 +1220,15 @@ class ShardState:
                 + (opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0),
                 evm_state.gas_limit,
             )
-            evm_state.block_fee += opcodes.GTXXSHARDCOST * tx.gas_price
-            evm_state.delta_balance(
-                evm_state.block_coinbase, opcodes.GTXXSHARDCOST * tx.gas_price
+            xshard_fee = (
+                opcodes.GTXXSHARDCOST
+                * tx.gas_price
+                * local_fee_rate.numerator
+                // local_fee_rate.denominator
             )
+            evm_state.block_fee += xshard_fee
+            evm_state.delta_balance(evm_state.block_coinbase, xshard_fee)
+
         evm_state.xshard_receive_gas_used = evm_state.gas_used
 
         return tx_list

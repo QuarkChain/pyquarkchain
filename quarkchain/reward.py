@@ -3,4 +3,4 @@ class ConstMinorBlockRewardCalcultor:
         self.env = env
 
     def get_block_reward(self):
-        return self.env.quark_chain_config.MINOR_BLOCK_DEFAULT_REWARD
+        return 100000000000000000000

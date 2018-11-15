@@ -1,4 +1,6 @@
 # Modified from pyethereum under MIT license
+from fractions import Fraction
+
 import rlp
 
 # to bypass circular imports
@@ -201,6 +203,11 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     if tx.sender != null_address:
         state.increment_nonce(tx.sender)
 
+    # part of fees should go to root chain miners
+    local_fee_rate = (
+        1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
+    )
+
     # buy startgas
     assert state.get_balance(tx.sender) >= tx.startgas * tx.gasprice
     state.delta_balance(tx.sender, -tx.startgas * tx.gasprice)
@@ -246,7 +253,13 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             gas_remained=gas_remained,
         )
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
-        state.delta_balance(state.block_coinbase, tx.gasprice * gas_used)
+        fee = (
+            tx.gasprice
+            * gas_used
+            * local_fee_rate.numerator
+            // local_fee_rate.denominator
+        )
+        state.delta_balance(state.block_coinbase, fee)
         state.block_fee += tx.gasprice * gas_used
         output = b""
         success = 0
@@ -262,8 +275,11 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         # sell remaining gas
         state.delta_balance(tx.sender, tx.gasprice * gas_remained)
         # if x-shard, reserve part of the gas for the target shard miner
-        fee = tx.gasprice * (
-            gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard() else 0)
+        fee = (
+            tx.gasprice
+            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard() else 0))
+            * local_fee_rate.numerator
+            // local_fee_rate.denominator
         )
         state.delta_balance(state.block_coinbase, fee)
         state.block_fee += fee
