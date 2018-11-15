@@ -128,28 +128,32 @@ class QuarkPeer(BasePeer):
         if self.secure_peer.state == ConnectionState.CONNECTING:
             self.secure_peer.state = ConnectionState.ACTIVE
             self.secure_peer.active_future.set_result(None)
-        while self.is_operational:
-            try:
+        try:
+            while self.is_operational:
                 metadata, raw_data = await self.secure_peer.read_metadata_and_raw_data()
-            except (PeerConnectionLost, TimeoutError) as err:
-                self.logger.debug(
-                    "%s stopped responding (%r), disconnecting", self.remote, err
-                )
-                return
-            except DecryptionError as err:
-                self.logger.warning(
-                    "Unable to decrypt message from %s, disconnecting: %r",
-                    self.remote,
-                    err,
-                    exc_info=True,
-                )
-                return
             self.run_task(
                 self.secure_peer.__internal_handle_metadata_and_raw_data(
                     metadata, raw_data
                 )
             )
+        except (PeerConnectionLost, TimeoutError) as err:
+            self.logger.debug(
+                "%s stopped responding (%r), disconnecting", self.remote, err
+            )
+        except DecryptionError as err:
+            self.logger.warning(
+                "Unable to decrypt message from %s, disconnecting: %r",
+                self.remote,
+                err,
+            )
+        except Exception as e:
+            self.logger.warning(
+                "Unknown exception from %s, message: %r",
+                self.remote,
+                e,
+            )
         self.secure_peer.abort_in_flight_rpcs()
+        self.secure_peer.close()
 
 
 class SecurePeer(Peer):
