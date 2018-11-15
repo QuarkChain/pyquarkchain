@@ -1,9 +1,9 @@
 """
 Example runs:
 
-python trinity_node_network.py --num_apps=10
+python paragon_node_network.py --num_apps=10
 # or
-python trinity_node_network.py --num_apps=100
+python paragon_node_network.py --num_apps=100
 """
 import argparse
 import asyncio
@@ -16,9 +16,9 @@ from asyncio import subprocess
 PORT = 29000
 
 
-async def run_app(bootnode, privkey, listen_port, max_peers, logging_level):
+async def run_node(bootnode, privkey, listen_port, max_peers, logging_level):
     cmd = (
-        "python trinity_node.py "
+        "python paragon_node.py "
         "--bootnode={} "
         "--privkey={} "
         "--listen_port={} "
@@ -54,14 +54,14 @@ class Network:
         if self.shutdown_called:
             return
 
-    async def run_apps(self):
+    async def run_nodes(self):
         """
         run bootstrap node (first process) first, sleep for 3 seconds
         """
         bootnode = "enode://c571e0db93d17cc405cb57640826b70588a6a28785f38b21be471c609ca12fcb06cb306ac44872908f5bed99046031a5af82072d484e3ef9029560c1707193a0@127.0.0.1:{}".format(
             self.port_start
         )
-        s = await run_app(
+        s = await run_node(
             bootnode=bootnode,
             privkey="31552f186bf90908ce386fb547dd0410bf443309125cc43fd0ffd642959bf6d9",
             listen_port=self.port_start,
@@ -73,7 +73,7 @@ class Network:
         self.procs.append((prefix, s))
         await asyncio.sleep(3)
         for id in range(1, self.num_apps):
-            s = await run_app(
+            s = await run_node(
                 bootnode=bootnode,
                 privkey="",
                 listen_port=self.port_start + id,
@@ -86,7 +86,7 @@ class Network:
             await asyncio.sleep(.5)
 
     async def run(self):
-        await self.run_apps()
+        await self.run_nodes()
         await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
         )

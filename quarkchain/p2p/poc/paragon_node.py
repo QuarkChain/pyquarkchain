@@ -3,10 +3,10 @@ Example runs:
 
 # run bootnode, this will fire up both UDP(discovery) and TCP(P2P) server
 # note the default private key is correct key for bootnode
-python trinity_node.py --logging_level=debug
+python paragon_node.py --logging_level=debug
 
 # run a different node on a new port, note we need to leave private key empty to automatically generate a new one
-python trinity_node.py --privkey="" --listen_port=29001 --logging_level=debug
+python paragon_node.py --privkey="" --listen_port=29001 --logging_level=debug
 """
 import argparse
 import asyncio
@@ -25,6 +25,10 @@ NETWORK_ID = 999
 
 
 class ParagonServer(BaseServer):
+    """
+    a server using ParagonPeerPool (that creates paragon peers for demonstration purposes)
+    """
+
     def _make_peer_pool(self):
         return ParagonPeerPool(
             privkey=self.privkey,
@@ -40,7 +44,7 @@ class ParagonServer(BaseServer):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--bootnode",
+        "--bootnodes",
         default="enode://c571e0db93d17cc405cb57640826b70588a6a28785f38b21be471c609ca12fcb06cb306ac44872908f5bed99046031a5af82072d484e3ef9029560c1707193a0@127.0.0.1:29000",
         type=str,
     )
@@ -74,11 +78,17 @@ def main():
         privkey = ecies.generate_privkey()
 
     cancel_token = CancelToken("server")
+    if args.bootnodes:
+        bootstrap_nodes = args.bootnodes.split(",")
+    else:
+        bootstrap_nodes = []
     server = ParagonServer(
         privkey=privkey,
         port=args.listen_port,
         network_id=NETWORK_ID,
-        bootstrap_nodes=tuple([kademlia.Node.from_uri(args.bootnode)]),
+        bootstrap_nodes=tuple(
+            [kademlia.Node.from_uri(enode) for enode in bootstrap_nodes]
+        ),
         token=cancel_token,
         upnp=args.upnp,
     )

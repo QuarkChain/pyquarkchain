@@ -812,7 +812,8 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.max_peers = max_peers
         self.context = context
 
-        self.connected_nodes = {}  # : Dict[Node, BasePeer]
+        self.connected_nodes = {}  # type: Dict[Node, BasePeer]
+        self.cluster_peer_map = {}  # type: Dict[int, BasePeer]
         self._subscribers = []  # : List[PeerSubscriber]
         self.event_bus = event_bus
         if self.event_bus is not None:
@@ -901,6 +902,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         """
         self.logger.info("Adding %s to pool", peer)
         self.connected_nodes[peer.remote] = peer
+        self.cluster_peer_map[peer.remote.id % 2 ** 64] = peer
         peer.add_finished_callback(self._peer_finished)
         for subscriber in self._subscribers:
             subscriber.register_peer(peer)
@@ -1014,6 +1016,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if peer.remote in self.connected_nodes:
             self.logger.info("%s finished, removing from pool", peer)
             self.connected_nodes.pop(peer.remote)
+            self.cluster_peer_map.pop(peer.remote.id % 2 ** 64)
         else:
             self.logger.warning(
                 "%s finished but was not found in connected_nodes (%s)",
