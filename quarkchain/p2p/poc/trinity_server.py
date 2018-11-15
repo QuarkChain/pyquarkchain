@@ -100,7 +100,7 @@ class BaseServer(BaseService):
         external_ip = mapped_external_ip or "0.0.0.0"
         await self._start_tcp_listener()
         self.logger.info(
-            "enode://%s@%s:%s",
+            "this server: enode://%s@%s:%s",
             self.privkey.public_key.to_hex()[2:],
             external_ip,
             self.port,
@@ -237,7 +237,9 @@ class BaseServer(BaseService):
         if self.peer_pool.is_full:
             await peer.disconnect(DisconnectReason.too_many_peers)
             return
-        elif NO_SAME_IP and not self.peer_pool.is_valid_connection_candidate(peer.remote):
+        elif NO_SAME_IP and not self.peer_pool.is_valid_connection_candidate(
+            peer.remote
+        ):
             await peer.disconnect(DisconnectReason.useless_peer)
             return
 
