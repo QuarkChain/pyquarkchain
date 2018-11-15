@@ -61,7 +61,7 @@ def get_test_env(
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
-    # prent breaking previous tests after tweaking default rewards
+    # prevent breaking previous tests after tweaking default rewards
     env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
     for c in env.quark_chain_config.SHARD_LIST:
         c.COINBASE_AMOUNT = 5
@@ -268,7 +268,7 @@ def create_test_clusters(
                 shard.state.diff_calc = easy_diff_calc
 
         # Start simple network and connect to seed host
-        network = SimpleNetwork(env, master_server)
+        network = SimpleNetwork(env, master_server, loop)
         network.start_server()
         if i != 0:
             peer = call_async(network.connect("127.0.0.1", bootstrap_port))

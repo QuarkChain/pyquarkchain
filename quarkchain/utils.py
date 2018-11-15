@@ -1,5 +1,6 @@
 import asyncio
 import ctypes
+import hashlib
 import io
 import logging
 import os
@@ -46,6 +47,12 @@ def sha3_256(x):
     return keccak(x)
 
 
+def sha256(x: bytes) -> bytes:
+    m = hashlib.sha256()
+    m.update(x)
+    return m.digest()
+
+
 def check(condition, msg=""):
     """ Unlike assert, which can be optimized out,
     check will always check whether condition is satisfied or throw AssertionError if not
@@ -86,7 +93,9 @@ class QKCLogger(logging.getLoggerClass()):
 
     def findCaller(self, stack_info=False):
         frame = sys._getframe(2)
-        f_to_skip = {func for func in dir(Logger) if callable(getattr(Logger, func))}.union({func for func in dir(QKCLogger) if callable(getattr(QKCLogger, func))})
+        f_to_skip = {
+            func for func in dir(Logger) if callable(getattr(Logger, func))
+        }.union({func for func in dir(QKCLogger) if callable(getattr(QKCLogger, func))})
 
         while frame:
             code = frame.f_code

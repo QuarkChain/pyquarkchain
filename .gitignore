@@ -113,6 +113,7 @@ venv.bak/
 
 # IDE
 .idea/
+.vscode/
 
 # IPython notebook
 *.ipynb

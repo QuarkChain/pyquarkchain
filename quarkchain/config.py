@@ -94,10 +94,11 @@ class ConsensusType(Enum):
     POW_ETHASH = 1
     POW_SHA3SHA3 = 2
     POW_SIMULATE = 3
+    POW_QKCHASH = 4
 
     @classmethod
     def pow_types(cls):
-        return [cls.POW_ETHASH, cls.POW_SHA3SHA3, cls.POW_SIMULATE]
+        return [cls.POW_ETHASH, cls.POW_SHA3SHA3, cls.POW_SIMULATE, cls.POW_QKCHASH]
 
 
 class POWConfig(BaseConfig):
@@ -191,7 +192,7 @@ class RootConfig(BaseConfig):
     CONSENSUS_CONFIG = None  # type: POWConfig
     GENESIS = None  # type: RootGenesis
 
-    COINBASE_ADDRESS = "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
+    COINBASE_ADDRESS = bytes(24).hex()
     COINBASE_AMOUNT = 120 * QUARKSH_TO_JIAOZI
 
     def __init__(self):
