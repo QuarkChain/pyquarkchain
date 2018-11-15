@@ -61,7 +61,7 @@ def get_test_env(
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
-    # prent breaking previous tests after tweaking default rewards
+    # prevent breaking previous tests after tweaking default rewards
     env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
     for c in env.quark_chain_config.SHARD_LIST:
         c.COINBASE_AMOUNT = 5
