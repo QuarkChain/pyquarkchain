@@ -752,13 +752,13 @@ class MinorBlock(Serializable):
         self.meta.hash_merkle_root = self.calculate_merkle_root()
         return self
 
-    def finalize(self, evm_state, hash_prev_root_block=None):
+    def finalize(self, evm_state, coinbase_amount, hash_prev_root_block=None):
         if hash_prev_root_block is not None:
             self.header.hash_prev_root_block = hash_prev_root_block
         self.meta.hash_evm_state_root = evm_state.trie.root_hash
         self.meta.evm_gas_used = evm_state.gas_used
         self.meta.evm_cross_shard_receive_gas_used = evm_state.xshard_receive_gas_used
-        self.header.coinbase_amount = evm_state.block_fee // 2
+        self.header.coinbase_amount = coinbase_amount
         self.finalize_merkle_root()
         self.meta.hash_evm_receipt_root = mk_receipt_sha(
             evm_state.receipts, evm_state.db

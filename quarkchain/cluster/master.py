@@ -777,7 +777,7 @@ class MasterServer:
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return (None, None)
+                return None, None
             for headers_info in response.headers_info_list:
                 if headers_info.branch.get_shard_size() != self.__get_shard_size():
                     Logger.error(

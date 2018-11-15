@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from fractions import Fraction
 from typing import List
 from eth_keys import KeyAPI
 import quarkchain.db
@@ -266,6 +267,13 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
+
+    @property
+    def reward_tax_rate(self) -> Fraction:
+        ret = Fraction(self.REWARD_TAX_RATE).limit_denominator()
+        # a simple heuristic to make sure it's at least a percent number
+        assert ret.denominator <= 100
+        return ret
 
     def get_genesis_root_height(self, shard_id) -> int:
         """ Return the root block height at which the shard shall be created"""
