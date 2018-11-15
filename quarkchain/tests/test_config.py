@@ -1,4 +1,5 @@
 import unittest
+from fractions import Fraction
 
 from quarkchain.config import (
     ConsensusType,
@@ -10,7 +11,7 @@ from quarkchain.config import (
 
 
 class TestShardConfig(unittest.TestCase):
-    def testBasic(self):
+    def test_basic(self):
         config = QuarkChainConfig()
         config.ROOT = RootConfig()
         config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
@@ -199,3 +200,16 @@ class TestShardConfig(unittest.TestCase):
         self.assertEqual(config.to_json(), expected_json)
         deserialized_config = QuarkChainConfig.from_json(expected_json)
         self.assertEqual(deserialized_config.to_json(), expected_json)
+
+
+class TestQuarkChainConfig(unittest.TestCase):
+    def test_reward_tax_rate(self):
+        config = QuarkChainConfig()
+        self.assertEqual(config.reward_tax_rate, Fraction(1, 2))
+        config.REWARD_TAX_RATE = 0.33
+        self.assertEqual(config.reward_tax_rate, Fraction(33, 100))
+        config.REWARD_TAX_RATE = 0.8
+        self.assertEqual(config.reward_tax_rate, Fraction(4, 5))
+        config.REWARD_TAX_RATE = 0.123
+        with self.assertRaises(AssertionError):
+            _ = config.reward_tax_rate
