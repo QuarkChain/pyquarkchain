@@ -399,9 +399,11 @@ class Shard:
             self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_ADDRESS
         )
 
-        async def __create_block():
+        async def __create_block(retry=True):
             # hold off mining if the shard is syncing
             while self.synchronizer.running or not self.state.initialized:
+                if not retry:
+                    break
                 await asyncio.sleep(0.1)
 
             return self.state.create_block_to_mine(address=miner_address)

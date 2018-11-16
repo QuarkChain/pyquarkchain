@@ -32,7 +32,7 @@ class TestMiner(unittest.TestCase):
         return ret
 
     def test_mine_new_block_normal_case(self):
-        async def create():
+        async def create(retry=True):
             if len(self.added_blocks) >= 5:
                 return None  # stop the game
             return RootBlock(
@@ -58,7 +58,7 @@ class TestMiner(unittest.TestCase):
     def test_simulate_mine_handle_block_exception(self):
         i = 0
 
-        async def create():
+        async def create(retry=True):
             nonlocal i
             if i >= 5:
                 return None
@@ -138,7 +138,7 @@ class TestMiner(unittest.TestCase):
     def test_get_work(self):
         now = 42
 
-        async def create():
+        async def create(retry=True):
             nonlocal now
             return RootBlock(RootBlockHeader(create_time=now, extra_data=b"{}"))
 
@@ -176,7 +176,7 @@ class TestMiner(unittest.TestCase):
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
 
-        async def create():
+        async def create(retry=True):
             return block
 
         async def add(block_to_add):

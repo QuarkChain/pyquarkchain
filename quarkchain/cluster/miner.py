@@ -250,7 +250,7 @@ class Miner:
             now = time.time()
         # 5 sec interval magic number
         if not self.current_work or now - self.current_work.header.create_time > 5:
-            block = await self.create_block_async_func()
+            block = await self.create_block_async_func(retry=False)
             if not block:
                 raise RuntimeError("Failed to create block")
             self.current_work = block
