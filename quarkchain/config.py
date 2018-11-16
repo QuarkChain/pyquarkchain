@@ -247,7 +247,6 @@ class QuarkChainConfig(BaseConfig):
     SHARD_LIST = None
 
     # On mining rewards
-    MINER_ADDRESS = "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3"
     REWARD_TAX_RATE = 0.5  # percentage of rewards should go to root block mining
 
     def __init__(self):
@@ -290,10 +289,6 @@ class QuarkChainConfig(BaseConfig):
             if config.GENESIS and config.GENESIS.ROOT_HEIGHT < root_height:
                 ids.append(shard_id)
         return ids
-
-    @property
-    def miner_address(self):
-        return Address.create_from(self.MINER_ADDRESS)
 
     @property
     def guardian_public_key(self) -> KeyAPI.PublicKey:

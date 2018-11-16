@@ -1,6 +1,7 @@
 import time
 import json
 import asyncio
+from fractions import Fraction
 from typing import Optional
 
 from quarkchain.cluster.miner import validate_seal
@@ -202,11 +203,15 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount = 0
+        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+        reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
+        # the ratio of minor block coinbase
+        ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
+        minor_block_fee = 0
         for header in m_header_list:
-            coinbase_amount += header.coinbase_amount
-
-        coinbase_amount = coinbase_amount // 2
+            minor_block_fee += header.coinbase_amount
+        # note the minor block fee is after tax
+        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")

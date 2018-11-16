@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives.constant_time import bytes_eq
 from eth_keys import keys
 import ipaddress
 import socket
-from typing import Tuple
+from typing import Tuple, Dict
 
 from quarkchain.utils import Logger
 from quarkchain.cluster.simple_network import Peer, AbstractNetwork
@@ -131,27 +131,22 @@ class QuarkPeer(BasePeer):
         try:
             while self.is_operational:
                 metadata, raw_data = await self.secure_peer.read_metadata_and_raw_data()
-            self.run_task(
-                self.secure_peer.__internal_handle_metadata_and_raw_data(
-                    metadata, raw_data
+                self.run_task(
+                    self.secure_peer.secure_handle_metadata_and_raw_data(
+                        metadata, raw_data
+                    )
                 )
-            )
         except (PeerConnectionLost, TimeoutError) as err:
             self.logger.debug(
                 "%s stopped responding (%r), disconnecting", self.remote, err
             )
         except DecryptionError as err:
             self.logger.warning(
-                "Unable to decrypt message from %s, disconnecting: %r",
-                self.remote,
-                err,
+                "Unable to decrypt message from %s, disconnecting: %r", self.remote, err
             )
         except Exception as e:
-            self.logger.warning(
-                "Unknown exception from %s, message: %r",
-                self.remote,
-                e,
-            )
+            self.logger.error("Unknown exception from %s, message: %r", self.remote, e)
+            Logger.error_exception()
         self.secure_peer.abort_in_flight_rpcs()
         self.secure_peer.close()
 
@@ -309,6 +304,17 @@ class SecurePeer(Peer):
         """
         pass
 
+    async def secure_handle_metadata_and_raw_data(self, metadata, raw_data):
+        """ same as __internal_handle_metadata_and_raw_data but callable
+        """
+        try:
+            await self.handle_metadata_and_raw_data(metadata, raw_data)
+        except Exception as e:
+            Logger.log_exception()
+            self.close_with_error(
+                "{}: error processing request: {}".format(self.name, e)
+            )
+
 
 class QuarkContext(BasePeerContext):
     quarkchain = "quarkchain"  # : str
@@ -391,5 +397,17 @@ class P2PManager(AbstractNetwork):
     def iterate_peers(self):
         return [p.secure_peer for p in self.server.peer_pool.connected_nodes.values()]
 
+    @property
+    def active_peer_pool(self) -> Dict[bytes, Peer]:
+        """ for jrpc and stat reporting
+        """
+        return {
+            p.secure_peer.id: p.secure_peer
+            for p in self.server.peer_pool.connected_nodes.values()
+        }
+
     def get_peer_by_cluster_peer_id(self, cluster_peer_id):
-        return self.server.peer_pool.cluster_peer_map.get(cluster_peer_id)
+        quark_peer = self.server.peer_pool.cluster_peer_map.get(cluster_peer_id)
+        if quark_peer:
+            return quark_peer.secure_peer
+        return None

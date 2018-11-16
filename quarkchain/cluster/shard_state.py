@@ -64,7 +64,7 @@ class ShardState:
         self.diff_calc = (
             diff_calc
             if diff_calc
-            else EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=10000)
+            else EthDifficultyCalculator(cutoff=9, diff_factor=2048)
         )
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
@@ -1058,7 +1058,7 @@ class ShardState:
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
 
-    def add_root_block(self, root_block):
+    def add_root_block(self, root_block: RootBlock):
         """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
         Return True if the new block become head else False.

@@ -567,7 +567,9 @@ class MasterServer:
         self.__init_root_miner()
 
     def __init_root_miner(self):
-        miner_address = self.env.quark_chain_config.miner_address
+        miner_address = Address.create_from(
+            self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
+        )
 
         async def __create_block():
             while True:
@@ -786,7 +788,7 @@ class MasterServer:
                             headers_info.branch.get_shard_size(),
                         )
                     )
-                    return (None, None)
+                    return None, None
 
                 height = 0
                 for header in headers_info.header_list:
