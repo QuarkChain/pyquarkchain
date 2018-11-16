@@ -69,6 +69,7 @@ from quarkchain.core import (
     ShardMask,
     Log,
     Address,
+    RootBlock,
     TransactionReceipt,
     MinorBlock,
 )
@@ -571,13 +572,13 @@ class MasterServer:
             self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
         )
 
-        async def __create_block():
+        async def __create_block(retry=True):
             while True:
-                is_root, block = await self.get_next_block_to_mine(
-                    address=miner_address, shard_mask_value=0, prefer_root=True
-                )
-                if is_root:
+                block = await self.__create_root_block_to_mine(address=miner_address)
+                if block:
                     return block
+                if not retry:
+                    break
                 await asyncio.sleep(1)
 
         def __get_mining_params():
@@ -761,8 +762,70 @@ class MasterServer:
     def get_shutdown_future(self):
         return self.shutdown_future
 
+    async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
+        """ Try to create a root block to mine or return None if failed proof-of-progress """
+        futures = []
+        for slave in self.slave_pool:
+            request = GetUnconfirmedHeadersRequest()
+            futures.append(
+                slave.write_rpc_request(
+                    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
+                )
+            )
+        responses = await asyncio.gather(*futures)
+
+        # Slaves may run multiple copies of the same branch
+        # branch_value -> HeaderList
+        shard_id_to_header_list = dict()
+        for response in responses:
+            _, response, _ = response
+            if response.error_code != 0:
+                return None, None
+            for headers_info in response.headers_info_list:
+                if headers_info.branch.get_shard_size() != self.__get_shard_size():
+                    Logger.error(
+                        "Expect shard size {} got {}".format(
+                            self.__get_shard_size(),
+                            headers_info.branch.get_shard_size(),
+                        )
+                    )
+                    return None, None
+
+                height = 0
+                for header in headers_info.header_list:
+                    # check headers are ordered by height
+                    check(height == 0 or height + 1 == header.height)
+                    height = header.height
+
+                    # Filter out the ones unknown to the master
+                    if not self.root_state.is_minor_block_validated(header.get_hash()):
+                        break
+                    shard_id_to_header_list.setdefault(
+                        headers_info.branch.get_shard_id(), []
+                    ).append(header)
+
+        header_list = []
+        # check proof of progress
+        shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+            self.root_state.tip.height + 1
+        )
+        for shard_id in shard_ids_to_check:
+            headers = shard_id_to_header_list.get(shard_id, [])
+            header_list.extend(headers)
+            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
+                Logger.info(
+                    "Failed to create root block {} due to shard {} failing proof-of-progress check".format(
+                        self.root_state.tip.height + 1, shard_id
+                    )
+                )
+                return None
+
+        return self.root_state.create_block_to_mine(header_list, address)
+
     async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
-        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress """
+        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress 
+        TODO: reuse code in __create_root_block_to_mine
+        """
         futures = []
         for slave in self.slave_pool:
             request = GetUnconfirmedHeadersRequest()
