@@ -241,6 +241,9 @@ class TestRootState(unittest.TestCase):
             1
         )  # other network ids will skip difficulty check
         env.quark_chain_config.REWARD_TAX_RATE = 0.8
+        env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
+        for c in env.quark_chain_config.SHARD_LIST:
+            c.COINBASE_AMOUNT = 5
 
         r_state, s_states = create_default_state(env, diff_calc=diff_calc)
         g0 = s_states[0].header_tip

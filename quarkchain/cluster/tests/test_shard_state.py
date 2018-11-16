@@ -21,6 +21,14 @@ def create_default_shard_state(env, shard_id=0, diff_calc=None):
 
 
 class TestShardState(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        config = get_test_env().quark_chain_config
+        self.root_coinbase = config.ROOT.COINBASE_AMOUNT
+        self.shard_coinbase = config.SHARD_LIST[0].COINBASE_AMOUNT
+        # to make test verification easier, assume following tax rate
+        assert config.REWARD_TAX_RATE == 0.5
+
     def test_shard_state_simple(self):
         env = get_test_env()
         state = create_default_shard_state(env)
@@ -153,7 +161,10 @@ class TestShardState(unittest.TestCase):
             state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
         )
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
-        self.assertEqual(state.get_balance(acc3.recipient), opcodes.GTXCOST // 2)
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+        )
 
         # Check receipts
         self.assertEqual(len(state.evm_state.receipts), 1)
@@ -221,7 +232,10 @@ class TestShardState(unittest.TestCase):
             state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
         )
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
-        self.assertEqual(state.get_balance(acc3.recipient), opcodes.GTXCOST // 2)
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+        )
 
         # Check receipts
         self.assertEqual(len(state.evm_state.receipts), 1)
@@ -352,7 +366,10 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b0)
         self.assertEqual(state.get_balance(id1.recipient), 1000000)
         self.assertEqual(state.get_balance(acc2.recipient), 1000000)
-        self.assertEqual(state.get_balance(acc3.recipient), opcodes.GTXCOST // 2)
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+        )
 
         # Check Account has full_shard_id
         self.assertEqual(
@@ -395,7 +412,11 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(
             state.get_balance(acc2.recipient), 1000000 - opcodes.GTXCOST + 12345 - 54321
         )
-        self.assertEqual(state.get_balance(acc3.recipient), opcodes.GTXCOST * 1.5)
+        # 2 block rewards
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            int(opcodes.GTXCOST * 1.5) + self.shard_coinbase,
+        )
 
         # Check receipts
         self.assertEqual(len(state.evm_state.receipts), 2)
@@ -579,7 +600,10 @@ class TestShardState(unittest.TestCase):
             state.evm_state.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST
         )
         # GTXXSHARDCOST is consumed by remote shard
-        self.assertEqual(state.get_balance(acc3.recipient), opcodes.GTXCOST // 2)
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+        )
 
     def test_xshard_tx_insufficient_gas(self):
         id1 = Identity.create_random_identity()
@@ -680,7 +704,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.get_balance(acc1.recipient), 10000000 + 888888)
         # Half collected by root
         self.assertEqual(
-            state0.get_balance(acc3.recipient), opcodes.GTXXSHARDCOST * 2 // 2
+            state0.get_balance(acc3.recipient),
+            opcodes.GTXXSHARDCOST * 2 // 2 + self.shard_coinbase // 2,
         )
 
         # X-shard gas used
@@ -749,7 +774,7 @@ class TestShardState(unittest.TestCase):
 
         self.assertEqual(state0.get_balance(acc1.recipient), 10000000)
         # Half collected by root
-        self.assertEqual(state0.get_balance(acc3.recipient), 0)
+        self.assertEqual(state0.get_balance(acc3.recipient), self.shard_coinbase // 2)
 
         # X-shard gas used
         evm_state0 = state0.evm_state
@@ -872,7 +897,8 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.get_balance(acc1.recipient), 10000000 + 888888 + 385723)
         # Half collected by root
         self.assertEqual(
-            state0.get_balance(acc3.recipient), opcodes.GTXXSHARDCOST * (2 + 3) // 2
+            state0.get_balance(acc3.recipient),
+            opcodes.GTXXSHARDCOST * (2 + 3) // 2 + self.shard_coinbase // 2,
         )
 
         # Check gas used for receiving x-shard tx
