@@ -64,7 +64,7 @@ class ShardState:
         self.diff_calc = (
             diff_calc
             if diff_calc
-            else EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=10000)
+            else EthDifficultyCalculator(cutoff=9, diff_factor=2048)
         )
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
