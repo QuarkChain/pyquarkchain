@@ -61,10 +61,6 @@ def get_test_env(
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
-    # prevent breaking previous tests after tweaking default rewards
-    env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
-    for c in env.quark_chain_config.SHARD_LIST:
-        c.COINBASE_AMOUNT = 5
 
     check(env.cluster_config.use_mem_db())
 
@@ -211,6 +207,7 @@ def create_test_clusters(
     num_slaves,
     genesis_root_heights,
     remote_mining=False,
+    small_coinbase=False,
 ):
     # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
@@ -234,6 +231,12 @@ def create_test_clusters(
         env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
+
+        if small_coinbase:
+            # prevent breaking previous tests after tweaking default rewards
+            env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
+            for c in env.quark_chain_config.SHARD_LIST:
+                c.COINBASE_AMOUNT = 5
 
         env.cluster_config.SLAVE_LIST = []
         for j in range(num_slaves):
@@ -313,6 +316,7 @@ class ClusterContext(ContextDecorator):
         num_slaves=None,
         genesis_root_heights=None,
         remote_mining=False,
+        small_coinbase=False,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -320,6 +324,7 @@ class ClusterContext(ContextDecorator):
         self.num_slaves = num_slaves if num_slaves else shard_size
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
+        self.small_coinbase = small_coinbase
 
     def __enter__(self):
         self.cluster_list = create_test_clusters(
@@ -329,6 +334,7 @@ class ClusterContext(ContextDecorator):
             self.num_slaves,
             self.genesis_root_heights,
             remote_mining=self.remote_mining,
+            small_coinbase=self.small_coinbase,
         )
         return self.cluster_list
 

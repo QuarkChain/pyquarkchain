@@ -173,7 +173,14 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
+            is_root, root = call_async(
+                master.get_next_block_to_mine(address=acc1, prefer_root=True)
+            )
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root))
+
             is_root, block1 = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertFalse(is_root)
             self.assertTrue(
                 call_async(
                     master.add_raw_minor_block(block1.header.branch, block1.serialize())

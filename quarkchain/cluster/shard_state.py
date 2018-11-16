@@ -558,6 +558,10 @@ class ShardState:
                 )
                 raise e
 
+        # Pay miner
+        pure_coinbase_amount = self.get_coinbase_amount()
+        evm_state.delta_balance(evm_state.block_coinbase, pure_coinbase_amount)
+
         # Update actual root hash
         evm_state.commit()
         return evm_state
@@ -1009,10 +1013,14 @@ class ShardState:
 
         self.__add_transactions_to_block(block, evm_state)
 
+        # Pay miner
+        pure_coinbase_amount = self.get_coinbase_amount()
+        evm_state.delta_balance(evm_state.block_coinbase, pure_coinbase_amount)
+
         # Update actual root hash
         evm_state.commit()
 
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
+        coinbase_amount = pure_coinbase_amount + evm_state.block_fee
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]

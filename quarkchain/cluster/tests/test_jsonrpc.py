@@ -55,9 +55,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=1)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -104,9 +104,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=1)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
@@ -150,9 +150,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=1)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
@@ -175,9 +175,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             request = dict(
                 to="0x" + acc1.recipient.hex(),
                 gasPrice="0x6",
@@ -197,9 +197,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc3 = Address.create_random_account(full_shard_id=1)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             # Expect to mine root that confirms the genesis minor blocks
@@ -284,9 +284,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             response = send_request(
                 "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x2"
             )
@@ -305,9 +305,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -367,9 +367,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -401,9 +401,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
@@ -422,9 +422,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
@@ -444,9 +444,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             branch = Branch.create(2, 0)
@@ -466,9 +466,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(endpoint, "0x" + bytes(36).hex())
                 self.assertIsNone(resp)
@@ -477,9 +477,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -513,9 +513,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_from_identity(id1, full_shard_id=1)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -569,9 +569,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -610,9 +610,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -658,9 +658,9 @@ class TestJSONRPC(unittest.TestCase):
             "data": "0x",
         }
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -731,9 +731,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             response = send_request(
                 "estimateGas", [{"to": "0x" + acc1.serialize().hex()}]
             )
@@ -747,9 +747,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -806,9 +806,9 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         created_addr = "0x8531eb33bba796115f56ffa1b7df1ea3acdd8cdd00000000"
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -839,9 +839,9 @@ class TestJSONRPC(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
-        with ClusterContext(1, acc1) as clusters, jrpc_server_context(
-            clusters[0].master
-        ):
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -874,7 +874,7 @@ class TestJSONRPC(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
 
         with ClusterContext(
-            1, acc1, remote_mining=True, shard_size=1
+            1, acc1, remote_mining=True, shard_size=1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
