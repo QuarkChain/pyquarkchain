@@ -232,7 +232,7 @@ class TestRootState(unittest.TestCase):
         self.assertEqual(s_states[0].root_tip, root_block2.header)
         self.assertEqual(s_states[1].root_tip, root_block2.header)
 
-    def test_root_state_difficulty(self):
+    def test_root_state_difficulty_and_coinbase(self):
         env = get_test_env()
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
@@ -240,6 +240,7 @@ class TestRootState(unittest.TestCase):
         env.quark_chain_config.NETWORK_ID = (
             1
         )  # other network ids will skip difficulty check
+        env.quark_chain_config.REWARD_TAX_RATE = 0.8
 
         r_state, s_states = create_default_state(env, diff_calc=diff_calc)
         g0 = s_states[0].header_tip
@@ -248,9 +249,27 @@ class TestRootState(unittest.TestCase):
         g1 = s_states[1].header_tip
         b1 = s_states[1].get_tip().create_block_to_append()
         add_minor_block_to_cluster(s_states, b1)
+        self.assertEqual(b0.header.coinbase_amount, 1)
+        self.assertEqual(b1.header.coinbase_amount, 1)
 
         r_state.add_validated_minor_block_hash(b0.header.get_hash())
         r_state.add_validated_minor_block_hash(b1.header.get_hash())
+
+        # Test coinbase
+        original_reward_tax_rate = env.quark_chain_config.REWARD_TAX_RATE
+        for tax_rate in [0.8, 0.6, 0.9]:
+            env.quark_chain_config.REWARD_TAX_RATE = tax_rate
+            root_block_tmp = r_state.create_block_to_mine(
+                m_header_list=[b0.header, b1.header],
+                address=Address.create_empty_account(),
+                create_time=r_state.tip.create_time + 9,
+            )
+            # still use minor block's coinbase amount, 1
+            self.assertEqual(
+                root_block_tmp.header.coinbase_amount,
+                round((1 + 1) / (1 - tax_rate) * tax_rate + 5),
+            )
+        env.quark_chain_config.REWARD_TAX_RATE = original_reward_tax_rate
 
         # Check new difficulty
         root_block0 = r_state.create_block_to_mine(

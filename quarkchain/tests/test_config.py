@@ -193,7 +193,6 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
         }
     ],
-    "MINER_ADDRESS": "199bcc2ebf71a851e388bd926595376a49bdaa329c6485f3",
     "REWARD_TAX_RATE": 0.5
 }"""
         print(config.to_json())

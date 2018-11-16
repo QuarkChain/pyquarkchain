@@ -1050,7 +1050,7 @@ class ShardState:
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
 
-    def add_root_block(self, root_block):
+    def add_root_block(self, root_block: RootBlock):
         """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
         Return True if the new block become head else False.
