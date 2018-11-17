@@ -1,3 +1,5 @@
+from fractions import Fraction
+
 from quarkchain.config import QuarkChainConfig
 from quarkchain.core import (
     Address,
@@ -60,6 +62,14 @@ class GenesisManager:
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
         )
+
+        local_fee_rate = 1 - self._qkc_config.reward_tax_rate  # type: Fraction
+        coinbase_amount = (
+            shard_config.COINBASE_AMOUNT
+            * local_fee_rate.numerator
+            // local_fee_rate.denominator
+        )
+
         header = MinorBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
@@ -69,7 +79,7 @@ class GenesisManager:
             evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
             coinbase_address=coinbase_address,
-            coinbase_amount=shard_config.COINBASE_AMOUNT,
+            coinbase_amount=coinbase_amount,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),

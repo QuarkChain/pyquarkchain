@@ -34,6 +34,8 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env)
         self.assertEqual(state.root_tip.height, 0)
         self.assertEqual(state.header_tip.height, 0)
+        # make sure genesis minor block has the right coinbase after-tax
+        self.assertEqual(state.header_tip.coinbase_amount, 2500000000000000000)
 
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
