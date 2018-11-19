@@ -1,3 +1,5 @@
+from fractions import Fraction
+
 from quarkchain.config import QuarkChainConfig
 from quarkchain.core import (
     Address,
@@ -43,10 +45,6 @@ class GenesisManager:
         branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
         shard_config = self._qkc_config.SHARD_LIST[shard_id]
         genesis = shard_config.GENESIS
-        coinbase_address = Address.create_from(
-            bytes.fromhex(shard_config.COINBASE_ADDRESS)
-        )
-        check(coinbase_address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
 
         for address_hex, amount_in_wei in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
@@ -60,6 +58,15 @@ class GenesisManager:
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
         )
+
+        local_fee_rate = 1 - self._qkc_config.reward_tax_rate  # type: Fraction
+        coinbase_amount = (
+            shard_config.COINBASE_AMOUNT
+            * local_fee_rate.numerator
+            // local_fee_rate.denominator
+        )
+        coinbase_address = Address.create_empty_account(shard_id)
+
         header = MinorBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
@@ -68,8 +75,8 @@ class GenesisManager:
             hash_prev_root_block=root_block.header.get_hash(),
             evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
+            coinbase_amount=coinbase_amount,
             coinbase_address=coinbase_address,
-            coinbase_amount=shard_config.COINBASE_AMOUNT,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),
