@@ -99,7 +99,6 @@ class TestMiner(unittest.TestCase):
             miner.output_q,
         )
         mined_res = miner.output_q.get()
-        self.assertEqual(mined_res.nonce, 9)
         block.header.nonce = mined_res.nonce
         validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
 
@@ -119,7 +118,6 @@ class TestMiner(unittest.TestCase):
             miner.output_q,
         )
         mined_res = miner.output_q.get()
-        self.assertEqual(mined_res.nonce, 6)
         block.header.nonce = mined_res.nonce
         block.header.mixhash = mined_res.mixhash
         validate_seal(block.header, ConsensusType.POW_QKCHASH)
