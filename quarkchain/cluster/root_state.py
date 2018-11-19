@@ -153,7 +153,7 @@ class RootState:
             diff_calc
             if diff_calc
             else EthDifficultyCalculator(
-                cutoff=45, diff_factor=2048, minimum_diff=1000000
+                cutoff=45, diff_factor=1024, minimum_diff=1000000
             )
         )
         self.raw_db = env.db
