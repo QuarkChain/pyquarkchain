@@ -29,7 +29,7 @@ namespace quarkchain {
 
 const uint32_t FNV_PRIME_32 = 0x01000193;
 const uint64_t FNV_PRIME_64 = 0x100000001b3ULL;
-const uint32_t ACCESS_ROUND = 128;
+const uint32_t ACCESS_ROUND = 64;
 const uint32_t INIT_SET_ENTRIES = 1024 * 64;
 
 /*
