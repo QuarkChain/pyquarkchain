@@ -17,6 +17,7 @@ from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHe
 from quarkchain.utils import Logger, sha256, time_ms
 
 Block = Union[MinorBlock, RootBlock]
+MAX_NONCE = 2 ** 64 - 1  # 8-byte nonce max
 
 
 def validate_seal(
@@ -70,9 +71,7 @@ class Simulate(MiningAlgorithm):
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         time.sleep(0.1)
         if time.time() > self.target_time:
-            return MiningResult(
-                self.work.hash, random.randint(0, 2 ** 32 - 1), bytes(32)
-            )
+            return MiningResult(self.work.hash, random.randint(0, MAX_NONCE), bytes(32))
         return None
 
 
@@ -324,11 +323,14 @@ class Miner:
                     work, mining_params = input_q.get(block=True)
                     continue
 
-            start_nonce = 0
             rounds = mining_params.get("rounds", 100)
+            start_nonce = random.randint(0, MAX_NONCE)
             # inner loop for iterating nonce
             while True:
-                res = mining_algo.mine(start_nonce + 1, start_nonce + 1 + rounds)
+                if start_nonce > MAX_NONCE:
+                    start_nonce = 0
+                end_nonce = min(start_nonce + rounds, MAX_NONCE + 1)
+                res = mining_algo.mine(start_nonce, end_nonce)  # [start, end)
                 if res:
                     output_q.put(res)
                     if "shard" in mining_params:
@@ -340,7 +342,7 @@ class Miner:
                 try:
                     work, mining_params = input_q.get_nowait()
                     break  # break inner loop to refresh mining params
-                except Exception:  # queue empty
+                except asyncio.QueueEmpty:
                     pass
                 # update param and keep mining
                 start_nonce += rounds
