@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import json
+import queue
 import random
 import time
 from abc import ABC, abstractmethod
@@ -342,7 +343,7 @@ class Miner:
                 try:
                     work, mining_params = input_q.get_nowait()
                     break  # break inner loop to refresh mining params
-                except asyncio.QueueEmpty:
+                except queue.Empty:
                     pass
                 # update param and keep mining
                 start_nonce += rounds
