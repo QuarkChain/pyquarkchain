@@ -10,7 +10,7 @@ from itertools import cycle
 from typing import Dict, Optional, List, Tuple
 
 import jsonrpcclient
-from queue import Queue
+from queue import LifoQueue
 
 from quarkchain.cluster.miner import Miner, MiningWork, MiningResult
 from quarkchain.config import ConsensusType
@@ -67,8 +67,8 @@ class ExternalMiner(threading.Thread):
         super().__init__()
         self.configs = configs
         self.stopper = stopper
-        self.input_q = Queue()
-        self.output_q = Queue()
+        self.input_q = LifoQueue()
+        self.output_q = LifoQueue()
 
     def run(self):
         global cluster_host
@@ -120,8 +120,7 @@ class ExternalMiner(threading.Thread):
                         # start the thread to mine
                         mining_thread = threading.Thread(
                             target=Miner.mine_loop,
-                            # target=loop,
-                            args=(work, mining_params, input_q, output_q),
+                            args=(work, mining_params, input_q, output_q, True),
                         )
                         mining_thread.start()
                         print("Started mining thread on %s" % repr_shard(shard_id))

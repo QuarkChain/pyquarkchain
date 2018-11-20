@@ -1,11 +1,10 @@
 import asyncio
 import copy
 import json
-import queue
 import random
 import time
 from abc import ABC, abstractmethod
-from queue import Queue
+from queue import Queue, Empty as QueueEmpty
 from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union
 
 import numpy
@@ -296,7 +295,11 @@ class Miner:
 
     @staticmethod
     def mine_loop(
-        work: Optional[MiningWork], mining_params: Dict, input_q: Queue, output_q: Queue
+        work: Optional[MiningWork],
+        mining_params: Dict,
+        input_q: Queue,
+        output_q: Queue,
+        debug=False,
     ):
         consensus_to_mining_algo = {
             ConsensusType.POW_SIMULATE: Simulate,
@@ -305,48 +308,67 @@ class Miner:
             ConsensusType.POW_SHA3SHA3: DoubleSHA256,
         }
         progress = {}
-        # outer loop for mining forever
-        while True:
-            # empty work means termination
-            if not work:
-                output_q.put(None)
+
+        def debug_log(msg: str, prob: float):
+            if not debug:
                 return
+            random.random() < prob and print(msg)
 
-            consensus_type = mining_params["consensus_type"]
-            mining_algo_gen = consensus_to_mining_algo[consensus_type]
-            mining_algo = mining_algo_gen(work, **mining_params)
-            # progress tracking if mining param contains shard info
-            if "shard" in mining_params:
-                shard = mining_params["shard"]
-                # skip blocks with height lower or equal
-                if shard in progress and progress[shard] >= work.height:
-                    # get newer work and restart mining
-                    work, mining_params = input_q.get(block=True)
-                    continue
-
-            rounds = mining_params.get("rounds", 100)
-            start_nonce = random.randint(0, MAX_NONCE)
-            # inner loop for iterating nonce
+        try:
+            # outer loop for mining forever
             while True:
-                if start_nonce > MAX_NONCE:
-                    start_nonce = 0
-                end_nonce = min(start_nonce + rounds, MAX_NONCE + 1)
-                res = mining_algo.mine(start_nonce, end_nonce)  # [start, end)
-                if res:
-                    output_q.put(res)
-                    if "shard" in mining_params:
-                        progress[mining_params["shard"]] = work.height
-                    work, mining_params = input_q.get(block=True)
-                    break  # break inner loop to refresh mining params
-                # no result for mining, check if new work arrives
-                # if yes, discard current work and restart
-                try:
-                    work, mining_params = input_q.get_nowait()
-                    break  # break inner loop to refresh mining params
-                except queue.Empty:
-                    pass
-                # update param and keep mining
-                start_nonce += rounds
+                # empty work means termination
+                if not work:
+                    output_q.put(None)
+                    return
+
+                debug_log("outer mining loop", 0.1)
+                consensus_type = mining_params["consensus_type"]
+                mining_algo_gen = consensus_to_mining_algo[consensus_type]
+                mining_algo = mining_algo_gen(work, **mining_params)
+                # progress tracking if mining param contains shard info
+                if "shard" in mining_params:
+                    shard = mining_params["shard"]
+                    # skip blocks with height lower or equal
+                    if shard in progress and progress[shard] >= work.height:
+                        # get newer work and restart mining
+                        debug_log("stale work, try to get new one", 1.0)
+                        work, mining_params = input_q.get(block=True)
+                        continue
+
+                rounds = mining_params.get("rounds", 100)
+                start_nonce = random.randint(0, MAX_NONCE)
+                # inner loop for iterating nonce
+                while True:
+                    if start_nonce > MAX_NONCE:
+                        start_nonce = 0
+                    end_nonce = min(start_nonce + rounds, MAX_NONCE + 1)
+                    res = mining_algo.mine(start_nonce, end_nonce)  # [start, end)
+                    debug_log("one round of mining", 0.01)
+                    if res:
+                        debug_log("mining success", 1.0)
+                        output_q.put(res)
+                        if "shard" in mining_params:
+                            progress[mining_params["shard"]] = work.height
+                        work, mining_params = input_q.get(block=True)
+                        break  # break inner loop to refresh mining params
+                    # no result for mining, check if new work arrives
+                    # if yes, discard current work and restart
+                    try:
+                        work, mining_params = input_q.get_nowait()
+                        break  # break inner loop to refresh mining params
+                    except QueueEmpty:
+                        debug_log("empty queue", 0.1)
+                        pass
+                    # update param and keep mining
+                    start_nonce += rounds
+        except:
+            from sys import exc_info
+
+            exc_type, exc_obj, exc_trace = exc_info()
+            print("exc_type", exc_type)
+            print("exc_obj", exc_obj)
+            print("exc_trace", exc_trace)
 
     @staticmethod
     def _track(block: Block):
