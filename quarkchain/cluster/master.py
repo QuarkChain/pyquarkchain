@@ -1478,7 +1478,6 @@ def main():
 
     loop = asyncio.get_event_loop()
 
-    network = None
     if env.cluster_config.use_p2p():
         if env.cluster_config.P2P.NEW_MODULE:
             network = P2PManager(env, master, loop)

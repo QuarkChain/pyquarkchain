@@ -1,7 +1,7 @@
 import json
 from enum import Enum
 from fractions import Fraction
-from typing import List
+from typing import List, Optional
 from eth_keys import KeyAPI
 import quarkchain.db
 import quarkchain.evm.config
