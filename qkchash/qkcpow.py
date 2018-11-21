@@ -49,7 +49,7 @@ def mine(
     header_hash: bytes,
     start_nonce: int = 0,
     rounds: int = 1000,
-    native=None,
+    native: Optional[QkcHashNative] = None,
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
     cache = (
         make_cache(CACHE_ENTRIES, CACHE_SEED)
