@@ -135,8 +135,8 @@ class QkcHashCache:
 
 
 class QkcHashNative:
-    def __init__(self):
-        self._lib = ctypes.CDLL("libqkchash.so")
+    def __init__(self, lib_path="libqkchash.so"):
+        self._lib = ctypes.CDLL(lib_path)
 
         self._hash_func = self._lib.qkc_hash
         self._hash_func.restype = None

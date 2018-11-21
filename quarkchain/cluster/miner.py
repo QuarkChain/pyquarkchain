@@ -97,7 +97,9 @@ class Ethash(MiningAlgorithm):
 
 class Qkchash(MiningAlgorithm):
     def __init__(self, work: MiningWork, **kwargs):
-        self.miner = QkchashMiner(work.difficulty, work.hash)
+        self.miner = QkchashMiner(
+            work.difficulty, work.hash, kwargs.get("native_lib_path")
+        )
 
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         nonce_found, mixhash = self.miner.mine(
