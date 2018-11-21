@@ -23,7 +23,9 @@ def check_pow(
 
 
 class QkchashMiner:
-    def __init__(self, difficulty: int, header_hash: bytes, native_lib: Optional[str]):
+    def __init__(
+        self, difficulty: int, header_hash: bytes, native_lib: Optional[str] = None
+    ):
         self.difficulty = difficulty
         self.header_hash = header_hash
         self.native = QkcHashNative(native_lib) if native_lib else None
