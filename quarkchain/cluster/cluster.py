@@ -32,14 +32,16 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
 
 
 async def run_master(config_file):
-    cmd = "{} master.py --cluster_config={}".format(PYTHON, config_file)
+    cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
 
 
 async def run_slave(config_file, id):
-    cmd = "{} slave.py --cluster_config={} --node_id={}".format(PYTHON, config_file, id)
+    cmd = "{} -u slave.py --cluster_config={} --node_id={}".format(
+        PYTHON, config_file, id
+    )
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
