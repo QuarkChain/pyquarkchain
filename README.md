@@ -163,6 +163,7 @@ You may need to run the following command after a fresh pull on the repo to upda
 pip install -e .
 # if libs are missing, run apt-get commands in https://github.com/QuarkChain/pyquarkchain/blob/master/.circleci/Dockerfile
 ```
+There may be OpenSSL error `No symbol ECDH_OpenSSL found in library libcrypto.so.1.1` because Ubuntu upgraded to libssl1.1.0 and made pyelliptic obsolete: https://github.com/golemfactory/golem-messages/issues/110. Fortunately we migrated away from devp2p, so the simplest workaround is to remove this line and use new p2p module https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/cluster/master.py#L78
 
 ## Development Flow
 
