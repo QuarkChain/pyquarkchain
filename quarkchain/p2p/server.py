@@ -240,8 +240,11 @@ class SecurePeer(Peer):
 
         self.id = cmd.peer_id
         self.shard_mask_list = cmd.shard_mask_list
-        # ip and port is what peer claim to be using, not necessarily accurate
-        self.ip = ipaddress.ip_address(cmd.peer_ip)
+        # ip is from peer.remote, there may be 2 cases:
+        #  1. dialed-out: ip is from discovery service;
+        #  2. dialed-in: ip is from writer.get_extra_info("peername")
+        self.ip = ipaddress.ip_address(self.quark_peer.remote.address.ip)
+        # port is what peer claim to be using
         self.port = cmd.peer_port
 
         Logger.info(
