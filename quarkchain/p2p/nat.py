@@ -90,20 +90,21 @@ class UPnPService(BaseService):
         self.logger.info("Setting up NAT portmap...")
         try:
             devices = await self._discover_upnp_devices()
-            self.logger.info(
-                "Adding NAT port map on {} devices...".format(len(devices))
-            )
-            for upnp_dev in devices:
-                try:
-                    external_ip = self._add_nat_portmap(upnp_dev)
-                except NoInternalAddressMatchesDevice as exc:
-                    self.logger.info(
-                        "No internal addresses were managed by the UPnP device at %s",
-                        exc.device_hostname,
-                    )
-                    continue
-                else:
-                    return external_ip
+            if devices:
+                self.logger.info(
+                    "Adding NAT port map on {} devices...".format(len(devices))
+                )
+                for upnp_dev in devices:
+                    try:
+                        external_ip = self._add_nat_portmap(upnp_dev)
+                    except NoInternalAddressMatchesDevice as exc:
+                        self.logger.info(
+                            "No internal addresses were managed by the UPnP device at %s",
+                            exc.device_hostname,
+                        )
+                        continue
+                    else:
+                        return external_ip
         except upnpclient.soap.SOAPError as e:
             if e.args == (718, "ConflictInMappingEntry"):
                 # An entry already exists with the parameters we specified. Maybe the router
@@ -116,6 +117,7 @@ class UPnPService(BaseService):
             else:
                 self.logger.exception("Failed to setup NAT portmap")
 
+        self.logger.warning("No NAT mapping has been set")
         self._mapping = None
         return None
 
