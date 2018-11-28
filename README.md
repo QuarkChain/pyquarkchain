@@ -11,7 +11,7 @@ QuarkChain is a sharded blockchain protocol that employs a two-layer architectur
 - Cross-shard transaction allowing native token transfers among shard chains
 - Adding shards dynamically to the network
 - Support of different mining algorithms on different shards
-- P2P network allowing clusters to join and leave anytime
+- P2P network allowing clusters to join and leave anytime with encrypted transport
 - Fully compatible with Ethereum smart contract
 
 ## Design
@@ -185,21 +185,26 @@ cd quarkchain/cluster
 pypy3 cluster.py --mine
 ```
 
-Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster)
-
+Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster): This part has been deprecated, please file an issue if you need this feature.
 ```bash
-pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
+# pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
 ```
 
-Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--devp2p_ip` and `--devp2p_bootstrap_host` to connect the clusters. You need to figure out the IPs yourself before starting the clusters, just make sure that the machines are reachable from other clusters using the IP you specified. (Make sure ports are open in firewall as well)
-First start the bootstrap cluster whose public ip is `$BOOTSTRAP_IP`
+Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--bootnodes` flag to discover and connect to other clusters. Make sure ports are open and accessible from outside world: this means if you are running on AWS, open the ports (default both UDP and TCP 38291) in security group; if you are running from a LAN (connecting to the internet through a router), you need to setup port forwarding for UDP/TCP 38291. We have a convenience UPNP module as well, but you will need to check if it has successfully set port forwarding.
+
+(Optional) Not needed if you are joining a testnet or mainnet. If you are starting your own network, first start the bootstrap cluster:
 ```bash
-pypy3 cluster.py --mine --devp2p_enable --devp2p_ip=$BOOTSTRAP_IP
+# optional, run python quarkchain/tools/newkey.py and note $BOOTSTRAP_PRIV_KEY and $BOOTSTRAP_PUB_KEY
+pypy3 cluster.py --p2p --privkey=$BOOTSTRAP_PRIV_KEY
 ```
-Then start other clusters
+
+Then start other clusters and provide the bootnode, add `--mine` to start mining immediately.
 ```bash
-pypy3 cluster.py --devp2p_enable --devp2p_ip=$CLUSER_PUBLIC_IP --devp2p_bootstrap_host=$BOOTSTRAP_IP
+BOOTSTRAP_NODE=enode://$BOOTSTRAP_PUB_KEY@$BOOTSTRAP_IP:$BOOTSTRAP_DISCOVERY_PORT
+pypy3 cluster.py --p2p --bootnodes=$BOOTSTRAP_ENODE
 ```
+
+Effectively, `newkey.py` gives the bootstrap node an identity, and you will need to provide the public key to anyone who wants to connect to the bootnodes for discovery. Read https://github.com/QuarkChain/pyquarkchain/wiki/Networking#commandline-flags-explained for details on the commandline flags.
 
 ## Monitor Cluster
 Use the [`stats`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/tools/stats) tool in the repo to monitor the status of a cluster. It queries the given cluster through JSON RPC every 10 seconds and produces an entry.
