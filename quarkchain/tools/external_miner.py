@@ -1,5 +1,6 @@
 import argparse
 import copy
+import functools
 import json
 import logging
 import random
@@ -22,11 +23,16 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 cluster_host = "localhost"
 
 
+@functools.lru_cache(maxsize=5)
+def get_jsonrpc_cli(jrpc_url):
+    return jsonrpcclient.HTTPClient(jrpc_url)
+
+
 def get_work_rpc(
     shard: Optional[int], host: str = "localhost", jrpc_port: int = 38391, timeout=3
 ) -> MiningWork:
-    json_rpc_url = "http://{}:{}".format(host, jrpc_port)
-    cli = jsonrpcclient.HTTPClient(json_rpc_url)
+    jrpc_url = "http://{}:{}".format(host, jrpc_port)
+    cli = get_jsonrpc_cli(jrpc_url)
     header_hash, height, diff = cli.send(
         jsonrpcclient.Request("getWork", hex(shard) if shard is not None else None),
         timeout=timeout,
@@ -41,8 +47,8 @@ def submit_work_rpc(
     jrpc_port: int = 38391,
     timeout=3,
 ) -> bool:
-    json_rpc_url = "http://{}:{}".format(host, jrpc_port)
-    cli = jsonrpcclient.HTTPClient(json_rpc_url)
+    jrpc_url = "http://{}:{}".format(host, jrpc_port)
+    cli = get_jsonrpc_cli(jrpc_url)
     success = cli.send(
         jsonrpcclient.Request(
             "submitWork",
