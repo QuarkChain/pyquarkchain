@@ -185,12 +185,14 @@ cd quarkchain/cluster
 pypy3 cluster.py --mine
 ```
 
-Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster): This part has been deprecated, please file an issue if you need this feature.
+Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster):
 ```bash
+# This part has been deprecated, please file an issue if you need this feature
 # pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
 ```
 
-Run multiple clusters with P2P network on different machines. Just follow the same command to run single cluster and provide `--bootnodes` flag to discover and connect to other clusters. Make sure ports are open and accessible from outside world: this means if you are running on AWS, open the ports (default both UDP and TCP 38291) in security group; if you are running from a LAN (connecting to the internet through a router), you need to setup port forwarding for UDP/TCP 38291. We have a convenience UPNP module as well, but you will need to check if it has successfully set port forwarding.
+### Run multiple clusters with P2P network on different machines.
+Just follow the same command to run single cluster and provide `--bootnodes` flag to discover and connect to other clusters. Make sure ports are open and accessible from outside world: this means if you are running on AWS, open the ports (default both UDP and TCP 38291) in security group; if you are running from a LAN (connecting to the internet through a router), you need to setup port forwarding for UDP/TCP 38291. We have a convenience UPNP module as well, but you will need to check if it has successfully set port forwarding.
 
 (Optional) Not needed if you are joining a testnet or mainnet. If you are starting your own network, first start the bootstrap cluster:
 ```bash
