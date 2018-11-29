@@ -1,6 +1,6 @@
 import pytest
 
-from quarkchain.p2p.server import encode_bytes
+from quarkchain.p2p.p2p_manager import encode_bytes
 
 
 @pytest.mark.parametrize(

@@ -76,7 +76,7 @@ from quarkchain.core import (
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
-from quarkchain.p2p.server import P2PManager
+from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
@@ -823,7 +823,7 @@ class MasterServer:
         return self.root_state.create_block_to_mine(header_list, address)
 
     async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
-        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress 
+        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress
         TODO: reuse code in __create_root_block_to_mine
         """
         futures = []
