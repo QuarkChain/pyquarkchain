@@ -16,7 +16,7 @@ import signal
 from quarkchain.p2p import ecies
 from quarkchain.p2p import kademlia
 from quarkchain.p2p.cancel_token.token import CancelToken
-from quarkchain.p2p.poc.trinity_server import BaseServer
+from quarkchain.p2p.p2p_server import BaseServer
 from quarkchain.p2p.tools.paragon import ParagonContext, ParagonPeer, ParagonPeerPool
 
 from quarkchain.utils import Logger

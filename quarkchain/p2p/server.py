@@ -1,10 +1,7 @@
-# TODO move this out of poc
-from quarkchain.p2p.poc.trinity_server import BaseServer
-
-from cryptography.hazmat.primitives.constant_time import bytes_eq
-from eth_keys import keys
 import ipaddress
 import socket
+from cryptography.hazmat.primitives.constant_time import bytes_eq
+from eth_keys import keys
 from typing import Tuple, Dict
 
 from quarkchain.utils import Logger
@@ -14,6 +11,7 @@ from quarkchain.cluster.p2p_commands import CommandOp
 from quarkchain.p2p import ecies
 from quarkchain.p2p.cancel_token.token import CancelToken
 from quarkchain.p2p.kademlia import Node
+from quarkchain.p2p.p2p_server import BaseServer
 from quarkchain.p2p.peer import BasePeer, BasePeerContext, BasePeerPool, BasePeerFactory
 from quarkchain.p2p.protocol import Command, _DecodedMsgType, NULL_BYTE, Protocol
 from .constants import HEADER_LEN, MAC_LEN
@@ -377,7 +375,7 @@ class P2PManager(AbstractNetwork):
         self.server = QuarkServer(
             privkey=privkey,
             port=env.cluster_config.P2P_PORT,
-            network_id=env.cluster_config.P2P.NETWORK_ID,
+            network_id=env.quark_chain_config.NETWORK_ID,
             bootstrap_nodes=tuple([Node.from_uri(enode) for enode in bootstrap_nodes]),
             token=self.cancel_token,
             max_peers=env.cluster_config.P2P.MAX_PEERS,
