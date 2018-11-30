@@ -190,27 +190,24 @@ def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
         mix.extend(s)
 
     for i in range(ACCESS_ROUND):
-        new_data = []
-
         p = fnv64(i ^ s[0], mix[i % len(mix)])
         for j in range(len(mix)):
             # Find the pth element and remove it
             remove_idx = p % len(lcache)
-            new_data.append(lcache[remove_idx])
-            lcache_set.remove(lcache[remove_idx])
+            d = lcache[remove_idx]
+            lcache_set.remove(d)
             del lcache[remove_idx]
 
             # Generate random data and insert it
-            p = fnv64(p, new_data[j])
+            p = fnv64(p, d)
             if p not in lcache_set:
                 bisect.insort(lcache, p)
                 lcache_set.add(p)
 
             # Find the next element
-            p = fnv64(p, new_data[j])
+            p = fnv64(p, d)
 
-        for j in range(len(mix)):
-            mix[j] = fnv64(mix[j], new_data[j])
+            mix[j] = fnv64(mix[j], d)
 
     cmix = []
     for i in range(0, len(mix), 4):
@@ -274,7 +271,7 @@ def test_qkchash_perf():
         % (used_time, N / used_time)
     )
 
-    print("Equal: ", h0 == h1[0 : len(h0)])
+    print("Equal: ", h0 == h1[0: len(h0)])
 
 
 def print_test_vector():

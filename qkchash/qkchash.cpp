@@ -73,24 +73,21 @@ void qkc_hash(
     }
 
     for (uint32_t i = 0; i < ACCESS_ROUND; i ++) {
-        std::array<uint64_t, 16> new_data;
         uint64_t p = fnv64(i ^ seed[0], mix[i % mix.size()]);
         for (uint32_t j = 0; j < mix.size(); j++) {
             // Find the pth element and remove it
             auto it = oset.find_by_order(p % oset.size());
-            new_data[j] = *it;
+            uint64_t d = *it;
             oset.erase(it);
 
             // Generate random data and insert it
-            p = fnv64(p, new_data[j]);
+            p = fnv64(p, d);
             oset.insert(p);
 
             // Find the next element index (ordered)
-            p = fnv64(p, new_data[j]);
-        }
+            p = fnv64(p, d);
 
-        for (uint32_t j = 0; j < mix.size(); j++) {
-            mix[j] = fnv64(mix[j], new_data[j]);
+            mix[j] = fnv64(mix[j], d);
         }
     }
 
@@ -113,28 +110,25 @@ void qkc_hash_sorted_list(
     }
 
     for (uint32_t i = 0; i < ACCESS_ROUND; i ++) {
-        std::array<uint64_t, 16> new_data;
         uint64_t p = fnv64(i ^ seed[0], mix[i % mix.size()]);
         for (uint32_t j = 0; j < mix.size(); j++) {
             // Find the pth element and remove it
             uint32_t idx = p % slist.size();
-            new_data[j] = slist[idx];
+            uint64_t d = slist[idx];
             slist.erase(slist.begin() + idx);
 
             // Generate random data and insert it
             // if the vector doesn't contain it.
-            p = fnv64(p, new_data[j]);
+            p = fnv64(p, d);
             auto it = std::lower_bound(slist.begin(), slist.end(), p);
             if (it == slist.end() || *it != p) {
                 slist.insert(it, p);
             }
 
             // Find the next element index (ordered)
-            p = fnv64(p, new_data[j]);
-        }
+            p = fnv64(p, d);
 
-        for (uint32_t j = 0; j < mix.size(); j++) {
-            mix[j] = fnv64(mix[j], new_data[j]);
+            mix[j] = fnv64(mix[j], d);
         }
     }
 
