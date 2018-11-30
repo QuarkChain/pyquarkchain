@@ -9,9 +9,11 @@ from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
+from eth_keys import KeyAPI
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from qkchash.qkcpow import QkchashMiner, check_pow as qkchash_check_pow
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
 from quarkchain.utils import Logger, sha256, time_ms
@@ -138,6 +140,7 @@ class Miner:
         add_block_async_func: Callable[[Block], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
         remote: bool = False,
+        guardian_private_key: Optional[KeyAPI.PrivateKey] = None,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -164,6 +167,7 @@ class Miner:
         # remote miner specific attributes
         self.remote = remote
         self.current_work = None  # type: Optional[Block]
+        self.guardian_private_key = guardian_private_key
 
     def start(self):
         self.enabled = True
@@ -280,10 +284,21 @@ class Miner:
         block = self.work_map[header_hash]
         header = copy.copy(block.header)
         header.nonce, header.mixhash = nonce, mixhash
-        try:
-            validate_seal(header, self.consensus_type)
-        except ValueError:
-            return False
+
+        # lower the difficulty for root block signed by guardian
+        if self.guardian_private_key and isinstance(block, RootBlock):
+            diff = Guardian.adjust_difficulty(header.difficulty, header.height)
+            try:
+                validate_seal(header, self.consensus_type, adjusted_diff=diff)
+            except ValueError:
+                return False
+            # sign as a guardian
+            header.sign_with_private_key(self.guardian_private_key)
+        else:  # minor block, or doesn't have guardian private key
+            try:
+                validate_seal(header, self.consensus_type)
+            except ValueError:
+                return False
 
         block.header = header  # actual update
         try:

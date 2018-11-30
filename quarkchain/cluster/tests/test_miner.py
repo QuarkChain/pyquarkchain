@@ -6,6 +6,7 @@ from typing import Optional
 from quarkchain.cluster.miner import DoubleSHA256, Miner, MiningWork, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
+from quarkchain.p2p import ecies
 from quarkchain.utils import sha3_256
 
 
@@ -203,6 +204,40 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(miner.work_map, {})
             self.assertEqual(len(self.added_blocks), 1)
             self.assertIsNone(miner.current_work)
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(go())
+
+    def test_submit_work_with_guardian(self):
+        now = 42
+        block = RootBlock(
+            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
+        )
+
+        async def create(retry=True):
+            return block
+
+        async def add(_):
+            pass
+
+        miner = self.miner_gen(
+            ConsensusType.POW_SHA3SHA3,
+            create,
+            add,
+            remote=True,
+            # fake pk, will succeed in test but fail in real world when
+            # adding the block to the root chain
+            guardian_private_key=ecies.generate_privkey(),
+        )
+
+        async def go():
+            for i in range(42, 100):
+                work = await miner.get_work(now=now)
+                self.assertEqual(work.height, 0)
+
+                # guardian: diff 1000 -> 1, any number should work
+                res = await miner.submit_work(work.hash, i, sha3_256(b""))
+                self.assertTrue(res)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())

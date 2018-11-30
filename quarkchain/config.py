@@ -1,7 +1,8 @@
+import functools
 import json
 from enum import Enum
 from fractions import Fraction
-from typing import List
+from typing import List, Optional
 from eth_keys import KeyAPI
 import quarkchain.db
 import quarkchain.evm.config
@@ -233,7 +234,9 @@ class QuarkChainConfig(BaseConfig):
     BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
     PROOF_OF_PROGRESS_BLOCKS = 1
-    GUARDIAN_PUBLIC_KEY = "00" * 64  # TODO: update this
+    GUARDIAN_PUBLIC_KEY = "ab856abd0983a82972021e454fcf66ed5940ed595b0898bcd75cbe2d0a51a00f5358b566df22395a2a8bf6c022c1d51a2c3defe654e91a8d244947783029694d"
+    # at the early state, guardian privkey only specified in nodes certified by QuarkChain team
+    GUARDIAN_PRIVATE_KEY = None
 
     # P2P
     P2P_PROTOCOL_VERSION = 0
@@ -267,6 +270,8 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
             self.SHARD_LIST.append(s)
 
+        self._cached_guardian_private_key = None
+
     @property
     def reward_tax_rate(self) -> Fraction:
         ret = Fraction(self.REWARD_TAX_RATE).limit_denominator()
@@ -292,9 +297,27 @@ class QuarkChainConfig(BaseConfig):
 
     @property
     def guardian_public_key(self) -> KeyAPI.PublicKey:
+        # noinspection PyCallByClass
         return KeyAPI.PublicKey(
             public_key_bytes=bytes.fromhex(self.GUARDIAN_PUBLIC_KEY)
         )
+
+    @property
+    def guardian_private_key(self) -> Optional[KeyAPI.PrivateKey]:
+        if self._cached_guardian_private_key:
+            return self._cached_guardian_private_key
+        # cache miss
+        ret = None
+        if self.GUARDIAN_PRIVATE_KEY:
+            # make sure private key and public key match
+            # noinspection PyCallByClass
+            privkey = KeyAPI.PrivateKey(
+                private_key_bytes=bytes.fromhex(self.GUARDIAN_PRIVATE_KEY)
+            )
+            assert privkey.public_key == self.guardian_public_key
+            ret = privkey
+        self._cached_guardian_private_key = ret
+        return ret
 
     def update(self, shard_size, root_block_time, minor_block_time):
         self.SHARD_SIZE = shard_size

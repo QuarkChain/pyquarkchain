@@ -7,6 +7,7 @@ from quarkchain.cluster.tests.test_utils import get_test_env
 from quarkchain.core import Address
 from quarkchain.core import CrossShardTransactionList
 from quarkchain.diff import EthDifficultyCalculator
+from quarkchain.p2p import ecies
 
 
 def create_default_state(env, diff_calc=None):
@@ -267,6 +268,7 @@ class TestRootState(unittest.TestCase):
                 address=Address.create_empty_account(),
                 create_time=r_state.tip.create_time + 9,
             )
+            self.assertEqual(root_block_tmp.header.signature, bytes(65))  # empty sig
             # still use minor block's coinbase amount, 1
             self.assertEqual(
                 root_block_tmp.header.coinbase_amount,
@@ -295,7 +297,7 @@ class TestRootState(unittest.TestCase):
             m_header_list=[g0, b0.header, g1, b1.header],
             address=Address.create_empty_account(),
             create_time=r_state.tip.create_time + 26,
-        ).finalize()
+        )
         self.assertEqual(
             r_state.tip.difficulty - r_state.tip.difficulty // 2048,
             root_block0.header.difficulty,

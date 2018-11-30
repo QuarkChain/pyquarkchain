@@ -365,7 +365,6 @@ class RootState:
                 )
             prev_header_in_last_root_block = prev_header_map.get(shard_id, None)
             if not prev_header_in_last_root_block:
-                pass
                 # no header in previous root block then it must start with genesis block
                 if headers[0].height != 0:
                     raise ValueError(
