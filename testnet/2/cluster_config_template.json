@@ -39,7 +39,7 @@
                 "NONCE": 0
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5
+            "COINBASE_AMOUNT": 120000000000000000000
         },
         "SHARD_LIST": [
             {
@@ -65,7 +65,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -96,7 +96,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000001",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -127,7 +127,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000002",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -158,7 +158,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000003",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -189,7 +189,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000004",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -220,7 +220,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000005",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -251,7 +251,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000006",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
@@ -282,7 +282,7 @@
                     }
                 },
                 "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000007",
-                "COINBASE_AMOUNT": 5,
+                "COINBASE_AMOUNT": 5000000000000000000,
                 "GAS_LIMIT_EMA_DENOMINATOR": 1024,
                 "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
                 "GAS_LIMIT_MINIMUM": 5000,
