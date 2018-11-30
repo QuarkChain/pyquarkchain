@@ -178,13 +178,23 @@ pre-commit install
 
 ## Run Cluster
 
+### Run a Private Cluster on the QuarkChain Testnet 2.0
+If you are on a private network (e.g. runnning QuarkChain cluster from a laptop which connects to a router and then internet),
+you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding)
+for UDP/TCP 38291.
+
+Then fill in your own coinbase address and [bootstrap a cluster](https://github.com/QuarkChain/pyquarkchain/wiki/Run-a-Private-Cluster-on-the-QuarkChain-Testnet-2.0) on QuarkChain Testnet 2.0. 
+
+We provide the [demo implementation of CPU mining software](https://github.com/QuarkChain/pyquarkchain/wiki/Demo-Implementation-of-CPU-Mining). Please refer to [QuarkChain mining](https://github.com/QuarkChain/pyquarkchain/wiki#QuarkChain-Mining) for more details.
+
+### Run a Single Cluster
 Start running a cluster. The default cluster has 8 shards and 4 slaves.
 
 ```bash
 cd quarkchain/cluster
 pypy3 cluster.py --mine
 ```
-
+### Run Multiple Clusters
 Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster):
 ```bash
 # This part has been deprecated, please file an issue if you need this feature
@@ -204,6 +214,9 @@ Then start other clusters and provide the bootnode, add `--mine` to start mining
 ```bash
 BOOTSTRAP_NODE=enode://$BOOTSTRAP_PUB_KEY@$BOOTSTRAP_IP:$BOOTSTRAP_DISCOVERY_PORT
 pypy3 cluster.py --p2p --bootnodes=$BOOTSTRAP_ENODE
+```
+
+Effectively, `newkey.py` gives the bootstrap node an identity, and you will need to provide the public key to anyone who wants to connect to the bootnodes for discovery. Read https://github.com/QuarkChain/pyquarkchain/wiki/Networking#commandline-flags-explained for details on the commandline flags.
 ```
 
 Effectively, `newkey.py` gives the bootstrap node an identity, and you will need to provide the public key to anyone who wants to connect to the bootnodes for discovery. Read https://github.com/QuarkChain/pyquarkchain/wiki/Networking#commandline-flags-explained for details on the commandline flags.
