@@ -1,0 +1,356 @@
+{
+    "P2P_PORT": 38291,
+    "JSON_RPC_PORT": 38391,
+    "PRIVATE_JSON_RPC_PORT": 38491,
+    "ENABLE_TRANSACTION_HISTORY": true,
+    "DB_PATH_ROOT": "./data",
+    "LOG_LEVEL": "info",
+    "MINE": false,
+    "CLEAN": false,
+    "GENESIS_DIR": "/dev/null",
+    "QUARKCHAIN": {
+        "SHARD_SIZE": 8,
+        "MAX_NEIGHBORS": 32,
+        "MINOR_BLOCK_DEFAULT_REWARD": 100000000000000000000,
+        "NETWORK_ID": 21,
+        "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
+        "BLOCK_EXTRA_DATA_SIZE_LIMIT": 1024,
+        "PROOF_OF_PROGRESS_BLOCKS": 1,
+        "GUARDIAN_PUBLIC_KEY": "ab856abd0983a82972021e454fcf66ed5940ed595b0898bcd75cbe2d0a51a00f5358b566df22395a2a8bf6c022c1d51a2c3defe654e91a8d244947783029694d",
+        "P2P_PROTOCOL_VERSION": 0,
+        "P2P_COMMAND_SIZE_LIMIT": 4294967295,
+        "SKIP_ROOT_DIFFICULTY_CHECK": false,
+        "SKIP_MINOR_DIFFICULTY_CHECK": false,
+        "ROOT": {
+            "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 60,
+            "CONSENSUS_TYPE": "POW_ETHASH",
+            "CONSENSUS_CONFIG": {
+                "TARGET_BLOCK_TIME": 60,
+                "REMOTE_MINE": true
+            },
+            "GENESIS": {
+                "VERSION": 0,
+                "HEIGHT": 0,
+                "SHARD_SIZE": 8,
+                "HASH_PREV_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                "TIMESTAMP": 1519147489,
+                "DIFFICULTY": 1000000000,
+                "NONCE": 0
+            },
+            "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+            "COINBASE_AMOUNT": 5
+        },
+        "SHARD_LIST": [
+            {
+                "CONSENSUS_TYPE": "POW_ETHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_ETHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000001",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_ETHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000002",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_ETHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000003",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_SHA3SHA3",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 1000000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000004",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_SHA3SHA3",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 1000000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000005",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_QKCHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000006",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            },
+            {
+                "CONSENSUS_TYPE": "POW_QKCHASH",
+                "CONSENSUS_CONFIG": {
+                    "TARGET_BLOCK_TIME": 10,
+                    "REMOTE_MINE": true
+                },
+                "GENESIS": {
+                    "ROOT_HEIGHT": 0,
+                    "VERSION": 0,
+                    "HEIGHT": 0,
+                    "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
+                    "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
+                    "TIMESTAMP": 1519147489,
+                    "DIFFICULTY": 3000,
+                    "GAS_LIMIT": 12000000,
+                    "NONCE": 0,
+                    "ALLOC": {}
+                },
+                "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000007",
+                "COINBASE_AMOUNT": 5,
+                "GAS_LIMIT_EMA_DENOMINATOR": 1024,
+                "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
+                "GAS_LIMIT_MINIMUM": 5000,
+                "GAS_LIMIT_MAXIMUM": 9223372036854775807,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+            }
+        ],
+        "REWARD_TAX_RATE": 0.5
+    },
+    "MASTER": {
+        "MASTER_TO_SLAVE_CONNECT_RETRY_DELAY": 1.0
+    },
+    "SLAVE_LIST": [
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38000,
+            "ID": "S0",
+            "SHARD_MASK_LIST": [
+                8
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38001,
+            "ID": "S1",
+            "SHARD_MASK_LIST": [
+                9
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38002,
+            "ID": "S2",
+            "SHARD_MASK_LIST": [
+                10
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38003,
+            "ID": "S3",
+            "SHARD_MASK_LIST": [
+                11
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38004,
+            "ID": "S4",
+            "SHARD_MASK_LIST": [
+                12
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38005,
+            "ID": "S5",
+            "SHARD_MASK_LIST": [
+                13
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38006,
+            "ID": "S6",
+            "SHARD_MASK_LIST": [
+                14
+            ]
+        },
+        {
+            "IP": "127.0.0.1",
+            "PORT": 38007,
+            "ID": "S7",
+            "SHARD_MASK_LIST": [
+                15
+            ]
+        }
+    ],
+    "P2P": {
+        "NEW_MODULE": true,
+        "MAX_PEERS": 30,
+        "BOOT_NODES": "enode://534fb1d7efa75eb4fb0a81ca25f32c6d70e2cec01d9d3c64a972b5913cd18fc2fee8cc8f964abb648cd6ed25afe81629ba9953cc10df5c7d840197db1e4c5fef@54.203.168.137:38291,enode://3f750f788fe5adbf11cead375c147bc9ad486549ae3adcc9f24efc0189e1bf4e09280fa2f9511b50425c1ea3a27038c21553c709098fb2b593e1b3ff25da758b@54.70.162.141:38291,enode://a66afe1eb473a4dd294096f95da0446459cbfb01e71651a5c98426ec48e12dc046993109b0ad61aa6d9b773afa319870c0352c91073b4341b4497b8a16b4c4da@52.11.34.67:38291",
+        "PRIV_KEY": "",
+        "UPNP": true
+    },
+    "MONITORING": {
+        "NETWORK_NAME": "",
+        "CLUSTER_ID": "127.0.0.1",
+        "KAFKA_REST_ADDRESS": "",
+        "MINER_TOPIC": "qkc_miner",
+        "PROPAGATION_TOPIC": "block_propagation",
+        "ERRORS": "error"
+    }
+}
