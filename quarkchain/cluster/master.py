@@ -1473,10 +1473,6 @@ def main():
     master.start()
     master.wait_until_cluster_active()
 
-    # kick off mining
-    if env.cluster_config.MINE:
-        asyncio.ensure_future(master.start_mining())
-
     loop = asyncio.get_event_loop()
 
     if env.cluster_config.use_p2p():

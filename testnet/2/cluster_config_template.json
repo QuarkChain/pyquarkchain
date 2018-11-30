@@ -5,7 +5,6 @@
     "ENABLE_TRANSACTION_HISTORY": true,
     "DB_PATH_ROOT": "./data",
     "LOG_LEVEL": "info",
-    "MINE": false,
     "CLEAN": false,
     "GENESIS_DIR": "/dev/null",
     "QUARKCHAIN": {
