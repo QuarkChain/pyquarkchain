@@ -8,6 +8,7 @@ from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -129,9 +130,7 @@ class SyncTask:
                 )
             )
             block_header_list = await self.__download_block_headers(block_hash)
-            if not self.__validate_block_headers(block_header_list):
-                # TODO: tag bad peer
-                raise RuntimeError("Bad peer sending discontinuing block headers")
+            self.__validate_block_headers(block_header_list)
             for header in block_header_list:
                 if self.__has_block_hash(header.get_hash()):
                     break
@@ -168,16 +167,32 @@ class SyncTask:
         return self.root_state.contain_root_block_by_hash(block_hash)
 
     def __validate_block_headers(self, block_header_list):
-        # TODO: check difficulty and other stuff?
+        """Raise on validation failure"""
+        # TODO: tag bad peer
         consensus_type = self.root_state.env.quark_chain_config.ROOT.CONSENSUS_TYPE
         for i in range(len(block_header_list) - 1):
             header, prev = block_header_list[i : i + 2]
             if header.height != prev.height + 1:
-                return False
+                raise RuntimeError(
+                    "Bad peer sending root block headers with discontinuous height"
+                )
             if header.hash_prev_block != prev.get_hash():
-                return False
-            validate_seal(header, consensus_type)
-        return True
+                raise RuntimeError(
+                    "Bad peer sending root block headers with discontinuous hash_prev_block"
+                )
+
+            # check difficulty, potentially adjusted by guardian mechanism
+            adjusted_diff = None  # type: Optional[int]
+            if not self.root_state.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
+                # lower the difficulty for root block signed by guardian
+                if header.verify_signature(
+                    self.root_state.env.quark_chain_config.guardian_public_key
+                ):
+                    adjusted_diff = Guardian.adjust_difficulty(
+                        header.diff, header.height
+                    )
+            # check PoW if applicable
+            validate_seal(header, consensus_type, adjusted_diff=adjusted_diff)
 
     async def __download_block_headers(self, block_hash):
         request = GetRootBlockHeaderListRequest(
