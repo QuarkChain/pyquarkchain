@@ -8,6 +8,7 @@ from collections import deque
 from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -176,7 +177,21 @@ class SyncTask:
                 return False
             if header.hash_prev_block != prev.get_hash():
                 return False
-            validate_seal(header, consensus_type)
+
+            # check difficulty, potentially adjusted by guardian mechanism
+            adjusted_diff = None  # type: Optional[int]
+            if not self.root_state.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
+                # lower the difficulty for root block signed by guardian
+                if header.verify_signature(
+                    self.root_state.env.quark_chain_config.guardian_public_key
+                ):
+                    adjusted_diff = Guardian.adjust_difficulty(
+                        header.diff, header.height
+                    )
+
+            # check PoW if applicable
+            validate_seal(header, consensus_type, adjusted_diff=adjusted_diff)
+
         return True
 
     async def __download_block_headers(self, block_hash):
