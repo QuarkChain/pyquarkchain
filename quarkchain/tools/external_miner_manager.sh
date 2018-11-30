@@ -48,6 +48,7 @@ for shard in "${shards[@]}"; do
 done
 
 miner_py_path="$( cd "$(dirname "$0")" ; pwd -P )/external_miner.py"
+j=0
 for shards_per_process in "${shards_by_process[@]}"; do
 	# shard 6, 7 running python+qkchash native to prevent mem leak
 	# others running pypy3
@@ -61,6 +62,7 @@ for shards_per_process in "${shards_by_process[@]}"; do
 		--config $config \
 		--worker $thread \
 		--shards $shards_per_process &
+	j=$(( $j + 1 ))
 done
 
 wait
