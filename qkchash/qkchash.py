@@ -54,17 +54,15 @@ def fnv64(v1, v2):
 
 
 def make_cache(entries, seed):
-    o = sha3_512(seed)
     cache = []
     cache_set = set()
 
-    for i in range(entries // len(o)):
+    for i in range(entries // 8):
+        o = sha3_512(seed + i.to_bytes(4, byteorder="big"))
         for e in o:
             if e not in cache_set:
                 cache.append(e)
                 cache_set.add(e)
-
-        o = sha3_512(seed + i.to_bytes(4, byteorder="big"))
 
     cache.sort()
     return cache
@@ -223,6 +221,22 @@ def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
     }
 
 
+class TestQkcHash(unittest.TestCase):
+    def test_hash_vectors(self):
+        cache = make_cache(CACHE_ENTRIES, bytes())
+        self.assertEqual(len(cache), CACHE_ENTRIES)
+
+        v0 = [11967621512234744254, 11712119753881699857,
+              4190255959603841725, 6654395615551794006]
+        h0 = qkchash(bytes(), bytes(), cache)
+        self.assertEqual(h0["mix digest"], serialize_hash(v0))
+
+        v1 = [12754842531904701011, 8384861435613290118,
+              2739024099562295228, 4448910328080420635]
+        h1 = qkchash(b"Hello World!", bytes(), cache)
+        self.assertEqual(h1["mix digest"], serialize_hash(v1))
+
+
 def test_qkchash_perf():
     N = 10
     start_time = time.time()
@@ -263,5 +277,18 @@ def test_qkchash_perf():
     print("Equal: ", h0 == h1[0 : len(h0)])
 
 
+def print_test_vector():
+    cache = make_cache(CACHE_ENTRIES, bytes())
+    print("Cache size: ", len(cache))
+    print("Hash of empty:")
+    h0 = qkchash(bytes(), bytes(), cache)
+    print(deserialize_hash(h0["mix digest"]))
+
+    print("Hash of Hello World!:")
+    h1 = qkchash(b"Hello World!", bytes(), cache)
+    print(deserialize_hash(h1["mix digest"]))
+
+
 if __name__ == "__main__":
+    print_test_vector()
     test_qkchash_perf()
