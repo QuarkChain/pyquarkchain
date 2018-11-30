@@ -7,6 +7,7 @@
 import argparse
 import copy
 import random
+import typing
 from typing import List
 
 import ecdsa
@@ -945,7 +946,12 @@ class RootBlock(Serializable):
         ),  # for logging purpose, not signed
     ]
 
-    def __init__(self, header, minor_block_header_list=None, tracking_data=b""):
+    def __init__(
+        self,
+        header: RootBlockHeader,
+        minor_block_header_list: typing.Optional[List[MinorBlockHeader]] = None,
+        tracking_data: bytes = b"",
+    ):
         self.header = header
         self.minor_block_header_list = (
             [] if minor_block_header_list is None else minor_block_header_list

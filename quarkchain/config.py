@@ -233,7 +233,10 @@ class QuarkChainConfig(BaseConfig):
     BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
     PROOF_OF_PROGRESS_BLOCKS = 1
-    GUARDIAN_PUBLIC_KEY = "00" * 64  # TODO: update this
+    GUARDIAN_PUBLIC_KEY = "ab856abd0983a82972021e454fcf66ed5940ed595b0898bcd75cbe2d0a51a00f5358b566df22395a2a8bf6c022c1d51a2c3defe654e91a8d244947783029694d"
+    GUARDIAN_PRIVATE_KEY = (
+        None
+    )  # at the early state, only specified in nodes owned by QuarkChain team
 
     # P2P
     P2P_PROTOCOL_VERSION = 0
@@ -292,8 +295,18 @@ class QuarkChainConfig(BaseConfig):
 
     @property
     def guardian_public_key(self) -> KeyAPI.PublicKey:
+        # noinspection PyCallByClass
         return KeyAPI.PublicKey(
             public_key_bytes=bytes.fromhex(self.GUARDIAN_PUBLIC_KEY)
+        )
+
+    @property
+    def guardian_private_key(self) -> KeyAPI.PrivateKey:
+        if not self.GUARDIAN_PRIVATE_KEY:
+            raise ValueError("guardian private key not found")
+        # noinspection PyCallByClass
+        return KeyAPI.PrivateKey(
+            private_key_bytes=bytes.fromhex(self.GUARDIAN_PRIVATE_KEY)
         )
 
     def update(self, shard_size, root_block_time, minor_block_time):
