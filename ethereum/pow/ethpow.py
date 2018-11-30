@@ -135,7 +135,7 @@ def mine(
 
     cache = cache_gen(cache_size, block_number)
     nonce = start_nonce
-    target = (2 ** 256 // (difficulty or 1)).to_bytes(32, byteorder="big")
+    target = (2 ** 256 // (difficulty or 1) - 1).to_bytes(32, byteorder="big")
     for i in range(1, rounds + 1):
         # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
