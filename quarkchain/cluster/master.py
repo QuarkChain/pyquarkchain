@@ -189,7 +189,7 @@ class SyncTask:
                     self.root_state.env.quark_chain_config.guardian_public_key
                 ):
                     adjusted_diff = Guardian.adjust_difficulty(
-                        header.diff, header.height
+                        header.difficulty, header.height
                     )
             # check PoW if applicable
             validate_seal(header, consensus_type, adjusted_diff=adjusted_diff)

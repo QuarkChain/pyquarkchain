@@ -60,5 +60,5 @@ ENV QKCHASHLIB /code/pyquarkchain/qkchash/libqkchash.so
 
 WORKDIR /code/pyquarkchain
 
-# one mining related dep
-RUN apt-get install -y jq
+# misc dep
+RUN apt-get install -y jq screen
