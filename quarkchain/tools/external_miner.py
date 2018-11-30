@@ -3,6 +3,7 @@ import copy
 import functools
 import json
 import logging
+import os
 import random
 import signal
 import threading
@@ -115,6 +116,7 @@ class ExternalMiner(threading.Thread):
                         "consensus_type": config["consensus_type"],
                         "shard": shard_id,
                         "rounds": 100,
+                        "native_lib_path": os.environ.get("QKCHASHLIB"),
                     }
                     if mining_thread:
                         input_q.put((work, mining_params))
