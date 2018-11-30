@@ -97,19 +97,21 @@ class SimpleNetworkConfig(BaseConfig):
 
 
 class P2PConfig(BaseConfig):
+    # *new p2p module*
+    NEW_MODULE = False
+    BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
+    PRIV_KEY = ""
+    MAX_PEERS = 25
+    UPNP = False
+    ALLOW_DIAL_IN_RATIO = 1.0
+
+    # deprecated
     IP = HOST
     DISCOVERY_PORT = 29000
     BOOTSTRAP_HOST = HOST
     BOOTSTRAP_PORT = 29000
     MIN_PEERS = 2
-    MAX_PEERS = 10
     ADDITIONAL_BOOTSTRAPS = ""
-    # *new p2p module*
-    NEW_MODULE = False
-    BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
-    PRIV_KEY = ""
-    # MAX_PEERS
-    UPNP = False
 
 
 class MonitoringConfig(BaseConfig):

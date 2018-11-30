@@ -35,7 +35,6 @@ from quarkchain.p2p.nat import UPnPService
 from quarkchain.utils import Logger
 
 
-DIAL_IN_OUT_RATIO = 0.75
 NO_SAME_IP = False
 
 
@@ -56,6 +55,7 @@ class BaseServer(BaseService):
         use_discv5: bool = False,
         token: CancelToken = None,
         upnp: bool = False,
+        allow_dial_in_ratio: float = 1.0,
     ) -> None:
         super().__init__(token)
         self.privkey = privkey
@@ -68,6 +68,7 @@ class BaseServer(BaseService):
         self.upnp_service = None
         if upnp:
             self.upnp_service = UPnPService(port, token=self.cancel_token)
+        self.allow_dial_in_ratio = allow_dial_in_ratio
         self.peer_pool = self._make_peer_pool()
 
         if not bootstrap_nodes:
@@ -247,8 +248,11 @@ class BaseServer(BaseService):
         inbound_peer_count = len(
             [peer for peer in self.peer_pool.connected_nodes.values() if peer.inbound]
         )
-        if total_peers > 1 and inbound_peer_count / total_peers > DIAL_IN_OUT_RATIO:
-            # make sure to have at least 1/4 outbound connections
+        if (
+            total_peers > 1
+            and inbound_peer_count / total_peers > self.allow_dial_in_ratio
+        ):
+            # make sure to have at least (1-allow_dial_in_ratio) outbound connections out of total connections
             await peer.disconnect(DisconnectReason.too_many_peers)
         else:
             # We use self.wait() here as a workaround for

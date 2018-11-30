@@ -380,6 +380,7 @@ class P2PManager(AbstractNetwork):
             token=self.cancel_token,
             max_peers=env.cluster_config.P2P.MAX_PEERS,
             upnp=env.cluster_config.P2P.UPNP,
+            allow_dial_in_ratio=env.cluster_config.P2P.ALLOW_DIAL_IN_RATIO,
         )
 
         QuarkPeer.env = env
