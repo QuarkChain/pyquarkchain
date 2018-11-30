@@ -217,16 +217,17 @@ class TestMiner(unittest.TestCase):
         async def create(retry=True):
             return block
 
-        async def add(block_to_add):
-            self.added_blocks.append(block_to_add)
+        async def add(_):
+            pass
 
-        pk = ecies.generate_privkey()
         miner = self.miner_gen(
             ConsensusType.POW_SHA3SHA3,
             create,
             add,
             remote=True,
-            guardian_private_key=pk,
+            # fake pk, will succeed in test but fail in real world when
+            # adding the block to the root chain
+            guardian_private_key=ecies.generate_privkey(),
         )
 
         async def go():
