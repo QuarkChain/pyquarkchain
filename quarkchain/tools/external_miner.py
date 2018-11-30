@@ -128,7 +128,7 @@ class ExternalMiner(threading.Thread):
                         # start the thread to mine
                         mining_thread = threading.Thread(
                             target=Miner.mine_loop,
-                            args=(work, mining_params, input_q, output_q, True),
+                            args=(work, mining_params, input_q, output_q),
                         )
                         mining_thread.start()
                         print("Started mining thread on %s" % repr_shard(shard_id))

@@ -40,6 +40,9 @@ EXPOSE 22 80 443 38291 38391 38491 8000 29000
 ### set up code
 RUN mkdir /code
 WORKDIR /code
+
+# docker build --build-arg CACHEBUST=$(date +%s) .
+ARG CACHEBUST=1
 RUN git clone https://github.com/QuarkChain/pyquarkchain.git
 
 # pypy3 dep
