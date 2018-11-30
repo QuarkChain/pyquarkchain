@@ -22,9 +22,7 @@ Check out the [Wiki](https://github.com/QuarkChain/pyquarkchain/wiki) to underst
 
 ## Development Setup
 
-QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance.
-
-### OSX
+QuarkChain should be run using [pypy](http://pypy.org/index.html) for better performance. *The rest of section uses **OSX** as the reference for environment set-up.*
 
 To install pypy3 on OSX, first install [Homebrew](https://brew.sh/)
 
@@ -83,88 +81,6 @@ Once all the modules are installed, try running all the unit tests under `pyquar
 python -m pytest quarkchain
 ```
 
-### Linux
-
-Using Ubuntu as the example, with similar procedures as in OSX, following snippet should be the minimum viable setup.
-
-```bash
-#!/bin/bash
-
-sudo apt-get update
-
-sudo apt-get install -y git gcc make libffi-dev pkg-config zlib1g-dev libbz2-dev \
-libsqlite3-dev libncurses5-dev libexpat1-dev libssl-dev libgdbm-dev \
-libgc-dev python-cffi \
-liblzma-dev libncursesw5-dev libgmp-dev liblz4-dev librocksdb-dev \
-libsnappy-dev zlib1g-dev libbz2-dev libzstd-dev
-
-wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
-sudo tar -x -C /opt -f  pypy3-v6.0.0-linux64.tar.bz2
-sudo mv /opt/pypy3-v6.0.0-linux64 /opt/pypy3
-sudo ln -s /opt/pypy3/bin/pypy3 /usr/local/bin/pypy3
-
-curl https://bootstrap.pypa.io/get-pip.py > get-pip.py
-pypy3 get-pip.py --user
-export PATH=~/.local/bin:$PATH
-rm get-pip.py
-
-git clone https://github.com/QuarkChain/pyquarkchain.git
-cd pyquarkchain
-pip install --user -e .
-
-# https://github.com/ethereum/pyethapp/issues/274#issuecomment-385268798
-pip uninstall pyelliptic
-pip install --user https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10.tar.gz#egg=pyelliptic
-
-pypy3 -m unittest  # should succeed
-```
-
-However, `librocksdb-dev` installed in this way won't have support for LZ4 compression, running `pypy3 quarkchain/cluster/cluster.py` would fail with the error `Compression type LZ4 is not linked with the binary`. To fix this, you can either build rocksdb from source (which will detect LZ4 support automatically):
-
-```bash
-# make sure librocksdb-dev is uninstalled: sudo apt-get purge librocksdb-dev
-# cd ~  # or wherever you like
-git clone https://github.com/facebook/rocksdb.git
-cd rocksdb && make shared_lib  # will probably take 10~20 min
-sudo make install-shared
-# go back to pyquarkchain directory
-pip uninstall python-rocksdb
-pip install --user --no-cache-dir python-rocksdb  # force reinstalling
-```
-
-or change the the compression type in `quarkchain/db.py`
-
-```python
-options.compression = rocksdb.CompressionType.lz4_compression
-```
-
-to
-
-```python
-options.compression = rocksdb.CompressionType.snappy_compression
-```
-
-then running `pypy3 quarkchain/cluster/cluster.py  --mine` should succeed.
-
-### Docker
-You can build a docker image with all the dependencies installed using this [Dockerfile](https://gist.github.com/ninjaahhh/6be0aec07da608ea6cd4483d01cd706a) or download the image directly from docker cloud.
-```
-docker pull ninjaahhh/pyquarkchain:tps
-docker run -it -p 38291:38291 -p 38391:38391 -p 38491:38491 -p 29000:29000 -p 29000:29000/udp ninjaahhh/pyquarkchain:tps
-# inside the container
-pypy3 pyquarkchain/quarkchain/cluster/cluster.py --mine
-
-```
-
-### AWS AMI
-We provided a public AMI in **US West** (Oregon) Region **QuarkChain Sample AMI - ami-0bc201609b49cc40f** using this setup.
-You may need to run the following command after a fresh pull on the repo to update the dependencies:
-```bash
-pip install -e .
-# if libs are missing, run apt-get commands in https://github.com/QuarkChain/pyquarkchain/blob/master/.circleci/Dockerfile
-```
-There may be OpenSSL error `No symbol ECDH_OpenSSL found in library libcrypto.so.1.1` because Ubuntu upgraded to libssl1.1.0 and made pyelliptic obsolete: https://github.com/golemfactory/golem-messages/issues/110. Fortunately we migrated away from devp2p, so the simplest workaround is to remove this line and use new p2p module https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/cluster/master.py#L78
-
 ## Development Flow
 
 [`pre-commit`](https://pre-commit.com) is used to manage git hooks.
@@ -176,29 +92,28 @@ pre-commit install
 
 [black](https://github.com/ambv/black) is used to format modified python code, which will be automatically triggered on new commit after running the above commands. Refer to [STYLE](https://github.com/QuarkChain/pyquarkchain/blob/master/STYLE) for coding style suggestions.
 
-## Run Cluster
+## Cluster Launch
 
-### Run a Private Cluster on the QuarkChain Testnet 2.0
-If you are on a private network (e.g. runnning QuarkChain cluster from a laptop which connects to a router and then internet),
-you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding)
-for UDP/TCP 38291.
+### Run a private cluster on the QuarkChain testnet 2.0
+If you are on a private network (e.g. running QuarkChain clusters from a laptop which connects to a router), you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding) for UDP/TCP 38291.
 
-Then fill in your own coinbase address and [bootstrap a cluster](https://github.com/QuarkChain/pyquarkchain/wiki/Run-a-Private-Cluster-on-the-QuarkChain-Testnet-2.0) on QuarkChain Testnet 2.0. 
+Then fill in your own coinbase address and [bootstrap a cluster](https://github.com/QuarkChain/pyquarkchain/wiki/Run-a-Private-Cluster-on-the-QuarkChain-Testnet-2.0) on QuarkChain Testnet 2.0.
 
-We provide the [demo implementation of CPU mining software](https://github.com/QuarkChain/pyquarkchain/wiki/Demo-Implementation-of-CPU-Mining). Please refer to [QuarkChain mining](https://github.com/QuarkChain/pyquarkchain/wiki#QuarkChain-Mining) for more details.
+We provide the [demo implementation of CPU mining software](https://github.com/QuarkChain/pyquarkchain/wiki/Demo-Implementation-of-CPU-Mining). Please refer to [QuarkChain mining](https://github.com/QuarkChain/pyquarkchain/wiki/Introduction-of-Mining-Algorithms) for more details.
 
-### Run a Single Cluster
+### Run a single cluster
 Start running a cluster. The default cluster has 8 shards and 4 slaves.
 
 ```bash
 cd quarkchain/cluster
-pypy3 cluster.py --mine
+pypy3 cluster.py
 ```
-### Run Multiple Clusters
-Run multiple clusters with P2P network on a single machine (--mine turns on mining on one cluster):
+
+### Run multiple clusters
+Run multiple clusters with P2P network on a single machine:
 ```bash
 # This part has been deprecated, please file an issue if you need this feature
-# pypy3 multi_cluster.py --num_clusters=3 --mine --devp2p_enable
+# pypy3 multi_cluster.py --num_clusters=3 --devp2p_enable
 ```
 
 ### Run multiple clusters with P2P network on different machines.
@@ -210,7 +125,7 @@ Just follow the same command to run single cluster and provide `--bootnodes` fla
 pypy3 cluster.py --p2p --privkey=$BOOTSTRAP_PRIV_KEY
 ```
 
-Then start other clusters and provide the bootnode, add `--mine` to start mining immediately.
+Then start other clusters and provide the bootnode.
 ```bash
 BOOTSTRAP_NODE=enode://$BOOTSTRAP_PUB_KEY@$BOOTSTRAP_IP:$BOOTSTRAP_DISCOVERY_PORT
 pypy3 cluster.py --p2p --bootnodes=$BOOTSTRAP_ENODE
@@ -226,7 +141,7 @@ Use the [`stats`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkch
 ```bash
 $ quarkchain/tools/stats --ip=localhost
 ----------------------------------------------------------------------------------------------------
-                                      QuarkChain Cluster Stats                                      
+                                      QuarkChain Cluster Stats
 ----------------------------------------------------------------------------------------------------
 CPU:                8
 Memory:             16 GB
