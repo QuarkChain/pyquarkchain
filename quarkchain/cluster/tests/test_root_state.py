@@ -510,29 +510,3 @@ class TestRootState(unittest.TestCase):
         s_state0_recovered.init_from_root_block(root_block1)
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(s_states, m3)
-
-    def test_guardian_signing(self):
-        env = get_test_env()
-        # update guardian key pair
-        privkey = ecies.generate_privkey()
-        pubkey = privkey.public_key
-        env.quark_chain_config.GUARDIAN_PRIVATE_KEY = privkey.to_bytes().hex()
-        env.quark_chain_config.GUARDIAN_PUBLIC_KEY = pubkey.to_bytes().hex()
-        env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
-
-        r_state, s_states = create_default_state(env)
-        b0 = s_states[0].get_tip().create_block_to_append()
-        s_states[0].finalize_and_add_block(b0)
-        b1 = s_states[1].get_tip().create_block_to_append()
-        s_states[1].finalize_and_add_block(b1)
-
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
-        root_block = r_state.create_block_to_mine(
-            m_header_list=[b0.header, b1.header],
-            address=Address.create_empty_account(),
-            create_time=r_state.tip.create_time + 9,
-        )
-        self.assertNotEqual(root_block.header.signature, bytes(65))  # non-empty sig
-        r_state.validate_block_header(root_block.header)
-        root_block.header.verify_signature(env.quark_chain_config.guardian_public_key)

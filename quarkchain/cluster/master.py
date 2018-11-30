@@ -593,6 +593,7 @@ class MasterServer:
             self.add_root_block,
             __get_mining_params,
             remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
+            guardian_private_key=self.env.quark_chain_config.guardian_private_key,
         )
 
     def __get_shard_size(self):

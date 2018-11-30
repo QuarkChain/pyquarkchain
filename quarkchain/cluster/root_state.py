@@ -215,14 +215,7 @@ class RootState:
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-        finalized_block = block.finalize(
-            coinbase_amount=coinbase_amount, coinbase_address=address
-        )  # type: RootBlock
-        # if guardian private key is provided, update the signature
-        if self.env.quark_chain_config.GUARDIAN_PRIVATE_KEY:
-            pk = self.env.quark_chain_config.guardian_private_key
-            finalized_block.header.sign_with_private_key(pk)
-        return finalized_block
+        return block.finalize(coinbase_amount=coinbase_amount, coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.
