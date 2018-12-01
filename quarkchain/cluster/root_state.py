@@ -56,6 +56,13 @@ class RootDb:
 
         r_hash = self.db.get(b"tipHash")
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
+        if r_block.header.height <= 0:
+            return None
+        # use the parent of the tipHash block as the new tip
+        # since it's guaranteed to have been accepted by all the shards
+        # while shards might not have seen the block of tipHash
+        r_hash = r_block.header.hash_prev_block
+        r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
         self.tip_header = r_block.header
 
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
