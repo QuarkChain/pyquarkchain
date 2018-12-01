@@ -364,11 +364,11 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(r_state.add_block(root_block1))
 
         # now the longest chain is root_block0 <-- root_block1
+        # but root_block0 will become the new tip after recovery
 
         recovered_state = RootState(env=env)
-        self.assertEqual(recovered_state.tip, root_block1.header)
+        self.assertEqual(recovered_state.tip, root_block0.header)
         self.assertEqual(recovered_state.db.get_root_block_by_height(1), root_block0)
-        self.assertEqual(recovered_state.db.get_root_block_by_height(2), root_block1)
 
         # fork is pruned from recovered state
         self.assertIsNone(
