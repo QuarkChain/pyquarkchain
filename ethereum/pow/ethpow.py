@@ -5,7 +5,7 @@ from typing import Tuple, Optional, List, Union
 from eth_utils import big_endian_to_int
 
 from ethereum.pow import ethash
-from ethereum.pow.ethash_utils import get_full_size, get_cache_size
+from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
 
 try:
     import pyethash
@@ -36,8 +36,12 @@ if ETHASH_LIB == "ethash":
     hashimoto = hashimoto_slow
 elif ETHASH_LIB == "pyethash":
 
+    @lru_cache(10)
+    def calculate_cache(n):
+        return pyethash.mkcache_bytes(n * EPOCH_LENGTH)
+
     def get_cache(cache_size: int, block_number: int):
-        return pyethash.mkcache_bytes(block_number)
+        return calculate_cache(block_number // EPOCH_LENGTH)
 
     def hashimoto(
         block_number: int,
