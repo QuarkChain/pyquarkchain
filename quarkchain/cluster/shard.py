@@ -316,9 +316,7 @@ class SyncTask:
             consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
                 shard_id
             ].CONSENSUS_TYPE
-            # TODO: make QKCHASH faster
-            if consensus_type != ConsensusType.POW_QKCHASH:
-                validate_seal(header, consensus_type)
+            validate_seal(header, consensus_type)
         return True
 
     async def __download_block_headers(self, block_hash):
