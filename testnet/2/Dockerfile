@@ -18,17 +18,12 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libsnapp
 # RUN mkdir /data
 
 # install python development tools, setuptools and pip
-# pypy3
 WORKDIR /opt
 RUN wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
 RUN tar fxv pypy3-v6.0.0-linux64.tar.bz2
 RUN ln -s /opt/pypy3-v6.0.0-linux64/bin/pypy3 /usr/bin/pypy3
 RUN pypy3 -m ensurepip
 RUN pypy3 -m pip install -U pip wheel
-# cpython
-RUN apt-get install -y curl
-RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-RUN python3 get-pip.py
 
 # configure locale
 RUN apt-get update && apt-get install -y locales
@@ -51,8 +46,6 @@ RUN pypy3 -m pip install -r pyquarkchain/requirements.txt
 # https://github.com/ethereum/pyethapp/issues/274#issuecomment-385268798
 RUN pypy3 -m pip uninstall -y pyelliptic
 RUN pypy3 -m pip install https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10.tar.gz#egg=pyelliptic
-# cpython dep, used for mining qkchash
-RUN python3 -m pip install -r pyquarkchain/requirements.txt
 
 # build qkchash c++ lib
 WORKDIR /code/pyquarkchain/qkchash
