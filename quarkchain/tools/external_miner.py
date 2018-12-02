@@ -21,6 +21,9 @@ from quarkchain.config import ConsensusType
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
+
+TIMEOUT = 10
+
 cluster_host = "localhost"
 
 
@@ -30,7 +33,10 @@ def get_jsonrpc_cli(jrpc_url):
 
 
 def get_work_rpc(
-    shard: Optional[int], host: str = "localhost", jrpc_port: int = 38391, timeout=3
+    shard: Optional[int],
+    host: str = "localhost",
+    jrpc_port: int = 38391,
+    timeout=TIMEOUT,
 ) -> MiningWork:
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
@@ -46,7 +52,7 @@ def submit_work_rpc(
     res: MiningResult,
     host: str = "localhost",
     jrpc_port: int = 38391,
-    timeout=3,
+    timeout=TIMEOUT,
 ) -> bool:
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
