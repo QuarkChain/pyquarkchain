@@ -634,7 +634,7 @@ class ShardState:
             evm_tx_list.append(tx.code.get_evm_transaction())
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
-    def add_block(self, block):
+    def add_block(self, block, skip_if_too_old=True):
         """  Add a block to local db.  Perform validate and update tip accordingly
         Returns None if block is already added.
         Returns a list of CrossShardTransactionDeposit from block.
@@ -642,19 +642,28 @@ class ShardState:
         """
         start_time = time.time()
         start_ms = time_ms()
-        if self.header_tip.height - block.header.height > 700:
-            Logger.info(
-                "[{}] drop old block {} << {}".format(
-                    self.branch.get_shard_id(),
-                    block.header.height,
-                    self.header_tip.height,
+
+        if skip_if_too_old:
+            shard_config = self.env.quark_chain_config.SHARD_LIST[
+                self.branch.get_shard_id()
+            ]
+            if (
+                self.header_tip.height - block.header.height
+                > shard_config.max_stale_minor_block_height_diff
+            ):
+                Logger.info(
+                    "[{}] drop old block {} << {}".format(
+                        self.branch.get_shard_id(),
+                        block.header.height,
+                        self.header_tip.height,
+                    )
                 )
-            )
-            raise ValueError(
-                "block is too old {} << {}".format(
-                    block.header.height, self.header_tip.height
+                raise ValueError(
+                    "block is too old {} << {}".format(
+                        block.header.height, self.header_tip.height
+                    )
                 )
-            )
+
         if self.db.contain_minor_block_by_hash(block.header.get_hash()):
             return None
 

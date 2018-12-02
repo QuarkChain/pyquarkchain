@@ -408,10 +408,15 @@ class MasterConnection(ClusterConnection):
                 )
                 check(len(block_chain) == len(blocks_to_download))
 
-                await self.slave_server.add_block_list_for_sync(block_chain)
+                add_block_success = await self.slave_server.add_block_list_for_sync(
+                    block_chain
+                )
+                if not add_block_success:
+                    raise RuntimeError(
+                        "Failed to add minor blocks for syncing root block"
+                    )
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
-
-        except Exception as e:
+        except Exception:
             Logger.error_exception()
             return SyncMinorBlockListResponse(error_code=1)
 

@@ -601,7 +601,7 @@ class Shard:
 
             block_hash = block.header.get_hash()
             try:
-                xshard_list = self.state.add_block(block)
+                xshard_list = self.state.add_block(block, skip_if_too_old=False)
             except Exception as e:
                 Logger.error_exception()
                 return False
