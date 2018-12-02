@@ -82,6 +82,9 @@ from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
 
+TIMEOUT = 10
+
+
 class SyncTask:
     """ Given a header and a peer, the task will synchronize the local state
     including root chain and shards with the peer up to the height of the header.
@@ -129,7 +132,9 @@ class SyncTask:
                     height, block_hash.hex()
                 )
             )
-            block_header_list = await self.__download_block_headers(block_hash)
+            block_header_list = await asyncio.wait_for(
+                self.__download_block_headers(block_hash), TIMEOUT
+            )
             self.__validate_block_headers(block_header_list)
             for header in block_header_list:
                 if self.__has_block_hash(header.get_hash()):
@@ -147,7 +152,9 @@ class SyncTask:
         )
 
         while len(block_header_chain) > 0:
-            block_chain = await self.__download_blocks(block_header_chain[:100])
+            block_chain = await asyncio.wait_for(
+                self.__download_blocks(block_header_chain[:100]), TIMEOUT
+            )
             Logger.info(
                 "[R] downloaded {} blocks ({} - {}) from peer".format(
                     len(block_chain),
@@ -160,7 +167,7 @@ class SyncTask:
                 raise RuntimeError("Bad peer missing blocks for headers they have")
 
             for block in block_chain:
-                await self.__add_block(block)
+                await asyncio.wait_for(self.__add_block(block), TIMEOUT)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):

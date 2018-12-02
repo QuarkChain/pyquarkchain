@@ -158,7 +158,8 @@ class AbstractConnection:
                 )
             future = self.rpc_future_map[rpc_id]
             del self.rpc_future_map[rpc_id]
-            future.set_result((op, cmd, rpc_id))
+            if not future.cancelled():
+                future.set_result((op, cmd, rpc_id))
 
     async def __internal_handle_metadata_and_raw_data(self, metadata, raw_data):
         try:
