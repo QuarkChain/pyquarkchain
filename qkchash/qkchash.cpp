@@ -162,24 +162,24 @@ extern "C" void *cache_create(uint64_t *cache_ptr,
 }
 
 extern "C" void *cache_copy(void *ptr) {
-    return new ordered_set_t(*(ordered_set_t *)ptr);
+    return ptr;
 }
 
 extern "C" void cache_destroy(void *ptr) {
-    auto cache = (ordered_set_t *)ptr;
-    delete cache;
+    // Do nothing
 }
 
 extern "C" void qkc_hash(void *cache_ptr,
                          uint64_t* seed_ptr,
                          uint64_t* result_ptr) {
     ordered_set_t *oset = (ordered_set_t *)cache_ptr;
+    ordered_set_t noset(*oset);
 
     std::array<uint64_t, 8> seed;
     std::array<uint64_t, 4> result;
     std::copy(seed_ptr, seed_ptr + seed.size(), seed.begin());
 
-    org::quarkchain::qkc_hash(*oset, seed, result);
+    org::quarkchain::qkc_hash(noset, seed, result);
 
     std::copy(result.begin(), result.end(), result_ptr);
 }
