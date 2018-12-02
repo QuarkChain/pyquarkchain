@@ -17,7 +17,7 @@ from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.config import ShardConfig
+from quarkchain.config import ShardConfig, ConsensusType
 from quarkchain.core import (
     RootBlock,
     MinorBlock,
@@ -316,7 +316,9 @@ class SyncTask:
             consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
                 shard_id
             ].CONSENSUS_TYPE
-            validate_seal(header, consensus_type)
+            # TODO: make QKCHASH faster
+            if consensus_type != ConsensusType.POW_QKCHASH:
+                validate_seal(header, consensus_type)
         return True
 
     async def __download_block_headers(self, block_hash):
