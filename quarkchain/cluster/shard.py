@@ -211,6 +211,8 @@ OP_RPC_MAP = {
     ),
 }
 
+TIMEOUT = 10
+
 
 class SyncTask:
     """ Given a header and a shard connection, the synchronizer will synchronize
@@ -265,7 +267,9 @@ class SyncTask:
                     self.shard_state.branch.get_shard_id(), height, block_hash.hex()
                 )
             )
-            block_header_list = await self.__download_block_headers(block_hash)
+            block_header_list = await asyncio.wait_for(
+                self.__download_block_headers(block_hash), TIMEOUT
+            )
             Logger.info(
                 "[{}] downloaded {} headers from peer".format(
                     self.shard_state.branch.get_shard_id(), len(block_header_list)
@@ -284,7 +288,9 @@ class SyncTask:
         # ascending height
         block_header_chain.reverse()
         while len(block_header_chain) > 0:
-            block_chain = await self.__download_blocks(block_header_chain[:100])
+            block_chain = await asyncio.wait_for(
+                self.__download_blocks(block_header_chain[:100]), TIMEOUT
+            )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
                     self.shard_state.branch.get_shard_id(), len(block_chain)
@@ -299,7 +305,7 @@ class SyncTask:
                     block.header.hash_prev_root_block
                 ):
                     return
-                await self.shard.add_block(block)
+                await asyncio.wait_for(self.shard.add_block(block), TIMEOUT)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
