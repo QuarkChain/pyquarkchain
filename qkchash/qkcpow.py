@@ -47,14 +47,11 @@ def check_pow(
     return result <= 2 ** 256 // (difficulty or 1)
 
 
-# TODO: use QKC_HASH_NATIVE and remove native_lib
 class QkchashMiner:
-    def __init__(
-        self, difficulty: int, header_hash: bytes, native_lib: Optional[str] = None
-    ):
+    def __init__(self, difficulty: int, header_hash: bytes):
         self.difficulty = difficulty
         self.header_hash = header_hash
-        self.native = QkcHashNative(native_lib) if native_lib else None
+        self.native = QKC_HASH_NATIVE
 
     def mine(
         self, rounds=1000, start_nonce=0
