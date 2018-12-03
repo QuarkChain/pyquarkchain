@@ -14,9 +14,6 @@ logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 
-LINE = "-" * 100
-
-
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -25,67 +22,78 @@ def fstr(v: float):
     return "{:.2f}".format(v)
 
 
-def basic(ip: str):
-    endpoint = "http://{}:38491".format(ip)
-    s = jsonrpcclient.request(endpoint, "getStats")
-
-    msg = LINE + "\n"
-    msg += "{:^100}\n".format("QuarkChain Cluster Stats")
-    msg += LINE + "\n"
+def basic(client, ip):
+    s = client.send(jsonrpcclient.Request("getStats"))
+    msg = "QuarkChain Cluster Stats\n\n"
     msg += "CPU:                {}\n".format(psutil.cpu_count())
     msg += "Memory:             {} GB\n".format(
         int(psutil.virtual_memory().total / 1024 / 1024 / 1024)
     )
     msg += "IP:                 {}\n".format(ip)
     msg += "Shards:             {}\n".format(s["shardSize"])
-    msg += "Servers:            {}\n".format(s["shardServerCount"])
-    msg += "Shard Interval:     {}\n".format(s["minor_block_interval"])
-    msg += "Root Interval:      {}\n".format(s["root_block_interval"])
-    msg += "Syncing:            {}\n".format(s["syncing"])
-    msg += "Mining:             {}\n".format(s["mining"])
+    msg += "Network Id:         {}\n".format(s["networkId"])
     msg += "Peers:              {}\n".format(", ".join(s["peers"]))
-    msg += LINE
     return msg
 
 
-def stats(ip: str):
-    endpoint = "http://{}:38491".format(ip)
-    s = jsonrpcclient.request(endpoint, "getStats")
-    return (
-        now(),
-        fstr(s["txCount60s"] / 60),
-        str(s["pendingTxCount"]),
-        str(s["totalTxCount"]),
-        fstr(s["blockCount60s"] / 60),
-        fstr(s["staleBlockCount60s"] / 60),
-        str(s["rootHeight"]),
-        fstr(numpy.mean([s["cpus"]])),
-    )
+def stats(client):
+    s = client.send(jsonrpcclient.Request("getStats"))
+    return {
+        "time": now(),
+        "syncing": str(s["syncing"]),
+        "tps": fstr(s["txCount60s"] / 60),
+        "pendingTx": str(s["pendingTxCount"]),
+        "confirmedTx": str(s["totalTxCount"]),
+        "bps": fstr(s["blockCount60s"] / 60),
+        "sbps": fstr(s["staleBlockCount60s"] / 60),
+        "cpu": fstr(numpy.mean([s["cpus"]])),
+        "root": str(s["rootHeight"]),
+        "shards": str([shard.get("height", -1) for shard in s["shards"]]),
+    }
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ip", default="localhost", type=str)
+    parser.add_argument("--ip", default="localhost", type=str, help="Cluster IP")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        default=False,
+        dest="verbose",
+        help="Show more details",
+    )
+    parser.add_argument(
+        "-i", "--interval", default=10, type=int, help="Query interval in second"
+    )
     args = parser.parse_args()
 
-    print(basic(args.ip))
-    format = "{:22} {:>10} {:>12} {:>13} {:>9} {:>9} {:>9} {:>9}"
+    endpoint = "http://{}:38491".format(args.ip)
+    client = jsonrpcclient.HTTPClient(endpoint)
+
+    print(basic(client, args.ip))
+    if args.verbose:
+        format = "{time:20} {syncing:>8} {tps:>5} {pendingTx:>10} {confirmedTx:>10} {bps:>9} {sbps:>9} {cpu:>9} {root:>7} {shards}"
+    else:
+        format = "{time:20} {syncing:>8} {root:>7} {shards}"
     print(
         format.format(
-            "Timestamp",
-            "TPS",
-            "Pending tx",
-            "Confirmed tx",
-            "BPS",
-            "SBPS",
-            "ROOT",
-            "CPU",
+            time="Timestamp",
+            syncing="Syncing",
+            tps="TPS",
+            pendingTx="Pend.TX",
+            confirmedTx="Conf.TX",
+            bps="BPS",
+            sbps="SBPS",
+            cpu="CPU",
+            root="ROOT",
+            shards="SHARDS",
         )
     )
-    print(LINE)
+
     while True:
-        print(format.format(*stats(args.ip)))
-        time.sleep(10)
+        print(format.format(**stats(client)))
+        time.sleep(args.interval)
 
 
 if __name__ == "__main__":
