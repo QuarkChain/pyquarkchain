@@ -65,7 +65,7 @@ def main():
             address_count.items(), key=operator.itemgetter(1), reverse=True
         )
         for address, count in sorted_by_count:
-            print("{}: {:.2f}%".format(address, count / total * 100))
+            print("{} {} {:.2f}%".format(address, count, count / total * 100))
 
 
 if __name__ == "__main__":
