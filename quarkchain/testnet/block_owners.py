@@ -11,6 +11,7 @@ from quarkchain.cluster.root_state import RootDb
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default="data/master.db", type=str)
+    parser.add_argument("--root_height", default=0, type=int)
     args = parser.parse_args()
     return args
 
@@ -29,10 +30,14 @@ def main():
     header = db.get_tip_header()
     if not header:
         raise RuntimeError("Not a valid RootDb")
+    from_height = header.height if args.root_height <= 0 else args.root_height
 
     block = db.get_root_block_by_hash(header.get_hash(), False)
     shard_to_address_count = dict()  # shard -> (recipient -> count)
     while block.header.height > 0:
+        if block.header.height > from_height:
+            block = db.get_root_block_by_hash(block.header.hash_prev_block, False)
+            continue
         for minor_header in block.minor_block_header_list:
             shard = minor_header.branch.get_shard_id()
             address_hex = minor_header.coinbase_address.recipient.hex()
@@ -49,11 +54,7 @@ def main():
             current = addr_to_count.setdefault(address, 0)
             addr_to_count[address] = current + count
 
-    print(
-        "Counting shard blocks from root block height {}".format(
-            db.get_tip_header().height
-        )
-    )
+    print("Counting shard blocks from root block height {}".format(from_height))
 
     for algo, address_count in algo_to_address_count.items():
         total = sum(address_count.values())
