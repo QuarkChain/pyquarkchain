@@ -22,10 +22,8 @@ def fstr(v: float):
     return "{:.2f}".format(v)
 
 
-def basic(ip: str):
-    endpoint = "http://{}:38491".format(ip)
-    s = jsonrpcclient.request(endpoint, "getStats")
-
+def basic(client, ip):
+    s = client.send(jsonrpcclient.Request("getStats"))
     msg = "QuarkChain Cluster Stats\n\n"
     msg += "CPU:                {}\n".format(psutil.cpu_count())
     msg += "Memory:             {} GB\n".format(
@@ -38,9 +36,8 @@ def basic(ip: str):
     return msg
 
 
-def stats(ip: str):
-    endpoint = "http://{}:38491".format(ip)
-    s = jsonrpcclient.request(endpoint, "getStats")
+def stats(client):
+    s = client.send(jsonrpcclient.Request("getStats"))
     return {
         "time": now(),
         "syncing": str(s["syncing"]),
@@ -71,7 +68,10 @@ def main():
     )
     args = parser.parse_args()
 
-    print(basic(args.ip))
+    endpoint = "http://{}:38491".format(args.ip)
+    client = jsonrpcclient.HTTPClient(endpoint)
+
+    print(basic(client, args.ip))
     if args.verbose:
         format = "{time:20} {syncing:>8} {tps:>5} {pendingTx:>10} {confirmedTx:>10} {bps:>9} {sbps:>9} {cpu:>9} {root:>7} {shards}"
     else:
@@ -92,7 +92,7 @@ def main():
     )
 
     while True:
-        print(format.format(**stats(args.ip)))
+        print(format.format(**stats(client)))
         time.sleep(args.interval)
 
 
