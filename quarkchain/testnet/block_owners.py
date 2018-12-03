@@ -31,13 +31,15 @@ def main():
     if not header:
         raise RuntimeError("Not a valid RootDb")
     from_height = header.height if args.root_height <= 0 else args.root_height
-
+    tip_header = None
     block = db.get_root_block_by_hash(header.get_hash(), False)
     shard_to_address_count = dict()  # shard -> (recipient -> count)
     while block.header.height > 0:
         if block.header.height > from_height:
             block = db.get_root_block_by_hash(block.header.hash_prev_block, False)
             continue
+        if block.header.height == from_height:
+            tip_header = block.header
         for minor_header in block.minor_block_header_list:
             shard = minor_header.branch.get_shard_id()
             address_hex = minor_header.coinbase_address.recipient.hex()
@@ -54,7 +56,11 @@ def main():
             current = addr_to_count.setdefault(address, 0)
             addr_to_count[address] = current + count
 
-    print("Counting shard blocks from root block height {}".format(from_height))
+    print(
+        "Counting shard blocks from root block {} {}".format(
+            tip_header.height, tip_header.get_hash().hex()
+        )
+    )
 
     for algo, address_count in algo_to_address_count.items():
         total = sum(address_count.values())
