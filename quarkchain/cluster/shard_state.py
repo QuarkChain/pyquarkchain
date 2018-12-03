@@ -61,11 +61,16 @@ class ShardState:
     def __init__(self, env, shard_id, db=None, diff_calc=None):
         self.env = env
         self.shard_id = shard_id
-        self.diff_calc = (
-            diff_calc
-            if diff_calc
-            else EthDifficultyCalculator(cutoff=7, diff_factor=512)
-        )
+        if not diff_calc:
+            shard_config = self.env.quark_chain_config.SHARD_LIST[shard_id]
+            cutoff = shard_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
+            diff_factor = shard_config.DIFFICULTY_ADJUSTMENT_FACTOR
+            min_diff = shard_config.GENESIS.DIFFICULTY
+            check(cutoff > 0 and diff_factor > 0 and min_diff > 0)
+            diff_calc = EthDifficultyCalculator(
+                cutoff=cutoff, diff_factor=diff_factor, minimum_diff=min_diff
+            )
+        self.diff_calc = diff_calc
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
         self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, shard_id)

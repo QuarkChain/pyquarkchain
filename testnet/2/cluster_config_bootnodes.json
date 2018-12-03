@@ -37,7 +37,9 @@
                 "NONCE": 0
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 120000000000000000000
+            "COINBASE_AMOUNT": 120000000000000000000,
+            "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
         },
         "SHARD_LIST": [
             {
@@ -69,7 +71,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_ETHASH",
@@ -100,7 +104,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_ETHASH",
@@ -131,7 +137,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_ETHASH",
@@ -162,7 +170,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_SHA3SHA3",
@@ -193,7 +203,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_SHA3SHA3",
@@ -224,7 +236,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_QKCHASH",
@@ -255,7 +269,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             },
             {
                 "CONSENSUS_TYPE": "POW_QKCHASH",
@@ -286,7 +302,9 @@
                 "GAS_LIMIT_MINIMUM": 5000,
                 "GAS_LIMIT_MAXIMUM": 9223372036854775807,
                 "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2
+                "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
+                "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
+                "DIFFICULTY_ADJUSTMENT_FACTOR": 512
             }
         ],
         "REWARD_TAX_RATE": 0.5

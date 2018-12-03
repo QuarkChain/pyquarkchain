@@ -156,13 +156,15 @@ class RootState:
 
     def __init__(self, env, diff_calc=None):
         self.env = env
-        self.diff_calc = (
-            diff_calc
-            if diff_calc
-            else EthDifficultyCalculator(
-                cutoff=40, diff_factor=1024, minimum_diff=1000000
+        if not diff_calc:
+            cutoff = env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
+            diff_factor = env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR
+            min_diff = env.quark_chain_config.ROOT.GENESIS.DIFFICULTY
+            check(cutoff > 0 and diff_factor > 0 and min_diff > 0)
+            diff_calc = EthDifficultyCalculator(
+                cutoff=cutoff, diff_factor=diff_factor, minimum_diff=min_diff
             )
-        )
+        self.diff_calc = diff_calc
         self.raw_db = env.db
         self.db = RootDb(
             self.raw_db, env.quark_chain_config.ROOT.max_root_blocks_in_memory

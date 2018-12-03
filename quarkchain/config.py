@@ -125,6 +125,9 @@ class ShardConfig(BaseConfig):
     GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR = 3
     GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR = 2
 
+    DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 0
+    DIFFICULTY_ADJUSTMENT_FACTOR = 0
+
     def __init__(self):
         self._root_config = None
         self.GENESIS = ShardGenesis()
@@ -195,6 +198,9 @@ class RootConfig(BaseConfig):
 
     COINBASE_ADDRESS = bytes(24).hex()
     COINBASE_AMOUNT = 120 * QUARKSH_TO_JIAOZI
+
+    DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 0
+    DIFFICULTY_ADJUSTMENT_FACTOR = 0
 
     def __init__(self):
         self.GENESIS = RootGenesis()
