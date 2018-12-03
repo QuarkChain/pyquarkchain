@@ -42,6 +42,9 @@ def get_test_env(
         env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 10
 
+    env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 40
+    env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR = 1024
+
     if genesis_root_heights:
         check(len(genesis_root_heights) == shard_size)
         for shard_id in range(shard_size):
@@ -53,6 +56,8 @@ def get_test_env(
         addr = genesis_account.address_in_shard(i).serialize().hex()
         shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
+        shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
+        shard.DIFFICULTY_ADJUSTMENT_FACTOR = 512
         if remote_mining:
             shard.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
             shard.GENESIS.DIFFICULTY = 10
