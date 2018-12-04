@@ -185,11 +185,16 @@ void qkc_hash_llrb(
 
 extern "C" void *cache_create(uint64_t *cache_ptr,
                               uint32_t cache_size) {
-    ordered_set_t *oset = new ordered_set_t();
+    void *arena0 = malloc(org::quarkchain::INIT_SET_ENTRIES *
+                          org::quarkchain::LLRB<uint64_t>::getNodeSize());
+    org::quarkchain::LLRB<uint64_t>* tree0 = new org::quarkchain::LLRB<uint64_t>(
+        (uintptr_t)arena0,
+        org::quarkchain::INIT_SET_ENTRIES *
+            org::quarkchain::LLRB<uint64_t>::getNodeSize());
     for (uint32_t i = 0; i < cache_size; i++) {
-        oset->insert(cache_ptr[i]);
+        tree0->insert(cache_ptr[i]);
     }
-    return oset;
+    return tree0;
 }
 
 extern "C" void *cache_copy(void *ptr) {
@@ -203,16 +208,20 @@ extern "C" void cache_destroy(void *ptr) {
 extern "C" void qkc_hash(void *cache_ptr,
                          uint64_t* seed_ptr,
                          uint64_t* result_ptr) {
-    ordered_set_t *oset = (ordered_set_t *)cache_ptr;
-    ordered_set_t noset(*oset);
+    org::quarkchain::LLRB<uint64_t>* tree0=(org::quarkchain::LLRB<uint64_t>*) cache_ptr;
+    void *arena1 = malloc(org::quarkchain::INIT_SET_ENTRIES *
+                          org::quarkchain::LLRB<uint64_t>::getNodeSize());
+    org::quarkchain::LLRB<uint64_t> tree1 = tree0->copy((uintptr_t)arena1);
 
     std::array<uint64_t, 8> seed;
     std::array<uint64_t, 4> result;
     std::copy(seed_ptr, seed_ptr + seed.size(), seed.begin());
 
-    org::quarkchain::qkc_hash(noset, seed, result);
+
+    org::quarkchain::qkc_hash_llrb(tree1, seed, result);
 
     std::copy(result.begin(), result.end(), result_ptr);
+    free(arena1);
 }
 
 void test_sorted_list() {
