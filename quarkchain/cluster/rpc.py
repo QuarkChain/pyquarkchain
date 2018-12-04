@@ -496,6 +496,48 @@ class AddTransactionResponse(Serializable):
         self.error_code = error_code
 
 
+class ShardStats(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("height", uint64),
+        ("difficulty", biguint),
+        ("coinbase_address", Address),
+        ("timestamp", uint64),
+        ("tx_count60s", uint32),
+        ("pending_tx_count", uint32),
+        ("total_tx_count", uint32),
+        ("block_count60s", uint32),
+        ("stale_block_count60s", uint32),
+        ("last_block_time", uint32),
+    ]
+
+    def __init__(
+        self,
+        branch: Branch,
+        height: int,
+        difficulty: int,
+        coinbase_address: Address,
+        timestamp: int,
+        tx_count60s: int,
+        pending_tx_count: int,
+        total_tx_count: int,
+        block_count60s: int,
+        stale_block_count60s: int,
+        last_block_time: int,
+    ):
+        self.branch = branch
+        self.height = height
+        self.difficulty = difficulty
+        self.coinbase_address = coinbase_address
+        self.timestamp = timestamp
+        self.tx_count60s = tx_count60s
+        self.pending_tx_count = pending_tx_count
+        self.total_tx_count = total_tx_count
+        self.block_count60s = block_count60s
+        self.stale_block_count60s = stale_block_count60s
+        self.last_block_time = last_block_time
+
+
 class SyncMinorBlockListRequest(Serializable):
     FIELDS = [
         ("minor_block_hash_list", PrependedSizeListSerializer(4, hash256)),
@@ -510,49 +552,14 @@ class SyncMinorBlockListRequest(Serializable):
 
 
 class SyncMinorBlockListResponse(Serializable):
-    FIELDS = [("error_code", uint32)]
+    FIELDS = [("error_code", uint32), ("shard_stats", Optional(ShardStats))]
 
-    def __init__(self, error_code):
+    def __init__(self, error_code, shard_stats=None):
         self.error_code = error_code
+        self.shard_stats = shard_stats
 
 
 # slave -> master
-
-
-class ShardStats(Serializable):
-    FIELDS = [
-        ("branch", Branch),
-        ("height", uint64),
-        ("timestamp", uint64),
-        ("tx_count60s", uint32),
-        ("pending_tx_count", uint32),
-        ("total_tx_count", uint32),
-        ("block_count60s", uint32),
-        ("stale_block_count60s", uint32),
-        ("last_block_time", uint32),
-    ]
-
-    def __init__(
-        self,
-        branch: Branch,
-        height: int,
-        timestamp: int,
-        tx_count60s: int,
-        pending_tx_count: int,
-        total_tx_count: int,
-        block_count60s: int,
-        stale_block_count60s: int,
-        last_block_time: int,
-    ):
-        self.branch = branch
-        self.height = height
-        self.timestamp = timestamp
-        self.tx_count60s = tx_count60s
-        self.pending_tx_count = pending_tx_count
-        self.total_tx_count = total_tx_count
-        self.block_count60s = block_count60s
-        self.stale_block_count60s = stale_block_count60s
-        self.last_block_time = last_block_time
 
 
 class AddMinorBlockHeaderRequest(Serializable):

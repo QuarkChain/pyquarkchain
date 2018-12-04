@@ -1382,6 +1382,8 @@ class ShardState:
         return ShardStats(
             branch=self.branch,
             height=self.header_tip.height,
+            difficulty=self.header_tip.difficulty,
+            coinbase_address=self.header_tip.coinbase_address,
             timestamp=self.header_tip.create_time,
             tx_count60s=tx_count,
             pending_tx_count=len(self.tx_queue),

@@ -393,8 +393,12 @@ class MasterConnection(ClusterConnection):
             return SyncMinorBlockListResponse(error_code=errno.EBADMSG)
 
         BLOCK_BATCH_SIZE = 100
+        block_hash_list = req.minor_block_hash_list
+        # empty
+        if not block_hash_list:
+            return SyncMinorBlockListResponse(error_code=0)
+
         try:
-            block_hash_list = req.minor_block_hash_list
             while len(block_hash_list) > 0:
                 blocks_to_download = block_hash_list[:BLOCK_BATCH_SIZE]
                 block_chain = await __download_blocks(blocks_to_download)
@@ -416,11 +420,16 @@ class MasterConnection(ClusterConnection):
                         "Failed to add minor blocks for syncing root block"
                     )
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
+
+            branch = block_chain[0].header.branch
+            shard = self.slave_server.shards.get(branch, None)
+            check(shard is not None)
+            return SyncMinorBlockListResponse(
+                error_code=0, shard_stats=shard.state.get_shard_stats()
+            )
         except Exception:
             Logger.error_exception()
             return SyncMinorBlockListResponse(error_code=1)
-
-        return SyncMinorBlockListResponse(error_code=0)
 
     async def handle_get_logs(self, req: GetLogRequest) -> GetLogResponse:
         res = self.slave_server.get_logs(
