@@ -144,6 +144,7 @@ def root_block_encoder(block):
         "nonce": quantity_encoder(header.nonce),
         "hashMerkleRoot": data_encoder(header.hash_merkle_root),
         "miner": address_encoder(header.coinbase_address.serialize()),
+        "coinbase": quantity_encoder(header.coinbase_amount),
         "difficulty": quantity_encoder(header.difficulty),
         "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
@@ -164,6 +165,8 @@ def root_block_encoder(block):
             "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
             "nonce": quantity_encoder(header.nonce),
             "difficulty": quantity_encoder(header.difficulty),
+            "miner": address_encoder(header.coinbase_address.serialize()),
+            "coinbase": quantity_encoder(header.coinbase_amount),
             "timestamp": quantity_encoder(header.create_time),
         }
         d["minorBlockHeaders"].append(h)
@@ -196,6 +199,7 @@ def minor_block_encoder(block, include_transactions=False):
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
         "miner": address_encoder(header.coinbase_address.serialize()),
+        "coinbase": quantity_encoder(header.coinbase_amount),
         "difficulty": quantity_encoder(header.difficulty),
         "extraData": data_encoder(header.extra_data),
         "gasLimit": quantity_encoder(header.evm_gas_limit),
