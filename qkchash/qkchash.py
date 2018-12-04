@@ -125,9 +125,6 @@ class QkcHashCache:
         self._ptr = ptr
         self._native = native
 
-    def copy(self):
-        return QkcHashCache(self._native, self._native._cache_copy(self._ptr))
-
     def __del__(self):
         self._native._cache_destroy(self._ptr)
 
@@ -155,17 +152,13 @@ class QkcHashNative:
         self._cache_destroy.restype = None
         self._cache_destroy.argtypes = (ctypes.c_void_p,)
 
-        self._cache_copy = self._lib.cache_copy
-        self._cache_copy.restype = ctypes.c_void_p
-        self._cache_copy.argtypes = (ctypes.c_void_p,)
-
     def make_cache(self, entries, seed):
         cache = list_to_uint64_array(make_cache(entries, seed))
         ptr = self._cache_create(cache, len(cache))
         return QkcHashCache(self, ptr)
 
     def dup_cache(self, cache):
-        return cache.copy()
+        return cache
 
     def calculate_hash(self, header, nonce, cache):
         s = sha3_512(header + nonce[::-1])

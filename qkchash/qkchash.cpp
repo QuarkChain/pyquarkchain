@@ -161,12 +161,9 @@ extern "C" void *cache_create(uint64_t *cache_ptr,
     return oset;
 }
 
-extern "C" void *cache_copy(void *ptr) {
-    return ptr;
-}
-
 extern "C" void cache_destroy(void *ptr) {
-    // Do nothing
+    ordered_set_t *oset = (ordered_set_t *)ptr;
+    delete oset;
 }
 
 extern "C" void qkc_hash(void *cache_ptr,
