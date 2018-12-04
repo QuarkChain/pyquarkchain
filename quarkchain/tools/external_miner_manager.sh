@@ -5,7 +5,7 @@ set -u; set -e
 type jq >/dev/null 2>&1 || { echo >&2 "Please install jq."; exit 1; }
 
 # c -> config, p -> process number, t -> threads per miner process
-# eg: external_miner_manager.sh -c ~/Documents/config.json -p 9 -t 1 -h localhost
+# eg: external_miner_manager.sh -c ~/Documents/config.json -p 8 -h localhost
 while getopts ":c:p:t:h:" opt; do
 	case ${opt} in
 		c )
@@ -13,9 +13,6 @@ while getopts ":c:p:t:h:" opt; do
 			;;
 		p )
 			process=$OPTARG
-			;;
-		t )
-			thread=$OPTARG
 			;;
 		h )
 			host=$OPTARG
@@ -38,7 +35,6 @@ end_shard=$(( $shard_cnt - 1))
 for i in $(seq 0 $end_shard); do
 	shards+=("$i")
 done
-shards+=("R")  # root chain
 
 shards_by_process=()
 i=0
@@ -52,7 +48,7 @@ for shards_per_process in "${shards_by_process[@]}"; do
 	pypy3 $miner_py_path \
 		--host   $host \
 		--config $config \
-		--worker $thread \
+		--worker 1 \
 		--shards $shards_per_process &
 done
 
