@@ -265,6 +265,8 @@ class SyncTask:
             _, result, _ = result
             if result.error_code != 0:
                 raise RuntimeError("Unable to download minor blocks from root block")
+            if result.shard_stats:
+                self.master_server.update_shard_stats(result.shard_stats)
 
         for m_header in minor_block_header_list:
             self.root_state.add_validated_minor_block_hash(m_header.get_hash())
@@ -1256,6 +1258,10 @@ class MasterServer:
         for shard_stats in self.branch_to_shard_stats.values():
             shard_id = shard_stats.branch.get_shard_id()
             shards[shard_id]["height"] = shard_stats.height
+            shards[shard_id]["difficulty"] = shard_stats.difficulty
+            shards[shard_id]["coinbaseAddress"] = (
+                "0x" + shard_stats.coinbase_address.to_hex()
+            )
             shards[shard_id]["timestamp"] = shard_stats.timestamp
             shards[shard_id]["txCount60s"] = shard_stats.tx_count60s
             shards[shard_id]["pendingTxCount"] = shard_stats.pending_tx_count
@@ -1315,6 +1321,8 @@ class MasterServer:
             "shardServerCount": len(self.slave_pool),
             "shardSize": self.__get_shard_size(),
             "rootHeight": self.root_state.tip.height,
+            "rootDifficulty": self.root_state.tip.difficulty,
+            "rootCoinbaseAddress": "0x" + self.root_state.tip.coinbase_address.to_hex(),
             "rootTimestamp": self.root_state.tip.create_time,
             "rootLastBlockTime": root_last_block_time,
             "txCount60s": tx_count60s,
