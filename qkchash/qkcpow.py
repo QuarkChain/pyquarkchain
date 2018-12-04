@@ -51,17 +51,12 @@ class QkchashMiner:
     def __init__(self, difficulty: int, header_hash: bytes):
         self.difficulty = difficulty
         self.header_hash = header_hash
-        self.native = QKC_HASH_NATIVE
 
     def mine(
         self, rounds=1000, start_nonce=0
     ) -> Tuple[Optional[bytes], Optional[bytes]]:
         bin_nonce, mixhash = mine(
-            self.difficulty,
-            self.header_hash,
-            start_nonce=start_nonce,
-            rounds=rounds,
-            native=self.native,
+            self.difficulty, self.header_hash, start_nonce=start_nonce, rounds=rounds
         )
         if bin_nonce is not None:
             return bin_nonce, mixhash
@@ -70,27 +65,20 @@ class QkchashMiner:
 
 
 def mine(
-    difficulty: int,
-    header_hash: bytes,
-    start_nonce: int = 0,
-    rounds: int = 1000,
-    native: Optional[QkcHashNative] = None,
+    difficulty: int, header_hash: bytes, start_nonce: int = 0, rounds: int = 1000
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
-    cache = (
-        make_cache(CACHE_ENTRIES, CACHE_SEED)
-        if native is None
-        else native.make_cache(CACHE_ENTRIES, CACHE_SEED)
-    )
     nonce = start_nonce
     target = 2 ** 256 // (difficulty or 1)
     for i in range(1, rounds + 1):
         # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
-        if native is None:
-            mining_output = qkchash(header_hash, bin_nonce, cache)
+        if QKC_HASH_NATIVE is None:
+            mining_output = qkchash(header_hash, bin_nonce, QKC_HASH_CACHE)
         else:
-            dup_cache = native.dup_cache(cache)
-            mining_output = native.calculate_hash(header_hash, bin_nonce, dup_cache)
+            dup_cache = QKC_HASH_NATIVE.dup_cache(QKC_HASH_CACHE)
+            mining_output = QKC_HASH_NATIVE.calculate_hash(
+                header_hash, bin_nonce, dup_cache
+            )
         result = int.from_bytes(mining_output["result"], byteorder="big")
         if result <= target:
             assert len(bin_nonce) == 8
