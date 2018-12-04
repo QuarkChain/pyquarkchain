@@ -85,7 +85,7 @@ def format_qkc(qkc: Decimal):
 
 
 def query_address(client, args):
-    address_hex = args.address.lower().lstrip("0x")
+    address_hex = args.address.lower().lstrip("0").lstrip("x")
     assert len(address_hex) == 48
 
     print("Querying balances for 0x{}".format(address_hex))
