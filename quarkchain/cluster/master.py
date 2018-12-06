@@ -1493,6 +1493,12 @@ def parse_args():
 
     return env
 
+async def print_objgraph_growth(env):
+    import objgraph
+    while True:
+        Logger.warning(objgraph.growth())
+        await asyncio.sleep(60)
+
 
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCServer
@@ -1521,6 +1527,8 @@ def main():
 
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+
+    asyncio.ensure_future(print_objgraph_growth(env))
 
     try:
         loop.run_until_complete(master.shutdown_future)
