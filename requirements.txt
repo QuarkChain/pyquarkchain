@@ -18,6 +18,7 @@ eth-bloom==1.0.0
 pyethash>=0.1.27,<1.0.0
 py_ecc==1.4.3
 eth-hash[pycryptodome]==0.1.4
+vmprof==0.4.12
 
 # p2p
 pytest>=3.6,<3.7
