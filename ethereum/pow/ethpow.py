@@ -5,7 +5,15 @@ from typing import Tuple, Optional, List, Union
 from eth_utils import big_endian_to_int
 
 from ethereum.pow import ethash
-from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
+from ethereum.pow.ethash_utils import (
+    get_full_size,
+    get_cache_size,
+    EPOCH_LENGTH,
+    ethash_sha3_256,
+    ethash_sha3_512,
+    serialize_hash,
+    deserialize_hash,
+)
 
 try:
     import pyethash
@@ -67,6 +75,17 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
+    res = int.from_bytes(
+        serialize_hash(
+            ethash_sha3_256(
+                ethash_sha3_512(header_hash + nonce[::-1]) + deserialize_hash(mixhash)
+            )
+        ),
+        byteorder="big",
+    )
+    if res > 2 ** 256 // (difficulty or 1):
+        return False
+
     cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
@@ -81,10 +100,7 @@ def check_pow(
 
     cache = cache_gen(cache_size, block_number)
     mining_output = mining_gen(block_number, full_size, cache, header_hash, nonce)
-    if mining_output[b"mix digest"] != mixhash:
-        return False
-    result = int.from_bytes(mining_output[b"result"], byteorder="big")
-    return result <= 2 ** 256 // (difficulty or 1)
+    return mining_output[b"mix digest"] == mixhash
 
 
 class EthashMiner:
