@@ -9,7 +9,7 @@ from quarkchain.utils import Logger
 from eth_hash.auto import keccak
 from Crypto.Hash import (
     keccak as keccaklib,
-)  # keccak from pycryptodome, py-evm uses pysha3, seems the same
+)  # keccak from pycryptodome; unlike eth_hash, its update() method does not leak memory
 from eth_hash.preimage import BasePreImage
 
 import rlp
