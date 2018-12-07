@@ -17,8 +17,11 @@ from quarkchain.core import (
     uint32,
     Transaction,
     ByteBuffer,
+    hash256,
+    EnumSerializer,
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
+from quarkchain.utils import check
 
 SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 507), (MinorBlockMeta, 160)]
 
@@ -157,3 +160,88 @@ class TestRootBlockHeaderSignature(unittest.TestCase):
         self.assertNotEqual(header.signature, bytes(65))
         self.assertTrue(header.is_signed())
         self.assertTrue(header.verify_signature(private_key.public_key))
+
+
+class SimpleHeaderV0(Serializable):
+    FIELDS = [
+        ("version", uint32),
+        ("value", uint32)
+    ]
+
+    def __init__(self, version, value):
+        check(version == 0)
+        self.version = version
+        self.value = value
+
+
+class SimpleHeaderV1(Serializable):
+    FIELDS = [
+        ("version", uint32),
+        ("value", uint32),
+        ("hash_trie", hash256),
+    ]
+
+    def __init__(self, version, value, hash_trie):
+        check(version == 1)
+        self.version = version
+        self.value = value
+        self.hash_trie = hash_trie
+
+
+class VersionedSimpleHeader(Serializable):
+    FIELDS = [
+        ("header", EnumSerializer(
+            "version",
+            {0: SimpleHeaderV0, 1: SimpleHeaderV1}
+        ))
+    ]
+
+    def __init__(self, header):
+        self.header = header
+
+
+class VersionedSimpleHeaderOld(Serializable):
+    FIELDS = [
+        ("header", EnumSerializer(
+            "version",
+            {0: SimpleHeaderV0}
+        ))
+    ]
+
+    def __init__(self, header):
+        self.header = header
+
+
+class TestEnumSerializer(unittest.TestCase):
+
+    def test_simple(self):
+        vh0 = VersionedSimpleHeader(SimpleHeaderV0(0, 123))
+        barray = vh0.serialize(bytearray())
+
+        bb = ByteBuffer(barray)
+        vh0d = VersionedSimpleHeader.deserialize(bb)
+        h0d = vh0d.header
+
+        self.assertEqual(0, h0d.version)
+        self.assertEqual(123, h0d.value)
+
+        vh1 = VersionedSimpleHeader(SimpleHeaderV1(1, 456, bytes(32)))
+        barray = vh1.serialize(bytearray())
+
+        bb = ByteBuffer(barray)
+        vh1d = VersionedSimpleHeader.deserialize(bb)
+        h1d = vh1d.header
+
+        self.assertEqual(1, h1d.version)
+        self.assertEqual(456, h1d.value)
+        self.assertEqual(bytes(32), h1d.hash_trie)
+
+        # Old versioned serializer cannot serialize new data
+        with self.assertRaises(ValueError):
+            vh = VersionedSimpleHeaderOld(SimpleHeaderV1(1, 456, bytes(32)))
+            vh.serialize(bytearray())
+
+        # Old versioned serializer cannot deserialize new data
+        with self.assertRaises(ValueError):
+            bb = ByteBuffer(barray)
+            vhd = VersionedSimpleHeaderOld.deserialize(bb)
