@@ -9,6 +9,10 @@ __pycache__/
 # C extensions
 *.so
 
+# qkchash binaries
+qkchash/qkchash
+qkchash/qkchash_llrb
+
 # Distribution / packaging
 .Python
 build/
