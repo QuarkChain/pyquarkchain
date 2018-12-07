@@ -7,14 +7,15 @@ from typing import Tuple
 
 from quarkchain.utils import Logger
 from eth_hash.auto import keccak
+from Crypto.Hash import (
+    keccak as keccaklib,
+)  # keccak from pycryptodome; unlike eth_hash, its update() method does not leak memory
 from eth_hash.preimage import BasePreImage
 
 import rlp
 from rlp import sedes
 
 from eth_keys import datatypes, keys
-
-from eth_hash.auto import keccak
 
 from quarkchain.p2p.cancel_token.token import CancelToken
 
@@ -152,9 +153,17 @@ class HandshakeBase:
 
         # setup keccak instances for the MACs
         # egress-mac = sha3.keccak_256(mac-secret ^ recipient-nonce || auth-sent-init)
-        mac1 = keccak.new(sxor(mac_secret, responder_nonce) + auth_init_ciphertext)
+        mac1 = keccaklib.new(
+            data=sxor(mac_secret, responder_nonce) + auth_init_ciphertext,
+            digest_bits=256,
+            update_after_digest=True,
+        )
         # ingress-mac = sha3.keccak_256(mac-secret ^ initiator-nonce || auth-recvd-ack)
-        mac2 = keccak.new(sxor(mac_secret, initiator_nonce) + auth_ack_ciphertext)
+        mac2 = keccaklib.new(
+            data=sxor(mac_secret, initiator_nonce) + auth_ack_ciphertext,
+            digest_bits=256,
+            update_after_digest=True,
+        )
 
         if self._is_initiator:
             egress_mac, ingress_mac = mac1, mac2

@@ -224,7 +224,17 @@ async def test_handshake_eip8():
 
     # Also according to https://github.com/ethereum/EIPs/blob/master/EIPS/eip-8.md, running B's
     # ingress-mac keccak state on the string "foo" yields the following hash:
-    ingress_mac_copy = ingress_mac.copy()
+    # ingress_mac_copy = ingress_mac.copy()
+    # QKC NOTE: see eth_hash/backends/pycryptodome.py
+    # pycryptodome doesn't expose a `copy` mechanism for it's hash objects
+    # and we don't want to use eth_hash's preimage because it LEAKS MEMORY
+    _, _, _, ingress_mac_copy = responder.derive_secrets(
+        initiator_nonce,
+        responder_nonce,
+        initiator_ephemeral_pubkey,
+        auth_init_ciphertext,
+        auth_ack_ciphertext,
+    )
     ingress_mac_copy.update(b"foo")
     assert ingress_mac_copy.digest().hex() == (
         "0c7ec6340062cc46f5e9f1e3cf86f8c8c403c5a0964f5df0ebd34a75ddc86db5"
