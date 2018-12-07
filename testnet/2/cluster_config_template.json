@@ -2,7 +2,7 @@
     "P2P_PORT": 38291,
     "JSON_RPC_PORT": 38391,
     "PRIVATE_JSON_RPC_PORT": 38491,
-    "ENABLE_TRANSACTION_HISTORY": true,
+    "ENABLE_TRANSACTION_HISTORY": false,
     "DB_PATH_ROOT": "./data",
     "LOG_LEVEL": "info",
     "CLEAN": false,
