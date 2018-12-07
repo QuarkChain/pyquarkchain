@@ -12,10 +12,6 @@ RUN apt-get update && apt-get install -y git-core && apt-get clean
 
 # install rocksdb
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev librocksdb-dev
-# WORKDIR /opt
-# RUN git clone https://github.com/facebook/rocksdb.git
-# RUN cd rocksdb && DEBUG_LEVEL=0 make shared_lib install-shared
-# RUN mkdir /data
 
 # install python development tools, setuptools and pip
 WORKDIR /opt
