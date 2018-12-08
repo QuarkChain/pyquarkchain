@@ -95,20 +95,11 @@ class SimpleNetworkConfig(BaseConfig):
 
 class P2PConfig(BaseConfig):
     # *new p2p module*
-    NEW_MODULE = False
     BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
     PRIV_KEY = ""
     MAX_PEERS = 25
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
-
-    # deprecated
-    IP = HOST
-    DISCOVERY_PORT = 29000
-    BOOTSTRAP_HOST = HOST
-    BOOTSTRAP_PORT = 29000
-    MIN_PEERS = 2
-    ADDITIONAL_BOOTSTRAPS = ""
 
 
 class MonitoringConfig(BaseConfig):
@@ -238,25 +229,7 @@ class ClusterConfig(BaseConfig):
             "--simple_network_bootstrap_port",
             default=SimpleNetworkConfig.BOOTSTRAP_PORT,
         )
-        parser.add_argument(
-            "--devp2p_enable", action="store_true", default=False, dest="devp2p_enable"
-        )
-        """
-        set devp2p_ip so that peers can connect to this cluster
-        leave empty if you want to use `socket.gethostbyname()`, but it may cause this cluster to be unreachable by peers
-        """
-        parser.add_argument("--devp2p_ip", default=P2PConfig.IP, type=str)
-        parser.add_argument("--devp2p_port", default=P2PConfig.DISCOVERY_PORT, type=int)
-        parser.add_argument(
-            "--devp2p_bootstrap_host", default=P2PConfig.BOOTSTRAP_HOST, type=str
-        )
-        parser.add_argument(
-            "--devp2p_bootstrap_port", default=P2PConfig.BOOTSTRAP_PORT, type=int
-        )
-        parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
-        parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
-        parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
-        # *new p2p module*
+        # p2p module
         parser.add_argument(
             "--p2p",
             action="store_true",
@@ -323,23 +296,14 @@ class ClusterConfig(BaseConfig):
 
             config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
-            if args.devp2p_enable or args.p2p:
+            if args.p2p:
                 config.SIMPLE_NETWORK = None
                 config.P2P = P2PConfig()
-                config.P2P.IP = args.devp2p_ip
-                config.P2P.DISCOVERY_PORT = args.devp2p_port
-                config.P2P.BOOTSTRAP_HOST = args.devp2p_bootstrap_host
-                config.P2P.BOOTSTRAP_PORT = args.devp2p_bootstrap_port
-                config.P2P.MIN_PEERS = args.devp2p_min_peers
-                config.P2P.MAX_PEERS = args.devp2p_max_peers
-                config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
-                # *new p2p module*
-                config.P2P.NEW_MODULE = args.p2p
-                if config.P2P.NEW_MODULE:
-                    config.P2P.BOOT_NODES = args.bootnodes
-                    config.P2P.PRIV_KEY = args.privkey
-                    config.P2P.MAX_PEERS = args.max_peers
-                    config.P2P.UPNP = args.upnp
+                # p2p module
+                config.P2P.BOOT_NODES = args.bootnodes
+                config.P2P.PRIV_KEY = args.privkey
+                config.P2P.MAX_PEERS = args.max_peers
+                config.P2P.UPNP = args.upnp
             else:
                 config.P2P = None
                 config.SIMPLE_NETWORK = SimpleNetworkConfig()
