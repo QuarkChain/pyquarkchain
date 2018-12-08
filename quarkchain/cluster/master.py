@@ -5,7 +5,6 @@ import psutil
 import random
 import time
 from collections import deque
-from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
 from quarkchain.cluster.guardian import Guardian
@@ -76,7 +75,6 @@ from quarkchain.core import (
 )
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
-from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -1507,17 +1505,10 @@ def main():
     loop = asyncio.get_event_loop()
 
     if env.cluster_config.use_p2p():
-        if env.cluster_config.P2P.NEW_MODULE:
-            network = P2PManager(env, master, loop)
-        else:
-            network = P2PNetwork(env, master, loop)
+        network = P2PManager(env, master, loop)
     else:
         network = SimpleNetwork(env, master, loop)
     network.start()
-
-    if env.cluster_config.use_p2p() and not env.cluster_config.P2P.NEW_MODULE:
-        thread = Thread(target=devp2p_app, args=[env, network], daemon=True)
-        thread.start()
 
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
