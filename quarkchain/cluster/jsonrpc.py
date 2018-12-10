@@ -687,8 +687,9 @@ class JSONRPCServer:
             return None
 
     @public_methods.add
-    @decode_arg("height", quantity_decoder)
-    async def getRootBlockByHeight(self, height):
+    async def getRootBlockByHeight(self, height=None):
+        if height is not None:
+            height = quantity_decoder(height)
         block = self.master.root_state.get_root_block_by_height(height)
         if not block:
             return None

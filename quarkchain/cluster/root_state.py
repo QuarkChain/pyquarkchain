@@ -63,7 +63,7 @@ class RootDb:
         # while shards might not have seen the block of tipHash
         r_hash = r_block.header.hash_prev_block
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-        self.tip_header = r_block.header
+        self.tip_header = r_block.header  # type: RootBlockHeader
 
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
             self.r_header_pool[r_hash] = r_block.header
@@ -459,8 +459,11 @@ class RootState:
     def get_root_block_header_by_hash(self, h):
         return self.db.get_root_block_header_by_hash(h)
 
-    def get_root_block_by_height(self, height):
-        return self.db.get_root_block_by_height(height)
+    def get_root_block_by_height(self, height: Optional[int]):
+        tip = self.tip  # type: RootBlockHeader
+        return self.db.get_root_block_by_height(
+            tip.height if height is None else height
+        )
 
     # --------------------------------- Minor block db related operations ----------------------------
     def is_minor_block_validated(self, h):
