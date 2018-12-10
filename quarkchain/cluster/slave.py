@@ -788,6 +788,38 @@ class SlaveConnectionManager:
         return ""
 
 
+async def tracemalloc_snapshot(slave_id):
+    import tracemalloc
+    import time
+    tracemalloc.start(25)
+    snapshot_old = None
+
+    # vmprof ***
+    import vmprof
+    import os
+    f=os.open("./vmprofout{}".format(slave_id), os.O_RDWR|os.O_CREAT)
+    vmprof.enable(f, period=0.5, memory=True) # 2 Hz, see https://github.com/blue-yonder/vmprof-viewer-client
+
+    import pathlib
+    pathlib.Path("./mem{}".format(slave_id)).mkdir(parents=True, exist_ok=True)
+
+    while True:
+        # tracemalloc ***
+        ts = int(time.time())
+        snapshot_new = tracemalloc.take_snapshot()
+        fn = "./mem{}/{}".format(slave_id, ts)
+        snapshot_new.dump(fn)
+        Logger.warning("dumped mem snapshot to {}".format(fn))
+
+        if snapshot_old:
+            diff = snapshot_new.compare_to(snapshot_old, 'lineno')
+            Logger.warning("[ Top 10 differences ]")
+            for stat in diff[:10]:
+                Logger.warning(stat)
+        snapshot_old = snapshot_new
+        await asyncio.sleep(60)
+
+
 class SlaveServer:
     """ Slave node in a cluster """
 
@@ -886,6 +918,7 @@ class SlaveServer:
         )
 
     def start(self):
+        self.loop.create_task(tracemalloc_snapshot(self.id.decode('ascii')))
         self.loop.create_task(self.__start_server())
 
     def start_and_loop(self):
