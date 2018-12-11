@@ -29,14 +29,3 @@ rlp>=1.0.0,<2.0.0
 
 # pyethapp/accounts.py dependency
 pbkdf2
-
-# Dependencies pulled from pydevp2p
-# TODO: make pydevp2p submodule, or remove dependencies
-pyelliptic==1.5.7
-wheel
-gevent==1.3.4
-bitcoin
-ipaddress
-coverage
-miniupnpc
-repoze.lru==0.7
