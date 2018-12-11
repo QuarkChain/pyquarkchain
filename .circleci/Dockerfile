@@ -21,6 +21,5 @@ RUN wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
 RUN tar fxv pypy3-v6.0.0-linux64.tar.bz2
 ENV PATH="${PATH}:/opt/pypy3-v6.0.0-linux64/bin/"
 RUN pypy3 -m ensurepip
-RUN pypy3 -m pip install --upgrade pip wheel
 
 WORKDIR /

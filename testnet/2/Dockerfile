@@ -19,7 +19,6 @@ RUN wget https://bitbucket.org/pypy/pypy/downloads/pypy3-v6.0.0-linux64.tar.bz2
 RUN tar fxv pypy3-v6.0.0-linux64.tar.bz2
 RUN ln -s /opt/pypy3-v6.0.0-linux64/bin/pypy3 /usr/bin/pypy3
 RUN pypy3 -m ensurepip
-RUN pypy3 -m pip install -U pip wheel
 
 # configure locale
 RUN apt-get update && apt-get install -y locales
@@ -38,10 +37,6 @@ RUN git clone https://github.com/QuarkChain/pyquarkchain.git
 
 # pypy3 dep
 RUN pypy3 -m pip install -r pyquarkchain/requirements.txt
-# crypto lib issue
-# https://github.com/ethereum/pyethapp/issues/274#issuecomment-385268798
-RUN pypy3 -m pip uninstall -y pyelliptic
-RUN pypy3 -m pip install https://github.com/mfranciszkiewicz/pyelliptic/archive/1.5.10.tar.gz#egg=pyelliptic
 
 # build qkchash c++ lib
 WORKDIR /code/pyquarkchain/qkchash
