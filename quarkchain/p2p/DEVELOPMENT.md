@@ -1,7 +1,11 @@
 # QuarkChain p2p module
 
 ## Status
-- Kademlia implementation
+QuarkChain Testnet 2.0 is presented with the new p2p module
+- Kademlia
+- Discovery
+- p2p server and peer manager
+- Peer secure communication protocol
 
 ## Guidelines
 - loosely based on [py-evm (Trinity)'s implementation of devp2p](https://github.com/ethereum/py-evm/tree/master/p2p)
