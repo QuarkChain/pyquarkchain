@@ -70,13 +70,8 @@ class PersistentDb(Db):
         options.max_write_buffer_number = 3
         options.target_file_size_base = 67108864
 
-        try:
-            options.compression = rocksdb.CompressionType.lz4_compression
-            self._db = rocksdb.DB(db_path, options)
-        except:
-            # in some cases lz4 is not linked to the binary
-            options.compression = rocksdb.CompressionType.snappy_compression
-            self._db = rocksdb.DB(db_path, options)
+        options.compression = rocksdb.CompressionType.snappy_compression
+        self._db = rocksdb.DB(db_path, options)
 
     def _destroy(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
