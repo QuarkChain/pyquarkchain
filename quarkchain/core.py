@@ -52,6 +52,7 @@ class ByteBuffer:
         # which isn't hashable
         self.bytes = bytes(data)
         self.position = 0
+        self.marked_position = 0
 
     def __check_space(self, space):
         if space > len(self.bytes) - self.position:
@@ -93,6 +94,12 @@ class ByteBuffer:
 
     def remaining(self):
         return len(self.bytes) - self.position
+
+    def mark(self):
+        self.marked_position = self.position
+
+    def reset(self):
+        self.position = self.marked_position
 
 
 class UintSerializer:
@@ -241,6 +248,34 @@ class Optional:
         if has_data == 0:
             return None
         return self.serializer.deserialize(bb)
+
+
+class EnumSerializer:
+    ''' EnumSerializer.
+    The enum field must be the first field to be serialized/deserialized.
+    '''
+    def __init__(self, enum_field, enum_dict, size=4):
+        self.enum_field = enum_field
+        self.enum_dict = enum_dict
+        self.size = size
+
+    def serialize(self, obj, barray):
+        enum = getattr(obj, self.enum_field)
+        if enum not in self.enum_dict:
+            raise ValueError("Cannot recognize enum value: " + str((enum)))
+        if type(obj) != self.enum_dict[enum]:
+            raise ValueError(
+                "Incorrect enum value, expect %s, actual %s: " % (
+                    type(self.enum_dict[enum]), type(obj)))
+        obj.serialize(barray)
+
+    def deserialize(self, bb):
+        bb.mark()
+        enum = bb.get_uint(self.size)
+        if enum not in self.enum_dict:
+            raise ValueError("Cannot recognize enum value: " + str(enum))
+        bb.reset()
+        return self.enum_dict[enum].deserialize(bb)
 
 
 uint8 = UintSerializer(1)
