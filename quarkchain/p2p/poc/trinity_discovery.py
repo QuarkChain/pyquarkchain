@@ -1,4 +1,5 @@
 """
+trinity_discovery.py - runs a single discover service that connects to the specified bootnode on startup
 Example runs:
 # this is the correct private key for the default bootnode, discovery will figure out that it is bootnode itself and won't bond at all ("Failed to bond with bootstrap nodes" message is expected)
 python p2p/poc/p2p_app.py --privkey=31552f186bf90908ce386fb547dd0410bf443309125cc43fd0ffd642959bf6d9

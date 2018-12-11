@@ -1,4 +1,5 @@
 """
+trinity_disc_network.py - runs multiple trinity_discovery.py services from a single command
 Example runs:
 # realistic number on a single machine
 python trinity_network.py --num_apps=10
@@ -80,7 +81,7 @@ class Network:
             prefix = "APP_{}".format(id)
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
-            await asyncio.sleep(.5)
+            await asyncio.sleep(0.5)
 
     async def run(self):
         await self.run_apps()

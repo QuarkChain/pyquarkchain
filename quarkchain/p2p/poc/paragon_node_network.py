@@ -1,4 +1,5 @@
 """
+paragon_node_network.py - runs multiple paragon_node.py in a single command
 Example runs:
 
 python paragon_node_network.py --num_apps=10
@@ -83,7 +84,7 @@ class Network:
             prefix = "APP_{}".format(id)
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
-            await asyncio.sleep(.5)
+            await asyncio.sleep(0.5)
 
     async def run(self):
         await self.run_nodes()

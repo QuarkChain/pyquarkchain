@@ -29,9 +29,10 @@ class EchoServerProtocol:
 
     def datagram_received(self, data, addr):
         message = data.decode()
-        print('Received %r from %s' % (message, addr))
+        print("Received %r from %s" % (message, addr))
         # print('Send %r to %s' % (message, addr))
         # self.transport.sendto(data, addr)
+
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
@@ -39,7 +40,8 @@ if __name__ == "__main__":
     print("Starting UDP server on port {}".format(port))
     # One protocol instance will be created to serve all client requests
     listen = loop.create_datagram_endpoint(
-        EchoServerProtocol, local_addr=('0.0.0.0', port))
+        EchoServerProtocol, local_addr=("0.0.0.0", port)
+    )
     transport, protocol = loop.run_until_complete(listen)
 
     # transport.sendto(b"hello world", ("$PUBLIC_IP_OF_BOB", 60999))
