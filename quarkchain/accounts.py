@@ -7,7 +7,9 @@ import pbkdf2
 from random import SystemRandom
 import shutil
 from uuid import UUID, uuid4
-from Crypto.Cipher import AES  # Crypto imports necessary for AES encryption of the private key
+from Crypto.Cipher import (
+    AES,
+)  # Crypto imports necessary for AES encryption of the private key
 from Crypto.Hash import SHA256
 from Crypto.Util import Counter
 from quarkchain.core import Address, Identity
@@ -15,9 +17,9 @@ from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import decode_hex, encode_hex, is_string, sha3, to_string
 
 
-log = get_logger('accounts')
+log = get_logger("accounts")
 
-DEFAULT_COINBASE = decode_hex('de0b295669a9fd93d5f28d9ec85e40f4cb697bae')
+DEFAULT_COINBASE = decode_hex("de0b295669a9fd93d5f28d9ec85e40f4cb697bae")
 
 random = SystemRandom()
 
@@ -28,11 +30,12 @@ class MinType(object):
 
     This class is used for comparing unorderded types. e.g., NoneType
     """
+
     def __le__(self, other):
         return True
 
     def __eq__(self, other):
-        return (self is other)
+        return self is other
 
 
 class Account(object):
@@ -40,8 +43,9 @@ class Account(object):
     An account that represents a (privatekey, address) pair.
     Uses quarkchain.core's Identity and Address classes.
     """
+
     def __init__(self, identity, address):
-        self.id = uuid4() # generates an 128-bit uuid using urandom
+        self.id = uuid4()  # generates an 128-bit uuid using urandom
         self.identity = identity
         self.qkc_address = address
 
@@ -92,7 +96,7 @@ class Account(object):
         json_str = json.dumps(keystore_json, indent=4)
         if write:
             path = "{0}/{1}.json".format(directory, str(self.id))
-            with open(path, 'w') as f:
+            with open(path, "w") as f:
                 f.write(json_str)
         return json_str
 
@@ -108,15 +112,13 @@ class Account(object):
             "prf": "hmac-sha256",
             "dklen": 32,
             "c": 262144,
-            "salt": encode_hex(os.urandom(16))
+            "salt": encode_hex(os.urandom(16)),
         }
 
         # Compute derived key
         derivedkey = pbkdf2.PBKDF2(
-            password,
-            decode_hex(kdfparams["salt"]),
-            kdfparams["c"],
-            SHA256).read(kdfparams["dklen"])
+            password, decode_hex(kdfparams["salt"]), kdfparams["c"], SHA256
+        ).read(kdfparams["dklen"])
 
         # Produce the encryption key and encrypt using AES
         enckey = derivedkey[:16]
@@ -138,7 +140,7 @@ class Account(object):
                 "kdf": "pbkdf2",
                 "kdfparams": kdfparams,
                 "mac": encode_hex(mac),
-                "version": 1
+                "version": 1,
             },
             "id": self.uuid,
             "version": 3,
@@ -151,13 +153,10 @@ class Account(object):
 
         # Compute derived key
         derivedkey = pbkdf2.PBKDF2(
-            password,
-            decode_hex(kdfparams["salt"]),
-            kdfparams["c"],
-            SHA256).read(kdfparams["dklen"])
+            password, decode_hex(kdfparams["salt"]), kdfparams["c"], SHA256
+        ).read(kdfparams["dklen"])
 
-        assert len(derivedkey) >= 32, \
-            "Derived key must be at least 32 bytes long"
+        assert len(derivedkey) >= 32, "Derived key must be at least 32 bytes long"
 
         # Get cipher and parameters and decrypt using AES
         cipherparams = jsondata["crypto"]["cipherparams"]
@@ -189,7 +188,8 @@ class Account(object):
 
     def __repr__(self):
         return "<Account(address={address}, id={id})>".format(
-            address=self.address, id=self.uuid)
+            address=self.address, id=self.uuid
+        )
 
 
 """
