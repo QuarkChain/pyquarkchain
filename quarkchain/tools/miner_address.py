@@ -1,6 +1,9 @@
+import argparse
 import re
-import ecdsa
 import os
+import sys
+
+import ecdsa
 from utils import underline, colorify
 from quarkchain.utils import sha3_256
 
@@ -44,29 +47,44 @@ def touch_file(address: str):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "address",
+        nargs="?",
+        metavar="addr",
+        type=str,
+        help="Address to put into config",
+    )
+    args = parser.parse_args()
+
     abspath = os.path.abspath(__file__)
     dname = os.path.dirname(abspath)
     os.chdir(dname)
-    print(
-        "This tool will edit {} with your address; if you don't have one, one will be generated for you".format(
-            FILE
-        )
-    )
-    print(colorify("--------------", "green"))
-    address = input(
-        underline(
-            "Please paste your QKC address (make sure you have the private key for it)"
-        )
-        + ": "
-    )
-    if not address:
+
+    # interactive mode
+    if not args.address:
         print(
-            "your input is empty, so we will generate one for you; "
-            + underline("be sure to keep the private key in a safe place")
+            "This tool will edit {} with your address; if you don't have one, one will be generated for you".format(
+                FILE
+            )
         )
-        address = gen_address()
-        touch_file(address)
-        return
+        print(colorify("--------------", "green"))
+        address = input(
+            underline(
+                "Please paste your QKC address (make sure you have the private key for it)"
+            )
+            + ": "
+        )
+        if not address:
+            print(
+                "your input is empty, so we will generate one for you; "
+                + underline("be sure to keep the private key in a safe place")
+            )
+            address = gen_address()
+            touch_file(address)
+            return
+    else:
+        address = args.address
 
     if address.startswith("0x"):
         address = address[2:]
@@ -84,6 +102,7 @@ def main():
                 "red",
             )
         )
+        sys.exit(1)
 
 
 if __name__ == "__main__":
