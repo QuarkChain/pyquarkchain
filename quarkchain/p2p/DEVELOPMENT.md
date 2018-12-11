@@ -4,7 +4,7 @@
 QuarkChain Testnet 2.0 is presented with the new p2p module
 - Kademlia
 - Discovery
-- p2p server and peer manager
+- P2P server and peer manager
 - Peer secure communication protocol
 
 ## Guidelines

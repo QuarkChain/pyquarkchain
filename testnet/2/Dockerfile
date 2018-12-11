@@ -53,4 +53,4 @@ ENV QKCHASHLIB /code/pyquarkchain/qkchash/libqkchash.so
 WORKDIR /code/pyquarkchain
 
 # misc dep
-RUN apt-get install -y jq screen
+RUN apt-get install -y jq screen curl
