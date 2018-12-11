@@ -1,4 +1,5 @@
 """
+paragon_node.py - runs a p2p server that discovers through bootnodes and connects to peers
 Example runs:
 
 # run bootnode, this will fire up both UDP(discovery) and TCP(P2P) server
