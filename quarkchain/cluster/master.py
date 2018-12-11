@@ -201,7 +201,7 @@ class SyncTask:
 
     async def __download_block_headers(self, block_hash):
         request = GetRootBlockHeaderListRequest(
-            block_hash=block_hash, limit=100, direction=Direction.GENESIS
+            block_hash=block_hash, limit=500, direction=Direction.GENESIS
         )
         op, resp, rpc_id = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request
@@ -274,11 +274,12 @@ class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
     def __init__(self):
-        self.queue = deque()
+        self.tasks = dict()
         self.running = False
+        self.running_task = None
 
     def add_task(self, header, peer):
-        self.queue.append((header, peer))
+        self.tasks[peer] = header
         Logger.info(
             "[R] added {} {} to sync queue (running={})".format(
                 header.height, header.get_hash().hex(), self.running
@@ -288,10 +289,39 @@ class Synchronizer:
             self.running = True
             asyncio.ensure_future(self.__run())
 
+    def get_stats(self):
+        def _task_to_dict(peer, header):
+            return {
+                "peerId": peer.id.hex(),
+                "peerIp": str(peer.ip),
+                "peerPort": peer.port,
+                "rootHeight": header.height,
+                "rootHash": header.get_hash().hex(),
+            }
+
+        return {
+            "runningTask": _task_to_dict(self.running_task[1], self.running_task[0])
+            if self.running_task
+            else None,
+            "queuedTasks": [
+                _task_to_dict(peer, header) for peer, header in self.tasks.items()
+            ],
+        }
+
+    def _pop_best_task(self):
+        """ pop and return the task with heightest root """
+        task = None
+        for peer, header in self.tasks.items():
+            if not task or task[0].height < header.height:
+                task = (header, peer)
+        del self.tasks[peer]
+        return task
+
     async def __run(self):
         Logger.info("[R] synchronizer started!")
-        while len(self.queue) > 0:
-            header, peer = self.queue.popleft()
+        while len(self.tasks) > 0:
+            self.running_task = self._pop_best_task()
+            header, peer = self.running_task
             task = SyncTask(header, peer)
             Logger.info(
                 "[R] start sync task {} {}".format(
@@ -305,6 +335,7 @@ class Synchronizer:
                 )
             )
         self.running = False
+        self.running_task = None
         Logger.info("[R] synchronizer finished!")
 
 
