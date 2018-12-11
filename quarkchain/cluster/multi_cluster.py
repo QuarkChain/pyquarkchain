@@ -3,7 +3,7 @@ import asyncio
 import os
 import random
 
-from devp2p.utils import colors, COLOR_END
+from quarkchain.p2p.utils import colors, COLOR_END
 from quarkchain.cluster import cluster as cl
 from quarkchain.cluster.cluster_config import ClusterConfig
 

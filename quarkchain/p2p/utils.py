@@ -38,6 +38,31 @@ def time_since(start_time: datetime.datetime) -> Tuple[int, int, int, int]:
     return delta.days, hours, minutes, seconds
 
 
+# colors from devp2p/utils.py
+# ###### colors ###############
+
+COLOR_FAIL = "\033[91m"
+COLOR_BOLD = "\033[1m"
+COLOR_UNDERLINE = "\033[4m"
+COLOR_END = "\033[0m"
+
+colors = ["\033[9%dm" % i for i in range(0, 7)]
+colors += ["\033[4%dm" % i for i in range(1, 8)]
+
+
+def cstr(num, txt):
+    return "%s%s%s" % (colors[num % len(colors)], txt, COLOR_END)
+
+
+def cprint(num, txt):
+    print(cstr(num, txt))
+
+
+if __name__ == "__main__":
+    for i in range(len(colors)):
+        cprint(i, "test")
+
+
 CPU_EMPTY_VALUES = {None, 0}
 
 
