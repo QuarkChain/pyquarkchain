@@ -310,6 +310,7 @@ class Synchronizer:
 
     def _pop_best_task(self):
         """ pop and return the task with heightest root """
+        check(len(self.tasks) > 0)
         peer, header = max(self.tasks.items(), key=lambda pair: pair[1].height)
         del self.tasks[peer]
         return (header, peer)
