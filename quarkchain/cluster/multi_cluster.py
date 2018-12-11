@@ -1,3 +1,19 @@
+"""
+multi_cluster.py - starts multiple clusters on localhost, and have them inter-connect using either simple network or real p2p
+Usage:
+multi_cluster.py accepts the same arguments as cluster.py
+additional arguments:
+--num_clusters
+also note that p2p bootstrap key is fixed to a test value
+
+Examples:
+1. simple network, with one (random) cluster mining
+python multi_cluster.py --start_simulated_mining
+2. p2p module, with one (random) cluster mining
+python multi_cluster.py --p2p --start_simulated_mining
+"""
+
+
 import argparse
 import asyncio
 import os
@@ -15,15 +31,30 @@ async def main():
     args = parser.parse_args()
     clusters = []
     mine_i = random.randint(0, args.num_clusters - 1)
-    if args.mine:
+    mine = args.start_simulated_mining
+    if mine:
         print("cluster {} will be mining".format(mine_i))
     else:
         print("No one will be mining")
-    mine = args.mine
+
     db_path_root = args.db_path_root
+    p2p_port = args.p2p_port
     for i in range(args.num_clusters):
-        args.mine = mine and i == mine_i
+        args.start_simulated_mining = mine and i == mine_i
         args.db_path_root = "{}_C{}".format(db_path_root, i)
+
+        # set up p2p bootstrapping, with fixed bootstrap key for now
+        if args.p2p:
+            if i == 0:
+                args.privkey = (
+                    "31552f186bf90908ce386fb547dd0410bf443309125cc43fd0ffd642959bf6d9"
+                )
+            else:
+                args.privkey = ""
+
+            args.bootnodes = "enode://c571e0db93d17cc405cb57640826b70588a6a28785f38b21be471c609ca12fcb06cb306ac44872908f5bed99046031a5af82072d484e3ef9029560c1707193a0@127.0.0.1:{}".format(
+                p2p_port
+            )
 
         config = ClusterConfig.create_from_args(args)
         print("Cluster {} config file: {}".format(i, config.json_filepath))
@@ -37,7 +68,6 @@ async def main():
         args.port_start += 100
         args.json_rpc_port += 1
         args.json_rpc_private_port += 1
-        args.devp2p_port += 1
 
     tasks = list()
     tasks.append(asyncio.ensure_future(clusters[0].run()))
