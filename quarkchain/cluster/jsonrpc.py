@@ -1013,6 +1013,10 @@ class JSONRPCServer:
         return {"peers": peer_list}
 
     @private_methods.add
+    async def getSyncStats(self):
+        return self.master.synchronizer.get_stats()
+
+    @private_methods.add
     async def getStats(self):
         # This JRPC doesn't follow the standard encoding
         return await self.master.get_stats()
