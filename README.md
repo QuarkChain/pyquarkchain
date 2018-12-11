@@ -110,10 +110,9 @@ pypy3 cluster.py
 ```
 
 ### Run multiple clusters
-Run multiple clusters with P2P network on a single machine:
+Run multiple clusters with P2P network on a single machine with *simulated* mininig:
 ```bash
-# This part has been deprecated, please file an issue if you need this feature
-# pypy3 multi_cluster.py --num_clusters=3 --devp2p_enable
+pypy3 multi_cluster.py --num_clusters=3 --p2p --start_simulated_mining
 ```
 
 ### Run multiple clusters with P2P network on different machines.
