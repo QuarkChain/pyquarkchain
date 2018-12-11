@@ -123,6 +123,7 @@ class ClusterConfig(BaseConfig):
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
 
+    START_SIMULATED_MINING = False
     CLEAN = False
     GENESIS_DIR = None
 
@@ -186,6 +187,12 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--log_level", default=ClusterConfig.LOG_LEVEL, type=str)
         parser.add_argument(
             "--clean", action="store_true", default=ClusterConfig.CLEAN, dest="clean"
+        )
+        parser.add_argument(
+            "--start_simulated_mining",
+            action="store_true",
+            default=ClusterConfig.START_SIMULATED_MINING,
+            dest="start_simulated_mining",
         )
         pwd = os.path.dirname(os.path.abspath(__file__))
         default_genesis_dir = os.path.join(pwd, "../genesis_data")
@@ -283,6 +290,7 @@ class ClusterConfig(BaseConfig):
             config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
 
             config.CLEAN = args.clean
+            config.START_SIMULATED_MINING = args.start_simulated_mining
             config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
             config.QUARKCHAIN.update(
