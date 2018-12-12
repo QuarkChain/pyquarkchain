@@ -1,3 +1,9 @@
+"""
+    python config_slave.py 127.0.0.1 38000 38006 127.0.0.2 18999 18002
+
+will generate 4 slave server configs accordingly. will be used in deployment automation to configure a cluster.
+usage: python config_slave.py <ip1> <port1> <port2> <ip2> <port3> ...
+"""
 import argparse
 import collections
 import json
