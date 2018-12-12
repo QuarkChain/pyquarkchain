@@ -30,15 +30,15 @@ the blocks mined in the past 12 hours or less."
 
 
 
-#curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/LATEST`.tar.gz --output data.tar.gz 
+curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/LATEST`.tar.gz --output data.tar.gz 
 
-#tar xvfz data.tar.gz
+tar xvfz data.tar.gz
 
-#miner_data_path="$(pwd -P)/quarkchain/cluster/data"
+miner_data_path="$(pwd -P)/quarkchain/cluster/data"
 
-#rm -rf $miner_data_path
+rm -rf $miner_data_path
 
-#mv data $miner_data_path
+mv data $miner_data_path
 
 seconds_left=20
 
