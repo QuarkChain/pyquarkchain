@@ -1280,6 +1280,13 @@ class MasterServer:
         ):
             self.tx_count_history.popleft()
 
+    def get_block_count(self):
+        header = self.root_state.tip
+        shard_r_c = self.root_state.db.get_block_count(
+            header.height, header.shard_info.get_shard_size()
+        )
+        return {"rootHeight": header.height, "shardRC": shard_r_c}
+
     async def get_stats(self):
         shards = [dict() for i in range(self.__get_shard_size())]
         for shard_stats in self.branch_to_shard_stats.values():

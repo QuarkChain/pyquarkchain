@@ -1022,6 +1022,11 @@ class JSONRPCServer:
         return await self.master.get_stats()
 
     @private_methods.add
+    async def getBlockCount(self):
+        # This JRPC doesn't follow the standard encoding
+        return self.master.get_block_count()
+
+    @private_methods.add
     async def createTransactions(self, **load_test_data):
         """Create transactions for load testing"""
 
