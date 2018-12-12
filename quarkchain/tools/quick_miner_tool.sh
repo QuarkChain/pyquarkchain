@@ -1,27 +1,15 @@
 #!/bin/bash
 
+screen -dmS jobs
+
 clear
 echo "Step 1: Enter or generate your coinbase address!"
 
 miner_tools_path="$(pwd -P)/quarkchain/tools/miner_address.py"
 pypy3 $miner_tools_path
 
-                                  
-
-screen -dmS jobs
-
-screen -S jobs -X screen bash
-
-screen -S jobs -p bash -X title cluster
-
-screen -S jobs -p cluster -X stuff $'pypy3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2/cluster_config_template.json" 
-'
-
-
-
 echo "Step 2: Download a snapshot of the database. Your cluster only need to sync
 the blocks mined in the past 12 hours or less."
-
 
 
 curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/LATEST`.tar.gz --output data.tar.gz 
@@ -33,6 +21,15 @@ miner_data_path="$(pwd -P)/quarkchain/cluster/data"
 rm -rf $miner_data_path
 
 mv data $miner_data_path
+
+
+screen -S jobs -X screen bash
+
+screen -S jobs -p bash -X title cluster
+
+screen -S jobs -p cluster -X stuff $'pypy3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2/cluster_config_template.json" 
+'
+
 
 seconds_left=20
 

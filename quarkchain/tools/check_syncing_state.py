@@ -27,8 +27,8 @@ def checkHeight(private_client, public_client, timeout=TIMEOUT):
         jsonrpcclient.Request("getRootBlockByHeight"),
         timeout=timeout,)
     return {
-        "height": str(result_private["height"]),
-        "currentHeight": str(result_public["height"]),
+        "height": int(result_private["height"], 16),
+        "currentHeight": int(result_public["height"], 16),
     }
 
 
@@ -52,11 +52,11 @@ def query_height(private_client, public_client, args):
                 print("Failed to get the current root height", e)
                 time.sleep(2)
 
-        syncing_state = ("False" if data["height"] >= data["currentHeight"] else "True")
+        syncing_state = (False if data["height"] >= data["currentHeight"] else True)
         
-        print(format.format(time=now(), syncing=syncing_state, height=int(data["height"], 16), currentHeight=int(data["currentHeight"], 16)))
+        print(format.format(time=now(), syncing=str(syncing_state), height=data["height"], currentHeight=data["currentHeight"]))
 
-        if data["height"] >= data["currentHeight"]:
+        if syncing_state is False:
             break
         time.sleep(args.interval)
 
