@@ -35,10 +35,11 @@ class RootDb:
     Forks can always be downloaded again from peers if they ever became the best chain.
     """
 
-    def __init__(self, db, max_num_blocks_to_recover):
+    def __init__(self, db, max_num_blocks_to_recover, count_minor_blocks=False):
         # TODO: evict old blocks from memory
         self.db = db
         self.max_num_blocks_to_recover = max_num_blocks_to_recover
+        self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
         self.m_hash_set = set()
         self.r_header_pool = dict()
@@ -124,6 +125,9 @@ class RootDb:
     def put_root_block_index(self, block):
         self.db.put(b"ri_%d" % block.header.height, block.header.get_hash())
 
+        if not self.count_minor_blocks:
+            return
+
         # Count minor blocks by miner address
         shard_size = block.header.shard_info.get_shard_size()
         if block.header.height > 0:
@@ -148,6 +152,9 @@ class RootDb:
     def get_block_count(self, root_height, shard_size):
         """Returns a list(dict(miner_recipient, block_count)) of size shard_size"""
         shard_r_c = [dict() for _ in range(shard_size)]
+        if not self.count_minor_blocks:
+            return shard_r_c
+
         for shard in range(shard_size):
             data = self.db.get(b"count_%d_%d" % (shard, root_height))
             check(len(data) % 24 == 0)
@@ -200,7 +207,9 @@ class RootState:
         self.diff_calc = diff_calc
         self.raw_db = env.db
         self.db = RootDb(
-            self.raw_db, env.quark_chain_config.ROOT.max_root_blocks_in_memory
+            self.raw_db,
+            env.quark_chain_config.ROOT.max_root_blocks_in_memory,
+            count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
 
         persisted_tip = self.db.get_tip_header()
