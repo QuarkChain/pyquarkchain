@@ -131,29 +131,32 @@ class RootDb:
         # Count minor blocks by miner address
         shard_size = block.header.shard_info.get_shard_size()
         if block.header.height > 0:
-            shard_r_c = self.get_block_count(block.header.height - 1, shard_size)
+            shard_recipient_cnt = self.get_block_count(
+                block.header.height - 1, shard_size
+            )
         else:
-            shard_r_c = [dict() for _ in range(shard_size)]
+            shard_recipient_cnt = [dict() for _ in range(shard_size)]
 
         for header in block.minor_block_header_list:
             shard = header.branch.get_shard_id()
             recipient = header.coinbase_address.recipient.hex()
-            shard_r_c[shard][recipient] = shard_r_c[shard].get(recipient, 0) + 1
+            shard_recipient_cnt[shard][recipient] = (
+                shard_recipient_cnt[shard].get(recipient, 0) + 1
+            )
 
-        for shard, r_c in enumerate(shard_r_c):
+        for shard, r_c in enumerate(shard_recipient_cnt):
             data = bytearray()
             for recipient, count in r_c.items():
                 data.extend(bytes.fromhex(recipient))
                 data.extend(count.to_bytes(4, "big"))
-                print(shard, recipient, count)
             check(len(data) % 24 == 0)
             self.db.put(b"count_%d_%d" % (shard, block.header.height), data)
 
     def get_block_count(self, root_height, shard_size):
         """Returns a list(dict(miner_recipient, block_count)) of size shard_size"""
-        shard_r_c = [dict() for _ in range(shard_size)]
+        shard_recipient_cnt = [dict() for _ in range(shard_size)]
         if not self.count_minor_blocks:
-            return shard_r_c
+            return shard_recipient_cnt
 
         for shard in range(shard_size):
             data = self.db.get(b"count_%d_%d" % (shard, root_height))
@@ -161,8 +164,8 @@ class RootDb:
             for i in range(0, len(data), 24):
                 recipient = data[i : i + 20].hex()
                 count = int.from_bytes(data[i + 20 : i + 24], "big")
-                shard_r_c[shard][recipient] = count
-        return shard_r_c
+                shard_recipient_cnt[shard][recipient] = count
+        return shard_recipient_cnt
 
     def get_root_block_by_height(self, height):
         key = b"ri_%d" % height
