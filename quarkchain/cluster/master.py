@@ -663,28 +663,30 @@ class MasterServer:
             [len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()]
         )
 
-    async def __connect(self, ip, port):
+    async def __connect(self, host, port):
         """ Retries until success """
-        Logger.info("Trying to connect {}:{}".format(ip, port))
+        Logger.info("Trying to connect {}:{}".format(host, port))
         while True:
             try:
-                reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
+                reader, writer = await asyncio.open_connection(
+                    host, port, loop=self.loop
+                )
                 break
             except Exception as e:
-                Logger.info("Failed to connect {} {}: {}".format(ip, port, e))
+                Logger.info("Failed to connect {} {}: {}".format(host, port, e))
                 await asyncio.sleep(
                     self.env.cluster_config.MASTER.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY
                 )
-        Logger.info("Connected to {}:{}".format(ip, port))
-        return (reader, writer)
+        Logger.info("Connected to {}:{}".format(host, port))
+        return reader, writer
 
     async def __connect_to_slaves(self):
         """ Master connects to all the slaves """
         futures = []
         slaves = []
         for slave_info in self.cluster_config.get_slave_info_list():
-            ip = str(ipaddress.ip_address(slave_info.ip))
-            reader, writer = await self.__connect(ip, slave_info.port)
+            host = slave_info.host.decode("ascii")
+            reader, writer = await self.__connect(host, slave_info.port)
 
             slave = SlaveConnection(
                 self.env,
