@@ -752,12 +752,12 @@ class SlaveConnectionManager:
         if slave_info.id == self.slave_server.id or slave_info.id in self.slave_ids:
             return ""
 
-        ip = str(ipaddress.ip_address(slave_info.ip))
+        host = slave_info.host.decode("ascii")
         port = slave_info.port
         try:
-            reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
+            reader, writer = await asyncio.open_connection(host, port, loop=self.loop)
         except Exception as e:
-            err_msg = "Failed to connect {}:{} with exception {}".format(ip, port, e)
+            err_msg = "Failed to connect {}:{} with exception {}".format(host, port, e)
             Logger.info(err_msg)
             return err_msg
 

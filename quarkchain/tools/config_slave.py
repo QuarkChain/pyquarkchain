@@ -2,22 +2,13 @@
     python config_slave.py 127.0.0.1 38000 38006 127.0.0.2 18999 18002
 
 will generate 4 slave server configs accordingly. will be used in deployment automation to configure a cluster.
-usage: python config_slave.py <ip1> <port1> <port2> <ip2> <port3> ...
+usage: python config_slave.py <host1> <port1> <port2> <host2> <port3> ...
 """
 import argparse
 import collections
 import json
-import socket
 
 FILE = "../../testnet/2/cluster_config_template.json"
-
-
-def is_ip(s: str) -> bool:
-    try:
-        socket.inet_pton(socket.AF_INET, s)
-        return True
-    except socket.error:
-        return False
 
 
 def main():
@@ -35,12 +26,12 @@ def main():
     ###############
 
     host_port_mapping = collections.defaultdict(list)
-    last_ip = None
-    for host_or_port in args.hostports:
-        if is_ip(host_or_port):  # ip
-            last_ip = host_or_port
-        else:  # host
-            host_port_mapping[last_ip].append(host_or_port)
+    last_host = None
+    for host_or_port in args.hostports:  # type: str
+        if not host_or_port.isdigit():  # host
+            last_host = host_or_port
+        else:  # port
+            host_port_mapping[last_host].append(host_or_port)
 
     assert None not in host_port_mapping
     slave_num = sum(len(port_list) for port_list in host_port_mapping.values())
@@ -51,7 +42,7 @@ def main():
     for host, port_list in host_port_mapping.items():
         for port in port_list:
             s = {
-                "IP": host,
+                "HOST": host,
                 "PORT": int(port),
                 "ID": "S%d" % i,
                 "SHARD_MASK_LIST": [i | slave_num],
