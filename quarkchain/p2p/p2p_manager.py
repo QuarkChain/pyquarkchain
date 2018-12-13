@@ -372,7 +372,7 @@ class P2PManager(AbstractNetwork):
         else:
             privkey = ecies.generate_privkey()
 
-        if env.cluster_config.P2P.BOOT_NODES:
+        if env.cluster_config.P2P.PREFERRED_NODES:
             preferred_nodes = env.cluster_config.P2P.PREFERRED_NODES.split(",")
         else:
             preferred_nodes = []
