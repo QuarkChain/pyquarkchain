@@ -12,7 +12,7 @@ echo "Step 2: Download a snapshot of the database. Your cluster only need to syn
 the blocks mined in the past 12 hours or less."
 
 
-curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/22/LATEST`.tar.gz --output data.tar.gz 
+curl https://s3-us-west-2.amazonaws.com/testnet2/data/23/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/23/LATEST`.tar.gz --output data.tar.gz 
 
 tar xvfz data.tar.gz
 
