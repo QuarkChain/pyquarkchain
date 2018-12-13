@@ -33,7 +33,7 @@ screen -S jobs -p cluster -X stuff $'pypy3 quarkchain/cluster/cluster.py --clust
 
 seconds_left=20
 
-echo "Step 3: Initial the cluster and start synchorizing blocks in the past 12 hours or less. Please wait for time: ${seconds_left} seconds……"
+echo "Step 3: Initiate the cluster and start synchorizing blocks in the past 12 hours or less. Please wait for time: ${seconds_left} seconds……"
 while [ $seconds_left -gt 0 ];do
     echo -n "${seconds_left} seconds left"
     sleep 1
@@ -43,9 +43,6 @@ done
 
 echo "Step 4: Start synchorizing blocks in the past 12 hours or less. It takes about five minutes. Be patient!"
 pypy3 quarkchain/tools/check_syncing_state.py
-
-
-
 
 
 while true; do

@@ -66,7 +66,7 @@ def main():
     parser.add_argument("--ip", default="localhost", type=str, help="Cluster IP")
 
 
-    parser.add_argument("--bootstrapip", default="54.70.162.141", type=str, help="Bootstrap Cluster IP")
+    parser.add_argument("--bootstrapip", default="jrpc.testnet2.quarkchain.io", type=str, help="Bootstrap Cluster IP")
 
     parser.add_argument(
         "-i", "--interval", default=10, type=int, help="Query interval in second"
