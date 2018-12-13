@@ -7,6 +7,7 @@ usage: python config_slave.py <host1> <port1> <port2> <host2> <port3> ...
 import argparse
 import collections
 import json
+import os
 
 FILE = "../../testnet/2/cluster_config_template.json"
 
@@ -20,6 +21,10 @@ def main():
         help="Host and ports for slave config",
     )
     args = parser.parse_args()
+
+    abspath = os.path.abspath(__file__)
+    dname = os.path.dirname(abspath)
+    os.chdir(dname)
 
     ###############
     # parse hosts and ports to form a slave list
