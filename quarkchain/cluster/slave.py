@@ -788,6 +788,56 @@ class SlaveConnectionManager:
         return ""
 
 
+async def tracemalloc_snapshot(slave):
+    slave_id = slave.id.decode('ascii')
+    import tracemalloc
+    import time
+    tracemalloc.start(25)
+    snapshot_old = None
+
+    # vmprof ***
+    import vmprof
+    import os
+    f=os.open("./vmprofout{}".format(slave_id), os.O_RDWR|os.O_CREAT)
+    vmprof.enable(f, period=0.5, memory=True) # 2 Hz, see https://github.com/blue-yonder/vmprof-viewer-client
+
+    import pathlib
+    pathlib.Path("./mem{}".format(slave_id)).mkdir(parents=True, exist_ok=True)
+
+    import objgraph
+
+    while True:
+        # tracemalloc ***
+        ts = int(time.time())
+        snapshot_new = tracemalloc.take_snapshot()
+        fn = "./mem{}/{}".format(slave_id, ts)
+        snapshot_new.dump(fn)
+        Logger.warning("dumped mem snapshot to {}".format(fn))
+
+        if snapshot_old:
+            diff = snapshot_new.compare_to(snapshot_old, 'lineno')
+            Logger.warning("[ Top 10 differences ]")
+            for stat in diff[:10]:
+                Logger.warning(stat)
+        snapshot_old = snapshot_new
+        Logger.warning(objgraph.growth())
+        Logger.warning(objgraph.most_common_types(limit=20))
+        Logger.warning("slave.add_block_futures={}".format(len(slave.add_block_futures)))
+        for branch, shard in slave.shards.items():
+            Logger.warning("shard.state.new_block_pool={}".format(len(shard.state.new_block_pool)))
+
+            Logger.warning("shard.add_block_futures={}".format(len(shard.add_block_futures)))
+
+            Logger.warning("shard.state.db.m_header_pool={}".format(len(shard.state.db.m_header_pool)))
+            Logger.warning("shard.state.db.m_meta_pool={}".format(len(shard.state.db.m_meta_pool)))
+            Logger.warning("shard.state.db.x_shard_set={}".format(len(shard.state.db.x_shard_set)))
+            Logger.warning("shard.state.db.r_header_pool={}".format(len(shard.state.db.r_header_pool)))
+            Logger.warning("shard.state.db.r_minor_header_pool={}".format(len(shard.state.db.r_minor_header_pool)))
+            Logger.warning("shard.state.db.height_to_minor_block_hashes={}".format(len(shard.state.db.height_to_minor_block_hashes)))
+
+        await asyncio.sleep(60)
+
+
 class SlaveServer:
     """ Slave node in a cluster """
 
@@ -886,6 +936,7 @@ class SlaveServer:
         )
 
     def start(self):
+        self.loop.create_task(tracemalloc_snapshot(self))
         self.loop.create_task(self.__start_server())
 
     def start_and_loop(self):

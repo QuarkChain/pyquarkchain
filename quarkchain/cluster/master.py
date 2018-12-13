@@ -1529,6 +1529,33 @@ def parse_args():
 
     return env
 
+async def tracemalloc_snapshot(env):
+    import tracemalloc
+    tracemalloc.start(25)
+    snapshot_old = None
+
+    # vmprof ***
+    import vmprof
+    import os
+    f=os.open("./vmprofout",  os.O_RDWR|os.O_CREAT)
+    vmprof.enable(f, period=0.5, memory=True) # 2 Hz, see https://github.com/blue-yonder/vmprof-viewer-client
+
+    while True:
+        # tracemalloc ***
+        ts = int(time.time())
+        snapshot_new = tracemalloc.take_snapshot()
+        fn = "./mem/{}".format(ts)
+        snapshot_new.dump(fn)
+        Logger.warning("dumped mem snapshot to {}".format(fn))
+
+        if snapshot_old:
+            diff = snapshot_new.compare_to(snapshot_old, 'lineno')
+            Logger.warning("[ Top 10 differences ]")
+            for stat in diff[:10]:
+                Logger.warning(stat)
+        snapshot_old = snapshot_new
+        await asyncio.sleep(60)
+
 
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCServer
@@ -1554,6 +1581,8 @@ def main():
 
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+
+    asyncio.ensure_future(tracemalloc_snapshot(env))
 
     try:
         loop.run_until_complete(master.shutdown_future)
