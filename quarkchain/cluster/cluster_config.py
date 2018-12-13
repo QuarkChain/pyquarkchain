@@ -101,6 +101,7 @@ class P2PConfig(BaseConfig):
     MAX_PEERS = 25
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
+    PREFERRED_NODES = ""
 
 
 class MonitoringConfig(BaseConfig):
