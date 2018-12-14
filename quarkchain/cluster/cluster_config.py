@@ -1,9 +1,10 @@
 import argparse
-import ipaddress
 import json
 import os
 import socket
 import tempfile
+
+from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
@@ -12,7 +13,7 @@ from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check, Logger
 
-HOST = socket.gethostbyname(socket.gethostname())
+DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_alloc(cluser_config):
@@ -71,7 +72,7 @@ class MasterConfig(BaseConfig):
 
 
 class SlaveConfig(BaseConfig):
-    IP = HOST
+    HOST = DEFAULT_HOST
     PORT = 38392
     ID = ""
     SHARD_MASK_LIST = None
@@ -89,7 +90,7 @@ class SlaveConfig(BaseConfig):
 
 
 class SimpleNetworkConfig(BaseConfig):
-    BOOTSTRAP_HOST = HOST
+    BOOTSTRAP_HOST = DEFAULT_HOST
     BOOTSTRAP_PORT = 38291
 
 
@@ -100,6 +101,7 @@ class P2PConfig(BaseConfig):
     MAX_PEERS = 25
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
+    PREFERRED_NODES = ""
 
 
 class MonitoringConfig(BaseConfig):
@@ -107,7 +109,7 @@ class MonitoringConfig(BaseConfig):
     """
 
     NETWORK_NAME = ""
-    CLUSTER_ID = HOST
+    CLUSTER_ID = DEFAULT_HOST
     KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
     PROPAGATION_TOPIC = "block_propagation"
@@ -138,7 +140,7 @@ class ClusterConfig(BaseConfig):
     def __init__(self):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
-        self.SLAVE_LIST = []
+        self.SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -157,8 +159,9 @@ class ClusterConfig(BaseConfig):
     def get_slave_info_list(self):
         results = []
         for slave in self.SLAVE_LIST:
-            ip = int(ipaddress.ip_address(slave.IP))
-            results.append(SlaveInfo(slave.ID, ip, slave.PORT, slave.SHARD_MASK_LIST))
+            results.append(
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.SHARD_MASK_LIST)
+            )
         return results
 
     def get_slave_config(self, id):

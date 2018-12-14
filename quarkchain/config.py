@@ -128,6 +128,8 @@ class ShardConfig(BaseConfig):
     DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
     DIFFICULTY_ADJUSTMENT_FACTOR = 512
 
+    EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK = 3
+
     def __init__(self):
         self._root_config = None
         self.GENESIS = ShardGenesis()
@@ -148,7 +150,7 @@ class ShardConfig(BaseConfig):
                 self.root_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
                 / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
             )
-            + 3
+            + self.EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK
         )
 
     @property

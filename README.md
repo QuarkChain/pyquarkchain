@@ -58,6 +58,7 @@ To activate the virtual environment
 
 ```bash
 source ~/virtualenv/qc/bin/activate
+# the rest of the tutorial assumes virtual environment
 ```
 
 Install rocksdb which is required by the `python-rocksdb` module in the next step
@@ -78,7 +79,7 @@ pip install -e .
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 
 ```
-python -m pytest quarkchain
+python -m pytest
 ```
 
 ## Development Flow
@@ -92,30 +93,35 @@ pre-commit install
 
 [black](https://github.com/ambv/black) is used to format modified python code, which will be automatically triggered on new commit after running the above commands. Refer to [STYLE](https://github.com/QuarkChain/pyquarkchain/blob/master/STYLE) for coding style suggestions.
 
-## Cluster Launch
+## Joining Testnet
 
-### Run a private cluster on the QuarkChain testnet 2.0
-If you are on a private network (e.g. running QuarkChain clusters from a laptop which connects to a router), you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding) for UDP/TCP 38291.
+Please check [Testnet2-Schedule](https://github.com/QuarkChain/pyquarkchain/wiki/Testnet2-Schedule) for updates and schedule.
+
+### Running a cluster to join QuarkChain testnet 2.0
+If you are on a private network (e.g. running from a laptop which connects to the Internet through a router), you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding) for UDP/TCP 38291.
 
 Then fill in your own coinbase address and [bootstrap a cluster](https://github.com/QuarkChain/pyquarkchain/wiki/Run-a-Private-Cluster-on-the-QuarkChain-Testnet-2.0) on QuarkChain Testnet 2.0.
 
 We provide the [demo implementation of CPU mining software](https://github.com/QuarkChain/pyquarkchain/wiki/Demo-Implementation-of-CPU-Mining). Please refer to [QuarkChain mining](https://github.com/QuarkChain/pyquarkchain/wiki/Introduction-of-Mining-Algorithms) for more details.
 
-### Run a single cluster
-Start running a cluster. The default cluster has 8 shards and 4 slaves.
+### Running a single cluster for local testing
+Start running a local cluster which does not connect to anyone else. The default cluster has 8 shards and 4 slaves.
 
 ```bash
 cd quarkchain/cluster
 pypy3 cluster.py
+# add --start_simulated_mining to mine blocks with simulated mining (does not run any hash algorithms)
 ```
 
-### Run multiple clusters
+### Running multiple clusters for local testing
 Run multiple clusters with P2P network on a single machine with *simulated* mininig:
 ```bash
 pypy3 multi_cluster.py --num_clusters=3 --p2p --start_simulated_mining
 ```
 
-### Run multiple clusters with P2P network on different machines.
+### Running multiple clusters with P2P network on different machines
+NOTE this is effectively a private network. If you would like to join our testnet or mainnet, look back a few sections for instructions.
+
 Just follow the same command to run single cluster and provide `--bootnodes` flag to discover and connect to other clusters. Make sure ports are open and accessible from outside world: this means if you are running on AWS, open the ports (default both UDP and TCP 38291) in security group; if you are running from a LAN (connecting to the internet through a router), you need to setup port forwarding for UDP/TCP 38291. We have a convenience UPNP module as well, but you will need to check if it has successfully set port forwarding.
 
 (Optional) Not needed if you are joining a testnet or mainnet. If you are starting your own network, first start the bootstrap cluster:

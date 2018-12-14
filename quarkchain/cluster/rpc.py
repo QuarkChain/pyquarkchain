@@ -63,17 +63,14 @@ class Pong(Serializable):
 class SlaveInfo(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("ip", uint128),
+        ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
         ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
     ]
 
-    def __init__(self, id, ip, port, shard_mask_list):
-        if isinstance(id, bytes):
-            self.id = id
-        else:
-            self.id = bytes(id, "ascii")
-        self.ip = ip
+    def __init__(self, id, host, port, shard_mask_list):
+        self.id = id if isinstance(id, bytes) else bytes(id, "ascii")
+        self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
         self.shard_mask_list = shard_mask_list
 
