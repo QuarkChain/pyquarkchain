@@ -48,12 +48,18 @@ pypy3 quarkchain/tools/check_syncing_state.py
 while true; do
     read -p "Step 4: Do you wish to start mining now?(Y or N)" yn
     case $yn in
-        [Yy]* ) bash quarkchain/tools/external_miner_manager.sh -c "$(pwd -P)/testnet/2/cluster_config_template.json" -p 8 -h localhost;
+        [Yy]* )
+                screen -S jobs -X screen bash;
+                screen -S jobs -p bash -X title miners;
+                screen -S jobs -p miners -X stuff $'bash quarkchain/tools/external_miner_manager.sh -c "$(pwd -P)/testnet/2/cluster_config_template.json" -p 8 -h localhost 
+                ';
                 break;;
         [Nn]* ) bash quarkchain/tools/quick_miner_stopper.sh
                 exit;;
         * ) echo "Please answer Y or N.";;
     esac
 done
+
+screen -rd
 
 wait
