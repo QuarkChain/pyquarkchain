@@ -11,7 +11,6 @@ from eth_utils import ValidationError
 from quarkchain.utils import Logger
 from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
 from quarkchain.p2p.cancellable import CancellableMixin
-from quarkchain.p2p.utils import get_asyncio_executor
 
 
 class ServiceEvents:
@@ -51,8 +50,6 @@ class BaseService(ABC, CancellableMixin):
             self.cancel_token = base_token
         else:
             self.cancel_token = base_token.chain(token)
-
-        self._executor = get_asyncio_executor()
 
     @property
     def logger(self):
@@ -234,10 +231,6 @@ class BaseService(ABC, CancellableMixin):
             callback(*args)
 
         self.run_task(_call_later_wrapped())
-
-    async def _run_in_executor(self, callback: Callable[..., Any], *args: Any) -> Any:
-        loop = self.get_event_loop()
-        return await self.wait(loop.run_in_executor(self._executor, callback, *args))
 
     async def cleanup(self) -> None:
         """
