@@ -794,8 +794,7 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def start_and_loop(self):
-        self.start()
+    def do_loop(self):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -1558,10 +1557,7 @@ def main():
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
 
-    try:
-        loop.run_until_complete(master.shutdown_future)
-    except KeyboardInterrupt:
-        pass
+    master.do_loop()
 
     public_json_rpc_server.shutdown()
     private_json_rpc_server.shutdown()
