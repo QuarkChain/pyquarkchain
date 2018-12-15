@@ -141,8 +141,8 @@ class MasterConnection(ClusterConnection):
                 peer_shard_conn.get_forwarding_connection().close()
 
         Logger.info("Lost connection with master. Shutting down slave ...")
+        super().close()
         self.slave_server.shutdown()
-        return super().close()
 
     def close_with_error(self, error):
         Logger.info("Closing connection with master: {}".format(error))
@@ -805,7 +805,7 @@ class SlaveServer:
 
         self.artificial_tx_config = None
         self.shards = dict()  # type: Dict[Branch, Shard]
-        self.shutdown_in_progress = False
+        self.shutdown_future = self.loop.create_future()
 
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
@@ -887,26 +887,21 @@ class SlaveServer:
     def start(self):
         self.loop.create_task(self.__start_server())
 
-    def start_and_loop(self):
-        self.start()
+    def do_loop(self):
         try:
-            self.loop.run_forever()
+            self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
             pass
-        self.shutdown()
 
     def shutdown(self):
-        if self.shutdown_in_progress:
-            return
+        if not self.shutdown_future.done():
+            self.shutdown_future.set_result(None)
 
-        self.shutdown_in_progress = True
-        if self.master is not None:
-            self.master.close()
         self.slave_connection_manager.close_all()
         self.server.close()
 
     def get_shutdown_future(self):
-        return self.server.wait_closed()
+        return self.shutdown_future
 
     # Cluster functions
 
@@ -1217,7 +1212,8 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     slave_server = SlaveServer(env)
-    slave_server.start_and_loop()
+    slave_server.start()
+    slave_server.do_loop()
 
     Logger.info("Slave server is shutdown")
 
