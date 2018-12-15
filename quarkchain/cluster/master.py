@@ -1,11 +1,11 @@
 import argparse
 import asyncio
-import ipaddress
+import os
+
 import psutil
 import random
 import time
 from collections import deque
-from threading import Thread
 from typing import Optional, List, Union, Dict, Tuple
 
 from quarkchain.cluster.guardian import Guardian
@@ -76,7 +76,6 @@ from quarkchain.core import (
 )
 from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
-from quarkchain.p2p.p2p_network import P2PNetwork, devp2p_app
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -203,7 +202,7 @@ class SyncTask:
 
     async def __download_block_headers(self, block_hash):
         request = GetRootBlockHeaderListRequest(
-            block_hash=block_hash, limit=100, direction=Direction.GENESIS
+            block_hash=block_hash, limit=500, direction=Direction.GENESIS
         )
         op, resp, rpc_id = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request
@@ -276,11 +275,12 @@ class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
     def __init__(self):
-        self.queue = deque()
+        self.tasks = dict()
         self.running = False
+        self.running_task = None
 
     def add_task(self, header, peer):
-        self.queue.append((header, peer))
+        self.tasks[peer] = header
         Logger.info(
             "[R] added {} {} to sync queue (running={})".format(
                 header.height, header.get_hash().hex(), self.running
@@ -290,10 +290,37 @@ class Synchronizer:
             self.running = True
             asyncio.ensure_future(self.__run())
 
+    def get_stats(self):
+        def _task_to_dict(peer, header):
+            return {
+                "peerId": peer.id.hex(),
+                "peerIp": str(peer.ip),
+                "peerPort": peer.port,
+                "rootHeight": header.height,
+                "rootHash": header.get_hash().hex(),
+            }
+
+        return {
+            "runningTask": _task_to_dict(self.running_task[1], self.running_task[0])
+            if self.running_task
+            else None,
+            "queuedTasks": [
+                _task_to_dict(peer, header) for peer, header in self.tasks.items()
+            ],
+        }
+
+    def _pop_best_task(self):
+        """ pop and return the task with heightest root """
+        check(len(self.tasks) > 0)
+        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].height)
+        del self.tasks[peer]
+        return (header, peer)
+
     async def __run(self):
         Logger.info("[R] synchronizer started!")
-        while len(self.queue) > 0:
-            header, peer = self.queue.popleft()
+        while len(self.tasks) > 0:
+            self.running_task = self._pop_best_task()
+            header, peer = self.running_task
             task = SyncTask(header, peer)
             Logger.info(
                 "[R] start sync task {} {}".format(
@@ -307,6 +334,7 @@ class Synchronizer:
                 )
             )
         self.running = False
+        self.running_task = None
         Logger.info("[R] synchronizer finished!")
 
 
@@ -636,28 +664,30 @@ class MasterServer:
             [len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()]
         )
 
-    async def __connect(self, ip, port):
+    async def __connect(self, host, port):
         """ Retries until success """
-        Logger.info("Trying to connect {}:{}".format(ip, port))
+        Logger.info("Trying to connect {}:{}".format(host, port))
         while True:
             try:
-                reader, writer = await asyncio.open_connection(ip, port, loop=self.loop)
+                reader, writer = await asyncio.open_connection(
+                    host, port, loop=self.loop
+                )
                 break
             except Exception as e:
-                Logger.info("Failed to connect {} {}: {}".format(ip, port, e))
+                Logger.info("Failed to connect {} {}: {}".format(host, port, e))
                 await asyncio.sleep(
                     self.env.cluster_config.MASTER.MASTER_TO_SLAVE_CONNECT_RETRY_DELAY
                 )
-        Logger.info("Connected to {}:{}".format(ip, port))
-        return (reader, writer)
+        Logger.info("Connected to {}:{}".format(host, port))
+        return reader, writer
 
     async def __connect_to_slaves(self):
         """ Master connects to all the slaves """
         futures = []
         slaves = []
         for slave_info in self.cluster_config.get_slave_info_list():
-            ip = str(ipaddress.ip_address(slave_info.ip))
-            reader, writer = await self.__connect(ip, slave_info.port)
+            host = slave_info.host.decode("ascii")
+            reader, writer = await self.__connect(host, slave_info.port)
 
             slave = SlaveConnection(
                 self.env,
@@ -764,8 +794,7 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def start_and_loop(self):
-        self.start()
+    def do_loop(self):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -1253,6 +1282,13 @@ class MasterServer:
         ):
             self.tx_count_history.popleft()
 
+    def get_block_count(self):
+        header = self.root_state.tip
+        shard_r_c = self.root_state.db.get_block_count(
+            header.height, header.shard_info.get_shard_size()
+        )
+        return {"rootHeight": header.height, "shardRC": shard_r_c}
+
     async def get_stats(self):
         shards = [dict() for i in range(self.__get_shard_size())]
         for shard_stats in self.branch_to_shard_stats.values():
@@ -1497,6 +1533,8 @@ def parse_args():
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCServer
 
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
     env = parse_args()
     root_state = RootState(env)
 
@@ -1504,28 +1542,22 @@ def main():
     master.start()
     master.wait_until_cluster_active()
 
+    # kick off simulated mining if enabled
+    if env.cluster_config.START_SIMULATED_MINING:
+        asyncio.ensure_future(master.start_mining())
+
     loop = asyncio.get_event_loop()
 
     if env.cluster_config.use_p2p():
-        if env.cluster_config.P2P.NEW_MODULE:
-            network = P2PManager(env, master, loop)
-        else:
-            network = P2PNetwork(env, master, loop)
+        network = P2PManager(env, master, loop)
     else:
         network = SimpleNetwork(env, master, loop)
     network.start()
 
-    if env.cluster_config.use_p2p() and not env.cluster_config.P2P.NEW_MODULE:
-        thread = Thread(target=devp2p_app, args=[env, network], daemon=True)
-        thread.start()
-
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
 
-    try:
-        loop.run_until_complete(master.shutdown_future)
-    except KeyboardInterrupt:
-        pass
+    master.do_loop()
 
     public_json_rpc_server.shutdown()
     private_json_rpc_server.shutdown()

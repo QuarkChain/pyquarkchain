@@ -74,6 +74,7 @@ class TestRootState(unittest.TestCase):
 
         self.assertIsNone(r_state.get_root_block_by_height(2))
         self.assertEqual(r_state.get_root_block_by_height(1), root_block)
+        self.assertEqual(r_state.get_root_block_by_height(None), root_block)
         self.assertEqual(
             r_state.get_root_block_by_height(0),
             r_state.get_root_block_by_hash(root_block.header.hash_prev_block),
@@ -369,6 +370,7 @@ class TestRootState(unittest.TestCase):
         recovered_state = RootState(env=env)
         self.assertEqual(recovered_state.tip, root_block0.header)
         self.assertEqual(recovered_state.db.get_root_block_by_height(1), root_block0)
+        self.assertEqual(recovered_state.get_root_block_by_height(None), root_block0)
 
         # fork is pruned from recovered state
         self.assertIsNone(

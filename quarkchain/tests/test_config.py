@@ -100,7 +100,8 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
             "CONSENSUS_TYPE": "POW_SHA3SHA3",
@@ -130,7 +131,8 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
@@ -160,7 +162,8 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
             "CONSENSUS_TYPE": "POW_ETHASH",
@@ -190,7 +193,8 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
             "CONSENSUS_TYPE": "NONE",
@@ -203,7 +207,8 @@ class TestShardConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512
+            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         }
     ],
     "REWARD_TAX_RATE": 0.5

@@ -1,9 +1,10 @@
 import argparse
-import ipaddress
 import json
 import os
 import socket
 import tempfile
+
+from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
@@ -12,7 +13,7 @@ from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check, Logger
 
-HOST = socket.gethostbyname(socket.gethostname())
+DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_alloc(cluser_config):
@@ -71,7 +72,7 @@ class MasterConfig(BaseConfig):
 
 
 class SlaveConfig(BaseConfig):
-    IP = HOST
+    HOST = DEFAULT_HOST
     PORT = 38392
     ID = ""
     SHARD_MASK_LIST = None
@@ -89,26 +90,18 @@ class SlaveConfig(BaseConfig):
 
 
 class SimpleNetworkConfig(BaseConfig):
-    BOOTSTRAP_HOST = HOST
+    BOOTSTRAP_HOST = DEFAULT_HOST
     BOOTSTRAP_PORT = 38291
 
 
 class P2PConfig(BaseConfig):
     # *new p2p module*
-    NEW_MODULE = False
     BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
     PRIV_KEY = ""
     MAX_PEERS = 25
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
-
-    # deprecated
-    IP = HOST
-    DISCOVERY_PORT = 29000
-    BOOTSTRAP_HOST = HOST
-    BOOTSTRAP_PORT = 29000
-    MIN_PEERS = 2
-    ADDITIONAL_BOOTSTRAPS = ""
+    PREFERRED_NODES = ""
 
 
 class MonitoringConfig(BaseConfig):
@@ -116,7 +109,7 @@ class MonitoringConfig(BaseConfig):
     """
 
     NETWORK_NAME = ""
-    CLUSTER_ID = HOST
+    CLUSTER_ID = DEFAULT_HOST
     KAFKA_REST_ADDRESS = ""  # REST API endpoint for logging to Kafka, IP[:PORT] format
     MINER_TOPIC = "qkc_miner"
     PROPAGATION_TOPIC = "block_propagation"
@@ -132,6 +125,7 @@ class ClusterConfig(BaseConfig):
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
 
+    START_SIMULATED_MINING = False
     CLEAN = False
     GENESIS_DIR = None
 
@@ -146,7 +140,7 @@ class ClusterConfig(BaseConfig):
     def __init__(self):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
-        self.SLAVE_LIST = []
+        self.SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -165,8 +159,9 @@ class ClusterConfig(BaseConfig):
     def get_slave_info_list(self):
         results = []
         for slave in self.SLAVE_LIST:
-            ip = int(ipaddress.ip_address(slave.IP))
-            results.append(SlaveInfo(slave.ID, ip, slave.PORT, slave.SHARD_MASK_LIST))
+            results.append(
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.SHARD_MASK_LIST)
+            )
         return results
 
     def get_slave_config(self, id):
@@ -195,6 +190,12 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--log_level", default=ClusterConfig.LOG_LEVEL, type=str)
         parser.add_argument(
             "--clean", action="store_true", default=ClusterConfig.CLEAN, dest="clean"
+        )
+        parser.add_argument(
+            "--start_simulated_mining",
+            action="store_true",
+            default=ClusterConfig.START_SIMULATED_MINING,
+            dest="start_simulated_mining",
         )
         pwd = os.path.dirname(os.path.abspath(__file__))
         default_genesis_dir = os.path.join(pwd, "../genesis_data")
@@ -238,25 +239,7 @@ class ClusterConfig(BaseConfig):
             "--simple_network_bootstrap_port",
             default=SimpleNetworkConfig.BOOTSTRAP_PORT,
         )
-        parser.add_argument(
-            "--devp2p_enable", action="store_true", default=False, dest="devp2p_enable"
-        )
-        """
-        set devp2p_ip so that peers can connect to this cluster
-        leave empty if you want to use `socket.gethostbyname()`, but it may cause this cluster to be unreachable by peers
-        """
-        parser.add_argument("--devp2p_ip", default=P2PConfig.IP, type=str)
-        parser.add_argument("--devp2p_port", default=P2PConfig.DISCOVERY_PORT, type=int)
-        parser.add_argument(
-            "--devp2p_bootstrap_host", default=P2PConfig.BOOTSTRAP_HOST, type=str
-        )
-        parser.add_argument(
-            "--devp2p_bootstrap_port", default=P2PConfig.BOOTSTRAP_PORT, type=int
-        )
-        parser.add_argument("--devp2p_min_peers", default=P2PConfig.MIN_PEERS, type=int)
-        parser.add_argument("--devp2p_max_peers", default=P2PConfig.MAX_PEERS, type=int)
-        parser.add_argument("--devp2p_additional_bootstraps", default="", type=str)
-        # *new p2p module*
+        # p2p module
         parser.add_argument(
             "--p2p",
             action="store_true",
@@ -310,6 +293,7 @@ class ClusterConfig(BaseConfig):
             config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
 
             config.CLEAN = args.clean
+            config.START_SIMULATED_MINING = args.start_simulated_mining
             config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
             config.QUARKCHAIN.update(
@@ -323,23 +307,14 @@ class ClusterConfig(BaseConfig):
 
             config.MONITORING.KAFKA_REST_ADDRESS = args.monitoring_kafka_rest_address
 
-            if args.devp2p_enable or args.p2p:
+            if args.p2p:
                 config.SIMPLE_NETWORK = None
                 config.P2P = P2PConfig()
-                config.P2P.IP = args.devp2p_ip
-                config.P2P.DISCOVERY_PORT = args.devp2p_port
-                config.P2P.BOOTSTRAP_HOST = args.devp2p_bootstrap_host
-                config.P2P.BOOTSTRAP_PORT = args.devp2p_bootstrap_port
-                config.P2P.MIN_PEERS = args.devp2p_min_peers
-                config.P2P.MAX_PEERS = args.devp2p_max_peers
-                config.P2P.ADDITIONAL_BOOTSTRAPS = args.devp2p_additional_bootstraps
-                # *new p2p module*
-                config.P2P.NEW_MODULE = args.p2p
-                if config.P2P.NEW_MODULE:
-                    config.P2P.BOOT_NODES = args.bootnodes
-                    config.P2P.PRIV_KEY = args.privkey
-                    config.P2P.MAX_PEERS = args.max_peers
-                    config.P2P.UPNP = args.upnp
+                # p2p module
+                config.P2P.BOOT_NODES = args.bootnodes
+                config.P2P.PRIV_KEY = args.privkey
+                config.P2P.MAX_PEERS = args.max_peers
+                config.P2P.UPNP = args.upnp
             else:
                 config.P2P = None
                 config.SIMPLE_NETWORK = SimpleNetworkConfig()

@@ -372,11 +372,17 @@ class P2PManager(AbstractNetwork):
         else:
             privkey = ecies.generate_privkey()
 
+        if env.cluster_config.P2P.PREFERRED_NODES:
+            preferred_nodes = env.cluster_config.P2P.PREFERRED_NODES.split(",")
+        else:
+            preferred_nodes = []
+
         self.server = QuarkServer(
             privkey=privkey,
             port=env.cluster_config.P2P_PORT,
             network_id=env.quark_chain_config.NETWORK_ID,
             bootstrap_nodes=tuple([Node.from_uri(enode) for enode in bootstrap_nodes]),
+            preferred_nodes=[Node.from_uri(enode) for enode in preferred_nodes],
             token=self.cancel_token,
             max_peers=env.cluster_config.P2P.MAX_PEERS,
             upnp=env.cluster_config.P2P.UPNP,

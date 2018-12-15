@@ -266,7 +266,6 @@ class Connection(AbstractConnection):
         """
         size_bytes = await self.__read_fully(4, allow_eof=True)
         if size_bytes is None:
-            self.close()
             return None, None
         size = int.from_bytes(size_bytes, byteorder="big")
 

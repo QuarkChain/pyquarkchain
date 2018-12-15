@@ -687,8 +687,9 @@ class JSONRPCServer:
             return None
 
     @public_methods.add
-    @decode_arg("height", quantity_decoder)
-    async def getRootBlockByHeight(self, height):
+    async def getRootBlockByHeight(self, height=None):
+        if height is not None:
+            height = quantity_decoder(height)
         block = self.master.root_state.get_root_block_by_height(height)
         if not block:
             return None
@@ -1012,9 +1013,18 @@ class JSONRPCServer:
         return {"peers": peer_list}
 
     @private_methods.add
+    async def getSyncStats(self):
+        return self.master.synchronizer.get_stats()
+
+    @private_methods.add
     async def getStats(self):
         # This JRPC doesn't follow the standard encoding
         return await self.master.get_stats()
+
+    @private_methods.add
+    async def getBlockCount(self):
+        # This JRPC doesn't follow the standard encoding
+        return self.master.get_block_count()
 
     @private_methods.add
     async def createTransactions(self, **load_test_data):
