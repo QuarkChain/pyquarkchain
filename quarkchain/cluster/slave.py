@@ -897,8 +897,6 @@ class SlaveServer:
         if not self.shutdown_future.done():
             self.shutdown_future.set_result(None)
 
-        # if self.master is not None:
-        #     self.master.close()
         self.slave_connection_manager.close_all()
         self.server.close()
 
