@@ -1,6 +1,7 @@
 import argparse
 import asyncio
-import ipaddress
+import os
+
 import psutil
 import random
 import time
@@ -1532,6 +1533,8 @@ def parse_args():
 
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCServer
+
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     env = parse_args()
     root_state = RootState(env)

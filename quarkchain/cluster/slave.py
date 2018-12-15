@@ -1,8 +1,7 @@
 import argparse
 import asyncio
 import errno
-import ipaddress
-import sys
+import os
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -1214,6 +1213,8 @@ def parse_args():
 
 def main():
     env = parse_args()
+
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     slave_server = SlaveServer(env)
     slave_server.start_and_loop()
