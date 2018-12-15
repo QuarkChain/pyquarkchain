@@ -138,11 +138,6 @@ class PeerShardConnection(VirtualConnection):
             self.close_with_error("minor block header list must have only one header")
             return
         for m_header in cmd.minor_block_header_list:
-            Logger.info(
-                "[{}] received new header with height {}".format(
-                    m_header.branch.get_shard_id(), m_header.height
-                )
-            )
             if m_header.branch != self.shard_state.branch:
                 self.close_with_error("incorrect branch")
                 return
@@ -186,6 +181,11 @@ class PeerShardConnection(VirtualConnection):
         if self.shard_state.header_tip.height >= m_header.height:
             return
 
+        Logger.info(
+            "[{}] received new tip with height {}".format(
+                m_header.branch.get_shard_id(), m_header.height
+            )
+        )
         self.shard.synchronizer.add_task(m_header, self)
 
     async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
@@ -533,6 +533,11 @@ class Shard:
 
         self.state.new_block_pool[block.header.get_hash()] = block
 
+        Logger.info(
+            "[{}] got new block with height {}".format(
+                block.header.branch.get_shard_id(), block.header.height
+            )
+        )
         self.broadcast_new_block(block)
         await self.add_block(block)
 
