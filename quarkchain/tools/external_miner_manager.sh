@@ -45,7 +45,7 @@ done
 
 miner_py_path="$( cd "$(dirname "$0")" ; pwd -P )/external_miner.py"
 for shards_per_process in "${shards_by_process[@]}"; do
-	pypy3 $miner_py_path \
+	python3 $miner_py_path \
 		--host   $host \
 		--config $config \
 		--worker 1 \
