@@ -80,6 +80,9 @@ from quarkchain.protocol import Connection
 from quarkchain.utils import check, Logger
 
 
+TIMEOUT = 10
+
+
 class MasterConnection(ClusterConnection):
     def __init__(self, env, reader, writer, slave_server, name=None):
         super().__init__(
@@ -377,6 +380,8 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handle_sync_minor_block_list_request(self, req):
+        """ Raises on error"""
+
         async def __download_blocks(block_hash_list):
             op, resp, rpc_id = await peer_shard_conn.write_rpc_request(
                 CommandOp.GET_MINOR_BLOCK_LIST_REQUEST,
@@ -400,7 +405,18 @@ class MasterConnection(ClusterConnection):
         try:
             while len(block_hash_list) > 0:
                 blocks_to_download = block_hash_list[:BLOCK_BATCH_SIZE]
-                block_chain = await __download_blocks(blocks_to_download)
+                try:
+                    block_chain = await asyncio.wait_for(
+                        __download_blocks(blocks_to_download), TIMEOUT
+                    )
+                except asyncio.TimeoutError as e:
+                    Logger.info(
+                        "[{}] sync request from master failed due to timeout".format(
+                            req.branch.get_shard_id()
+                        )
+                    )
+                    raise e
+
                 Logger.info(
                     "[{}] sync request from master, downloaded {} blocks ({} - {})".format(
                         req.branch.get_shard_id(),

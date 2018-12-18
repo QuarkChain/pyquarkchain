@@ -166,7 +166,7 @@ class SyncTask:
                 raise RuntimeError("Bad peer missing blocks for headers they have")
 
             for block in block_chain:
-                await asyncio.wait_for(self.__add_block(block), TIMEOUT)
+                await self.__add_block(block)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
