@@ -305,7 +305,7 @@ class SyncTask:
                     block.header.hash_prev_root_block
                 ):
                     return
-                await asyncio.wait_for(self.shard.add_block(block), TIMEOUT)
+                await self.shard.add_block(block)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
