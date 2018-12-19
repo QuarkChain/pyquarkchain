@@ -203,8 +203,8 @@ class Miner:
                         self._track(block)
                         self._log_status(block)
                     await self.add_block_async_func(block)
-                except Exception as ex:
-                    Logger.error(ex)
+                except Exception:
+                    Logger.error_exception()
 
         async def mine_new_block():
             """Get a new block and start mining.
@@ -304,8 +304,8 @@ class Miner:
             del self.work_map[header_hash]
             self.current_work = None
             return True
-        except Exception as ex:
-            Logger.error(ex)
+        except Exception:
+            Logger.error_exception()
             return False
 
     @staticmethod
