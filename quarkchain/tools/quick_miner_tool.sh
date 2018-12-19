@@ -3,10 +3,25 @@
 screen -dmS jobs
 
 clear
+
 echo "Step 1: Enter or generate your coinbase address!"
 
-miner_tools_path="$(pwd -P)/quarkchain/tools/miner_address.py"
-pypy3 $miner_tools_path
+while true; do
+    read -p "Do you wish to set the coinbase address?(Y or N)" yn
+    case $yn in
+        [Yy]* )
+                miner_tools_path="$(pwd -P)/quarkchain/tools/miner_address.py"
+                python3 $miner_tools_path
+                break;;
+        [Nn]* ) 
+                break;;
+        * ) echo "Please answer Y or N.";;
+    esac
+done
+
+
+
+
 
 echo "Step 2: Download a snapshot of the database. Your cluster only need to sync
 the blocks mined in the past 12 hours or less."
@@ -27,7 +42,7 @@ screen -S jobs -X screen bash
 
 screen -S jobs -p bash -X title cluster
 
-screen -S jobs -p cluster -X stuff $'pypy3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2/cluster_config_template.json" 
+screen -S jobs -p cluster -X stuff $'python3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2/cluster_config_template.json" 
 '
 
 
@@ -42,7 +57,7 @@ while [ $seconds_left -gt 0 ];do
 done
 
 echo "Step 4: Start synchorizing blocks in the past 12 hours or less. It takes about five minutes. Be patient!"
-pypy3 quarkchain/tools/check_syncing_state.py
+python3 quarkchain/tools/check_syncing_state.py
 
 
 while true; do
