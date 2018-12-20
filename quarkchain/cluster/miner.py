@@ -279,8 +279,9 @@ class Miner:
 
         if header_hash not in self.work_map:
             return False
-        block = self.work_map[header_hash]
-        header = copy.copy(block.header)
+        # this copy is necessary since there might be multiple submissions concurrently
+        block = copy.copy(self.work_map[header_hash])
+        header = block.header
         header.nonce, header.mixhash = nonce, mixhash
 
         # lower the difficulty for root block signed by guardian
@@ -297,12 +298,12 @@ class Miner:
                 validate_seal(header, self.consensus_type)
             except ValueError:
                 return False
-
-        block.header = header  # actual update
         try:
             await self.add_block_async_func(block)
-            del self.work_map[header_hash]
-            self.current_work = None
+            # a previous submission of the same work could have removed the key
+            if header_hash in self.work_map:
+                del self.work_map[header_hash]
+                self.current_work = None
             return True
         except Exception:
             Logger.error_exception()
