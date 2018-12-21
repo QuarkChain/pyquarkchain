@@ -10,7 +10,7 @@ from quarkchain.core import (
     random_bytes,
 )
 
-from quarkchain.utils import token_id_encode, token_id_decode
+from quarkchain.utils import token_id_encode, token_id_decode, ZZZZZZZZZZZZ
 
 
 def create_test_transaction(
@@ -55,7 +55,7 @@ ENCODED_VALUES = [
     ("20", 108),
     ("ZZ", 1331),
     ("QKC", 35760),
-    ("ZZZZZZZZZZZZ", 4873763662273663091),
+    ("ZZZZZZZZZZZZ", ZZZZZZZZZZZZ),
     # ("2V4D00153RFRF", 2**64-1),
 ]
 
@@ -64,3 +64,28 @@ ENCODED_VALUES = [
 def test_token_id_encode(name, id):
     assert token_id_encode(name) == id
     assert name == token_id_decode(id)
+
+
+def test_random_token():
+    COUNT = 100000
+    random.seed(2)
+    for i in range(COUNT):
+        id = random.randint(0, ZZZZZZZZZZZZ)
+        assert id == token_id_encode(token_id_decode(id))
+
+
+def test_token_id_exceptions():
+    with pytest.raises(AssertionError):
+        token_id_encode("qkc")
+    with pytest.raises(AssertionError):
+        token_id_encode(" ")
+    with pytest.raises(AssertionError):
+        token_id_encode("btc")
+    with pytest.raises(AssertionError):
+        token_id_encode("ZZZZZZZZZZZZZ")
+    with pytest.raises(AssertionError):
+        token_id_decode(2 ** 64 - 1)
+    with pytest.raises(AssertionError):
+        token_id_decode(-1)
+    with pytest.raises(AssertionError):
+        token_id_decode(ZZZZZZZZZZZZ + 1)

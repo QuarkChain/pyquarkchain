@@ -442,6 +442,7 @@ def time_ms():
 
 
 TOKEN_BASE = 36
+ZZZZZZZZZZZZ = 4873763662273663091
 
 
 def token_char_encode(char: str) -> int:
@@ -477,7 +478,7 @@ def token_id_decode(id: int) -> str:
     """
     decode native token name from uint64
     """
-    check(id >= 0 and id < 2 ** 64, "id too big or negative")
+    check(id >= 0 and id <= ZZZZZZZZZZZZ, "id too big or negative")
     name = token_char_decode(id % TOKEN_BASE)
     id = id // TOKEN_BASE - 1
     while id >= 0:
