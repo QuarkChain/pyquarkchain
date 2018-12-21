@@ -817,7 +817,6 @@ class MasterServer:
         return self.shutdown_future
 
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
-        """ Try to create a root block to mine or return None if failed proof-of-progress """
         futures = []
         for slave in self.slave_pool:
             request = GetUnconfirmedHeadersRequest()
@@ -834,7 +833,7 @@ class MasterServer:
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return None, None
+                return None
             for headers_info in response.headers_info_list:
                 if headers_info.branch.get_shard_size() != self.__get_shard_size():
                     Logger.error(
@@ -843,7 +842,7 @@ class MasterServer:
                             headers_info.branch.get_shard_size(),
                         )
                     )
-                    return None, None
+                    return None
 
                 height = 0
                 for header in headers_info.header_list:
@@ -859,83 +858,14 @@ class MasterServer:
                     ).append(header)
 
         header_list = []
-        # check proof of progress
         shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
             self.root_state.tip.height + 1
         )
         for shard_id in shard_ids_to_check:
             headers = shard_id_to_header_list.get(shard_id, [])
             header_list.extend(headers)
-            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
-                Logger.info(
-                    "Failed to create root block {} due to shard {} failing proof-of-progress check".format(
-                        self.root_state.tip.height + 1, shard_id
-                    )
-                )
-                return None
 
         return self.root_state.create_block_to_mine(header_list, address)
-
-    async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
-        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress
-        TODO: reuse code in __create_root_block_to_mine
-        """
-        futures = []
-        for slave in self.slave_pool:
-            request = GetUnconfirmedHeadersRequest()
-            futures.append(
-                slave.write_rpc_request(
-                    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
-                )
-            )
-        responses = await asyncio.gather(*futures)
-
-        # Slaves may run multiple copies of the same branch
-        # branch_value -> HeaderList
-        shard_id_to_header_list = dict()
-        for response in responses:
-            _, response, _ = response
-            if response.error_code != 0:
-                return None, None
-            for headers_info in response.headers_info_list:
-                if headers_info.branch.get_shard_size() != self.__get_shard_size():
-                    Logger.error(
-                        "Expect shard size {} got {}".format(
-                            self.__get_shard_size(),
-                            headers_info.branch.get_shard_size(),
-                        )
-                    )
-                    return None, None
-
-                height = 0
-                for header in headers_info.header_list:
-                    # check headers are ordered by height
-                    check(height == 0 or height + 1 == header.height)
-                    height = header.height
-
-                    # Filter out the ones unknown to the master
-                    if not self.root_state.is_minor_block_validated(header.get_hash()):
-                        break
-                    shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_shard_id(), []
-                    ).append(header)
-
-        header_list = []
-        # check proof of progress
-        shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
-            self.root_state.tip.height + 1
-        )
-        for shard_id in shard_ids_to_check:
-            headers = shard_id_to_header_list.get(shard_id, [])
-            header_list.extend(headers)
-            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
-                # Fallback to create minor block
-                block = await self.__get_minor_block_to_mine(
-                    Branch.create(self.__get_shard_size(), shard_id), address
-                )
-                return (None, None) if not block else (False, block)
-
-        return True, self.root_state.create_block_to_mine(header_list, address)
 
     async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
@@ -961,9 +891,8 @@ class MasterServer:
             return None, None
 
         if prefer_root and shard_mask_value == 0:
-            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(
-                address
-            )
+            root = await self.__create_root_block_to_mine(address)
+            return (True, root) if root else (None, None)
 
         shard_mask = None if shard_mask_value == 0 else ShardMask(shard_mask_value)
         futures = []
@@ -1028,9 +957,8 @@ class MasterServer:
                     max_eco = eco
 
         if branch_value_with_max_eco == 0:
-            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(
-                address
-            )
+            root = await self.__create_root_block_to_mine(address)
+            return (True, root) if root else (None, None)
 
         block = await self.__get_minor_block_to_mine(
             Branch(branch_value_with_max_eco), address

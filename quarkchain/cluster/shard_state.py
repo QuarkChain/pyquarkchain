@@ -548,6 +548,7 @@ class ShardState:
             )
         )
 
+        # TODO: check xshard tx limit is not exceeded (CRITICAL)
         for idx, tx in enumerate(block.tx_list):
             try:
                 evm_tx = self.__validate_tx(tx, evm_state)
@@ -1112,26 +1113,32 @@ class ShardState:
                         )
                     )
 
-        # shard_header cannot be None since PROOF_OF_PROGRESS should be positive
-        check(len(shard_headers) > 0)
-
         if len(shard_headers) > self.__get_max_blocks_in_one_root_block():
             raise ValueError(
                 "Too many minor blocks in the root block for shard {}".format(
                     self.branch.get_shard_id()
                 )
             )
-        shard_header = shard_headers[-1]
 
-        self.db.put_root_block(root_block, shard_header)
-        check(
-            self.__is_same_root_chain(
-                root_block.header,
-                self.db.get_root_block_header_by_hash(
-                    shard_header.hash_prev_root_block
-                ),
+        # shard_header can be None meaning the genesis shard block has not been confirmed by any root block
+        shard_header = (
+            shard_headers[-1]
+            if shard_headers
+            else self.db.get_last_minor_block_in_root_block(
+                root_block.header.hash_prev_block
             )
         )
+
+        self.db.put_root_block(root_block, shard_header)
+        if shard_header:
+            check(
+                self.__is_same_root_chain(
+                    root_block.header,
+                    self.db.get_root_block_header_by_hash(
+                        shard_header.hash_prev_root_block
+                    ),
+                )
+            )
 
         if root_block.header.height > self.root_tip.height:
             # Switch to the longest root block
@@ -1139,47 +1146,54 @@ class ShardState:
             self.confirmed_header_tip = shard_header
 
             orig_header_tip = self.header_tip
-            orig_block = self.db.get_minor_block_by_height(shard_header.height)
-            if not orig_block or orig_block.header != shard_header:
-                self.__rewrite_block_index_to(
-                    self.db.get_minor_block_by_hash(shard_header.get_hash())
-                )
-                # TODO: shard_header might not be the tip of the longest chain
-                # need to switch to the tip of the longest chain
-                self.header_tip = shard_header
-                self.meta_tip = self.db.get_minor_block_meta_by_hash(
-                    self.header_tip.get_hash()
-                )
-                Logger.info(
-                    "[{}] (root confirms a fork) shard tip reset from {} to {} by root block {}".format(
-                        self.branch.get_shard_id(),
-                        orig_header_tip.height,
-                        self.header_tip.height,
-                        root_block.header.height,
+            if shard_header:
+                orig_block = self.db.get_minor_block_by_height(shard_header.height)
+                # get_minor_block_by_height only returns block on the best chain
+                # so orig_block could be on a fork and thus will not be found by
+                # get_minor_block_by_height
+                if not orig_block or orig_block.header != shard_header:
+                    self.__rewrite_block_index_to(
+                        self.db.get_minor_block_by_hash(shard_header.get_hash())
                     )
-                )
-            else:
-                # the current header_tip might point to a root block on a fork with r_block
-                # we need to scan back until finding a minor block pointing to the same root chain r_block is on.
-                # the worst case would be that we go all the way back to orig_block (shard_header)
-                while not self.__is_same_root_chain(
-                    self.root_tip,
-                    self.db.get_root_block_header_by_hash(
-                        self.header_tip.hash_prev_root_block
-                    ),
-                ):
-                    self.header_tip = self.db.get_minor_block_header_by_hash(
-                        self.header_tip.hash_prev_minor_block
+                    # TODO: shard_header might not be the tip of the longest chain
+                    # need to switch to the tip of the longest chain
+                    self.header_tip = shard_header
+                    self.meta_tip = self.db.get_minor_block_meta_by_hash(
+                        self.header_tip.get_hash()
                     )
-                if self.header_tip != orig_header_tip:
                     Logger.info(
-                        "[{}] shard tip reset from {} to {} by root block {}".format(
+                        "[{}] (root confirms a fork) shard tip reset from {} to {} by root block {}".format(
                             self.branch.get_shard_id(),
                             orig_header_tip.height,
                             self.header_tip.height,
                             root_block.header.height,
                         )
                     )
+
+            # the current header_tip might point to a root block on a fork with r_block
+            # we need to scan back until finding a minor block pointing to the same root chain r_block is on.
+            # the worst case would be that we go all the way back to orig_block (shard_header)
+            while not self.__is_same_root_chain(
+                self.root_tip,
+                self.db.get_root_block_header_by_hash(
+                    self.header_tip.hash_prev_root_block
+                ),
+            ):
+                self.header_tip = self.db.get_minor_block_header_by_hash(
+                    self.header_tip.hash_prev_minor_block
+                )
+                self.meta_tip = self.db.get_minor_block_meta_by_hash(
+                    self.header_tip.get_hash()
+                )
+            if self.header_tip != orig_header_tip:
+                Logger.info(
+                    "[{}] shard tip reset from {} to {} by root block {}".format(
+                        self.branch.get_shard_id(),
+                        orig_header_tip.height,
+                        self.header_tip.height,
+                        root_block.header.height,
+                    )
+                )
             return True
 
         check(

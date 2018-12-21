@@ -334,6 +334,7 @@ class RootState:
         return header == shorter_block_header
 
     def validate_block(self, block, block_hash=None):
+        """Raise on valiadtion errors """
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
@@ -386,17 +387,6 @@ class RootState:
             headers_map.setdefault(m_header.branch.get_shard_id(), []).append(m_header)
             # TODO: Add coinbase
 
-        # check proof of progress
-        shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
-            block.header.height
-        )
-        for shard_id in shard_ids_to_check_proof_of_progress:
-            if (
-                len(headers_map.get(shard_id, []))
-                < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
-            ):
-                raise ValueError("fail to prove progress")
-
         # check minor block headers are linked
         prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
             block.header.hash_prev_block
@@ -405,11 +395,11 @@ class RootState:
         for header in prev_last_minor_block_header_list:
             prev_header_map[header.branch.get_shard_id()] = header
 
-        last_minor_block_header_list = []
+        shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+            block.header.height
+        )
         for shard_id, headers in headers_map.items():
             check(len(headers) > 0)
-
-            last_minor_block_header_list.append(headers[-1])
 
             if shard_id not in shard_ids_to_check_proof_of_progress:
                 raise ValueError(
@@ -426,6 +416,7 @@ class RootState:
                             shard_id, headers[0].get_hash().hex()
                         )
                     )
+                # TODO: validate genesis block (CRITICAL)
             else:
                 headers = [prev_header_in_last_root_block] + headers
             for i in range(len(headers) - 1):
@@ -436,7 +427,9 @@ class RootState:
                         )
                     )
 
-        return block_hash, last_minor_block_header_list
+            prev_header_map[shard_id] = headers[-1]
+
+        return block_hash, prev_header_map.values()
 
     def __rewrite_block_index_to(self, block):
         """ Find the common ancestor in the current chain and rewrite index till block """

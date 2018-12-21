@@ -47,17 +47,17 @@ class TestCluster(unittest.TestCase):
             # shard 1 created at root height 2
             self.assertEqual(len(slaves[1].shards), 1)
 
-            # Expect to mine shard 0 due to proof of progress
             is_root, block = call_async(master.get_next_block_to_mine(acc1))
-            self.assertFalse(is_root)
-            self.assertEqual(block.header.branch.get_shard_id(), 0)
-            self.assertEqual(block.header.height, 1)
+            self.assertTrue(is_root)
+            self.assertEqual(len(root.minor_block_header_list), 1)
+            call_async(master.add_root_block(root))
 
     def test_get_next_block_to_mine(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
         acc2 = Address.create_random_account(full_shard_id=0)
         acc3 = Address.create_random_account(full_shard_id=1)
+        acc4 = Address.create_random_account(full_shard_id=1)
 
         with ClusterContext(1, acc1) as clusters:
             master = clusters[0].master
@@ -107,26 +107,12 @@ class TestCluster(unittest.TestCase):
                 slaves[1].shards[Branch(3)].state.get_balance(acc3.recipient), 0
             )
 
-            # Expect to mine shard 1 due to proof-of-progress
-            is_root, block2 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertFalse(is_root)
-            self.assertEqual(block2.header.height, 1)
-            self.assertEqual(block2.header.branch.value, 0b11)
-            self.assertEqual(len(block2.tx_list), 0)
-
-            self.assertTrue(
-                call_async(
-                    master.add_raw_minor_block(block2.header.branch, block2.serialize())
-                )
-            )
-
             # Expect to mine root
             is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertTrue(is_root)
             self.assertEqual(block.header.height, 2)
-            self.assertEqual(len(block.minor_block_header_list), 2)
+            self.assertEqual(len(block.minor_block_header_list), 1)
             self.assertEqual(block.minor_block_header_list[0], block1.header)
-            self.assertEqual(block.minor_block_header_list[1], block2.header)
 
             self.assertTrue(master.root_state.add_block(block))
             slaves[1].shards[Branch(3)].state.add_root_block(block)
@@ -134,10 +120,11 @@ class TestCluster(unittest.TestCase):
                 slaves[1].shards[Branch(3)].state.get_balance(acc3.recipient), 0
             )
 
-            # Expect to mine shard 1 for the gas on xshard tx to acc3
-            is_root, block3 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertFalse(is_root)
-            self.assertEqual(block3.header.height, 2)
+            # Mine shard 1
+            block3 = (
+                slaves[1].shards[Branch(3)].state.create_block_to_mine(address=acc4)
+            )
+            self.assertEqual(block3.header.height, 1)
             self.assertEqual(block3.header.branch.value, 0b11)
             self.assertEqual(len(block3.tx_list), 0)
 
@@ -535,15 +522,6 @@ class TestCluster(unittest.TestCase):
             )
 
             # let's make cluster1's root chain longer than cluster0's
-            # expect to mine shard 0 due to proof-of-progress
-            is_root, block1 = call_async(master1.get_next_block_to_mine(acc2))
-            self.assertFalse(is_root)
-            self.assertEqual(block1.header.branch.get_shard_id(), 0)
-            result = call_async(
-                master1.add_raw_minor_block(block1.header.branch, block1.serialize())
-            )
-            self.assertTrue(result)
-
             is_root, root2 = call_async(master1.get_next_block_to_mine(acc2))
             self.assertTrue(is_root)
             call_async(master1.add_root_block(root2))
