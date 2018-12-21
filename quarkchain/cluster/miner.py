@@ -280,7 +280,7 @@ class Miner:
         if header_hash not in self.work_map:
             return False
         # this copy is necessary since there might be multiple submissions concurrently
-        block = copy.copy(self.work_map[header_hash])
+        block = copy.deepcopy(self.work_map[header_hash])
         header = block.header
         header.nonce, header.mixhash = nonce, mixhash
 
