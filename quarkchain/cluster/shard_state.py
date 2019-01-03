@@ -1140,71 +1140,60 @@ class ShardState:
                 )
             )
 
-        if root_block.header.height > self.root_tip.height:
-            # Switch to the longest root block
-            self.root_tip = root_block.header
-            self.confirmed_header_tip = shard_header
-
-            orig_header_tip = self.header_tip
-            if shard_header:
-                orig_block = self.db.get_minor_block_by_height(shard_header.height)
-                # get_minor_block_by_height only returns block on the best chain
-                # so orig_block could be on a fork and thus will not be found by
-                # get_minor_block_by_height
-                if not orig_block or orig_block.header != shard_header:
-                    self.__rewrite_block_index_to(
-                        self.db.get_minor_block_by_hash(shard_header.get_hash())
-                    )
-                    # TODO: shard_header might not be the tip of the longest chain
-                    # need to switch to the tip of the longest chain
-                    self.header_tip = shard_header
-                    self.meta_tip = self.db.get_minor_block_meta_by_hash(
-                        self.header_tip.get_hash()
-                    )
-                    Logger.info(
-                        "[{}] (root confirms a fork) shard tip reset from {} to {} by root block {}".format(
-                            self.branch.get_shard_id(),
-                            orig_header_tip.height,
-                            self.header_tip.height,
-                            root_block.header.height,
-                        )
-                    )
-
-            # the current header_tip might point to a root block on a fork with r_block
-            # we need to scan back until finding a minor block pointing to the same root chain r_block is on.
-            # the worst case would be that we go all the way back to orig_block (shard_header)
-            while not self.__is_same_root_chain(
-                self.root_tip,
-                self.db.get_root_block_header_by_hash(
-                    self.header_tip.hash_prev_root_block
-                ),
-            ):
-                self.header_tip = self.db.get_minor_block_header_by_hash(
-                    self.header_tip.hash_prev_minor_block
+        # No change to root tip
+        if root_block.header.height <= self.root_tip.height:
+            check(
+                self.__is_same_root_chain(
+                    self.root_tip,
+                    self.db.get_root_block_header_by_hash(
+                        self.header_tip.hash_prev_root_block
+                    ),
                 )
-                self.meta_tip = self.db.get_minor_block_meta_by_hash(
-                    self.header_tip.get_hash()
-                )
-            if self.header_tip != orig_header_tip:
-                Logger.info(
-                    "[{}] shard tip reset from {} to {} by root block {}".format(
-                        self.branch.get_shard_id(),
-                        orig_header_tip.height,
-                        self.header_tip.height,
-                        root_block.header.height,
-                    )
-                )
-            return True
-
-        check(
-            self.__is_same_root_chain(
-                self.root_tip,
-                self.db.get_root_block_header_by_hash(
-                    self.header_tip.hash_prev_root_block
-                ),
             )
-        )
-        return False
+            return False
+
+        # Switch to the longest root block
+        self.root_tip = root_block.header
+        self.confirmed_header_tip = shard_header
+
+        orig_header_tip = self.header_tip
+        if shard_header:
+            orig_block = self.db.get_minor_block_by_height(shard_header.height)
+            # get_minor_block_by_height only returns block on the best chain
+            # so orig_block could be on a fork and thus will not be found by
+            # get_minor_block_by_height
+            if not orig_block or orig_block.header != shard_header:
+                # TODO: shard_header might not be the tip of the longest chain
+                # need to switch to the tip of the longest chain
+                self.header_tip = shard_header
+
+        # the current header_tip might point to a root block on a fork with r_block
+        # we need to scan back until finding a minor block pointing to the same root chain r_block is on.
+        # the worst case would be that we go all the way back to orig_block (shard_header)
+        while not self.__is_same_root_chain(
+            self.root_tip,
+            self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block),
+        ):
+            self.header_tip = self.db.get_minor_block_header_by_hash(
+                self.header_tip.hash_prev_minor_block
+            )
+
+        if self.header_tip != orig_header_tip:
+            header_tip_hash = self.header_tip.get_hash()
+            self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
+            self.__rewrite_block_index_to(
+                self.db.get_minor_block_by_hash(header_tip_hash)
+            )
+            Logger.info(
+                "[{}] shard tip reset from {} to {} by root block {}".format(
+                    self.branch.get_shard_id(),
+                    orig_header_tip.height,
+                    self.header_tip.height,
+                    root_block.header.height,
+                )
+            )
+
+        return True
 
     def __is_neighbor(self, remote_branch: Branch):
         return is_neighbor(self.branch, remote_branch)
