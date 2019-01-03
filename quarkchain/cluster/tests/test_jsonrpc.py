@@ -192,115 +192,6 @@ class TestJSONRPC(unittest.TestCase):
             with self.assertRaises(Exception):
                 send_request("sendTransaction", request)
 
-    def test_getNextBlockToMine_and_addBlock(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=1)
-
-        with ClusterContext(
-            1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slave_list
-
-            # Expect to mine root that confirms the genesis minor blocks
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
-            )
-            self.assertTrue(response["isRootBlock"])
-            block = RootBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-
-            self.assertEqual(block.header.height, 1)
-            self.assertEqual(len(block.minor_block_header_list), 2)
-            self.assertEqual(block.minor_block_header_list[0].height, 0)
-            self.assertEqual(block.minor_block_header_list[1].height, 0)
-
-            send_request("addBlock", "0x0", response["blockData"])
-
-            tx = create_transfer_transaction(
-                shard_state=clusters[0].get_shard_state(0),
-                key=id1.get_key(),
-                from_address=acc1,
-                to_address=acc3,
-                value=14,
-                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-            )
-            self.assertTrue(slaves[0].add_tx(tx))
-
-            # Expect to mine shard 0 since it has one tx
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
-            )
-            self.assertFalse(response["isRootBlock"])
-            block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-            self.assertEqual(block1.header.branch.value, 0b10)
-
-            self.assertTrue(send_request("addBlock", "0x2", response["blockData"]))
-            self.assertEqual(
-                clusters[0].get_shard_state(1).get_balance(acc3.recipient), 0
-            )
-
-            # Expect to mine shard 1 due to proof-of-progress
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
-            )
-            self.assertFalse(response["isRootBlock"])
-            block2 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-            self.assertEqual(block2.header.branch.value, 0b11)
-
-            self.assertTrue(send_request("addBlock", "0x3", response["blockData"]))
-
-            # Expect to mine root
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
-            )
-            self.assertTrue(response["isRootBlock"])
-            block = RootBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-
-            self.assertEqual(block.header.height, 2)
-            self.assertEqual(len(block.minor_block_header_list), 2)
-            self.assertEqual(block.minor_block_header_list[0], block1.header)
-            self.assertEqual(block.minor_block_header_list[1], block2.header)
-
-            send_request("addBlock", "0x0", response["blockData"])
-            self.assertEqual(
-                clusters[0].get_shard_state(1).get_balance(acc3.recipient), 0
-            )
-
-            # Expect to mine shard 1 for the gas on xshard tx to acc3
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x0"
-            )
-            self.assertFalse(response["isRootBlock"])
-            block3 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-            self.assertEqual(block3.header.branch.value, 0b11)
-
-            self.assertTrue(send_request("addBlock", "0x3", response["blockData"]))
-            # Expect withdrawTo is included in acc3's balance
-            resp = send_request("getBalance", "0x" + acc3.serialize().hex())
-            self.assertEqual(resp["branch"], "0x3")
-            self.assertEqual(resp["balance"], "0xe")
-
-    def test_getNextBlockToMine_with_shard_mask(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-
-        with ClusterContext(
-            1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x2"
-            )
-            self.assertFalse(response["isRootBlock"])
-            block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-            self.assertEqual(block1.header.branch.value, 0b10)
-
-            response = send_request(
-                "getNextBlockToMine", "0x" + acc1.serialize().hex(), "0x3"
-            )
-            self.assertFalse(response["isRootBlock"])
-            block1 = MinorBlock.deserialize(bytes.fromhex(response["blockData"][2:]))
-            self.assertEqual(block1.header.branch.value, 0b11)
-
     def test_getMinorBlock(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_id=0)
@@ -535,8 +426,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx_gen(s1, acc1, acc2)))
             _, b1 = call_async(master.get_next_block_to_mine(address=acc1))
             self.assertTrue(call_async(clusters[0].get_shard(0).add_block(b1)))
-            _, b2 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertTrue(call_async(clusters[0].get_shard(1).add_block(b2)))
+
             _, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1, prefer_root=True)
             )
@@ -922,6 +812,4 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(resp)
 
             # show progress on shard 0
-            _, new_block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertIsInstance(new_block, MinorBlock)
-            self.assertEqual(new_block.header.height, 2)
+            self.assertEqual(clusters[0].get_shard_state(0).get_tip().header.height, 1)

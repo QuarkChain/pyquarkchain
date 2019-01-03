@@ -1001,6 +1001,11 @@ class TestShardState(unittest.TestCase):
         state0.add_cross_shard_tx_list_by_minor_block_hash(
             h=b1.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
         )
+
+        # Add one empty root block
+        empty_root = state0.root_tip.create_block_to_append().finalize()
+        state0.add_root_block(empty_root)
+
         root_block = (
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(b0.header)
@@ -1033,15 +1038,20 @@ class TestShardState(unittest.TestCase):
         state0.add_cross_shard_tx_list_by_minor_block_hash(
             h=b5.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
         )
+
+        self.assertFalse(state0.add_root_block(root_block1))
+
+        # Add one empty root block
+        empty_root = root_block1.create_block_to_append().finalize()
+        state0.add_root_block(empty_root)
         root_block2 = (
-            root_block1.create_block_to_append()
+            empty_root.create_block_to_append()
             .add_minor_block_header(b3.header)
             .add_minor_block_header(b4.header)
             .add_minor_block_header(b5.header)
             .finalize()
         )
 
-        self.assertFalse(state0.add_root_block(root_block1))
         self.assertTrue(state0.add_root_block(root_block2))
         self.assertEqual(state0.header_tip, b4.header)
         self.assertEqual(state0.meta_tip, b4.meta)

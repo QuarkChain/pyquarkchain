@@ -343,5 +343,5 @@ class ClusterContext(ContextDecorator):
         )
         return self.cluster_list
 
-    def __exit__(self, *exc):
+    def __exit__(self, exc_type, exc_val, traceback):
         shutdown_clusters(self.cluster_list)
