@@ -72,9 +72,8 @@ class Peer(P2PConnection):
         """
         op, cmd, rpc_id = await self.read_command()
         if op is None:
-            assert self.state == ConnectionState.CLOSED
             Logger.info("Failed to read command, peer may have closed connection")
-            return "Failed to read command"
+            return super().close_with_error("Failed to read command")
 
         if op != CommandOp.HELLO:
             return self.close_with_error("Hello must be the first command")
