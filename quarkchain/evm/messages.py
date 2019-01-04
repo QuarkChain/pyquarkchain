@@ -405,6 +405,9 @@ def _apply_msg(ext, msg, code):
                     to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                     value=msg.value,
                     gas_price=ext.tx_gasprice,
+                    # TODO: add gas_token_id and transfer_token_id to message
+                    gas_token_id=0,
+                    transfer_token_id=0,
                 )
             )
         elif not ext.transfer_value(msg.sender, msg.to, msg.value):

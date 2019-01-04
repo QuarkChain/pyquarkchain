@@ -282,10 +282,21 @@ class TransactionDetail(Serializable):
         ("block_height", uint64),
         ("timestamp", uint64),  # block timestamp
         ("success", boolean),
+        ("gas_token_id", uint64),
+        ("transfer_token_id", uint64),
     ]
 
     def __init__(
-        self, tx_hash, from_address, to_address, value, block_height, timestamp, success
+        self,
+        tx_hash,
+        from_address,
+        to_address,
+        value,
+        block_height,
+        timestamp,
+        success,
+        gas_token_id,
+        transfer_token_id,
     ):
         self.tx_hash = tx_hash
         self.from_address = from_address
@@ -294,6 +305,8 @@ class TransactionDetail(Serializable):
         self.block_height = block_height
         self.timestamp = timestamp
         self.success = success
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
 
 class GetTransactionListByAddressResponse(Serializable):
