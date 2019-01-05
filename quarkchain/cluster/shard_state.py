@@ -272,10 +272,11 @@ class ShardState:
             # exceeding tx queue size limit
             return False
 
-        if self.db.contain_transaction_hash(tx.get_hash()):
+        tx_hash = tx.get_hash()
+
+        if self.db.contain_transaction_hash(tx_hash):
             return False
 
-        tx_hash = tx.get_hash()
         if tx_hash in self.tx_dict:
             return False
 
