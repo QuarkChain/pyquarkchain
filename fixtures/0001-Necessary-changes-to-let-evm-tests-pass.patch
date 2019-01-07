@@ -98,10 +98,10 @@ diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
 index acbccec..59425d1 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
-@@ -71,7 +71,7 @@ class Transaction(rlp.Serializable):
- 
-     def __init__(self, nonce, gasprice, startgas, to, value, data,
-                  v=0, r=0, s=0, from_full_shard_key=0, to_full_shard_key=0, network_id=1, version=0):
+@@ -91,7 +91,7 @@ class Transaction(rlp.Serializable):
+         network_id=1,
+         version=0,
+     ):
 -        self.shard_size = 0
 +        self.shard_size = 1
  
