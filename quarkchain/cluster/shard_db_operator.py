@@ -41,12 +41,12 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.code.get_evm_transaction()
-        addr = Address(evm_tx.sender, evm_tx.from_full_shard_id)
+        addr = Address(evm_tx.sender, evm_tx.from_full_shard_key)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
         # "to" can be empty for smart contract deployment
-        if evm_tx.to and self.branch.is_in_shard(evm_tx.to_full_shard_id):
-            addr = Address(evm_tx.to, evm_tx.to_full_shard_id)
+        if evm_tx.to and self.branch.is_in_shard(evm_tx.to_full_shard_key):
+            addr = Address(evm_tx.to, evm_tx.to_full_shard_key)
             key = self.__encode_address_transaction_key(
                 addr, block_height, index, False
             )
@@ -141,8 +141,8 @@ class TransactionHistoryMixin:
                 tx_list.append(
                     TransactionDetail(
                         tx.get_hash(),
-                        Address(evm_tx.sender, evm_tx.from_full_shard_id),
-                        Address(evm_tx.to, evm_tx.to_full_shard_id)
+                        Address(evm_tx.sender, evm_tx.from_full_shard_key),
+                        Address(evm_tx.to, evm_tx.to_full_shard_key)
                         if evm_tx.to
                         else None,
                         evm_tx.value,

@@ -94,8 +94,8 @@ def create_transfer_transaction(
         to=to_address.recipient,
         value=value,
         data=data,
-        from_full_shard_id=from_address.full_shard_id,
-        to_full_shard_id=to_address.full_shard_id,
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_address.full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
     )
     evm_tx.sign(key=key)
@@ -128,7 +128,7 @@ contract Storage {
 CONTRACT_WITH_STORAGE = "6080604052348015600f57600080fd5b506104d260008190555061162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002081905550603580606c6000396000f3006080604052600080fd00a165627a7a72305820a6ef942c101f06333ac35072a8ff40332c71d0e11cd0e6d86de8cae7b42696550029"
 
 
-def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode):
+def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode):
     evm_tx = EvmTransaction(
         nonce=shard_state.get_transaction_count(from_address.recipient),
         gasprice=1,
@@ -136,8 +136,8 @@ def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode)
         value=0,
         to=b"",
         data=bytes.fromhex(bytecode),
-        from_full_shard_id=from_address.full_shard_id,
-        to_full_shard_id=to_full_shard_id,
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
     )
     evm_tx.sign(key)
@@ -145,30 +145,30 @@ def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode)
 
 
 def create_contract_creation_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
-        shard_state, key, from_address, to_full_shard_id, CONTRACT_CREATION_BYTECODE
+        shard_state, key, from_address, to_full_shard_key, CONTRACT_CREATION_BYTECODE
     )
 
 
 def create_contract_creation_with_event_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
         shard_state,
         key,
         from_address,
-        to_full_shard_id,
+        to_full_shard_key,
         CONTRACT_CREATION_WITH_EVENT_BYTECODE,
     )
 
 
 def create_contract_with_storage_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
-        shard_state, key, from_address, to_full_shard_id, CONTRACT_WITH_STORAGE
+        shard_state, key, from_address, to_full_shard_key, CONTRACT_WITH_STORAGE
     )
 
 

@@ -251,9 +251,10 @@ class Optional:
 
 
 class EnumSerializer:
-    ''' EnumSerializer.
+    """ EnumSerializer.
     The enum field must be the first field to be serialized/deserialized.
-    '''
+    """
+
     def __init__(self, enum_field, enum_dict, size=4):
         self.enum_field = enum_field
         self.enum_dict = enum_dict
@@ -265,8 +266,9 @@ class EnumSerializer:
             raise ValueError("Cannot recognize enum value: " + str((enum)))
         if type(obj) != self.enum_dict[enum]:
             raise ValueError(
-                "Incorrect enum value, expect %s, actual %s: " % (
-                    type(self.enum_dict[enum]), type(obj)))
+                "Incorrect enum value, expect %s, actual %s: "
+                % (type(self.enum_dict[enum]), type(obj))
+            )
         obj.serialize(barray)
 
     def deserialize(self, bb):
@@ -359,15 +361,15 @@ class Identity:
 
 
 class Address(Serializable):
-    FIELDS = [("recipient", FixedSizeBytesSerializer(20)), ("full_shard_id", uint32)]
+    FIELDS = [("recipient", FixedSizeBytesSerializer(20)), ("full_shard_key", uint32)]
 
-    def __init__(self, recipient: bytes, full_shard_id: int) -> None:
+    def __init__(self, recipient: bytes, full_shard_key: int) -> None:
         """
         recipient is 20 bytes SHA3 of public key
         shard_id is uint32_t
         """
         self.recipient = recipient
-        self.full_shard_id = full_shard_id
+        self.full_shard_key = full_shard_key
 
     def to_hex(self):
         return self.serialize().hex()
@@ -375,37 +377,39 @@ class Address(Serializable):
     def get_shard_id(self, shard_size):
         if not is_p2(shard_size):
             raise RuntimeError("Invalid shard size {}".format(shard_size))
-        return self.full_shard_id & (shard_size - 1)
+        return self.full_shard_key & (shard_size - 1)
 
-    def address_in_shard(self, full_shard_id):
-        return Address(self.recipient, full_shard_id)
+    def address_in_shard(self, full_shard_key):
+        return Address(self.recipient, full_shard_key)
 
     def address_in_branch(self, branch):
         return Address(
             self.recipient,
-            (self.full_shard_id & ~(branch.get_shard_size() - 1))
+            (self.full_shard_key & ~(branch.get_shard_size() - 1))
             + branch.get_shard_id(),
         )
 
     @staticmethod
-    def create_from_identity(identity: Identity, full_shard_id=None):
-        if full_shard_id is None:
+    def create_from_identity(identity: Identity, full_shard_key=None):
+        if full_shard_key is None:
             r = identity.get_recipient()
-            full_shard_id = int.from_bytes(r[0:1] + r[5:6] + r[10:11] + r[15:16], "big")
-        return Address(identity.get_recipient(), full_shard_id)
+            full_shard_key = int.from_bytes(
+                r[0:1] + r[5:6] + r[10:11] + r[15:16], "big"
+            )
+        return Address(identity.get_recipient(), full_shard_key)
 
     @staticmethod
-    def create_random_account(full_shard_id=None):
+    def create_random_account(full_shard_key=None):
         """ An account is a special address with default shard that the
         account should be in.
         """
         return Address.create_from_identity(
-            Identity.create_random_identity(), full_shard_id
+            Identity.create_random_identity(), full_shard_key
         )
 
     @staticmethod
-    def create_empty_account(full_shard_id=0):
-        return Address(bytes(20), full_shard_id)
+    def create_empty_account(full_shard_key=0):
+        return Address(bytes(20), full_shard_key)
 
     @staticmethod
     def create_from(bs):
@@ -450,8 +454,8 @@ class Branch(Serializable):
     def get_shard_id(self):
         return self.value ^ self.get_shard_size()
 
-    def is_in_shard(self, full_shard_id):
-        return (full_shard_id & (self.get_shard_size() - 1)) == self.get_shard_id()
+    def is_in_shard(self, full_shard_key):
+        return (full_shard_key & (self.get_shard_size() - 1)) == self.get_shard_id()
 
     @staticmethod
     def create(shard_size: int, shard_id: int):
@@ -812,10 +816,10 @@ class MinorBlock(Serializable):
         receipt = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
         if receipt.contract_address != b"":
             contract_address = Address(
-                receipt.contract_address, receipt.contract_full_shard_id
+                receipt.contract_address, receipt.contract_full_shard_key
             )
         else:
-            contract_address = Address.create_empty_account(full_shard_id=0)
+            contract_address = Address.create_empty_account(full_shard_key=0)
 
         if i > 0:
             prev_gas_used = rlp.decode(
@@ -852,7 +856,7 @@ class MinorBlock(Serializable):
     ):
         if address is None:
             address = Address.create_empty_account(
-                full_shard_id=self.header.coinbase_address.full_shard_id
+                full_shard_key=self.header.coinbase_address.full_shard_key
             )
         meta = MinorBlockMeta()
 

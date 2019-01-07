@@ -39,7 +39,7 @@ class TestShardState(unittest.TestCase):
 
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
-        acc_list = [Address.create_from_identity(i, full_shard_id=0) for i in id_list]
+        acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
         env = get_test_env(genesis_account=acc_list[0], genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
@@ -70,8 +70,8 @@ class TestShardState(unittest.TestCase):
 
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         tx_gen = lambda data: create_transfer_transaction(
@@ -91,8 +91,8 @@ class TestShardState(unittest.TestCase):
 
     def test_execute_tx(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         tx = create_transfer_transaction(
@@ -109,8 +109,8 @@ class TestShardState(unittest.TestCase):
 
     def test_add_tx_incorrect_from_shard_id(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=1)
-        acc2 = Address.create_random_account(full_shard_id=1)
+        acc1 = Address.create_from_identity(id1, full_shard_key=1)
+        acc2 = Address.create_random_account(full_shard_key=1)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         # state is shard 0 but tx from shard 1
@@ -126,9 +126,9 @@ class TestShardState(unittest.TestCase):
 
     def test_one_tx(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -186,9 +186,9 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(r.success, b"\x01")
         self.assertEqual(r.gas_used, 21000)
 
-        # Check Account has full_shard_id
+        # Check Account has full_shard_key
         self.assertEqual(
-            state.evm_state.get_full_shard_id(acc2.recipient), acc2.full_shard_id
+            state.evm_state.get_full_shard_key(acc2.recipient), acc2.full_shard_key
         )
 
         tx_list, _ = state.db.get_transactions_by_address(acc1)
@@ -198,9 +198,9 @@ class TestShardState(unittest.TestCase):
 
     def test_duplicated_tx(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -253,8 +253,8 @@ class TestShardState(unittest.TestCase):
 
     def test_add_invalid_tx_fail(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -271,9 +271,9 @@ class TestShardState(unittest.TestCase):
 
     def test_add_non_neighbor_tx_fail(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=3)  # not acc1's neighbor
-        acc3 = Address.create_random_account(full_shard_id=8)  # acc1's neighbor
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=3)  # not acc1's neighbor
+        acc3 = Address.create_random_account(full_shard_key=8)  # acc1's neighbor
 
         env = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
@@ -304,9 +304,9 @@ class TestShardState(unittest.TestCase):
 
     def test_exceeding_xshard_limit(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=1)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=1)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         # a huge number to make xshard tx limit become 0 so that no xshard tx can be
@@ -345,9 +345,9 @@ class TestShardState(unittest.TestCase):
     def test_two_tx_in_one_block(self):
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id2, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=2000000 + opcodes.GTXCOST
@@ -373,9 +373,9 @@ class TestShardState(unittest.TestCase):
             opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
         )
 
-        # Check Account has full_shard_id
+        # Check Account has full_shard_key
         self.assertEqual(
-            state.evm_state.get_full_shard_id(acc2.recipient), acc2.full_shard_id
+            state.evm_state.get_full_shard_key(acc2.recipient), acc2.full_shard_key
         )
 
         state.add_tx(
@@ -384,7 +384,7 @@ class TestShardState(unittest.TestCase):
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=Address(
-                    acc2.recipient, acc2.full_shard_id + 2
+                    acc2.recipient, acc2.full_shard_key + 2
                 ),  # set a different full shard id
                 value=12345,
                 gas=50000,
@@ -435,18 +435,18 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(block, b1)
         self.assertEqual(i, 1)
 
-        # Check acc2 full_shard_id doesn't change
+        # Check acc2 full_shard_key doesn't change
         self.assertEqual(
-            state.evm_state.get_full_shard_id(acc2.recipient), acc2.full_shard_id
+            state.evm_state.get_full_shard_key(acc2.recipient), acc2.full_shard_key
         )
 
     def test_fork_does_not_confirm_tx(self):
         """Tx should only be confirmed and removed from tx queue by the best chain"""
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id2, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=2000000 + opcodes.GTXCOST
@@ -483,9 +483,9 @@ class TestShardState(unittest.TestCase):
         """Tx in the reverted chain should be put back to the queue"""
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id2, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=2000000 + opcodes.GTXCOST
@@ -530,8 +530,8 @@ class TestShardState(unittest.TestCase):
 
     def test_stale_block_count(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -548,9 +548,9 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_tx_sent(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=1)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
@@ -609,9 +609,9 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_tx_insufficient_gas(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=1)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
@@ -633,9 +633,9 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_tx_received(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=16)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env0 = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
@@ -716,9 +716,9 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_tx_received_exclude_non_neighbor(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=3)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=3)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env0 = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
@@ -784,9 +784,9 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_for_two_root_blocks(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=1)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -909,7 +909,7 @@ class TestShardState(unittest.TestCase):
 
     def test_fork_resolve(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
@@ -931,7 +931,7 @@ class TestShardState(unittest.TestCase):
 
     def test_root_chain_first_consensus(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -977,7 +977,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_add_root_block(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -1062,7 +1062,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_add_root_block_too_many_minor_blocks(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=1
@@ -1093,7 +1093,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_fork_resolve_with_higher_root_chain(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
@@ -1161,7 +1161,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_recovery_from_root_block(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
@@ -1211,7 +1211,7 @@ class TestShardState(unittest.TestCase):
     def test_add_block_receipt_root_not_match(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1)
-        acc3 = Address.create_random_account(full_shard_id=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -1248,7 +1248,7 @@ class TestShardState(unittest.TestCase):
         are not on the same root chain.
         """
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
@@ -1300,7 +1300,7 @@ class TestShardState(unittest.TestCase):
         Adding r3 should change the root_tip to r3, header_tip to m2
         """
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 

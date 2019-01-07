@@ -11,13 +11,12 @@ ADDRESS = "008aeeda4d805471df9b2a5b0f38a0c3bcba786b00802ac3"
 
 
 class TestAccount(unittest.TestCase):
-
     def test_create_account_with_key(self):
         account = Account.new(key=PRIVATE_KEY)
         assert account.privkey == PRIVATE_KEY
         assert account.address == ADDRESS
         # check integer version of full shard id matches
-        assert account.qkc_address.full_shard_id == int(ADDRESS[40:], 16)
+        assert account.qkc_address.full_shard_key == int(ADDRESS[40:], 16)
 
     def test_create_random_account(self):
         account = Account.new()
