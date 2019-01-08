@@ -66,8 +66,8 @@ def create_transaction(address, key, nonce, to, network_id, amount) -> EvmTransa
         to=to.recipient,
         value=int(amount) * (10 ** 18),
         data=b"",
-        from_full_shard_id=address.full_shard_id,
-        to_full_shard_id=to.full_shard_id,
+        from_full_shard_key=address.full_shard_key,
+        to_full_shard_key=to.full_shard_key,
         network_id=network_id,
     )
     evm_tx.sign(key)
@@ -81,7 +81,7 @@ async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
     tx_id = await endpoint.send_transaction(tx)
     cnt = 0
     while True:
-        addr = "0x" + to.recipient.hex() + hex(to.full_shard_id)[2:]
+        addr = "0x" + to.recipient.hex() + hex(to.full_shard_key)[2:]
         print("shard={} tx={} to={} block=(pending)".format(shard, tx_id, addr))
         await asyncio.sleep(5)
         resp = await endpoint.get_transaction_receipt(tx_id)

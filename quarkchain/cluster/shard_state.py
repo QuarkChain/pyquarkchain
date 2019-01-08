@@ -218,7 +218,7 @@ class ShardState:
         evm_tx = tx.code.get_evm_transaction()
 
         if from_address:
-            check(evm_tx.from_full_shard_id == from_address.full_shard_id)
+            check(evm_tx.from_full_shard_key == from_address.full_shard_key)
             nonce = evm_state.get_nonce(from_address.recipient)
             # have to create a new evm_tx as nonce is immutable
             evm_tx = EvmTransaction(
@@ -228,8 +228,8 @@ class ShardState:
                 evm_tx.to,
                 evm_tx.value,
                 evm_tx.data,
-                from_full_shard_id=evm_tx.from_full_shard_id,
-                to_full_shard_id=evm_tx.to_full_shard_id,
+                from_full_shard_key=evm_tx.from_full_shard_key,
+                to_full_shard_key=evm_tx.to_full_shard_key,
                 network_id=evm_tx.network_id,
             )
             evm_tx.sender = from_address.recipient
@@ -305,7 +305,7 @@ class ShardState:
             state.block_number
         ] = []  # TODO [x.hash for x in block.uncles]
         # TODO: Create a account with shard info if the account is not created
-        # Right now the full_shard_id for coinbase actually comes from the first tx that got applied
+        # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = block.header.coinbase_address.recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
@@ -472,7 +472,7 @@ class ShardState:
             raise ValueError("incorrect merkle root")
 
         # Check the first transaction of the block
-        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_id):
+        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_key):
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
@@ -483,7 +483,7 @@ class ShardState:
             if diff != block.header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_id):
+        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_key):
             raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
@@ -1221,7 +1221,7 @@ class ShardState:
             tx_list.extend(xshard_tx_list.tx_list)
 
         # Apply root block coinbase
-        if self.branch.is_in_shard(r_block.header.coinbase_address.full_shard_id):
+        if self.branch.is_in_shard(r_block.header.coinbase_address.full_shard_key):
             tx_list.append(
                 CrossShardTransactionDeposit(
                     tx_hash=bytes(32),
@@ -1336,8 +1336,8 @@ class ShardState:
         if receipt.contract_address != Address.create_empty_account(0):
             address = receipt.contract_address
             check(
-                address.full_shard_id
-                == self.evm_state.get_full_shard_id(address.recipient)
+                address.full_shard_key
+                == self.evm_state.get_full_shard_key(address.recipient)
             )
         return block, index, receipt
 
@@ -1349,12 +1349,12 @@ class ShardState:
             tx_list = []
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
-                if Address(tx.sender, tx.from_full_shard_id) == address:
+                if Address(tx.sender, tx.from_full_shard_key) == address:
                     tx_list.append(
                         TransactionDetail(
                             Transaction(code=Code.create_evm_code(tx)).get_hash(),
                             address,
-                            Address(tx.to, tx.to_full_shard_id) if tx.to else None,
+                            Address(tx.to, tx.to_full_shard_key) if tx.to else None,
                             tx.value,
                             block_height=0,
                             timestamp=0,
@@ -1405,7 +1405,7 @@ class ShardState:
         end_block: int,
     ) -> Optional[List[Log]]:
         if addresses and (
-            len(set(addr.full_shard_id for addr in addresses)) != 1
+            len(set(addr.full_shard_key for addr in addresses)) != 1
             or addresses[0].get_shard_id(self.branch.get_shard_size()) != self.shard_id
         ):
             # should have the same shard Id for the given addresses

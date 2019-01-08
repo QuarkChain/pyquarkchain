@@ -12,7 +12,7 @@ from quarkchain.utils import call_async, assert_true_with_timeout
 class TestCluster(unittest.TestCase):
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
         with ClusterContext(1, acc1) as clusters:
             self.assertEqual(len(clusters), 1)
 
@@ -54,10 +54,10 @@ class TestCluster(unittest.TestCase):
 
     def test_get_next_block_to_mine(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=1)
-        acc4 = Address.create_random_account(full_shard_id=1)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=1)
+        acc4 = Address.create_random_account(full_shard_key=1)
 
         with ClusterContext(1, acc1) as clusters:
             master = clusters[0].master
@@ -140,8 +140,8 @@ class TestCluster(unittest.TestCase):
 
     def test_get_primary_account_data(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_random_account(full_shard_id=1)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=1)
 
         with ClusterContext(1, acc1) as clusters:
             master = clusters[0].master
@@ -183,8 +183,8 @@ class TestCluster(unittest.TestCase):
 
     def test_add_transaction(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc2 = Address.create_from_identity(id1, full_shard_id=1)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
 
         with ClusterContext(2, acc1) as clusters:
             master = clusters[0].master
@@ -224,7 +224,7 @@ class TestCluster(unittest.TestCase):
 
     def test_add_minor_block_request_list(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(2, acc1) as clusters:
             shard_state = clusters[0].slave_list[0].shards[Branch(0b10)].state
@@ -273,7 +273,7 @@ class TestCluster(unittest.TestCase):
 
     def test_add_root_block_request_list(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(2, acc1) as clusters:
             # shutdown cluster connection
@@ -383,7 +383,7 @@ class TestCluster(unittest.TestCase):
 
     def test_shard_synchronizer_with_fork(self):
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(2, acc1) as clusters:
             # shutdown cluster connection
@@ -547,8 +547,8 @@ class TestCluster(unittest.TestCase):
     def test_broadcast_cross_shard_transactions(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
-        acc3 = Address.create_random_account(full_shard_id=1)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=1)
 
         with ClusterContext(1, acc1) as clusters:
             master = clusters[0].master
@@ -649,7 +649,7 @@ class TestCluster(unittest.TestCase):
     def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
         """ Test the broadcast is only done to the neighbors """
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         # create 64 shards so that the neighbor rule can kick in
         # explicitly set num_slaves to 4 so that it does not spin up 64 slaves

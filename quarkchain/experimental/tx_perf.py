@@ -75,8 +75,8 @@ def test_perf_evm():
             to=to_addr.recipient,
             value=3,
             data=b"",
-            from_full_shard_id=0,
-            to_full_shard_id=0,
+            from_full_shard_key=0,
+            to_full_shard_key=0,
             network_id=1,
         )
         evm_tx.sign(key=from_id.get_key())

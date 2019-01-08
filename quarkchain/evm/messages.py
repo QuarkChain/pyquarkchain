@@ -91,7 +91,7 @@ class Receipt(rlp.Serializable):
         ("bloom", int256),
         ("logs", CountableList(Log)),
         ("contract_address", Binary.fixed_length(20, allow_empty=True)),
-        ("contract_full_shard_id", BigEndianInt(4)),
+        ("contract_full_shard_key", BigEndianInt(4)),
     ]
 
     @property
@@ -100,7 +100,7 @@ class Receipt(rlp.Serializable):
         return bloom.bloom_from_list(utils.flatten(bloomables))
 
 
-def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
+def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     bloomables = [x.bloomables() for x in logs]
     ret_bloom = bloom.bloom_from_list(utils.flatten(bloomables))
     o = Receipt(
@@ -109,7 +109,7 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
         bloom=ret_bloom,
         logs=logs,
         contract_address=contract_address,
-        contract_full_shard_id=contract_full_shard_id,
+        contract_full_shard_key=contract_full_shard_key,
     )
     return o
 
@@ -194,7 +194,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     state.refunds = 0
     validate_transaction(state, tx)
 
-    state.full_shard_id = tx.to_full_shard_id
+    state.full_shard_key = tx.to_full_shard_key
 
     intrinsic_gas = tx.intrinsic_gas_used
     log_tx.debug("TX NEW", txdict=tx.to_dict())
@@ -221,8 +221,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         message_data,
         code_address=tx.to,
         is_cross_shard=tx.is_cross_shard(),
-        from_full_shard_id=tx.from_full_shard_id,
-        to_full_shard_id=tx.to_full_shard_id,
+        from_full_shard_key=tx.from_full_shard_key,
+        to_full_shard_key=tx.to_full_shard_key,
         tx_hash=tx_wrapper_hash,
     )
 
@@ -306,7 +306,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.commit()
 
     # Construct a receipt
-    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_id)
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
     state.logs = []
     state.add_receipt(r)
     state.set_param("bloom", state.bloom | r.bloom)
@@ -399,9 +399,9 @@ def _apply_msg(ext, msg, code):
                 quarkchain.core.CrossShardTransactionDeposit(
                     tx_hash=msg.tx_hash,
                     from_address=quarkchain.core.Address(
-                        msg.sender, msg.from_full_shard_id
+                        msg.sender, msg.from_full_shard_key
                     ),
-                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_id),
+                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                     value=msg.value,
                     gas_price=ext.tx_gasprice,
                 )
@@ -439,9 +439,9 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
-def mk_contract_address(sender, full_shard_id, nonce):
+def mk_contract_address(sender, full_shard_key, nonce):
     return utils.sha3(
-        rlp.encode([utils.normalize_address(sender), full_shard_id, nonce])
+        rlp.encode([utils.normalize_address(sender), full_shard_key, nonce])
     )[12:]
 
 
@@ -457,11 +457,11 @@ def create_contract(ext, msg):
         ext.increment_nonce(msg.sender)
 
     if ext.post_constantinople_hardfork() and msg.sender == null_address:
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, 0)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, 0)
         # msg.to = sha3(msg.sender + code)[12:]
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, nonce)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, nonce)
 
     if ext.post_metropolis_hardfork() and (
         ext.get_nonce(msg.to) or len(ext.get_code(msg.to))

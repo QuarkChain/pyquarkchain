@@ -81,8 +81,8 @@ class Message(object):
         transfers_value=True,
         static=False,
         is_cross_shard=False,
-        from_full_shard_id=None,
-        to_full_shard_id=None,
+        from_full_shard_key=None,
+        to_full_shard_key=None,
         tx_hash=None,
     ):
         self.sender = sender
@@ -101,8 +101,8 @@ class Message(object):
         self.transfers_value = transfers_value
         self.static = static
         self.is_cross_shard = is_cross_shard
-        self.from_full_shard_id = from_full_shard_id
-        self.to_full_shard_id = to_full_shard_id
+        self.from_full_shard_key = from_full_shard_key
+        self.to_full_shard_key = to_full_shard_key
         self.tx_hash = (
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
@@ -690,7 +690,7 @@ def vm_execute(ext, msg, code):
                     ingas,
                     cd,
                     msg.depth + 1,
-                    to_full_shard_id=msg.from_full_shard_id,
+                    to_full_shard_key=msg.from_full_shard_key,
                 )
                 o, gas, data = ext.create(create_msg)
                 if o:

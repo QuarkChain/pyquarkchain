@@ -55,7 +55,7 @@ STATE_DEFAULTS = {
     "prev_headers": [],
     "refunds": 0,
     "xshard_list": [],
-    "full_shard_id": 0,  # should be updated before applying each tx
+    "full_shard_key": 0,  # should be updated before applying each tx
 }
 
 
@@ -65,25 +65,25 @@ class _Account(rlp.Serializable):
         ("balance", big_endian_int),
         ("storage", trie_root),
         ("code_hash", hash32),
-        ("full_shard_id", BigEndianInt(4)),
+        ("full_shard_key", BigEndianInt(4)),
     ]
 
 
 class Account(rlp.Serializable):
     def __init__(
-        self, nonce, balance, storage, code_hash, full_shard_id, env, address, db=None
+        self, nonce, balance, storage, code_hash, full_shard_key, env, address, db=None
     ):
         self.db = env.db if db is None else db
         assert isinstance(db, Db)
         self.env = env
         self.address = address
 
-        acc = _Account(nonce, balance, storage, code_hash, full_shard_id)
+        acc = _Account(nonce, balance, storage, code_hash, full_shard_key)
         self.nonce = acc.nonce
         self.balance = acc.balance
         self.storage = acc.storage
         self.code_hash = acc.code_hash
-        self.full_shard_id = acc.full_shard_id
+        self.full_shard_key = acc.full_shard_key
 
         self.storage_cache = {}
         self.storage_trie = SecureTrie(Trie(self.db))
@@ -126,7 +126,7 @@ class Account(rlp.Serializable):
         self.storage_cache[key] = value
 
     @classmethod
-    def blank_account(cls, env, address, full_shard_id, initial_nonce=0, db=None):
+    def blank_account(cls, env, address, full_shard_key, initial_nonce=0, db=None):
         if db is None:
             db = env.db
         db.put(BLANK_HASH, b"")
@@ -135,7 +135,7 @@ class Account(rlp.Serializable):
             0,
             trie.BLANK_ROOT,
             BLANK_HASH,
-            full_shard_id,
+            full_shard_key,
             env,
             address,
             db=db,
@@ -234,7 +234,7 @@ class State:
                 balance=o.balance,
                 storage=o.storage,
                 code_hash=o.code_hash,
-                full_shard_id=o.full_shard_id,
+                full_shard_key=o.full_shard_key,
                 env=self.env,
                 address=address,
                 db=self.db,
@@ -243,7 +243,7 @@ class State:
             o = Account.blank_account(
                 self.env,
                 address,
-                self.full_shard_id,
+                self.full_shard_key,
                 self.config["ACCOUNT_INITIAL_NONCE"],
                 db=self.db,
             )
@@ -261,10 +261,10 @@ class State:
     def get_nonce(self, address):
         return self.get_and_cache_account(utils.normalize_address(address)).nonce
 
-    def get_full_shard_id(self, address):
+    def get_full_shard_key(self, address):
         return self.get_and_cache_account(
             utils.normalize_address(address)
-        ).full_shard_id
+        ).full_shard_key
 
     def set_and_journal(self, acct, param, val):
         # self.journal.append((acct, param, getattr(acct, param)))
@@ -453,7 +453,7 @@ class State:
                         acct.balance,
                         acct.storage,
                         acct.code_hash,
-                        acct.full_shard_id,
+                        acct.full_shard_key,
                     )
                     self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:

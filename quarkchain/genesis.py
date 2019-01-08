@@ -49,7 +49,7 @@ class GenesisManager:
         for address_hex, amount_in_wei in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
             check(address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
-            evm_state.full_shard_id = address.full_shard_id
+            evm_state.full_shard_key = address.full_shard_key
             evm_state.delta_balance(address.recipient, amount_in_wei)
 
         evm_state.commit()
