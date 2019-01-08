@@ -838,14 +838,16 @@ class SlaveServer:
         """ Create shards based on GENESIS config and root block height if they have
         not been created yet."""
         futures = []
-        for shard_id, shard_config in enumerate(self.env.quark_chain_config.SHARD_LIST):
-            branch = Branch.create(self.env.quark_chain_config.SHARD_SIZE, shard_id)
+        for (full_shard_id, shard_config) in self.env.quark_chain_config.SHARDS.items():
+            branch = Branch.create(
+                self.env.quark_chain_config.SHARD_SIZE, full_shard_id
+            )
             if branch in self.shards:
                 continue
-            if not self.__cover_shard_id(shard_id) or not shard_config.GENESIS:
+            if not self.__cover_shard_id(full_shard_id) or not shard_config.GENESIS:
                 continue
             if root_block.header.height >= shard_config.GENESIS.ROOT_HEIGHT:
-                shard = Shard(self.env, shard_id, self)
+                shard = Shard(self.env, full_shard_id, self)
                 futures.append(shard.init_from_root_block(root_block))
                 self.shards[branch] = shard
                 if self.mining:
@@ -941,16 +943,18 @@ class SlaveServer:
         xshard_map = dict()  # type: Dict[Branch, List[CrossShardTransactionDeposit]]
 
         # only broadcast to the shards that have been initialized
-        initialized_shard_ids = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+        initialized_full_shard_ids = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
             prev_root_height
         )
-        for shard_id in initialized_shard_ids:
-            branch = Branch.create(self.__get_shard_size(), shard_id)
+        for full_shard_id in initialized_full_shard_ids:
+            branch = Branch(full_shard_id)
             xshard_map[branch] = []
 
         for xshard_tx in xshard_tx_list:
-            shard_id = xshard_tx.to_address.get_full_shard_id(self.__get_shard_size())
-            branch = Branch.create(self.__get_shard_size(), shard_id)
+            full_shard_id = xshard_tx.to_address.get_full_shard_id(
+                self.__get_shard_size()
+            )
+            branch = Branch(full_shard_id)
             check(branch in xshard_map)
             xshard_map[branch].append(xshard_tx)
 

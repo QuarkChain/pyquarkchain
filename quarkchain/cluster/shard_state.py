@@ -58,11 +58,11 @@ class ShardState:
     - reshard by split
     """
 
-    def __init__(self, env, shard_id, db=None, diff_calc=None):
+    def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
         self.env = env
-        self.shard_id = shard_id
+        self.full_shard_id = full_shard_id
         if not diff_calc:
-            shard_config = self.env.quark_chain_config.SHARD_LIST[shard_id]
+            shard_config = self.env.quark_chain_config.SHARDS[full_shard_id]
             cutoff = shard_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
             diff_factor = shard_config.DIFFICULTY_ADJUSTMENT_FACTOR
             min_diff = shard_config.GENESIS.DIFFICULTY
@@ -73,7 +73,7 @@ class ShardState:
         self.diff_calc = diff_calc
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
-        self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, shard_id)
+        self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, full_shard_id)
         self.db = ShardDbOperator(self.raw_db, self.env, self.branch)
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
@@ -104,28 +104,28 @@ class ShardState:
 
         check(
             root_block.header.height
-            > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+            > self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         )
         check(not self.initialized)
         self.initialized = True
 
         Logger.info(
             "[{}] Initializing shard state from root height {} hash {}".format(
-                self.shard_id,
+                self.full_shard_id,
                 root_block.header.height,
                 root_block.header.get_hash().hex(),
             )
         )
 
         shard_size = root_block.header.shard_info.get_shard_size()
-        check(self.branch == Branch.create(shard_size, self.shard_id))
+        check(self.branch == Branch.create(shard_size, self.full_shard_id))
         self.root_tip = root_block.header
         self.header_tip = __get_header_tip_from_root_block(self.branch)
 
         self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
             "[{}] Done recovery from db. shard tip {} {}, root tip {} {}".format(
-                self.shard_id,
+                self.full_shard_id,
                 self.header_tip.height,
                 self.header_tip.get_hash().hex(),
                 self.root_tip.height,
@@ -158,12 +158,12 @@ class ShardState:
         with the same height), create and store the new genesis block from root_block
         without modifying the in-memory state of this ShardState object.
         """
-        height = self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        height = self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         check(root_block.header.height == height)
 
         genesis_manager = GenesisManager(self.env.quark_chain_config)
         genesis_block = genesis_manager.create_minor_block(
-            root_block, self.shard_id, self.__create_evm_state()
+            root_block, self.full_shard_id, self.__create_evm_state()
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -188,7 +188,7 @@ class ShardState:
 
         Logger.info(
             "[{}] Initialized genensis state at root block {} {}, genesis block hash {}".format(
-                self.shard_id,
+                self.full_shard_id,
                 self.root_tip.height,
                 self.root_tip.get_hash().hex(),
                 self.header_tip.get_hash().hex(),
@@ -339,7 +339,7 @@ class ShardState:
             """
             Compute the boundaries for the block gas limit based on the parent block.
             """
-            shard_config = self.env.quark_chain_config.SHARD_LIST[
+            shard_config = self.env.quark_chain_config.SHARDS[
                 self.branch.get_full_shard_id()
             ]
             boundary_range = (
@@ -384,7 +384,7 @@ class ShardState:
 
         - use the GAS_LIMIT_MINIMUM as the new gas limit.
         """
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
+        shard_config = self.env.quark_chain_config.SHARDS[
             self.branch.get_full_shard_id()
         ]
         if gas_limit_floor < shard_config.GAS_LIMIT_MINIMUM:
@@ -518,8 +518,8 @@ class ShardState:
             raise ValueError("prev root blocks are not on the same chain")
 
         # Check PoW if applicable
-        consensus_type = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
+        consensus_type = self.env.quark_chain_config.SHARDS[
+            self.full_shard_id
         ].CONSENSUS_TYPE
         validate_seal(block.header, consensus_type)
 
@@ -651,7 +651,7 @@ class ShardState:
         start_ms = time_ms()
 
         if skip_if_too_old:
-            shard_config = self.env.quark_chain_config.SHARD_LIST[
+            shard_config = self.env.quark_chain_config.SHARDS[
                 self.branch.get_full_shard_id()
             ]
             if (
@@ -798,7 +798,7 @@ class ShardState:
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
         coinbase_amount = (
-            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_AMOUNT
+            self.env.quark_chain_config.SHARDS[self.full_shard_id].COINBASE_AMOUNT
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
@@ -920,7 +920,7 @@ class ShardState:
         return amount
 
     def __get_max_blocks_in_one_root_block(self) -> int:
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
+        shard_config = self.env.quark_chain_config.SHARDS[
             self.branch.get_full_shard_id()
         ]
         return shard_config.max_blocks_per_shard_in_one_root_block
@@ -997,7 +997,7 @@ class ShardState:
         block = prev_block.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
         )
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
+        shard_config = self.env.quark_chain_config.SHARDS[
             self.branch.get_full_shard_id()
         ]
         block.header.evm_gas_limit = self.__compute_gas_limit(
@@ -1082,7 +1082,7 @@ class ShardState:
         """
         check(
             root_block.header.height
-            > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+            > self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         )
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")
@@ -1106,7 +1106,9 @@ class ShardState:
                 if (
                     prev_root
                     and prev_root.header.height
-                    > self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+                    > self.env.quark_chain_config.get_genesis_root_height(
+                        self.full_shard_id
+                    )
                 ):
                     raise ValueError(
                         "cannot find x_shard tx list for {}-{} {}".format(
@@ -1216,7 +1218,9 @@ class ShardState:
             if (
                 not prev_root
                 or prev_root.header.height
-                <= self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+                <= self.env.quark_chain_config.get_genesis_root_height(
+                    self.full_shard_id
+                )
             ):
                 check(xshard_tx_list is None)
                 continue
@@ -1409,7 +1413,7 @@ class ShardState:
         if addresses and (
             len(set(addr.full_shard_key for addr in addresses)) != 1
             or addresses[0].get_full_shard_id(self.branch.get_shard_size())
-            != self.shard_id
+            != self.full_shard_id
         ):
             # should have the same shard Id for the given addresses
             return None

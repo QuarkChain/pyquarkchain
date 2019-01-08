@@ -108,6 +108,10 @@ class POWConfig(BaseConfig):
 
 
 class ShardConfig(BaseConfig):
+    CHAIN_ID = 0
+    SHARD_SIZE = 1
+    SHARD_ID = 0
+
     CONSENSUS_TYPE = ConsensusType.NONE
     # Only set when CONSENSUS_TYPE is not NONE
     CONSENSUS_CONFIG = None  # type: POWConfig
@@ -133,6 +137,9 @@ class ShardConfig(BaseConfig):
     def __init__(self):
         self._root_config = None
         self.GENESIS = ShardGenesis()
+
+    def get_full_shard_id(self) -> int:
+        return (self.CHAIN_ID << 16) | self.SHARD_SIZE | self.SHARD_ID
 
     @property
     def root_config(self):
@@ -254,7 +261,8 @@ class QuarkChainConfig(BaseConfig):
     SKIP_MINOR_DIFFICULTY_CHECK = False
 
     ROOT = None  # type: RootConfig
-    SHARD_LIST = None
+    # full_shard_id -> ShardConfig
+    SHARDS = None  # type: Dict[int, ShardConfig]
 
     # On mining rewards
     REWARD_TAX_RATE = 0.5  # percentage of rewards should go to root block mining
@@ -268,14 +276,17 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
         self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
-        self.SHARD_LIST = []  # type: List[ShardConfig]
+        self.SHARDS = dict()  # type: Dict[int, ShardConfig]
         for i in range(self.SHARD_SIZE):
             s = ShardConfig()
             s.root_config = self.ROOT
+            s.CHAIN_ID = 0
+            s.SHARD_SIZE = self.SHARD_SIZE
+            s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
-            self.SHARD_LIST.append(s)
+            self.SHARDS[s.get_full_shard_id()] = s
 
         self._cached_guardian_private_key = None
 
@@ -286,20 +297,22 @@ class QuarkChainConfig(BaseConfig):
         assert ret.denominator <= 100
         return ret
 
-    def get_genesis_root_height(self, shard_id) -> int:
+    def get_genesis_root_height(self, full_shard_id: int) -> int:
         """ Return the root block height at which the shard shall be created"""
-        return self.SHARD_LIST[shard_id].GENESIS.ROOT_HEIGHT
+        return self.SHARDS[full_shard_id].GENESIS.ROOT_HEIGHT
 
-    def get_genesis_shard_ids(self) -> List[int]:
+    def get_genesis_full_shard_ids(self) -> List[int]:
         """ Return a list of ids for shards that have GENESIS"""
-        return [i for i, config in enumerate(self.SHARD_LIST) if config.GENESIS]
+        return [i for i, config in self.SHARDS.items() if config.GENESIS]
 
-    def get_initialized_shard_ids_before_root_height(self, root_height) -> List[int]:
+    def get_initialized_full_shard_ids_before_root_height(
+        self, root_height: int
+    ) -> List[int]:
         """ Return a list of ids of the shards that have been initialized before a certain root height"""
         ids = []
-        for shard_id, config in enumerate(self.SHARD_LIST):
+        for full_shard_id, config in self.SHARDS.items():
             if config.GENESIS and config.GENESIS.ROOT_HEIGHT < root_height:
-                ids.append(shard_id)
+                ids.append(full_shard_id)
         return ids
 
     @property
@@ -335,29 +348,35 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
         self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
-        self.SHARD_LIST = []
+        self.SHARDS = dict()
         for i in range(self.SHARD_SIZE):
             s = ShardConfig()
             s.root_config = self.ROOT
+            s.CHAIN_ID = 0
+            s.SHARD_SIZE = self.SHARD_SIZE
+            s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
             s.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
-            self.SHARD_LIST.append(s)
+            self.SHARDS[s.get_full_shard_id()] = s
 
     def to_dict(self):
         ret = super().to_dict()
         ret["ROOT"] = self.ROOT.to_dict()
-        ret["SHARD_LIST"] = [s.to_dict() for s in self.SHARD_LIST]
+        ret["SHARDS"] = [s.to_dict() for s in self.SHARDS.values()]
         return ret
 
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
         config.ROOT = RootConfig.from_dict(config.ROOT)
-        config.SHARD_LIST = [ShardConfig.from_dict(s) for s in config.SHARD_LIST]
-        for s in config.SHARD_LIST:
-            s.root_config = config.ROOT
+        shards = dict()
+        for s in config.SHARDS:
+            shard_config = ShardConfig.from_dict(s)
+            shard_config.root_config = config.ROOT
+            shards[shard_config.get_full_shard_id()] = shard_config
+        config.SHARDS = shards
         return config
 
 

@@ -41,7 +41,7 @@
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
         },
-        "SHARD_LIST": [
+        "SHARDS": [
             {
                 "CONSENSUS_TYPE": "POW_ETHASH",
                 "CONSENSUS_CONFIG": {

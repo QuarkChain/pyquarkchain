@@ -606,7 +606,7 @@ class MasterServer:
 
         self.artificial_tx_config = ArtificialTxConfig(
             target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
-            target_minor_block_time=self.env.quark_chain_config.SHARD_LIST[
+            target_minor_block_time=self.env.quark_chain_config.SHARDS[
                 0
             ].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
@@ -853,16 +853,16 @@ class MasterServer:
                     # Filter out the ones unknown to the master
                     if not self.root_state.is_minor_block_validated(header.get_hash()):
                         break
-                    shard_id_to_header_list.setdefault(
+                    full_shard_id_to_header_list.setdefault(
                         headers_info.branch.get_full_shard_id(), []
                     ).append(header)
 
         header_list = []
-        shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
             self.root_state.tip.height + 1
         )
-        for shard_id in shard_ids_to_check:
-            headers = shard_id_to_header_list.get(shard_id, [])
+        for full_shard_id in full_shard_ids_to_check:
+            headers = full_shard_id_to_header_list.get(full_shard_id, [])
             header_list.extend(headers)
 
         return self.root_state.create_block_to_mine(header_list, address)
@@ -988,7 +988,7 @@ class MasterServer:
 
         check(
             len(branch_to_account_branch_data)
-            == len(self.env.quark_chain_config.get_genesis_shard_ids())
+            == len(self.env.quark_chain_config.get_genesis_full_shard_ids())
         )
         return branch_to_account_branch_data
 

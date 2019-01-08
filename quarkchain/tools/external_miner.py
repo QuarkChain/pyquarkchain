@@ -230,7 +230,7 @@ def main():
     for worker_i, shard_str in zip(cycle(range(args.worker)), args.shards):
         if shard_str.isnumeric():
             shard_i = int(shard_str)
-            c = config_json["QUARKCHAIN"]["SHARD_LIST"][shard_i]
+            c = config_json["QUARKCHAIN"]["SHARDS"][shard_i]
         else:
             shard_i = None
             c = config_json["QUARKCHAIN"]["ROOT"]

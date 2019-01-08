@@ -15,7 +15,7 @@ def create_default_state(env, diff_calc=None):
     s_state_list = []
     for shard_id in range(env.quark_chain_config.SHARD_SIZE):
         shard_state = ShardState(
-            env=env, shard_id=shard_id, db=quarkchain.db.InMemoryDb()
+            env=env, full_shard_id=shard_id, db=quarkchain.db.InMemoryDb()
         )
         shard_state.init_genesis_state(r_state.get_tip_block())
         s_state_list.append(shard_state)
@@ -244,7 +244,7 @@ class TestRootState(unittest.TestCase):
         )  # other network ids will skip difficulty check
         env.quark_chain_config.REWARD_TAX_RATE = 0.8
         env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
-        for c in env.quark_chain_config.SHARD_LIST:
+        for c in env.quark_chain_config.SHARDS:
             c.COINBASE_AMOUNT = 5
 
         r_state, s_states = create_default_state(env, diff_calc=diff_calc)
@@ -508,7 +508,7 @@ class TestRootState(unittest.TestCase):
         add_minor_block_to_cluster(s_states, m4)
 
         # Test recovery
-        s_state0_recovered = ShardState(env, shard_id=0, db=s_states[0].raw_db)
+        s_state0_recovered = ShardState(env, full_shard_id=0, db=s_states[0].raw_db)
         s_state0_recovered.init_from_root_block(root_block1)
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(s_states, m3)

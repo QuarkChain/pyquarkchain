@@ -18,23 +18,23 @@ class TestShardConfig(unittest.TestCase):
         config.ROOT.CONSENSUS_CONFIG = POWConfig()
         config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 60
 
-        config.SHARD_LIST = []
+        config.SHARDS = []
         for i in range(2):
             s = ShardConfig()
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARD_LIST.append(s)
+            config.SHARDS.append(s)
 
         for i in range(2):
             s = ShardConfig()
             s.CONSENSUS_TYPE = ConsensusType.POW_ETHASH
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 15
-            config.SHARD_LIST.append(s)
+            config.SHARDS.append(s)
 
         for i in range(1):
             s = ShardConfig()
-            config.SHARD_LIST.append(s)
+            config.SHARDS.append(s)
 
         expected_json = """{
     "SHARD_SIZE": 8,
@@ -70,7 +70,7 @@ class TestShardConfig(unittest.TestCase):
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
     },
-    "SHARD_LIST": [
+    "SHARDS": [
         {
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {

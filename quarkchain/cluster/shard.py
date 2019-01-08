@@ -226,7 +226,7 @@ class SyncTask:
         self.shard = shard_conn.shard
 
         shard_id = self.header.branch.get_full_shard_id()
-        shard_config = self.shard_state.env.quark_chain_config.SHARD_LIST[shard_id]
+        shard_config = self.shard_state.env.quark_chain_config.SHARDS[shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
     async def sync(self):
@@ -321,7 +321,7 @@ class SyncTask:
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
             shard_id = header.branch.get_full_shard_id()
-            consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
+            consensus_type = self.shard.env.quark_chain_config.SHARDS[
                 shard_id
             ].CONSENSUS_TYPE
             validate_seal(header, consensus_type)
@@ -370,12 +370,12 @@ class Synchronizer:
 
 
 class Shard:
-    def __init__(self, env, shard_id, slave):
+    def __init__(self, env, full_shard_id, slave):
         self.env = env
-        self.shard_id = shard_id
+        self.full_shard_id = full_shard_id
         self.slave = slave
 
-        self.state = ShardState(env, shard_id, self.__init_shard_db())
+        self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
         self.loop = asyncio.get_event_loop()
         self.synchronizer = Synchronizer()
@@ -398,13 +398,13 @@ class Shard:
             return InMemoryDb()
 
         db_path = "{path}/shard-{shard_id}.db".format(
-            path=self.env.cluster_config.DB_PATH_ROOT, shard_id=self.shard_id
+            path=self.env.cluster_config.DB_PATH_ROOT, shard_id=self.full_shard_id
         )
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self):
         miner_address = Address.create_from(
-            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_ADDRESS
+            self.env.quark_chain_config.SHARDS[self.full_shard_id].COINBASE_ADDRESS
         )
 
         async def __create_block(retry=True):
@@ -430,8 +430,8 @@ class Shard:
                 "target_block_time": self.slave.artificial_tx_config.target_minor_block_time
             }
 
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
+        shard_config = self.env.quark_chain_config.SHARDS[
+            self.full_shard_id
         ]  # type: ShardConfig
         self.miner = Miner(
             shard_config.CONSENSUS_TYPE,
@@ -446,7 +446,7 @@ class Shard:
 
     @property
     def genesis_root_height(self):
-        return self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        return self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
 
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
@@ -523,7 +523,7 @@ class Shard:
                 return
 
         shard_id = block.header.branch.get_full_shard_id()
-        consensus_type = self.env.quark_chain_config.SHARD_LIST[shard_id].CONSENSUS_TYPE
+        consensus_type = self.env.quark_chain_config.SHARDS[shard_id].CONSENSUS_TYPE
         try:
             validate_seal(block.header, consensus_type)
         except Exception as e:
@@ -610,7 +610,7 @@ class Shard:
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
         for block in block_list:
-            check(block.header.branch.get_full_shard_id() == self.shard_id)
+            check(block.header.branch.get_full_shard_id() == self.full_shard_id)
 
             block_hash = block.header.get_hash()
             try:

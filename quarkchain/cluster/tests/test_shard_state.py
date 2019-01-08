@@ -15,7 +15,7 @@ from quarkchain.genesis import GenesisManager
 
 def create_default_shard_state(env, shard_id=0, diff_calc=None):
     genesis_manager = GenesisManager(env.quark_chain_config)
-    shard_state = ShardState(env=env, shard_id=shard_id, diff_calc=diff_calc)
+    shard_state = ShardState(env=env, full_shard_id=shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
 
@@ -25,7 +25,7 @@ class TestShardState(unittest.TestCase):
         super().setUp()
         config = get_test_env().quark_chain_config
         self.root_coinbase = config.ROOT.COINBASE_AMOUNT
-        self.shard_coinbase = config.SHARD_LIST[0].COINBASE_AMOUNT
+        self.shard_coinbase = config.SHARDS[0].COINBASE_AMOUNT
         # to make test verification easier, assume following tax rate
         assert config.REWARD_TAX_RATE == 0.5
 
@@ -1128,7 +1128,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_difficulty(self):
         env = get_test_env()
-        for shard in env.quark_chain_config.SHARD_LIST:
+        for shard in env.quark_chain_config.SHARDS:
             shard.GENESIS.DIFFICULTY = 10000
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
@@ -1186,7 +1186,7 @@ class TestShardState(unittest.TestCase):
 
         state.add_root_block(root_block)
 
-        recoveredState = ShardState(env=env, shard_id=0)
+        recoveredState = ShardState(env=env, full_shard_id=0)
 
         recoveredState.init_from_root_block(root_block)
         # forks are pruned

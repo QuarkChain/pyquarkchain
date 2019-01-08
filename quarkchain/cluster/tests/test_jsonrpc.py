@@ -787,7 +787,7 @@ class TestJSONRPC(unittest.TestCase):
                 header_hash_hex = resp[0]
                 if shard_id is not None:  # shard 0
                     miner_address = Address.create_from(
-                        master.env.quark_chain_config.SHARD_LIST[0].COINBASE_ADDRESS
+                        master.env.quark_chain_config.SHARDS[0].COINBASE_ADDRESS
                     )
                 else:  # root
                     miner_address = Address.create_from(
