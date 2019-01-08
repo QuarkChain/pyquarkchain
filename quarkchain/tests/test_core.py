@@ -55,7 +55,7 @@ class TestBranch(unittest.TestCase):
     def test_branch(self):
         b = Branch.create(8, 6)
         self.assertEqual(b.get_shard_size(), 8)
-        self.assertEqual(b.get_full_shard_id(), 6)
+        self.assertEqual(b.get_full_shard_id(), 14)
 
 
 class TestShardInfo(unittest.TestCase):

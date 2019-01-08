@@ -448,16 +448,25 @@ class Branch(Serializable):
     def __init__(self, value: int):
         self.value = value
 
+    def get_chain_id(self):
+        return self.value >> 16
+
     def get_shard_size(self):
-        return 1 << (int_left_most_bit(self.value) - 1)
+        branch_value = self.value & ((1 << 16) - 1)
+        return 1 << (int_left_most_bit(branch_value) - 1)
 
     def get_full_shard_id(self):
-        return self.value ^ self.get_shard_size()
+        return self.value
 
-    def is_in_shard(self, full_shard_key):
-        return (
-            full_shard_key & (self.get_shard_size() - 1)
-        ) == self.get_full_shard_id()
+    def _get_shard_id(self):
+        branch_value = self.value & ((1 << 16) - 1)
+        return branch_value ^ self.get_shard_size()
+
+    def is_in_branch(self, full_shard_key: int):
+        chain_id_match = (full_shard_key >> 16) == self.get_chain_id()
+        if not chain_id_match:
+            return False
+        return (full_shard_key & (self.get_shard_size() - 1)) == self._get_shard_id()
 
     @staticmethod
     def create(shard_size: int, shard_id: int):

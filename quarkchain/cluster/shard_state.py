@@ -472,7 +472,7 @@ class ShardState:
             raise ValueError("incorrect merkle root")
 
         # Check the first transaction of the block
-        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_key):
+        if not self.branch.is_in_branch(block.header.coinbase_address.full_shard_key):
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
@@ -483,7 +483,7 @@ class ShardState:
             if diff != block.header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-        if not self.branch.is_in_shard(block.header.coinbase_address.full_shard_key):
+        if not self.branch.is_in_branch(block.header.coinbase_address.full_shard_key):
             raise ValueError("coinbase output must be in local shard")
 
         # Check whether the root header is in the root chain
@@ -1223,7 +1223,7 @@ class ShardState:
             tx_list.extend(xshard_tx_list.tx_list)
 
         # Apply root block coinbase
-        if self.branch.is_in_shard(r_block.header.coinbase_address.full_shard_key):
+        if self.branch.is_in_branch(r_block.header.coinbase_address.full_shard_key):
             tx_list.append(
                 CrossShardTransactionDeposit(
                     tx_hash=bytes(32),
