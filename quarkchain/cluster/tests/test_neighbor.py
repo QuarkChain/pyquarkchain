@@ -5,7 +5,6 @@ from quarkchain.cluster.neighbor import is_neighbor
 
 
 class TestNeighbor(unittest.TestCase):
-
     def test_is_neighbor_small_shard_size(self):
         b1 = Branch.create(32, 0)
         b2 = Branch.create(32, 7)

@@ -43,7 +43,7 @@ def validate_seal(
             block_header.get_hash_for_mining(), block_header.mixhash, nonce_bytes, diff
         ):
             raise ValueError("invalid pow proof")
-    elif consensus_type == ConsensusType.POW_SHA3SHA3:
+    elif consensus_type == ConsensusType.POW_DOUBLESHA256:
         target = (2 ** 256 // (diff or 1) - 1).to_bytes(32, byteorder="big")
         h = sha256(sha256(block_header.get_hash_for_mining() + nonce_bytes))
         if not h < target:
@@ -321,7 +321,7 @@ class Miner:
             ConsensusType.POW_SIMULATE: Simulate,
             ConsensusType.POW_ETHASH: Ethash,
             ConsensusType.POW_QKCHASH: Qkchash,
-            ConsensusType.POW_SHA3SHA3: DoubleSHA256,
+            ConsensusType.POW_DOUBLESHA256: DoubleSHA256,
         }
         progress = {}
 

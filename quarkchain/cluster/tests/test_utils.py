@@ -39,7 +39,7 @@ def get_test_env(
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
-        env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+        env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 10
 
     env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 40
@@ -59,7 +59,7 @@ def get_test_env(
         shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
         shard.DIFFICULTY_ADJUSTMENT_FACTOR = 512
         if remote_mining:
-            shard.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+            shard.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             shard.GENESIS.DIFFICULTY = 10
 
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True

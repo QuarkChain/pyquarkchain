@@ -21,7 +21,7 @@ class TestShardConfig(unittest.TestCase):
         config.SHARD_LIST = []
         for i in range(2):
             s = ShardConfig()
-            s.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+            s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
             config.SHARD_LIST.append(s)
 
@@ -72,7 +72,7 @@ class TestShardConfig(unittest.TestCase):
     },
     "SHARD_LIST": [
         {
-            "CONSENSUS_TYPE": "POW_SHA3SHA3",
+            "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10,
                 "REMOTE_MINE": false
@@ -103,7 +103,7 @@ class TestShardConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
-            "CONSENSUS_TYPE": "POW_SHA3SHA3",
+            "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10,
                 "REMOTE_MINE": false

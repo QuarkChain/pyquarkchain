@@ -93,13 +93,13 @@ class ShardGenesis(BaseConfig):
 class ConsensusType(Enum):
     NONE = 0  # no shard
     POW_ETHASH = 1
-    POW_SHA3SHA3 = 2
+    POW_DOUBLESHA256 = 2
     POW_SIMULATE = 3
     POW_QKCHASH = 4
 
     @classmethod
     def pow_types(cls):
-        return [cls.POW_ETHASH, cls.POW_SHA3SHA3, cls.POW_SIMULATE, cls.POW_QKCHASH]
+        return [cls.POW_ETHASH, cls.POW_DOUBLESHA256, cls.POW_SIMULATE, cls.POW_QKCHASH]
 
 
 class POWConfig(BaseConfig):
