@@ -138,7 +138,7 @@ class RootDb:
             shard_recipient_cnt = [dict() for _ in range(shard_size)]
 
         for header in block.minor_block_header_list:
-            shard = header.branch.get_shard_id()
+            shard = header.branch.get_full_shard_id()
             recipient = header.coinbase_address.recipient.hex()
             shard_recipient_cnt[shard][recipient] = (
                 shard_recipient_cnt[shard].get(recipient, 0) + 1
@@ -354,7 +354,7 @@ class RootState:
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         headers_map = dict()  # shard_id -> List[MinorBlockHeader]
         shard_id = (
-            block.minor_block_header_list[0].branch.get_shard_id()
+            block.minor_block_header_list[0].branch.get_full_shard_id()
             if block.minor_block_header_list
             else None
         )
@@ -362,7 +362,7 @@ class RootState:
             if not self.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise ValueError(
                     "minor block is not validated. {}-{}".format(
-                        m_header.branch.get_shard_id(), m_header.height
+                        m_header.branch.get_full_shard_id(), m_header.height
                     )
                 )
             if m_header.create_time > block.header.create_time:
@@ -379,12 +379,14 @@ class RootState:
                     "minor block's prev root block must be in the same chain"
                 )
 
-            if m_header.branch.get_shard_id() < shard_id:
+            if m_header.branch.get_full_shard_id() < shard_id:
                 raise ValueError("shard id must be ordered")
-            elif m_header.branch.get_shard_id() > shard_id:
-                shard_id = m_header.branch.get_shard_id()
+            elif m_header.branch.get_full_shard_id() > shard_id:
+                shard_id = m_header.branch.get_full_shard_id()
 
-            headers_map.setdefault(m_header.branch.get_shard_id(), []).append(m_header)
+            headers_map.setdefault(m_header.branch.get_full_shard_id(), []).append(
+                m_header
+            )
             # TODO: Add coinbase
 
         # check minor block headers are linked
@@ -393,7 +395,7 @@ class RootState:
         )
         prev_header_map = dict()  # shard_id -> MinorBlockHeader or None
         for header in prev_last_minor_block_header_list:
-            prev_header_map[header.branch.get_shard_id()] = header
+            prev_header_map[header.branch.get_full_shard_id()] = header
 
         shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
             block.header.height

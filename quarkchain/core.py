@@ -374,7 +374,7 @@ class Address(Serializable):
     def to_hex(self):
         return self.serialize().hex()
 
-    def get_shard_id(self, shard_size):
+    def get_full_shard_id(self, shard_size):
         if not is_p2(shard_size):
             raise RuntimeError("Invalid shard size {}".format(shard_size))
         return self.full_shard_key & (shard_size - 1)
@@ -386,7 +386,7 @@ class Address(Serializable):
         return Address(
             self.recipient,
             (self.full_shard_key & ~(branch.get_shard_size() - 1))
-            + branch.get_shard_id(),
+            + branch.get_full_shard_id(),
         )
 
     @staticmethod
@@ -451,11 +451,13 @@ class Branch(Serializable):
     def get_shard_size(self):
         return 1 << (int_left_most_bit(self.value) - 1)
 
-    def get_shard_id(self):
+    def get_full_shard_id(self):
         return self.value ^ self.get_shard_size()
 
     def is_in_shard(self, full_shard_key):
-        return (full_shard_key & (self.get_shard_size() - 1)) == self.get_shard_id()
+        return (
+            full_shard_key & (self.get_shard_size() - 1)
+        ) == self.get_full_shard_id()
 
     @staticmethod
     def create(shard_size: int, shard_id: int):
@@ -482,7 +484,7 @@ class ShardMask(Serializable):
         return (bit_mask & shard_id) == (self.value & bit_mask)
 
     def contain_branch(self, branch):
-        return self.contain_shard_id(branch.get_shard_id())
+        return self.contain_shard_id(branch.get_full_shard_id())
 
     def has_overlap(self, shard_mask):
         return masks_have_overlap(self.value, shard_mask.value)

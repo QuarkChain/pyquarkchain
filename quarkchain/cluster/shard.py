@@ -183,7 +183,7 @@ class PeerShardConnection(VirtualConnection):
 
         Logger.info(
             "[{}] received new tip with height {}".format(
-                m_header.branch.get_shard_id(), m_header.height
+                m_header.branch.get_full_shard_id(), m_header.height
             )
         )
         self.shard.synchronizer.add_task(m_header, self)
@@ -225,7 +225,7 @@ class SyncTask:
         self.shard_state = shard_conn.shard_state
         self.shard = shard_conn.shard
 
-        shard_id = self.header.branch.get_shard_id()
+        shard_id = self.header.branch.get_full_shard_id()
         shard_config = self.shard_state.env.quark_chain_config.SHARD_LIST[shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
@@ -251,7 +251,7 @@ class SyncTask:
             if self.shard_state.header_tip.height - height > self.max_staleness:
                 Logger.warning(
                     "[{}] abort syncing due to forking at very old block {} << {}".format(
-                        self.header.branch.get_shard_id(),
+                        self.header.branch.get_full_shard_id(),
                         height,
                         self.shard_state.header_tip.height,
                     )
@@ -264,7 +264,9 @@ class SyncTask:
                 return
             Logger.info(
                 "[{}] downloading headers from {} {}".format(
-                    self.shard_state.branch.get_shard_id(), height, block_hash.hex()
+                    self.shard_state.branch.get_full_shard_id(),
+                    height,
+                    block_hash.hex(),
                 )
             )
             block_header_list = await asyncio.wait_for(
@@ -272,7 +274,7 @@ class SyncTask:
             )
             Logger.info(
                 "[{}] downloaded {} headers from peer".format(
-                    self.shard_state.branch.get_shard_id(), len(block_header_list)
+                    self.shard_state.branch.get_full_shard_id(), len(block_header_list)
                 )
             )
             if not self.__validate_block_headers(block_header_list):
@@ -293,7 +295,7 @@ class SyncTask:
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
-                    self.shard_state.branch.get_shard_id(), len(block_chain)
+                    self.shard_state.branch.get_full_shard_id(), len(block_chain)
                 )
             )
             check(len(block_chain) == len(block_header_chain[:100]))
@@ -318,7 +320,7 @@ class SyncTask:
                 return False
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
-            shard_id = header.branch.get_shard_id()
+            shard_id = header.branch.get_full_shard_id()
             consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
                 shard_id
             ].CONSENSUS_TYPE
@@ -520,7 +522,7 @@ class Shard:
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
                 return
 
-        shard_id = block.header.branch.get_shard_id()
+        shard_id = block.header.branch.get_full_shard_id()
         consensus_type = self.env.quark_chain_config.SHARD_LIST[shard_id].CONSENSUS_TYPE
         try:
             validate_seal(block.header, consensus_type)
@@ -535,7 +537,7 @@ class Shard:
 
         Logger.info(
             "[{}] got new block with height {}".format(
-                block.header.branch.get_shard_id(), block.header.height
+                block.header.branch.get_full_shard_id(), block.header.height
             )
         )
         self.broadcast_new_block(block)
@@ -571,7 +573,7 @@ class Shard:
             if future:
                 Logger.info(
                     "[{}] {} is being added ... waiting for it to finish".format(
-                        block.header.branch.get_shard_id(), block.header.height
+                        block.header.branch.get_full_shard_id(), block.header.height
                     )
                 )
                 await future
@@ -608,7 +610,7 @@ class Shard:
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
         for block in block_list:
-            check(block.header.branch.get_shard_id() == self.shard_id)
+            check(block.header.branch.get_full_shard_id() == self.shard_id)
 
             block_hash = block.header.get_hash()
             try:

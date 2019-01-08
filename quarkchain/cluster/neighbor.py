@@ -10,9 +10,9 @@ def is_neighbor(b1: Branch, b2: Branch):
     TODO: a better algorithm
     """
     check(b1.get_shard_size() == b2.get_shard_size())
-    check(b1.get_shard_id() != b2.get_shard_id())
+    check(b1.get_full_shard_id() != b2.get_full_shard_id())
 
     if b1.get_shard_size() <= 32:
         return True
 
-    return is_p2(abs(b1.get_shard_id() - b2.get_shard_id()))
+    return is_p2(abs(b1.get_full_shard_id() - b2.get_full_shard_id()))

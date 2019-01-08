@@ -34,7 +34,7 @@ def create_default_state(env, diff_calc=None):
 
 
 def add_minor_block_to_cluster(s_states, block):
-    shard_id = block.header.branch.get_shard_id()
+    shard_id = block.header.branch.get_full_shard_id()
     s_states[shard_id].finalize_and_add_block(block)
     block_hash = block.header.get_hash()
     for i in range(block.header.branch.get_shard_size()):

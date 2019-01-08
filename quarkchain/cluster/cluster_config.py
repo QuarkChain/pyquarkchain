@@ -34,7 +34,7 @@ def update_genesis_alloc(cluser_config):
             items = json.load(f)
         for item in items:
             address = Address.create_from(item["address"])
-            shard = address.get_shard_id(qkc_config.SHARD_SIZE)
+            shard = address.get_full_shard_id(qkc_config.SHARD_SIZE)
             qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
                 10 ** 18
             )

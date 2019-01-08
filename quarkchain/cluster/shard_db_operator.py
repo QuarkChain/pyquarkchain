@@ -178,7 +178,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         if (
             root_block.header.height
             == self.env.quark_chain_config.get_genesis_root_height(
-                self.branch.get_shard_id()
+                self.branch.get_full_shard_id()
             )
         ):
             return None
@@ -212,7 +212,7 @@ class ShardDbOperator(TransactionHistoryMixin):
             if (
                 block.header.height
                 <= self.env.quark_chain_config.get_genesis_root_height(
-                    self.branch.get_shard_id()
+                    self.branch.get_full_shard_id()
                 )
             ):
                 break
@@ -220,7 +220,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
         m_hash = m_header.get_hash()
         shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
+            self.branch.get_full_shard_id()
         ]
         while len(self.m_header_pool) < shard_config.max_minor_blocks_in_memory:
             block = MinorBlock.deserialize(self.db.get(b"mblock_" + m_hash))
@@ -232,7 +232,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
         Logger.info(
             "[{}] recovered {} minor blocks and {} root blocks".format(
-                self.branch.get_shard_id(),
+                self.branch.get_full_shard_id(),
                 len(self.m_header_pool),
                 len(self.r_header_pool),
             )

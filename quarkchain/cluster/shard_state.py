@@ -243,10 +243,10 @@ class ShardState:
                 )
             )
 
-        if evm_tx.from_shard_id() != self.branch.get_shard_id():
+        if evm_tx.from_shard_id() != self.branch.get_full_shard_id():
             raise RuntimeError(
                 "evm tx from_shard_id mismatch. expect {} but got {}".format(
-                    self.branch.get_shard_id(), evm_tx.from_shard_id()
+                    self.branch.get_full_shard_id(), evm_tx.from_shard_id()
                 )
             )
 
@@ -340,7 +340,7 @@ class ShardState:
             Compute the boundaries for the block gas limit based on the parent block.
             """
             shard_config = self.env.quark_chain_config.SHARD_LIST[
-                self.branch.get_shard_id()
+                self.branch.get_full_shard_id()
             ]
             boundary_range = (
                 parent_gas_limit // shard_config.GAS_LIMIT_ADJUSTMENT_FACTOR
@@ -385,7 +385,7 @@ class ShardState:
         - use the GAS_LIMIT_MINIMUM as the new gas limit.
         """
         shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
+            self.branch.get_full_shard_id()
         ]
         if gas_limit_floor < shard_config.GAS_LIMIT_MINIMUM:
             raise ValueError(
@@ -427,7 +427,7 @@ class ShardState:
             # TODO:  May put the block back to queue
             raise ValueError(
                 "[{}] prev block not found, block height {} prev hash {}".format(
-                    self.branch.get_shard_id(),
+                    self.branch.get_full_shard_id(),
                     height,
                     block.header.hash_prev_minor_block.hex(),
                 )
@@ -652,7 +652,7 @@ class ShardState:
 
         if skip_if_too_old:
             shard_config = self.env.quark_chain_config.SHARD_LIST[
-                self.branch.get_shard_id()
+                self.branch.get_full_shard_id()
             ]
             if (
                 self.header_tip.height - block.header.height
@@ -660,7 +660,7 @@ class ShardState:
             ):
                 Logger.info(
                     "[{}] drop old block {} << {}".format(
-                        self.branch.get_shard_id(),
+                        self.branch.get_full_shard_id(),
                         block.header.height,
                         self.header_tip.height,
                     )
@@ -773,7 +773,7 @@ class ShardState:
             tracking_data = json.loads(tracking_data_str)
             sample = {
                 "time": time_ms() // 1000,
-                "shard": str(block.header.branch.get_shard_id()),
+                "shard": str(block.header.branch.get_full_shard_id()),
                 "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
                 "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
                 "hash": block.header.get_hash().hex(),
@@ -921,7 +921,7 @@ class ShardState:
 
     def __get_max_blocks_in_one_root_block(self) -> int:
         shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
+            self.branch.get_full_shard_id()
         ]
         return shard_config.max_blocks_per_shard_in_one_root_block
 
@@ -929,7 +929,7 @@ class ShardState:
         """Return a mapping from shard_id to the max number of xshard tx to the shard of shard_id"""
         results = dict()
         for m_header in root_block.minor_block_header_list:
-            results[m_header.branch.get_shard_id()] = int(
+            results[m_header.branch.get_full_shard_id()] = int(
                 m_header.evm_gas_limit
                 / opcodes.GTXXSHARDCOST
                 / self.env.quark_chain_config.MAX_NEIGHBORS
@@ -998,7 +998,7 @@ class ShardState:
             create_time=create_time, address=address, difficulty=difficulty
         )
         shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
+            self.branch.get_full_shard_id()
         ]
         block.header.evm_gas_limit = self.__compute_gas_limit(
             prev_block.header.evm_gas_limit,
@@ -1110,14 +1110,16 @@ class ShardState:
                 ):
                     raise ValueError(
                         "cannot find x_shard tx list for {}-{} {}".format(
-                            m_header.branch.get_shard_id(), m_header.height, h.hex()
+                            m_header.branch.get_full_shard_id(),
+                            m_header.height,
+                            h.hex(),
                         )
                     )
 
         if len(shard_headers) > self.__get_max_blocks_in_one_root_block():
             raise ValueError(
                 "Too many minor blocks in the root block for shard {}".format(
-                    self.branch.get_shard_id()
+                    self.branch.get_full_shard_id()
                 )
             )
 
@@ -1187,7 +1189,7 @@ class ShardState:
             )
             Logger.info(
                 "[{}] shard tip reset from {} to {} by root block {}".format(
-                    self.branch.get_shard_id(),
+                    self.branch.get_full_shard_id(),
                     orig_header_tip.height,
                     self.header_tip.height,
                     root_block.header.height,
@@ -1406,7 +1408,8 @@ class ShardState:
     ) -> Optional[List[Log]]:
         if addresses and (
             len(set(addr.full_shard_key for addr in addresses)) != 1
-            or addresses[0].get_shard_id(self.branch.get_shard_size()) != self.shard_id
+            or addresses[0].get_full_shard_id(self.branch.get_shard_size())
+            != self.shard_id
         ):
             # should have the same shard Id for the given addresses
             return None

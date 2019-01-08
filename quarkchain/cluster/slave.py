@@ -246,7 +246,7 @@ class MasterConnection(ClusterConnection):
             # Tip changed, don't bother creating a fork
             Logger.info(
                 "[{}] dropped stale block {} mined locally".format(
-                    block.header.branch.get_shard_id(), block.header.height
+                    block.header.branch.get_full_shard_id(), block.header.height
                 )
             )
             return AddMinorBlockResponse(error_code=0)
@@ -412,14 +412,14 @@ class MasterConnection(ClusterConnection):
                 except asyncio.TimeoutError as e:
                     Logger.info(
                         "[{}] sync request from master failed due to timeout".format(
-                            req.branch.get_shard_id()
+                            req.branch.get_full_shard_id()
                         )
                     )
                     raise e
 
                 Logger.info(
                     "[{}] sync request from master, downloaded {} blocks ({} - {})".format(
-                        req.branch.get_shard_id(),
+                        req.branch.get_full_shard_id(),
                         len(block_chain),
                         block_chain[0].header.height,
                         block_chain[-1].header.height,
@@ -683,7 +683,7 @@ class SlaveConnection(Connection):
 
         if req.branch not in self.shards:
             Logger.error(
-                "cannot find shard id {} locally".format(req.branch.get_shard_id())
+                "cannot find shard id {} locally".format(req.branch.get_full_shard_id())
             )
             return AddXshardTxListResponse(error_code=errno.ENOENT)
 
@@ -859,7 +859,8 @@ class SlaveServer:
         for branch, shard in self.shards.items():
             Logger.info(
                 "[{}] start mining with target minor block time {} seconds".format(
-                    branch.get_shard_id(), artificial_tx_config.target_minor_block_time
+                    branch.get_full_shard_id(),
+                    artificial_tx_config.target_minor_block_time,
                 )
             )
             shard.miner.start()
@@ -871,7 +872,7 @@ class SlaveServer:
     def stop_mining(self):
         self.mining = False
         for branch, shard in self.shards.items():
-            Logger.info("[{}] stop mining".format(branch.get_shard_id()))
+            Logger.info("[{}] stop mining".format(branch.get_full_shard_id()))
             shard.miner.disable()
 
     def __get_shard_size(self):
@@ -948,7 +949,7 @@ class SlaveServer:
             xshard_map[branch] = []
 
         for xshard_tx in xshard_tx_list:
-            shard_id = xshard_tx.to_address.get_shard_id(self.__get_shard_size())
+            shard_id = xshard_tx.to_address.get_full_shard_id(self.__get_shard_size())
             branch = Branch.create(self.__get_shard_size(), shard_id)
             check(branch in xshard_map)
             xshard_map[branch].append(xshard_tx)
@@ -984,7 +985,7 @@ class SlaveServer:
                 )
 
             for slave_conn in self.slave_connection_manager.get_connections_by_shard(
-                branch.get_shard_id()
+                branch.get_full_shard_id()
             ):
                 future = slave_conn.write_rpc_request(
                     ClusterOp.ADD_XSHARD_TX_LIST_REQUEST, request
@@ -1030,7 +1031,7 @@ class SlaveServer:
 
             batch_request = BatchAddXshardTxListRequest(request_list)
             for slave_conn in self.slave_connection_manager.get_connections_by_shard(
-                branch.get_shard_id()
+                branch.get_full_shard_id()
             ):
                 future = slave_conn.write_rpc_request(
                     ClusterOp.BATCH_ADD_XSHARD_TX_LIST_REQUEST, batch_request
@@ -1070,7 +1071,7 @@ class SlaveServer:
 
     def get_transaction_count(self, address):
         branch = Branch.create(
-            self.__get_shard_size(), address.get_shard_id(self.__get_shard_size())
+            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1079,7 +1080,7 @@ class SlaveServer:
 
     def get_balance(self, address):
         branch = Branch.create(
-            self.__get_shard_size(), address.get_shard_id(self.__get_shard_size())
+            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1134,7 +1135,7 @@ class SlaveServer:
 
     def get_transaction_list_by_address(self, address, start, limit):
         branch = Branch.create(
-            self.__get_shard_size(), address.get_shard_id(self.__get_shard_size())
+            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1167,7 +1168,7 @@ class SlaveServer:
         self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
+        shard_id = address.get_full_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1178,7 +1179,7 @@ class SlaveServer:
         self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
+        shard_id = address.get_full_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         shard = self.shards.get(branch, None)
         if not shard:

@@ -41,7 +41,7 @@ def main():
         if block.header.height == from_height:
             tip_header = block.header
         for minor_header in block.minor_block_header_list:
-            shard = minor_header.branch.get_shard_id()
+            shard = minor_header.branch.get_full_shard_id()
             address_hex = minor_header.coinbase_address.recipient.hex()
             address_to_count = shard_to_address_count.setdefault(shard, dict())
             current = address_to_count.setdefault(address_hex, 0)

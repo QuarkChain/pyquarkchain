@@ -153,14 +153,14 @@ def root_block_encoder(block):
 
     for header in block.minor_block_header_list:
         h = {
-            "id": id_encoder(header.get_hash(), header.branch.get_shard_id()),
+            "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
             "height": quantity_encoder(header.height),
             "hash": data_encoder(header.get_hash()),
             "branch": quantity_encoder(header.branch.value),
-            "shard": quantity_encoder(header.branch.get_shard_id()),
+            "shard": quantity_encoder(header.branch.get_full_shard_id()),
             "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
             "idPrevMinorBlock": id_encoder(
-                header.hash_prev_minor_block, header.branch.get_shard_id()
+                header.hash_prev_minor_block, header.branch.get_full_shard_id()
             ),
             "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
             "nonce": quantity_encoder(header.nonce),
@@ -185,14 +185,14 @@ def minor_block_encoder(block, include_transactions=False):
     meta = block.meta
 
     d = {
-        "id": id_encoder(header.get_hash(), header.branch.get_shard_id()),
+        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
         "height": quantity_encoder(header.height),
         "hash": data_encoder(header.get_hash()),
         "branch": quantity_encoder(header.branch.value),
-        "shard": quantity_encoder(header.branch.get_shard_id()),
+        "shard": quantity_encoder(header.branch.get_full_shard_id()),
         "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
         "idPrevMinorBlock": id_encoder(
-            header.hash_prev_minor_block, header.branch.get_shard_id()
+            header.hash_prev_minor_block, header.branch.get_full_shard_id()
         ),
         "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
         "nonce": quantity_encoder(header.nonce),
@@ -213,7 +213,7 @@ def minor_block_encoder(block, include_transactions=False):
             d["transactions"].append(tx_encoder(block, i))
     else:
         d["transactions"] = [
-            id_encoder(tx.get_hash(), block.header.branch.get_shard_id())
+            id_encoder(tx.get_hash(), block.header.branch.get_full_shard_id())
             for tx in block.tx_list
         ]
     return d
@@ -233,9 +233,9 @@ def tx_encoder(block, i):
         "hash": data_encoder(tx.get_hash()),
         "nonce": quantity_encoder(evm_tx.nonce),
         "timestamp": quantity_encoder(block.header.create_time),
-        "shard": quantity_encoder(block.header.branch.get_shard_id()),
+        "shard": quantity_encoder(block.header.branch.get_full_shard_id()),
         "blockId": id_encoder(
-            block.header.get_hash(), block.header.branch.get_shard_id()
+            block.header.get_hash(), block.header.branch.get_full_shard_id()
         ),
         "blockHeight": quantity_encoder(block.header.height),
         "transactionIndex": quantity_encoder(i),
@@ -285,7 +285,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
         "transactionHash": data_encoder(tx.get_hash()),
         "transactionIndex": quantity_encoder(i),
         "blockId": id_encoder(
-            block.header.get_hash(), block.header.branch.get_shard_id()
+            block.header.get_hash(), block.header.branch.get_full_shard_id()
         ),
         "blockHash": data_encoder(block.header.get_hash()),
         "blockHeight": quantity_encoder(block.header.height),
@@ -499,7 +499,7 @@ class JSONRPCServer:
         balance = account_branch_data.balance
         return {
             "branch": quantity_encoder(branch.value),
-            "shard": quantity_encoder(branch.get_shard_id()),
+            "shard": quantity_encoder(branch.get_full_shard_id()),
             "balance": quantity_encoder(balance),
         }
 
@@ -521,7 +521,7 @@ class JSONRPCServer:
             count = account_branch_data.transaction_count
             primary = {
                 "branch": quantity_encoder(branch.value),
-                "shard": quantity_encoder(branch.get_shard_id()),
+                "shard": quantity_encoder(branch.get_full_shard_id()),
                 "balance": quantity_encoder(balance),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
@@ -537,7 +537,9 @@ class JSONRPCServer:
             account_branch_data = branch_to_account_branch_data[branch]
             data = {
                 "branch": quantity_encoder(account_branch_data.branch.value),
-                "shard": quantity_encoder(account_branch_data.branch.get_shard_id()),
+                "shard": quantity_encoder(
+                    account_branch_data.branch.get_full_shard_id()
+                ),
                 "balance": quantity_encoder(account_branch_data.balance),
                 "transactionCount": quantity_encoder(
                     account_branch_data.transaction_count
@@ -546,7 +548,7 @@ class JSONRPCServer:
             }
             shards.append(data)
 
-            if shard == address.get_shard_id(shard_size):
+            if shard == address.get_full_shard_id(shard_size):
                 primary = data
 
         return {"primary": primary, "shards": shards}

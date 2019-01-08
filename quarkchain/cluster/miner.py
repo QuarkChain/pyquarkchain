@@ -396,7 +396,7 @@ class Miner:
     @staticmethod
     def _log_status(block: Block):
         is_root = isinstance(block, RootBlock)
-        shard = "R" if is_root else block.header.branch.get_shard_id()
+        shard = "R" if is_root else block.header.branch.get_full_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
         Logger.info_every_sec(
@@ -418,7 +418,7 @@ class Miner:
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
             Logger.debug(
                 "[{}] target block time {:.2f}".format(
-                    block.header.branch.get_shard_id(), target_block_time
+                    block.header.branch.get_full_shard_id(), target_block_time
                 )
             )
         return numpy.random.exponential(target_block_time)

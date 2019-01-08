@@ -55,7 +55,7 @@ class TestBranch(unittest.TestCase):
     def test_branch(self):
         b = Branch.create(8, 6)
         self.assertEqual(b.get_shard_size(), 8)
-        self.assertEqual(b.get_shard_id(), 6)
+        self.assertEqual(b.get_full_shard_id(), 6)
 
 
 class TestShardInfo(unittest.TestCase):
@@ -163,10 +163,7 @@ class TestRootBlockHeaderSignature(unittest.TestCase):
 
 
 class SimpleHeaderV0(Serializable):
-    FIELDS = [
-        ("version", uint32),
-        ("value", uint32)
-    ]
+    FIELDS = [("version", uint32), ("value", uint32)]
 
     def __init__(self, version, value):
         check(version == 0)
@@ -175,11 +172,7 @@ class SimpleHeaderV0(Serializable):
 
 
 class SimpleHeaderV1(Serializable):
-    FIELDS = [
-        ("version", uint32),
-        ("value", uint32),
-        ("hash_trie", hash256),
-    ]
+    FIELDS = [("version", uint32), ("value", uint32), ("hash_trie", hash256)]
 
     def __init__(self, version, value, hash_trie):
         check(version == 1)
@@ -190,10 +183,7 @@ class SimpleHeaderV1(Serializable):
 
 class VersionedSimpleHeader(Serializable):
     FIELDS = [
-        ("header", EnumSerializer(
-            "version",
-            {0: SimpleHeaderV0, 1: SimpleHeaderV1}
-        ))
+        ("header", EnumSerializer("version", {0: SimpleHeaderV0, 1: SimpleHeaderV1}))
     ]
 
     def __init__(self, header):
@@ -201,19 +191,13 @@ class VersionedSimpleHeader(Serializable):
 
 
 class VersionedSimpleHeaderOld(Serializable):
-    FIELDS = [
-        ("header", EnumSerializer(
-            "version",
-            {0: SimpleHeaderV0}
-        ))
-    ]
+    FIELDS = [("header", EnumSerializer("version", {0: SimpleHeaderV0}))]
 
     def __init__(self, header):
         self.header = header
 
 
 class TestEnumSerializer(unittest.TestCase):
-
     def test_simple(self):
         vh0 = VersionedSimpleHeader(SimpleHeaderV0(0, 123))
         barray = vh0.serialize(bytearray())

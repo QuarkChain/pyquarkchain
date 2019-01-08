@@ -776,7 +776,7 @@ class MasterServer:
         for branch_value, slaves in self.branch_to_slaves.items():
             Logger.info(
                 "[{}] is run by slave {}".format(
-                    Branch(branch_value).get_shard_id(), [s.id for s in slaves]
+                    Branch(branch_value).get_full_shard_id(), [s.id for s in slaves]
                 )
             )
 
@@ -854,7 +854,7 @@ class MasterServer:
                     if not self.root_state.is_minor_block_validated(header.get_hash()):
                         break
                     shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_shard_id(), []
+                        headers_info.branch.get_full_shard_id(), []
                     ).append(header)
 
         header_list = []
@@ -996,7 +996,7 @@ class MasterServer:
         self, address: Address, block_height: Optional[int] = None
     ):
         # TODO: Only query the shard who has the address
-        shard_id = address.get_shard_id(self.__get_shard_size())
+        shard_id = address.get_full_shard_id(self.__get_shard_size())
         branch = Branch.create(self.__get_shard_size(), shard_id)
         slaves = self.branch_to_slaves.get(branch.value, None)
         if not slaves:
@@ -1220,7 +1220,7 @@ class MasterServer:
     async def get_stats(self):
         shards = [dict() for i in range(self.__get_shard_size())]
         for shard_stats in self.branch_to_shard_stats.values():
-            shard_id = shard_stats.branch.get_shard_id()
+            shard_id = shard_stats.branch.get_full_shard_id()
             shards[shard_id]["height"] = shard_stats.height
             shards[shard_id]["difficulty"] = shard_stats.difficulty
             shards[shard_id]["coinbaseAddress"] = (
@@ -1352,7 +1352,7 @@ class MasterServer:
 
     async def get_transactions_by_address(self, address, start, limit):
         branch = Branch.create(
-            self.__get_shard_size(), address.get_shard_id(self.__get_shard_size())
+            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
         )
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transactions_by_address(address, start, limit)
@@ -1392,7 +1392,7 @@ class MasterServer:
         self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
+        shard_id = address.get_full_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1404,7 +1404,7 @@ class MasterServer:
         self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
         shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
+        shard_id = address.get_full_shard_id(shard_size)
         branch = Branch.create(shard_size, shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
