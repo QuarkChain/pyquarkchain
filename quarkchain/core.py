@@ -374,28 +374,31 @@ class Address(Serializable):
     def to_hex(self):
         return self.serialize().hex()
 
-    def get_full_shard_id(self, shard_size):
+    def get_full_shard_id(self, shard_size: int):
         if not is_p2(shard_size):
             raise RuntimeError("Invalid shard size {}".format(shard_size))
-        return self.full_shard_key & (shard_size - 1)
+        chain_id = self.full_shard_key >> 16
+        shard_key = self.full_shard_key & ((1 << 16) - 1)
+        shard_id = shard_key & (shard_size - 1)
+        return (chain_id << 16) | shard_size | shard_id
 
-    def address_in_shard(self, full_shard_key):
+    def address_in_shard(self, full_shard_key: int):
         return Address(self.recipient, full_shard_key)
 
     def address_in_branch(self, branch):
-        return Address(
-            self.recipient,
-            (self.full_shard_key & ~(branch.get_shard_size() - 1))
-            + branch.get_full_shard_id(),
-        )
+        shard_key = self.full_shard_key & ((1 << 16) - 1)
+        new_shard_key = (
+            shard_key & ~(branch.get_shard_size() - 1)
+        ) + branch.get_shard_id()
+        new_full_shard_key = (branch.get_chain_id() << 16) | new_shard_key
+        return Address(self.recipient, new_full_shard_key)
 
+    # TODO: chain_id
     @staticmethod
-    def create_from_identity(identity: Identity, full_shard_key=None):
+    def create_from_identity(identity: Identity, full_shard_key: int = None):
         if full_shard_key is None:
             r = identity.get_recipient()
-            full_shard_key = int.from_bytes(
-                r[0:1] + r[5:6] + r[10:11] + r[15:16], "big"
-            )
+            full_shard_key = int.from_bytes(r[0:1] + r[10:11], "big")
         return Address(identity.get_recipient(), full_shard_key)
 
     @staticmethod
@@ -458,7 +461,7 @@ class Branch(Serializable):
     def get_full_shard_id(self):
         return self.value
 
-    def _get_shard_id(self):
+    def get_shard_id(self):
         branch_value = self.value & ((1 << 16) - 1)
         return branch_value ^ self.get_shard_size()
 
@@ -466,7 +469,7 @@ class Branch(Serializable):
         chain_id_match = (full_shard_key >> 16) == self.get_chain_id()
         if not chain_id_match:
             return False
-        return (full_shard_key & (self.get_shard_size() - 1)) == self._get_shard_id()
+        return (full_shard_key & (self.get_shard_size() - 1)) == self.get_shard_id()
 
     @staticmethod
     def create(shard_size: int, shard_id: int):
