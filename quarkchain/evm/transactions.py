@@ -216,6 +216,13 @@ class Transaction(rlp.Serializable):
         shard_mask = self.shard_size - 1
         return self.to_full_shard_key & shard_mask
 
+    # TODO: support chain id
+    def from_full_shard_id(self):
+        return self.shard_size | self.from_shard_id()
+
+    def to_full_shard_id(self):
+        return self.shard_size | self.to_shard_id()
+
     def is_cross_shard(self):
         return self.from_shard_id() != self.to_shard_id()
 

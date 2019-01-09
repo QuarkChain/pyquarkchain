@@ -633,9 +633,9 @@ class SlaveConnection(Connection):
     async def wait_until_ping_received(self):
         await self.ping_received_future
 
-    def has_shard(self, shard_id):
+    def has_shard(self, full_shard_id: int):
         for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(shard_id):
+            if shard_mask.contain_shard_id(full_shard_id):
                 return True
         return False
 
@@ -722,7 +722,9 @@ class SlaveConnectionManager:
     def __init__(self, env, slave_server):
         self.env = env
         self.slave_server = slave_server
-        self.shard_to_slaves = [[] for _ in range(self.__get_shard_size())]
+        self.full_shard_id_to_slaves = dict()  # full_shard_id -> list of slaves
+        for full_shard_id in self.env.quark_chain_config.get_genesis_full_shard_ids():
+            self.full_shard_id_to_slaves[full_shard_id] = []
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
         self.loop = asyncio.get_event_loop()
@@ -734,15 +736,15 @@ class SlaveConnectionManager:
         for conn in self.slave_connections:
             conn.close()
 
-    def get_connections_by_shard(self, shard: int):
-        return self.shard_to_slaves[shard]
+    def get_connections_by_full_shard_id(self, full_shard_id: int):
+        return self.full_shard_id_to_slaves[full_shard_id]
 
     def _add_slave_connection(self, slave: SlaveConnection):
         self.slave_ids.add(slave.id)
         self.slave_connections.add(slave)
-        for shard_id in range(self.__get_shard_size()):
-            if slave.has_shard(shard_id):
-                self.shard_to_slaves[shard_id].append(slave)
+        for full_shard_id in self.env.quark_chain_config.get_genesis_full_shard_ids():
+            if slave.has_shard(full_shard_id):
+                self.full_shard_id_to_slaves[full_shard_id].append(slave)
 
     async def handle_new_connection(self, reader, writer):
         """ Handle incoming connection """
@@ -988,7 +990,9 @@ class SlaveServer:
                     block_hash, request.tx_list
                 )
 
-            for slave_conn in self.slave_connection_manager.get_connections_by_shard(
+            for (
+                slave_conn
+            ) in self.slave_connection_manager.get_connections_by_full_shard_id(
                 branch.get_full_shard_id()
             ):
                 future = slave_conn.write_rpc_request(
@@ -1034,7 +1038,9 @@ class SlaveServer:
                     )
 
             batch_request = BatchAddXshardTxListRequest(request_list)
-            for slave_conn in self.slave_connection_manager.get_connections_by_shard(
+            for (
+                slave_conn
+            ) in self.slave_connection_manager.get_connections_by_full_shard_id(
                 branch.get_full_shard_id()
             ):
                 future = slave_conn.write_rpc_request(

@@ -55,9 +55,9 @@ def update_genesis_alloc(cluser_config):
 
         for item in items:
             address = Address.create_from(item["address"])
-            for i, shard in enumerate(qkc_config.SHARDS):
-                shard.GENESIS.ALLOC[
-                    address.address_in_shard(i).serialize().hex()
+            for full_shard_id, shard_config in qkc_config.SHARDS.items():
+                shard_config.GENESIS.ALLOC[
+                    address.address_in_shard(full_shard_id).serialize().hex()
                 ] = 1000 * (10 ** 18)
 
         Logger.info(

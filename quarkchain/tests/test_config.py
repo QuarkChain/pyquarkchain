@@ -18,23 +18,25 @@ class TestShardConfig(unittest.TestCase):
         config.ROOT.CONSENSUS_CONFIG = POWConfig()
         config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 60
 
-        config.SHARDS = []
+        config.SHARDS = dict()
         for i in range(2):
             s = ShardConfig()
+            s.CHAIN_ID = 0
+            s.SHARD_SIZE = 2
+            s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS.append(s)
+            config.SHARDS[0 | 2 | i] = s
 
         for i in range(2):
             s = ShardConfig()
+            s.CHAIN_ID = 1
+            s.SHARD_SIZE = 2
+            s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_ETHASH
             s.CONSENSUS_CONFIG = POWConfig()
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 15
-            config.SHARDS.append(s)
-
-        for i in range(1):
-            s = ShardConfig()
-            config.SHARDS.append(s)
+            config.SHARDS[(1 << 16) | 2 | i] = s
 
         expected_json = """{
     "SHARD_SIZE": 8,
@@ -72,6 +74,9 @@ class TestShardConfig(unittest.TestCase):
     },
     "SHARDS": [
         {
+            "CHAIN_ID": 0,
+            "SHARD_SIZE": 2,
+            "SHARD_ID": 0,
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10,
@@ -103,6 +108,9 @@ class TestShardConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
+            "CHAIN_ID": 0,
+            "SHARD_SIZE": 2,
+            "SHARD_ID": 1,
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10,
@@ -134,6 +142,9 @@ class TestShardConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
+            "CHAIN_ID": 1,
+            "SHARD_SIZE": 2,
+            "SHARD_ID": 0,
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15,
@@ -165,6 +176,9 @@ class TestShardConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
+            "CHAIN_ID": 1,
+            "SHARD_SIZE": 2,
+            "SHARD_ID": 1,
             "CONSENSUS_TYPE": "POW_ETHASH",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 15,
@@ -183,20 +197,6 @@ class TestShardConfig(unittest.TestCase):
                 "NONCE": 0,
                 "ALLOC": {}
             },
-            "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5000000000000000000,
-            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
-            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
-            "GAS_LIMIT_MINIMUM": 5000,
-            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
-            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
-            "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
-            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
-        },
-        {
-            "CONSENSUS_TYPE": "NONE",
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
             "COINBASE_AMOUNT": 5000000000000000000,
             "GAS_LIMIT_EMA_DENOMINATOR": 1024,

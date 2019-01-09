@@ -606,9 +606,9 @@ class MasterServer:
 
         self.artificial_tx_config = ArtificialTxConfig(
             target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
-            target_minor_block_time=self.env.quark_chain_config.SHARDS[
-                0
-            ].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
+            target_minor_block_time=next(
+                iter(self.env.quark_chain_config.SHARDS.values())
+            ).CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
 
         self.synchronizer = Synchronizer()
@@ -829,7 +829,7 @@ class MasterServer:
 
         # Slaves may run multiple copies of the same branch
         # branch_value -> HeaderList
-        shard_id_to_header_list = dict()
+        full_shard_id_to_header_list = dict()
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
@@ -1218,21 +1218,23 @@ class MasterServer:
         return {"rootHeight": header.height, "shardRC": shard_r_c}
 
     async def get_stats(self):
-        shards = [dict() for i in range(self.__get_shard_size())]
+        shards = []
         for shard_stats in self.branch_to_shard_stats.values():
-            shard_id = shard_stats.branch.get_full_shard_id()
-            shards[shard_id]["height"] = shard_stats.height
-            shards[shard_id]["difficulty"] = shard_stats.difficulty
-            shards[shard_id]["coinbaseAddress"] = (
-                "0x" + shard_stats.coinbase_address.to_hex()
-            )
-            shards[shard_id]["timestamp"] = shard_stats.timestamp
-            shards[shard_id]["txCount60s"] = shard_stats.tx_count60s
-            shards[shard_id]["pendingTxCount"] = shard_stats.pending_tx_count
-            shards[shard_id]["totalTxCount"] = shard_stats.total_tx_count
-            shards[shard_id]["blockCount60s"] = shard_stats.block_count60s
-            shards[shard_id]["staleBlockCount60s"] = shard_stats.stale_block_count60s
-            shards[shard_id]["lastBlockTime"] = shard_stats.last_block_time
+            shard = dict()
+            shard["full_shard_id"] = shard_stats.branch.get_full_shard_id()
+            shard["chain_id"] = shard_stats.branch.get_chain_id()
+            shard["shard_id"] = shard_stats.branch.get_shard_id()
+            shard["height"] = shard_stats.height
+            shard["difficulty"] = shard_stats.difficulty
+            shard["coinbaseAddress"] = "0x" + shard_stats.coinbase_address.to_hex()
+            shard["timestamp"] = shard_stats.timestamp
+            shard["txCount60s"] = shard_stats.tx_count60s
+            shard["pendingTxCount"] = shard_stats.pending_tx_count
+            shard["totalTxCount"] = shard_stats.total_tx_count
+            shard["blockCount60s"] = shard_stats.block_count60s
+            shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
+            shard["lastBlockTime"] = shard_stats.last_block_time
+            shards.append(shard)
 
         tx_count60s = sum(
             [

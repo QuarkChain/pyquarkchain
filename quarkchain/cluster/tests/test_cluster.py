@@ -230,7 +230,7 @@ class TestCluster(unittest.TestCase):
             shard_state = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state.env.quark_chain_config.SHARDS[
-                    shard_state.shard_id
+                    shard_state.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -284,7 +284,7 @@ class TestCluster(unittest.TestCase):
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
-                    shard_state0.shard_id
+                    shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -307,7 +307,7 @@ class TestCluster(unittest.TestCase):
             shard_state0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
-                    shard_state0.shard_id
+                    shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -327,7 +327,7 @@ class TestCluster(unittest.TestCase):
             shard_state1 = clusters[1].slave_list[1].shards[Branch(0b11)].state
             coinbase_amount = (
                 shard_state1.env.quark_chain_config.SHARDS[
-                    shard_state1.shard_id
+                    shard_state1.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -394,7 +394,7 @@ class TestCluster(unittest.TestCase):
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
-                    shard_state0.shard_id
+                    shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -421,7 +421,7 @@ class TestCluster(unittest.TestCase):
             shard_state0 = clusters[1].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
-                    shard_state0.shard_id
+                    shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )
@@ -455,7 +455,7 @@ class TestCluster(unittest.TestCase):
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
-                    shard_state0.shard_id
+                    shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
             )

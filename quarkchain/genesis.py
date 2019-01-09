@@ -36,19 +36,21 @@ class GenesisManager:
         return RootBlock(header=header, minor_block_header_list=[])
 
     def create_minor_block(
-        self, root_block: RootBlock, shard_id: int, evm_state: EvmState
+        self, root_block: RootBlock, full_shard_id: int, evm_state: EvmState
     ) -> MinorBlock:
         """ Create genesis block for shard.
         Genesis block's hash_prev_root_block is set to the genesis root block.
         Genesis state will be committed to the given evm_state.
         """
-        branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
-        shard_config = self._qkc_config.SHARDS[shard_id]
+        branch = Branch(full_shard_id)
+        shard_config = self._qkc_config.SHARDS[full_shard_id]
         genesis = shard_config.GENESIS
 
         for address_hex, amount_in_wei in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
-            check(address.get_full_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
+            check(
+                address.get_full_shard_id(self._qkc_config.SHARD_SIZE) == full_shard_id
+            )
             evm_state.full_shard_key = address.full_shard_key
             evm_state.delta_balance(address.recipient, amount_in_wei)
 
@@ -65,7 +67,7 @@ class GenesisManager:
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        coinbase_address = Address.create_empty_account(shard_id)
+        coinbase_address = Address.create_empty_account(full_shard_id)
 
         header = MinorBlockHeader(
             version=genesis.VERSION,

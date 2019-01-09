@@ -225,7 +225,7 @@ class TestJSONRPC(unittest.TestCase):
                 False,
             )
             self.assertEqual(
-                resp["transactions"][0], "0x" + tx.get_hash().hex() + "0" * 8
+                resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
             )
             resp = send_request(
                 "getMinorBlockById",
@@ -242,7 +242,7 @@ class TestJSONRPC(unittest.TestCase):
             # By height
             resp = send_request("getMinorBlockByHeight", "0x0", "0x1", False)
             self.assertEqual(
-                resp["transactions"][0], "0x" + tx.get_hash().hex() + "0" * 8
+                resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
             )
             resp = send_request("getMinorBlockByHeight", "0x0", "0x1", True)
             self.assertEqual(
@@ -787,7 +787,7 @@ class TestJSONRPC(unittest.TestCase):
                 header_hash_hex = resp[0]
                 if shard_id is not None:  # shard 0
                     miner_address = Address.create_from(
-                        master.env.quark_chain_config.SHARDS[0].COINBASE_ADDRESS
+                        master.env.quark_chain_config.SHARDS[1].COINBASE_ADDRESS
                     )
                 else:  # root
                     miner_address = Address.create_from(

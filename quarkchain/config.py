@@ -240,6 +240,7 @@ class RootConfig(BaseConfig):
 
 
 class QuarkChainConfig(BaseConfig):
+    # TODO: use ShardConfig.SHARD_SIZE
     SHARD_SIZE = 8
 
     MAX_NEIGHBORS = 32

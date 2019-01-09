@@ -35,10 +35,13 @@ class RootDb:
     Forks can always be downloaded again from peers if they ever became the best chain.
     """
 
-    def __init__(self, db, max_num_blocks_to_recover, count_minor_blocks=False):
+    def __init__(self, db, quark_chain_config, count_minor_blocks=False):
         # TODO: evict old blocks from memory
         self.db = db
-        self.max_num_blocks_to_recover = max_num_blocks_to_recover
+        self.quark_chain_config = quark_chain_config
+        self.max_num_blocks_to_recover = (
+            quark_chain_config.ROOT.max_root_blocks_in_memory
+        )
         self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
         self.m_hash_set = set()
@@ -129,42 +132,44 @@ class RootDb:
             return
 
         # Count minor blocks by miner address
-        shard_size = block.header.shard_info.get_shard_size()
         if block.header.height > 0:
-            shard_recipient_cnt = self.get_block_count(
-                block.header.height - 1, shard_size
-            )
+            shard_recipient_cnt = self.get_block_count(block.header.height - 1)
         else:
-            shard_recipient_cnt = [dict() for _ in range(shard_size)]
+            shard_recipient_cnt = dict()
 
         for header in block.minor_block_header_list:
-            shard = header.branch.get_full_shard_id()
+            full_shard_id = header.branch.get_full_shard_id()
             recipient = header.coinbase_address.recipient.hex()
-            shard_recipient_cnt[shard][recipient] = (
-                shard_recipient_cnt[shard].get(recipient, 0) + 1
-            )
+            old_count = shard_recipient_cnt.get(full_shard_id, dict()).get(recipient, 0)
+            new_count = old_count + 1
+            shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = new_count
 
-        for shard, r_c in enumerate(shard_recipient_cnt):
+        for full_shard_id, r_c in shard_recipient_cnt.items():
             data = bytearray()
             for recipient, count in r_c.items():
                 data.extend(bytes.fromhex(recipient))
                 data.extend(count.to_bytes(4, "big"))
             check(len(data) % 24 == 0)
-            self.db.put(b"count_%d_%d" % (shard, block.header.height), data)
+            self.db.put(b"count_%d_%d" % (full_shard_id, block.header.height), data)
 
-    def get_block_count(self, root_height, shard_size):
-        """Returns a list(dict(miner_recipient, block_count)) of size shard_size"""
-        shard_recipient_cnt = [dict() for _ in range(shard_size)]
+    def get_block_count(self, root_height):
+        """Returns a dict(full_shard_id, dict(miner_recipient, block_count))"""
+        shard_recipient_cnt = dict()
         if not self.count_minor_blocks:
             return shard_recipient_cnt
 
-        for shard in range(shard_size):
-            data = self.db.get(b"count_%d_%d" % (shard, root_height))
+        full_shard_ids = self.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            root_height
+        )
+        for full_shard_id in full_shard_ids:
+            data = self.db.get(b"count_%d_%d" % (full_shard_id, root_height), None)
+            if data is None:
+                continue
             check(len(data) % 24 == 0)
             for i in range(0, len(data), 24):
                 recipient = data[i : i + 20].hex()
                 count = int.from_bytes(data[i + 20 : i + 24], "big")
-                shard_recipient_cnt[shard][recipient] = count
+                shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = count
         return shard_recipient_cnt
 
     def get_root_block_by_height(self, height):
@@ -211,7 +216,7 @@ class RootState:
         self.raw_db = env.db
         self.db = RootDb(
             self.raw_db,
-            env.quark_chain_config.ROOT.max_root_blocks_in_memory,
+            env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
 

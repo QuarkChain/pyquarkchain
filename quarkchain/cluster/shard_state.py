@@ -243,10 +243,11 @@ class ShardState:
                 )
             )
 
-        if evm_tx.from_shard_id() != self.branch.get_full_shard_id():
+        if not self.branch.is_in_branch(evm_tx.from_full_shard_key):
             raise RuntimeError(
-                "evm tx from_shard_id mismatch. expect {} but got {}".format(
-                    self.branch.get_full_shard_id(), evm_tx.from_shard_id()
+                "evm tx from_full_shard_key ({}) not in this branch ({}).".format(
+                    hex(evm_tx.from_full_shard_key),
+                    hex(self.branch.get_full_shard_id()),
                 )
             )
 
@@ -959,9 +960,9 @@ class ShardState:
 
             if self.branch != to_branch:
                 check(is_neighbor(self.branch, to_branch))
-                if xshard_tx_counters[evm_tx.to_shard_id()] + 1 > xshard_tx_limits.get(
-                    evm_tx.to_shard_id(), 0
-                ):
+                if xshard_tx_counters[
+                    evm_tx.to_full_shard_id()
+                ] + 1 > xshard_tx_limits.get(evm_tx.to_full_shard_id(), 0):
                     poped_txs.append(evm_tx)  # will be put back later
                     continue
 

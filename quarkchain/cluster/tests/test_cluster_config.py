@@ -24,7 +24,10 @@ class TestClusterConfig(unittest.TestCase):
         deserialized = ClusterConfig.create_from_args(args)
 
         self.assertTrue(cluster_config == deserialized)
-        self.assertTrue(len(cluster_config.QUARKCHAIN.SHARDS[0].GENESIS.ALLOC) > 12000)
+        full_shard_id = 0 | 4 | 0
+        self.assertEqual(
+            len(cluster_config.QUARKCHAIN.SHARDS[full_shard_id].GENESIS.ALLOC), 12000
+        )
 
     def test_cluster_dict(self):
         parser = argparse.ArgumentParser()

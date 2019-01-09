@@ -200,6 +200,7 @@ def main():
         type=str,
         help="<Required> path to config json file, same as the config running cluster",
     )
+    # TODO: this need to be replaced by full_shard_ids
     parser.add_argument(
         "-s",
         "--shards",

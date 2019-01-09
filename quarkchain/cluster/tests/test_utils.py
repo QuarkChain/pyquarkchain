@@ -48,12 +48,13 @@ def get_test_env(
     if genesis_root_heights:
         check(len(genesis_root_heights) == shard_size)
         for shard_id in range(shard_size):
-            shard = env.quark_chain_config.SHARDS[shard_id]
+            full_shard_id = shard_size | shard_id  # chain_id is 0
+            shard = env.quark_chain_config.SHARDS[full_shard_id]
             shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
 
     # fund genesis account in all shards
-    for i, shard in enumerate(env.quark_chain_config.SHARDS):
-        addr = genesis_account.address_in_shard(i).serialize().hex()
+    for full_shard_id, shard in env.quark_chain_config.SHARDS.items():
+        addr = genesis_account.address_in_shard(full_shard_id).serialize().hex()
         shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
         shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
@@ -240,7 +241,7 @@ def create_test_clusters(
         if small_coinbase:
             # prevent breaking previous tests after tweaking default rewards
             env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
-            for c in env.quark_chain_config.SHARDS:
+            for c in env.quark_chain_config.SHARDS.values():
                 c.COINBASE_AMOUNT = 5
 
         env.cluster_config.SLAVE_LIST = []

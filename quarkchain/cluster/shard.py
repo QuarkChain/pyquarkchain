@@ -225,8 +225,8 @@ class SyncTask:
         self.shard_state = shard_conn.shard_state
         self.shard = shard_conn.shard
 
-        shard_id = self.header.branch.get_full_shard_id()
-        shard_config = self.shard_state.env.quark_chain_config.SHARDS[shard_id]
+        full_shard_id = self.header.branch.get_full_shard_id()
+        shard_config = self.shard_state.env.quark_chain_config.SHARDS[full_shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
     async def sync(self):
@@ -320,9 +320,9 @@ class SyncTask:
                 return False
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
-            shard_id = header.branch.get_full_shard_id()
+            full_shard_id = header.branch.get_full_shard_id()
             consensus_type = self.shard.env.quark_chain_config.SHARDS[
-                shard_id
+                full_shard_id
             ].CONSENSUS_TYPE
             validate_seal(header, consensus_type)
         return True
@@ -522,12 +522,16 @@ class Shard:
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
                 return
 
-        shard_id = block.header.branch.get_full_shard_id()
-        consensus_type = self.env.quark_chain_config.SHARDS[shard_id].CONSENSUS_TYPE
+        full_shard_id = block.header.branch.get_full_shard_id()
+        consensus_type = self.env.quark_chain_config.SHARDS[
+            full_shard_id
+        ].CONSENSUS_TYPE
         try:
             validate_seal(block.header, consensus_type)
         except Exception as e:
-            Logger.warning("[{}] Got block with bad seal: {}".format(shard_id, str(e)))
+            Logger.warning(
+                "[{}] Got block with bad seal: {}".format(full_shard_id, str(e))
+            )
             return
 
         if block.header.create_time > time_ms() // 1000 + 30:
