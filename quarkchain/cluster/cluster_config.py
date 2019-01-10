@@ -18,36 +18,43 @@ DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
 def update_genesis_alloc(cluser_config):
     """ Update ShardConfig.GENESIS.ALLOC """
-    ALLOC_FILE = "alloc.json"
+    ALLOC_FILE_TEMPLATE = "alloc/{}.json"
     LOADTEST_FILE = "loadtest.json"
 
     if not cluser_config.GENESIS_DIR:
         return
-    alloc_file = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE)
+    alloc_file_template = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE_TEMPLATE)
     loadtest_file = os.path.join(cluser_config.GENESIS_DIR, LOADTEST_FILE)
 
     qkc_config = cluser_config.QUARKCHAIN
 
-    # each account in alloc_file is only funded on the shard it belongs to
     try:
-        with open(alloc_file, "r") as f:
-            items = json.load(f)
-        for item in items:
-            address = Address.create_from(item["address"])
-            full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
-                address.full_shard_key
-            )
-            qkc_config.SHARDS[full_shard_id].GENESIS.ALLOC[
-                item["address"]
-            ] = 1000000 * (10 ** 18)
+        for chain_id in range(qkc_config.CHAIN_SIZE):
+            alloc_file = alloc_file_template.format(chain_id)
+            with open(alloc_file, "r") as f:
+                items = json.load(f)
+            for item in items:
+                address = Address.create_from(item["address"])
+                full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                qkc_config.SHARDS[full_shard_id].GENESIS.ALLOC[
+                    item["address"]
+                ] = 1000000 * (10 ** 18)
 
-        Logger.info(
-            "Imported {} accounts from genesis alloc at {}".format(
-                len(items), alloc_file
+            Logger.info(
+                "[{}] Imported {} genesis accounts into config from {}".format(
+                    chain_id, len(items), alloc_file
+                )
             )
-        )
     except Exception as e:
-        Logger.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
+        Logger.warning(
+            "Error importing genesis accounts from {}: {}".format(alloc_file, e)
+        )
+
+        for shard_config in qkc_config.SHARDS.values():
+            shard_config.GENESIS.ALLOC = dict()
+        Logger.warning("Cleared all genesis accounts from config!")
 
     # each account in loadtest file is funded on all the shards
     try:
