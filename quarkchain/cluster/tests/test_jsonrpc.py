@@ -416,7 +416,10 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(is_root)
             call_async(master.add_root_block(block))
 
-            s1, s2 = clusters[0].get_shard_state(0), clusters[0].get_shard_state(1)
+            s1, s2 = (
+                clusters[0].get_shard_state(2 | 0),
+                clusters[0].get_shard_state(2 | 1),
+            )
             tx_gen = lambda s, f, t: create_transfer_transaction(
                 shard_state=s,
                 key=id1.get_key(),
@@ -438,7 +441,7 @@ class TestJSONRPC(unittest.TestCase):
             tx = tx_gen(s2, acc2, acc2)
             self.assertTrue(slaves[1].add_tx(tx))
             _, b3 = call_async(master.get_next_block_to_mine(address=acc2))
-            self.assertTrue(call_async(clusters[0].get_shard(1).add_block(b3)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(b3)))
 
             # in-shard tx 21000 + receiving x-shard tx 9000
             self.assertEqual(s2.evm_state.gas_used, 30000)
@@ -816,4 +819,6 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(resp)
 
             # show progress on shard 0
-            self.assertEqual(clusters[0].get_shard_state(0).get_tip().header.height, 1)
+            self.assertEqual(
+                clusters[0].get_shard_state(1 | 0).get_tip().header.height, 1
+            )

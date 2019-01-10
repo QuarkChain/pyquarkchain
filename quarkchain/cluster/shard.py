@@ -537,8 +537,10 @@ class Shard:
         self.state.new_block_pool[block.header.get_hash()] = block
 
         Logger.info(
-            "[{}] got new block with height {}".format(
-                block.header.branch.get_full_shard_id(), block.header.height
+            "[{}/{}] got new block with height {}".format(
+                block.header.branch.get_chain_id(),
+                block.header.branch.get_shard_id(),
+                block.header.height,
             )
         )
         self.broadcast_new_block(block)

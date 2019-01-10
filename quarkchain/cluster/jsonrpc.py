@@ -694,11 +694,14 @@ class JSONRPCServer:
     @decode_arg("include_transactions", bool_decoder)
     async def getMinorBlockById(self, block_id, include_transactions=False):
         block_hash, full_shard_key = block_id
-        branch = Branch(
-            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                full_shard_key
+        try:
+            branch = Branch(
+                self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    full_shard_key
+                )
             )
-        )
+        except Exception:
+            return None
         block = await self.master.get_minor_block_by_hash(block_hash, branch)
         if not block:
             return None
@@ -712,11 +715,14 @@ class JSONRPCServer:
     ):
         if height is not None:
             height = quantity_decoder(height)
-        branch = Branch(
-            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                full_shard_key
+        try:
+            branch = Branch(
+                self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    full_shard_key
+                )
             )
-        )
+        except Exception:
+            return None
         block = await self.master.get_minor_block_by_height(height, branch)
         if not block:
             return None
