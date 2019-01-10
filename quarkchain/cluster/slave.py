@@ -723,7 +723,7 @@ class SlaveConnectionManager:
         self.env = env
         self.slave_server = slave_server
         self.full_shard_id_to_slaves = dict()  # full_shard_id -> list of slaves
-        for full_shard_id in self.env.quark_chain_config.get_genesis_full_shard_ids():
+        for full_shard_id in self.env.quark_chain_config.get_full_shard_ids():
             self.full_shard_id_to_slaves[full_shard_id] = []
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
@@ -742,7 +742,7 @@ class SlaveConnectionManager:
     def _add_slave_connection(self, slave: SlaveConnection):
         self.slave_ids.add(slave.id)
         self.slave_connections.add(slave)
-        for full_shard_id in self.env.quark_chain_config.get_genesis_full_shard_ids():
+        for full_shard_id in self.env.quark_chain_config.get_full_shard_ids():
             if slave.has_shard(full_shard_id):
                 self.full_shard_id_to_slaves[full_shard_id].append(slave)
 

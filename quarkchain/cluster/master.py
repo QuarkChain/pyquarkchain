@@ -988,7 +988,7 @@ class MasterServer:
 
         check(
             len(branch_to_account_branch_data)
-            == len(self.env.quark_chain_config.get_genesis_full_shard_ids())
+            == len(self.env.quark_chain_config.get_full_shard_ids())
         )
         return branch_to_account_branch_data
 

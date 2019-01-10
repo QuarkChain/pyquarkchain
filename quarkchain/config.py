@@ -7,6 +7,7 @@ from eth_keys import KeyAPI
 import quarkchain.db
 import quarkchain.evm.config
 from quarkchain.core import Address
+from quarkchain.utils import check, is_p2
 
 # Decimal level
 QUARKSH_TO_JIAOZI = 10 ** 18
@@ -242,6 +243,7 @@ class RootConfig(BaseConfig):
 class QuarkChainConfig(BaseConfig):
     # TODO: use ShardConfig.SHARD_SIZE
     SHARD_SIZE = 8
+    CHAIN_SIZE = 8
 
     MAX_NEIGHBORS = 32
 
@@ -269,7 +271,7 @@ class QuarkChainConfig(BaseConfig):
     REWARD_TAX_RATE = 0.5  # percentage of rewards should go to root block mining
 
     def __init__(self):
-        self.loadtest_accounts = []  # for TransactionGenerator
+        self.loadtest_accounts = []  # for TransactionGenerator. initialized in cluster_config.py
 
         self.ROOT = RootConfig()
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
@@ -277,6 +279,7 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
         self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
+        self.CHAIN_SIZE = 1
         self.SHARDS = dict()  # type: Dict[int, ShardConfig]
         for i in range(self.SHARD_SIZE):
             s = ShardConfig()
@@ -291,6 +294,32 @@ class QuarkChainConfig(BaseConfig):
 
         self._cached_guardian_private_key = None
 
+        self.init_and_validate()
+
+    def init_and_validate(self):
+        self._chain_id_to_shard_size = dict()
+        chain_id_to_shard_ids = dict()
+        for full_shard_id, shard_config in self.SHARDS.items():
+            chain_id = shard_config.CHAIN_ID
+            shard_size = shard_config.SHARD_SIZE
+            shard_id = shard_config.SHARD_ID
+            check(full_shard_id == (chain_id << 16 | shard_size | shard_id))
+            check(is_p2(shard_size))
+            if chain_id in self._chain_id_to_shard_size:
+                check(shard_size == self._chain_id_to_shard_size[chain_id])
+            else:
+                self._chain_id_to_shard_size[chain_id] = shard_size
+            chain_id_to_shard_ids.setdefault(chain_id, set()).add(shard_id)
+
+        # check the number of ShardConfigs matches SHARD_SIZE for each chain
+        # and the SHARD_ID starts from 0 to (SHARD_SIZE - 1)
+        for chain_id, shard_ids in chain_id_to_shard_ids.items():
+            shard_size = self.get_shard_size_by_chain_id(chain_id)
+            check(shard_ids == set(range(shard_size)))
+
+        # check the chain id starts from 0 to (CHAIN_SIZE - 1)
+        check(set(chain_id_to_shard_ids.keys()) == set(range(self.CHAIN_SIZE)))
+
     @property
     def reward_tax_rate(self) -> Fraction:
         ret = Fraction(self.REWARD_TAX_RATE).limit_denominator()
@@ -298,11 +327,14 @@ class QuarkChainConfig(BaseConfig):
         assert ret.denominator <= 100
         return ret
 
+    def get_shard_size_by_chain_id(self, chain_id: int) -> int:
+        return self._chain_id_to_shard_size[chain_id]
+
     def get_genesis_root_height(self, full_shard_id: int) -> int:
         """ Return the root block height at which the shard shall be created"""
         return self.SHARDS[full_shard_id].GENESIS.ROOT_HEIGHT
 
-    def get_genesis_full_shard_ids(self) -> List[int]:
+    def get_full_shard_ids(self) -> List[int]:
         """ Return a list of ids for shards that have GENESIS"""
         return [i for i, config in self.SHARDS.items() if config.GENESIS]
 
@@ -361,6 +393,7 @@ class QuarkChainConfig(BaseConfig):
             s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
             s.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
             self.SHARDS[s.get_full_shard_id()] = s
+        self.init_and_validate()
 
     def to_dict(self):
         ret = super().to_dict()
@@ -378,6 +411,7 @@ class QuarkChainConfig(BaseConfig):
             shard_config.root_config = config.ROOT
             shards[shard_config.get_full_shard_id()] = shard_config
         config.SHARDS = shards
+        config.init_and_validate()
         return config
 
 
