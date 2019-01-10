@@ -336,8 +336,8 @@ class QuarkChainConfig(BaseConfig):
         return self.SHARDS[full_shard_id].GENESIS.ROOT_HEIGHT
 
     def get_full_shard_ids(self) -> List[int]:
-        """ Return a list of ids for shards that have GENESIS"""
-        return [i for i, config in self.SHARDS.items() if config.GENESIS]
+        """ Return a list of full_shard_ids found in the config"""
+        return list(self.SHARDS.keys())
 
     def get_initialized_full_shard_ids_before_root_height(
         self, root_height: int
