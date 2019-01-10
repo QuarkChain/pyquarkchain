@@ -829,10 +829,10 @@ class SlaveServer:
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
 
-    def __cover_shard_id(self, shard_id):
+    def __cover_shard_id(self, full_shard_id):
         """ Does the shard belong to this slave? """
         for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(shard_id):
+            if shard_mask.contain_shard_id(full_shard_id):
                 return True
         return False
 
@@ -841,9 +841,7 @@ class SlaveServer:
         not been created yet."""
         futures = []
         for (full_shard_id, shard_config) in self.env.quark_chain_config.SHARDS.items():
-            branch = Branch.create(
-                self.env.quark_chain_config.SHARD_SIZE, full_shard_id
-            )
+            branch = Branch(full_shard_id)
             if branch in self.shards:
                 continue
             if not self.__cover_shard_id(full_shard_id) or not shard_config.GENESIS:
@@ -1063,8 +1061,8 @@ class SlaveServer:
 
     def add_tx(self, tx: Transaction) -> bool:
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
         if not shard:
             return False
@@ -1072,16 +1070,18 @@ class SlaveServer:
 
     def execute_tx(self, tx, from_address) -> Optional[bytes]:
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
         if not shard:
             return None
         return shard.state.execute_tx(tx, from_address)
 
     def get_transaction_count(self, address):
-        branch = Branch.create(
-            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1089,8 +1089,10 @@ class SlaveServer:
         return shard.state.get_transaction_count(address.recipient)
 
     def get_balance(self, address):
-        branch = Branch.create(
-            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1144,8 +1146,10 @@ class SlaveServer:
         return shard.state.get_transaction_receipt(tx_hash)
 
     def get_transaction_list_by_address(self, address, start, limit):
-        branch = Branch.create(
-            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
         )
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1167,8 +1171,8 @@ class SlaveServer:
 
     def estimate_gas(self, tx, from_address) -> Optional[int]:
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
         if not shard:
             return None
@@ -1177,9 +1181,11 @@ class SlaveServer:
     def get_storage_at(
         self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_full_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
         shard = self.shards.get(branch, None)
         if not shard:
             return None
@@ -1188,9 +1194,11 @@ class SlaveServer:
     def get_code(
         self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_full_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
         shard = self.shards.get(branch, None)
         if not shard:
             return None

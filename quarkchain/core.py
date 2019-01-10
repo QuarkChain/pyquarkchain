@@ -378,8 +378,7 @@ class Address(Serializable):
         if not is_p2(shard_size):
             raise RuntimeError("Invalid shard size {}".format(shard_size))
         chain_id = self.full_shard_key >> 16
-        shard_key = self.full_shard_key & ((1 << 16) - 1)
-        shard_id = shard_key & (shard_size - 1)
+        shard_id = self.full_shard_key & (shard_size - 1)
         return (chain_id << 16) | shard_size | shard_id
 
     def address_in_shard(self, full_shard_key: int):
@@ -737,7 +736,7 @@ class MinorBlockHeader(Serializable):
         self,
         version: int = 0,
         height: int = 0,
-        branch: Branch = Branch.create(1, 0),
+        branch: Branch = Branch(1),
         coinbase_address: Address = Address.create_empty_account(),
         coinbase_amount: int = 0,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),

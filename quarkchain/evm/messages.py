@@ -220,7 +220,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         tx.startgas - intrinsic_gas,
         message_data,
         code_address=tx.to,
-        is_cross_shard=tx.is_cross_shard(),
+        is_cross_shard=tx.is_cross_shard,
         from_full_shard_key=tx.from_full_shard_key,
         to_full_shard_key=tx.to_full_shard_key,
         tx_hash=tx_wrapper_hash,
@@ -277,7 +277,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         # if x-shard, reserve part of the gas for the target shard miner
         fee = (
             tx.gasprice
-            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard() else 0))
+            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard else 0))
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )

@@ -376,9 +376,9 @@ class SlaveConnection(ClusterConnection):
     def validate_connection(self, connection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
 
-    def has_shard(self, shard_id):
+    def has_shard(self, full_shard_id: int):
         for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(shard_id):
+            if shard_mask.contain_shard_id(full_shard_id):
                 return True
         return False
 
@@ -704,6 +704,7 @@ class MasterServer:
 
         results = await asyncio.gather(*futures)
 
+        full_shard_ids = self.env.quark_chain_config.get_full_shard_ids()
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
             id, shard_mask_list = result
@@ -721,10 +722,9 @@ class MasterServer:
                 self.shutdown()
 
             self.slave_pool.add(slave)
-            for shard_id in range(self.__get_shard_size()):
-                branch = Branch.create(self.__get_shard_size(), shard_id)
-                if slave.has_shard(shard_id):
-                    self.branch_to_slaves.setdefault(branch.value, []).append(slave)
+            for full_shard_id in full_shard_ids:
+                if slave.has_shard(full_shard_id):
+                    self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
 
     async def __setup_slave_to_slave_connections(self):
         """ Make slaves connect to other slaves.
@@ -996,9 +996,10 @@ class MasterServer:
         self, address: Address, block_height: Optional[int] = None
     ):
         # TODO: Only query the shard who has the address
-        shard_id = address.get_full_shard_id(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), shard_id)
-        slaves = self.branch_to_slaves.get(branch.value, None)
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        slaves = self.branch_to_slaves.get(full_shard_id, None)
         if not slaves:
             return None
         slave = slaves[0]
@@ -1007,15 +1008,15 @@ class MasterServer:
             ClusterOp.GET_ACCOUNT_DATA_REQUEST, request
         )
         for account_branch_data in resp.account_branch_data_list:
-            if account_branch_data.branch == branch:
+            if account_branch_data.branch.value == full_shard_id:
                 return account_branch_data
         return None
 
     async def add_transaction(self, tx, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return False
 
@@ -1042,8 +1043,8 @@ class MasterServer:
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1353,10 +1354,10 @@ class MasterServer:
         return await slave.get_transaction_receipt(tx_hash, branch)
 
     async def get_transactions_by_address(self, address, start, limit):
-        branch = Branch.create(
-            self.__get_shard_size(), address.get_full_shard_id(self.__get_shard_size())
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
         )
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_transactions_by_address(address, start, limit)
 
     async def get_logs(
@@ -1382,8 +1383,8 @@ class MasterServer:
         self, tx: Transaction, from_address: Address
     ) -> Optional[int]:
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1393,25 +1394,25 @@ class MasterServer:
     async def get_storage_at(
         self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_full_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
-        if branch.value not in self.branch_to_slaves:
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        if full_shard_id not in self.branch_to_slaves:
             return None
 
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_storage_at(address, key, block_height)
 
     async def get_code(
         self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_full_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
-        if branch.value not in self.branch_to_slaves:
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        if full_shard_id not in self.branch_to_slaves:
             return None
 
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_code(address, block_height)
 
     async def gas_price(self, branch: Branch) -> Optional[int]:

@@ -147,7 +147,7 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
-            branch = Branch.create(2, 0)
+            branch = Branch(2)
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
@@ -190,7 +190,7 @@ class TestCluster(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
-            branch0 = Branch.create(2, 0)
+            branch0 = Branch(2)
             tx1 = create_transfer_transaction(
                 shard_state=slaves[0].shards[branch0].state,
                 key=id1.get_key(),
@@ -201,7 +201,7 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(master.add_transaction(tx1)))
             self.assertEqual(len(slaves[0].shards[branch0].state.tx_queue), 1)
 
-            branch1 = Branch.create(2, 1)
+            branch1 = Branch(2 | 1)
             tx2 = create_transfer_transaction(
                 shard_state=slaves[1].shards[branch1].state,
                 key=id1.get_key(),

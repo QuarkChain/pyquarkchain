@@ -73,7 +73,7 @@ class ShardState:
         self.diff_calc = diff_calc
         self.reward_calc = ConstMinorBlockRewardCalcultor(env)
         self.raw_db = db if db is not None else env.db
-        self.branch = Branch.create(env.quark_chain_config.SHARD_SIZE, full_shard_id)
+        self.branch = Branch(full_shard_id)
         self.db = ShardDbOperator(self.raw_db, self.env, self.branch)
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
@@ -117,8 +117,6 @@ class ShardState:
             )
         )
 
-        shard_size = root_block.header.shard_info.get_shard_size()
-        check(self.branch == Branch.create(shard_size, self.full_shard_id))
         self.root_tip = root_block.header
         self.header_tip = __get_header_tip_from_root_block(self.branch)
 
@@ -234,7 +232,7 @@ class ShardState:
             )
             evm_tx.sender = from_address.recipient
 
-        evm_tx.set_shard_size(self.branch.get_shard_size())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
 
         if evm_tx.network_id != self.env.quark_chain_config.NETWORK_ID:
             raise RuntimeError(
@@ -251,11 +249,11 @@ class ShardState:
                 )
             )
 
-        to_branch = Branch.create(self.branch.get_shard_size(), evm_tx.to_shard_id())
-        if evm_tx.is_cross_shard() and not self.__is_neighbor(to_branch):
+        to_branch = Branch(evm_tx.to_full_shard_id)
+        if evm_tx.is_cross_shard and not self.__is_neighbor(to_branch):
             raise RuntimeError(
-                "evm tx to_shard_id {} is not a neighbor of from_shard_id {}".format(
-                    evm_tx.to_shard_id(), evm_tx.from_shard_id()
+                "evm tx to_full_shard_id {} is not a neighbor of from_full_shard_id {}".format(
+                    evm_tx.to_full_shard_id, evm_tx.from_full_shard_id
                 )
             )
 
@@ -554,7 +552,7 @@ class ShardState:
         for idx, tx in enumerate(block.tx_list):
             try:
                 evm_tx = self.__validate_tx(tx, evm_state)
-                evm_tx.set_shard_size(self.branch.get_shard_size())
+                evm_tx.set_quark_chain_config(self.env.quark_chain_config)
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 evm_tx_included.append(evm_tx)
             except Exception as e:
@@ -953,16 +951,14 @@ class ShardState:
             if evm_tx is None:  # tx_queue is exhausted
                 break
 
-            evm_tx.set_shard_size(self.branch.get_shard_size())
-            to_branch = Branch.create(
-                self.branch.get_shard_size(), evm_tx.to_shard_id()
-            )
+            evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+            to_branch = Branch(evm_tx.to_full_shard_id)
 
             if self.branch != to_branch:
                 check(is_neighbor(self.branch, to_branch))
                 if xshard_tx_counters[
-                    evm_tx.to_full_shard_id()
-                ] + 1 > xshard_tx_limits.get(evm_tx.to_full_shard_id(), 0):
+                    evm_tx.to_full_shard_id
+                ] + 1 > xshard_tx_limits.get(evm_tx.to_full_shard_id, 0):
                     poped_txs.append(evm_tx)  # will be put back later
                     continue
 
@@ -971,7 +967,7 @@ class ShardState:
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 block.add_tx(tx)
                 poped_txs.append(evm_tx)
-                xshard_tx_counters[evm_tx.to_shard_id()] += 1
+                xshard_tx_counters[evm_tx.to_full_shard_id] += 1
             except Exception as e:
                 Logger.warning_every_sec(
                     "Failed to include transaction: {}".format(e), 1

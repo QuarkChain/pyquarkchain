@@ -327,6 +327,12 @@ class QuarkChainConfig(BaseConfig):
         assert ret.denominator <= 100
         return ret
 
+    def get_full_shard_id_by_full_shard_key(self, full_shard_key: int) -> int:
+        chain_id = full_shard_key >> 16
+        shard_size = self.get_shard_size_by_chain_id(chain_id)
+        shard_id = full_shard_key & (shard_size - 1)
+        return chain_id << 16 | shard_size | shard_id
+
     def get_shard_size_by_chain_id(self, chain_id: int) -> int:
         return self._chain_id_to_shard_size[chain_id]
 
