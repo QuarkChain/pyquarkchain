@@ -40,7 +40,6 @@ class TestQuarkChainConfig(unittest.TestCase):
             config.SHARDS[(1 << 16) | 2 | i] = s
 
         expected_json = """{
-    "SHARD_SIZE": 8,
     "CHAIN_SIZE": 2,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 3,
@@ -62,7 +61,6 @@ class TestQuarkChainConfig(unittest.TestCase):
         "GENESIS": {
             "VERSION": 0,
             "HEIGHT": 0,
-            "SHARD_SIZE": 32,
             "HASH_PREV_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
             "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
             "TIMESTAMP": 1519147489,

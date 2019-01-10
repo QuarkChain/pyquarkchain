@@ -60,7 +60,6 @@ class BaseConfig:
 class RootGenesis(BaseConfig):
     VERSION = 0
     HEIGHT = 0
-    SHARD_SIZE = 32
     HASH_PREV_BLOCK = bytes(32).hex()
     HASH_MERKLE_ROOT = bytes(32).hex()
     # 2018/2/2 5 am 7 min 38 sec
@@ -110,7 +109,7 @@ class POWConfig(BaseConfig):
 
 class ShardConfig(BaseConfig):
     CHAIN_ID = 0
-    SHARD_SIZE = 1
+    SHARD_SIZE = 2
     SHARD_ID = 0
 
     CONSENSUS_TYPE = ConsensusType.NONE
@@ -241,9 +240,7 @@ class RootConfig(BaseConfig):
 
 
 class QuarkChainConfig(BaseConfig):
-    # TODO: use ShardConfig.SHARD_SIZE
-    SHARD_SIZE = 8
-    CHAIN_SIZE = 8
+    CHAIN_SIZE = 3
 
     MAX_NEIGHBORS = 32
 
@@ -277,20 +274,18 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 10
-        self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
-        self.CHAIN_SIZE = 1
         self.SHARDS = dict()  # type: Dict[int, ShardConfig]
-        for i in range(self.SHARD_SIZE):
-            s = ShardConfig()
-            s.root_config = self.ROOT
-            s.CHAIN_ID = 0
-            s.SHARD_SIZE = self.SHARD_SIZE
-            s.SHARD_ID = i
-            s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
-            s.CONSENSUS_CONFIG = POWConfig()
-            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
-            self.SHARDS[s.get_full_shard_id()] = s
+        for chain_id in range(self.CHAIN_SIZE):
+            for shard_id in range(ShardConfig.SHARD_SIZE):
+                s = ShardConfig()
+                s.root_config = self.ROOT
+                s.CHAIN_ID = chain_id
+                s.SHARD_ID = shard_id
+                s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+                s.CONSENSUS_CONFIG = POWConfig()
+                s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
+                self.SHARDS[s.get_full_shard_id()] = s
 
         self._cached_guardian_private_key = None
 
@@ -378,27 +373,33 @@ class QuarkChainConfig(BaseConfig):
         self._cached_guardian_private_key = ret
         return ret
 
-    def update(self, shard_size, root_block_time, minor_block_time):
-        self.SHARD_SIZE = shard_size
+    def update(
+        self, chain_size, shard_size_per_chain, root_block_time, minor_block_time
+    ):
+        self.CHAIN_SIZE = chain_size
 
         self.ROOT = RootConfig()
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
-        self.ROOT.GENESIS.SHARD_SIZE = self.SHARD_SIZE
 
         self.SHARDS = dict()
-        for i in range(self.SHARD_SIZE):
-            s = ShardConfig()
-            s.root_config = self.ROOT
-            s.CHAIN_ID = 0
-            s.SHARD_SIZE = self.SHARD_SIZE
-            s.SHARD_ID = i
-            s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
-            s.CONSENSUS_CONFIG = POWConfig()
-            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
-            s.COINBASE_ADDRESS = Address.create_empty_account(i).serialize().hex()
-            self.SHARDS[s.get_full_shard_id()] = s
+        for chain_id in range(chain_size):
+            for shard_id in range(shard_size_per_chain):
+                s = ShardConfig()
+                s.root_config = self.ROOT
+                s.CHAIN_ID = chain_id
+                s.SHARD_SIZE = shard_size_per_chain
+                s.SHARD_ID = shard_id
+                s.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+                s.CONSENSUS_CONFIG = POWConfig()
+                s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
+                s.COINBASE_ADDRESS = (
+                    Address.create_empty_account(s.get_full_shard_id())
+                    .serialize()
+                    .hex()
+                )
+                self.SHARDS[s.get_full_shard_id()] = s
         self.init_and_validate()
 
     def to_dict(self):

@@ -135,9 +135,6 @@ class MasterConnection(ClusterConnection):
             connection, ForwardingVirtualConnection
         )
 
-    def __get_shard_size(self):
-        return self.env.quark_chain_config.SHARD_SIZE
-
     def close(self):
         for shard in self.shards.values():
             for peer_shard_conn in shard.peers.values():
@@ -627,9 +624,6 @@ class SlaveConnection(Connection):
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
-    def __get_shard_size(self):
-        return self.slave_server.env.quark_chain_config.SHARD_SIZE
-
     async def wait_until_ping_received(self):
         await self.ping_received_future
 
@@ -672,15 +666,6 @@ class SlaveConnection(Connection):
     # Blockchain RPC handlers
 
     async def handle_add_xshard_tx_list_request(self, req):
-        if req.branch.get_shard_size() != self.__get_shard_size():
-            Logger.error(
-                "add xshard tx list request shard size mismatch! "
-                "Expect: {}, actual: {}".format(
-                    self.__get_shard_size(), req.branch.get_shard_size()
-                )
-            )
-            return AddXshardTxListResponse(error_code=errno.ESRCH)
-
         if req.branch not in self.shards:
             Logger.error(
                 "cannot find shard id {} locally".format(req.branch.get_full_shard_id())
@@ -728,9 +713,6 @@ class SlaveConnectionManager:
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
         self.loop = asyncio.get_event_loop()
-
-    def __get_shard_size(self):
-        return self.env.quark_chain_config.SHARD_SIZE
 
     def close_all(self):
         for conn in self.slave_connections:
@@ -877,9 +859,6 @@ class SlaveServer:
             Logger.info("[{}] stop mining".format(branch.get_full_shard_id()))
             shard.miner.disable()
 
-    def __get_shard_size(self):
-        return self.env.quark_chain_config.SHARD_SIZE
-
     async def __handle_new_connection(self, reader, writer):
         # The first connection should always come from master
         if not self.master:
@@ -951,8 +930,8 @@ class SlaveServer:
             xshard_map[branch] = []
 
         for xshard_tx in xshard_tx_list:
-            full_shard_id = xshard_tx.to_address.get_full_shard_id(
-                self.__get_shard_size()
+            full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                xshard_tx.to_address.full_shard_key
             )
             branch = Branch(full_shard_id)
             check(branch in xshard_map)

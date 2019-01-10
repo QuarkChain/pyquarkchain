@@ -84,39 +84,36 @@ class TransactionGenerator:
     def create_transaction(
         self, account, nonce, x_shard_percent, sample_evm_tx
     ) -> Optional[Transaction]:
-        shard_size = self.qkc_config.SHARD_SIZE
-        shard_mask = shard_size - 1
-        from_shard = self.full_shard_id
-
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
         if (
             sample_evm_tx.from_full_shard_key
-            and (sample_evm_tx.from_full_shard_key & shard_mask) != from_shard
+            and self.qkc_config.get_full_shard_id_by_full_shard_key(
+                sample_evm_tx.from_full_shard_key
+            )
+            != self.full_shard_id
         ):
             return None
 
         if sample_evm_tx.from_full_shard_key:
             from_full_shard_key = sample_evm_tx.from_full_shard_key
         else:
-            from_full_shard_key = (
-                account.address.full_shard_key & (~shard_mask) | from_shard
-            )
+            from_full_shard_key = self.full_shard_id
 
         if not sample_evm_tx.to:
             to_address = random.choice(self.accounts).address
             recipient = to_address.recipient
-            to_full_shard_key = to_address.full_shard_key & (~shard_mask) | from_shard
+            to_full_shard_key = self.full_shard_id
         else:
             recipient = sample_evm_tx.to
             to_full_shard_key = from_full_shard_key
 
         if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
-            to_shard = random.randint(0, self.qkc_config.SHARD_SIZE - 1)
-            if to_shard == self.full_shard_id:
-                to_shard = (to_shard + 1) % self.qkc_config.SHARD_SIZE
-            to_full_shard_key = to_full_shard_key & (~shard_mask) | to_shard
+            to_full_shard_id = random.choice(
+                self.qkc_config.get_full_shard_ids() - [self.full_shard_id]
+            )
+            to_full_shard_key = to_full_shard_id
 
         value = sample_evm_tx.value
         if not sample_evm_tx.data:

@@ -226,8 +226,6 @@ def tx_encoder(block, i):
     """
     tx = block.tx_list[i]
     evm_tx = tx.code.get_evm_transaction()
-    # TODO: shard_mask is wrong when the tx is pending and block is fake
-    shard_mask = block.header.branch.get_shard_size() - 1
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
         "hash": data_encoder(tx.get_hash()),
@@ -241,10 +239,8 @@ def tx_encoder(block, i):
         "transactionIndex": quantity_encoder(i),
         "from": data_encoder(evm_tx.sender),
         "to": data_encoder(evm_tx.to),
-        "fromFullShardId": full_shard_key_encoder(evm_tx.from_full_shard_key),
-        "toFullShardId": full_shard_key_encoder(evm_tx.to_full_shard_key),
-        "fromShardId": quantity_encoder(evm_tx.from_full_shard_key & shard_mask),
-        "toShardId": quantity_encoder(evm_tx.to_full_shard_key & shard_mask),
+        "fromFullShardKey": full_shard_key_encoder(evm_tx.from_full_shard_key),
+        "toFullShardKey": full_shard_key_encoder(evm_tx.to_full_shard_key),
         "value": quantity_encoder(evm_tx.value),
         "gasPrice": quantity_encoder(evm_tx.gasprice),
         "gas": quantity_encoder(evm_tx.startgas),
@@ -472,7 +468,6 @@ class JSONRPCServer:
             "networkId": quantity_encoder(
                 self.master.env.quark_chain_config.NETWORK_ID
             ),
-            "shardSize": quantity_encoder(self.master.get_shard_size()),
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
             "shardServerCount": len(self.master.slave_pool),
@@ -529,15 +524,12 @@ class JSONRPCServer:
             return {"primary": primary}
 
         branch_to_account_branch_data = await self.master.get_account_data(address)
-        shard_size = self.master.get_shard_size()
 
         shards = []
         for branch, account_branch_data in branch_to_account_branch_data.items():
             data = {
-                "branch": quantity_encoder(account_branch_data.branch.value),
-                "shard": quantity_encoder(
-                    account_branch_data.branch.get_full_shard_id()
-                ),
+                "branch": quantity_encoder(branch.value),
+                "shard": quantity_encoder(branch.get_full_shard_id()),
                 "balance": quantity_encoder(account_branch_data.balance),
                 "transactionCount": quantity_encoder(
                     account_branch_data.transaction_count
@@ -546,7 +538,9 @@ class JSONRPCServer:
             }
             shards.append(data)
 
-            if shard == address.get_full_shard_id(shard_size):
+            if branch.get_full_shard_id() == self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            ):
                 primary = data
 
         return {"primary": primary, "shards": shards}

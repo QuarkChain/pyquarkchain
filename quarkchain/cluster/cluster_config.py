@@ -8,7 +8,7 @@ from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig
+from quarkchain.config import QuarkChainConfig, BaseConfig, ShardConfig
 from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check, Logger
@@ -34,10 +34,12 @@ def update_genesis_alloc(cluser_config):
             items = json.load(f)
         for item in items:
             address = Address.create_from(item["address"])
-            shard = address.get_full_shard_id(qkc_config.SHARD_SIZE)
-            qkc_config.SHARDS[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
-                10 ** 18
+            full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
             )
+            qkc_config.SHARDS[full_shard_id].GENESIS.ALLOC[
+                item["address"]
+            ] = 1000000 * (10 ** 18)
 
         Logger.info(
             "Imported {} accounts from genesis alloc at {}".format(
@@ -202,7 +204,10 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--genesis_dir", default=default_genesis_dir, type=str)
 
         parser.add_argument(
-            "--num_shards", default=QuarkChainConfig.SHARD_SIZE, type=int
+            "--num_chains", default=QuarkChainConfig.CHAIN_SIZE, type=int
+        )
+        parser.add_argument(
+            "--num_shards_per_chain", default=ShardConfig.SHARD_SIZE, type=int
         )
         parser.add_argument("--root_block_interval_sec", default=10, type=int)
         parser.add_argument("--minor_block_interval_sec", default=3, type=int)
@@ -281,7 +286,10 @@ class ClusterConfig(BaseConfig):
         """
 
         def __create_from_args_internal():
-            check(is_p2(args.num_shards), "--num_shards must be power of 2")
+            check(
+                is_p2(args.num_shards_per_chain),
+                "--num_shards_per_chain must be power of 2",
+            )
             check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
 
             config = ClusterConfig()
@@ -297,7 +305,8 @@ class ClusterConfig(BaseConfig):
             config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
             config.QUARKCHAIN.update(
-                args.num_shards,
+                args.num_chains,
+                args.num_shards_per_chain,
                 args.root_block_interval_sec,
                 args.minor_block_interval_sec,
             )

@@ -7,7 +7,6 @@ from quarkchain.core import (
     MinorBlockHeader,
     MinorBlock,
     Branch,
-    ShardInfo,
     RootBlockHeader,
     RootBlock,
 )
@@ -27,7 +26,6 @@ class GenesisManager:
         header = RootBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
-            shard_info=ShardInfo.create(genesis.SHARD_SIZE),
             hash_prev_block=bytes.fromhex(genesis.HASH_PREV_BLOCK),
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             create_time=genesis.TIMESTAMP,
@@ -49,7 +47,10 @@ class GenesisManager:
         for address_hex, amount_in_wei in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
             check(
-                address.get_full_shard_id(self._qkc_config.SHARD_SIZE) == full_shard_id
+                self._qkc_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                == full_shard_id
             )
             evm_state.full_shard_key = address.full_shard_key
             evm_state.delta_balance(address.recipient, amount_in_wei)

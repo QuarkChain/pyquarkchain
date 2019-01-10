@@ -1409,10 +1409,12 @@ class ShardState:
     ) -> Optional[List[Log]]:
         if addresses and (
             len(set(addr.full_shard_key for addr in addresses)) != 1
-            or addresses[0].get_full_shard_id(self.branch.get_shard_size())
+            or self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                addresses[0].full_shard_key
+            )
             != self.full_shard_id
         ):
-            # should have the same shard Id for the given addresses
+            # should have the same full_shard_id for the given addresses
             return None
 
         log_filter = Filter(self.db, addresses, topics, start_block, end_block)

@@ -35,7 +35,7 @@ def get_test_env(
     env.set_network_id(1234567890)
 
     env.cluster_config = ClusterConfig()
-    env.quark_chain_config.update(shard_size, 10, 1)
+    env.quark_chain_config.update(1, shard_size, 10, 1)
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
@@ -46,6 +46,7 @@ def get_test_env(
     env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR = 1024
 
     if genesis_root_heights:
+        # TODO: fix this to support chain_id
         check(len(genesis_root_heights) == shard_size)
         for shard_id in range(shard_size):
             full_shard_id = shard_size | shard_id  # chain_id is 0
@@ -180,15 +181,15 @@ class Cluster:
         self.network = network
         self.peer = peer
 
-    def get_shard(self, shard_id) -> Shard:
-        branch = Branch.create(self.master.env.quark_chain_config.SHARD_SIZE, shard_id)
+    def get_shard(self, full_shard_id: int) -> Shard:
+        branch = Branch(full_shard_id)
         for slave in self.slave_list:
             if branch in slave.shards:
                 return slave.shards[branch]
         return None
 
-    def get_shard_state(self, shard_id) -> ShardState:
-        shard = self.get_shard(shard_id)
+    def get_shard_state(self, full_shard_id: int) -> ShardState:
+        shard = self.get_shard(full_shard_id)
         if not shard:
             return None
         return shard.state

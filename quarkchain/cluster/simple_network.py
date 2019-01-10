@@ -93,16 +93,6 @@ class Peer(P2PConnection):
             "Got HELLO from peer {} ({}:{})".format(self.id.hex(), self.ip, self.port)
         )
 
-        # Validate best root and minor blocks from peer
-        # TODO: validate hash and difficulty through a helper function
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
-
         self.best_root_block_header_observed = cmd.root_block_header
 
         if self.id == self.network.self_id:

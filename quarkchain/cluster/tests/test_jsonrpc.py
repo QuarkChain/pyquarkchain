@@ -77,7 +77,9 @@ class TestJSONRPC(unittest.TestCase):
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
                 self.assertEqual(i + 1, block.header.height)
-                self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
+                self.assertTrue(
+                    call_async(clusters[0].get_shard(2 | 0).add_block(block))
+                )
 
             response = send_request(
                 "getTransactionCount", "0x" + acc2.serialize().hex()
@@ -216,7 +218,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             # By id
             resp = send_request(
@@ -278,7 +280,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             resp = send_request(
                 "getTransactionById",
@@ -385,7 +387,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(
@@ -425,7 +427,7 @@ class TestJSONRPC(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx_gen(s1, acc1, acc2)))
             _, b1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(b1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(b1)))
 
             _, root_block = call_async(
                 master.get_next_block_to_mine(address=acc1, prefer_root=True)
@@ -476,7 +478,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(
@@ -525,7 +527,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block1 = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block1)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(
@@ -564,7 +566,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 shard_id = hex(acc1.full_shard_key)
@@ -653,7 +655,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
@@ -712,7 +714,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             _, block = call_async(master.get_next_block_to_mine(address=acc1))
-            self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
@@ -749,7 +751,9 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertTrue(slaves[0].add_tx(tx))
 
                 _, block = call_async(master.get_next_block_to_mine(address=acc1))
-                self.assertTrue(call_async(clusters[0].get_shard(0).add_block(block)))
+                self.assertTrue(
+                    call_async(clusters[0].get_shard(2 | 0).add_block(block))
+                )
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:

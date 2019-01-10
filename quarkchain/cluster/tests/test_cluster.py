@@ -280,7 +280,7 @@ class TestCluster(unittest.TestCase):
             clusters[1].peer.close()
 
             # add blocks in cluster 0
-            block_header_list = [clusters[0].get_shard_state(0).header_tip]
+            block_header_list = [clusters[0].get_shard_state(2 | 0).header_tip]
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
@@ -303,7 +303,7 @@ class TestCluster(unittest.TestCase):
                 self.assertTrue(add_result)
                 block_header_list.append(b1.header)
 
-            block_header_list.append(clusters[0].get_shard_state(1).header_tip)
+            block_header_list.append(clusters[0].get_shard_state(2 | 1).header_tip)
             shard_state0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             coinbase_amount = (
                 shard_state0.env.quark_chain_config.SHARDS[
@@ -506,7 +506,9 @@ class TestCluster(unittest.TestCase):
             is_root, root0 = call_async(master0.get_next_block_to_mine(acc1))
             self.assertTrue(is_root)
             call_async(master0.add_root_block(root0))
-            genesis0 = clusters[0].get_shard_state(1).db.get_minor_block_by_height(0)
+            genesis0 = (
+                clusters[0].get_shard_state(2 | 1).db.get_minor_block_by_height(0)
+            )
             self.assertEqual(
                 genesis0.header.hash_prev_root_block, root0.header.get_hash()
             )
@@ -516,7 +518,9 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(is_root)
             self.assertNotEqual(root0.header.get_hash(), root1.header.get_hash())
             call_async(master1.add_root_block(root1))
-            genesis1 = clusters[1].get_shard_state(1).db.get_minor_block_by_height(0)
+            genesis1 = (
+                clusters[1].get_shard_state(2 | 1).db.get_minor_block_by_height(0)
+            )
             self.assertEqual(
                 genesis1.header.hash_prev_root_block, root1.header.get_hash()
             )
@@ -537,12 +541,12 @@ class TestCluster(unittest.TestCase):
             # Expect cluster0's genesis change to genesis1
             assert_true_with_timeout(
                 lambda: clusters[0]
-                .get_shard_state(1)
+                .get_shard_state(2 | 1)
                 .db.get_minor_block_by_height(0)
                 .header.get_hash()
                 == genesis1.header.get_hash()
             )
-            self.assertTrue(clusters[0].get_shard_state(1).root_tip == root2.header)
+            self.assertTrue(clusters[0].get_shard_state(2 | 1).root_tip == root2.header)
 
     def test_broadcast_cross_shard_transactions(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
@@ -565,7 +569,7 @@ class TestCluster(unittest.TestCase):
             call_async(master.add_root_block(root_block))
 
             tx1 = create_transfer_transaction(
-                shard_state=clusters[0].get_shard_state(0),
+                shard_state=clusters[0].get_shard_state(2 | 0),
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=acc3,
@@ -574,17 +578,17 @@ class TestCluster(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx1))
 
-            b1 = clusters[0].get_shard_state(0).create_block_to_mine(address=acc1)
-            b2 = clusters[0].get_shard_state(0).create_block_to_mine(address=acc1)
+            b1 = clusters[0].get_shard_state(2 | 0).create_block_to_mine(address=acc1)
+            b2 = clusters[0].get_shard_state(2 | 0).create_block_to_mine(address=acc1)
             b2.header.create_time += 1
             self.assertNotEqual(b1.header.get_hash(), b2.header.get_hash())
 
-            call_async(clusters[0].get_shard(0).add_block(b1))
+            call_async(clusters[0].get_shard(2 | 0).add_block(b1))
 
             # expect shard 1 got the CrossShardTransactionList of b1
             xshard_tx_list = (
                 clusters[0]
-                .get_shard_state(1)
+                .get_shard_state(2 | 1)
                 .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
             )
             self.assertEqual(len(xshard_tx_list.tx_list), 1)
@@ -593,14 +597,14 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(xshard_tx_list.tx_list[0].to_address, acc3)
             self.assertEqual(xshard_tx_list.tx_list[0].value, 54321)
 
-            call_async(clusters[0].get_shard(0).add_block(b2))
+            call_async(clusters[0].get_shard(2 | 0).add_block(b2))
             # b2 doesn't update tip
-            self.assertEqual(clusters[0].get_shard_state(0).header_tip, b1.header)
+            self.assertEqual(clusters[0].get_shard_state(2 | 0).header_tip, b1.header)
 
             # expect shard 1 got the CrossShardTransactionList of b2
             xshard_tx_list = (
                 clusters[0]
-                .get_shard_state(1)
+                .get_shard_state(2 | 1)
                 .db.get_minor_block_xshard_tx_list(b2.header.get_hash())
             )
             self.assertEqual(len(xshard_tx_list.tx_list), 1)
@@ -680,7 +684,7 @@ class TestCluster(unittest.TestCase):
             for shard_id in range(64):
                 xshard_tx_list = (
                     clusters[0]
-                    .get_shard_state(shard_id)
+                    .get_shard_state(64 | shard_id)
                     .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
                 )
                 # Only neighbor should have it

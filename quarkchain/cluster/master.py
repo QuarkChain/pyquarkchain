@@ -648,21 +648,14 @@ class MasterServer:
             guardian_private_key=self.env.quark_chain_config.guardian_private_key,
         )
 
-    def __get_shard_size(self):
-        # TODO: replace it with dynamic size
-        return self.env.quark_chain_config.SHARD_SIZE
-
-    def get_shard_size(self):
-        return self.__get_shard_size()
-
     def get_artificial_tx_config(self):
         return self.artificial_tx_config
 
     def __has_all_shards(self):
         """ Returns True if all the shards have been run by at least one node """
-        return len(self.branch_to_slaves) == self.__get_shard_size() and all(
-            [len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()]
-        )
+        return len(self.branch_to_slaves) == len(
+            self.env.quark_chain_config.get_full_shard_ids()
+        ) and all([len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()])
 
     async def __connect(self, host, port):
         """ Retries until success """
@@ -835,15 +828,6 @@ class MasterServer:
             if response.error_code != 0:
                 return None
             for headers_info in response.headers_info_list:
-                if headers_info.branch.get_shard_size() != self.__get_shard_size():
-                    Logger.error(
-                        "Expect shard size {} got {}".format(
-                            self.__get_shard_size(),
-                            headers_info.branch.get_shard_size(),
-                        )
-                    )
-                    return None
-
                 height = 0
                 for header in headers_info.header_list:
                     # check headers are ordered by height
@@ -1213,9 +1197,7 @@ class MasterServer:
 
     def get_block_count(self):
         header = self.root_state.tip
-        shard_r_c = self.root_state.db.get_block_count(
-            header.height, header.shard_info.get_shard_size()
-        )
+        shard_r_c = self.root_state.db.get_block_count(header.height)
         return {"rootHeight": header.height, "shardRC": shard_r_c}
 
     async def get_stats(self):
@@ -1286,7 +1268,6 @@ class MasterServer:
         return {
             "networkId": self.env.quark_chain_config.NETWORK_ID,
             "shardServerCount": len(self.slave_pool),
-            "shardSize": self.__get_shard_size(),
             "rootHeight": self.root_state.tip.height,
             "rootDifficulty": self.root_state.tip.difficulty,
             "rootCoinbaseAddress": "0x" + self.root_state.tip.coinbase_address.to_hex(),

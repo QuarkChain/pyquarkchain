@@ -645,30 +645,6 @@ def calculate_merkle_root(item_list):
     return sha_tree[0]
 
 
-class ShardInfo(Serializable):
-    """ Shard information contains
-    - shard size (power of 2)
-    - voting of increasing shards
-    """
-
-    FIELDS = [("value", uint32)]
-
-    def __init__(self, value):
-        self.value = value
-
-    def get_shard_size(self):
-        return 1 << (self.value & 31)
-
-    def get_reshard_vote(self):
-        return (self.value & (1 << 31)) != 0
-
-    @staticmethod
-    def create(shard_size, reshard_vote=False):
-        assert is_p2(shard_size)
-        reshard_vote = 1 if reshard_vote else 0
-        return ShardInfo(int_left_most_bit(shard_size) - 1 + (reshard_vote << 31))
-
-
 def mk_receipt_sha(receipts, db):
     t = trie.Trie(db)
     for i, receipt in enumerate(receipts):
@@ -899,7 +875,6 @@ class RootBlockHeader(Serializable):
     FIELDS = [
         ("version", uint32),
         ("height", uint32),
-        ("shard_info", ShardInfo),
         ("hash_prev_block", hash256),
         ("hash_merkle_root", hash256),
         ("coinbase_address", Address),
@@ -916,7 +891,6 @@ class RootBlockHeader(Serializable):
         self,
         version=0,
         height=0,
-        shard_info=ShardInfo.create(1, False),
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
@@ -930,7 +904,6 @@ class RootBlockHeader(Serializable):
     ):
         self.version = version
         self.height = height
-        self.shard_info = shard_info
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
         self.coinbase_address = coinbase_address
@@ -975,7 +948,6 @@ class RootBlockHeader(Serializable):
         header = RootBlockHeader(
             version=self.version,
             height=self.height + 1,
-            shard_info=copy.copy(self.shard_info),
             hash_prev_block=self.get_hash(),
             hash_merkle_root=bytes(32),
             coinbase_address=address if address else Address.create_empty_account(),

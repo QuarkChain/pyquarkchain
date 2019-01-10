@@ -4,7 +4,6 @@ from eth_keys import KeyAPI
 
 from quarkchain.core import (
     Branch,
-    ShardInfo,
     biguint,
     Identity,
     Address,
@@ -23,7 +22,7 @@ from quarkchain.core import (
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
 
-SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 507), (MinorBlockMeta, 160)]
+SIZE_LIST = [(RootBlockHeader, 244), (MinorBlockHeader, 507), (MinorBlockMeta, 160)]
 
 
 class TestDataSize(unittest.TestCase):
@@ -56,17 +55,6 @@ class TestBranch(unittest.TestCase):
         b = Branch.create(8, 6)
         self.assertEqual(b.get_shard_size(), 8)
         self.assertEqual(b.get_full_shard_id(), 14)
-
-
-class TestShardInfo(unittest.TestCase):
-    def test_shard_info(self):
-        info = ShardInfo.create(4, False)
-        self.assertEqual(info.get_shard_size(), 4)
-        self.assertEqual(info.get_reshard_vote(), False)
-
-        info = ShardInfo.create(2147483648, True)
-        self.assertEqual(info.get_shard_size(), 2147483648)
-        self.assertEqual(info.get_reshard_vote(), True)
 
 
 class TestIdentity(unittest.TestCase):

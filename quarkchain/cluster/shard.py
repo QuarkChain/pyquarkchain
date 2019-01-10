@@ -441,9 +441,6 @@ class Shard:
             remote=shard_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
-    def __get_shard_size(self):
-        return self.env.quark_chain_config.SHARD_SIZE
-
     @property
     def genesis_root_height(self):
         return self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)

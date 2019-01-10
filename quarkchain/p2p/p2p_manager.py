@@ -249,14 +249,6 @@ class SecurePeer(Peer):
             "Got HELLO from peer {} ({}:{})".format(self.quark_peer, self.ip, self.port)
         )
 
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
-
         self.best_root_block_header_observed = cmd.root_block_header
 
         await self.master_server.create_peer_cluster_connections(self.cluster_peer_id)

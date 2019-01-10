@@ -15,7 +15,8 @@ from quarkchain.genesis import GenesisManager
 
 def create_default_shard_state(env, shard_id=0, diff_calc=None):
     genesis_manager = GenesisManager(env.quark_chain_config)
-    full_shard_id = env.quark_chain_config.SHARD_SIZE | shard_id
+    shard_size = next(iter(env.quark_chain_config.SHARDS.values())).SHARD_SIZE
+    full_shard_id = shard_size | shard_id
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
@@ -1187,9 +1188,7 @@ class TestShardState(unittest.TestCase):
 
         state.add_root_block(root_block)
 
-        recoveredState = ShardState(
-            env=env, full_shard_id=env.quark_chain_config.SHARD_SIZE | 0
-        )
+        recoveredState = ShardState(env=env, full_shard_id=2 | 0)
 
         recoveredState.init_from_root_block(root_block)
         # forks are pruned
