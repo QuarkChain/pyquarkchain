@@ -10,3 +10,4 @@ def is_neighbor(b1: Branch, b2: Branch):
         return is_p2(abs(b1.get_shard_id() - b2.get_shard_id()))
     if b1.get_shard_id() == b2.get_shard_id():
         return is_p2(abs(b1.get_chain_id() - b2.get_chain_id()))
+    return False
