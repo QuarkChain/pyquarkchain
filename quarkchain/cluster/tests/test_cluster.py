@@ -229,7 +229,7 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(2, acc1) as clusters:
             shard_state = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
-                shard_state.env.quark_chain_config.SHARDS[
+                shard_state.env.quark_chain_config.shards[
                     shard_state.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -283,7 +283,7 @@ class TestCluster(unittest.TestCase):
             block_header_list = [clusters[0].get_shard_state(2 | 0).header_tip]
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
-                shard_state0.env.quark_chain_config.SHARDS[
+                shard_state0.env.quark_chain_config.shards[
                     shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -306,7 +306,7 @@ class TestCluster(unittest.TestCase):
             block_header_list.append(clusters[0].get_shard_state(2 | 1).header_tip)
             shard_state0 = clusters[0].slave_list[1].shards[Branch(0b11)].state
             coinbase_amount = (
-                shard_state0.env.quark_chain_config.SHARDS[
+                shard_state0.env.quark_chain_config.shards[
                     shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -326,7 +326,7 @@ class TestCluster(unittest.TestCase):
             # add 1 block in cluster 1
             shard_state1 = clusters[1].slave_list[1].shards[Branch(0b11)].state
             coinbase_amount = (
-                shard_state1.env.quark_chain_config.SHARDS[
+                shard_state1.env.quark_chain_config.shards[
                     shard_state1.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -393,7 +393,7 @@ class TestCluster(unittest.TestCase):
             # cluster 0 has 13 blocks added
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
-                shard_state0.env.quark_chain_config.SHARDS[
+                shard_state0.env.quark_chain_config.shards[
                     shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -420,7 +420,7 @@ class TestCluster(unittest.TestCase):
             # cluster 1 has 12 blocks added
             shard_state0 = clusters[1].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
-                shard_state0.env.quark_chain_config.SHARDS[
+                shard_state0.env.quark_chain_config.shards[
                     shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2
@@ -454,7 +454,7 @@ class TestCluster(unittest.TestCase):
             # a new block from cluster 0 will trigger sync in cluster 1
             shard_state0 = clusters[0].slave_list[0].shards[Branch(0b10)].state
             coinbase_amount = (
-                shard_state0.env.quark_chain_config.SHARDS[
+                shard_state0.env.quark_chain_config.shards[
                     shard_state0.full_shard_id
                 ].COINBASE_AMOUNT
                 // 2

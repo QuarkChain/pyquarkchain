@@ -17,7 +17,7 @@ from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.config import ShardConfig, ConsensusType
+from quarkchain.config import ConsensusType
 from quarkchain.core import (
     RootBlock,
     MinorBlock,
@@ -226,7 +226,7 @@ class SyncTask:
         self.shard = shard_conn.shard
 
         full_shard_id = self.header.branch.get_full_shard_id()
-        shard_config = self.shard_state.env.quark_chain_config.SHARDS[full_shard_id]
+        shard_config = self.shard_state.env.quark_chain_config.shards[full_shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
     async def sync(self):
@@ -321,7 +321,7 @@ class SyncTask:
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
             full_shard_id = header.branch.get_full_shard_id()
-            consensus_type = self.shard.env.quark_chain_config.SHARDS[
+            consensus_type = self.shard.env.quark_chain_config.shards[
                 full_shard_id
             ].CONSENSUS_TYPE
             validate_seal(header, consensus_type)
@@ -404,7 +404,7 @@ class Shard:
 
     def __init_miner(self):
         miner_address = Address.create_from(
-            self.env.quark_chain_config.SHARDS[self.full_shard_id].COINBASE_ADDRESS
+            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_ADDRESS
         )
 
         async def __create_block(retry=True):
@@ -430,7 +430,7 @@ class Shard:
                 "target_block_time": self.slave.artificial_tx_config.target_minor_block_time
             }
 
-        shard_config = self.env.quark_chain_config.SHARDS[
+        shard_config = self.env.quark_chain_config.shards[
             self.full_shard_id
         ]  # type: ShardConfig
         self.miner = Miner(
@@ -520,7 +520,7 @@ class Shard:
                 return
 
         full_shard_id = block.header.branch.get_full_shard_id()
-        consensus_type = self.env.quark_chain_config.SHARDS[
+        consensus_type = self.env.quark_chain_config.shards[
             full_shard_id
         ].CONSENSUS_TYPE
         try:

@@ -822,7 +822,7 @@ class SlaveServer:
         """ Create shards based on GENESIS config and root block height if they have
         not been created yet."""
         futures = []
-        for (full_shard_id, shard_config) in self.env.quark_chain_config.SHARDS.items():
+        for (full_shard_id, shard_config) in self.env.quark_chain_config.shards.items():
             branch = Branch(full_shard_id)
             if branch in self.shards:
                 continue

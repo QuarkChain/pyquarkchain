@@ -27,7 +27,7 @@ class TestClusterConfig(unittest.TestCase):
         full_shard_id = 0 | 4 | 0
         # 12000 loadtest accounts + ? alloc accounts
         self.assertGreaterEqual(
-            len(cluster_config.QUARKCHAIN.SHARDS[full_shard_id].GENESIS.ALLOC), 12000
+            len(cluster_config.QUARKCHAIN.shards[full_shard_id].GENESIS.ALLOC), 12000
         )
 
     def test_cluster_dict(self):

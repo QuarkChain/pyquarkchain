@@ -238,7 +238,7 @@ def main():
             full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
             )
-            c = qkc_config.SHARDS[full_shard_id]
+            c = qkc_config.shards[full_shard_id]
         else:
             full_shard_id = None
             c = qkc_config.ROOT

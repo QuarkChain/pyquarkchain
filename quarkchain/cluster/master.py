@@ -607,7 +607,7 @@ class MasterServer:
         self.artificial_tx_config = ArtificialTxConfig(
             target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
             target_minor_block_time=next(
-                iter(self.env.quark_chain_config.SHARDS.values())
+                iter(self.env.quark_chain_config.shards.values())
             ).CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
 

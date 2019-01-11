@@ -41,7 +41,7 @@ class GenesisManager:
         Genesis state will be committed to the given evm_state.
         """
         branch = Branch(full_shard_id)
-        shard_config = self._qkc_config.SHARDS[full_shard_id]
+        shard_config = self._qkc_config.shards[full_shard_id]
         genesis = shard_config.GENESIS
 
         for address_hex, amount_in_wei in genesis.ALLOC.items():
