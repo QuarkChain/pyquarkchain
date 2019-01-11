@@ -343,10 +343,13 @@ class Miner:
                 mining_algo_gen = consensus_to_mining_algo[consensus_type]
                 mining_algo = mining_algo_gen(work, **mining_params)
                 # progress tracking if mining param contains shard info
-                if "shard" in mining_params:
-                    shard = mining_params["shard"]
+                if "full_shard_id" in mining_params:
+                    full_shard_id = mining_params["full_shard_id"]
                     # skip blocks with height lower or equal
-                    if shard in progress and progress[shard] >= work.height:
+                    if (
+                        full_shard_id in progress
+                        and progress[full_shard_id] >= work.height
+                    ):
                         # get newer work and restart mining
                         debug_log("stale work, try to get new one", 1.0)
                         work, mining_params = input_q.get(block=True)
@@ -364,8 +367,8 @@ class Miner:
                     if res:
                         debug_log("mining success", 1.0)
                         output_q.put(res)
-                        if "shard" in mining_params:
-                            progress[mining_params["shard"]] = work.height
+                        if "full_shard_id" in mining_params:
+                            progress[mining_params["full_shard_id"]] = work.height
                         work, mining_params = input_q.get(block=True)
                         break  # break inner loop to refresh mining params
                     # no result for mining, check if new work arrives
@@ -396,12 +399,12 @@ class Miner:
     @staticmethod
     def _log_status(block: Block):
         is_root = isinstance(block, RootBlock)
-        shard = "R" if is_root else block.header.branch.get_shard_id()
+        full_shard_id = "R" if is_root else block.header.branch.get_full_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
         Logger.info_every_sec(
             "[{}] {} [{}] ({:.2f}) {}".format(
-                shard,
+                full_shard_id,
                 block.header.height,
                 count,
                 elapsed,
@@ -418,7 +421,7 @@ class Miner:
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
             Logger.debug(
                 "[{}] target block time {:.2f}".format(
-                    block.header.branch.get_shard_id(), target_block_time
+                    block.header.branch.get_full_shard_id(), target_block_time
                 )
             )
         return numpy.random.exponential(target_block_time)

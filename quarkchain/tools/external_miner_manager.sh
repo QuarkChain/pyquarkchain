@@ -30,7 +30,7 @@ done
 shift $((OPTIND -1))
 
 shards=()
-shard_cnt=$(jq '.QUARKCHAIN.SHARD_LIST | length' < $config)
+shard_cnt=$(jq '.QUARKCHAIN.SHARDS | length' < $config)
 end_shard=$(( $shard_cnt - 1))
 for i in $(seq 0 $end_shard); do
 	shards+=("$i")

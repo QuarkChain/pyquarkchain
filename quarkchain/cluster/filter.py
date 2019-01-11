@@ -63,7 +63,7 @@ class Filter:
             if not block:
                 Logger.error(
                     "No block found for height {} at shard {}".format(
-                        i, self.db.branch.get_shard_id()
+                        i, self.db.branch.get_full_shard_id()
                     )
                 )
                 continue

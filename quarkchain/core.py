@@ -374,28 +374,30 @@ class Address(Serializable):
     def to_hex(self):
         return self.serialize().hex()
 
-    def get_shard_id(self, shard_size):
+    def get_full_shard_id(self, shard_size: int):
         if not is_p2(shard_size):
             raise RuntimeError("Invalid shard size {}".format(shard_size))
-        return self.full_shard_key & (shard_size - 1)
+        chain_id = self.full_shard_key >> 16
+        shard_id = self.full_shard_key & (shard_size - 1)
+        return (chain_id << 16) | shard_size | shard_id
 
-    def address_in_shard(self, full_shard_key):
+    def address_in_shard(self, full_shard_key: int):
         return Address(self.recipient, full_shard_key)
 
     def address_in_branch(self, branch):
-        return Address(
-            self.recipient,
-            (self.full_shard_key & ~(branch.get_shard_size() - 1))
-            + branch.get_shard_id(),
-        )
+        shard_key = self.full_shard_key & ((1 << 16) - 1)
+        new_shard_key = (
+            shard_key & ~(branch.get_shard_size() - 1)
+        ) + branch.get_shard_id()
+        new_full_shard_key = (branch.get_chain_id() << 16) | new_shard_key
+        return Address(self.recipient, new_full_shard_key)
 
+    # TODO: chain_id
     @staticmethod
-    def create_from_identity(identity: Identity, full_shard_key=None):
+    def create_from_identity(identity: Identity, full_shard_key: int = None):
         if full_shard_key is None:
             r = identity.get_recipient()
-            full_shard_key = int.from_bytes(
-                r[0:1] + r[5:6] + r[10:11] + r[15:16], "big"
-            )
+            full_shard_key = int.from_bytes(r[0:1] + r[10:11], "big")
         return Address(identity.get_recipient(), full_shard_key)
 
     @staticmethod
@@ -448,13 +450,24 @@ class Branch(Serializable):
     def __init__(self, value: int):
         self.value = value
 
+    def get_chain_id(self):
+        return self.value >> 16
+
     def get_shard_size(self):
-        return 1 << (int_left_most_bit(self.value) - 1)
+        branch_value = self.value & ((1 << 16) - 1)
+        return 1 << (int_left_most_bit(branch_value) - 1)
+
+    def get_full_shard_id(self):
+        return self.value
 
     def get_shard_id(self):
-        return self.value ^ self.get_shard_size()
+        branch_value = self.value & ((1 << 16) - 1)
+        return branch_value ^ self.get_shard_size()
 
-    def is_in_shard(self, full_shard_key):
+    def is_in_branch(self, full_shard_key: int):
+        chain_id_match = (full_shard_key >> 16) == self.get_chain_id()
+        if not chain_id_match:
+            return False
         return (full_shard_key & (self.get_shard_size() - 1)) == self.get_shard_id()
 
     @staticmethod
@@ -482,7 +495,7 @@ class ShardMask(Serializable):
         return (bit_mask & shard_id) == (self.value & bit_mask)
 
     def contain_branch(self, branch):
-        return self.contain_shard_id(branch.get_shard_id())
+        return self.contain_shard_id(branch.get_full_shard_id())
 
     def has_overlap(self, shard_mask):
         return masks_have_overlap(self.value, shard_mask.value)
@@ -632,30 +645,6 @@ def calculate_merkle_root(item_list):
     return sha_tree[0]
 
 
-class ShardInfo(Serializable):
-    """ Shard information contains
-    - shard size (power of 2)
-    - voting of increasing shards
-    """
-
-    FIELDS = [("value", uint32)]
-
-    def __init__(self, value):
-        self.value = value
-
-    def get_shard_size(self):
-        return 1 << (self.value & 31)
-
-    def get_reshard_vote(self):
-        return (self.value & (1 << 31)) != 0
-
-    @staticmethod
-    def create(shard_size, reshard_vote=False):
-        assert is_p2(shard_size)
-        reshard_vote = 1 if reshard_vote else 0
-        return ShardInfo(int_left_most_bit(shard_size) - 1 + (reshard_vote << 31))
-
-
 def mk_receipt_sha(receipts, db):
     t = trie.Trie(db)
     for i, receipt in enumerate(receipts):
@@ -723,7 +712,7 @@ class MinorBlockHeader(Serializable):
         self,
         version: int = 0,
         height: int = 0,
-        branch: Branch = Branch.create(1, 0),
+        branch: Branch = Branch(1),
         coinbase_address: Address = Address.create_empty_account(),
         coinbase_amount: int = 0,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
@@ -886,7 +875,6 @@ class RootBlockHeader(Serializable):
     FIELDS = [
         ("version", uint32),
         ("height", uint32),
-        ("shard_info", ShardInfo),
         ("hash_prev_block", hash256),
         ("hash_merkle_root", hash256),
         ("coinbase_address", Address),
@@ -903,7 +891,6 @@ class RootBlockHeader(Serializable):
         self,
         version=0,
         height=0,
-        shard_info=ShardInfo.create(1, False),
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
@@ -917,7 +904,6 @@ class RootBlockHeader(Serializable):
     ):
         self.version = version
         self.height = height
-        self.shard_info = shard_info
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
         self.coinbase_address = coinbase_address
@@ -962,7 +948,6 @@ class RootBlockHeader(Serializable):
         header = RootBlockHeader(
             version=self.version,
             height=self.height + 1,
-            shard_info=copy.copy(self.shard_info),
             hash_prev_block=self.get_hash(),
             hash_merkle_root=bytes(32),
             coinbase_address=address if address else Address.create_empty_account(),

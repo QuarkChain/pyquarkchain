@@ -45,7 +45,7 @@ class TransactionHistoryMixin:
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
         # "to" can be empty for smart contract deployment
-        if evm_tx.to and self.branch.is_in_shard(evm_tx.to_full_shard_key):
+        if evm_tx.to and self.branch.is_in_branch(evm_tx.to_full_shard_key):
             addr = Address(evm_tx.to, evm_tx.to_full_shard_key)
             key = self.__encode_address_transaction_key(
                 addr, block_height, index, False
@@ -178,7 +178,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         if (
             root_block.header.height
             == self.env.quark_chain_config.get_genesis_root_height(
-                self.branch.get_shard_id()
+                self.branch.get_full_shard_id()
             )
         ):
             return None
@@ -212,15 +212,15 @@ class ShardDbOperator(TransactionHistoryMixin):
             if (
                 block.header.height
                 <= self.env.quark_chain_config.get_genesis_root_height(
-                    self.branch.get_shard_id()
+                    self.branch.get_full_shard_id()
                 )
             ):
                 break
             r_hash = block.header.hash_prev_block
 
         m_hash = m_header.get_hash()
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.branch.get_shard_id()
+        shard_config = self.env.quark_chain_config.SHARDS[
+            self.branch.get_full_shard_id()
         ]
         while len(self.m_header_pool) < shard_config.max_minor_blocks_in_memory:
             block = MinorBlock.deserialize(self.db.get(b"mblock_" + m_hash))
@@ -232,7 +232,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
         Logger.info(
             "[{}] recovered {} minor blocks and {} root blocks".format(
-                self.branch.get_shard_id(),
+                self.branch.get_full_shard_id(),
                 len(self.m_header_pool),
                 len(self.r_header_pool),
             )

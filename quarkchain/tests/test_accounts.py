@@ -7,7 +7,7 @@ from quarkchain.accounts import Account
 from quarkchain.core import Address, Identity
 
 PRIVATE_KEY = "7a28b5ba57c53603b0b07b56bba752f7784bf506fa95edc395f5cf6c7514fe9d"
-ADDRESS = "008aeeda4d805471df9b2a5b0f38a0c3bcba786b00802ac3"
+ADDRESS = "008aeeda4d805471df9b2a5b0f38a0c3bcba786b0000002a"
 
 
 class TestAccount(unittest.TestCase):

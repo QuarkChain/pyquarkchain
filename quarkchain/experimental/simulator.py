@@ -84,7 +84,7 @@ class MinorBlock:
     def __init__(self, header):
         self.header = header
 
-    def get_shard_id(self):
+    def get_full_shard_id(self):
         return self.header.n_branch
 
     def get_hash(self):
@@ -299,7 +299,7 @@ class DynamicChainSelector:
         if best_chain_id == 0 and MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS != 0:
             block_count_in_shard = {x: 0 for x in range(major_chain.shard_size)}
             for block in major_chain.pending_minor_block_map.values():
-                block_count_in_shard[block.get_shard_id()] += 1
+                block_count_in_shard[block.get_full_shard_id()] += 1
             for i in range(major_chain.shard_size):
                 if block_count_in_shard[i] < MAJOR_BLOCK_INCLUDE_MINOR_BLOCKS:
                     block = minor_chain_list[i].get_block_to_mine()
@@ -382,7 +382,7 @@ class Node:
                 self.broadcast_major_block(best_block)
                 self.rewards += best_block.header.block_reward
         else:
-            if self.minor_chain_list[best_block.get_shard_id()].try_append_block(
+            if self.minor_chain_list[best_block.get_full_shard_id()].try_append_block(
                 best_block
             ):
                 print(
@@ -390,7 +390,7 @@ class Node:
                     % (
                         self.node_id,
                         best_block.header.height,
-                        best_block.get_shard_id(),
+                        best_block.get_full_shard_id(),
                         mine_time,
                     )
                 )
@@ -411,13 +411,13 @@ class Node:
             self.mine_future.cancel()
 
     def rpc_get_minor_block(self, minor_block):
-        assert self.minor_chain_list[minor_block.get_shard_id()].try_append_block(
+        assert self.minor_chain_list[minor_block.get_full_shard_id()].try_append_block(
             minor_block
         )
         self.major_chain.add_minor_block_to_confirm(minor_block)
         # TODO cancel mining on major if minor eco is smaller
         if (
-            self.mine_chain_id - 1 == minor_block.get_shard_id()
+            self.mine_chain_id - 1 == minor_block.get_full_shard_id()
             or self.mine_chain_id == 0
         ):
             self.mine_future.cancel()

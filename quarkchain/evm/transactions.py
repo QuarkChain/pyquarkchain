@@ -91,7 +91,7 @@ class Transaction(rlp.Serializable):
         network_id=1,
         version=0,
     ):
-        self.shard_size = 0
+        self.quark_chain_config = None
 
         to = utils.normalize_address(to, allow_blank=True)
 
@@ -191,7 +191,7 @@ class Transaction(rlp.Serializable):
             + (opcodes.CREATE[3] if not self.to else 0)
             + opcodes.GTXDATAZERO * num_zero_bytes
             + opcodes.GTXDATANONZERO * num_non_zero_bytes
-            + (opcodes.GTXXSHARDCOST if self.is_cross_shard() else 0)
+            + (opcodes.GTXXSHARDCOST if self.is_cross_shard else 0)
         )
 
     @property
@@ -200,24 +200,51 @@ class Transaction(rlp.Serializable):
         if self.to in (b"", "\0" * 20):
             return mk_contract_address(self.sender, self.nonce)
 
-    def set_shard_size(self, shard_size):
-        check(is_p2(shard_size))
-        self.shard_size = shard_size
+    def set_quark_chain_config(self, quark_chain_config):
+        self.quark_chain_config = quark_chain_config
 
+    @property
+    def from_chain_id(self):
+        return self.from_full_shard_key >> 16
+
+    @property
+    def to_chain_id(self):
+        return self.to_full_shard_key >> 16
+
+    @property
+    def from_shard_size(self):
+        check(self.quark_chain_config)
+        return self.quark_chain_config.get_shard_size_by_chain_id(self.from_chain_id)
+
+    @property
+    def to_shard_size(self):
+        check(self.quark_chain_config)
+        return self.quark_chain_config.get_shard_size_by_chain_id(self.to_chain_id)
+
+    @property
     def from_shard_id(self):
-        if self.shard_size == 0:
-            raise RuntimeError("shard_size is not set")
-        shard_mask = self.shard_size - 1
+        shard_mask = self.from_shard_size - 1
         return self.from_full_shard_key & shard_mask
 
+    @property
     def to_shard_id(self):
-        if self.shard_size == 0:
-            raise RuntimeError("shard_size is not set")
-        shard_mask = self.shard_size - 1
+        shard_mask = self.to_shard_size - 1
         return self.to_full_shard_key & shard_mask
 
+    @property
+    def from_full_shard_id(self):
+        return self.from_chain_id << 16 | self.from_shard_size | self.from_shard_id
+
+    @property
+    def to_full_shard_id(self):
+        return self.to_chain_id << 16 | self.to_shard_size | self.to_shard_id
+
+    @property
     def is_cross_shard(self):
-        return self.from_shard_id() != self.to_shard_id()
+        return (
+            self.from_chain_id != self.to_chain_id
+            or self.from_shard_id != self.to_shard_id
+        )
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.hash == other.hash

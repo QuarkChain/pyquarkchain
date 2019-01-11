@@ -98,12 +98,15 @@ diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
 index acbccec..59425d1 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
-@@ -91,7 +91,7 @@ class Transaction(rlp.Serializable):
-         network_id=1,
-         version=0,
-     ):
--        self.shard_size = 0
-+        self.shard_size = 1
+@@ -241,10 +241,7 @@ class Transaction(rlp.Serializable):
  
-         to = utils.normalize_address(to, allow_blank=True)
+     @property
+     def is_cross_shard(self):
+-        return (
+-            self.from_chain_id != self.to_chain_id
+-            or self.from_shard_id != self.to_shard_id
+-        )
++        return False
  
+     def __eq__(self, other):
+         return isinstance(other, self.__class__) and self.hash == other.hash
