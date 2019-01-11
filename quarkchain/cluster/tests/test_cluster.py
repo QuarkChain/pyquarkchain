@@ -75,7 +75,7 @@ class TestCluster(unittest.TestCase):
             is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
             self.assertTrue(is_root)
             self.assertEqual(block.header.height, 1)
-            self.assertEqual(len(block.minor_block_header_list), 2)
+            self.assertEqual(len(block.minor_block_header_list), 4)
             self.assertEqual(block.minor_block_header_list[0].height, 0)
             self.assertEqual(block.minor_block_header_list[1].height, 0)
             call_async(master.add_root_block(block))
@@ -492,7 +492,11 @@ class TestCluster(unittest.TestCase):
 
         genesis_root_heights = {2: 0, 3: 1}
         with ClusterContext(
-            2, acc1, genesis_root_heights=genesis_root_heights
+            2,
+            acc1,
+            chain_size=1,
+            shard_size=2,
+            genesis_root_heights=genesis_root_heights,
         ) as clusters:
             # shutdown cluster connection
             clusters[1].peer.close()

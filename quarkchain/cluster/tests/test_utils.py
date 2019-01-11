@@ -19,17 +19,18 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import AbstractConnection
-from quarkchain.utils import call_async, check
+from quarkchain.utils import call_async, check, is_p2
 
 
 def get_test_env(
     genesis_account=Address.create_empty_account(),
     genesis_minor_quarkash=0,
-    chain_size=1,
+    chain_size=2,
     shard_size=2,
     genesis_root_heights=None,  # dict(full_shard_id, genesis_root_height)
     remote_mining=False,
 ):
+    check(is_p2(shard_size))
     env = DEFAULT_ENV.copy()
 
     env.db = InMemoryDb()
@@ -249,12 +250,12 @@ def create_test_clusters(
                 c.COINBASE_AMOUNT = 5
 
         env.cluster_config.SLAVE_LIST = []
+        check(is_p2(num_slaves))
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
             slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
-            slave_config.DB_PATH_ROOT = None  # TODO: fix the db in config
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         slave_server_list = []
@@ -322,7 +323,7 @@ class ClusterContext(ContextDecorator):
         self,
         num_cluster,
         genesis_account=Address.create_empty_account(),
-        chain_size=1,
+        chain_size=2,
         shard_size=2,
         num_slaves=None,
         genesis_root_heights=None,
@@ -337,6 +338,9 @@ class ClusterContext(ContextDecorator):
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
+
+        check(is_p2(self.num_slaves))
+        check(is_p2(self.shard_size))
 
     def __enter__(self):
         self.cluster_list = create_test_clusters(
