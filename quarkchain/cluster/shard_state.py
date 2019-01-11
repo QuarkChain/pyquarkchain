@@ -844,6 +844,8 @@ class ShardState:
     def execute_tx(
         self, tx: Transaction, from_address, height: Optional[int] = None
     ) -> Optional[bytes]:
+        """Execute the tx using a copy of state
+        """
         evm_state = self._get_evm_state_from_height(height)
         if not evm_state:
             return None

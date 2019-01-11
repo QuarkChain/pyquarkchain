@@ -30,6 +30,10 @@ class TestShardState(unittest.TestCase):
         self.shard_coinbase = next(iter(config.shards.values())).COINBASE_AMOUNT
         # to make test verification easier, assume following tax rate
         assert config.REWARD_TAX_RATE == 0.5
+        self.tax_rate = config.reward_tax_rate  # type: Fraction
+
+    def getAfterTaxReward(self, value: int) -> int:
+        return value * self.tax_rate.numerator // self.tax_rate.denominator
 
     def test_shard_state_simple(self):
         env = get_test_env()
@@ -165,9 +169,10 @@ class TestShardState(unittest.TestCase):
             state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
         )
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
+        # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -238,7 +243,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -372,7 +377,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.get_balance(acc2.recipient), 1000000)
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check Account has full_shard_key
@@ -416,10 +421,10 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(
             state.get_balance(acc2.recipient), 1000000 - opcodes.GTXCOST + 12345 - 54321
         )
-        # 2 block rewards
+        # 2 block rewards: 3 tx, 2 block rewards
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            int(opcodes.GTXCOST * 1.5) + self.shard_coinbase,
+            self.getAfterTaxReward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
         )
 
         # Check receipts
@@ -470,6 +475,7 @@ class TestShardState(unittest.TestCase):
         b0.tx_list = []  # make b0 empty
         state.finalize_and_add_block(b0)
 
+        # tx is added back to queue in the end of create_block_to_mine
         self.assertEqual(len(state.tx_queue), 1)
 
         self.assertEqual(len(b1.tx_list), 1)
@@ -606,7 +612,7 @@ class TestShardState(unittest.TestCase):
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            opcodes.GTXCOST // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
     def test_xshard_tx_insufficient_gas(self):
@@ -709,7 +715,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_balance(acc3.recipient),
-            opcodes.GTXXSHARDCOST * 2 // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -778,7 +784,10 @@ class TestShardState(unittest.TestCase):
 
         self.assertEqual(state0.get_balance(acc1.recipient), 10000000)
         # Half collected by root
-        self.assertEqual(state0.get_balance(acc3.recipient), self.shard_coinbase // 2)
+        self.assertEqual(
+            state0.get_balance(acc3.recipient),
+            self.getAfterTaxReward(self.shard_coinbase),
+        )
 
         # X-shard gas used
         evm_state0 = state0.evm_state
@@ -902,7 +911,9 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_balance(acc3.recipient),
-            opcodes.GTXXSHARDCOST * (2 + 3) // 2 + self.shard_coinbase // 2,
+            self.getAfterTaxReward(
+                opcodes.GTXXSHARDCOST * (2 + 3) + self.shard_coinbase
+            ),
         )
 
         # Check gas used for receiving x-shard tx

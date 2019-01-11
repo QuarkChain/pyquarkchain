@@ -4,7 +4,7 @@ from quarkchain.utils import is_p2, check
 
 def is_neighbor(b1: Branch, b2: Branch):
     """A naive algorithm to decide neighbor relationship
-    TODO: a better algorithm
+    TODO: a better algorithm, because the current one ensures 32 neighbors ONLY when there are 2^32 shards
     """
     if b1.get_chain_id() == b2.get_chain_id():
         return is_p2(abs(b1.get_shard_id() - b2.get_shard_id()))

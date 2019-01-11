@@ -244,6 +244,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     gas_used = tx.startgas - gas_remained
 
+    # pay CORRECT tx fee (after tax) to coinbase so that each step of state is accurate
     # Transaction failed
     if not result:
         log_tx.debug(
