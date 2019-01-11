@@ -996,13 +996,13 @@ class JSONRPCServer:
 
     @private_methods.add
     @decode_arg("coinbase_address", address_decoder)
-    @decode_arg("shard_mask_value", quantity_decoder)
+    @decode_arg("chain_mask_value", quantity_decoder)
     async def getNextBlockToMine(
-        self, coinbase_address, shard_mask_value, prefer_root=False
+        self, coinbase_address, chain_mask_value, prefer_root=False
     ):
         address = Address.deserialize(coinbase_address)
         is_root_block, block = await self.master.get_next_block_to_mine(
-            address, shard_mask_value, prefer_root=prefer_root
+            address, chain_mask_value, prefer_root=prefer_root
         )
         if not block:
             return None

@@ -160,7 +160,7 @@ class MasterConnection(ClusterConnection):
     async def handle_ping(self, ping):
         if ping.root_tip:
             await self.slave_server.create_shards(ping.root_tip)
-        return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
+        return Pong(self.slave_server.id, self.slave_server.chain_mask_list)
 
     async def handle_connect_to_slaves_request(self, connect_to_slave_request):
         """
@@ -604,7 +604,7 @@ MASTER_OP_RPC_MAP = {
 
 class SlaveConnection(Connection):
     def __init__(
-        self, env, reader, writer, slave_server, slave_id, shard_mask_list, name=None
+        self, env, reader, writer, slave_server, slave_id, chain_mask_list, name=None
     ):
         super().__init__(
             env,
@@ -617,7 +617,7 @@ class SlaveConnection(Connection):
         )
         self.slave_server = slave_server
         self.id = slave_id
-        self.shard_mask_list = shard_mask_list
+        self.chain_mask_list = chain_mask_list
         self.shards = self.slave_server.shards
 
         self.ping_received_future = asyncio.get_event_loop().create_future()
@@ -628,8 +628,8 @@ class SlaveConnection(Connection):
         await self.ping_received_future
 
     def has_shard(self, full_shard_id: int):
-        for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(full_shard_id):
+        for chain_mask in self.chain_mask_list:
+            if chain_mask.contain_full_shard_id(full_shard_id):
                 return True
         return False
 
@@ -641,27 +641,27 @@ class SlaveConnection(Connection):
         # TODO: Send real root tip and allow shards to confirm each other
         req = Ping(
             self.slave_server.id,
-            self.slave_server.shard_mask_list,
+            self.slave_server.chain_mask_list,
             RootBlock(RootBlockHeader()),
         )
         op, resp, rpc_id = await self.write_rpc_request(ClusterOp.PING, req)
-        return (resp.id, resp.shard_mask_list)
+        return (resp.id, resp.chain_mask_list)
 
     # Cluster RPC handlers
 
     async def handle_ping(self, ping: Ping):
         if not self.id:
             self.id = ping.id
-            self.shard_mask_list = ping.shard_mask_list
+            self.chain_mask_list = ping.chain_mask_list
 
-        if len(self.shard_mask_list) == 0:
+        if len(self.chain_mask_list) == 0:
             return self.close_with_error(
                 "Empty shard mask list from slave {}".format(self.id)
             )
 
         self.ping_received_future.set_result(None)
 
-        return Pong(self.slave_server.id, self.slave_server.shard_mask_list)
+        return Pong(self.slave_server.id, self.slave_server.chain_mask_list)
 
     # Blockchain RPC handlers
 
@@ -730,14 +730,14 @@ class SlaveConnectionManager:
 
     async def handle_new_connection(self, reader, writer):
         """ Handle incoming connection """
-        # slave id and shard_mask_list will be set in handle_ping()
+        # slave id and chain_mask_list will be set in handle_ping()
         slave_conn = SlaveConnection(
             self.env,
             reader,
             writer,
             self.slave_server,
             None,  # slave id
-            None,  # shard_mask_list
+            None,  # chain_mask_list
         )
         await slave_conn.wait_until_ping_received()
         slave_conn.name = "{}<->{}".format(
@@ -769,18 +769,18 @@ class SlaveConnectionManager:
             writer,
             self.slave_server,
             slave_info.id,
-            slave_info.shard_mask_list,
+            slave_info.chain_mask_list,
             conn_name,
         )
         await slave.wait_until_active()
         # Tell the remote slave who I am
-        id, shard_mask_list = await slave.send_ping()
+        id, chain_mask_list = await slave.send_ping()
         # Verify that remote slave indeed has the id and shard mask list advertised by the master
         if id != slave.id:
             return "id does not match. expect {} got {}".format(slave.id, id)
-        if shard_mask_list != slave.shard_mask_list:
+        if chain_mask_list != slave.chain_mask_list:
             return "shard mask list does not match. expect {} got {}".format(
-                slave.shard_mask_list, shard_mask_list
+                slave.chain_mask_list, chain_mask_list
             )
 
         self._add_slave_connection(slave)
@@ -794,7 +794,7 @@ class SlaveServer:
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
-        self.shard_mask_list = self.env.slave_config.SHARD_MASK_LIST
+        self.chain_mask_list = self.env.slave_config.CHAIN_MASK_LIST
 
         # shard id -> a list of slave running the shard
         self.slave_connection_manager = SlaveConnectionManager(env, self)
@@ -813,8 +813,8 @@ class SlaveServer:
 
     def __cover_shard_id(self, full_shard_id):
         """ Does the shard belong to this slave? """
-        for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(full_shard_id):
+        for chain_mask in self.chain_mask_list:
+            if chain_mask.contain_full_shard_id(full_shard_id):
                 return True
         return False
 

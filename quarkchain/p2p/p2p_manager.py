@@ -237,7 +237,7 @@ class SecurePeer(Peer):
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         # ip is from peer.remote, there may be 2 cases:
         #  1. dialed-out: ip is from discovery service;
         #  2. dialed-in: ip is from writer.get_extra_info("peername")
