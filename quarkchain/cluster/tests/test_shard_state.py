@@ -15,7 +15,7 @@ from quarkchain.genesis import GenesisManager
 
 def create_default_shard_state(env, shard_id=0, diff_calc=None):
     genesis_manager = GenesisManager(env.quark_chain_config)
-    shard_size = next(iter(env.quark_chain_config.SHARDS.values())).SHARD_SIZE
+    shard_size = next(iter(env.quark_chain_config.shards.values())).SHARD_SIZE
     full_shard_id = shard_size | shard_id
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
@@ -27,7 +27,7 @@ class TestShardState(unittest.TestCase):
         super().setUp()
         config = get_test_env().quark_chain_config
         self.root_coinbase = config.ROOT.COINBASE_AMOUNT
-        self.shard_coinbase = next(iter(config.SHARDS.values())).COINBASE_AMOUNT
+        self.shard_coinbase = next(iter(config.shards.values())).COINBASE_AMOUNT
         # to make test verification easier, assume following tax rate
         assert config.REWARD_TAX_RATE == 0.5
 
@@ -1130,7 +1130,7 @@ class TestShardState(unittest.TestCase):
 
     def test_shard_state_difficulty(self):
         env = get_test_env()
-        for shard_config in env.quark_chain_config.SHARDS.values():
+        for shard_config in env.quark_chain_config.shards.values():
             shard_config.GENESIS.DIFFICULTY = 10000
 
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False

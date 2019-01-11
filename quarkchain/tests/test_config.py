@@ -2,11 +2,12 @@ import unittest
 from fractions import Fraction
 
 from quarkchain.config import (
+    ChainConfig,
     ConsensusType,
     POWConfig,
-    ShardConfig,
-    RootConfig,
     QuarkChainConfig,
+    RootConfig,
+    ShardConfig,
 )
 
 
@@ -18,29 +19,18 @@ class TestQuarkChainConfig(unittest.TestCase):
         config.ROOT.CONSENSUS_CONFIG = POWConfig()
         config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 60
 
-        config.CHAIN_SIZE = 2
-        config.SHARDS = dict()
-        for i in range(2):
-            s = ShardConfig()
-            s.CHAIN_ID = 0
-            s.SHARD_SIZE = 2
-            s.SHARD_ID = i
-            s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
-            s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[0 | 2 | i] = s
-
-        for i in range(2):
-            s = ShardConfig()
-            s.CHAIN_ID = 1
-            s.SHARD_SIZE = 2
-            s.SHARD_ID = i
-            s.CONSENSUS_TYPE = ConsensusType.POW_ETHASH
-            s.CONSENSUS_CONFIG = POWConfig()
-            s.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 15
-            config.SHARDS[(1 << 16) | 2 | i] = s
+        config.CHAIN_SIZE = 3
+        config.CHAINS = []
+        for i in range(config.CHAIN_SIZE):
+            chain_config = ChainConfig()
+            chain_config.CHAIN_ID = i
+            chain_config.SHARD_SIZE = 2
+            chain_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+            chain_config.CONSENSUS_CONFIG = POWConfig()
+            config.CHAINS.append(chain_config)
 
         expected_json = """{
-    "CHAIN_SIZE": 2,
+    "CHAIN_SIZE": 3,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 3,
     "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
@@ -72,45 +62,10 @@ class TestQuarkChainConfig(unittest.TestCase):
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
     },
-    "SHARDS": [
+    "CHAINS": [
         {
             "CHAIN_ID": 0,
             "SHARD_SIZE": 2,
-            "SHARD_ID": 0,
-            "CONSENSUS_TYPE": "POW_DOUBLESHA256",
-            "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 10,
-                "REMOTE_MINE": false
-            },
-            "GENESIS": {
-                "ROOT_HEIGHT": 0,
-                "VERSION": 0,
-                "HEIGHT": 0,
-                "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
-                "HASH_MERKLE_ROOT": "0000000000000000000000000000000000000000000000000000000000000000",
-                "EXTRA_DATA": "497420776173207468652062657374206f662074696d65732c206974207761732074686520776f727374206f662074696d65732c202e2e2e202d20436861726c6573204469636b656e73",
-                "TIMESTAMP": 1519147489,
-                "DIFFICULTY": 10000,
-                "GAS_LIMIT": 12000000,
-                "NONCE": 0,
-                "ALLOC": {}
-            },
-            "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
-            "COINBASE_AMOUNT": 5000000000000000000,
-            "GAS_LIMIT_EMA_DENOMINATOR": 1024,
-            "GAS_LIMIT_ADJUSTMENT_FACTOR": 1024,
-            "GAS_LIMIT_MINIMUM": 5000,
-            "GAS_LIMIT_MAXIMUM": 9223372036854775807,
-            "GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR": 3,
-            "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
-            "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
-            "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
-            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
-        },
-        {
-            "CHAIN_ID": 0,
-            "SHARD_SIZE": 2,
-            "SHARD_ID": 1,
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
                 "TARGET_BLOCK_TIME": 10,
@@ -144,10 +99,9 @@ class TestQuarkChainConfig(unittest.TestCase):
         {
             "CHAIN_ID": 1,
             "SHARD_SIZE": 2,
-            "SHARD_ID": 0,
-            "CONSENSUS_TYPE": "POW_ETHASH",
+            "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 15,
+                "TARGET_BLOCK_TIME": 10,
                 "REMOTE_MINE": false
             },
             "GENESIS": {
@@ -176,12 +130,11 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         },
         {
-            "CHAIN_ID": 1,
+            "CHAIN_ID": 2,
             "SHARD_SIZE": 2,
-            "SHARD_ID": 1,
-            "CONSENSUS_TYPE": "POW_ETHASH",
+            "CONSENSUS_TYPE": "POW_DOUBLESHA256",
             "CONSENSUS_CONFIG": {
-                "TARGET_BLOCK_TIME": 15,
+                "TARGET_BLOCK_TIME": 10,
                 "REMOTE_MINE": false
             },
             "GENESIS": {
@@ -210,6 +163,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
         }
     ],
+    "SHARDS": null,
     "REWARD_TAX_RATE": 0.5
 }"""
         print(config.to_json())
@@ -223,15 +177,15 @@ class TestQuarkChainConfig(unittest.TestCase):
     def test_missing_one_shard_config(self):
         config = QuarkChainConfig()
         config.CHAIN_SIZE = 1
-        config.SHARDS = dict()
+        config.shards = dict()
         for i in range(1):
-            s = ShardConfig()
+            s = ShardConfig(ChainConfig())
             s.CHAIN_ID = 0
             s.SHARD_SIZE = 2
             s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[0 | 2 | i] = s
+            config.shards[0 | 2 | i] = s
 
         with self.assertRaises(AssertionError):
             config.init_and_validate()
@@ -239,15 +193,15 @@ class TestQuarkChainConfig(unittest.TestCase):
     def test_bad_shard_size(self):
         config = QuarkChainConfig()
         config.CHAIN_SIZE = 1
-        config.SHARDS = dict()
+        config.shards = dict()
         for i in range(3):
-            s = ShardConfig()
+            s = ShardConfig(ChainConfig())
             s.CHAIN_ID = 0
             s.SHARD_SIZE = 3  # not power of 2
             s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[0 | 2 | i] = s
+            config.shards[0 | 2 | i] = s
 
         with self.assertRaises(AssertionError):
             config.init_and_validate()
@@ -255,15 +209,15 @@ class TestQuarkChainConfig(unittest.TestCase):
     def test_shard_size_not_match(self):
         config = QuarkChainConfig()
         config.CHAIN_SIZE = 1
-        config.SHARDS = dict()
+        config.shards = dict()
         for i in range(2):
-            s = ShardConfig()
+            s = ShardConfig(ChainConfig())
             s.CHAIN_ID = 0
             s.SHARD_SIZE = i
             s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[0 | 2 | i] = s
+            config.shards[0 | 2 | i] = s
 
         with self.assertRaises(AssertionError):
             config.init_and_validate()
@@ -271,15 +225,15 @@ class TestQuarkChainConfig(unittest.TestCase):
     def test_bad_shard_id(self):
         config = QuarkChainConfig()
         config.CHAIN_SIZE = 1
-        config.SHARDS = dict()
+        config.shards = dict()
         for i in range(2):
-            s = ShardConfig()
+            s = ShardConfig(ChainConfig())
             s.CHAIN_ID = 0
             s.SHARD_SIZE = 2
             s.SHARD_ID = 0
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[0 | 2 | i] = s
+            config.shards[0 | 2 | i] = s
 
         with self.assertRaises(AssertionError):
             config.init_and_validate()
@@ -287,15 +241,15 @@ class TestQuarkChainConfig(unittest.TestCase):
     def test_bad_chain_id(self):
         config = QuarkChainConfig()
         config.CHAIN_SIZE = 1
-        config.SHARDS = dict()
+        config.shards = dict()
         for i in range(2):
-            s = ShardConfig()
+            s = ShardConfig(ChainConfig())
             s.CHAIN_ID = 1
             s.SHARD_SIZE = 2
             s.SHARD_ID = i
             s.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             s.CONSENSUS_CONFIG = POWConfig()
-            config.SHARDS[1 << 16 | 2 | i] = s
+            config.shards[1 << 16 | 2 | i] = s
 
         with self.assertRaises(AssertionError):
             config.init_and_validate()

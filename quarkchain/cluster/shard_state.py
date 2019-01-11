@@ -62,7 +62,7 @@ class ShardState:
         self.env = env
         self.full_shard_id = full_shard_id
         if not diff_calc:
-            shard_config = self.env.quark_chain_config.SHARDS[full_shard_id]
+            shard_config = self.env.quark_chain_config.shards[full_shard_id]
             cutoff = shard_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
             diff_factor = shard_config.DIFFICULTY_ADJUSTMENT_FACTOR
             min_diff = shard_config.GENESIS.DIFFICULTY
@@ -338,7 +338,7 @@ class ShardState:
             """
             Compute the boundaries for the block gas limit based on the parent block.
             """
-            shard_config = self.env.quark_chain_config.SHARDS[
+            shard_config = self.env.quark_chain_config.shards[
                 self.branch.get_full_shard_id()
             ]
             boundary_range = (
@@ -383,7 +383,7 @@ class ShardState:
 
         - use the GAS_LIMIT_MINIMUM as the new gas limit.
         """
-        shard_config = self.env.quark_chain_config.SHARDS[
+        shard_config = self.env.quark_chain_config.shards[
             self.branch.get_full_shard_id()
         ]
         if gas_limit_floor < shard_config.GAS_LIMIT_MINIMUM:
@@ -517,7 +517,7 @@ class ShardState:
             raise ValueError("prev root blocks are not on the same chain")
 
         # Check PoW if applicable
-        consensus_type = self.env.quark_chain_config.SHARDS[
+        consensus_type = self.env.quark_chain_config.shards[
             self.full_shard_id
         ].CONSENSUS_TYPE
         validate_seal(block.header, consensus_type)
@@ -650,7 +650,7 @@ class ShardState:
         start_ms = time_ms()
 
         if skip_if_too_old:
-            shard_config = self.env.quark_chain_config.SHARDS[
+            shard_config = self.env.quark_chain_config.shards[
                 self.branch.get_full_shard_id()
             ]
             if (
@@ -797,7 +797,7 @@ class ShardState:
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
         coinbase_amount = (
-            self.env.quark_chain_config.SHARDS[self.full_shard_id].COINBASE_AMOUNT
+            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
@@ -919,7 +919,7 @@ class ShardState:
         return amount
 
     def __get_max_blocks_in_one_root_block(self) -> int:
-        shard_config = self.env.quark_chain_config.SHARDS[
+        shard_config = self.env.quark_chain_config.shards[
             self.branch.get_full_shard_id()
         ]
         return shard_config.max_blocks_per_shard_in_one_root_block
@@ -994,7 +994,7 @@ class ShardState:
         block = prev_block.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
         )
-        shard_config = self.env.quark_chain_config.SHARDS[
+        shard_config = self.env.quark_chain_config.shards[
             self.branch.get_full_shard_id()
         ]
         block.header.evm_gas_limit = self.__compute_gas_limit(

@@ -219,7 +219,7 @@ class ShardDbOperator(TransactionHistoryMixin):
             r_hash = block.header.hash_prev_block
 
         m_hash = m_header.get_hash()
-        shard_config = self.env.quark_chain_config.SHARDS[
+        shard_config = self.env.quark_chain_config.shards[
             self.branch.get_full_shard_id()
         ]
         while len(self.m_header_pool) < shard_config.max_minor_blocks_in_memory:

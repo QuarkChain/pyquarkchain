@@ -8,7 +8,7 @@ from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig, ShardConfig
+from quarkchain.config import QuarkChainConfig, BaseConfig, ChainConfig
 from quarkchain.core import Address
 from quarkchain.core import ShardMask
 from quarkchain.utils import is_p2, check, Logger
@@ -38,7 +38,7 @@ def update_genesis_alloc(cluser_config):
                 full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
                     address.full_shard_key
                 )
-                qkc_config.SHARDS[full_shard_id].GENESIS.ALLOC[
+                qkc_config.shards[full_shard_id].GENESIS.ALLOC[
                     item["address"]
                 ] = 1000000 * (10 ** 18)
 
@@ -52,7 +52,7 @@ def update_genesis_alloc(cluser_config):
             "Error importing genesis accounts from {}: {}".format(alloc_file, e)
         )
 
-        for shard_config in qkc_config.SHARDS.values():
+        for shard_config in qkc_config.shards.values():
             shard_config.GENESIS.ALLOC = dict()
         Logger.warning("Cleared all genesis accounts from config!")
 
@@ -64,7 +64,7 @@ def update_genesis_alloc(cluser_config):
 
         for item in items:
             address = Address.create_from(item["address"])
-            for full_shard_id, shard_config in qkc_config.SHARDS.items():
+            for full_shard_id, shard_config in qkc_config.shards.items():
                 shard_config.GENESIS.ALLOC[
                     address.address_in_shard(full_shard_id).serialize().hex()
                 ] = 1000 * (10 ** 18)
@@ -214,7 +214,7 @@ class ClusterConfig(BaseConfig):
             "--num_chains", default=QuarkChainConfig.CHAIN_SIZE, type=int
         )
         parser.add_argument(
-            "--num_shards_per_chain", default=ShardConfig.SHARD_SIZE, type=int
+            "--num_shards_per_chain", default=ChainConfig.SHARD_SIZE, type=int
         )
         parser.add_argument("--root_block_interval_sec", default=10, type=int)
         parser.add_argument("--minor_block_interval_sec", default=3, type=int)
