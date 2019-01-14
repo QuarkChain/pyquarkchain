@@ -49,6 +49,10 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc_list[0], genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
 
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
         # 5 tx per block, make 3 blocks
         for _ in range(3):
             for j in range(5):
@@ -80,6 +84,10 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.create_random_account(full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
         tx_gen = lambda data: create_transfer_transaction(
             shard_state=state,
             key=id1.get_key(),
@@ -101,6 +109,9 @@ class TestShardState(unittest.TestCase):
         acc2 = Address.create_random_account(full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
         tx = create_transfer_transaction(
             shard_state=state,
             key=id1.get_key(),
@@ -138,6 +149,10 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
 
         tx = create_transfer_transaction(
             shard_state=state,
@@ -211,6 +226,10 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
 
         tx = create_transfer_transaction(
             shard_state=state,
@@ -287,6 +306,10 @@ class TestShardState(unittest.TestCase):
         )
         state = create_default_shard_state(env=env)
 
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
         tx = create_transfer_transaction(
             shard_state=state,
             key=id1.get_key(),
@@ -320,6 +343,10 @@ class TestShardState(unittest.TestCase):
         # included in the block
         env.quark_chain_config.MAX_NEIGHBORS = 10 ** 18
         state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
 
         # xshard tx
         tx = create_transfer_transaction(
@@ -360,6 +387,10 @@ class TestShardState(unittest.TestCase):
             genesis_account=acc1, genesis_minor_quarkash=2000000 + opcodes.GTXCOST
         )
         state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
 
         state.add_tx(
             create_transfer_transaction(
@@ -460,6 +491,10 @@ class TestShardState(unittest.TestCase):
         )
         state = create_default_shard_state(env=env)
 
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
         state.add_tx(
             create_transfer_transaction(
                 shard_state=state,
@@ -499,6 +534,10 @@ class TestShardState(unittest.TestCase):
             genesis_account=acc1, genesis_minor_quarkash=2000000 + opcodes.GTXCOST
         )
         state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
 
         state.add_tx(
             create_transfer_transaction(
@@ -753,22 +792,6 @@ class TestShardState(unittest.TestCase):
         )
         b1.add_tx(tx)
 
-        # Add a x-shard tx from remote peer
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b1.header.get_hash(),
-            tx_list=CrossShardTransactionList(
-                tx_list=[
-                    CrossShardTransactionDeposit(
-                        tx_hash=tx.get_hash(),
-                        from_address=acc2,
-                        to_address=acc1,
-                        value=888888,
-                        gas_price=2,
-                    )
-                ]
-            ),
-        )
-
         # Create a root block containing the block with the x-shard tx
         root_block = (
             state0.root_tip.create_block_to_append()
@@ -778,7 +801,6 @@ class TestShardState(unittest.TestCase):
         )
         state0.add_root_block(root_block)
 
-        # Add b0 and make sure all x-shard tx's are added
         b2 = state0.create_block_to_mine(address=acc3)
         state0.finalize_and_add_block(b2)
 
@@ -789,7 +811,7 @@ class TestShardState(unittest.TestCase):
             self.getAfterTaxReward(self.shard_coinbase),
         )
 
-        # X-shard gas used
+        # No xshard tx is processed on the receiving side due to non-neighbor
         evm_state0 = state0.evm_state
         self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 

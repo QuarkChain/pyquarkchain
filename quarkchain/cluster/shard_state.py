@@ -250,6 +250,17 @@ class ShardState:
             )
 
         to_branch = Branch(evm_tx.to_full_shard_id)
+
+        # TODO: recover this check
+        # initialized_full_shard_ids = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+        #     self.root_tip.height
+        # )
+        # if to_branch.get_full_shard_id() not in initialized_full_shard_ids:
+        #     raise RuntimeError(
+        #         "evm tx to_full_shard_id {} is not initialized yet. current root height {}".format(
+        #             evm_tx.to_full_shard_id, self.root_tip.height
+        #         )
+        #     )
         if evm_tx.is_cross_shard and not self.__is_neighbor(to_branch):
             raise RuntimeError(
                 "evm tx to_full_shard_id {} is not a neighbor of from_full_shard_id {}".format(
@@ -957,7 +968,7 @@ class ShardState:
             to_branch = Branch(evm_tx.to_full_shard_id)
 
             if self.branch != to_branch:
-                check(is_neighbor(self.branch, to_branch))
+                check(self.__is_neighbor(to_branch))
                 if xshard_tx_counters[
                     evm_tx.to_full_shard_id
                 ] + 1 > xshard_tx_limits.get(evm_tx.to_full_shard_id, 0):
@@ -1095,16 +1106,16 @@ class ShardState:
                 shard_headers.append(m_header)
                 continue
 
-            if not self.__is_neighbor(m_header.branch):
+            prev_root_header = self.db.get_root_block_header_by_hash(
+                m_header.hash_prev_root_block
+            )
+            check(prev_root_header is not None)
+            if not self.__is_neighbor(m_header.branch, prev_root_header.height):
                 continue
 
             if not self.db.contain_remote_minor_block_hash(h):
-                prev_root = self.db.get_root_block_by_hash(
-                    m_header.hash_prev_root_block
-                )
                 if (
-                    prev_root
-                    and prev_root.header.height
+                    prev_root_header.height
                     > self.env.quark_chain_config.get_genesis_root_height(
                         self.full_shard_id
                     )
@@ -1199,8 +1210,14 @@ class ShardState:
 
         return True
 
-    def __is_neighbor(self, remote_branch: Branch):
-        return is_neighbor(self.branch, remote_branch)
+    def __is_neighbor(self, remote_branch: Branch, root_height=None):
+        root_height = self.root_tip.height if root_height is None else root_height
+        shard_size = len(
+            self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                root_height
+            )
+        )
+        return is_neighbor(self.branch, remote_branch, shard_size)
 
     def __get_cross_shard_tx_list_by_root_block_hash(self, h):
         r_block = self.db.get_root_block_by_hash(h)
@@ -1209,14 +1226,17 @@ class ShardState:
             if m_header.branch == self.branch:
                 continue
 
-            if not self.__is_neighbor(m_header.branch):
+            prev_root_header = self.db.get_root_block_header_by_hash(
+                m_header.hash_prev_root_block
+            )
+            check(prev_root_header is not None)
+
+            if not self.__is_neighbor(m_header.branch, prev_root_header.height):
                 continue
 
             xshard_tx_list = self.db.get_minor_block_xshard_tx_list(m_header.get_hash())
-            prev_root = self.db.get_root_block_by_hash(m_header.hash_prev_root_block)
             if (
-                not prev_root
-                or prev_root.header.height
+                prev_root_header.height
                 <= self.env.quark_chain_config.get_genesis_root_height(
                     self.full_shard_id
                 )

@@ -958,8 +958,20 @@ class SlaveServer:
         rpc_futures = []
         for branch, request in branch_to_add_xshard_tx_list_request.items():
             if branch == block.header.branch or not is_neighbor(
-                block.header.branch, branch
+                block.header.branch,
+                branch,
+                len(
+                    self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                        prev_root_height
+                    )
+                ),
             ):
+                check(
+                    len(request.tx_list.tx_list) == 0,
+                    "there shouldn't be xshard list for non-neighbor shard ({} -> {})".format(
+                        block.header.branch.value, branch.value
+                    ),
+                )
                 continue
 
             if branch in self.shards:
@@ -995,7 +1007,21 @@ class SlaveServer:
                 block_hash, xshard_tx_list, prev_root_height
             )
             for branch, request in branch_to_add_xshard_tx_list_request.items():
-                if branch == source_branch or not is_neighbor(branch, source_branch):
+                if branch == source_branch or not is_neighbor(
+                    branch,
+                    source_branch,
+                    len(
+                        self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                            prev_root_height
+                        )
+                    ),
+                ):
+                    check(
+                        len(request.tx_list.tx_list) == 0,
+                        "there shouldn't be xshard list for non-neighbor shard ({} -> {})".format(
+                            source_branch.value, branch.value
+                        ),
+                    )
                     continue
 
                 branch_to_add_xshard_tx_list_request_list.setdefault(branch, []).append(
@@ -1004,8 +1030,6 @@ class SlaveServer:
 
         rpc_futures = []
         for branch, request_list in branch_to_add_xshard_tx_list_request_list.items():
-            check(is_neighbor(branch, source_branch))
-
             if branch in self.shards:
                 for request in request_list:
                     self.shards[
