@@ -1362,6 +1362,7 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(m1)
 
         # note PoSW window size is 2
+        prev_addr = None
         for i in range(8):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
@@ -1373,7 +1374,10 @@ class TestShardState(unittest.TestCase):
                 self.assertEqual(
                     list(coinbase_balances.values())[0], 2500000000000000000
                 )
+            if prev_addr:  # should alwyas contain previous block's coinbase
+                self.assertTrue(prev_addr in coinbase_balances)
             state.finalize_and_add_block(m)
+            prev_addr = random_acc.recipient
 
         # cached height -> [coinbase addr] should have certain items
         self.assertEqual(len(state.coinbase_addr_cache), 9)
