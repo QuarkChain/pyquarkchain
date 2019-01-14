@@ -1,7 +1,8 @@
 import asyncio
+import functools
 import json
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from fractions import Fraction
 from typing import Optional, Tuple, List, Union, Dict
 
@@ -60,12 +61,12 @@ class ShardState:
 
     def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
         self.env = env
+        self.shard_config = env.quark_chain_config.shards[full_shard_id]
         self.full_shard_id = full_shard_id
         if not diff_calc:
-            shard_config = self.env.quark_chain_config.shards[full_shard_id]
-            cutoff = shard_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
-            diff_factor = shard_config.DIFFICULTY_ADJUSTMENT_FACTOR
-            min_diff = shard_config.GENESIS.DIFFICULTY
+            cutoff = self.shard_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
+            diff_factor = self.shard_config.DIFFICULTY_ADJUSTMENT_FACTOR
+            min_diff = self.shard_config.GENESIS.DIFFICULTY
             check(cutoff > 0 and diff_factor > 0 and min_diff > 0)
             diff_calc = EthDifficultyCalculator(
                 cutoff=cutoff, diff_factor=diff_factor, minimum_diff=min_diff
@@ -85,6 +86,8 @@ class ShardState:
 
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_pool = dict()
+        # height -> [coinbase address] during previous blocks, ascending order
+        self.coinbase_addr_cache = dict()  # type: Dict[int, Deque[bytes]]
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -338,30 +341,23 @@ class ShardState:
             """
             Compute the boundaries for the block gas limit based on the parent block.
             """
-            shard_config = self.env.quark_chain_config.shards[
-                self.branch.get_full_shard_id()
-            ]
             boundary_range = (
-                parent_gas_limit // shard_config.GAS_LIMIT_ADJUSTMENT_FACTOR
+                parent_gas_limit // self.shard_config.GAS_LIMIT_ADJUSTMENT_FACTOR
             )
             upper_bound = parent_gas_limit + boundary_range
             lower_bound = max(
-                shard_config.GAS_LIMIT_MINIMUM, parent_gas_limit - boundary_range
+                self.shard_config.GAS_LIMIT_MINIMUM, parent_gas_limit - boundary_range
             )
             return lower_bound, upper_bound
 
         low_bound, high_bound = compute_gas_limit_bounds(parent_gas_limit)
         if gas_limit < low_bound:
             raise ValueError(
-                "The gas limit {} is too low. Minimum is {}".format(
-                    gas_limit, low_bound
-                )
+                "gas limit {} is too low. minimum is {}".format(gas_limit, low_bound)
             )
         elif gas_limit > high_bound:
             raise ValueError(
-                "The gas limit {} is too hight. Maximum is {}".format(
-                    gas_limit, high_bound
-                )
+                "gas limit {} is too hight. maximum is {}".format(gas_limit, high_bound)
             )
 
     def __compute_gas_limit(
@@ -383,13 +379,11 @@ class ShardState:
 
         - use the GAS_LIMIT_MINIMUM as the new gas limit.
         """
-        shard_config = self.env.quark_chain_config.shards[
-            self.branch.get_full_shard_id()
-        ]
+        shard_config = self.shard_config
         if gas_limit_floor < shard_config.GAS_LIMIT_MINIMUM:
             raise ValueError(
-                "The `gas_limit_floor` value must be greater than the "
-                "GAS_LIMIT_MINIMUM.  Got {0}.  Must be greater than "
+                "`gas_limit_floor` value must be greater than the "
+                "GAS_LIMIT_MINIMUM.  Got {0}.  must be greater than "
                 "{1}".format(gas_limit_floor, shard_config.GAS_LIMIT_MINIMUM)
             )
 
@@ -449,7 +443,7 @@ class ShardState:
             )
 
         if block.header.hash_meta != block.meta.get_hash():
-            raise ValueError("Hash of meta mismatch")
+            raise ValueError("hash of meta mismatch")
 
         if (
             len(block.header.extra_data)
@@ -650,12 +644,9 @@ class ShardState:
         start_ms = time_ms()
 
         if skip_if_too_old:
-            shard_config = self.env.quark_chain_config.shards[
-                self.branch.get_full_shard_id()
-            ]
             if (
                 self.header_tip.height - block.header.height
-                > shard_config.max_stale_minor_block_height_diff
+                > self.shard_config.max_stale_minor_block_height_diff
             ):
                 Logger.info(
                     "[{}] drop old block {} << {}".format(
@@ -686,21 +677,21 @@ class ShardState:
         # ------------------------ Validate ending result of the block --------------------
         if block.meta.hash_evm_state_root != evm_state.trie.root_hash:
             raise ValueError(
-                "State root mismatch: header %s computed %s"
+                "state root mismatch: header %s computed %s"
                 % (block.meta.hash_evm_state_root.hex(), evm_state.trie.root_hash.hex())
             )
 
         receipt_root = mk_receipt_sha(evm_state.receipts, evm_state.db)
         if block.meta.hash_evm_receipt_root != receipt_root:
             raise ValueError(
-                "Receipt root mismatch: header {} computed {}".format(
+                "receipt root mismatch: header {} computed {}".format(
                     block.meta.hash_evm_receipt_root.hex(), receipt_root.hex()
                 )
             )
 
         if evm_state.gas_used != block.meta.evm_gas_used:
             raise ValueError(
-                "Gas used mismatch: header %d computed %d"
+                "gas used mismatch: header %d computed %d"
                 % (block.meta.evm_gas_used, evm_state.gas_used)
             )
 
@@ -709,7 +700,7 @@ class ShardState:
             != block.meta.evm_cross_shard_receive_gas_used
         ):
             raise ValueError(
-                "X-shard gas used mismatch: header %d computed %d"
+                "x-shard gas used mismatch: header %d computed %d"
                 % (
                     block.meta.evm_cross_shard_receive_gas_used,
                     evm_state.xshard_receive_gas_used,
@@ -717,10 +708,10 @@ class ShardState:
             )
         coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
         if coinbase_amount != block.header.coinbase_amount:
-            raise ValueError("Coinbase reward incorrect")
+            raise ValueError("coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
-            raise ValueError("Bloom mismatch")
+            raise ValueError("bloom mismatch")
 
         self.db.put_minor_block(block, x_shard_receive_tx_list)
 
@@ -921,10 +912,7 @@ class ShardState:
         return amount
 
     def __get_max_blocks_in_one_root_block(self) -> int:
-        shard_config = self.env.quark_chain_config.shards[
-            self.branch.get_full_shard_id()
-        ]
-        return shard_config.max_blocks_per_shard_in_one_root_block
+        return self.shard_config.max_blocks_per_shard_in_one_root_block
 
     def __get_xshard_tx_limits(self, root_block: RootBlock) -> Dict[int, int]:
         """Return a mapping from shard_id to the max number of xshard tx to the shard of shard_id"""
@@ -996,13 +984,10 @@ class ShardState:
         block = prev_block.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
         )
-        shard_config = self.env.quark_chain_config.shards[
-            self.branch.get_full_shard_id()
-        ]
         block.header.evm_gas_limit = self.__compute_gas_limit(
             prev_block.header.evm_gas_limit,
             prev_block.meta.evm_gas_used,
-            shard_config.GENESIS.GAS_LIMIT,
+            self.shard_config.GENESIS.GAS_LIMIT,
         )
 
         evm_state = self._get_evm_state_for_new_block(block)
@@ -1119,7 +1104,7 @@ class ShardState:
 
         if len(shard_headers) > self.__get_max_blocks_in_one_root_block():
             raise ValueError(
-                "Too many minor blocks in the root block for shard {}".format(
+                "too many minor blocks in the root block for shard {}".format(
                     self.branch.get_full_shard_id()
                 )
             )
@@ -1495,3 +1480,47 @@ class ShardState:
             Logger.error("Failed to get block at height {}".format(height))
             return None
         return self._get_evm_state_for_new_block(block)
+
+    def __get_coinbase_addresses_until_height(
+        self, height: int, length: int
+    ) -> List[bytes]:
+        """Get coinbase addresses up until height (inclusive) within the window of length."""
+        curr_block = self.db.get_minor_block_by_height(height)
+        if not curr_block:
+            raise ValueError("curr block not found: height %d" % height)
+        curr_coinbase_addr = curr_block.header.coinbase_address.recipient
+        if height - 1 in self.coinbase_addr_cache:  # mem cache hit
+            addrs = self.coinbase_addr_cache[height - 1].copy()
+            if len(addrs) == length:
+                addrs.popleft()
+            addrs.append(curr_coinbase_addr)
+        else:  # miss, iterating DB
+            addrs, header = deque(), curr_block.header
+            for _ in range(length):
+                addrs.appendleft(header.coinbase_address.recipient)
+                header = self.db.get_minor_block_header_by_hash(
+                    header.hash_prev_minor_block
+                )
+                if not header:
+                    break
+        self.coinbase_addr_cache[height] = addrs
+        # in case cached too much, clean up
+        if len(self.coinbase_addr_cache) > 128:  # size around 640KB if window size 256
+            self.coinbase_addr_cache = {
+                k: v
+                for k, v in self.coinbase_addr_cache.items()
+                if k > height - 16  # keep most recent ones
+            }
+        return list(addrs)
+
+    @functools.lru_cache(maxsize=16)
+    def _get_posw_coinbase_balances(self, block: MinorBlock) -> Dict[bytes, int]:
+        """
+        Get coinbase addresses up until the given block (exclusive) along with their
+        balances within the PoSW window. Raise ValueError if anything goes wrong.
+        """
+        coinbase_addrs = self.__get_coinbase_addresses_until_height(
+            block.header.height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
+        )
+        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
+        return {addr: evm_state.get_balance(addr) for addr in coinbase_addrs}

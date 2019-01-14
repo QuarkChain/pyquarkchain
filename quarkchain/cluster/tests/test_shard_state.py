@@ -1349,3 +1349,31 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(r3)
         self.assertEqual(state.root_tip, r3.header)
         self.assertEqual(state.header_tip, m2.header)
+
+    def test_posw_coinbase_address_balance(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
+        state = create_default_shard_state(env=env, shard_id=0)
+
+        m1 = state.get_tip().create_block_to_append(address=acc1)
+        coinbase_balances = state._get_posw_coinbase_balances(m1)
+        self.assertEqual(len(coinbase_balances), 1)  # genesis
+        state.finalize_and_add_block(m1)
+
+        # note PoSW window size is 2
+        for i in range(8):
+            random_acc = Address.create_random_account(full_shard_key=0)
+            m = state.get_tip().create_block_to_append(address=random_acc)
+            coinbase_balances = state._get_posw_coinbase_balances(m)
+            self.assertEqual(len(coinbase_balances), 2)
+            if i > 0:  # excluding genesis
+                # check mining reward
+                self.assertEqual(len(set(coinbase_balances.values())), 1)
+                self.assertEqual(
+                    list(coinbase_balances.values())[0], 2500000000000000000
+                )
+            state.finalize_and_add_block(m)
+
+        # cached height -> [coinbase addr] should have certain items
+        self.assertEqual(len(state.coinbase_addr_cache), 9)

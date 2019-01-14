@@ -110,6 +110,13 @@ class POWConfig(BaseConfig):
     REMOTE_MINE = False
 
 
+class POSWConfig(BaseConfig):
+    STAKE_COEFF = 20  # Alpha in PoSW
+    DIFF_COEFF = 20  # Beta
+    WINDOW_SIZE = 256  # For estimating effective hash power
+    TOTAL_STAKES = 10 ** 7  # TODO: needs better tuning / estimating
+
+
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
     SHARD_SIZE = 2
@@ -136,8 +143,11 @@ class ChainConfig(BaseConfig):
 
     EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK = 3
 
+    POSW_CONFIG = None  # type: POSWConfig
+
     def __init__(self):
         self.GENESIS = ShardGenesis()
+        self.POSW_CONFIG = POSWConfig()
 
     def to_dict(self):
         ret = super().to_dict()
@@ -149,6 +159,7 @@ class ChainConfig(BaseConfig):
             ret["CONSENSUS_CONFIG"] = self.CONSENSUS_CONFIG.to_dict()
             if self.GENESIS:
                 ret["GENESIS"] = self.GENESIS.to_dict()
+        ret["POSW_CONFIG"] = self.POSW_CONFIG.to_dict()
         return ret
 
     @classmethod
@@ -159,6 +170,7 @@ class ChainConfig(BaseConfig):
             config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
             if config.GENESIS:
                 config.GENESIS = ShardGenesis.from_dict(config.GENESIS)
+        config.POSW_CONFIG = POSWConfig.from_dict(config.POSW_CONFIG)
         return config
 
 
