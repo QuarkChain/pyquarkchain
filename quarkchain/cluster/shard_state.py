@@ -251,16 +251,18 @@ class ShardState:
 
         to_branch = Branch(evm_tx.to_full_shard_id)
 
-        # TODO: recover this check
-        # initialized_full_shard_ids = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-        #     self.root_tip.height
-        # )
-        # if to_branch.get_full_shard_id() not in initialized_full_shard_ids:
-        #     raise RuntimeError(
-        #         "evm tx to_full_shard_id {} is not initialized yet. current root height {}".format(
-        #             evm_tx.to_full_shard_id, self.root_tip.height
-        #         )
-        #     )
+        initialized_full_shard_ids = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            self.root_tip.height
+        )
+        if (
+            evm_tx.is_cross_shard
+            and to_branch.get_full_shard_id() not in initialized_full_shard_ids
+        ):
+            raise RuntimeError(
+                "evm tx to_full_shard_id {} is not initialized yet. current root height {}".format(
+                    evm_tx.to_full_shard_id, self.root_tip.height
+                )
+            )
         if evm_tx.is_cross_shard and not self.__is_neighbor(to_branch):
             raise RuntimeError(
                 "evm tx to_full_shard_id {} is not a neighbor of from_full_shard_id {}".format(
