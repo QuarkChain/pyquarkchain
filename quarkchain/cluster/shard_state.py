@@ -286,13 +286,12 @@ class ShardState:
         evm_state.gas_used = 0
         try:
             evm_tx = self.__validate_tx(tx, evm_state)
+            self.tx_queue.add_transaction(evm_tx)
+            self.tx_dict[tx_hash] = tx
+            return True
         except Exception as e:
             Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
             return False
-
-        self.tx_queue.add_transaction(evm_tx)
-        self.tx_dict[tx_hash] = tx
-        return True
 
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
         state = self.__create_evm_state()
@@ -1515,14 +1514,13 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_balances(
-        self, height: int, evm_state: EvmState
-    ) -> Dict[bytes, int]:
+    def _get_posw_coinbase_balances(self, block: MinorBlock) -> Dict[bytes, int]:
         """
         Get coinbase addresses up until the given block (exclusive) along with their
         balances within the PoSW window. Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_height(
-            height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
+            block.header.height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
         )
+        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
         return {addr: evm_state.get_balance(addr) for addr in coinbase_addrs}
