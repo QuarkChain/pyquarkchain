@@ -361,7 +361,7 @@ class QuarkChainConfig(BaseConfig):
         """ Return a list of ids of the shards that have been initialized before a certain root height"""
         ids = []
         for full_shard_id, config in self.shards.items():
-            if config.GENESIS and config.GENESIS.ROOT_HEIGHT < root_height:
+            if config.GENESIS.ROOT_HEIGHT < root_height:
                 ids.append(full_shard_id)
         return ids
 
