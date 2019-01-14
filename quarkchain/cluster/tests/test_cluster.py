@@ -158,6 +158,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
             )
+
             tx = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0b10),
                 key=id1.get_key(),
@@ -195,6 +196,10 @@ class TestCluster(unittest.TestCase):
 
         with ClusterContext(2, acc1) as clusters:
             master = clusters[0].master
+
+            is_root, root = call_async(master.get_next_block_to_mine(acc1))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(root))
 
             tx1 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0b10),

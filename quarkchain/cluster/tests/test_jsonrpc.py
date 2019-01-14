@@ -109,6 +109,11 @@ class TestJSONRPC(unittest.TestCase):
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
+            master = clusters[0].master
+
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(block))
 
             evm_tx = EvmTransaction(
                 nonce=0,
@@ -154,6 +159,11 @@ class TestJSONRPC(unittest.TestCase):
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
+            master = clusters[0].master
+
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc2))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(block))
 
             request = dict(
                 to="0x" + acc2.recipient.hex(),
@@ -177,6 +187,12 @@ class TestJSONRPC(unittest.TestCase):
         with ClusterContext(
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
+            master = clusters[0].master
+
+            is_root, block = call_async(master.get_next_block_to_mine(address=acc1))
+            self.assertTrue(is_root)
+            call_async(master.add_root_block(block))
+
             request = dict(
                 to="0x" + acc1.recipient.hex(),
                 gasPrice="0x6",
