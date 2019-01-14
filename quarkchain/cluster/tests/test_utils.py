@@ -11,7 +11,7 @@ from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.config import ConsensusType
-from quarkchain.core import Address, Branch, Transaction, Code, ShardMask
+from quarkchain.core import Address, Branch, Transaction, Code, ChainMask
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
@@ -19,23 +19,25 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import AbstractConnection
-from quarkchain.utils import call_async, check
+from quarkchain.utils import call_async, check, is_p2
 
 
 def get_test_env(
     genesis_account=Address.create_empty_account(),
     genesis_minor_quarkash=0,
+    chain_size=2,
     shard_size=2,
-    genesis_root_heights=None,
+    genesis_root_heights=None,  # dict(full_shard_id, genesis_root_height)
     remote_mining=False,
 ):
+    check(is_p2(shard_size))
     env = DEFAULT_ENV.copy()
 
     env.db = InMemoryDb()
     env.set_network_id(1234567890)
 
     env.cluster_config = ClusterConfig()
-    env.quark_chain_config.update(1, shard_size, 10, 1)
+    env.quark_chain_config.update(chain_size, shard_size, 10, 1)
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
@@ -46,12 +48,12 @@ def get_test_env(
     env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR = 1024
 
     if genesis_root_heights:
-        # TODO: fix this to support chain_id
-        check(len(genesis_root_heights) == shard_size)
-        for shard_id in range(shard_size):
-            full_shard_id = shard_size | shard_id  # chain_id is 0
-            shard = env.quark_chain_config.shards[full_shard_id]
-            shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
+        check(len(genesis_root_heights) == shard_size * chain_size)
+        for chain_id in range(chain_size):
+            for shard_id in range(shard_size):
+                full_shard_id = chain_id << 16 | shard_size | shard_id
+                shard = env.quark_chain_config.shards[full_shard_id]
+                shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[full_shard_id]
 
     # fund genesis account in all shards
     for full_shard_id, shard in env.quark_chain_config.shards.items():
@@ -210,6 +212,7 @@ def get_next_port():
 def create_test_clusters(
     num_cluster,
     genesis_account,
+    chain_size,
     shard_size,
     num_slaves,
     genesis_root_heights,
@@ -229,6 +232,7 @@ def create_test_clusters(
         env = get_test_env(
             genesis_account,
             genesis_minor_quarkash=1000000,
+            chain_size=chain_size,
             shard_size=shard_size,
             genesis_root_heights=genesis_root_heights,
             remote_mining=remote_mining,
@@ -246,12 +250,12 @@ def create_test_clusters(
                 c.COINBASE_AMOUNT = 5
 
         env.cluster_config.SLAVE_LIST = []
+        check(is_p2(num_slaves))
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
-            slave_config.SHARD_MASK_LIST = [ShardMask(num_slaves | j)]
-            slave_config.DB_PATH_ROOT = None  # TODO: fix the db in config
+            slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         slave_server_list = []
@@ -319,6 +323,7 @@ class ClusterContext(ContextDecorator):
         self,
         num_cluster,
         genesis_account=Address.create_empty_account(),
+        chain_size=2,
         shard_size=2,
         num_slaves=None,
         genesis_root_heights=None,
@@ -327,16 +332,21 @@ class ClusterContext(ContextDecorator):
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
+        self.chain_size = chain_size
         self.shard_size = shard_size
-        self.num_slaves = num_slaves if num_slaves else shard_size
+        self.num_slaves = num_slaves if num_slaves else chain_size
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
+
+        check(is_p2(self.num_slaves))
+        check(is_p2(self.shard_size))
 
     def __enter__(self):
         self.cluster_list = create_test_clusters(
             self.num_cluster,
             self.genesis_account,
+            self.chain_size,
             self.shard_size,
             self.num_slaves,
             self.genesis_root_heights,

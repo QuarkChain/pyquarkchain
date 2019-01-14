@@ -10,7 +10,7 @@ from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig, ChainConfig
 from quarkchain.core import Address
-from quarkchain.core import ShardMask
+from quarkchain.core import ChainMask
 from quarkchain.utils import is_p2, check, Logger
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
@@ -84,17 +84,17 @@ class SlaveConfig(BaseConfig):
     HOST = DEFAULT_HOST
     PORT = 38392
     ID = ""
-    SHARD_MASK_LIST = None
+    CHAIN_MASK_LIST = None
 
     def to_dict(self):
         ret = super().to_dict()
-        ret["SHARD_MASK_LIST"] = [m.value for m in self.SHARD_MASK_LIST]
+        ret["CHAIN_MASK_LIST"] = [m.value for m in self.CHAIN_MASK_LIST]
         return ret
 
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
-        config.SHARD_MASK_LIST = [ShardMask(v) for v in config.SHARD_MASK_LIST]
+        config.CHAIN_MASK_LIST = [ChainMask(v) for v in config.CHAIN_MASK_LIST]
         return config
 
 
@@ -158,7 +158,7 @@ class ClusterConfig(BaseConfig):
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
         slave_config.ID = "S0"
-        slave_config.SHARD_MASK_LIST = [ShardMask(1)]
+        slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         self.SLAVE_LIST.append(slave_config)
 
         fd, self.json_filepath = tempfile.mkstemp()
@@ -169,7 +169,7 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.SHARD_MASK_LIST)
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
             )
         return results
 
@@ -346,7 +346,7 @@ class ClusterConfig(BaseConfig):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
-                slave_config.SHARD_MASK_LIST = [ShardMask(i | args.num_slaves)]
+                slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
                 config.SLAVE_LIST.append(slave_config)
 

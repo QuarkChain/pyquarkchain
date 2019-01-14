@@ -13,7 +13,7 @@ class HelloCommand(Serializable):
         ("peer_ip", uint128),
         ("peer_port", uint16),
         (
-            "shard_mask_list",
+            "chain_mask_list",
             PrependedSizeListSerializer(4, uint32),
         ),  # TODO create shard mask object
         ("root_block_header", RootBlockHeader),
@@ -26,7 +26,7 @@ class HelloCommand(Serializable):
         peer_id,
         peer_ip,
         peer_port,
-        shard_mask_list,
+        chain_mask_list,
         root_block_header,
     ):
         fields = {k: v for k, v in locals().items() if k != "self"}
