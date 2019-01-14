@@ -1357,7 +1357,9 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0)
 
         m1 = state.get_tip().create_block_to_append(address=acc1)
-        coinbase_balances = state._get_posw_coinbase_balances(m1)
+        coinbase_balances = state._get_posw_coinbase_balances(
+            m1.header.height, state._get_evm_state_for_new_block(m1)
+        )
         self.assertEqual(len(coinbase_balances), 1)  # genesis
         state.finalize_and_add_block(m1)
 
@@ -1366,7 +1368,10 @@ class TestShardState(unittest.TestCase):
         for i in range(8):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
-            coinbase_balances = state._get_posw_coinbase_balances(m)
+            evm_state = state._get_evm_state_for_new_block(m)
+            coinbase_balances = state._get_posw_coinbase_balances(
+                m.header.height, evm_state
+            )
             self.assertEqual(len(coinbase_balances), 2)
             if i > 0:  # excluding genesis
                 # check mining reward

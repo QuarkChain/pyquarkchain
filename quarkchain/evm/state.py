@@ -603,6 +603,12 @@ class State:
         s.qkc_config = self.qkc_config
         return s
 
+    def __hash__(self):
+        return int.from_bytes(self.trie.root_hash, byteorder="big")
+
+    def __eq__(self, other):
+        return isinstance(other, State) and hash(self) == hash(other)
+
 
 def prev_header_to_dict(h):
     return {
