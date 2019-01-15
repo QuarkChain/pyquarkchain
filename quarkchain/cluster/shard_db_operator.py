@@ -236,7 +236,8 @@ class ShardDbOperator(TransactionHistoryMixin):
     def contain_root_block_by_hash(self, h):
         return h in self.r_header_pool
 
-    def get_last_minor_block_header_in_root_block(self, root_hash):
+    def get_last_confirmed_minor_block_header_at_root_block(self, root_hash):
+        """Return the latest minor block header confirmed by the root chain at the given root hash"""
         r_minor_header_hash = self.db.get(b"r_last_m" + root_hash, None)
         if r_minor_header_hash is None or r_minor_header_hash == b"":
             return None
