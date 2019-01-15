@@ -1243,6 +1243,41 @@ class TestShardState(unittest.TestCase):
             recoveredState.evm_state.trie.root_hash, blockMetas[4].hash_evm_state_root
         )
 
+    def test_shard_state_recovery_from_genesis(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env, shard_id=0)
+
+        blockHeaders = []
+        blockMetas = []
+        for i in range(12):
+            b = state.get_tip().create_block_to_append(address=acc1)
+            state.finalize_and_add_block(b)
+            blockHeaders.append(b.header)
+            blockMetas.append(b.meta)
+
+        # Add a few empty root blocks
+        for i in range(3):
+            root_block = state.root_tip.create_block_to_append()
+            root_block.finalize()
+            state.add_root_block(root_block)
+
+        recoveredState = ShardState(env=env, full_shard_id=2 | 0)
+
+        # expect to recover from genesis
+        recoveredState.init_from_root_block(root_block)
+
+        genesis = state.db.get_minor_block_by_height(0)
+        self.assertEqual(recoveredState.root_tip, root_block.header)
+        self.assertEqual(recoveredState.header_tip, genesis.header)
+        self.assertIsNone(recoveredState.confirmed_header_tip)
+        self.assertEqual(recoveredState.meta_tip, genesis.meta)
+        self.assertEqual(
+            recoveredState.evm_state.trie.root_hash, genesis.meta.hash_evm_state_root
+        )
+
     def test_add_block_receipt_root_not_match(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1)

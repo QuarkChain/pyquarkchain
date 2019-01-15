@@ -90,18 +90,6 @@ class ShardState:
         """ Master will send its root chain tip when it connects to slaves.
         Shards will initialize its state based on the root block.
         """
-
-        def __get_header_tip_from_root_block(branch):
-            header_tip = None
-            for m_header in root_block.minor_block_header_list:
-                if m_header.branch == branch:
-                    check(
-                        header_tip is None or header_tip.height + 1 == m_header.height
-                    )
-                    header_tip = m_header
-            check(header_tip is not None)
-            return header_tip
-
         check(
             root_block.header.height
             > self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
@@ -117,8 +105,17 @@ class ShardState:
             )
         )
 
+        confirmed_header_tip = self.db.get_last_confirmed_minor_block_header_at_root_block(
+            root_block.header.get_hash()
+        )
+        header_tip = confirmed_header_tip
+        if not header_tip:
+            # root chain has not confirmed any block on this shard
+            # get the genesis block from db
+            header_tip = self.db.get_minor_block_by_height(0).header
+
+        self.header_tip = header_tip
         self.root_tip = root_block.header
-        self.header_tip = __get_header_tip_from_root_block(self.branch)
 
         self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
@@ -132,7 +129,7 @@ class ShardState:
         )
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
-        self.confirmed_header_tip = self.header_tip
+        self.confirmed_header_tip = confirmed_header_tip
         self.evm_state = self.__create_evm_state()
         self.evm_state.trie.root_hash = self.meta_tip.hash_evm_state_root
         check(
@@ -513,7 +510,7 @@ class ShardState:
         ):
             raise ValueError("prev root block height must be non-decreasing")
 
-        prev_confirmed_minor_block = self.db.get_last_minor_block_in_root_block(
+        prev_confirmed_minor_block = self.db.get_last_confirmed_minor_block_header_at_root_block(
             block.header.hash_prev_root_block
         )
         if prev_confirmed_minor_block and not self.__is_same_minor_chain(
@@ -1137,11 +1134,22 @@ class ShardState:
                 )
             )
 
+        # TODO: add this check
+        # if shard_headers:
+        #     if shard_headers[
+        #         0
+        #     ].hash_prev_minor_block != self.db.get_last_confirmed_minor_block_header_at_root_block(
+        #         root_block.header.hash_prev_block
+        #     ):
+        #         raise ValueError(
+        #             "The first minor block confirmed by root block does not link to the last minor block confirmed by previous root block"
+        #         )
+
         # shard_header can be None meaning the genesis shard block has not been confirmed by any root block
         shard_header = (
             shard_headers[-1]
             if shard_headers
-            else self.db.get_last_minor_block_in_root_block(
+            else self.db.get_last_confirmed_minor_block_header_at_root_block(
                 root_block.header.hash_prev_block
             )
         )

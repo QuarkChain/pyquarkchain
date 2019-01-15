@@ -168,31 +168,9 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.m_meta_pool = dict()
         self.x_shard_set = set()
         self.r_header_pool = dict()
-        self.r_minor_header_pool = dict()
 
         # height -> set(minor block hash) for counting wasted blocks
         self.height_to_minor_block_hashes = dict()
-
-    def __get_last_minor_block_in_root_block(self, root_block):
-        # genesis root block contains no minor block header
-        if (
-            root_block.header.height
-            == self.env.quark_chain_config.get_genesis_root_height(
-                self.branch.get_full_shard_id()
-            )
-        ):
-            return None
-
-        l_header = None
-        for m_header in root_block.minor_block_header_list:
-            if m_header.branch != self.branch:
-                continue
-
-            if l_header is None or m_header.height > l_header.height:
-                l_header = m_header
-
-        check(l_header is not None)
-        return l_header
 
     def recover_state(self, r_header, m_header):
         """ When recovering from local database, we can only guarantee the consistency of the best chain.
@@ -205,9 +183,6 @@ class ShardDbOperator(TransactionHistoryMixin):
             < self.env.quark_chain_config.ROOT.max_root_blocks_in_memory
         ):
             block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-            self.r_minor_header_pool[
-                r_hash
-            ] = self.__get_last_minor_block_in_root_block(block)
             self.r_header_pool[r_hash] = block.header
             if (
                 block.header.height
@@ -245,9 +220,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         if root_block_hash is None:
             root_block_hash = root_block.header.get_hash()
 
-        self.db.put(b"rblock_" + root_block_hash, root_block.serialize())
         self.r_header_pool[root_block_hash] = root_block.header
-        self.r_minor_header_pool[root_block_hash] = r_minor_header
+        self.db.put(b"rblock_" + root_block_hash, root_block.serialize())
+        r_minor_header_hash = r_minor_header.get_hash() if r_minor_header else b""
+        self.db.put(b"r_last_m" + root_block_hash, r_minor_header_hash)
 
     def get_root_block_by_hash(self, h):
         if h not in self.r_header_pool:
@@ -260,11 +236,12 @@ class ShardDbOperator(TransactionHistoryMixin):
     def contain_root_block_by_hash(self, h):
         return h in self.r_header_pool
 
-    # TODO: make sure all the callers check None
-    def get_last_minor_block_in_root_block(self, h):
-        if h not in self.r_header_pool:
+    def get_last_confirmed_minor_block_header_at_root_block(self, root_hash):
+        """Return the latest minor block header confirmed by the root chain at the given root hash"""
+        r_minor_header_hash = self.db.get(b"r_last_m" + root_hash, None)
+        if r_minor_header_hash is None or r_minor_header_hash == b"":
             return None
-        return self.r_minor_header_pool.get(h)
+        return self.get_minor_block_header_by_hash(r_minor_header_hash, False)
 
     # ------------------------- Minor block db operations --------------------------------
     def put_minor_block(self, m_block, x_shard_receive_tx_list):
