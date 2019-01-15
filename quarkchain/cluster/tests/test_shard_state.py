@@ -776,9 +776,7 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=3)
 
-        # Add one block in shard 0
-        b0 = state0.create_block_to_mine()
-        state0.finalize_and_add_block(b0)
+        b0 = state0.get_tip()
 
         b1 = state1.get_tip().create_block_to_append()
         tx = create_transfer_transaction(
@@ -973,6 +971,8 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
+        genesis = state0.header_tip
+
         # Add one block and prepare a fork
         b0 = state0.get_tip().create_block_to_append(address=acc1)
         b2 = state0.get_tip().create_block_to_append(
@@ -992,6 +992,7 @@ class TestShardState(unittest.TestCase):
         )
         root_block = (
             state0.root_tip.create_block_to_append()
+            .add_minor_block_header(genesis)
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
@@ -1019,6 +1020,7 @@ class TestShardState(unittest.TestCase):
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
+        genesis = state0.header_tip
         # Add one block and prepare a fork
         b0 = state0.get_tip().create_block_to_append(address=acc1)
         b2 = state0.get_tip().create_block_to_append(
@@ -1043,12 +1045,14 @@ class TestShardState(unittest.TestCase):
 
         root_block = (
             state0.root_tip.create_block_to_append()
+            .add_minor_block_header(genesis)
             .add_minor_block_header(b0.header)
             .add_minor_block_header(b1.header)
             .finalize()
         )
         root_block1 = (
             state0.root_tip.create_block_to_append()
+            .add_minor_block_header(genesis)
             .add_minor_block_header(b2.header)
             .add_minor_block_header(b1.header)
             .finalize()
@@ -1133,8 +1137,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        b0 = state.get_tip().create_block_to_append()
-        state.finalize_and_add_block(b0)
+        b0 = state.get_tip()  # genesis
         root_block = (
             state.root_tip.create_block_to_append()
             .add_minor_block_header(b0.header)
@@ -1201,8 +1204,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        blockHeaders = []
-        blockMetas = []
+        blockHeaders = [state.header_tip]
+        blockMetas = [state.meta_tip]
         for i in range(12):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
@@ -1250,8 +1253,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        blockHeaders = []
-        blockMetas = []
+        blockHeaders = [state.header_tip]
+        blockMetas = [state.meta_tip]
         for i in range(12):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
@@ -1322,8 +1325,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        m1 = state.get_tip().create_block_to_append(address=acc1)
-        state.finalize_and_add_block(m1)
+        # m1 is the genesis block
+        m1 = state.db.get_minor_block_by_height(0)
 
         r1 = state.root_tip.create_block_to_append()
         r2 = state.root_tip.create_block_to_append()
@@ -1374,8 +1377,8 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        m1 = state.get_tip().create_block_to_append(address=acc1)
-        state.finalize_and_add_block(m1)
+        # m1 is the genesis block
+        m1 = state.db.get_minor_block_by_height(0)
 
         m2 = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m2)
