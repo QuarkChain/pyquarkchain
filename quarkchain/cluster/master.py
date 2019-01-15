@@ -67,7 +67,7 @@ from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
-    ShardMask,
+    ChainMask,
     Log,
     Address,
     RootBlock,
@@ -342,7 +342,7 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-        self, env, reader, writer, master_server, slave_id, shard_mask_list, name=None
+        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
     ):
         super().__init__(
             env,
@@ -355,8 +355,8 @@ class SlaveConnection(ClusterConnection):
         )
         self.master_server = master_server
         self.id = slave_id
-        self.shard_mask_list = shard_mask_list
-        check(len(shard_mask_list) > 0)
+        self.chain_mask_list = chain_mask_list
+        check(len(chain_mask_list) > 0)
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
@@ -377,14 +377,14 @@ class SlaveConnection(ClusterConnection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
 
     def has_shard(self, full_shard_id: int):
-        for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(full_shard_id):
+        for chain_mask in self.chain_mask_list:
+            if chain_mask.contain_full_shard_id(full_shard_id):
                 return True
         return False
 
-    def has_overlap(self, shard_mask):
-        for local_shard_mask in self.shard_mask_list:
-            if local_shard_mask.has_overlap(shard_mask):
+    def has_overlap(self, chain_mask: ChainMask):
+        for local_chain_mask in self.chain_mask_list:
+            if local_chain_mask.has_overlap(chain_mask):
                 return True
         return False
 
@@ -400,7 +400,7 @@ class SlaveConnection(ClusterConnection):
             cmd=req,
             metadata=ClusterMetadata(branch=ROOT_BRANCH, cluster_peer_id=0),
         )
-        return (resp.id, resp.shard_mask_list)
+        return (resp.id, resp.chain_mask_list)
 
     async def send_connect_to_slaves(self, slave_info_list):
         """ Make slave connect to other slaves.
@@ -688,7 +688,7 @@ class MasterServer:
                 writer,
                 self,
                 slave_info.id,
-                slave_info.shard_mask_list,
+                slave_info.chain_mask_list,
                 name="{}_slave_{}".format(self.name, slave_info.id),
             )
             await slave.wait_until_active()
@@ -700,16 +700,16 @@ class MasterServer:
         full_shard_ids = self.env.quark_chain_config.get_full_shard_ids()
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
-            id, shard_mask_list = result
+            id, chain_mask_list = result
             if id != slave.id:
                 Logger.error(
                     "Slave id does not match. expect {} got {}".format(slave.id, id)
                 )
                 self.shutdown()
-            if shard_mask_list != slave.shard_mask_list:
+            if chain_mask_list != slave.chain_mask_list:
                 Logger.error(
                     "Slave {} shard mask list does not match. expect {} got {}".format(
-                        slave.id, slave.shard_mask_list, shard_mask_list
+                        slave.id, slave.chain_mask_list, chain_mask_list
                     )
                 )
                 self.shutdown()
@@ -864,26 +864,26 @@ class MasterServer:
         return response.block if response.error_code == 0 else None
 
     async def get_next_block_to_mine(
-        self, address, shard_mask_value=0, prefer_root=False, randomize_output=True
+        self, address, chain_mask_value=0, prefer_root=False, randomize_output=True
     ):
         """ Returns (is_root_block, block)
 
-        shard_mask_value = 0 means considering root chain and all the shards
+        chain_mask_value = 0 means considering root chain and all the shards
         """
         # Mining old blocks is useless
         if self.synchronizer.running:
             return None, None
 
-        if prefer_root and shard_mask_value == 0:
+        if prefer_root and chain_mask_value == 0:
             root = await self.__create_root_block_to_mine(address)
             return (True, root) if root else (None, None)
 
-        shard_mask = None if shard_mask_value == 0 else ShardMask(shard_mask_value)
+        chain_mask = None if chain_mask_value == 0 else ChainMask(chain_mask_value)
         futures = []
 
         # Collect EcoInfo from shards
         for slave in self.slave_pool:
-            if shard_mask and not slave.has_overlap(shard_mask):
+            if chain_mask and not slave.has_overlap(chain_mask):
                 continue
             request = GetEcoInfoListRequest()
             futures.append(
@@ -907,13 +907,13 @@ class MasterServer:
             root_coinbase_amount += eco_info.unconfirmed_headers_coinbase_amount
         root_coinbase_amount = root_coinbase_amount // 2
 
-        branch_value_with_max_eco = 0 if shard_mask is None else None
+        branch_value_with_max_eco = 0 if chain_mask is None else None
         max_eco = root_coinbase_amount / self.root_state.get_next_block_difficulty()
 
         dup_eco_count = 1
         block_height = 0
         for branch_value, eco_info in branch_value_to_eco_info.items():
-            if shard_mask and not shard_mask.contain_branch(Branch(branch_value)):
+            if chain_mask and not chain_mask.contain_branch(Branch(branch_value)):
                 continue
             # TODO: Obtain block reward and tx fee
             eco = eco_info.coinbase_amount / eco_info.difficulty

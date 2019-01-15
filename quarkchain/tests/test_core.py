@@ -10,7 +10,7 @@ from quarkchain.core import (
     RootBlockHeader,
     MinorBlockHeader,
     MinorBlockMeta,
-    ShardMask,
+    ChainMask,
     Optional,
     Serializable,
     uint32,
@@ -65,33 +65,24 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(id1.get_key(), id2.get_key())
 
 
-class TestShardMask(unittest.TestCase):
-    def test_shard_mask(self):
-        sm0 = ShardMask(0b1)
-        self.assertTrue(sm0.contain_shard_id(0))
-        self.assertTrue(sm0.contain_shard_id(1))
-        self.assertTrue(sm0.contain_shard_id(0b1111111))
+class TestChainMask(unittest.TestCase):
+    def test_chain_mask(self):
+        sm0 = ChainMask(0b1)
+        self.assertTrue(sm0.contain_full_shard_id(0))
+        self.assertTrue(sm0.contain_full_shard_id(1 << 16))
+        self.assertTrue(sm0.contain_full_shard_id(0b1111111))
 
-        sm1 = ShardMask(0b101)
-        self.assertFalse(sm1.contain_shard_id(0))
-        self.assertTrue(sm1.contain_shard_id(0b1))
-        self.assertFalse(sm1.contain_shard_id(0b10))
-        self.assertFalse(sm1.contain_shard_id(0b11))
-        self.assertFalse(sm1.contain_shard_id(0b100))
-        self.assertTrue(sm1.contain_shard_id(0b101))
-        self.assertFalse(sm1.contain_shard_id(0b110))
-        self.assertFalse(sm1.contain_shard_id(0b111))
-        self.assertFalse(sm1.contain_shard_id(0b1000))
-        self.assertTrue(sm1.contain_shard_id(0b1001))
-
-    def test_shard_mask_iterate(self):
-        sm0 = ShardMask(0b11)
-        self.assertEqual(sorted(l for l in sm0.iterate(4)), [1, 0b11])
-        self.assertEqual(sorted(l for l in sm0.iterate(8)), [1, 0b11, 0b101, 0b111])
-
-        sm1 = ShardMask(0b101)
-        self.assertEqual(sorted(l for l in sm1.iterate(8)), [1, 0b101])
-        self.assertEqual(sorted(l for l in sm1.iterate(16)), [1, 0b101, 0b1001, 0b1101])
+        sm1 = ChainMask(0b101)
+        self.assertFalse(sm1.contain_full_shard_id(0))
+        self.assertTrue(sm1.contain_full_shard_id(0b1 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b10 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b11 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b100 << 16))
+        self.assertTrue(sm1.contain_full_shard_id(0b101 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b110 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b111 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b1000 << 16))
+        self.assertTrue(sm1.contain_full_shard_id(0b1001 << 16))
 
 
 class Uint32Optional(Serializable):

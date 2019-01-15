@@ -45,7 +45,7 @@ class Peer(P2PConnection):
 
         # The following fields should be set once active
         self.id = None
-        self.shard_mask_list = None
+        self.chain_mask_list = None
         self.best_root_block_header_observed = None
         self.cluster_peer_id = cluster_peer_id
 
@@ -56,7 +56,7 @@ class Peer(P2PConnection):
             peer_id=self.network.self_id,
             peer_ip=int(self.network.ip),
             peer_port=self.network.port,
-            shard_mask_list=[],
+            chain_mask_list=[],
             root_block_header=self.root_state.tip,
         )
         # Send hello request
@@ -85,7 +85,7 @@ class Peer(P2PConnection):
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         self.ip = ipaddress.ip_address(cmd.peer_ip)
         self.port = cmd.peer_port
 

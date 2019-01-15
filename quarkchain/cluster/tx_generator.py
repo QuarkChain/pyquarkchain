@@ -9,12 +9,6 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import Logger
 
 
-def random_full_shard_key(shard_size, shard_id):
-    full_shard_key = random.randint(0, (2 ** 32) - 1)
-    shard_mask = shard_size - 1
-    return full_shard_key & (~shard_mask) | shard_id
-
-
 class Account:
     def __init__(self, address: Address, key: bytes):
         self.address = address

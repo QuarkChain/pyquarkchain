@@ -1,5 +1,7 @@
 # Modified based on pyethereum under MIT license
 import rlp
+from rlp.sedes.lists import CountableList
+from rlp.sedes import binary
 from quarkchain.evm.utils import (
     hash32,
     trie_root,
@@ -28,6 +30,8 @@ BLANK_HASH = utils.sha3(b"")
 BLANK_ROOT = utils.sha3rlp(b"")
 
 THREE = b"\x00" * 19 + b"\x03"
+
+TOKEN_TRIE_THRESHOLD = 16
 
 
 def snapshot_form(val):
@@ -63,27 +67,86 @@ class _Account(rlp.Serializable):
     fields = [
         ("nonce", big_endian_int),
         ("balance", big_endian_int),
+        ("token_balances", binary),
         ("storage", trie_root),
         ("code_hash", hash32),
         ("full_shard_key", BigEndianInt(4)),
     ]
 
 
-class Account(rlp.Serializable):
+class TokenBalancePair(rlp.Serializable):
+    fields = [("token_id", big_endian_int), ("balance", big_endian_int)]
+
+
+class TokenBalances:
+    """interface for token balances
+    TODO: store token balances in trie when TOKEN_TRIE_THRESHOLD is crossed
+    """
+
+    def __init__(self, data: bytes, db):
+        self.token_trie = SecureTrie(Trie(db))
+        self.balances = {}
+        self.enum = b"\x00"
+        if len(data) != 0:
+            self.enum = data[:1]
+            if self.enum == b"\x00":
+                for p in rlp.decode(data[1:], CountableList(TokenBalancePair)):
+                    self.balances[p.token_id] = p.balance
+            elif self.enum == b"\x01":
+                raise Exception("Token balance trie is not yet implemented")
+            else:
+                raise Exception("Unknown enum byte in token_balances")
+
+    def serialize(self):
+        retv = self.enum
+        if self.enum == b"\x00":
+            l = []
+            for k, v in self.balances.items():
+                l.append(TokenBalancePair(k, v))
+            l.sort(
+                lambda b: b.token_id
+            )  # sort by token id to make balance deterministic
+            retv = retv + rlp.encode(l)
+        elif self.enum == b"\x01":
+            raise Exception("Token balance trie is not yet implemented")
+        else:
+            raise Exception("Unknown enum byte in token_balances")
+        return retv
+
+    def balance(self, token_id):
+        self.balances.get(token_id, 0)
+
+    def delta(self, token_id, value):
+        self.balances[token_id] = self.balances.get(token_id, 0) + value
+
+
+class Account:
     def __init__(
-        self, nonce, balance, storage, code_hash, full_shard_key, env, address, db=None
+        self,
+        nonce,
+        balance,
+        token_balances,
+        storage,
+        code_hash,
+        full_shard_key,
+        env,
+        address,
+        db=None,
     ):
         self.db = env.db if db is None else db
         assert isinstance(db, Db)
         self.env = env
         self.address = address
 
-        acc = _Account(nonce, balance, storage, code_hash, full_shard_key)
+        acc = _Account(
+            nonce, balance, token_balances, storage, code_hash, full_shard_key
+        )
         self.nonce = acc.nonce
         self.balance = acc.balance
         self.storage = acc.storage
         self.code_hash = acc.code_hash
         self.full_shard_key = acc.full_shard_key
+        self.token_balances = TokenBalances(token_balances, self.db)
 
         self.storage_cache = {}
         self.storage_trie = SecureTrie(Trie(self.db))
@@ -133,6 +196,7 @@ class Account(rlp.Serializable):
         o = cls(
             initial_nonce,
             0,
+            b"",
             trie.BLANK_ROOT,
             BLANK_HASH,
             full_shard_key,
@@ -232,6 +296,7 @@ class State:
             o = Account(
                 nonce=o.nonce,
                 balance=o.balance,
+                token_balances=o.token_balances,
                 storage=o.storage,
                 code_hash=o.code_hash,
                 full_shard_key=o.full_shard_key,
@@ -451,6 +516,7 @@ class State:
                     _acct = _Account(
                         acct.nonce,
                         acct.balance,
+                        acct.token_balances.serialize(),
                         acct.storage,
                         acct.code_hash,
                         acct.full_shard_key,

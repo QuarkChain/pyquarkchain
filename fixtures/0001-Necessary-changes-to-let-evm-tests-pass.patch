@@ -1,92 +1,112 @@
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index 04213c9..5b4a595 100644
+index 570a6eb..40bcbd0 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
-@@ -136,8 +136,7 @@ def validate_transaction(state, tx):
+@@ -138,8 +138,7 @@ def validate_transaction(state, tx):
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
- 
+
 -    # assert config_fork_specific_validation(
 -    #     state.config, state.block_number, tx)
 +    assert config_fork_specific_validation(state.config, state.block_number, tx)
- 
+
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
-@@ -183,7 +182,7 @@ def apply_message(state, msg=None, **kwargs):
+@@ -185,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
- 
- 
+
+
 -def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 +def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash=b""):
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
      TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
      """
-@@ -424,9 +423,7 @@ def _apply_msg(ext, msg, code):
- 
- 
+@@ -444,9 +443,7 @@ def _apply_msg(ext, msg, code):
+
+
  def mk_contract_address(sender, full_shard_key, nonce):
 -    return utils.sha3(
 -        rlp.encode([utils.normalize_address(sender), full_shard_key, nonce])
 -    )[12:]
 +    return utils.sha3(rlp.encode([utils.normalize_address(sender), nonce]))[12:]
- 
- 
+
+
  def create_contract(ext, msg):
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 1cd0341..e7156d8 100644
+index 3007f2d..7862f6b 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
-@@ -65,25 +65,32 @@ class _Account(rlp.Serializable):
+@@ -67,10 +67,8 @@ class _Account(rlp.Serializable):
+     fields = [
+         ("nonce", big_endian_int),
          ("balance", big_endian_int),
+-        ("token_balances", binary),
          ("storage", trie_root),
          ("code_hash", hash32),
 -        ("full_shard_key", BigEndianInt(4)),
      ]
- 
- 
- class Account(rlp.Serializable):
-     def __init__(
--        self, nonce, balance, storage, code_hash, full_shard_key, env, address, db=None
-+        self,
-+        nonce,
-+        balance,
-+        storage,
-+        code_hash,
+
+
+@@ -125,12 +123,11 @@ class Account:
+         self,
+         nonce,
+         balance,
+-        token_balances,
+         storage,
+         code_hash,
+-        full_shard_key,
+-        env,
+-        address,
 +        full_shard_key=0,
 +        env=None,
 +        address=None,
-+        db=None,
+         db=None,
      ):
          self.db = env.db if db is None else db
-         assert isinstance(db, Db)
+@@ -138,15 +135,12 @@ class Account:
          self.env = env
          self.address = address
- 
--        acc = _Account(nonce, balance, storage, code_hash, full_shard_key)
+
+-        acc = _Account(
+-            nonce, balance, token_balances, storage, code_hash, full_shard_key
+-        )
 +        acc = _Account(nonce, balance, storage, code_hash)
          self.nonce = acc.nonce
          self.balance = acc.balance
          self.storage = acc.storage
          self.code_hash = acc.code_hash
 -        self.full_shard_key = acc.full_shard_key
+-        self.token_balances = TokenBalances(token_balances, self.db)
 +        self.full_shard_key = full_shard_key
- 
+
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
-@@ -227,7 +234,6 @@ class State:
+@@ -196,7 +190,6 @@ class Account:
+         o = cls(
+             initial_nonce,
+             0,
+-            b"",
+             trie.BLANK_ROOT,
+             BLANK_HASH,
+             full_shard_key,
+@@ -296,10 +289,8 @@ class State:
+             o = Account(
+                 nonce=o.nonce,
                  balance=o.balance,
+-                token_balances=o.token_balances,
                  storage=o.storage,
                  code_hash=o.code_hash,
 -                full_shard_key=o.full_shard_key,
                  env=self.env,
                  address=address,
                  db=self.db,
-@@ -442,11 +448,7 @@ class State:
+@@ -514,12 +505,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
 -                        acct.nonce,
 -                        acct.balance,
+-                        acct.token_balances.serialize(),
 -                        acct.storage,
 -                        acct.code_hash,
 -                        acct.full_shard_key,
@@ -95,11 +115,11 @@ index 1cd0341..e7156d8 100644
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
-index acbccec..59425d1 100644
+index 4c430cf..c7337e5 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
-@@ -241,10 +241,7 @@ class Transaction(rlp.Serializable):
- 
+@@ -247,10 +247,7 @@ class Transaction(rlp.Serializable):
+
      @property
      def is_cross_shard(self):
 -        return (
@@ -107,6 +127,6 @@ index acbccec..59425d1 100644
 -            or self.from_shard_id != self.to_shard_id
 -        )
 +        return False
- 
+
      def __eq__(self, other):
          return isinstance(other, self.__class__) and self.hash == other.hash

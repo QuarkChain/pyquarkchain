@@ -476,36 +476,30 @@ class Branch(Serializable):
         return Branch(shard_size | shard_id)
 
 
-class ShardMask(Serializable):
-    """ Represent a mask of shards, basically matches all the bits from the right until the leftmost bit is hit.
+class ChainMask(Serializable):
+    """ Represent a mask of chains, basically matches all the bits from the right until the leftmost bit is hit.
     E.g.,
     mask = 1, matches *
     mask = 0b10, matches *0
     mask = 0b101, matches *01
     """
 
-    FIELDS = [("value", uint32)]
+    FIELDS = [("value", uint16)]
 
     def __init__(self, value):
         check(value != 0)
         self.value = value
 
-    def contain_shard_id(self, shard_id):
+    def contain_full_shard_id(self, full_shard_id: int):
+        chain_id = full_shard_id >> 16
         bit_mask = (1 << (int_left_most_bit(self.value) - 1)) - 1
-        return (bit_mask & shard_id) == (self.value & bit_mask)
+        return (bit_mask & chain_id) == (self.value & bit_mask)
 
-    def contain_branch(self, branch):
-        return self.contain_shard_id(branch.get_full_shard_id())
+    def contain_branch(self, branch: Branch):
+        return self.contain_full_shard_id(branch.get_full_shard_id())
 
-    def has_overlap(self, shard_mask):
-        return masks_have_overlap(self.value, shard_mask.value)
-
-    def iterate(self, shard_size):
-        shard_bits = int_left_most_bit(shard_size)
-        mask_bits = int_left_most_bit(self.value) - 1
-        bit_mask = (1 << mask_bits) - 1
-        for i in range(1 << (shard_bits - mask_bits - 1)):
-            yield (i << mask_bits) + (bit_mask & self.value)
+    def has_overlap(self, chain_mask):
+        return masks_have_overlap(self.value, chain_mask.value)
 
 
 class Code(Serializable):
@@ -1025,14 +1019,27 @@ class CrossShardTransactionDeposit(Serializable):
         ("to_address", Address),
         ("value", uint256),
         ("gas_price", uint256),
+        ("gas_token_id", uint64),
+        ("transfer_token_id", uint64),
     ]
 
-    def __init__(self, tx_hash, from_address, to_address, value, gas_price):
+    def __init__(
+        self,
+        tx_hash,
+        from_address,
+        to_address,
+        value,
+        gas_price,
+        gas_token_id,
+        transfer_token_id,
+    ):
         self.tx_hash = tx_hash
         self.from_address = from_address
         self.to_address = to_address
         self.value = value
         self.gas_price = gas_price
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
 
 class CrossShardTransactionList(Serializable):
