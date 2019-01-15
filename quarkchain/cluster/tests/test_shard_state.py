@@ -1275,7 +1275,7 @@ class TestShardState(unittest.TestCase):
         self.assertIsNone(recoveredState.confirmed_header_tip)
         self.assertEqual(recoveredState.meta_tip, genesis.meta)
         self.assertEqual(
-            recoveredState.evm_state.trie.root_hash, genesis.hash_evm_state_root
+            recoveredState.evm_state.trie.root_hash, genesis.meta.hash_evm_state_root
         )
 
     def test_add_block_receipt_root_not_match(self):
