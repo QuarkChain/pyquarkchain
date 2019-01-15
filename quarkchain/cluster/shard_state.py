@@ -2,7 +2,7 @@ import asyncio
 import functools
 import json
 import time
-from collections import defaultdict, deque
+from collections import defaultdict, deque, Counter
 from fractions import Fraction
 from typing import Optional, Tuple, List, Union, Dict
 
@@ -1514,7 +1514,7 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_balances(self, block: MinorBlock) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(self, block: MinorBlock) -> Dict[bytes, int]:
         """
         Get coinbase addresses up until the given block (exclusive) along with their
         balances within the PoSW window. Raise ValueError if anything goes wrong.
@@ -1522,5 +1522,4 @@ class ShardState:
         coinbase_addrs = self.__get_coinbase_addresses_until_height(
             block.header.height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
         )
-        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
-        return {addr: evm_state.get_balance(addr) for addr in coinbase_addrs}
+        return Counter(coinbase_addrs)

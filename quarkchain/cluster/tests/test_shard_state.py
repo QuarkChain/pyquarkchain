@@ -1357,27 +1357,24 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0)
 
         m1 = state.get_tip().create_block_to_append(address=acc1)
-        coinbase_balances = state._get_posw_coinbase_balances(m1)
-        self.assertEqual(len(coinbase_balances), 1)  # genesis
+        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m1)
+        self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m1)
 
-        # note PoSW window size is 2
+        # Note PoSW window size is 2
         prev_addr = None
         for i in range(8):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
-            coinbase_balances = state._get_posw_coinbase_balances(m)
-            self.assertEqual(len(coinbase_balances), 2)
-            if i > 0:  # excluding genesis
-                # check mining reward
-                self.assertEqual(len(set(coinbase_balances.values())), 1)
-                self.assertEqual(
-                    list(coinbase_balances.values())[0], 2500000000000000000
-                )
-            if prev_addr:  # should alwyas contain previous block's coinbase
-                self.assertTrue(prev_addr in coinbase_balances)
+            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m)
+            self.assertEqual(len(coinbase_blockcnt), 2)
+            # Count should all equal 1
+            self.assertEqual(len(set(coinbase_blockcnt.values())), 1)
+            self.assertEqual(list(coinbase_blockcnt.values())[0], 1)
+            if prev_addr:  # Should always contain previous block's coinbase
+                self.assertTrue(prev_addr in coinbase_blockcnt)
             state.finalize_and_add_block(m)
             prev_addr = random_acc.recipient
 
-        # cached height -> [coinbase addr] should have certain items
+        # Cached height -> [coinbase addr] should have certain items
         self.assertEqual(len(state.coinbase_addr_cache), 9)
