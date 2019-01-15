@@ -96,6 +96,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
+                "ENABLED": false,
                 "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,
@@ -135,6 +136,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
+                "ENABLED": false,
                 "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,
@@ -174,6 +176,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
+                "ENABLED": false,
                 "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,

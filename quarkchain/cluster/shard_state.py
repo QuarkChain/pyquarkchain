@@ -4,7 +4,7 @@ import json
 import time
 from collections import defaultdict, deque, Counter
 from fractions import Fraction
-from typing import Optional, Tuple, List, Union, Dict
+from typing import NamedTuple, Optional, Tuple, List, Union, Dict
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.miner import validate_seal
@@ -133,8 +133,7 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
         self.confirmed_header_tip = confirmed_header_tip
-        self.evm_state = self.__create_evm_state()
-        self.evm_state.trie.root_hash = self.meta_tip.hash_evm_state_root
+        self.evm_state = self.__create_evm_state(self.meta_tip.hash_evm_state_root)
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(self.header_tip.get_hash())
             == self.meta_tip.hash_evm_state_root
@@ -145,10 +144,18 @@ class ShardState:
             add_tx_back_to_queue=False,
         )
 
-    def __create_evm_state(self):
-        return EvmState(
+    def __create_evm_state(self, root_hash):
+        state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
+        if root_hash:
+            state.trie.root_hash = root_hash
+
+        if self.shard_config.POSW_CONFIG.ENABLED and self.header_tip:
+            # Note off-by-1 since the following function is exclusive on the range
+            height = self.header_tip.height + 1
+            state.posw_disallow_list = self._get_posw_coinbase_blockcnt(height).keys()
+        return state
 
     def init_genesis_state(self, root_block):
         """ root_block should have the same height as configured in shard GENESIS.
@@ -161,7 +168,7 @@ class ShardState:
 
         genesis_manager = GenesisManager(self.env.quark_chain_config)
         genesis_block = genesis_manager.create_minor_block(
-            root_block, self.full_shard_id, self.__create_evm_state()
+            root_block, self.full_shard_id, self.__create_evm_state(root_hash=None)
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -175,8 +182,7 @@ class ShardState:
         # this must happen after the above initialization check
         self.db.put_minor_block_index(genesis_block)
 
-        self.evm_state = self.__create_evm_state()
-        self.evm_state.trie.root_hash = genesis_block.meta.hash_evm_state_root
+        self.evm_state = self.__create_evm_state(genesis_block.meta.hash_evm_state_root)
         self.root_tip = root_block.header
         # Tips that are confirmed by root
         self.confirmed_header_tip = None
@@ -304,12 +310,12 @@ class ShardState:
             return False
 
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
-        state = self.__create_evm_state()
-        if ephemeral:
-            state = state.ephemeral_clone()
-        state.trie.root_hash = self.db.get_minor_block_evm_root_hash_by_hash(
+        root_hash = self.db.get_minor_block_evm_root_hash_by_hash(
             block.header.hash_prev_minor_block
         )
+        state = self.__create_evm_state(root_hash)
+        if ephemeral:
+            state = state.ephemeral_clone()
         state.timestamp = block.header.create_time
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
@@ -752,6 +758,11 @@ class ShardState:
         if update_tip:
             self.__rewrite_block_index_to(block)
             self.evm_state = evm_state
+            # Safe to update PoSW blacklist here
+            if self.shard_config.POSW_CONFIG.ENABLED:
+                height = block.header.height + 1  # Off-by-one since it's exclusive
+                posw_disallow_list = self._get_posw_coinbase_blockcnt(height).keys()
+                self.evm_state.posw_disallow_list = posw_disallow_list
             self.header_tip = block.header
             self.meta_tip = block.meta
 
@@ -1542,12 +1553,12 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_blockcnt(self, block: MinorBlock) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(self, height: int) -> Dict[bytes, int]:
         """
-        Get coinbase addresses up until the given block (exclusive) along with their
+        Get coinbase addresses up until the given height (exclusive) along with their
         balances within the PoSW window. Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_height(
-            block.header.height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
+            height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
         )
         return Counter(coinbase_addrs)

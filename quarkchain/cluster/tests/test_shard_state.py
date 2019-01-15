@@ -32,7 +32,7 @@ class TestShardState(unittest.TestCase):
         assert config.REWARD_TAX_RATE == 0.5
         self.tax_rate = config.reward_tax_rate  # type: Fraction
 
-    def getAfterTaxReward(self, value: int) -> int:
+    def get_after_tax_reward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
 
     def test_shard_state_simple(self):
@@ -187,7 +187,7 @@ class TestShardState(unittest.TestCase):
         # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -262,7 +262,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -408,7 +408,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.get_balance(acc2.recipient), 1000000)
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check Account has full_shard_key
@@ -455,7 +455,7 @@ class TestShardState(unittest.TestCase):
         # 2 block rewards: 3 tx, 2 block rewards
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
+            self.get_after_tax_reward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
         )
 
         # Check receipts
@@ -653,7 +653,7 @@ class TestShardState(unittest.TestCase):
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
     def test_xshard_tx_insufficient_gas(self):
@@ -758,7 +758,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -810,7 +810,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_balance(acc3.recipient),
-            self.getAfterTaxReward(self.shard_coinbase),
+            self.get_after_tax_reward(self.shard_coinbase),
         )
 
         # No xshard tx is processed on the receiving side due to non-neighbor
@@ -939,7 +939,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_balance(acc3.recipient),
-            self.getAfterTaxReward(
+            self.get_after_tax_reward(
                 opcodes.GTXXSHARDCOST * (2 + 3) + self.shard_coinbase
             ),
         )
@@ -1418,23 +1418,24 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.root_tip, r3.header)
         self.assertEqual(state.header_tip, m2.header)
 
-    def test_posw_coinbase_address_balance(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
+    def test_posw_fetch_previous_coinbase_address(self):
+        acc = Address.create_from_identity(
+            Identity.create_random_identity(), full_shard_key=0
+        )
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        m1 = state.get_tip().create_block_to_append(address=acc1)
-        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m1)
+        m = state.get_tip().create_block_to_append(address=acc)
+        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m.header.height)
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
-        state.finalize_and_add_block(m1)
+        state.finalize_and_add_block(m)
 
         # Note PoSW window size is 2
         prev_addr = None
-        for i in range(8):
+        for i in range(4):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
-            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m)
+            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m.header.height)
             self.assertEqual(len(coinbase_blockcnt), 2)
             # Count should all equal 1
             self.assertEqual(len(set(coinbase_blockcnt.values())), 1)
@@ -1445,7 +1446,37 @@ class TestShardState(unittest.TestCase):
             prev_addr = random_acc.recipient
 
         # Cached height -> [coinbase addr] should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 9)
+        self.assertEqual(len(state.coinbase_addr_cache), 5)
+
+    def test_posw_coinbase_lockup(self):
+        id1 = Identity.create_random_identity()
+        acc = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
+        state = create_default_shard_state(env=env, shard_id=0)
+        state.shard_config.POSW_CONFIG.ENABLED = True
+
+        m = state.get_tip().create_block_to_append(address=acc)
+        state.finalize_and_add_block(m)
+        self.assertGreater(state.get_balance(acc.recipient), 0)
+
+        # Try to send money from that account
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc,
+            to_address=Address.create_empty_account(full_shard_key=0),
+            value=1,
+            gas=21000,
+        )
+        res = state.execute_tx(tx, acc)
+        self.assertIsNone(res, "tx should fail")
+
+        # Create a block including that tx, receipt should also report error
+        self.assertTrue(state.add_tx(tx))
+        m = state.create_block_to_mine(address=acc)
+        state.finalize_and_add_block(m)
+        r = state.get_transaction_receipt(tx.get_hash())
+        self.assertEqual(r[2].success, b"")  # Failure
 
     def test_tx_native_token(self):
         from quarkchain.utils import token_id_encode
@@ -1479,7 +1510,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.get_balance(acc2.recipient), 12345)
         self.assertEqual(
             state.get_balance(acc3.recipient),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 12345)

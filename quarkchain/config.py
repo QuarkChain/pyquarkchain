@@ -3,7 +3,7 @@ import functools
 import json
 from enum import Enum
 from fractions import Fraction
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from eth_keys import KeyAPI
 
@@ -111,6 +111,7 @@ class POWConfig(BaseConfig):
 
 
 class POSWConfig(BaseConfig):
+    ENABLED = False
     STAKE_COEFF = 20  # Alpha in PoSW
     DIFF_COEFF = 20  # Beta
     WINDOW_SIZE = 256  # For estimating effective hash power
