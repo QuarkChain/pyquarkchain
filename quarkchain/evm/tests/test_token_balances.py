@@ -58,3 +58,19 @@ def test_encode_bytes(encoding, mapping):
     b1 = TokenBalances(encoding, InMemoryDb())
     assert b1.balances == mapping
     assert b1.serialize() == encoding
+
+
+def test_encoding_singularity():
+    b0 = TokenBalances(b"", InMemoryDb())
+    b0.delta(0, 100)
+    b0.delta(1, 100)
+    b0.delta(2, 100)
+    b0.delta(3, 100)
+
+    b1 = TokenBalances(b"", InMemoryDb())
+    b1.delta(3, 100)
+    b1.delta(2, 100)
+    b1.delta(1, 100)
+    b1.delta(0, 100)
+
+    assert b0.serialize() == b1.serialize()
