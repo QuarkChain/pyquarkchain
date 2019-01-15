@@ -1134,25 +1134,21 @@ class ShardState:
                 )
             )
 
-        # TODO: add this check
-        # if shard_headers:
-        #     if shard_headers[
-        #         0
-        #     ].hash_prev_minor_block != self.db.get_last_confirmed_minor_block_header_at_root_block(
-        #         root_block.header.hash_prev_block
-        #     ):
-        #         raise ValueError(
-        #             "The first minor block confirmed by root block does not link to the last minor block confirmed by previous root block"
-        #         )
+        last_minor_header_in_prev_root_block = self.db.get_last_confirmed_minor_block_header_at_root_block(
+            root_block.header.hash_prev_block
+        )
+        if shard_headers:
+            # Master should assure this check will not fail
+            check(
+                shard_headers[0].height == 0
+                or shard_headers[0].hash_prev_minor_block
+                == last_minor_header_in_prev_root_block.get_hash()
+            )
+            shard_header = shard_headers[-1]
+        else:
+            shard_header = last_minor_header_in_prev_root_block
 
         # shard_header can be None meaning the genesis shard block has not been confirmed by any root block
-        shard_header = (
-            shard_headers[-1]
-            if shard_headers
-            else self.db.get_last_confirmed_minor_block_header_at_root_block(
-                root_block.header.hash_prev_block
-            )
-        )
 
         self.db.put_root_block(root_block, shard_header)
         if shard_header:
