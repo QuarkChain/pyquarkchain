@@ -79,6 +79,7 @@ class ShardState:
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
+        self.header_tip = None
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             last_price=0, last_head=b"", check_blocks=5, percentile=50
@@ -182,13 +183,13 @@ class ShardState:
         # this must happen after the above initialization check
         self.db.put_minor_block_index(genesis_block)
 
-        self.evm_state = self.__create_evm_state(genesis_block.meta.hash_evm_state_root)
         self.root_tip = root_block.header
         # Tips that are confirmed by root
         self.confirmed_header_tip = None
         # Tips that are unconfirmed by root
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
+        self.evm_state = self.__create_evm_state(genesis_block.meta.hash_evm_state_root)
 
         Logger.info(
             "[{}] Initialized genensis state at root block {} {}, genesis block hash {}".format(

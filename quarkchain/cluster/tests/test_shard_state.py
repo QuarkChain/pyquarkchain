@@ -13,10 +13,12 @@ from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
 
 
-def create_default_shard_state(env, shard_id=0, diff_calc=None):
+def create_default_shard_state(env, shard_id=0, diff_calc=None, posw_override=False):
     genesis_manager = GenesisManager(env.quark_chain_config)
     shard_size = next(iter(env.quark_chain_config.shards.values())).SHARD_SIZE
     full_shard_id = shard_size | shard_id
+    if posw_override:
+        env.quark_chain_config.shards[full_shard_id].POSW_CONFIG.ENABLED = True
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
@@ -1450,33 +1452,42 @@ class TestShardState(unittest.TestCase):
 
     def test_posw_coinbase_lockup(self):
         id1 = Identity.create_random_identity()
-        acc = Address.create_from_identity(id1, full_shard_key=0)
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        state = create_default_shard_state(env=env, shard_id=0)
-        state.shard_config.POSW_CONFIG.ENABLED = True
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        id2 = Identity.create_random_identity()
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
+        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
-        m = state.get_tip().create_block_to_append(address=acc)
+        # Coinbase in genesis should be disallowed
+        self.assertEqual(len(state.evm_state.posw_disallow_list), 1)
+        self.assertEqual(list(state.evm_state.posw_disallow_list)[0], b"\x00" * 20)
+
+        m = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m)
-        self.assertGreater(state.get_balance(acc.recipient), 0)
+        self.assertEqual(len(state.evm_state.posw_disallow_list), 2)
+        self.assertGreater(state.get_balance(acc1.recipient), 0)
 
         # Try to send money from that account
         tx = create_transfer_transaction(
             shard_state=state,
             key=id1.get_key(),
-            from_address=acc,
+            from_address=acc1,
             to_address=Address.create_empty_account(full_shard_key=0),
             value=1,
             gas=21000,
         )
-        res = state.execute_tx(tx, acc)
+        res = state.execute_tx(tx, acc1)
         self.assertIsNone(res, "tx should fail")
 
         # Create a block including that tx, receipt should also report error
         self.assertTrue(state.add_tx(tx))
-        m = state.create_block_to_mine(address=acc)
+        m = state.create_block_to_mine(address=acc2)
         state.finalize_and_add_block(m)
         r = state.get_transaction_receipt(tx.get_hash())
         self.assertEqual(r[2].success, b"")  # Failure
+        # Make sure the disallow rolling window now discards the first addr
+        self.assertEqual(len(state.evm_state.posw_disallow_list), 2)
+        self.assertTrue(b"\x00" * 20 not in state.evm_state.posw_disallow_list)
 
     def test_tx_native_token(self):
         from quarkchain.utils import token_id_encode
