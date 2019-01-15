@@ -1260,6 +1260,8 @@ class ShardState:
                     to_address=r_block.header.coinbase_address,
                     value=r_block.header.coinbase_amount,
                     gas_price=0,
+                    gas_token_id=0,
+                    transfer_token_id=0,  # root block coinbase is only in QKC
                 )
             )
         return tx_list

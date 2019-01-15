@@ -131,6 +131,8 @@ class TransactionHistoryMixin:
                         height,
                         m_block.header.create_time,
                         True,
+                        tx.gas_token_id,
+                        tx.transfer_token_id,
                     )
                 )
             else:
@@ -149,6 +151,8 @@ class TransactionHistoryMixin:
                         height,
                         m_block.header.create_time,
                         receipt.success == b"\x01",
+                        evm_tx.gas_token_id,
+                        evm_tx.transfer_token_id,
                     )
                 )
             next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(

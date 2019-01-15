@@ -1013,14 +1013,27 @@ class CrossShardTransactionDeposit(Serializable):
         ("to_address", Address),
         ("value", uint256),
         ("gas_price", uint256),
+        ("gas_token_id", uint64),
+        ("transfer_token_id", uint64),
     ]
 
-    def __init__(self, tx_hash, from_address, to_address, value, gas_price):
+    def __init__(
+        self,
+        tx_hash,
+        from_address,
+        to_address,
+        value,
+        gas_price,
+        gas_token_id,
+        transfer_token_id,
+    ):
         self.tx_hash = tx_hash
         self.from_address = from_address
         self.to_address = to_address
         self.value = value
         self.gas_price = gas_price
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
 
 class CrossShardTransactionList(Serializable):

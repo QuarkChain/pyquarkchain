@@ -638,6 +638,8 @@ class TestShardState(unittest.TestCase):
                 to_address=acc2,
                 value=888888,
                 gas_price=1,
+                gas_token_id=0,
+                transfer_token_id=0,
             ),
         )
         self.assertEqual(
@@ -732,6 +734,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=888888,
                         gas_price=2,
+                        gas_token_id=0,
+                        transfer_token_id=0,
                     )
                 ]
             ),
@@ -862,6 +866,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=888888,
                         gas_price=2,
+                        gas_token_id=0,
+                        transfer_token_id=0,
                     )
                 ]
             ),
@@ -893,6 +899,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=385723,
                         gas_price=3,
+                        gas_token_id=0,
+                        transfer_token_id=0,
                     )
                 ]
             ),
@@ -1409,3 +1417,46 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(r3)
         self.assertEqual(state.root_tip, r3.header)
         self.assertEqual(state.header_tip, m2.header)
+
+    def test_tx_native_token(self):
+        from quarkchain.utils import token_id_encode
+
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=21000,
+            gas_token_id=0,
+            transfer_token_id=token_id_encode("QETH"),
+        )
+        self.assertTrue(state.add_tx(tx))
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 1)
+        state.finalize_and_add_block(b1)
+        self.assertEqual(state.header_tip, b1.header)
+        self.assertEqual(
+            state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
+        )
+        self.assertEqual(state.get_balance(acc2.recipient), 12345)
+        self.assertEqual(
+            state.get_balance(acc3.recipient),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+        )
+        tx_list, _ = state.db.get_transactions_by_address(acc1)
+        self.assertEqual(tx_list[0].value, 12345)
+        self.assertEqual(tx_list[0].gas_token_id, 0)
+        self.assertEqual(tx_list[0].transfer_token_id, token_id_encode("QETH"))
+        tx_list, _ = state.db.get_transactions_by_address(acc2)
+        self.assertEqual(tx_list[0].value, 12345)
+        self.assertEqual(tx_list[0].gas_token_id, 0)
+        self.assertEqual(tx_list[0].transfer_token_id, token_id_encode("QETH"))

@@ -68,6 +68,8 @@ class Transaction(rlp.Serializable):
         ("to_full_shard_key", BigEndianInt(4)),
         ("network_id", big_endian_int),
         ("version", big_endian_int),
+        ("gas_token_id", big_endian_int),
+        ("transfer_token_id", big_endian_int),
         ("v", big_endian_int),
         ("r", big_endian_int),
         ("s", big_endian_int),
@@ -90,6 +92,8 @@ class Transaction(rlp.Serializable):
         to_full_shard_key=0,
         network_id=1,
         version=0,
+        gas_token_id=0,
+        transfer_token_id=0,
     ):
         self.quark_chain_config = None
 
@@ -106,6 +110,8 @@ class Transaction(rlp.Serializable):
             to_full_shard_key,
             network_id,
             version,
+            gas_token_id,
+            transfer_token_id,
             v,
             r,
             s,
@@ -295,4 +301,6 @@ def unsigned_tx_from_tx(tx):
         from_full_shard_key=tx.from_full_shard_key,
         to_full_shard_key=tx.to_full_shard_key,
         network_id=tx.network_id,
+        gas_token_id=tx.gas_token_id,
+        transfer_token_id=tx.transfer_token_id,
     )

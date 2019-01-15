@@ -86,6 +86,8 @@ def create_transfer_transaction(
     gas_price=1,
     nonce=None,
     data=b"",
+    gas_token_id=0,
+    transfer_token_id=0,
 ):
     """ Create an in-shard xfer tx
     """
@@ -101,6 +103,8 @@ def create_transfer_transaction(
         from_full_shard_key=from_address.full_shard_key,
         to_full_shard_key=to_address.full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
     )
     evm_tx.sign(key=key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
