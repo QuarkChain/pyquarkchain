@@ -33,18 +33,21 @@ index 570a6eb..40bcbd0 100644
 
  def create_contract(ext, msg):
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 530ad91..7b4be82 100644
+index 3007f2d..7862f6b 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
-@@ -70,7 +70,6 @@ class _Account(rlp.Serializable):
-         ("token_balances", binary),
+@@ -67,10 +67,8 @@ class _Account(rlp.Serializable):
+     fields = [
+         ("nonce", big_endian_int),
+         ("balance", big_endian_int),
+-        ("token_balances", binary),
          ("storage", trie_root),
          ("code_hash", hash32),
 -        ("full_shard_key", BigEndianInt(4)),
      ]
 
 
-@@ -122,12 +121,11 @@ class Account:
+@@ -125,12 +123,11 @@ class Account:
          self,
          nonce,
          balance,
@@ -60,7 +63,7 @@ index 530ad91..7b4be82 100644
          db=None,
      ):
          self.db = env.db if db is None else db
-@@ -135,15 +133,12 @@ class Account:
+@@ -138,15 +135,12 @@ class Account:
          self.env = env
          self.address = address
 
@@ -78,15 +81,26 @@ index 530ad91..7b4be82 100644
 
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
-@@ -296,7 +291,6 @@ class State:
-                 token_balances=o.token_balances,
+@@ -196,7 +190,6 @@ class Account:
+         o = cls(
+             initial_nonce,
+             0,
+-            b"",
+             trie.BLANK_ROOT,
+             BLANK_HASH,
+             full_shard_key,
+@@ -296,10 +289,8 @@ class State:
+             o = Account(
+                 nonce=o.nonce,
+                 balance=o.balance,
+-                token_balances=o.token_balances,
                  storage=o.storage,
                  code_hash=o.code_hash,
 -                full_shard_key=o.full_shard_key,
                  env=self.env,
                  address=address,
                  db=self.db,
-@@ -511,12 +505,7 @@ class State:
+@@ -514,12 +505,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(

@@ -113,6 +113,9 @@ class TokenBalances:
             raise Exception("Unknown enum byte in token_balances")
         return retv
 
+    def balance(self, token_id):
+        self.balances.get(token_id, 0)
+
     def delta(self, token_id, value):
         self.balances[token_id] = self.balances.get(token_id, 0) + value
 
