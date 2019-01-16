@@ -134,7 +134,9 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
         self.confirmed_header_tip = confirmed_header_tip
-        self.evm_state = self.__create_evm_state(self.meta_tip.hash_evm_state_root)
+        self.evm_state = self.__create_evm_state(
+            self.meta_tip.hash_evm_state_root, height=header_tip.height
+        )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(self.header_tip.get_hash())
             == self.meta_tip.hash_evm_state_root
@@ -145,17 +147,19 @@ class ShardState:
             add_tx_back_to_queue=False,
         )
 
-    def __create_evm_state(self, root_hash):
+    def __create_evm_state(self, root_hash, height):
+        """EVM state"""
         state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
         if root_hash:
             state.trie.root_hash = root_hash
 
-        if self.shard_config.POSW_CONFIG.ENABLED and self.header_tip:
+        if self.shard_config.POSW_CONFIG.ENABLED and height is not None:
             # Note off-by-1 since the following function is exclusive on the range
-            height = self.header_tip.height + 1
-            state.posw_disallow_list = self._get_posw_coinbase_blockcnt(height).keys()
+            state.posw_disallow_list = self._get_posw_coinbase_blockcnt(
+                height + 1
+            ).keys()
         return state
 
     def init_genesis_state(self, root_block):
@@ -169,7 +173,9 @@ class ShardState:
 
         genesis_manager = GenesisManager(self.env.quark_chain_config)
         genesis_block = genesis_manager.create_minor_block(
-            root_block, self.full_shard_id, self.__create_evm_state(root_hash=None)
+            root_block,
+            self.full_shard_id,
+            self.__create_evm_state(root_hash=None, height=None),
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -189,7 +195,9 @@ class ShardState:
         # Tips that are unconfirmed by root
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
-        self.evm_state = self.__create_evm_state(genesis_block.meta.hash_evm_state_root)
+        self.evm_state = self.__create_evm_state(
+            genesis_block.meta.hash_evm_state_root, height=genesis_block.header.height
+        )
 
         Logger.info(
             "[{}] Initialized genensis state at root block {} {}, genesis block hash {}".format(
@@ -314,7 +322,7 @@ class ShardState:
         root_hash = self.db.get_minor_block_evm_root_hash_by_hash(
             block.header.hash_prev_minor_block
         )
-        state = self.__create_evm_state(root_hash)
+        state = self.__create_evm_state(root_hash, height=block.header.height - 1)
         if ephemeral:
             state = state.ephemeral_clone()
         state.timestamp = block.header.create_time
@@ -1557,7 +1565,7 @@ class ShardState:
     def _get_posw_coinbase_blockcnt(self, height: int) -> Dict[bytes, int]:
         """
         Get coinbase addresses up until the given height (exclusive) along with their
-        balances within the PoSW window. Raise ValueError if anything goes wrong.
+        block counts within the PoSW window. Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_height(
             height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
