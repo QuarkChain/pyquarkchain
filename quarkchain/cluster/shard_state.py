@@ -120,31 +120,31 @@ class ShardState:
 
         self.header_tip = header_tip
         self.root_tip = root_block.header
+        header_tip_hash = header_tip.get_hash()
 
         self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
             "[{}] Done recovery from db. shard tip {} {}, root tip {} {}".format(
                 self.full_shard_id,
                 self.header_tip.height,
-                self.header_tip.get_hash().hex(),
+                header_tip_hash.hex(),
                 self.root_tip.height,
                 self.root_tip.get_hash().hex(),
             )
         )
 
-        self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
+        self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
         self.confirmed_header_tip = confirmed_header_tip
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, header_hash=header_tip.get_hash()
+            self.meta_tip.hash_evm_state_root, header_hash=header_tip_hash
         )
         check(
-            self.db.get_minor_block_evm_root_hash_by_hash(self.header_tip.get_hash())
+            self.db.get_minor_block_evm_root_hash_by_hash(header_tip_hash)
             == self.meta_tip.hash_evm_state_root
         )
 
         self.__rewrite_block_index_to(
-            self.db.get_minor_block_by_hash(self.header_tip.get_hash()),
-            add_tx_back_to_queue=False,
+            self.db.get_minor_block_by_hash(header_tip_hash), add_tx_back_to_queue=False
         )
 
     def __create_evm_state(
