@@ -1444,7 +1444,7 @@ class TestShardState(unittest.TestCase):
             state.finalize_and_add_block(m)
             prev_addr = random_acc.recipient
 
-        # Cached height -> [coinbase addr] should have certain items
+        # Cached hash-addr mapping should have certain items
         self.assertEqual(len(state.coinbase_addr_cache), 9)
 
     def test_tx_native_token(self):
