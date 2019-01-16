@@ -246,6 +246,8 @@ class ShardState:
                 from_full_shard_key=evm_tx.from_full_shard_key,
                 to_full_shard_key=evm_tx.to_full_shard_key,
                 network_id=evm_tx.network_id,
+                gas_token_id=evm_tx.gas_token_id,
+                transfer_token_id=evm_tx.transfer_token_id,
             )
             evm_tx.sender = from_address.recipient
 

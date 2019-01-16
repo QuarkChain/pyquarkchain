@@ -8,7 +8,7 @@ from quarkchain.utils import token_id_encode
 def test_blank_account():
     b = TokenBalances(b"", InMemoryDb())
     assert b.balances == {}
-    assert b.serialize() == b"\x00\xc0"
+    assert b.serialize() == b""
 
 
 @pytest.mark.parametrize(

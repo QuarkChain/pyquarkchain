@@ -84,6 +84,8 @@ class Message(object):
         from_full_shard_key=None,
         to_full_shard_key=None,
         tx_hash=None,
+        gas_token_id=0,
+        transfer_token_id=0,
     ):
         self.sender = sender
         self.to = to
@@ -106,6 +108,8 @@ class Message(object):
         self.tx_hash = (
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
     def __repr__(self):
         return "<Message(to:%s...)>" % self.to[:8]
