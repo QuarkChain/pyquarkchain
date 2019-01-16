@@ -468,6 +468,13 @@ class JSONRPCServer:
             "networkId": quantity_encoder(
                 self.master.env.quark_chain_config.NETWORK_ID
             ),
+            "chainSize": quantity_encoder(
+                self.master.env.quark_chain_config.CHAIN_SIZE
+            ),
+            "shardSizes": [
+                quantity_encoder(c.SHARD_SIZE)
+                for c in self.master.env.quark_chain_config.CHAINS
+            ],
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
             "shardServerCount": len(self.master.slave_pool),
@@ -494,7 +501,9 @@ class JSONRPCServer:
         balance = account_branch_data.balance
         return {
             "branch": quantity_encoder(branch.value),
-            "shard": quantity_encoder(branch.get_full_shard_id()),
+            "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+            "shardId": quantity_encoder(branch.get_shard_id()),
+            "chainId": quantity_encoder(branch.get_chain_id()),
             "balance": quantity_encoder(balance),
         }
 
@@ -515,8 +524,9 @@ class JSONRPCServer:
             balance = account_branch_data.balance
             count = account_branch_data.transaction_count
             primary = {
-                "branch": quantity_encoder(branch.value),
-                "shard": quantity_encoder(branch.get_full_shard_id()),
+                "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+                "shardId": quantity_encoder(branch.get_shard_id()),
+                "chainId": quantity_encoder(branch.get_chain_id()),
                 "balance": quantity_encoder(balance),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
@@ -528,8 +538,9 @@ class JSONRPCServer:
         shards = []
         for branch, account_branch_data in branch_to_account_branch_data.items():
             data = {
-                "branch": quantity_encoder(branch.value),
-                "shard": quantity_encoder(branch.get_full_shard_id()),
+                "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+                "shardId": quantity_encoder(branch.get_shard_id()),
+                "chainId": quantity_encoder(branch.get_chain_id()),
                 "balance": quantity_encoder(account_branch_data.balance),
                 "transactionCount": quantity_encoder(
                     account_branch_data.transaction_count

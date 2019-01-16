@@ -1204,9 +1204,9 @@ class MasterServer:
         shards = []
         for shard_stats in self.branch_to_shard_stats.values():
             shard = dict()
-            shard["full_shard_id"] = shard_stats.branch.get_full_shard_id()
-            shard["chain_id"] = shard_stats.branch.get_chain_id()
-            shard["shard_id"] = shard_stats.branch.get_shard_id()
+            shard["fullShardId"] = shard_stats.branch.get_full_shard_id()
+            shard["chainId"] = shard_stats.branch.get_chain_id()
+            shard["shardId"] = shard_stats.branch.get_shard_id()
             shard["height"] = shard_stats.height
             shard["difficulty"] = shard_stats.difficulty
             shard["coinbaseAddress"] = "0x" + shard_stats.coinbase_address.to_hex()
@@ -1267,6 +1267,7 @@ class MasterServer:
 
         return {
             "networkId": self.env.quark_chain_config.NETWORK_ID,
+            "chainSize": self.env.quark_chain_config.CHAIN_SIZE,
             "shardServerCount": len(self.slave_pool),
             "rootHeight": self.root_state.tip.height,
             "rootDifficulty": self.root_state.tip.difficulty,
