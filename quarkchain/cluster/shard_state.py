@@ -1392,6 +1392,8 @@ class ShardState:
                             block_height=0,
                             timestamp=0,
                             success=False,
+                            gas_token_id=tx.gas_token_id,
+                            transfer_token_id=tx.transfer_token_id,
                         )
                     )
             return tx_list, b""
