@@ -1425,7 +1425,9 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0)
 
         m1 = state.get_tip().create_block_to_append(address=acc1)
-        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m1)
+        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
+            m1.header.hash_prev_minor_block
+        )
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m1)
 
@@ -1434,7 +1436,9 @@ class TestShardState(unittest.TestCase):
         for i in range(8):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
-            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(m)
+            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
+                m.header.hash_prev_minor_block
+            )
             self.assertEqual(len(coinbase_blockcnt), 2)
             # Count should all equal 1
             self.assertEqual(len(set(coinbase_blockcnt.values())), 1)

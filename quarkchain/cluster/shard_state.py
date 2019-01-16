@@ -1545,13 +1545,12 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_blockcnt(self, block: MinorBlock) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """
-        Get coinbase addresses up until the given block (exclusive) along with their
-        balances within the PoSW window. Raise ValueError if anything goes wrong.
+        Get coinbase addresses up until the given block hash (inclusive) along with
+        block counts within the PoSW window. Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_block(
-            block.header.hash_prev_minor_block,
-            self.shard_config.POSW_CONFIG.WINDOW_SIZE,
+            header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE
         )
         return Counter(coinbase_addrs)
