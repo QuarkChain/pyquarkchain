@@ -147,8 +147,9 @@ class ShardState:
             add_tx_back_to_queue=False,
         )
 
-    def __create_evm_state(self, root_hash, height):
-        """EVM state"""
+    def __create_evm_state(self, root_hash: Optional[bytes], height: Optional[int]):
+        """EVM state with given root hash and height AFTER block at that height
+        has been evaluated."""
         state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
