@@ -188,8 +188,9 @@ def minor_block_encoder(block, include_transactions=False):
         "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
         "height": quantity_encoder(header.height),
         "hash": data_encoder(header.get_hash()),
-        "branch": quantity_encoder(header.branch.value),
-        "shard": quantity_encoder(header.branch.get_full_shard_id()),
+        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+        "chainId": quantity_encoder(header.branch.get_chain_id()),
+        "shardId": quantity_encoder(header.branch.get_shard_id()),
         "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
         "idPrevMinorBlock": id_encoder(
             header.hash_prev_minor_block, header.branch.get_full_shard_id()
@@ -226,15 +227,14 @@ def tx_encoder(block, i):
     """
     tx = block.tx_list[i]
     evm_tx = tx.code.get_evm_transaction()
+    branch = block.header.branch
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
         "hash": data_encoder(tx.get_hash()),
         "nonce": quantity_encoder(evm_tx.nonce),
         "timestamp": quantity_encoder(block.header.create_time),
-        "shard": quantity_encoder(block.header.branch.get_full_shard_id()),
-        "blockId": id_encoder(
-            block.header.get_hash(), block.header.branch.get_full_shard_id()
-        ),
+        "shard": quantity_encoder(branch.get_full_shard_id()),
+        "blockId": id_encoder(block.header.get_hash(), branch.get_full_shard_id()),
         "blockHeight": quantity_encoder(block.header.height),
         "transactionIndex": quantity_encoder(i),
         "from": data_encoder(evm_tx.sender),

@@ -1218,6 +1218,7 @@ class MasterServer:
             shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
             shard["lastBlockTime"] = shard_stats.last_block_time
             shards.append(shard)
+        shards.sort(key=lambda x: x["fullShardId"])
 
         tx_count60s = sum(
             [
