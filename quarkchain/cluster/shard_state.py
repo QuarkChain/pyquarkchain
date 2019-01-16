@@ -4,7 +4,7 @@ import json
 import time
 from collections import defaultdict, deque, Counter
 from fractions import Fraction
-from typing import NamedTuple, Optional, Tuple, List, Union, Dict
+from typing import Optional, Tuple, List, Union, Dict
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.miner import validate_seal
@@ -87,8 +87,8 @@ class ShardState:
 
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_pool = dict()
-        # height -> [coinbase address] during previous blocks, ascending order
-        self.coinbase_addr_cache = dict()  # type: Dict[int, Deque[bytes]]
+        # header hash -> (height, [coinbase address]) during previous blocks (ascending)
+        self.coinbase_addr_cache = dict()  # type: Dict[bytes, Tuple[int, Deque[bytes]]]
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -135,7 +135,7 @@ class ShardState:
         self.meta_tip = self.db.get_minor_block_meta_by_hash(self.header_tip.get_hash())
         self.confirmed_header_tip = confirmed_header_tip
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, height=header_tip.height
+            self.meta_tip.hash_evm_state_root, header_hash=header_tip.get_hash()
         )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(self.header_tip.get_hash())
@@ -147,19 +147,19 @@ class ShardState:
             add_tx_back_to_queue=False,
         )
 
-    def __create_evm_state(self, root_hash: Optional[bytes], height: Optional[int]):
-        """EVM state with given root hash and height AFTER block at that height
-        has been evaluated."""
+    def __create_evm_state(
+        self, root_hash: Optional[bytes], header_hash: Optional[bytes]
+    ):
+        """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
         if root_hash:
             state.trie.root_hash = root_hash
 
-        if self.shard_config.POSW_CONFIG.ENABLED and height is not None:
-            # Note off-by-1 since the following function is exclusive on the range
+        if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
             state.posw_disallow_list = self._get_posw_coinbase_blockcnt(
-                height + 1
+                header_hash
             ).keys()
         return state
 
@@ -176,7 +176,7 @@ class ShardState:
         genesis_block = genesis_manager.create_minor_block(
             root_block,
             self.full_shard_id,
-            self.__create_evm_state(root_hash=None, height=None),
+            self.__create_evm_state(root_hash=None, header_hash=None),
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -197,7 +197,8 @@ class ShardState:
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
         self.evm_state = self.__create_evm_state(
-            genesis_block.meta.hash_evm_state_root, height=genesis_block.header.height
+            genesis_block.meta.hash_evm_state_root,
+            header_hash=genesis_block.header.get_hash(),
         )
 
         Logger.info(
@@ -323,7 +324,9 @@ class ShardState:
         root_hash = self.db.get_minor_block_evm_root_hash_by_hash(
             block.header.hash_prev_minor_block
         )
-        state = self.__create_evm_state(root_hash, height=block.header.height - 1)
+        state = self.__create_evm_state(
+            root_hash, header_hash=block.header.hash_prev_minor_block
+        )
         if ephemeral:
             state = state.ephemeral_clone()
         state.timestamp = block.header.create_time
@@ -687,7 +690,8 @@ class ShardState:
                     )
                 )
 
-        if self.db.contain_minor_block_by_hash(block.header.get_hash()):
+        header_hash = block.header.get_hash()
+        if self.db.contain_minor_block_by_hash(header_hash):
             return None
 
         evm_tx_included = []
@@ -770,8 +774,9 @@ class ShardState:
             self.evm_state = evm_state
             # Safe to update PoSW blacklist here
             if self.shard_config.POSW_CONFIG.ENABLED:
-                height = block.header.height + 1  # Off-by-one since it's exclusive
-                posw_disallow_list = self._get_posw_coinbase_blockcnt(height).keys()
+                posw_disallow_list = self._get_posw_coinbase_blockcnt(
+                    header_hash
+                ).keys()
                 self.evm_state.posw_disallow_list = posw_disallow_list
             self.header_tip = block.header
             self.meta_tip = block.meta
@@ -797,7 +802,7 @@ class ShardState:
                 "shard": str(block.header.branch.get_full_shard_id()),
                 "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
                 "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
-                "hash": block.header.get_hash().hex(),
+                "hash": header_hash.hex(),
                 "height": block.header.height,
                 "original_cluster": tracking_data["cluster"],
                 "inception": tracking_data["inception"],
@@ -1530,21 +1535,24 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
-    def __get_coinbase_addresses_until_height(
-        self, height: int, length: int
+    def __get_coinbase_addresses_until_block(
+        self, header_hash: bytes, length: int
     ) -> List[bytes]:
-        """Get coinbase addresses up until height (inclusive) within the window of length."""
-        curr_block = self.db.get_minor_block_by_height(height)
+        """Get coinbase addresses up until block of given hash within the window."""
+        curr_block = self.db.get_minor_block_by_hash(header_hash)
         if not curr_block:
-            raise ValueError("curr block not found: height %d" % height)
-        curr_coinbase_addr = curr_block.header.coinbase_address.recipient
-        if height - 1 in self.coinbase_addr_cache:  # mem cache hit
-            addrs = self.coinbase_addr_cache[height - 1].copy()
+            raise ValueError("curr block not found: hash %d" % header_hash)
+        header = curr_block.header
+        height = header.height
+        prev_hash = header.hash_prev_minor_block
+        if prev_hash in self.coinbase_addr_cache:  # mem cache hit
+            _, addrs = self.coinbase_addr_cache[prev_hash]
+            addrs = addrs.copy()
             if len(addrs) == length:
                 addrs.popleft()
-            addrs.append(curr_coinbase_addr)
+            addrs.append(header.coinbase_address.recipient)
         else:  # miss, iterating DB
-            addrs, header = deque(), curr_block.header
+            addrs = deque()
             for _ in range(length):
                 addrs.appendleft(header.coinbase_address.recipient)
                 header = self.db.get_minor_block_header_by_hash(
@@ -1552,23 +1560,23 @@ class ShardState:
                 )
                 if not header:
                     break
-        self.coinbase_addr_cache[height] = addrs
+        self.coinbase_addr_cache[header_hash] = (height, addrs)
         # in case cached too much, clean up
         if len(self.coinbase_addr_cache) > 128:  # size around 640KB if window size 256
             self.coinbase_addr_cache = {
-                k: v
-                for k, v in self.coinbase_addr_cache.items()
-                if k > height - 16  # keep most recent ones
+                k: (h, addrs)
+                for k, (h, addrs) in self.coinbase_addr_cache.items()
+                if h > height - 16  # keep most recent ones
             }
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_blockcnt(self, height: int) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """
-        Get coinbase addresses up until the given height (exclusive) along with their
+        Get coinbase addresses up until the given block hash (inclusive) along with
         block counts within the PoSW window. Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_height(
-            height - 1, self.shard_config.POSW_CONFIG.WINDOW_SIZE
+        coinbase_addrs = self.__get_coinbase_addresses_until_block(
+            header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE
         )
         return Counter(coinbase_addrs)
