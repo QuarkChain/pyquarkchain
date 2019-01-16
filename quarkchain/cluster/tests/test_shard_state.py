@@ -10,6 +10,7 @@ from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionL
 from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
+from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.genesis import GenesisManager
 
 
@@ -34,7 +35,7 @@ class TestShardState(unittest.TestCase):
         assert config.REWARD_TAX_RATE == 0.5
         self.tax_rate = config.reward_tax_rate  # type: Fraction
 
-    def get_after_tax_reward(self, value: int) -> int:
+    def getAfterTaxReward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
 
     def test_shard_state_simple(self):
@@ -183,13 +184,14 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
         self.assertEqual(
-            state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN),
+            10000000 - opcodes.GTXCOST - 12345,
         )
-        self.assertEqual(state.get_balance(acc2.recipient), 12345)
+        self.assertEqual(state.get_token_blalance(acc2.recipient, DEFAULT_TOKEN), 12345)
         # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -259,12 +261,13 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
         self.assertEqual(
-            state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN),
+            10000000 - opcodes.GTXCOST - 12345,
         )
-        self.assertEqual(state.get_balance(acc2.recipient), 12345)
+        self.assertEqual(state.get_token_blalance(acc2.recipient, DEFAULT_TOKEN), 12345)
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -406,11 +409,15 @@ class TestShardState(unittest.TestCase):
 
         b0 = state.create_block_to_mine(address=acc3)
         state.finalize_and_add_block(b0)
-        self.assertEqual(state.get_balance(id1.recipient), 1000000)
-        self.assertEqual(state.get_balance(acc2.recipient), 1000000)
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN), 1000000
+        )
+        self.assertEqual(
+            state.get_token_blalance(acc2.recipient, DEFAULT_TOKEN), 1000000
+        )
+        self.assertEqual(
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check Account has full_shard_key
@@ -449,15 +456,17 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
         self.assertEqual(
-            state.get_balance(id1.recipient), 1000000 - opcodes.GTXCOST - 12345 + 54321
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN),
+            1000000 - opcodes.GTXCOST - 12345 + 54321,
         )
         self.assertEqual(
-            state.get_balance(acc2.recipient), 1000000 - opcodes.GTXCOST + 12345 - 54321
+            state.get_token_blalance(acc2.recipient, DEFAULT_TOKEN),
+            1000000 - opcodes.GTXCOST + 12345 - 54321,
         )
         # 2 block rewards: 3 tx, 2 block rewards
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
         )
 
         # Check receipts
@@ -645,7 +654,7 @@ class TestShardState(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            state.get_balance(id1.recipient),
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN),
             10000000 - 888888 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
         )
         # Make sure the xshard gas is not used by local block
@@ -654,8 +663,8 @@ class TestShardState(unittest.TestCase):
         )
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
     def test_xshard_tx_insufficient_gas(self):
@@ -756,11 +765,13 @@ class TestShardState(unittest.TestCase):
         b2 = state0.create_block_to_mine(address=acc3)
         state0.finalize_and_add_block(b2)
 
-        self.assertEqual(state0.get_balance(acc1.recipient), 10000000 + 888888)
+        self.assertEqual(
+            state0.get_token_blalance(acc1.recipient, DEFAULT_TOKEN), 10000000 + 888888
+        )
         # Half collected by root
         self.assertEqual(
-            state0.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            state0.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -808,11 +819,13 @@ class TestShardState(unittest.TestCase):
         b2 = state0.create_block_to_mine(address=acc3)
         state0.finalize_and_add_block(b2)
 
-        self.assertEqual(state0.get_balance(acc1.recipient), 10000000)
+        self.assertEqual(
+            state0.get_token_blalance(acc1.recipient, DEFAULT_TOKEN), 10000000
+        )
         # Half collected by root
         self.assertEqual(
-            state0.get_balance(acc3.recipient),
-            self.get_after_tax_reward(self.shard_coinbase),
+            state0.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(self.shard_coinbase),
         )
 
         # No xshard tx is processed on the receiving side due to non-neighbor
@@ -937,11 +950,14 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(b4.header.hash_prev_root_block, root_block1.header.get_hash())
         state0.finalize_and_add_block(b4)
 
-        self.assertEqual(state0.get_balance(acc1.recipient), 10000000 + 888888 + 385723)
+        self.assertEqual(
+            state0.get_token_blalance(acc1.recipient, DEFAULT_TOKEN),
+            10000000 + 888888 + 385723,
+        )
         # Half collected by root
         self.assertEqual(
-            state0.get_balance(acc3.recipient),
-            self.get_after_tax_reward(
+            state0.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(
                 opcodes.GTXXSHARDCOST * (2 + 3) + self.shard_coinbase
             ),
         )
@@ -1520,12 +1536,13 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
         self.assertEqual(
-            state.get_balance(id1.recipient), 10000000 - opcodes.GTXCOST - 12345
+            state.get_token_blalance(id1.recipient, DEFAULT_TOKEN),
+            10000000 - opcodes.GTXCOST - 12345,
         )
-        self.assertEqual(state.get_balance(acc2.recipient), 12345)
+        self.assertEqual(state.get_token_blalance(acc2.recipient, DEFAULT_TOKEN), 12345)
         self.assertEqual(
-            state.get_balance(acc3.recipient),
-            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+            state.get_token_blalance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 12345)

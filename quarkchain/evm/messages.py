@@ -244,7 +244,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     assert (
         state.get_token_balance(tx.sender, tx.gas_token_id) >= tx.startgas * tx.gasprice
     )
-    state.delta_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
+    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -288,14 +288,16 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             startgas=tx.startgas,
             gas_remained=gas_remained,
         )
-        state.delta_balance(tx.sender, tx.gas_token_id, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         fee = (
             tx.gasprice
             * gas_used
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, tx.gas_token_id, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
         # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += tx.gasprice * gas_used
         output = b""
@@ -310,7 +312,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             gas_used -= min(state.refunds, gas_used // 2)
             state.refunds = 0
         # sell remaining gas
-        state.delta_balance(tx.sender, tx.gas_token_id, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         # if x-shard, reserve part of the gas for the target shard miner
         fee = (
             tx.gasprice
@@ -318,7 +322,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, tx.gas_token_id, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
         # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += fee
         if tx.to:
@@ -336,7 +340,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     suicides = state.suicides
     state.suicides = []
     for s in suicides:
-        state.set_balance(s, {})
+        state.set_balances(s, {})
         state.del_account(s)
 
     # Pre-Metropolis: commit state after every tx
@@ -364,7 +368,7 @@ class VMExt:
         self.set_code = state.set_code
         self.get_balances = state.get_balances
         self.get_token_balance = state.get_token_balance
-        self.set_balance = state.set_balance
+        self.set_balances = state.set_balances
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
@@ -527,7 +531,7 @@ def create_contract(ext, msg):
 
     b = ext.get_balances(msg.to)
     if b > 0:
-        ext.set_balance(msg.to, b)
+        ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
         # ext.reset_storage(msg.to)

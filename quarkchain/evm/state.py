@@ -33,6 +33,7 @@ BLANK_ROOT = utils.sha3rlp(b"")
 
 THREE = b"\x00" * 19 + b"\x03"
 
+DEFAULT_TOKEN = 0
 TOKEN_TRIE_THRESHOLD = 16
 
 
@@ -108,7 +109,7 @@ class TokenBalances:
                 l.append(TokenBalancePair(k, v))
             l.sort(
                 lambda b: b.token_id
-            )  # sort by token id to make balance deterministic
+            )  # sort by token id to make token balances serialization deterministic
             retv = retv + rlp.encode(l)
         elif self.enum == b"\x01":
             raise Exception("Token balance trie is not yet implemented")
@@ -117,10 +118,7 @@ class TokenBalances:
         return retv
 
     def balance(self, token_id):
-        self.balances.get(token_id, 0)
-
-    def delta(self, token_id, value):
-        self.balances[token_id] = self.balances.get(token_id, 0) + value
+        return self.balances.get(token_id, 0)
 
     def is_empty(self):
         for k, v in self.balances.items():
@@ -352,7 +350,7 @@ class State:
         self.journal.append(lambda: setattr(acct, param, preval))
         setattr(acct, param, val)
 
-    def set_balance(self, address, token_balances):
+    def set_balances(self, address, token_balances):
         acct = self.get_and_cache_account(utils.normalize_address(address))
         self.set_and_journal(acct.token_balances, "balances", token_balances)
         self.set_and_journal(acct, "touched", True)
@@ -380,7 +378,7 @@ class State:
             )
         acct.token_balances.balances[token_id] = val
 
-    def delta_balance(self, address, token_id, value):
+    def delta_token_balance(self, address, token_id, value):
         address = utils.normalize_address(address)
         acct = self.get_and_cache_account(address)
         newbal = acct.token_balances.balance(token_id) + value
@@ -451,7 +449,7 @@ class State:
         if (
             three_touched and 2675000 < self.block_number < 2675200
         ):  # Compatibility with weird geth+parity bug
-            self.delta_balance(THREE, 0, 0)
+            self.delta_token_balance(THREE, DEFAULT_TOKEN, 0)
 
     def set_param(self, k, v):
         preval = getattr(self, k)
@@ -518,15 +516,15 @@ class State:
     def transfer_value(self, from_addr, to_addr, token_id, value):
         assert value >= 0
         if self.get_token_balance(from_addr, token_id) >= value:
-            self.delta_balance(from_addr, token_id, -value)
-            self.delta_balance(to_addr, token_id, value)
+            self.delta_token_balance(from_addr, token_id, -value)
+            self.delta_token_balance(to_addr, token_id, value)
             return True
         return False
 
     def deduct_value(self, from_addr, token_id, value):
         assert value >= 0
         if self.get_token_balance(from_addr, token_id) >= value:
-            self.delta_balance(from_addr, token_id, -value)
+            self.delta_token_balance(from_addr, token_id, -value)
             return True
         return False
 
