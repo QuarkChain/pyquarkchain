@@ -539,11 +539,8 @@ class ShardState:
         ):
             raise ValueError("prev root blocks are not on the same chain")
 
-        # Check PoW if applicable
-        consensus_type = self.env.quark_chain_config.shards[
-            self.full_shard_id
-        ].CONSENSUS_TYPE
-        validate_seal(block.header, consensus_type)
+        # Check PoW / PoSW
+        self.validate_minor_block_seal(block.header)
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
@@ -1522,6 +1519,30 @@ class ShardState:
         self.gas_price_suggestion_oracle.last_price = price
         self.gas_price_suggestion_oracle.last_head = curr_head
         return price
+
+    def validate_minor_block_seal(self, header: MinorBlockHeader):
+        consensus_type = self.env.quark_chain_config.shards[
+            header.branch.get_full_shard_id()
+        ].CONSENSUS_TYPE
+        if not self.shard_config.POSW_CONFIG.ENABLED:
+            validate_seal(header, consensus_type)
+        else:
+            diff = self._posw_diff_adjust(header)
+            validate_seal(header, consensus_type, adjusted_diff=diff)
+
+    def _posw_diff_adjust(self, header: MinorBlockHeader) -> int:
+        diff = header.difficulty
+        height = header.height
+        coinbase_address = header.coinbase_address.recipient
+        # Evaluate stakes before the to-be-added block
+        evm_state = self._get_evm_state_from_height(height - 1)
+        config = self.shard_config.POSW_CONFIG
+        stakes = evm_state.get_balance(coinbase_address)
+        block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
+        # Note off-by-1 because it's inclusive
+        block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
+        cnt = block_cnt.get(coinbase_address, 0)
+        return diff * config.DIFF_COEFF if cnt > block_threshold else diff
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:

@@ -1,5 +1,6 @@
 import random
 import unittest
+from fractions import Fraction
 
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import (
@@ -1450,9 +1451,6 @@ class TestShardState(unittest.TestCase):
                 self.assertTrue(prev_addr in coinbase_blockcnt)
             state.finalize_and_add_block(m)
             prev_addr = random_acc.recipient
-
-        # Cached height -> [coinbase addr] should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 5)
 
     def test_posw_coinbase_lockup(self):
         id1 = Identity.create_random_identity()
