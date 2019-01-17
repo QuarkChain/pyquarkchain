@@ -38,19 +38,29 @@ def tx_to_typed_data(raw_tx):
         },
         {"type": "bytes", "name": "data", "value": "0x{}".format(raw_tx.data.hex())},
         {
+            "type": "uint256",
+            "name": "networkId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.network_id).hex()),
+        },
+        {
             "type": "uint32",
-            "name": "fromFullShardId",
+            "name": "fromFullShardKey",
             "value": "0x{}".format(int_to_bytes(raw_tx.from_full_shard_key).hex()),
         },
         {
             "type": "uint32",
-            "name": "toFullShardId",
+            "name": "toFullShardKey",
             "value": "0x{}".format(int_to_bytes(raw_tx.to_full_shard_key).hex()),
         },
         {
-            "type": "uint256",
-            "name": "networkId",
-            "value": "0x{}".format(int_to_bytes(raw_tx.network_id).hex()),
+            "type": "uint64",
+            "name": "gasTokenId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.gas_token_id).hex()),
+        },
+        {
+            "type": "uint64",
+            "name": "transferTokenId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.transfer_token_id).hex()),
         },
         {"type": "string", "name": "qkcDomain", "value": "bottom-quark"},
     ]
