@@ -111,10 +111,12 @@ class POWConfig(BaseConfig):
 
 
 class POSWConfig(BaseConfig):
-    STAKE_COEFF = 20  # Alpha in PoSW
+    ENABLED = False
     DIFF_COEFF = 20  # Beta
     WINDOW_SIZE = 256  # For estimating effective hash power
-    TOTAL_STAKES = 10 ** 7  # TODO: needs better tuning / estimating
+    # TODO: needs better tuning / estimating
+    # = total stakes / alpha
+    TOTAL_STAKE_PER_BLOCK = (10 ** 9) * QUARKSH_TO_JIAOZI
 
 
 class ChainConfig(BaseConfig):

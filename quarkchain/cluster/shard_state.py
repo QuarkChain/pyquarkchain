@@ -1546,9 +1546,10 @@ class ShardState:
 
     @functools.lru_cache(maxsize=16)
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
-        """
-        Get coinbase addresses up until the given block hash (inclusive) along with
-        block counts within the PoSW window. Raise ValueError if anything goes wrong.
+        """ PoSW needed function: get coinbase addresses up until the given block
+        hash (inclusive) along with block counts within the PoSW window.
+
+        Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_block(
             header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE
