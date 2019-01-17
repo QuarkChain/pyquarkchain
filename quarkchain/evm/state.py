@@ -323,7 +323,7 @@ class State:
         o._cached_rlp = None
         return o
 
-    def get_balances(self, address):
+    def get_balances(self, address) -> dict:
         return self.get_and_cache_account(
             utils.normalize_address(address)
         ).token_balances.balances
@@ -350,8 +350,11 @@ class State:
         self.journal.append(lambda: setattr(acct, param, preval))
         setattr(acct, param, val)
 
-    def set_balances(self, address, token_balances):
+    def set_balances(self, address, token_balances: dict):
         acct = self.get_and_cache_account(utils.normalize_address(address))
+        if self.get_balances(address) == token_balances:
+            self.set_and_journal(acct, "touched", True)
+            return
         self.set_and_journal(acct.token_balances, "balances", token_balances)
         self.set_and_journal(acct, "touched", True)
 
@@ -381,6 +384,9 @@ class State:
     def delta_token_balance(self, address, token_id, value):
         address = utils.normalize_address(address)
         acct = self.get_and_cache_account(address)
+        if value == 0:
+            self.set_and_journal(acct, "touched", True)
+            return
         newbal = acct.token_balances.balance(token_id) + value
         self.set_token_balance_and_journal(acct, token_id, newbal)
         self.set_and_journal(acct, "touched", True)

@@ -246,7 +246,7 @@ index 4a1cacb..40bcbd0 100644
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 0996e8e..7862f6b 100644
+index 433726f..7862f6b 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -31,7 +31,6 @@ BLANK_ROOT = utils.sha3rlp(b"")
@@ -392,7 +392,7 @@ index 0996e8e..7862f6b 100644
          o._cached_rlp = None
          return o
 
--    def get_balances(self, address):
+-    def get_balances(self, address) -> dict:
 -        return self.get_and_cache_account(
 -            utils.normalize_address(address)
 -        ).token_balances.balances
@@ -406,19 +406,22 @@ index 0996e8e..7862f6b 100644
 
      def get_code(self, address):
          return self.get_and_cache_account(utils.normalize_address(address)).code
-@@ -347,9 +328,9 @@ class State:
+@@ -347,12 +328,9 @@ class State:
          self.journal.append(lambda: setattr(acct, param, preval))
          setattr(acct, param, val)
 
--    def set_balances(self, address, token_balances):
+-    def set_balances(self, address, token_balances: dict):
 +    def set_balance(self, address, value):
          acct = self.get_and_cache_account(utils.normalize_address(address))
+-        if self.get_balances(address) == token_balances:
+-            self.set_and_journal(acct, "touched", True)
+-            return
 -        self.set_and_journal(acct.token_balances, "balances", token_balances)
 +        self.set_and_journal(acct, "balance", value)
          self.set_and_journal(acct, "touched", True)
 
      def set_code(self, address, value):
-@@ -363,23 +344,11 @@ class State:
+@@ -366,26 +344,11 @@ class State:
          self.set_and_journal(acct, "nonce", value)
          self.set_and_journal(acct, "touched", True)
 
@@ -438,6 +441,9 @@ index 0996e8e..7862f6b 100644
 +    def delta_balance(self, address, value):
          address = utils.normalize_address(address)
          acct = self.get_and_cache_account(address)
+-        if value == 0:
+-            self.set_and_journal(acct, "touched", True)
+-            return
 -        newbal = acct.token_balances.balance(token_id) + value
 -        self.set_token_balance_and_journal(acct, token_id, newbal)
 +        newbal = acct.balance + value
@@ -445,7 +451,7 @@ index 0996e8e..7862f6b 100644
          self.set_and_journal(acct, "touched", True)
 
      def increment_nonce(self, address):
-@@ -446,7 +415,7 @@ class State:
+@@ -452,7 +415,7 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
@@ -454,7 +460,7 @@ index 0996e8e..7862f6b 100644
 
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -510,18 +479,18 @@ class State:
+@@ -516,18 +479,18 @@ class State:
                  return a.existent_at_start
          return o
 
@@ -480,7 +486,7 @@ index 0996e8e..7862f6b 100644
              return True
          return False
 
-@@ -536,11 +505,7 @@ class State:
+@@ -542,11 +505,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -493,7 +499,7 @@ index 0996e8e..7862f6b 100644
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -563,7 +528,7 @@ class State:
+@@ -569,7 +528,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
 
      def del_account(self, address):
@@ -502,7 +508,7 @@ index 0996e8e..7862f6b 100644
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -628,9 +593,9 @@ class State:
+@@ -634,9 +593,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
@@ -515,6 +521,7 @@ index 0996e8e..7862f6b 100644
                  if "code" in data:
                      state.set_code(addr, parse_as_bin(data["code"]))
                  if "nonce" in data:
+
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
 index 644ab38..4c6a252 100644
 --- a/quarkchain/evm/transactions.py

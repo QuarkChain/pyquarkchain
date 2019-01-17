@@ -1530,7 +1530,7 @@ class TestShardState(unittest.TestCase):
             to_address=acc2,
             value=12345,
             gas=21000,
-            gas_token_id=0,
+            gas_token_id=DEFAULT_TOKEN,
             transfer_token_id=QETH,
         )
         self.assertTrue(state.add_tx(tx))
@@ -1550,9 +1550,47 @@ class TestShardState(unittest.TestCase):
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[0].gas_token_id, 0)
+        self.assertEqual(tx_list[0].gas_token_id, DEFAULT_TOKEN)
         self.assertEqual(tx_list[0].transfer_token_id, QETH)
         tx_list, _ = state.db.get_transactions_by_address(acc2)
         self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[0].gas_token_id, 0)
+        self.assertEqual(tx_list[0].gas_token_id, DEFAULT_TOKEN)
         self.assertEqual(tx_list[0].transfer_token_id, QETH)
+
+    def test_tx_native_token_transfer_0_value(self):
+        from quarkchain.utils import token_id_encode
+
+        MALICIOUS0 = token_id_encode("MALICIOUS0")
+
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1, genesis_minor_token_balances={0: 10000000}
+        )
+        state = create_default_shard_state(env=env)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc1,
+            value=0,
+            gas=opcodes.GTXCOST,
+            gas_token_id=DEFAULT_TOKEN,
+            transfer_token_id=MALICIOUS0,
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 1)
+        state.finalize_and_add_block(b1)
+        self.assertEqual(state.header_tip, b1.header)
+        self.assertEqual(
+            state.get_token_balance(id1.recipient, DEFAULT_TOKEN),
+            10000000 - opcodes.GTXCOST,
+        )
+        self.assertEqual(state.get_token_balance(acc1.recipient, MALICIOUS0), 0)
+        # self.assertEqual(state.get_balances(acc1.recipient), {DEFAULT_TOKEN:10000000 - opcodes.GTXCOST, MALICIOUS0:0})
+        self.assertEqual(state.get_balances(acc1.recipient), {DEFAULT_TOKEN:10000000 - opcodes.GTXCOST})
