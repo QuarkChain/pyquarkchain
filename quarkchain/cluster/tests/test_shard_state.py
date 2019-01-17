@@ -647,8 +647,8 @@ class TestShardState(unittest.TestCase):
                 to_address=acc2,
                 value=888888,
                 gas_price=1,
-                gas_token_id=0,
-                transfer_token_id=0,
+                gas_token_id=DEFAULT_TOKEN,
+                transfer_token_id=DEFAULT_TOKEN,
             ),
         )
         self.assertEqual(
@@ -743,8 +743,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=888888,
                         gas_price=2,
-                        gas_token_id=0,
-                        transfer_token_id=0,
+                        gas_token_id=DEFAULT_TOKEN,
+                        transfer_token_id=DEFAULT_TOKEN,
                     )
                 ]
             ),
@@ -879,8 +879,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=888888,
                         gas_price=2,
-                        gas_token_id=0,
-                        transfer_token_id=0,
+                        gas_token_id=DEFAULT_TOKEN,
+                        transfer_token_id=DEFAULT_TOKEN,
                     )
                 ]
             ),
@@ -912,8 +912,8 @@ class TestShardState(unittest.TestCase):
                         to_address=acc1,
                         value=385723,
                         gas_price=3,
-                        gas_token_id=0,
-                        transfer_token_id=0,
+                        gas_token_id=DEFAULT_TOKEN,
+                        transfer_token_id=DEFAULT_TOKEN,
                     )
                 ]
             ),
@@ -1433,164 +1433,3 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(r3)
         self.assertEqual(state.root_tip, r3.header)
         self.assertEqual(state.header_tip, m2.header)
-
-    def test_posw_fetch_previous_coinbase_address(self):
-        acc = Address.create_from_identity(
-            Identity.create_random_identity(), full_shard_key=0
-        )
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        state = create_default_shard_state(env=env, shard_id=0)
-
-        m = state.get_tip().create_block_to_append(address=acc)
-        coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-            m.header.hash_prev_minor_block
-        )
-        self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
-        state.finalize_and_add_block(m)
-
-        # Note PoSW window size is 2
-        prev_addr = None
-        for i in range(4):
-            random_acc = Address.create_random_account(full_shard_key=0)
-            m = state.get_tip().create_block_to_append(address=random_acc)
-            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.hash_prev_minor_block
-            )
-            self.assertEqual(len(coinbase_blockcnt), 2)
-            # Count should all equal 1
-            self.assertEqual(len(set(coinbase_blockcnt.values())), 1)
-            self.assertEqual(list(coinbase_blockcnt.values())[0], 1)
-            if prev_addr:  # Should always contain previous block's coinbase
-                self.assertTrue(prev_addr in coinbase_blockcnt)
-            state.finalize_and_add_block(m)
-            prev_addr = random_acc.recipient
-
-        # Cached height -> [coinbase addr] should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 5)
-
-    def test_posw_coinbase_lockup(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        id2 = Identity.create_random_identity()
-        acc2 = Address.create_from_identity(id2, full_shard_key=0)
-        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
-        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
-
-        # Coinbase in genesis should be disallowed
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
-        self.assertEqual(list(state.evm_state.sender_disallow_list)[0], b"\x00" * 20)
-
-        m = state.get_tip().create_block_to_append(address=acc1)
-        state.finalize_and_add_block(m)
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
-        self.assertGreater(state.get_balance(acc1.recipient), 0)
-
-        # Try to send money from that account
-        tx = create_transfer_transaction(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_address=Address.create_empty_account(full_shard_key=0),
-            value=1,
-            gas=21000,
-        )
-        res = state.execute_tx(tx, acc1)
-        self.assertIsNone(res, "tx should fail")
-
-        # Create a block including that tx, receipt should also report error
-        self.assertTrue(state.add_tx(tx))
-        m = state.create_block_to_mine(address=acc2)
-        state.finalize_and_add_block(m)
-        r = state.get_transaction_receipt(tx.get_hash())
-        self.assertEqual(r[2].success, b"")  # Failure
-        # Make sure the disallow rolling window now discards the first addr
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
-        self.assertTrue(b"\x00" * 20 not in state.evm_state.sender_disallow_list)
-
-    def test_tx_native_token(self):
-        from quarkchain.utils import token_id_encode
-
-        QETH = token_id_encode("QETH")
-
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
-        acc3 = Address.create_random_account(full_shard_key=0)
-
-        env = get_test_env(
-            genesis_account=acc1,
-            genesis_minor_token_balances={0: 10000000, QETH: 99999},
-        )
-        state = create_default_shard_state(env=env)
-
-        tx = create_transfer_transaction(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_address=acc2,
-            value=12345,
-            gas=21000,
-            gas_token_id=DEFAULT_TOKEN,
-            transfer_token_id=QETH,
-        )
-        self.assertTrue(state.add_tx(tx))
-        b1 = state.create_block_to_mine(address=acc3)
-        self.assertEqual(len(b1.tx_list), 1)
-        state.finalize_and_add_block(b1)
-        self.assertEqual(state.header_tip, b1.header)
-        self.assertEqual(
-            state.get_token_balance(id1.recipient, DEFAULT_TOKEN),
-            10000000 - opcodes.GTXCOST,
-        )
-        self.assertEqual(state.get_token_balance(acc1.recipient, QETH), 99999 - 12345)
-        self.assertEqual(state.get_token_balance(acc2.recipient, QETH), 12345)
-        self.assertEqual(
-            state.get_token_balance(acc3.recipient, DEFAULT_TOKEN),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
-        )
-        tx_list, _ = state.db.get_transactions_by_address(acc1)
-        self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[0].gas_token_id, DEFAULT_TOKEN)
-        self.assertEqual(tx_list[0].transfer_token_id, QETH)
-        tx_list, _ = state.db.get_transactions_by_address(acc2)
-        self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[0].gas_token_id, DEFAULT_TOKEN)
-        self.assertEqual(tx_list[0].transfer_token_id, QETH)
-
-    def test_tx_native_token_transfer_0_value(self):
-        from quarkchain.utils import token_id_encode
-
-        MALICIOUS0 = token_id_encode("MALICIOUS0")
-
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc3 = Address.create_random_account(full_shard_key=0)
-
-        env = get_test_env(
-            genesis_account=acc1, genesis_minor_token_balances={0: 10000000}
-        )
-        state = create_default_shard_state(env=env)
-
-        tx = create_transfer_transaction(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_address=acc1,
-            value=0,
-            gas=opcodes.GTXCOST,
-            gas_token_id=DEFAULT_TOKEN,
-            transfer_token_id=MALICIOUS0,
-        )
-        self.assertTrue(state.add_tx(tx))
-
-        b1 = state.create_block_to_mine(address=acc3)
-        self.assertEqual(len(b1.tx_list), 1)
-        state.finalize_and_add_block(b1)
-        self.assertEqual(state.header_tip, b1.header)
-        self.assertEqual(
-            state.get_token_balance(id1.recipient, DEFAULT_TOKEN),
-            10000000 - opcodes.GTXCOST,
-        )
-        self.assertEqual(state.get_token_balance(acc1.recipient, MALICIOUS0), 0)
-        # self.assertEqual(state.get_balances(acc1.recipient), {DEFAULT_TOKEN:10000000 - opcodes.GTXCOST, MALICIOUS0:0})
-        self.assertEqual(state.get_balances(acc1.recipient), {DEFAULT_TOKEN:10000000 - opcodes.GTXCOST})
