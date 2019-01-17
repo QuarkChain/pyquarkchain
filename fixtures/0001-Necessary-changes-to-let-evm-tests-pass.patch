@@ -246,7 +246,7 @@ index 4a1cacb..40bcbd0 100644
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 433726f..7862f6b 100644
+index 2c0dc14..7862f6b 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -31,7 +31,6 @@ BLANK_ROOT = utils.sha3rlp(b"")
@@ -296,7 +296,7 @@ index 433726f..7862f6b 100644
              retv = retv + rlp.encode(l)
          elif self.enum == b"\x01":
              raise Exception("Token balance trie is not yet implemented")
-@@ -116,25 +112,22 @@ class TokenBalances:
+@@ -116,22 +112,22 @@ class TokenBalances:
          return retv
 
      def balance(self, token_id):
@@ -304,10 +304,7 @@ index 433726f..7862f6b 100644
 +        self.balances.get(token_id, 0)
 
 -    def is_empty(self):
--        for k, v in self.balances.items():
--            if v != 0:
--                return False
--        return True
+-        return all(v == 0 for v in self.balances.values())
 +    def delta(self, token_id, value):
 +        self.balances[token_id] = self.balances.get(token_id, 0) + value
 
@@ -329,7 +326,7 @@ index 433726f..7862f6b 100644
          db=None,
      ):
          self.db = env.db if db is None else db
-@@ -142,12 +135,12 @@ class Account:
+@@ -139,12 +135,12 @@ class Account:
          self.env = env
          self.address = address
 
@@ -345,7 +342,7 @@ index 433726f..7862f6b 100644
 
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
-@@ -196,7 +189,7 @@ class Account:
+@@ -193,7 +189,7 @@ class Account:
          db.put(BLANK_HASH, b"")
          o = cls(
              initial_nonce,
@@ -354,7 +351,7 @@ index 433726f..7862f6b 100644
              trie.BLANK_ROOT,
              BLANK_HASH,
              full_shard_key,
-@@ -208,11 +201,7 @@ class Account:
+@@ -205,11 +201,7 @@ class Account:
          return o
 
      def is_blank(self):
@@ -367,7 +364,7 @@ index 433726f..7862f6b 100644
 
      @property
      def exists(self):
-@@ -225,7 +214,7 @@ class Account:
+@@ -222,7 +214,7 @@ class Account:
          for k, v in self.storage_cache.items():
              odict[utils.encode_int(k)] = rlp.encode(utils.encode_int(v))
          return {
@@ -376,7 +373,7 @@ index 433726f..7862f6b 100644
              "nonce": str(self.nonce),
              "code": "0x" + encode_hex(self.code),
              "storage": {
-@@ -299,10 +288,9 @@ class State:
+@@ -296,10 +288,9 @@ class State:
              o = rlp.decode(rlpdata, _Account)
              o = Account(
                  nonce=o.nonce,
@@ -388,7 +385,7 @@ index 433726f..7862f6b 100644
                  env=self.env,
                  address=address,
                  db=self.db,
-@@ -320,15 +308,8 @@ class State:
+@@ -317,15 +308,8 @@ class State:
          o._cached_rlp = None
          return o
 
@@ -406,7 +403,7 @@ index 433726f..7862f6b 100644
 
      def get_code(self, address):
          return self.get_and_cache_account(utils.normalize_address(address)).code
-@@ -347,12 +328,9 @@ class State:
+@@ -344,12 +328,9 @@ class State:
          self.journal.append(lambda: setattr(acct, param, preval))
          setattr(acct, param, val)
 
@@ -421,7 +418,7 @@ index 433726f..7862f6b 100644
          self.set_and_journal(acct, "touched", True)
 
      def set_code(self, address, value):
-@@ -366,26 +344,11 @@ class State:
+@@ -363,26 +344,11 @@ class State:
          self.set_and_journal(acct, "nonce", value)
          self.set_and_journal(acct, "touched", True)
 
@@ -451,7 +448,7 @@ index 433726f..7862f6b 100644
          self.set_and_journal(acct, "touched", True)
 
      def increment_nonce(self, address):
-@@ -452,7 +415,7 @@ class State:
+@@ -449,7 +415,7 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
@@ -460,7 +457,7 @@ index 433726f..7862f6b 100644
 
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -516,18 +479,18 @@ class State:
+@@ -513,18 +479,18 @@ class State:
                  return a.existent_at_start
          return o
 
@@ -486,7 +483,7 @@ index 433726f..7862f6b 100644
              return True
          return False
 
-@@ -542,11 +505,7 @@ class State:
+@@ -539,11 +505,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -499,7 +496,7 @@ index 433726f..7862f6b 100644
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -569,7 +528,7 @@ class State:
+@@ -566,7 +528,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
 
      def del_account(self, address):
@@ -508,7 +505,7 @@ index 433726f..7862f6b 100644
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -634,9 +593,9 @@ class State:
+@@ -631,9 +593,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
@@ -521,7 +518,6 @@ index 433726f..7862f6b 100644
                  if "code" in data:
                      state.set_code(addr, parse_as_bin(data["code"]))
                  if "nonce" in data:
-
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
 index 644ab38..4c6a252 100644
 --- a/quarkchain/evm/transactions.py

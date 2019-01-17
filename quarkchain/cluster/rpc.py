@@ -466,8 +466,8 @@ class GetAccountDataRequest(Serializable):
         self.block_height = block_height
 
 
-def token_pair_list_to_dict(list):
-    return {p.token_id: p.balance for p in list}
+def token_pair_list_to_dict(l):
+    return {p.token_id: p.balance for p in l}
 
 
 class TokenBalancePair(Serializable):

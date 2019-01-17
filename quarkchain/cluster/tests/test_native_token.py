@@ -257,3 +257,97 @@ class TestShardState(unittest.TestCase):
             state.get_token_balance(acc3.recipient, DEFAULT_TOKEN),
             self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
         )
+
+    def test_xshard_native_token_received(self):
+        QETH = token_id_encode("QETHXX")
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env0 = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 999999},
+            shard_size=64,
+        )
+        env1 = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 999999},
+            shard_size=64,
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
+        # Add one block in shard 0
+        b0 = state0.create_block_to_mine()
+        state0.finalize_and_add_block(b0)
+
+        b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
+        tx = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+            gas_token_id=DEFAULT_TOKEN,
+            transfer_token_id=QETH,
+        )
+        b1.add_tx(tx)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b1.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=888888,
+                        gas_price=2,
+                        gas_token_id=DEFAULT_TOKEN,
+                        transfer_token_id=QETH,
+                    )
+                ]
+            ),
+        )
+
+        # Create a root block containing the block with the x-shard tx
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(b0.header)
+            .add_minor_block_header(b1.header)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+
+        # Add b0 and make sure all x-shard tx's are added
+        b2 = state0.create_block_to_mine(address=acc3)
+        state0.finalize_and_add_block(b2)
+
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, QETH), 999999 + 888888
+        )
+        # Half collected by root
+        self.assertEqual(
+            state0.get_token_balance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+        )
+
+        # X-shard gas used
+        evmState0 = state0.evm_state
+        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)

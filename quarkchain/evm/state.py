@@ -121,10 +121,7 @@ class TokenBalances:
         return self.balances.get(token_id, 0)
 
     def is_empty(self):
-        for k, v in self.balances.items():
-            if v != 0:
-                return False
-        return True
+        return all(v == 0 for v in self.balances.values())
 
 
 class Account:
