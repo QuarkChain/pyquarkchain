@@ -470,8 +470,6 @@ class Shard:
             await self.__init_genesis_state(root_block)
 
     async def add_root_block(self, root_block: RootBlock):
-        check(root_block.header.height >= self.genesis_root_height)
-
         if root_block.header.height > self.genesis_root_height:
             return self.state.add_root_block(root_block)
 

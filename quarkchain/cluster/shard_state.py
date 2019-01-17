@@ -1119,7 +1119,8 @@ class ShardState:
             ):
                 check(
                     not self.db.contain_remote_minor_block_hash(h),
-                    "minor block {} from shard {} shouldn't have been broadcasted to shard {}".format(
+                    "minor block {} {} from shard {} shouldn't have been broadcasted to shard {}".format(
+                        m_header.height,
                         m_header.get_hash().hex(),
                         m_header.branch.get_full_shard_id(),
                         self.branch.get_full_shard_id(),

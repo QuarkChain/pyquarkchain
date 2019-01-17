@@ -994,10 +994,6 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
-        # Create a root block containing the block with the x-shard tx
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b1.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
         root_block = (
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(genesis)
@@ -1042,11 +1038,6 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
-        # Create a root block containing the block with the x-shard tx
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b1.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
-
         # Add one empty root block
         empty_root = state0.root_tip.create_block_to_append().finalize()
         state0.add_root_block(empty_root)
@@ -1082,9 +1073,6 @@ class TestShardState(unittest.TestCase):
         self.assertIsNone(state0.db.get_minor_block_by_height(3))
 
         b5 = b1.create_block_to_append()
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b5.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
 
         self.assertFalse(state0.add_root_block(root_block1))
 
