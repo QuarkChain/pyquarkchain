@@ -852,7 +852,7 @@ class ShardState:
     def get_balances(self, recipient: bytes, height: Optional[int] = None) -> dict:
         evm_state = self._get_evm_state_from_height(height)
         if not evm_state:
-            return 0
+            return {}
         return evm_state.get_balances(recipient)
 
     def get_transaction_count(

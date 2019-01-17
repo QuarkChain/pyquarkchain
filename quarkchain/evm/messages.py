@@ -530,7 +530,7 @@ def create_contract(ext, msg):
         return 0, 0, b""
 
     b = ext.get_balances(msg.to)
-    if b > 0:
+    if b != {}:
         ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
