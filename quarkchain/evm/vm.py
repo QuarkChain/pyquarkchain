@@ -151,11 +151,11 @@ def preprocess_code(code):
     code = code + b"\x00" * 32
     while i < len(code) - 32:
         codebyte = safe_ord(code[i])
-        if codebyte == 0x5b:
+        if codebyte == 0x5B:
             o |= 1 << i
-        if 0x60 <= codebyte <= 0x7f:
-            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5e])
-            i += codebyte - 0x5e
+        if 0x60 <= codebyte <= 0x7F:
+            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5E])
+            i += codebyte - 0x5E
         else:
             i += 1
     return o, pushcache
@@ -384,10 +384,10 @@ def vm_execute(ext, msg, code):
 
         # Valid operations
         # Pushes first because they are very frequent
-        if 0x60 <= opcode <= 0x7f:
+        if 0x60 <= opcode <= 0x7F:
             stk.append(pushcache[compustate.pc - 1])
             # Move 1 byte forward for 0x60, up to 32 bytes for 0x7f
-            compustate.pc += opcode - 0x5f
+            compustate.pc += opcode - 0x5F
         # Arithmetic
         elif opcode < 0x10:
             if op == "STOP":
@@ -646,12 +646,12 @@ def vm_execute(ext, msg, code):
         # DUPn (eg. DUP1: a b c -> a b c c, DUP3: a b c -> a b c a)
         elif op[:3] == "DUP":
             # 0x7f - opcode is a negative number, -1 for 0x80 ... -16 for 0x8f
-            stk.append(stk[0x7f - opcode])
+            stk.append(stk[0x7F - opcode])
         # SWAPn (eg. SWAP1: a b c d -> a b d c, SWAP3: a b c d -> d b c a)
         elif op[:4] == "SWAP":
             # 0x8e - opcode is a negative number, -2 for 0x90 ... -17 for 0x9f
-            temp = stk[0x8e - opcode]
-            stk[0x8e - opcode] = stk[-1]
+            temp = stk[0x8E - opcode]
+            stk[0x8E - opcode] = stk[-1]
             stk[-1] = temp
         # Logs (aka "events")
         elif op[:3] == "LOG":
@@ -867,7 +867,7 @@ def vm_execute(ext, msg, code):
                 return vm_exception("Cannot SUICIDE inside a static context")
             to = utils.encode_int(stk.pop())
             to = ((b"\x00" * (32 - len(to))) + to)[12:]
-            xfer = ext.get_token_balance(msg.to, 0)
+            xfer = ext.get_balances(msg.to)
             if ext.post_anti_dos_hardfork():
                 extra_gas = (
                     opcodes.SUICIDE_SUPPLEMENTAL_GAS
@@ -877,8 +877,16 @@ def vm_execute(ext, msg, code):
                 )
                 if not eat_gas(compustate, extra_gas):
                     return vm_exception("OUT OF GAS")
-            ext.set_balance(to, ext.get_token_balance(to, 0) + xfer)
-            ext.set_balance(msg.to, 0)
+            # TODODLL#326 support more than default token in contract
+            # TODODLL use shard default token rather than 0 in vm.py
+            to_balances = ext.get_balances(to)
+            merged = {
+                k: xfer.get(k, 0) + to_balances.get(k, 0)
+                for k in xfer.keys() | to_balances.keys()
+            }
+            ext.set_balances(to, merged)
+            # it sounds like any other token balance would be destroyed, need to check
+            ext.set_balances(msg.to, {})
             ext.add_suicide(msg.to)
             log_msg.debug(
                 "SUICIDING",
