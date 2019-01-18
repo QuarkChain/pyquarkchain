@@ -185,3 +185,6 @@ free to open pull requests directly.
 
 ## Developer Community
 Join our developer community on [Discord](https://discord.gg/Jbp35ZC).
+
+## License
+Unless explicitly mentioned in a folder or a file, all files are licensed under MIT License defined in LICENSE file.

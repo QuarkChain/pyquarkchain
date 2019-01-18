@@ -1403,6 +1403,8 @@ class ShardState:
                             block_height=0,
                             timestamp=0,
                             success=False,
+                            gas_token_id=tx.gas_token_id,
+                            transfer_token_id=tx.transfer_token_id,
                         )
                     )
             return tx_list, b""
@@ -1555,11 +1557,12 @@ class ShardState:
             addrs = deque()
             for _ in range(length):
                 addrs.appendleft(header.coinbase_address.recipient)
+                if header.height == 0:
+                    break
                 header = self.db.get_minor_block_header_by_hash(
                     header.hash_prev_minor_block
                 )
-                if not header:
-                    break
+                check(header is not None, "mysteriously missing block")
         self.coinbase_addr_cache[header_hash] = (height, addrs)
         # in case cached too much, clean up
         if len(self.coinbase_addr_cache) > 128:  # size around 640KB if window size 256
@@ -1572,9 +1575,10 @@ class ShardState:
 
     @functools.lru_cache(maxsize=16)
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
-        """
-        Get coinbase addresses up until the given block hash (inclusive) along with
-        block counts within the PoSW window. Raise ValueError if anything goes wrong.
+        """ PoSW needed function: get coinbase addresses up until the given block
+        hash (inclusive) along with block counts within the PoSW window.
+
+        Raise ValueError if anything goes wrong.
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_block(
             header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE

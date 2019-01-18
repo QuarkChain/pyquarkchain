@@ -188,8 +188,9 @@ def minor_block_encoder(block, include_transactions=False):
         "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
         "height": quantity_encoder(header.height),
         "hash": data_encoder(header.get_hash()),
-        "branch": quantity_encoder(header.branch.value),
-        "shard": quantity_encoder(header.branch.get_full_shard_id()),
+        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+        "chainId": quantity_encoder(header.branch.get_chain_id()),
+        "shardId": quantity_encoder(header.branch.get_shard_id()),
         "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
         "idPrevMinorBlock": id_encoder(
             header.hash_prev_minor_block, header.branch.get_full_shard_id()
@@ -226,15 +227,14 @@ def tx_encoder(block, i):
     """
     tx = block.tx_list[i]
     evm_tx = tx.code.get_evm_transaction()
+    branch = block.header.branch
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
         "hash": data_encoder(tx.get_hash()),
         "nonce": quantity_encoder(evm_tx.nonce),
         "timestamp": quantity_encoder(block.header.create_time),
-        "shard": quantity_encoder(block.header.branch.get_full_shard_id()),
-        "blockId": id_encoder(
-            block.header.get_hash(), block.header.branch.get_full_shard_id()
-        ),
+        "shard": quantity_encoder(branch.get_full_shard_id()),
+        "blockId": id_encoder(block.header.get_hash(), branch.get_full_shard_id()),
         "blockHeight": quantity_encoder(block.header.height),
         "transactionIndex": quantity_encoder(i),
         "from": data_encoder(evm_tx.sender),
@@ -468,6 +468,13 @@ class JSONRPCServer:
             "networkId": quantity_encoder(
                 self.master.env.quark_chain_config.NETWORK_ID
             ),
+            "chainSize": quantity_encoder(
+                self.master.env.quark_chain_config.CHAIN_SIZE
+            ),
+            "shardSizes": [
+                quantity_encoder(c.SHARD_SIZE)
+                for c in self.master.env.quark_chain_config.CHAINS
+            ],
             "syncing": self.master.is_syncing(),
             "mining": self.master.is_mining(),
             "shardServerCount": len(self.master.slave_pool),
@@ -494,7 +501,9 @@ class JSONRPCServer:
         balance = account_branch_data.balance
         return {
             "branch": quantity_encoder(branch.value),
-            "shard": quantity_encoder(branch.get_full_shard_id()),
+            "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+            "shardId": quantity_encoder(branch.get_shard_id()),
+            "chainId": quantity_encoder(branch.get_chain_id()),
             "balance": quantity_encoder(balance),
         }
 
@@ -515,8 +524,9 @@ class JSONRPCServer:
             balance = account_branch_data.balance
             count = account_branch_data.transaction_count
             primary = {
-                "branch": quantity_encoder(branch.value),
-                "shard": quantity_encoder(branch.get_full_shard_id()),
+                "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+                "shardId": quantity_encoder(branch.get_shard_id()),
+                "chainId": quantity_encoder(branch.get_chain_id()),
                 "balance": quantity_encoder(balance),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
@@ -528,8 +538,9 @@ class JSONRPCServer:
         shards = []
         for branch, account_branch_data in branch_to_account_branch_data.items():
             data = {
-                "branch": quantity_encoder(branch.value),
-                "shard": quantity_encoder(branch.get_full_shard_id()),
+                "fullShardId": quantity_encoder(branch.get_full_shard_id()),
+                "shardId": quantity_encoder(branch.get_shard_id()),
+                "chainId": quantity_encoder(branch.get_chain_id()),
                 "balance": quantity_encoder(account_branch_data.balance),
                 "transactionCount": quantity_encoder(
                     account_branch_data.transaction_count

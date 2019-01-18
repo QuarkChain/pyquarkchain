@@ -3,7 +3,7 @@ import functools
 import json
 from enum import Enum
 from fractions import Fraction
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 from eth_keys import KeyAPI
 
@@ -112,10 +112,11 @@ class POWConfig(BaseConfig):
 
 class POSWConfig(BaseConfig):
     ENABLED = False
-    STAKE_COEFF = 20  # Alpha in PoSW
     DIFF_COEFF = 20  # Beta
     WINDOW_SIZE = 256  # For estimating effective hash power
-    TOTAL_STAKES = 10 ** 7  # TODO: needs better tuning / estimating
+    # TODO: needs better tuning / estimating
+    # = total stakes / alpha
+    TOTAL_STAKE_PER_BLOCK = (10 ** 9) * QUARKSH_TO_JIAOZI
 
 
 class ChainConfig(BaseConfig):

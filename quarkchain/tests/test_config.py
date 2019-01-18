@@ -97,10 +97,9 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
-                "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,
-                "TOTAL_STAKES": 10000000
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
             }
         },
         {
@@ -137,10 +136,9 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
-                "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,
-                "TOTAL_STAKES": 10000000
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
             }
         },
         {
@@ -177,10 +175,9 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
-                "STAKE_COEFF": 20,
                 "DIFF_COEFF": 20,
                 "WINDOW_SIZE": 256,
-                "TOTAL_STAKES": 10000000
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
             }
         }
     ],
