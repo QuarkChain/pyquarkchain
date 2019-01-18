@@ -10,7 +10,7 @@ from quarkchain.core import (
     RootBlockHeader,
     RootBlock,
 )
-from quarkchain.evm.state import State as EvmState
+from quarkchain.evm.state import State as EvmState, DEFAULT_TOKEN
 from quarkchain.utils import sha3_256, check
 
 
@@ -44,7 +44,7 @@ class GenesisManager:
         shard_config = self._qkc_config.shards[full_shard_id]
         genesis = shard_config.GENESIS
 
-        for address_hex, amount_in_wei in genesis.ALLOC.items():
+        for address_hex, alloc_amount in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
             check(
                 self._qkc_config.get_full_shard_id_by_full_shard_key(
@@ -53,7 +53,13 @@ class GenesisManager:
                 == full_shard_id
             )
             evm_state.full_shard_key = address.full_shard_key
-            evm_state.delta_balance(address.recipient, amount_in_wei)
+            if isinstance(alloc_amount, dict):
+                for k, v in alloc_amount.items():
+                    evm_state.delta_token_balance(address.recipient, k, v)
+            else:
+                evm_state.delta_token_balance(
+                    address.recipient, DEFAULT_TOKEN, alloc_amount
+                )
 
         evm_state.commit()
 

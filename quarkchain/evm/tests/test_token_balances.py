@@ -8,7 +8,7 @@ from quarkchain.utils import token_id_encode
 def test_blank_account():
     b = TokenBalances(b"", InMemoryDb())
     assert b.balances == {}
-    assert b.serialize() == b"\x00\xc0"
+    assert b.serialize() == b""
 
 
 @pytest.mark.parametrize(
@@ -50,7 +50,7 @@ def test_encode_bytes(encoding, mapping):
     # starting from blank account
     b0 = TokenBalances(b"", InMemoryDb())
     for k, v in mapping.items():
-        b0.delta(k, v)
+        b0.balances[k] = v
     assert b0.balances == mapping
     assert b0.serialize() == encoding
 
@@ -62,15 +62,15 @@ def test_encode_bytes(encoding, mapping):
 
 def test_encoding_singularity():
     b0 = TokenBalances(b"", InMemoryDb())
-    b0.delta(0, 100)
-    b0.delta(1, 100)
-    b0.delta(2, 100)
-    b0.delta(3, 100)
+    b0.balances[0] = 100
+    b0.balances[1] = 100
+    b0.balances[2] = 100
+    b0.balances[3] = 100
 
     b1 = TokenBalances(b"", InMemoryDb())
-    b1.delta(3, 100)
-    b1.delta(2, 100)
-    b1.delta(1, 100)
-    b1.delta(0, 100)
+    b1.balances[3] = 100
+    b1.balances[2] = 100
+    b1.balances[1] = 100
+    b1.balances[0] = 100
 
     assert b0.serialize() == b1.serialize()

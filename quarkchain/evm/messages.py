@@ -134,6 +134,11 @@ def config_fork_specific_validation(config, blknum, tx):
 
 def validate_transaction(state, tx):
 
+    # (0) multi native token, tx fee must be paid in QKC (0)
+    # TODODLL: change this
+    if tx.gas_token_id != 0:
+        raise InvalidTransaction("Gas token must be QKC")
+
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
@@ -155,12 +160,39 @@ def validate_transaction(state, tx):
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
-    total_cost = tx.value + tx.gasprice * tx.startgas
-
-    if state.get_balance(tx.sender) < total_cost:
-        raise InsufficientBalance(
-            rp(tx, "balance", state.get_balance(tx.sender), total_cost)
-        )
+    if tx.transfer_token_id == tx.gas_token_id:
+        total_cost = tx.value + tx.gasprice * tx.startgas
+        if state.get_token_balance(tx.sender, tx.transfer_token_id) < total_cost:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.transfer_token_id,
+                    state.get_token_balance(tx.sender, tx.transfer_token_id),
+                    total_cost,
+                )
+            )
+    else:
+        if state.get_token_balance(tx.sender, tx.transfer_token_id) < tx.value:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.transfer_token_id,
+                    state.get_token_balance(tx.sender, tx.transfer_token_id),
+                    tx.value,
+                )
+            )
+        if (
+            state.get_token_balance(tx.sender, tx.gas_token_id)
+            < tx.gasprice * tx.startgas
+        ):
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.gas_token_id,
+                    state.get_token_balance(tx.sender, tx.gas_token_id),
+                    tx.gasprice * tx.startgas,
+                )
+            )
 
     # check block gas limit
     if state.gas_used + tx.startgas > state.gas_limit:
@@ -209,8 +241,10 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
 
     # buy startgas
-    assert state.get_balance(tx.sender) >= tx.startgas * tx.gasprice
-    state.delta_balance(tx.sender, -tx.startgas * tx.gasprice)
+    assert (
+        state.get_token_balance(tx.sender, tx.gas_token_id) >= tx.startgas * tx.gasprice
+    )
+    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -224,6 +258,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         from_full_shard_key=tx.from_full_shard_key,
         to_full_shard_key=tx.to_full_shard_key,
         tx_hash=tx_wrapper_hash,
+        transfer_token_id=tx.transfer_token_id,
     )
 
     # MESSAGE
@@ -253,14 +288,17 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             startgas=tx.startgas,
             gas_remained=gas_remained,
         )
-        state.delta_balance(tx.sender, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         fee = (
             tx.gasprice
             * gas_used
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
+        # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += tx.gasprice * gas_used
         output = b""
         success = 0
@@ -274,7 +312,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             gas_used -= min(state.refunds, gas_used // 2)
             state.refunds = 0
         # sell remaining gas
-        state.delta_balance(tx.sender, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         # if x-shard, reserve part of the gas for the target shard miner
         fee = (
             tx.gasprice
@@ -282,7 +322,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
+        # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += fee
         if tx.to:
             output = bytearray_to_bytestr(data)
@@ -299,7 +340,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     suicides = state.suicides
     state.suicides = []
     for s in suicides:
-        state.set_balance(s, 0)
+        state.set_balances(s, {})
         state.del_account(s)
 
     # Pre-Metropolis: commit state after every tx
@@ -325,8 +366,9 @@ class VMExt:
         self._state = state
         self.get_code = state.get_code
         self.set_code = state.set_code
-        self.get_balance = state.get_balance
-        self.set_balance = state.set_balance
+        self.get_balances = state.get_balances
+        self.get_token_balance = state.get_token_balance
+        self.set_balances = state.set_balances
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
@@ -389,13 +431,15 @@ def _apply_msg(ext, msg, code):
             pre_storage=ext.log_storage(msg.to),
             static=msg.static,
             depth=msg.depth,
+            gas_token_id=msg.gas_token_id,
+            transfer_token_id=msg.transfer_token_id,
         )
 
     # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
         if msg.is_cross_shard:
-            if not ext.deduct_value(msg.sender, msg.value):
+            if not ext.deduct_value(msg.sender, msg.transfer_token_id, msg.value):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.core.CrossShardTransactionDeposit(
@@ -406,19 +450,26 @@ def _apply_msg(ext, msg, code):
                     to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                     value=msg.value,
                     gas_price=ext.tx_gasprice,
-                    # TODO: add gas_token_id and transfer_token_id to message
-                    gas_token_id=0,
-                    transfer_token_id=0,
+                    gas_token_id=msg.gas_token_id,
+                    transfer_token_id=msg.transfer_token_id,
                 )
             )
-        elif not ext.transfer_value(msg.sender, msg.to, msg.value):
+        elif not ext.transfer_value(
+            msg.sender, msg.to, msg.transfer_token_id, msg.value
+        ):
             log_msg.debug(
-                "MSG TRANSFER FAILED", have=ext.get_balance(msg.to), want=msg.value
+                "MSG TRANSFER FAILED",
+                have=ext.get_token_balance(msg.sender, msg.transfer_token_id),
+                want=msg.value,
             )
             return 1, msg.gas, []
 
     if msg.is_cross_shard:
         # Cross shard contract call is not supported
+        return 1, msg.gas, []
+
+    if msg.transfer_token_id != 0:
+        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 1, msg.gas, []
 
     # Main loop
@@ -456,6 +507,10 @@ def create_contract(ext, msg):
     if msg.is_cross_shard:
         return 0, msg.gas, b""
 
+    if msg.transfer_token_id != 0:
+        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
+        return 0, msg.gas, b""
+
     code = msg.data.extract_all()
 
     if ext.tx_origin != msg.sender:
@@ -474,9 +529,9 @@ def create_contract(ext, msg):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
         return 0, 0, b""
 
-    b = ext.get_balance(msg.to)
-    if b > 0:
-        ext.set_balance(msg.to, b)
+    b = ext.get_balances(msg.to)
+    if b != {}:
+        ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
         # ext.reset_storage(msg.to)
