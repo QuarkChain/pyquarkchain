@@ -1529,11 +1529,12 @@ class ShardState:
             addrs = deque()
             for _ in range(length):
                 addrs.appendleft(header.coinbase_address.recipient)
+                if header.height == 0:
+                    break
                 header = self.db.get_minor_block_header_by_hash(
                     header.hash_prev_minor_block
                 )
-                if not header:
-                    break
+                check(header is not None, "mysteriously missing block")
         self.coinbase_addr_cache[header_hash] = (height, addrs)
         # in case cached too much, clean up
         if len(self.coinbase_addr_cache) > 128:  # size around 640KB if window size 256
