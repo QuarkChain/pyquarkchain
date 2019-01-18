@@ -1463,12 +1463,12 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
         # Coinbase in genesis should be disallowed
-        self.assertEqual(len(state.evm_state.posw_disallow_list), 1)
-        self.assertEqual(list(state.evm_state.posw_disallow_list)[0], b"\x00" * 20)
+        self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
+        self.assertEqual(list(state.evm_state.sender_disallow_list)[0], b"\x00" * 20)
 
         m = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m)
-        self.assertEqual(len(state.evm_state.posw_disallow_list), 2)
+        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
         self.assertGreater(state.get_balance(acc1.recipient), 0)
 
         # Try to send money from that account
@@ -1490,8 +1490,8 @@ class TestShardState(unittest.TestCase):
         r = state.get_transaction_receipt(tx.get_hash())
         self.assertEqual(r[2].success, b"")  # Failure
         # Make sure the disallow rolling window now discards the first addr
-        self.assertEqual(len(state.evm_state.posw_disallow_list), 2)
-        self.assertTrue(b"\x00" * 20 not in state.evm_state.posw_disallow_list)
+        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
+        self.assertTrue(b"\x00" * 20 not in state.evm_state.sender_disallow_list)
 
     def test_tx_native_token(self):
         from quarkchain.utils import token_id_encode

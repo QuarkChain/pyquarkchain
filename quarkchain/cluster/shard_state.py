@@ -148,17 +148,17 @@ class ShardState:
         )
 
     def __create_evm_state(
-        self, root_hash: Optional[bytes], header_hash: Optional[bytes]
+        self, trie_root_hash: Optional[bytes], header_hash: Optional[bytes]
     ):
         """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
-        if root_hash:
-            state.trie.root_hash = root_hash
+        if trie_root_hash:
+            state.trie.root_hash = trie_root_hash
 
         if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
-            state.posw_disallow_list = self._get_posw_coinbase_blockcnt(
+            state.sender_disallow_list = self._get_posw_coinbase_blockcnt(
                 header_hash
             ).keys()
         return state
@@ -176,7 +176,7 @@ class ShardState:
         genesis_block = genesis_manager.create_minor_block(
             root_block,
             self.full_shard_id,
-            self.__create_evm_state(root_hash=None, header_hash=None),
+            self.__create_evm_state(trie_root_hash=None, header_hash=None),
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -690,8 +690,8 @@ class ShardState:
                     )
                 )
 
-        header_hash = block.header.get_hash()
-        if self.db.contain_minor_block_by_hash(header_hash):
+        block_hash = block.header.get_hash()
+        if self.db.contain_minor_block_by_hash(block_hash):
             return None
 
         evm_tx_included = []
@@ -774,10 +774,8 @@ class ShardState:
             self.evm_state = evm_state
             # Safe to update PoSW blacklist here
             if self.shard_config.POSW_CONFIG.ENABLED:
-                posw_disallow_list = self._get_posw_coinbase_blockcnt(
-                    header_hash
-                ).keys()
-                self.evm_state.posw_disallow_list = posw_disallow_list
+                disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
+                self.evm_state.sender_disallow_list = disallow_list
             self.header_tip = block.header
             self.meta_tip = block.meta
 
@@ -802,7 +800,7 @@ class ShardState:
                 "shard": str(block.header.branch.get_full_shard_id()),
                 "network": self.env.cluster_config.MONITORING.NETWORK_NAME,
                 "cluster": self.env.cluster_config.MONITORING.CLUSTER_ID,
-                "hash": header_hash.hex(),
+                "hash": block_hash.hex(),
                 "height": block.header.height,
                 "original_cluster": tracking_data["cluster"],
                 "inception": tracking_data["inception"],
