@@ -32,7 +32,7 @@ from quarkchain.core import (
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
-from quarkchain.evm.state import State as EvmState
+from quarkchain.evm.state import State as EvmState, DEFAULT_TOKEN
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.genesis import GenesisManager
@@ -246,6 +246,8 @@ class ShardState:
                 from_full_shard_key=evm_tx.from_full_shard_key,
                 to_full_shard_key=evm_tx.to_full_shard_key,
                 network_id=evm_tx.network_id,
+                gas_token_id=evm_tx.gas_token_id,
+                transfer_token_id=evm_tx.transfer_token_id,
             )
             evm_tx.sender = from_address.recipient
 
@@ -589,7 +591,9 @@ class ShardState:
 
         # Pay miner
         pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_balance(evm_state.block_coinbase, pure_coinbase_amount)
+        evm_state.delta_token_balance(
+            evm_state.block_coinbase, DEFAULT_TOKEN, pure_coinbase_amount
+        )
 
         # Update actual root hash
         evm_state.commit()
@@ -837,11 +841,19 @@ class ShardState:
         block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
         self.add_block(block)
 
-    def get_balance(self, recipient: bytes, height: Optional[int] = None) -> int:
+    def get_token_balance(
+        self, recipient: bytes, token_id: int, height: Optional[int] = None
+    ) -> int:
         evm_state = self._get_evm_state_from_height(height)
         if not evm_state:
             return 0
-        return evm_state.get_balance(recipient)
+        return evm_state.get_token_balance(recipient, token_id)
+
+    def get_balances(self, recipient: bytes, height: Optional[int] = None) -> dict:
+        evm_state = self._get_evm_state_from_height(height)
+        if not evm_state:
+            return {}
+        return evm_state.get_balances(recipient)
 
     def get_transaction_count(
         self, recipient: bytes, height: Optional[int] = None
@@ -1049,7 +1061,9 @@ class ShardState:
 
         # Pay miner
         pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_balance(evm_state.block_coinbase, pure_coinbase_amount)
+        evm_state.delta_token_balance(
+            evm_state.block_coinbase, DEFAULT_TOKEN, pure_coinbase_amount
+        )
 
         # Update actual root hash
         evm_state.commit()
@@ -1269,8 +1283,8 @@ class ShardState:
                     to_address=r_block.header.coinbase_address,
                     value=r_block.header.coinbase_amount,
                     gas_price=0,
-                    gas_token_id=0,
-                    transfer_token_id=0,  # root block coinbase is only in QKC
+                    gas_token_id=DEFAULT_TOKEN,
+                    transfer_token_id=DEFAULT_TOKEN,  # root block coinbase is only in QKC
                 )
             )
         return tx_list
@@ -1282,7 +1296,9 @@ class ShardState:
         )  # type: Fraction
 
         for tx in tx_list:
-            evm_state.delta_balance(tx.to_address.recipient, tx.value)
+            evm_state.delta_token_balance(
+                tx.to_address.recipient, tx.transfer_token_id, tx.value
+            )
             evm_state.gas_used = min(
                 evm_state.gas_used
                 + (opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0),
@@ -1295,7 +1311,9 @@ class ShardState:
                 // local_fee_rate.denominator
             )
             evm_state.block_fee += xshard_fee
-            evm_state.delta_balance(evm_state.block_coinbase, xshard_fee)
+            evm_state.delta_token_balance(
+                evm_state.block_coinbase, tx.gas_token_id, xshard_fee
+            )
 
         evm_state.xshard_receive_gas_used = evm_state.gas_used
 

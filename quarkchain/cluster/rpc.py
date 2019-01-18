@@ -466,18 +466,30 @@ class GetAccountDataRequest(Serializable):
         self.block_height = block_height
 
 
+def token_pair_list_to_dict(l):
+    return {p.token_id: p.balance for p in l}
+
+
+class TokenBalancePair(Serializable):
+    FIELDS = [("token_id", uint64), ("balance", uint256)]
+
+    def __init__(self, token_id, balance):
+        self.token_id = token_id
+        self.balance = balance
+
+
 class AccountBranchData(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("transaction_count", uint256),
-        ("balance", uint256),
+        ("token_balances", PrependedSizeListSerializer(4, TokenBalancePair)),
         ("is_contract", boolean),
     ]
 
-    def __init__(self, branch, transaction_count, balance, is_contract):
+    def __init__(self, branch, transaction_count, token_balances, is_contract):
         self.branch = branch
         self.transaction_count = transaction_count
-        self.balance = balance
+        self.token_balances = token_balances
         self.is_contract = is_contract
 
 
