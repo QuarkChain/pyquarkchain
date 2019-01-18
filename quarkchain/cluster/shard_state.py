@@ -1562,7 +1562,10 @@ class ShardState:
         # Note off-by-1 because it's inclusive
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         cnt = block_cnt.get(coinbase_address, 0)
-        ret = diff * config.DIFF_COEFF if cnt > block_threshold else diff
+        if block_threshold == 0 or cnt > block_threshold:
+            ret = diff * config.DIFF_COEFF
+        else:
+            ret = diff
         # TODO: remove it if verified not time consuming
         passed_ms = (time.time() - start_time) * 1000
         Logger.debug("Adjust PoSW diff took %s milliseconds" % passed_ms)
