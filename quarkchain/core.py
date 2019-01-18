@@ -864,6 +864,12 @@ class MinorBlock(Serializable):
 
         return MinorBlock(header, meta, [], b"")
 
+    def __hash__(self):
+        return int.from_bytes(self.header.get_hash(), byteorder="big")
+
+    def __eq__(self, other):
+        return isinstance(other, MinorBlock) and hash(other) == hash(self)
+
 
 class RootBlockHeader(Serializable):
     FIELDS = [

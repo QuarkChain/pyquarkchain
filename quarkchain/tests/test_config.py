@@ -94,7 +94,13 @@ class TestQuarkChainConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
-            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
+            "POSW_CONFIG": {
+                "ENABLED": false,
+                "DIFF_COEFF": 20,
+                "WINDOW_SIZE": 256,
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
+            }
         },
         {
             "CHAIN_ID": 1,
@@ -127,7 +133,13 @@ class TestQuarkChainConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
-            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
+            "POSW_CONFIG": {
+                "ENABLED": false,
+                "DIFF_COEFF": 20,
+                "WINDOW_SIZE": 256,
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
+            }
         },
         {
             "CHAIN_ID": 2,
@@ -160,7 +172,13 @@ class TestQuarkChainConfig(unittest.TestCase):
             "GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR": 2,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
-            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3
+            "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
+            "POSW_CONFIG": {
+                "ENABLED": false,
+                "DIFF_COEFF": 20,
+                "WINDOW_SIZE": 256,
+                "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
+            }
         }
     ],
     "SHARDS": null,

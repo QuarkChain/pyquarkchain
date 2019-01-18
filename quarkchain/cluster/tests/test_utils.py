@@ -65,6 +65,7 @@ def get_test_env(
         if remote_mining:
             shard.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             shard.GENESIS.DIFFICULTY = 10
+        shard.POSW_CONFIG.WINDOW_SIZE = 2
 
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True

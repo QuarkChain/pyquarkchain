@@ -801,11 +801,8 @@ class TestJSONRPC(unittest.TestCase):
                         address=miner_address, prefer_root=shard_id is None
                     )
                 )
-                self.assertEqual(
-                    header_hash_hex[2:], block.header.get_hash_for_mining().hex()
-                )
                 # solve it and submit
-                work = MiningWork(bytes.fromhex(resp[0][2:]), 1, 10)
+                work = MiningWork(bytes.fromhex(header_hash_hex[2:]), 1, 10)
                 solver = DoubleSHA256(work)
                 nonce = solver.mine(0, 10000).nonce
                 mixhash = "0x" + sha3_256(b"").hex()
