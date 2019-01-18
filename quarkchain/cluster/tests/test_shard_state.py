@@ -46,6 +46,36 @@ class TestShardState(unittest.TestCase):
         # make sure genesis minor block has the right coinbase after-tax
         self.assertEqual(state.header_tip.coinbase_amount, 2500000000000000000)
 
+    def test_init_genesis_state(self):
+        env = get_test_env()
+        state = create_default_shard_state(env)
+        genesis_header = state.header_tip
+        root_block = state.root_tip.create_block_to_append(nonce=1234)
+        root_block.header.height = 0
+        root_block.finalize()
+
+        new_genesis_block = state.init_genesis_state(root_block)
+        self.assertNotEqual(
+            new_genesis_block.header.get_hash(), genesis_header.get_hash()
+        )
+        # header tip is still the old genesis header
+        self.assertEqual(state.header_tip, genesis_header)
+
+        block = new_genesis_block.create_block_to_append()
+        state.finalize_and_add_block(block)
+        # extending new_genesis_block doesn't change header_tip due to root chain first consensus
+        self.assertEqual(state.header_tip, genesis_header)
+        self.assertEqual(genesis_header, state.db.get_minor_block_by_height(0).header)
+
+        # extending the root block will change the header_tip
+        root_block = root_block.create_block_to_append(nonce=1234).finalize()
+        root_block.finalize()
+        self.assertTrue(state.add_root_block(root_block))
+        # ideally header_tip should be block.header but we don't track tips on fork chains for the moment
+        # and thus it reverted all the way back to genesis
+        self.assertEqual(state.header_tip, new_genesis_block.header)
+        self.assertEqual(new_genesis_block, state.db.get_minor_block_by_height(0))
+
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
@@ -1010,10 +1040,6 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
-        # Create a root block containing the block with the x-shard tx
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b1.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
         root_block = (
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(genesis)
@@ -1058,11 +1084,6 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(evm_state=evm_state, coinbase_amount=evm_state.block_fee)
 
-        # Create a root block containing the block with the x-shard tx
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b1.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
-
         # Add one empty root block
         empty_root = state0.root_tip.create_block_to_append().finalize()
         state0.add_root_block(empty_root)
@@ -1098,9 +1119,6 @@ class TestShardState(unittest.TestCase):
         self.assertIsNone(state0.db.get_minor_block_by_height(3))
 
         b5 = b1.create_block_to_append()
-        state0.add_cross_shard_tx_list_by_minor_block_hash(
-            h=b5.header.get_hash(), tx_list=CrossShardTransactionList(tx_list=[])
-        )
 
         self.assertFalse(state0.add_root_block(root_block1))
 

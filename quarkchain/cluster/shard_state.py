@@ -181,6 +181,7 @@ class ShardState:
 
         self.db.put_minor_block(genesis_block, [])
         self.db.put_root_block(root_block)
+        self.db.put_genesis_block(root_block.header.get_hash(), genesis_block)
 
         if self.initialized:
             # already initialized. just return the block without resetting the state.
@@ -1131,24 +1132,32 @@ class ShardState:
             prev_root_header = self.db.get_root_block_header_by_hash(
                 m_header.hash_prev_root_block
             )
-            check(prev_root_header is not None)
-            if not self.__is_neighbor(m_header.branch, prev_root_header.height):
+            # prev_root_header can be None when the shard is not created at root height 0
+            if (
+                not prev_root_header
+                or prev_root_header.height
+                == self.env.quark_chain_config.get_genesis_root_height(
+                    self.full_shard_id
+                )
+                or not self.__is_neighbor(m_header.branch, prev_root_header.height)
+            ):
+                check(
+                    not self.db.contain_remote_minor_block_hash(h),
+                    "minor block {} {} from shard {} shouldn't have been broadcasted to shard {}".format(
+                        m_header.height,
+                        m_header.get_hash().hex(),
+                        m_header.branch.get_full_shard_id(),
+                        self.branch.get_full_shard_id(),
+                    ),
+                )
                 continue
 
-            if not self.db.contain_remote_minor_block_hash(h):
-                if (
-                    prev_root_header.height
-                    > self.env.quark_chain_config.get_genesis_root_height(
-                        self.full_shard_id
-                    )
-                ):
-                    raise ValueError(
-                        "cannot find x_shard tx list for {}-{} {}".format(
-                            m_header.branch.get_full_shard_id(),
-                            m_header.height,
-                            h.hex(),
-                        )
-                    )
+            check(
+                self.db.contain_remote_minor_block_hash(h),
+                "cannot find x_shard tx list for {}-{} {}".format(
+                    m_header.branch.get_full_shard_id(), m_header.height, h.hex()
+                ),
+            )
 
         if len(shard_headers) > self.__get_max_blocks_in_one_root_block():
             raise ValueError(
@@ -1218,6 +1227,27 @@ class ShardState:
             self.root_tip,
             self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block),
         ):
+            if self.header_tip.height == 0:
+                # we are at genesis block now but the root block it points to is still on a fork from root_tip.
+                # we have to reset the genesis block based on the root chain identified by root_tip
+                genesis_root_header = self.root_tip
+                genesis_height = self.env.quark_chain_config.get_genesis_root_height(
+                    self.full_shard_id
+                )
+                check(genesis_root_header.height >= genesis_height)
+                # first find the root block at genesis root height
+                while genesis_root_header.height != genesis_height:
+                    genesis_root_header = self.db.get_root_block_header_by_hash(
+                        genesis_root_header.hash_prev_block
+                    )
+                    check(genesis_root_header is not None)
+                # recover the genesis block
+                self.header_tip = self.db.get_genesis_block(
+                    genesis_root_header.get_hash()
+                ).header
+                check(self.header_tip is not None)
+                break
+
             self.header_tip = self.db.get_minor_block_header_by_hash(
                 self.header_tip.hash_prev_minor_block
             )

@@ -542,6 +542,8 @@ class TestCluster(unittest.TestCase):
                 genesis1.header.hash_prev_root_block, root1.header.get_hash()
             )
 
+            self.assertNotEqual(genesis0.header.get_hash(), genesis1.header.get_hash())
+
             # let's make cluster1's root chain longer than cluster0's
             is_root, root2 = call_async(master1.get_next_block_to_mine(acc2))
             self.assertTrue(is_root)
