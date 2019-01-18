@@ -13,7 +13,7 @@ from quarkchain.cluster.p2p_commands import (
     NewTransactionListCommand,
     NewBlockMinorCommand,
 )
-from quarkchain.cluster.miner import Miner
+from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
@@ -313,7 +313,13 @@ class SyncTask:
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
             try:
-                self.shard_state.validate_minor_block_seal(header)
+                # Note that PoSW may increase the diff, so following check
+                # is necessary but not sufficient. More comprehensive validation
+                # will happen when adding the block
+                consensus_type = self.shard.env.quark_chain_config.shards[
+                    header.branch.get_full_shard_id()
+                ].CONSENSUS_TYPE
+                validate_seal(header, consensus_type)
             except Exception as e:
                 full_shard_id = header.branch.get_full_shard_id()
                 Logger.warning(
@@ -502,7 +508,8 @@ class Shard:
              also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
         """
         if self.synchronizer.running:
-            # TODO optinal: queue the block if it came from broadcast to so that once sync is over, catch up immediately
+            # TODO optional: queue the block if it came from broadcast to so that once sync is over,
+            # catch up immediately
             return
 
         if block.header.get_hash() in self.state.new_block_pool:
@@ -517,7 +524,7 @@ class Shard:
                 return
 
         try:
-            self.state.validate_minor_block_seal(block.header)
+            self.state.validate_minor_block_seal(block)
         except Exception as e:
             full_shard_id = block.header.branch.get_full_shard_id()
             Logger.warning(
