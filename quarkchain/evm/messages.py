@@ -366,6 +366,7 @@ class VMExt:
         self.reset_storage = state.reset_storage
         self.tx_origin = tx.sender if tx else b"\x00" * 20
         self.tx_gasprice = tx.gasprice if tx else 0
+        self.sender_disallow_list = state.sender_disallow_list
 
 
 def apply_msg(ext, msg):

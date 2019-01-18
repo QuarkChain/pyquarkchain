@@ -270,6 +270,11 @@ def vm_trace(ext, msg, compustate, opcode, pushcache, tracer=log_vm_op):
 
 # Main function
 def vm_execute(ext, msg, code):
+
+    # early exit if msg.sender is disallowed
+    if msg.sender in ext.sender_disallow_list:
+        return vm_exception("SENDER NOT ALLOWED")
+
     # precompute trace flag
     # if we trace vm, we're in slow mode anyway
     trace_vm = log_vm_op.is_active("trace")
