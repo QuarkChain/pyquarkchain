@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import List, Callable
+from typing import Callable, Dict, List
 
 import aiohttp_cors
 import rlp
@@ -13,10 +13,19 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
 from quarkchain.cluster.master import MasterServer
-from quarkchain.core import Address, Branch, Code, Transaction, Log
-from quarkchain.core import RootBlock, TransactionReceipt, MinorBlock
+from quarkchain.cluster.rpc import TokenBalancePair
+from quarkchain.core import (
+    Address,
+    Branch,
+    Code,
+    Log,
+    MinorBlock,
+    RootBlock,
+    Transaction,
+    TransactionReceipt,
+)
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.evm.utils import is_numeric, denoms
+from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.utils import Logger
 
 # defaults
@@ -245,7 +254,9 @@ def tx_encoder(block, i):
         "gasPrice": quantity_encoder(evm_tx.gasprice),
         "gas": quantity_encoder(evm_tx.startgas),
         "data": data_encoder(evm_tx.data),
-        "network_id": quantity_encoder(evm_tx.network_id),
+        "networkId": quantity_encoder(evm_tx.network_id),
+        "transferTokenId": quantity_encoder(evm_tx.transfer_token_id),
+        "gasTokenId": quantity_encoder(evm_tx.gas_token_id),
         "r": quantity_encoder(evm_tx.r),
         "s": quantity_encoder(evm_tx.s),
         "v": quantity_encoder(evm_tx.v),
@@ -298,6 +309,18 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     }
 
     return resp
+
+
+def balances_encoder(balances: List[TokenBalancePair]) -> List[Dict]:
+    balance_list = []
+    for pair in balances:
+        balance_list.append(
+            {
+                "tokenId": quantity_encoder(pair.token_id),
+                "balance": quantity_encoder(pair.balance),
+            }
+        )
+    return balance_list
 
 
 def decode_arg(name, decoder):
@@ -493,18 +516,18 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("address", address_decoder)
     @decode_arg("block_height", block_height_decoder)
-    async def getBalance(self, address, block_height=None):
+    async def getBalances(self, address, block_height=None):
         account_branch_data = await self.master.get_primary_account_data(
             Address.deserialize(address), block_height
         )
         branch = account_branch_data.branch
-        balance = account_branch_data.balance
+        balances = account_branch_data.token_balances
         return {
             "branch": quantity_encoder(branch.value),
             "fullShardId": quantity_encoder(branch.get_full_shard_id()),
             "shardId": quantity_encoder(branch.get_shard_id()),
             "chainId": quantity_encoder(branch.get_chain_id()),
-            "balance": quantity_encoder(balance),
+            "balances": balances_encoder(balances),
         }
 
     @public_methods.add
@@ -521,13 +544,14 @@ class JSONRPCServer:
                 address, block_height
             )
             branch = account_branch_data.branch
-            balance = account_branch_data.balance
             count = account_branch_data.transaction_count
+
+            balances = account_branch_data.token_balances
             primary = {
                 "fullShardId": quantity_encoder(branch.get_full_shard_id()),
                 "shardId": quantity_encoder(branch.get_shard_id()),
                 "chainId": quantity_encoder(branch.get_chain_id()),
-                "balance": quantity_encoder(balance),
+                "balances": balances_encoder(balances),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
             }
@@ -537,11 +561,12 @@ class JSONRPCServer:
 
         shards = []
         for branch, account_branch_data in branch_to_account_branch_data.items():
+            balances = account_branch_data.token_balances
             data = {
                 "fullShardId": quantity_encoder(branch.get_full_shard_id()),
                 "shardId": quantity_encoder(branch.get_shard_id()),
                 "chainId": quantity_encoder(branch.get_chain_id()),
-                "balance": quantity_encoder(account_branch_data.balance),
+                "balances": balances_encoder(balances),
                 "transactionCount": quantity_encoder(
                     account_branch_data.transaction_count
                 ),
