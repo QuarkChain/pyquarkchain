@@ -107,9 +107,8 @@ class TokenBalances:
             l = []
             for k, v in self.balances.items():
                 l.append(TokenBalancePair(k, v))
-            l.sort(
-                lambda b: b.token_id
-            )  # sort by token id to make token balances serialization deterministic
+            # sort by token id to make token balances serialization deterministic
+            l.sort(key=lambda b: b.token_id)
             retv = retv + rlp.encode(l)
         elif self.enum == b"\x01":
             raise Exception("Token balance trie is not yet implemented")

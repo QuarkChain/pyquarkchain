@@ -11,7 +11,8 @@ from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import QuarkChainConfig, BaseConfig, ChainConfig
 from quarkchain.core import Address
 from quarkchain.core import ChainMask
-from quarkchain.utils import is_p2, check, Logger
+from quarkchain.utils import is_p2, check, Logger, token_id_encode
+from quarkchain.evm.state import DEFAULT_TOKEN
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
@@ -28,6 +29,14 @@ def update_genesis_alloc(cluser_config):
 
     qkc_config = cluser_config.QUARKCHAIN
 
+    allocation = {
+        DEFAULT_TOKEN: 1000000 * (10 ** 18),
+        token_id_encode("QETC"): 2 * (10 ** 8) * (10 ** 18),
+        token_id_encode("QFB"): 3 * (10 ** 8) * (10 ** 18),
+        token_id_encode("QAAPL"): 4 * (10 ** 8) * (10 ** 18),
+        token_id_encode("QTSLA"): 5 * (10 ** 8) * (10 ** 18),
+    }
+
     try:
         for chain_id in range(qkc_config.CHAIN_SIZE):
             alloc_file = alloc_file_template.format(chain_id)
@@ -40,7 +49,7 @@ def update_genesis_alloc(cluser_config):
                 )
                 qkc_config.shards[full_shard_id].GENESIS.ALLOC[
                     item["address"]
-                ] = 1000000 * (10 ** 18)
+                ] = allocation
 
             Logger.info(
                 "[{}] Imported {} genesis accounts into config from {}".format(
@@ -67,7 +76,7 @@ def update_genesis_alloc(cluser_config):
             for full_shard_id, shard_config in qkc_config.shards.items():
                 shard_config.GENESIS.ALLOC[
                     address.address_in_shard(full_shard_id).serialize().hex()
-                ] = 1000 * (10 ** 18)
+                ] = allocation
 
         Logger.info(
             "Imported {} loadtest accounts from {}".format(len(items), loadtest_file)

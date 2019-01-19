@@ -247,6 +247,16 @@ class ShardDbOperator(TransactionHistoryMixin):
             return None
         return self.get_minor_block_header_by_hash(r_minor_header_hash, False)
 
+    def put_genesis_block(self, root_block_hash, genesis_block):
+        self.db.put(b"genesis_" + root_block_hash, genesis_block.serialize())
+
+    def get_genesis_block(self, root_block_hash):
+        data = self.db.get(b"genesis_" + root_block_hash, None)
+        if not data:
+            return None
+        else:
+            return MinorBlock.deserialize(data)
+
     # ------------------------- Minor block db operations --------------------------------
     def put_minor_block(self, m_block, x_shard_receive_tx_list):
         m_block_hash = m_block.header.get_hash()

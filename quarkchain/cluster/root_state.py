@@ -1,16 +1,19 @@
-import time
-import json
 import asyncio
+import json
+import time
 from fractions import Fraction
 from typing import Optional
 
-from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.guardian import Guardian
-from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
+from quarkchain.cluster.miner import validate_seal
 from quarkchain.core import (
-    calculate_merkle_root,
-    Serializable,
+    Address,
+    MinorBlockHeader,
     PrependedSizeListSerializer,
+    RootBlock,
+    RootBlockHeader,
+    Serializable,
+    calculate_merkle_root,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
@@ -248,7 +251,9 @@ class RootState:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
-    def create_block_to_mine(self, m_header_list, address, create_time=None):
+    def create_block_to_mine(self, m_header_list, address=None, create_time=None):
+        if not address:
+            address = Address.create_empty_account()
         if create_time is None:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         tracking_data = {
