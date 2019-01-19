@@ -287,15 +287,6 @@ index 2c0dc14..7862f6b 100644
          retv = self.enum
          if self.enum == b"\x00":
              l = []
-@@ -107,7 +103,7 @@ class TokenBalances:
-                 l.append(TokenBalancePair(k, v))
-             l.sort(
-                 lambda b: b.token_id
--            )  # sort by token id to make token balances serialization deterministic
-+            )  # sort by token id to make balance deterministic
-             retv = retv + rlp.encode(l)
-         elif self.enum == b"\x01":
-             raise Exception("Token balance trie is not yet implemented")
 @@ -116,22 +112,22 @@ class TokenBalances:
          return retv
 
