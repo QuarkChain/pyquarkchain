@@ -16,13 +16,17 @@ from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.genesis import GenesisManager
 
 
-def create_default_shard_state(env, shard_id=0, diff_calc=None, posw_override=False):
+def create_default_shard_state(
+    env, shard_id=0, diff_calc=None, posw_override=False, no_coinbase=False
+):
     genesis_manager = GenesisManager(env.quark_chain_config)
     shard_size = next(iter(env.quark_chain_config.shards.values())).SHARD_SIZE
     full_shard_id = shard_size | shard_id
     if posw_override:
         posw_config = env.quark_chain_config.shards[full_shard_id].POSW_CONFIG
         posw_config.ENABLED = True
+    if no_coinbase:
+        env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT = 0
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
@@ -1554,4 +1558,30 @@ class TestShardState(unittest.TestCase):
                     address=acc, difficulty=1000, nonce=nonce
                 )
                 state.validate_minor_block_seal(m)
+            state.finalize_and_add_block(m)
+
+    def test_posw_window_edge_cases(self):
+        id1 = Identity.create_random_identity()
+        acc = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=128)
+        state = create_default_shard_state(
+            env=env, shard_id=0, posw_override=True, no_coinbase=True
+        )
+        # Force PoSW, note the window size is 2
+        state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 256
+        state.shard_config.POSW_CONFIG.DIFF_DIVIDER = 1000
+
+        # Use 0 to denote blocks mined by others, 1 for blocks mined by acc,
+        # stake * state per block = 1 for acc, 0 <- [curr], so current block
+        # should enjoy the diff adjustment
+        m = state.get_tip().create_block_to_append(address=acc, difficulty=1000)
+        state.finalize_and_add_block(m)
+
+        # Make sure stakes didn't change
+        self.assertEqual(state.get_token_balance(acc.recipient, DEFAULT_TOKEN), 128)
+        # 0 <- 1 <- [curr], the window already has one block with PoSW benefit,
+        # mining new blocks should fail
+        m = state.get_tip().create_block_to_append(address=acc, difficulty=1000)
+        with self.assertRaises(ValueError):
             state.finalize_and_add_block(m)

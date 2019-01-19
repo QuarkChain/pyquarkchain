@@ -1589,12 +1589,14 @@ class ShardState:
         stakes = evm_state.get_token_balance(coinbase_address, DEFAULT_TOKEN)
         block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
         block_threshold = min(config.WINDOW_SIZE, block_threshold)
-        # Note off-by-1 because it's inclusive
-        block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
+        # The func is inclusive, so need to fetch block counts until prev block
+        # Also only fetch prev window_size - 1 block counts because the
+        # new window should count the current block
+        block_cnt = self._get_posw_coinbase_blockcnt(
+            header.hash_prev_minor_block, length=config.WINDOW_SIZE - 1
+        )
         cnt = block_cnt.get(coinbase_address, 0)
-        if block_threshold == config.WINDOW_SIZE or cnt < block_threshold:
-            # 1. stakes are full, always have benefit;
-            # 2. still have quota
+        if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
         # TODO: remove it if verified not time consuming
         passed_ms = (time.time() - start_time) * 1000
@@ -1650,13 +1652,15 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(
+        self, header_hash: bytes, length: int = None
+    ) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_block(
-            header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE
-        )
+        if length is None:
+            length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
+        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)
