@@ -1562,14 +1562,14 @@ class ShardState:
         # Note off-by-1 because it's inclusive
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         cnt = block_cnt.get(coinbase_address, 0)
-        if block_threshold == 0 or cnt > block_threshold:
-            ret = diff * config.DIFF_COEFF
-        else:
-            ret = diff
+        if block_threshold == config.WINDOW_SIZE or cnt < block_threshold:
+            # 1. stakes are full, always have benefit;
+            # 2. still have quota
+            diff //= config.DIFF_DIVIDER
         # TODO: remove it if verified not time consuming
         passed_ms = (time.time() - start_time) * 1000
         Logger.debug("Adjust PoSW diff took %s milliseconds" % passed_ms)
-        return ret
+        return diff
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:

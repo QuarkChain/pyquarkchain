@@ -112,7 +112,7 @@ class POWConfig(BaseConfig):
 
 class POSWConfig(BaseConfig):
     ENABLED = False
-    DIFF_COEFF = 20  # Beta
+    DIFF_DIVIDER = 20  # Something similar to Beta
     WINDOW_SIZE = 256  # For estimating effective hash power
     # TODO: needs better tuning / estimating
     # = total stakes / alpha

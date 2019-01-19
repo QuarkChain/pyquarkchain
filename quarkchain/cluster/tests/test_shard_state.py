@@ -1517,16 +1517,14 @@ class TestShardState(unittest.TestCase):
         # Force PoSW
         state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
         state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 256
-        state.shard_config.POSW_CONFIG.DIFF_COEFF = 1000
+        state.shard_config.POSW_CONFIG.DIFF_DIVIDER = 1000
 
         self.assertEqual(state.get_token_balance(acc.recipient, DEFAULT_TOKEN), 256)
-        genesis_acc = Address(bytes(20), 0)
-        self.assertEqual(
-            state.get_token_balance(genesis_acc.recipient, DEFAULT_TOKEN), 0
-        )
+        genesis = Address(bytes(20), 0)
+        self.assertEqual(state.get_token_balance(genesis.recipient, DEFAULT_TOKEN), 0)
 
-        # Genesis already has 1 block but zero stake, so block diff should be 1 * 1000
-        m = state.get_tip().create_block_to_append(address=genesis_acc, difficulty=1)
+        # Genesis already has 1 block but zero stake, so no change to block diff
+        m = state.get_tip().create_block_to_append(address=genesis, difficulty=1000)
         with self.assertRaises(ValueError):
             state.finalize_and_add_block(m)
 
@@ -1535,7 +1533,7 @@ class TestShardState(unittest.TestCase):
         for _ in range(4):
             for nonce in range(4):  # Try different nonce
                 m = state.get_tip().create_block_to_append(
-                    address=acc, difficulty=1, nonce=nonce
+                    address=acc, difficulty=1000, nonce=nonce
                 )
                 state.validate_minor_block_seal(m)
             state.finalize_and_add_block(m)
