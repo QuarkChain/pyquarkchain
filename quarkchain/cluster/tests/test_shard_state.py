@@ -1561,8 +1561,7 @@ class TestShardState(unittest.TestCase):
             state.finalize_and_add_block(m)
 
     def test_posw_window_edge_cases(self):
-        id1 = Identity.create_random_identity()
-        acc = Address.create_from_identity(id1, full_shard_key=0)
+        acc = Address(b"\x01" * 20, full_shard_key=0)
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=128)
         state = create_default_shard_state(
             env=env, shard_id=0, posw_override=True, no_coinbase=True
