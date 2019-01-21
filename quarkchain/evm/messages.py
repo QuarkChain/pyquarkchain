@@ -435,6 +435,11 @@ def _apply_msg(ext, msg, code):
             transfer_token_id=msg.transfer_token_id,
         )
 
+    # early exit if msg.sender is disallowed
+    if msg.sender in ext.sender_disallow_list:
+        log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
+        return 0, 0, []
+
     # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:

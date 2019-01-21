@@ -1,6 +1,8 @@
 import asyncio
 from collections import deque
 
+from typing import List
+
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     OP_SERIALIZER_MAP,
@@ -305,21 +307,24 @@ class SyncTask:
     def __has_block_hash(self, block_hash):
         return self.shard_state.db.contain_minor_block_by_hash(block_hash)
 
-    def __validate_block_headers(self, block_header_list):
+    def __validate_block_headers(self, block_header_list: List[MinorBlockHeader]):
         for i in range(len(block_header_list) - 1):
-            header, prev = block_header_list[i : i + 2]
+            header, prev = block_header_list[i : i + 2]  # type: MinorBlockHeader
             if header.height != prev.height + 1:
                 return False
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
             try:
-                # Note that PoSW may increase the diff, so following check
-                # is necessary but not sufficient. More comprehensive validation
-                # will happen when adding the block
-                consensus_type = self.shard.env.quark_chain_config.shards[
+                # Note that PoSW may lower diff, so checks here are necessary but not sufficient
+                # More checks happen during block addition
+                shard_config = self.shard.env.quark_chain_config.shards[
                     header.branch.get_full_shard_id()
-                ].CONSENSUS_TYPE
-                validate_seal(header, consensus_type)
+                ]
+                consensus_type = shard_config.CONSENSUS_TYPE
+                diff = header.difficulty
+                if shard_config.POSW_CONFIG.ENABLED:
+                    diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
+                validate_seal(header, consensus_type, adjusted_diff=diff)
             except Exception as e:
                 full_shard_id = header.branch.get_full_shard_id()
                 Logger.warning(

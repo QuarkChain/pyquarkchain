@@ -1501,6 +1501,14 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
         state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
+        # Add a root block to have all the shards initialized, also include the genesis from
+        # another shard to allow x-shard tx TO that shard
+        root_block = state.root_tip.create_block_to_append()
+        root_block.add_minor_block_header(
+            create_default_shard_state(env=env, shard_id=1).header_tip
+        )
+        state.add_root_block(root_block.finalize())
+
         # Coinbase in genesis should be disallowed
         self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
         self.assertEqual(list(state.evm_state.sender_disallow_list)[0], bytes(20))
@@ -1511,26 +1519,33 @@ class TestShardState(unittest.TestCase):
         self.assertGreater(state.get_token_balance(acc1.recipient, DEFAULT_TOKEN), 0)
 
         # Try to send money from that account
-        tx = create_transfer_transaction(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_address=Address.create_empty_account(full_shard_key=0),
-            value=1,
-            gas=21000,
-        )
-        res = state.execute_tx(tx, acc1)
-        self.assertIsNone(res, "tx should fail")
+        for i, is_xshard in enumerate([False, True]):
+            full_shard_key = 1 if is_xshard else 0
+            tx = create_transfer_transaction(
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=Address.create_empty_account(full_shard_key),
+                value=1,
+                gas=30000 if is_xshard else 21000,
+            )
+            res = state.execute_tx(tx, acc1)
+            self.assertIsNone(res, "tx should fail")
 
-        # Create a block including that tx, receipt should also report error
-        self.assertTrue(state.add_tx(tx))
-        m = state.create_block_to_mine(address=acc2)
-        state.finalize_and_add_block(m)
-        r = state.get_transaction_receipt(tx.get_hash())
-        self.assertEqual(r[2].success, b"")  # Failure
-        # Make sure the disallow rolling window now discards the first addr
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
-        self.assertTrue(bytes(20) not in state.evm_state.sender_disallow_list)
+            # Create a block including that tx, receipt should also report error
+            self.assertTrue(state.add_tx(tx))
+            m = state.create_block_to_mine(address=acc2)
+            state.finalize_and_add_block(m)
+            r = state.get_transaction_receipt(tx.get_hash())
+            self.assertEqual(r[2].success, b"")  # Failure
+
+            if i == 0:
+                # Make sure the disallow rolling window now discards the first addr
+                self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
+            else:
+                # Disallow list should only have acc2
+                self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
+                self.assertTrue(acc2.recipient in state.evm_state.sender_disallow_list)
 
     def test_posw_validate_minor_block_seal(self):
         acc = Address(b"\x01" * 20, full_shard_key=0)
