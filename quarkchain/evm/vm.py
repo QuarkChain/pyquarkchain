@@ -875,7 +875,7 @@ def vm_execute(ext, msg, code):
                 return vm_exception("Cannot SUICIDE inside a static context")
             to = utils.encode_int(stk.pop())
             to = ((b"\x00" * (32 - len(to))) + to)[12:]
-            xfer = ext.get_token_balance(msg.to, DEFAULT_TOKEN)
+            xfer = ext.get_token_balance(msg.to, msg.transfer_token_id)
             if ext.post_anti_dos_hardfork():
                 extra_gas = (
                     opcodes.SUICIDE_SUPPLEMENTAL_GAS
@@ -886,10 +886,12 @@ def vm_execute(ext, msg, code):
                 if not eat_gas(compustate, extra_gas):
                     return vm_exception("OUT OF GAS")
             ext.set_token_balance(
-                to, DEFAULT_TOKEN, ext.get_token_balance(to, DEFAULT_TOKEN) + xfer
+                to,
+                msg.transfer_token_id,
+                ext.get_token_balance(to, msg.transfer_token_id) + xfer,
             )
             # del_account removes all token balances
-            ext.set_token_balance(msg.to, DEFAULT_TOKEN, 0)
+            ext.set_token_balance(msg.to, msg.transfer_token_id, 0)
             ext.add_suicide(msg.to)
             log_msg.debug(
                 "SUICIDING",
