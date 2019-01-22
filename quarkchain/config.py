@@ -10,7 +10,7 @@ from eth_keys import KeyAPI
 import quarkchain.db
 import quarkchain.evm.config
 from quarkchain.core import Address
-from quarkchain.utils import check, is_p2
+from quarkchain.utils import check, is_p2, token_id_encode
 
 # Decimal level
 QUARKSH_TO_JIAOZI = 10 ** 18
@@ -122,6 +122,7 @@ class POSWConfig(BaseConfig):
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
     SHARD_SIZE = 2
+    DEFAULT_CHAIN_TOKEN = "TQKC"
 
     CONSENSUS_TYPE = ConsensusType.NONE
     # Only set when CONSENSUS_TYPE is not NONE
@@ -150,6 +151,7 @@ class ChainConfig(BaseConfig):
     def __init__(self):
         self.GENESIS = ShardGenesis()
         self.POSW_CONFIG = POSWConfig()
+        self._default_chain_token = None
 
     def to_dict(self):
         ret = super().to_dict()
@@ -174,6 +176,12 @@ class ChainConfig(BaseConfig):
                 config.GENESIS = ShardGenesis.from_dict(config.GENESIS)
         config.POSW_CONFIG = POSWConfig.from_dict(config.POSW_CONFIG)
         return config
+
+    @property
+    def default_chain_token(self):
+        if self._default_chain_token is None:
+            self._default_chain_token = token_id_encode(self.DEFAULT_CHAIN_TOKEN)
+        return self._default_chain_token
 
 
 class ShardConfig(ChainConfig):
@@ -286,6 +294,8 @@ class QuarkChainConfig(BaseConfig):
     SKIP_ROOT_DIFFICULTY_CHECK = False
     SKIP_MINOR_DIFFICULTY_CHECK = False
 
+    GENESIS_TOKEN = "TQKC"
+
     ROOT = None  # type: RootConfig
     CHAINS = None
     # full_shard_id -> ShardConfig
@@ -295,7 +305,9 @@ class QuarkChainConfig(BaseConfig):
     REWARD_TAX_RATE = 0.5  # percentage of rewards should go to root block mining
 
     def __init__(self):
-        self.loadtest_accounts = []  # for TransactionGenerator. initialized in cluster_config.py
+        self.loadtest_accounts = (
+            []
+        )  # for TransactionGenerator. initialized in cluster_config.py
 
         self.ROOT = RootConfig()
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
@@ -320,6 +332,8 @@ class QuarkChainConfig(BaseConfig):
         self._cached_guardian_private_key = None
 
         self.init_and_validate()
+
+        self._genesis_token = None
 
     def init_and_validate(self):
         self._chain_id_to_shard_size = dict()
@@ -404,7 +418,12 @@ class QuarkChainConfig(BaseConfig):
         return ret
 
     def update(
-        self, chain_size, shard_size_per_chain, root_block_time, minor_block_time
+        self,
+        chain_size,
+        shard_size_per_chain,
+        root_block_time,
+        minor_block_time,
+        default_token,
     ):
         self.CHAIN_SIZE = chain_size
 
@@ -412,6 +431,7 @@ class QuarkChainConfig(BaseConfig):
         self.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
         self.ROOT.CONSENSUS_CONFIG = POWConfig()
         self.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = root_block_time
+        self.GENESIS_TOKEN = default_token
 
         self.CHAINS = []
         self.shards = dict()
@@ -422,6 +442,7 @@ class QuarkChainConfig(BaseConfig):
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             chain_config.CONSENSUS_CONFIG = POWConfig()
             chain_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = minor_block_time
+            chain_config.DEFAULT_CHAIN_TOKEN = default_token
             self.CHAINS.append(chain_config)
             for shard_id in range(shard_size_per_chain):
                 shard_config = ShardConfig(chain_config)
@@ -466,6 +487,12 @@ class QuarkChainConfig(BaseConfig):
         config.shards = shards
         config.init_and_validate()
         return config
+
+    @property
+    def genesis_token(self):
+        if self._genesis_token is None:
+            self._genesis_token = token_id_encode(self.GENESIS_TOKEN)
+        return self._genesis_token
 
 
 def get_default_evm_config():

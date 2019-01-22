@@ -15,6 +15,7 @@ from rlp.sedes import big_endian_int, binary, BigEndianInt
 from quarkchain.rlp.utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
+from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.utils import sha3_256, is_p2, check
 from quarkchain.evm.solidity_abi_utils import tx_to_typed_data, typed_signature_hash
 
@@ -92,8 +93,8 @@ class Transaction(rlp.Serializable):
         to_full_shard_key=0,
         network_id=1,
         version=0,
-        gas_token_id=0,
-        transfer_token_id=0,
+        gas_token_id=DEFAULT_TOKEN,
+        transfer_token_id=DEFAULT_TOKEN,
     ):
         self.quark_chain_config = None
 

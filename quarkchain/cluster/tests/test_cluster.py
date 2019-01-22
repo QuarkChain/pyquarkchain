@@ -6,7 +6,6 @@ from quarkchain.cluster.tests.test_utils import (
 )
 from quarkchain.core import Address, Branch, Identity
 from quarkchain.evm import opcodes
-from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.utils import call_async, assert_true_with_timeout
 from quarkchain.cluster.rpc import token_pair_list_to_dict
 
@@ -82,6 +81,9 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block.minor_block_header_list[1].height, 0)
             call_async(master.add_root_block(block))
 
+            genesis_token = (
+                clusters[0].get_shard_state(0b10).env.quark_chain_config.genesis_token
+            )
             tx = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0b10),
                 key=id1.get_key(),
@@ -112,13 +114,13 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 token_pair_list_to_dict(
                     call_async(master.get_primary_account_data(acc1)).token_balances
-                )[DEFAULT_TOKEN],
-                original_balance_acc1[DEFAULT_TOKEN] - 54321 - gas_paid,
+                )[genesis_token],
+                original_balance_acc1[genesis_token] - 54321 - gas_paid,
             )
             self.assertEqual(
                 clusters[0]
                 .get_shard_state(0b11)
-                .get_token_balance(acc3.recipient, DEFAULT_TOKEN),
+                .get_token_balance(acc3.recipient, genesis_token),
                 0,
             )
 
@@ -134,7 +136,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 clusters[0]
                 .get_shard_state(0b11)
-                .get_token_balance(acc3.recipient, DEFAULT_TOKEN),
+                .get_token_balance(acc3.recipient, genesis_token),
                 0,
             )
 
@@ -156,7 +158,7 @@ class TestCluster(unittest.TestCase):
                 token_pair_list_to_dict(
                     call_async(master.get_primary_account_data(acc3)).token_balances
                 ),
-                {DEFAULT_TOKEN: 54321},
+                {genesis_token: 54321},
             )
 
     def test_get_primary_account_data(self):
@@ -576,6 +578,9 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(1, acc1) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
+            genesis_token = (
+                clusters[0].get_shard_state(2 | 0).env.quark_chain_config.genesis_token
+            )
 
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
@@ -669,7 +674,7 @@ class TestCluster(unittest.TestCase):
                 token_pair_list_to_dict(
                     call_async(master.get_primary_account_data(acc3)).token_balances
                 ),
-                {DEFAULT_TOKEN: 54321},
+                {genesis_token: 54321},
             )
 
     def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
