@@ -3,6 +3,7 @@ import time
 import unittest
 from typing import Optional
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import DoubleSHA256, Miner, MiningWork, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
@@ -173,6 +174,7 @@ class TestMiner(unittest.TestCase):
 
     def test_submit_work(self):
         now = 42
+        doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
@@ -181,9 +183,10 @@ class TestMiner(unittest.TestCase):
             return block
 
         async def add(block_to_add):
+            validate_seal(block_to_add.header, doublesha)
             self.added_blocks.append(block_to_add)
 
-        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, create, add, remote=True)
+        miner = self.miner_gen(doublesha, create, add, remote=True)
 
         async def go():
             work = await miner.get_work(now=now)
@@ -212,24 +215,24 @@ class TestMiner(unittest.TestCase):
 
     def test_submit_work_with_guardian(self):
         now = 42
+        doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
         )
+        priv = ecies.generate_privkey()
 
         async def create(retry=True):
             return block
 
-        async def add(_):
-            pass
+        async def add(block_to_add):
+            h = block_to_add.header
+            diff = h.difficulty
+            if h.verify_signature(priv.public_key):
+                diff = Guardian.adjust_difficulty(diff, h.height)
+            validate_seal(block_to_add.header, doublesha, adjusted_diff=diff)
 
         miner = self.miner_gen(
-            ConsensusType.POW_DOUBLESHA256,
-            create,
-            add,
-            remote=True,
-            # fake pk, will succeed in test but fail in real world when
-            # adding the block to the root chain
-            guardian_private_key=ecies.generate_privkey(),
+            doublesha, create, add, remote=True, guardian_private_key=priv
         )
 
         async def go():

@@ -524,7 +524,9 @@ class Shard:
             block.header.hash_prev_minor_block
         ):
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
-                return
+                raise ValueError(
+                    "prev block not found: hash %d" % block.header.hash_prev_minor_block
+                )
 
         try:
             self.state.validate_minor_block_seal(block)
@@ -535,7 +537,7 @@ class Shard:
                     full_shard_id, str(e)
                 )
             )
-            return
+            raise e
 
         if block.header.create_time > time_ms() // 1000 + 30:
             return
