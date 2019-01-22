@@ -15,7 +15,6 @@ from quarkchain.core import Address, Branch, Transaction, Code, ChainMask
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
@@ -199,9 +198,13 @@ def contract_creation_tx(
     to_full_shard_key,
     bytecode,
     gas=100000,
-    gas_token_id=DEFAULT_TOKEN,
-    transfer_token_id=DEFAULT_TOKEN,
+    gas_token_id=None,
+    transfer_token_id=None,
 ):
+    if gas_token_id is None:
+        gas_token_id = shard_state.env.quark_chain_config.genesis_token
+    if transfer_token_id is None:
+        transfer_token_id = shard_state.env.quark_chain_config.genesis_token
     evm_tx = EvmTransaction(
         nonce=shard_state.get_transaction_count(from_address.recipient),
         gasprice=1,
