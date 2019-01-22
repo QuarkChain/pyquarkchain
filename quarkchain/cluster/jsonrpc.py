@@ -26,7 +26,7 @@ from quarkchain.core import (
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, token_id_decode
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -317,6 +317,7 @@ def balances_encoder(balances: List[TokenBalancePair]) -> List[Dict]:
         balance_list.append(
             {
                 "tokenId": quantity_encoder(pair.token_id),
+                "tokenStr": token_id_decode(pair.token_id),
                 "balance": quantity_encoder(pair.balance),
             }
         )
@@ -856,6 +857,8 @@ class JSONRPCServer:
                     if tx.to_address
                     else "0x",
                     "value": quantity_encoder(tx.value),
+                    "transferTokenId": quantity_encoder(tx.transfer_token_id),
+                    "gasTokenId": quantity_encoder(tx.gas_token_id),
                     "blockHeight": quantity_encoder(tx.block_height),
                     "timestamp": quantity_encoder(tx.timestamp),
                     "success": tx.success,
