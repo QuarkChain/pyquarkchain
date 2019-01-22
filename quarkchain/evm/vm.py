@@ -29,6 +29,8 @@ TT255 = 2 ** 255
 
 MAX_DEPTH = 1024
 
+# TODODLL change to shard specific DEFAULT_TOKEN
+DEFAULT_TOKEN = 0
 
 # Wrapper to store call data. This is needed because it is possible to
 # call a contract N times with N bytes of data with a gas cost of O(N);
@@ -84,8 +86,8 @@ class Message(object):
         from_full_shard_key=None,
         to_full_shard_key=None,
         tx_hash=None,
-        gas_token_id=0,
-        transfer_token_id=0,
+        gas_token_id=DEFAULT_TOKEN,
+        transfer_token_id=DEFAULT_TOKEN,
     ):
         self.sender = sender
         self.to = to
@@ -496,7 +498,7 @@ def vm_execute(ext, msg, code):
                         return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 # TODODLL support native tokens in evm
-                stk.append(ext.get_token_balance(addr, 0))
+                stk.append(ext.get_token_balance(addr, DEFAULT_TOKEN))
             elif op == "ORIGIN":
                 stk.append(utils.coerce_to_int(ext.tx_origin))
             elif op == "CALLER":
@@ -688,7 +690,10 @@ def vm_execute(ext, msg, code):
                 return vm_exception("OOG EXTENDING MEMORY")
             if msg.static:
                 return vm_exception("Cannot CREATE inside a static context")
-            if ext.get_token_balance(msg.to, 0) >= value and msg.depth < MAX_DEPTH:
+            if (
+                ext.get_token_balance(msg.to, DEFAULT_TOKEN) >= value
+                and msg.depth < MAX_DEPTH
+            ):
                 cd = CallData(mem, mstart, msz)
                 ingas = compustate.gas
                 if ext.post_anti_dos_hardfork():
@@ -777,7 +782,10 @@ def vm_execute(ext, msg, code):
                     return vm_exception("OUT OF GAS", needed=gas + extra_gas)
             submsg_gas = gas + opcodes.GSTIPEND * (value > 0)
             # Verify that there is sufficient balance and depth
-            if ext.get_token_balance(msg.to, 0) < value or msg.depth >= MAX_DEPTH:
+            if (
+                ext.get_token_balance(msg.to, DEFAULT_TOKEN) < value
+                or msg.depth >= MAX_DEPTH
+            ):
                 compustate.gas -= gas + extra_gas - submsg_gas
                 stk.append(0)
                 compustate.last_returned = bytearray(b"")
@@ -867,7 +875,7 @@ def vm_execute(ext, msg, code):
                 return vm_exception("Cannot SUICIDE inside a static context")
             to = utils.encode_int(stk.pop())
             to = ((b"\x00" * (32 - len(to))) + to)[12:]
-            xfer = ext.get_balances(msg.to)
+            xfer = ext.get_token_balance(msg.to, DEFAULT_TOKEN)
             if ext.post_anti_dos_hardfork():
                 extra_gas = (
                     opcodes.SUICIDE_SUPPLEMENTAL_GAS
@@ -877,16 +885,11 @@ def vm_execute(ext, msg, code):
                 )
                 if not eat_gas(compustate, extra_gas):
                     return vm_exception("OUT OF GAS")
-            # TODODLL#326 support more than default token in contract
-            # TODODLL use shard default token rather than 0 in vm.py
-            to_balances = ext.get_balances(to)
-            merged = {
-                k: xfer.get(k, 0) + to_balances.get(k, 0)
-                for k in xfer.keys() | to_balances.keys()
-            }
-            ext.set_balances(to, merged)
-            # it sounds like any other token balance would be destroyed, need to check
-            ext.set_balances(msg.to, {})
+            ext.set_token_balance(
+                to, DEFAULT_TOKEN, ext.get_token_balance(to, DEFAULT_TOKEN) + xfer
+            )
+            # del_account removes all token balances
+            ext.set_token_balance(msg.to, DEFAULT_TOKEN, 0)
             ext.add_suicide(msg.to)
             log_msg.debug(
                 "SUICIDING",

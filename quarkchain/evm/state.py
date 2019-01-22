@@ -365,7 +365,15 @@ class State:
         self.set_and_journal(acct, "nonce", value)
         self.set_and_journal(acct, "touched", True)
 
-    def set_token_balance_and_journal(self, acct, token_id, val):
+    def set_token_balance(self, address, token_id, val):
+        acct = self.get_and_cache_account(utils.normalize_address(address))
+        if val == self.get_token_balance(address, token_id):
+            self.set_and_journal(acct, "touched", True)
+            return
+        self._set_token_balance_and_journal(acct, token_id, val)
+        self.set_and_journal(acct, "touched", True)
+
+    def _set_token_balance_and_journal(self, acct, token_id, val):
         """if token_id was not set, journal will erase token_id when reverted
         """
         preval = acct.token_balances.balances.get(token_id, None)
@@ -384,7 +392,7 @@ class State:
             self.set_and_journal(acct, "touched", True)
             return
         newbal = acct.token_balances.balance(token_id) + value
-        self.set_token_balance_and_journal(acct, token_id, newbal)
+        self._set_token_balance_and_journal(acct, token_id, newbal)
         self.set_and_journal(acct, "touched", True)
 
     def increment_nonce(self, address):
