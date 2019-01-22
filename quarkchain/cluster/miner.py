@@ -284,20 +284,10 @@ class Miner:
         header = block.header
         header.nonce, header.mixhash = nonce, mixhash
 
-        # lower the difficulty for root block signed by guardian
+        # sign as a guardian
         if self.guardian_private_key and isinstance(block, RootBlock):
-            diff = Guardian.adjust_difficulty(header.difficulty, header.height)
-            try:
-                validate_seal(header, self.consensus_type, adjusted_diff=diff)
-            except ValueError:
-                return False
-            # sign as a guardian
             header.sign_with_private_key(self.guardian_private_key)
-        else:  # minor block, or doesn't have guardian private key
-            try:
-                validate_seal(header, self.consensus_type)
-            except ValueError:
-                return False
+
         try:
             await self.add_block_async_func(block)
             # a previous submission of the same work could have removed the key
