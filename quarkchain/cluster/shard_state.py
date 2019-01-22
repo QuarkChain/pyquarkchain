@@ -32,7 +32,7 @@ from quarkchain.core import (
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
-from quarkchain.evm.state import State as EvmState, DEFAULT_TOKEN
+from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.genesis import GenesisManager
@@ -590,7 +590,9 @@ class ShardState:
         # Pay miner
         pure_coinbase_amount = self.get_coinbase_amount()
         evm_state.delta_token_balance(
-            evm_state.block_coinbase, DEFAULT_TOKEN, pure_coinbase_amount
+            evm_state.block_coinbase,
+            self.env.quark_chain_config.genesis_token,
+            pure_coinbase_amount,
         )
 
         # Update actual root hash
@@ -1060,7 +1062,9 @@ class ShardState:
         # Pay miner
         pure_coinbase_amount = self.get_coinbase_amount()
         evm_state.delta_token_balance(
-            evm_state.block_coinbase, DEFAULT_TOKEN, pure_coinbase_amount
+            evm_state.block_coinbase,
+            self.env.quark_chain_config.genesis_token,
+            pure_coinbase_amount,
         )
 
         # Update actual root hash
@@ -1310,8 +1314,8 @@ class ShardState:
                     to_address=r_block.header.coinbase_address,
                     value=r_block.header.coinbase_amount,
                     gas_price=0,
-                    gas_token_id=DEFAULT_TOKEN,
-                    transfer_token_id=DEFAULT_TOKEN,  # root block coinbase is only in QKC
+                    gas_token_id=self.env.quark_chain_config.genesis_token,
+                    transfer_token_id=self.env.quark_chain_config.genesis_token,  # root block coinbase is only in QKC
                 )
             )
         return tx_list
@@ -1586,7 +1590,9 @@ class ShardState:
         # Evaluate stakes before the to-be-added block
         evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
         config = self.shard_config.POSW_CONFIG
-        stakes = evm_state.get_token_balance(coinbase_address, DEFAULT_TOKEN)
+        stakes = evm_state.get_token_balance(
+            coinbase_address, self.env.quark_chain_config.genesis_token
+        )
         block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
         block_threshold = min(config.WINDOW_SIZE, block_threshold)
         # The func is inclusive, so need to fetch block counts until prev block

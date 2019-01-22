@@ -6,6 +6,7 @@ from quarkchain.evm import utils
 from quarkchain.evm import opcodes
 from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import to_string, bytearray_to_bytestr, safe_ord
+from quarkchain.utils import token_id_encode
 from functools import lru_cache
 
 # ###### dev hack flags ###############
@@ -29,8 +30,8 @@ TT255 = 2 ** 255
 
 MAX_DEPTH = 1024
 
-# TODODLL change to shard specific DEFAULT_TOKEN
-DEFAULT_TOKEN = 0
+# TODODLL change to chain-specific token and genesis_token
+DEFAULT_TOKEN = token_id_encode("TQKC")
 
 # Wrapper to store call data. This is needed because it is possible to
 # call a contract N times with N bytes of data with a gas cost of O(N);
