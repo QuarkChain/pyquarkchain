@@ -107,6 +107,7 @@ class Cluster:
 
 
 def main():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
@@ -114,8 +115,6 @@ def main():
     config = ClusterConfig.create_from_args(args)
     print("Cluster config file: {}".format(config.json_filepath))
     print(config.to_json())
-
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     cluster = Cluster(config)
 

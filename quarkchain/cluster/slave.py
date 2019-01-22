@@ -1264,9 +1264,8 @@ def parse_args():
 
 
 def main():
-    env = parse_args()
-
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    env = parse_args()
 
     slave_server = SlaveServer(env)
     slave_server.start()
