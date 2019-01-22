@@ -48,7 +48,7 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 99999},
+            genesis_minor_token_balances={"TQKC": 10000000, "QETH": 99999},
         )
         state = create_default_shard_state(env=env)
 
@@ -95,7 +95,7 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
-            genesis_account=acc1, genesis_minor_token_balances={DEFAULT_TOKEN: 10000000}
+            genesis_account=acc1, genesis_minor_token_balances={"TQKC": 10000000}
         )
         state = create_default_shard_state(env=env)
         tx = create_transfer_transaction(
@@ -136,7 +136,7 @@ class TestShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
-            genesis_account=acc1, genesis_minor_token_balances={QETH: 10000000}
+            genesis_account=acc1, genesis_minor_token_balances={"QETH": 10000000}
         )
         state = create_default_shard_state(env=env)
 
@@ -198,7 +198,7 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 999999},
+            genesis_minor_token_balances={"TQKC": 10000000, "QETHXX": 999999},
         )
         state = create_default_shard_state(env=env, shard_id=0)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -269,12 +269,12 @@ class TestShardState(unittest.TestCase):
 
         env0 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 999999},
+            genesis_minor_token_balances={"TQKC": 10000000, "QETHXX": 999999},
             shard_size=64,
         )
         env1 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={DEFAULT_TOKEN: 10000000, QETH: 999999},
+            genesis_minor_token_balances={"TQKC": 10000000, "QETHXX": 999999},
             shard_size=64,
         )
         state0 = create_default_shard_state(env=env0, shard_id=0)
@@ -367,7 +367,7 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={DEFAULT_TOKEN: 200 * 10 ** 18, QETH: 99999},
+            genesis_minor_token_balances={"TQKC": 200 * 10 ** 18, "QETH": 99999},
         )
         state = create_default_shard_state(env=env)
 
