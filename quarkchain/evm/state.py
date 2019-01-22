@@ -1,5 +1,5 @@
 # Modified based on pyethereum under MIT license
-from typing import Set, Optional
+from typing import Set
 
 import rlp
 from rlp.sedes.lists import CountableList

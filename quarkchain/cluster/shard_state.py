@@ -542,11 +542,8 @@ class ShardState:
         ):
             raise ValueError("prev root blocks are not on the same chain")
 
-        # Check PoW if applicable
-        consensus_type = self.env.quark_chain_config.shards[
-            self.full_shard_id
-        ].CONSENSUS_TYPE
-        validate_seal(block.header, consensus_type)
+        # Check PoW / PoSW
+        self.validate_minor_block_seal(block)
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
@@ -584,7 +581,7 @@ class ShardState:
             except Exception as e:
                 Logger.debug_exception()
                 Logger.debug(
-                    "failed to process Tx {}, idx {}, reason {}".format(
+                    "Failed to process Tx {}, idx {}, reason {}".format(
                         tx.get_hash().hex(), idx, e
                     )
                 )
@@ -902,7 +899,7 @@ class ShardState:
             )
             return output if success else None
         except Exception as e:
-            Logger.warning_every_sec("failed to apply transaction: {}".format(e), 1)
+            Logger.warning_every_sec("Failed to apply transaction: {}".format(e), 1)
             return None
 
     def get_next_block_difficulty(self, create_time=None):
@@ -1571,6 +1568,41 @@ class ShardState:
         self.gas_price_suggestion_oracle.last_head = curr_head
         return price
 
+    def validate_minor_block_seal(self, block: MinorBlock):
+        consensus_type = self.env.quark_chain_config.shards[
+            block.header.branch.get_full_shard_id()
+        ].CONSENSUS_TYPE
+        if not self.shard_config.POSW_CONFIG.ENABLED:
+            validate_seal(block.header, consensus_type)
+        else:
+            diff = self._posw_diff_adjust(block)
+            validate_seal(block.header, consensus_type, adjusted_diff=diff)
+
+    def _posw_diff_adjust(self, block: MinorBlock) -> int:
+        start_time = time.time()
+        header = block.header
+        diff = header.difficulty
+        coinbase_address = header.coinbase_address.recipient
+        # Evaluate stakes before the to-be-added block
+        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
+        config = self.shard_config.POSW_CONFIG
+        stakes = evm_state.get_token_balance(coinbase_address, DEFAULT_TOKEN)
+        block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
+        block_threshold = min(config.WINDOW_SIZE, block_threshold)
+        # The func is inclusive, so need to fetch block counts until prev block
+        # Also only fetch prev window_size - 1 block counts because the
+        # new window should count the current block
+        block_cnt = self._get_posw_coinbase_blockcnt(
+            header.hash_prev_minor_block, length=config.WINDOW_SIZE - 1
+        )
+        cnt = block_cnt.get(coinbase_address, 0)
+        if cnt < block_threshold:
+            diff //= config.DIFF_DIVIDER
+        # TODO: remove it if verified not time consuming
+        passed_ms = (time.time() - start_time) * 1000
+        Logger.debug("Adjust PoSW diff took %s milliseconds" % passed_ms)
+        return diff
+
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
             return self.evm_state
@@ -1620,13 +1652,15 @@ class ShardState:
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
-    def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(
+        self, header_hash: bytes, length: int = None
+    ) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_block(
-            header_hash, self.shard_config.POSW_CONFIG.WINDOW_SIZE
-        )
+        if length is None:
+            length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
+        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)

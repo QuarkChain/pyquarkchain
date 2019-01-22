@@ -1,6 +1,8 @@
 import asyncio
 from collections import deque
 
+from typing import List
+
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     OP_SERIALIZER_MAP,
@@ -17,15 +19,7 @@ from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.config import ConsensusType
-from quarkchain.core import (
-    RootBlock,
-    MinorBlock,
-    MinorBlockHeader,
-    Branch,
-    Transaction,
-    Address,
-)
+from quarkchain.core import RootBlock, MinorBlockHeader, Transaction, Address
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
 
@@ -222,7 +216,7 @@ class SyncTask:
     def __init__(self, header: MinorBlockHeader, shard_conn: PeerShardConnection):
         self.header = header
         self.shard_conn = shard_conn
-        self.shard_state = shard_conn.shard_state
+        self.shard_state = shard_conn.shard_state  # type: ShardState
         self.shard = shard_conn.shard
 
         full_shard_id = self.header.branch.get_full_shard_id()
@@ -313,18 +307,32 @@ class SyncTask:
     def __has_block_hash(self, block_hash):
         return self.shard_state.db.contain_minor_block_by_hash(block_hash)
 
-    def __validate_block_headers(self, block_header_list):
+    def __validate_block_headers(self, block_header_list: List[MinorBlockHeader]):
         for i in range(len(block_header_list) - 1):
-            header, prev = block_header_list[i : i + 2]
+            header, prev = block_header_list[i : i + 2]  # type: MinorBlockHeader
             if header.height != prev.height + 1:
                 return False
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
-            full_shard_id = header.branch.get_full_shard_id()
-            consensus_type = self.shard.env.quark_chain_config.shards[
-                full_shard_id
-            ].CONSENSUS_TYPE
-            validate_seal(header, consensus_type)
+            try:
+                # Note that PoSW may lower diff, so checks here are necessary but not sufficient
+                # More checks happen during block addition
+                shard_config = self.shard.env.quark_chain_config.shards[
+                    header.branch.get_full_shard_id()
+                ]
+                consensus_type = shard_config.CONSENSUS_TYPE
+                diff = header.difficulty
+                if shard_config.POSW_CONFIG.ENABLED:
+                    diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
+                validate_seal(header, consensus_type, adjusted_diff=diff)
+            except Exception as e:
+                full_shard_id = header.branch.get_full_shard_id()
+                Logger.warning(
+                    "[{}] got block with bad seal in sync: {}".format(
+                        full_shard_id, str(e)
+                    )
+                )
+                return False
         return True
 
     async def __download_block_headers(self, block_hash):
@@ -503,7 +511,8 @@ class Shard:
              also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
         """
         if self.synchronizer.running:
-            # TODO optinal: queue the block if it came from broadcast to so that once sync is over, catch up immediately
+            # TODO optional: queue the block if it came from broadcast to so that once sync is over,
+            # catch up immediately
             return
 
         if block.header.get_hash() in self.state.new_block_pool:
@@ -517,15 +526,14 @@ class Shard:
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
                 return
 
-        full_shard_id = block.header.branch.get_full_shard_id()
-        consensus_type = self.env.quark_chain_config.shards[
-            full_shard_id
-        ].CONSENSUS_TYPE
         try:
-            validate_seal(block.header, consensus_type)
+            self.state.validate_minor_block_seal(block)
         except Exception as e:
+            full_shard_id = block.header.branch.get_full_shard_id()
             Logger.warning(
-                "[{}] Got block with bad seal: {}".format(full_shard_id, str(e))
+                "[{}] got block with bad seal in shard: {}".format(
+                    full_shard_id, str(e)
+                )
             )
             return
 
