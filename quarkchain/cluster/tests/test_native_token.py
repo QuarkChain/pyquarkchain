@@ -4,10 +4,12 @@ from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
+    contract_creation_tx,
 )
 from quarkchain.core import Identity, Address
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.evm import opcodes
+from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.utils import token_id_encode
 from quarkchain.genesis import GenesisManager
@@ -351,3 +353,123 @@ class TestShardState(unittest.TestCase):
         # X-shard gas used
         evmState0 = state0.evm_state
         self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
+    def test_contract_suicide(self):
+        """
+        Kill Call Data: 0x41c0e1b5
+        """
+        QETH = token_id_encode("QETH")
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        id2 = Identity.create_random_identity()
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={DEFAULT_TOKEN: 200 * 10 ** 18, QETH: 99999},
+        )
+        state = create_default_shard_state(env=env)
+
+        # 1. create contract
+        BYTECODE = "6080604052348015600f57600080fd5b5060948061001e6000396000f3fe6080604052600436106039576000357c01000000000000000000000000000000000000000000000000000000009004806341c0e1b514603b575b005b348015604657600080fd5b50604d604f565b005b3373ffffffffffffffffffffffffffffffffffffffff16fffea165627a7a7230582034cc4e996685dcadcc12db798751d2913034a3e963356819f2293c3baea4a18c0029"
+        """
+        pragma solidity ^0.5.1;
+        contract Sample {
+          function () payable external{}
+          function kill() external {selfdestruct(msg.sender);}
+        }
+        """
+        CREATION_GAS = 92417
+        tx = contract_creation_tx(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_full_shard_key=acc1.full_shard_key,
+            bytecode=BYTECODE,
+            gas_token_id=DEFAULT_TOKEN,
+            transfer_token_id=DEFAULT_TOKEN,
+        )
+        self.assertTrue(state.add_tx(tx))
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 1)
+        state.finalize_and_add_block(b1)
+        self.assertEqual(state.header_tip, b1.header)
+        self.assertEqual(len(state.evm_state.receipts), 1)
+        self.assertEqual(state.evm_state.receipts[0].state_root, b"\x01")
+        self.assertEqual(state.evm_state.receipts[0].gas_used, CREATION_GAS)
+        contract_address = mk_contract_address(acc1.recipient, acc1.full_shard_key, 0)
+        self.assertEqual(contract_address, state.evm_state.receipts[0].contract_address)
+        self.assertEqual(
+            acc1.full_shard_key, state.evm_state.receipts[0].contract_full_shard_key
+        )
+        self.assertEqual(
+            state.get_token_balance(id1.recipient, DEFAULT_TOKEN),
+            200 * 10 ** 18 - CREATION_GAS,
+        )
+        self.assertEqual(
+            state.get_token_balance(acc3.recipient, DEFAULT_TOKEN),
+            self.getAfterTaxReward(CREATION_GAS + self.shard_coinbase),
+        )
+        tx_list, _ = state.db.get_transactions_by_address(acc1)
+        self.assertEqual(tx_list[0].value, 0)
+        self.assertEqual(tx_list[0].gas_token_id, DEFAULT_TOKEN)
+        self.assertEqual(tx_list[0].transfer_token_id, DEFAULT_TOKEN)
+
+        # 2. send some default token
+        tx_send = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address(contract_address, acc1.full_shard_key),
+            value=10 * 10 ** 18,
+            gas=opcodes.GTXCOST + 40,
+            gas_price=1,
+            nonce=None,
+            data=b"",
+            gas_token_id=DEFAULT_TOKEN,
+            transfer_token_id=DEFAULT_TOKEN,
+        )
+        self.assertTrue(state.add_tx(tx_send))
+        b2 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b2.tx_list), 1)
+        state.finalize_and_add_block(b2)
+        self.assertEqual(state.header_tip, b2.header)
+        self.assertEqual(len(state.evm_state.receipts), 1)
+        self.assertEqual(state.evm_state.receipts[0].state_root, b"\x01")
+        self.assertEqual(state.evm_state.receipts[0].gas_used, opcodes.GTXCOST + 40)
+        self.assertEqual(
+            state.get_token_balance(id1.recipient, DEFAULT_TOKEN),
+            200 * 10 ** 18 - CREATION_GAS - (opcodes.GTXCOST + 40) - 10 * 10 ** 18,
+        )
+        self.assertEqual(
+            state.get_token_balance(contract_address, DEFAULT_TOKEN), 10 * 10 ** 18
+        )
+
+        # 3. suicide
+        SUICIDE_GAS = 13199
+        tx_kill = create_transfer_transaction(
+            shard_state=state,
+            key=id2.get_key(),
+            from_address=acc2,
+            to_address=Address(contract_address, acc1.full_shard_key),
+            value=0,
+            gas=1000000,
+            gas_price=0,  # !!! acc2 has no token yet...
+            nonce=None,
+            data=bytes.fromhex("41c0e1b5"),
+            gas_token_id=DEFAULT_TOKEN,
+            transfer_token_id=DEFAULT_TOKEN,
+        )
+        self.assertTrue(state.add_tx(tx_kill))
+        b3 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b3.tx_list), 1)
+        state.finalize_and_add_block(b3)
+        self.assertEqual(state.header_tip, b3.header)
+        self.assertEqual(len(state.evm_state.receipts), 1)
+        self.assertEqual(state.evm_state.receipts[0].state_root, b"\x01")
+        self.assertEqual(state.evm_state.receipts[0].gas_used, SUICIDE_GAS)
+        self.assertEqual(
+            state.get_token_balance(id2.recipient, DEFAULT_TOKEN), 10 * 10 ** 18
+        )
+        self.assertEqual(state.get_token_balance(contract_address, DEFAULT_TOKEN), 0)

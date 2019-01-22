@@ -1,11 +1,11 @@
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index cb6f081..673374f 100644
+index ca000b6..673374f 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
 @@ -134,17 +134,11 @@ def config_fork_specific_validation(config, blknum, tx):
- 
+
  def validate_transaction(state, tx):
- 
+
 -    # (0) multi native token, tx fee must be paid in QKC (0)
 -    # TODODLL: change this
 -    if tx.gas_token_id != 0:
@@ -14,15 +14,15 @@ index cb6f081..673374f 100644
      # (1) The transaction signature is valid;
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
- 
+
 -    # assert config_fork_specific_validation(
 -    #     state.config, state.block_number, tx)
 +    assert config_fork_specific_validation(state.config, state.block_number, tx)
- 
+
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
 @@ -160,39 +154,12 @@ def validate_transaction(state, tx):
- 
+
      # (4) the sender account balance contains at least the
      # cost, v0, required in up-front payment.
 -    if tx.transfer_token_id == tx.gas_token_id:
@@ -64,13 +64,13 @@ index cb6f081..673374f 100644
 +        raise InsufficientBalance(
 +            rp(tx, "balance", state.get_balance(tx.sender), total_cost)
 +        )
- 
+
      # check block gas limit
      if state.gas_used + tx.startgas > state.gas_limit:
 @@ -217,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
- 
- 
+
+
 -def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 +def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash=b""):
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
@@ -78,7 +78,7 @@ index cb6f081..673374f 100644
      """
 @@ -241,10 +208,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
      )
- 
+
      # buy startgas
 -    assert (
 -        state.get_token_balance(tx.sender, tx.gas_token_id) >= tx.startgas * tx.gasprice
@@ -86,7 +86,7 @@ index cb6f081..673374f 100644
 -    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 +    assert state.get_balance(tx.sender) >= tx.startgas * tx.gasprice
 +    state.delta_balance(tx.sender, -tx.startgas * tx.gasprice)
- 
+
      message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
      message = vm.Message(
 @@ -258,7 +223,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
@@ -95,7 +95,7 @@ index cb6f081..673374f 100644
          tx_hash=tx_wrapper_hash,
 -        transfer_token_id=tx.transfer_token_id,
      )
- 
+
      # MESSAGE
 @@ -288,17 +252,14 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              startgas=tx.startgas,
@@ -145,28 +145,29 @@ index cb6f081..673374f 100644
 -        state.set_balances(s, {})
 +        state.set_balance(s, 0)
          state.del_account(s)
- 
+
      # Pre-Metropolis: commit state after every tx
-@@ -366,9 +324,8 @@ class VMExt:
+@@ -366,10 +324,8 @@ class VMExt:
          self._state = state
          self.get_code = state.get_code
          self.set_code = state.set_code
 -        self.get_balances = state.get_balances
 -        self.get_token_balance = state.get_token_balance
 -        self.set_balances = state.set_balances
+-        self.set_token_balance = state.set_token_balance
 +        self.get_balance = state.get_balance
 +        self.set_balance = state.set_balance
          self.get_nonce = state.get_nonce
          self.set_nonce = state.set_nonce
          self.increment_nonce = state.increment_nonce
-@@ -431,20 +388,13 @@ def _apply_msg(ext, msg, code):
+@@ -432,20 +388,13 @@ def _apply_msg(ext, msg, code):
              pre_storage=ext.log_storage(msg.to),
              static=msg.static,
              depth=msg.depth,
 -            gas_token_id=msg.gas_token_id,
 -            transfer_token_id=msg.transfer_token_id,
          )
- 
+
 -    # early exit if msg.sender is disallowed
 -    if msg.sender in ext.sender_disallow_list:
 -        log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
@@ -181,7 +182,7 @@ index cb6f081..673374f 100644
                  return 1, msg.gas, []
              ext.add_cross_shard_transaction_deposit(
                  quarkchain.core.CrossShardTransactionDeposit(
-@@ -455,17 +405,14 @@ def _apply_msg(ext, msg, code):
+@@ -456,17 +405,14 @@ def _apply_msg(ext, msg, code):
                      to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                      value=msg.value,
                      gas_price=ext.tx_gasprice,
@@ -203,11 +204,11 @@ index cb6f081..673374f 100644
 +                "MSG TRANSFER FAILED", have=ext.get_balance(msg.to), want=msg.value
              )
              return 1, msg.gas, []
- 
-@@ -473,10 +420,6 @@ def _apply_msg(ext, msg, code):
+
+@@ -474,10 +420,6 @@ def _apply_msg(ext, msg, code):
          # Cross shard contract call is not supported
          return 1, msg.gas, []
- 
+
 -    if msg.transfer_token_id != 0:
 -        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
 -        return 1, msg.gas, []
@@ -215,32 +216,32 @@ index cb6f081..673374f 100644
      # Main loop
      if msg.code_address in ext.specials:
          res, gas, dat = ext.specials[msg.code_address](ext, msg)
-@@ -501,9 +444,7 @@ def _apply_msg(ext, msg, code):
- 
- 
+@@ -502,9 +444,7 @@ def _apply_msg(ext, msg, code):
+
+
  def mk_contract_address(sender, full_shard_key, nonce):
 -    return utils.sha3(
 -        rlp.encode([utils.normalize_address(sender), full_shard_key, nonce])
 -    )[12:]
 +    return utils.sha3(rlp.encode([utils.normalize_address(sender), nonce]))[12:]
- 
- 
+
+
  def create_contract(ext, msg):
-@@ -512,10 +453,6 @@ def create_contract(ext, msg):
+@@ -513,10 +453,6 @@ def create_contract(ext, msg):
      if msg.is_cross_shard:
          return 0, msg.gas, b""
- 
+
 -    if msg.transfer_token_id != 0:
 -        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
 -        return 0, msg.gas, b""
 -
      code = msg.data.extract_all()
- 
+
      if ext.tx_origin != msg.sender:
-@@ -534,9 +471,9 @@ def create_contract(ext, msg):
+@@ -535,9 +471,9 @@ def create_contract(ext, msg):
          log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
          return 0, 0, b""
- 
+
 -    b = ext.get_balances(msg.to)
 -    if b != {}:
 -        ext.set_balances(msg.to, b)
@@ -251,17 +252,17 @@ index cb6f081..673374f 100644
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 7056464..3132f83 100644
+index 4a0bc30..3132f83 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -33,7 +33,6 @@ BLANK_ROOT = utils.sha3rlp(b"")
- 
+
  THREE = b"\x00" * 19 + b"\x03"
- 
+
 -DEFAULT_TOKEN = 0
  TOKEN_TRIE_THRESHOLD = 16
- 
- 
+
+
 @@ -69,10 +68,9 @@ STATE_DEFAULTS = {
  class _Account(rlp.Serializable):
      fields = [
@@ -272,20 +273,20 @@ index 7056464..3132f83 100644
          ("code_hash", hash32),
 -        ("full_shard_key", BigEndianInt(4)),
      ]
- 
- 
+
+
 @@ -82,7 +80,7 @@ class TokenBalancePair(rlp.Serializable):
- 
+
  class TokenBalances:
      """interface for token balances
 -    TODODLL: store token balances in trie when TOKEN_TRIE_THRESHOLD is crossed
 +    TODO: store token balances in trie when TOKEN_TRIE_THRESHOLD is crossed
      """
- 
+
      def __init__(self, data: bytes, db):
 @@ -100,8 +98,6 @@ class TokenBalances:
                  raise Exception("Unknown enum byte in token_balances")
- 
+
      def serialize(self):
 -        if len(self.balances) == 0:
 -            return b""
@@ -294,17 +295,17 @@ index 7056464..3132f83 100644
              l = []
 @@ -117,22 +113,22 @@ class TokenBalances:
          return retv
- 
+
      def balance(self, token_id):
 -        return self.balances.get(token_id, 0)
 +        self.balances.get(token_id, 0)
- 
+
 -    def is_empty(self):
 -        return all(v == 0 for v in self.balances.values())
 +    def delta(self, token_id, value):
 +        self.balances[token_id] = self.balances.get(token_id, 0) + value
- 
- 
+
+
  class Account:
      def __init__(
          self,
@@ -325,7 +326,7 @@ index 7056464..3132f83 100644
 @@ -140,12 +136,12 @@ class Account:
          self.env = env
          self.address = address
- 
+
 -        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key)
 +        acc = _Account(nonce, balance, storage, code_hash)
          self.nonce = acc.nonce
@@ -335,7 +336,7 @@ index 7056464..3132f83 100644
 -        self.full_shard_key = acc.full_shard_key
 -        self.token_balances = TokenBalances(token_balances, self.db)
 +        self.full_shard_key = full_shard_key
- 
+
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
 @@ -194,7 +190,7 @@ class Account:
@@ -349,7 +350,7 @@ index 7056464..3132f83 100644
              full_shard_key,
 @@ -206,11 +202,7 @@ class Account:
          return o
- 
+
      def is_blank(self):
 -        return (
 -            self.nonce == 0
@@ -357,7 +358,7 @@ index 7056464..3132f83 100644
 -            and self.code_hash == BLANK_HASH
 -        )
 +        return self.nonce == 0 and self.balance == 0 and self.code_hash == BLANK_HASH
- 
+
      @property
      def exists(self):
 @@ -223,7 +215,7 @@ class Account:
@@ -384,7 +385,7 @@ index 7056464..3132f83 100644
 @@ -319,15 +310,8 @@ class State:
          o._cached_rlp = None
          return o
- 
+
 -    def get_balances(self, address) -> dict:
 -        return self.get_and_cache_account(
 -            utils.normalize_address(address)
@@ -396,13 +397,13 @@ index 7056464..3132f83 100644
 -        ).token_balances.balance(token_id)
 +    def get_balance(self, address):
 +        return self.get_and_cache_account(utils.normalize_address(address)).balance
- 
+
      def get_code(self, address):
          return self.get_and_cache_account(utils.normalize_address(address)).code
 @@ -346,12 +330,9 @@ class State:
          self.journal.append(lambda: setattr(acct, param, preval))
          setattr(acct, param, val)
- 
+
 -    def set_balances(self, address, token_balances: dict):
 +    def set_balance(self, address, value):
          acct = self.get_and_cache_account(utils.normalize_address(address))
@@ -412,13 +413,21 @@ index 7056464..3132f83 100644
 -        self.set_and_journal(acct.token_balances, "balances", token_balances)
 +        self.set_and_journal(acct, "balance", value)
          self.set_and_journal(acct, "touched", True)
- 
+
      def set_code(self, address, value):
-@@ -365,26 +346,11 @@ class State:
+@@ -365,34 +346,11 @@ class State:
          self.set_and_journal(acct, "nonce", value)
          self.set_and_journal(acct, "touched", True)
- 
--    def set_token_balance_and_journal(self, acct, token_id, val):
+
+-    def set_token_balance(self, address, token_id, val):
+-        acct = self.get_and_cache_account(utils.normalize_address(address))
+-        if val == self.get_token_balance(address, token_id):
+-            self.set_and_journal(acct, "touched", True)
+-            return
+-        self._set_token_balance_and_journal(acct, token_id, val)
+-        self.set_and_journal(acct, "touched", True)
+-
+-    def _set_token_balance_and_journal(self, acct, token_id, val):
 -        """if token_id was not set, journal will erase token_id when reverted
 -        """
 -        preval = acct.token_balances.balances.get(token_id, None)
@@ -438,25 +447,25 @@ index 7056464..3132f83 100644
 -            self.set_and_journal(acct, "touched", True)
 -            return
 -        newbal = acct.token_balances.balance(token_id) + value
--        self.set_token_balance_and_journal(acct, token_id, newbal)
+-        self._set_token_balance_and_journal(acct, token_id, newbal)
 +        newbal = acct.balance + value
 +        self.set_and_journal(acct, "balance", newbal)
          self.set_and_journal(acct, "touched", True)
- 
+
      def increment_nonce(self, address):
-@@ -451,7 +417,7 @@ class State:
+@@ -459,7 +417,7 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
 -            self.delta_token_balance(THREE, DEFAULT_TOKEN, 0)
 +            self.delta_balance(THREE, 0)
- 
+
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -515,18 +481,18 @@ class State:
+@@ -523,18 +481,18 @@ class State:
                  return a.existent_at_start
          return o
- 
+
 -    def transfer_value(self, from_addr, to_addr, token_id, value):
 +    def transfer_value(self, from_addr, to_addr, value):
          assert value >= 0
@@ -468,7 +477,7 @@ index 7056464..3132f83 100644
 +            self.delta_balance(to_addr, value)
              return True
          return False
- 
+
 -    def deduct_value(self, from_addr, token_id, value):
 +    def deduct_value(self, from_addr, value):
          assert value >= 0
@@ -478,8 +487,8 @@ index 7056464..3132f83 100644
 +            self.delta_balance(from_addr, -value)
              return True
          return False
- 
-@@ -541,11 +507,7 @@ class State:
+
+@@ -549,11 +507,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -492,16 +501,16 @@ index 7056464..3132f83 100644
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -568,7 +530,7 @@ class State:
+@@ -576,7 +530,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
- 
+
      def del_account(self, address):
 -        self.set_balances(address, {})
 +        self.set_balance(address, 0)
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -633,9 +595,9 @@ class State:
+@@ -641,9 +595,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
@@ -519,7 +528,7 @@ index 644ab38..4c6a252 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
 @@ -247,10 +247,7 @@ class Transaction(rlp.Serializable):
- 
+
      @property
      def is_cross_shard(self):
 -        return (
@@ -527,74 +536,96 @@ index 644ab38..4c6a252 100644
 -            or self.from_shard_id != self.to_shard_id
 -        )
 +        return False
- 
+
      def __eq__(self, other):
          return isinstance(other, self.__class__) and self.hash == other.hash
 diff --git a/quarkchain/evm/vm.py b/quarkchain/evm/vm.py
-index 02fcef9..48f4d93 100644
+index b4a08e5..dce0522 100644
 --- a/quarkchain/evm/vm.py
 +++ b/quarkchain/evm/vm.py
-@@ -84,8 +84,6 @@ class Message(object):
+@@ -29,8 +29,6 @@ TT255 = 2 ** 255
+
+ MAX_DEPTH = 1024
+
+-# TODODLL change to shard specific DEFAULT_TOKEN
+-DEFAULT_TOKEN = 0
+
+ # Wrapper to store call data. This is needed because it is possible to
+ # call a contract N times with N bytes of data with a gas cost of O(N);
+@@ -86,8 +84,6 @@ class Message(object):
          from_full_shard_key=None,
          to_full_shard_key=None,
          tx_hash=None,
--        gas_token_id=0,
--        transfer_token_id=0,
+-        gas_token_id=DEFAULT_TOKEN,
+-        transfer_token_id=DEFAULT_TOKEN,
      ):
          self.sender = sender
          self.to = to
-@@ -108,8 +106,6 @@ class Message(object):
+@@ -110,8 +106,6 @@ class Message(object):
          self.tx_hash = (
              tx_hash
          )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
 -        self.gas_token_id = gas_token_id
 -        self.transfer_token_id = transfer_token_id
- 
+
      def __repr__(self):
          return "<Message(to:%s...)>" % self.to[:8]
-@@ -495,8 +491,7 @@ def vm_execute(ext, msg, code):
+@@ -497,8 +491,7 @@ def vm_execute(ext, msg, code):
                      if not eat_gas(compustate, opcodes.BALANCE_SUPPLEMENTAL_GAS):
                          return vm_exception("OUT OF GAS")
                  addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
 -                # TODODLL support native tokens in evm
--                stk.append(ext.get_token_balance(addr, 0))
+-                stk.append(ext.get_token_balance(addr, DEFAULT_TOKEN))
 +                stk.append(ext.get_balance(addr))
              elif op == "ORIGIN":
                  stk.append(utils.coerce_to_int(ext.tx_origin))
              elif op == "CALLER":
-@@ -688,7 +683,7 @@ def vm_execute(ext, msg, code):
+@@ -690,10 +683,7 @@ def vm_execute(ext, msg, code):
                  return vm_exception("OOG EXTENDING MEMORY")
              if msg.static:
                  return vm_exception("Cannot CREATE inside a static context")
--            if ext.get_token_balance(msg.to, 0) >= value and msg.depth < MAX_DEPTH:
+-            if (
+-                ext.get_token_balance(msg.to, DEFAULT_TOKEN) >= value
+-                and msg.depth < MAX_DEPTH
+-            ):
 +            if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
                  cd = CallData(mem, mstart, msz)
                  ingas = compustate.gas
                  if ext.post_anti_dos_hardfork():
-@@ -777,7 +772,7 @@ def vm_execute(ext, msg, code):
+@@ -782,10 +772,7 @@ def vm_execute(ext, msg, code):
                      return vm_exception("OUT OF GAS", needed=gas + extra_gas)
              submsg_gas = gas + opcodes.GSTIPEND * (value > 0)
              # Verify that there is sufficient balance and depth
--            if ext.get_token_balance(msg.to, 0) < value or msg.depth >= MAX_DEPTH:
+-            if (
+-                ext.get_token_balance(msg.to, DEFAULT_TOKEN) < value
+-                or msg.depth >= MAX_DEPTH
+-            ):
 +            if ext.get_balance(msg.to) < value or msg.depth >= MAX_DEPTH:
                  compustate.gas -= gas + extra_gas - submsg_gas
                  stk.append(0)
                  compustate.last_returned = bytearray(b"")
-@@ -867,7 +862,7 @@ def vm_execute(ext, msg, code):
+@@ -875,7 +862,7 @@ def vm_execute(ext, msg, code):
                  return vm_exception("Cannot SUICIDE inside a static context")
              to = utils.encode_int(stk.pop())
              to = ((b"\x00" * (32 - len(to))) + to)[12:]
--            xfer = ext.get_token_balance(msg.to, 0)
+-            xfer = ext.get_token_balance(msg.to, msg.transfer_token_id)
 +            xfer = ext.get_balance(msg.to)
              if ext.post_anti_dos_hardfork():
                  extra_gas = (
                      opcodes.SUICIDE_SUPPLEMENTAL_GAS
-@@ -877,7 +872,7 @@ def vm_execute(ext, msg, code):
+@@ -885,13 +872,8 @@ def vm_execute(ext, msg, code):
                  )
                  if not eat_gas(compustate, extra_gas):
                      return vm_exception("OUT OF GAS")
--            ext.set_balance(to, ext.get_token_balance(to, 0) + xfer)
+-            ext.set_token_balance(
+-                to,
+-                msg.transfer_token_id,
+-                ext.get_token_balance(to, msg.transfer_token_id) + xfer,
+-            )
+-            # del_account removes all token balances
+-            ext.set_token_balance(msg.to, msg.transfer_token_id, 0)
 +            ext.set_balance(to, ext.get_balance(to) + xfer)
-             ext.set_balance(msg.to, 0)
++            ext.set_balance(msg.to, 0)
              ext.add_suicide(msg.to)
              log_msg.debug(
+                 "SUICIDING",

@@ -15,6 +15,7 @@ from quarkchain.core import Address, Branch, Transaction, Code, ChainMask
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
+from quarkchain.evm.state import DEFAULT_TOKEN
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
@@ -91,8 +92,8 @@ def create_transfer_transaction(
     gas_price=1,
     nonce=None,
     data=b"",
-    gas_token_id=0,
-    transfer_token_id=0,
+    gas_token_id=DEFAULT_TOKEN,
+    transfer_token_id=DEFAULT_TOKEN,
 ):
     """ Create an in-shard xfer tx
     """
@@ -183,6 +184,33 @@ def create_contract_with_storage_transaction(
     return _contract_tx_gen(
         shard_state, key, from_address, to_full_shard_key, CONTRACT_WITH_STORAGE
     )
+
+
+def contract_creation_tx(
+    shard_state,
+    key,
+    from_address,
+    to_full_shard_key,
+    bytecode,
+    gas=100000,
+    gas_token_id=DEFAULT_TOKEN,
+    transfer_token_id=DEFAULT_TOKEN,
+):
+    evm_tx = EvmTransaction(
+        nonce=shard_state.get_transaction_count(from_address.recipient),
+        gasprice=1,
+        startgas=gas,
+        value=0,
+        to=b"",
+        data=bytes.fromhex(bytecode),
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_full_shard_key,
+        network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
+    )
+    evm_tx.sign(key)
+    return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
 
 
 class Cluster:

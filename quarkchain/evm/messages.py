@@ -369,6 +369,7 @@ class VMExt:
         self.get_balances = state.get_balances
         self.get_token_balance = state.get_token_balance
         self.set_balances = state.set_balances
+        self.set_token_balance = state.set_token_balance
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
