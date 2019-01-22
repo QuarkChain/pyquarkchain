@@ -25,7 +25,6 @@ from quarkchain.evm.exceptions import (
     InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
-from quarkchain.utils import token_id_encode
 
 
 null_address = b"\xff" * 20
@@ -40,9 +39,6 @@ CREATE_CONTRACT_ADDRESS = b""
 
 # DEV OPTIONS
 SKIP_MEDSTATES = False
-
-# TODODLL change to chain-specific token and genesis_token
-DEFAULT_TOKEN = token_id_encode("TQKC")
 
 
 def rp(tx, what, actual, target):
@@ -138,9 +134,9 @@ def config_fork_specific_validation(config, blknum, tx):
 
 def validate_transaction(state, tx):
 
-    # (0) multi native token, tx fee must be paid in QKC (0)
+    # (0) multi native token, tx fee must be paid in QKC (genesis_token)
     # TODODLL: change this
-    if tx.gas_token_id != DEFAULT_TOKEN:
+    if tx.gas_token_id != state.env.quark_chain_config.genesis_token:
         raise InvalidTransaction("Gas token must be QKC")
 
     # (1) The transaction signature is valid;
@@ -370,10 +366,12 @@ class VMExt:
         self._state = state
         self.get_code = state.get_code
         self.set_code = state.set_code
-        self.get_balances = state.get_balances
+        self.get_balances = state.get_balances # gets token balances dict
         self.get_token_balance = state.get_token_balance
-        self.set_balances = state.set_balances
+        self.get_balance = state.get_balance # gets default_chain_token balance
+        self.set_balances = state.set_balances # sets token balances dict
         self.set_token_balance = state.set_token_balance
+        self.set_balance = state.set_balance # gets default_chain_token balance
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
@@ -414,6 +412,7 @@ class VMExt:
         self.tx_origin = tx.sender if tx else b"\x00" * 20
         self.tx_gasprice = tx.gasprice if tx else 0
         self.sender_disallow_list = state.sender_disallow_list
+        self.default_state_token = state.shard_config.default_chain_token
 
 
 def apply_msg(ext, msg):
@@ -478,7 +477,7 @@ def _apply_msg(ext, msg, code):
         # Cross shard contract call is not supported
         return 1, msg.gas, []
 
-    if msg.transfer_token_id != DEFAULT_TOKEN:
+    if msg.transfer_token_id != ext.default_state_token:
         # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 1, msg.gas, []
 
@@ -517,7 +516,7 @@ def create_contract(ext, msg):
     if msg.is_cross_shard:
         return 0, msg.gas, b""
 
-    if msg.transfer_token_id != DEFAULT_TOKEN:
+    if msg.transfer_token_id != ext.default_state_token:
         # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 0, msg.gas, b""
 

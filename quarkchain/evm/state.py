@@ -25,7 +25,6 @@ from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
 from quarkchain.db import Db, OverlayDb
 from quarkchain.evm.common import FakeHeader
-from quarkchain.utils import token_id_encode
 import copy
 
 
@@ -34,8 +33,6 @@ BLANK_ROOT = utils.sha3rlp(b"")
 
 THREE = b"\x00" * 19 + b"\x03"
 
-# TODODLL change to chain-specific token and genesis_token
-DEFAULT_TOKEN = token_id_encode("TQKC")
 TOKEN_TRIE_THRESHOLD = 16
 
 
@@ -263,6 +260,7 @@ class State:
         self.executing_on_head = executing_on_head
         self.qkc_config = qkc_config
         self.sender_disallow_list = set()  # type: Set[bytes]
+        self.shard_config = None
 
     @property
     def db(self):
@@ -326,7 +324,7 @@ class State:
             utils.normalize_address(address)
         ).token_balances.balances
 
-    def get_token_balance(self, address, token_id):
+    def get_balance(self, address, token_id=self.shard_config.default_chain_token):
         return self.get_and_cache_account(
             utils.normalize_address(address)
         ).token_balances.balance(token_id)
@@ -369,7 +367,7 @@ class State:
 
     def set_token_balance(self, address, token_id, val):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        if val == self.get_token_balance(address, token_id):
+        if val == self.get_balance(address, token_id=token_id):
             self.set_and_journal(acct, "touched", True)
             return
         self._set_token_balance_and_journal(acct, token_id, val)
@@ -461,7 +459,7 @@ class State:
         if (
             three_touched and 2675000 < self.block_number < 2675200
         ):  # Compatibility with weird geth+parity bug
-            self.delta_token_balance(THREE, DEFAULT_TOKEN, 0)
+            self.delta_token_balance(THREE, self.shard_config.default_chain_token, 0)
 
     def set_param(self, k, v):
         preval = getattr(self, k)
@@ -527,7 +525,7 @@ class State:
 
     def transfer_value(self, from_addr, to_addr, token_id, value):
         assert value >= 0
-        if self.get_token_balance(from_addr, token_id) >= value:
+        if self.get_balance(from_addr, token_id=token_id) >= value:
             self.delta_token_balance(from_addr, token_id, -value)
             self.delta_token_balance(to_addr, token_id, value)
             return True
@@ -535,7 +533,7 @@ class State:
 
     def deduct_value(self, from_addr, token_id, value):
         assert value >= 0
-        if self.get_token_balance(from_addr, token_id) >= value:
+        if self.get_balance(from_addr, token_id=token_id) >= value:
             self.delta_token_balance(from_addr, token_id, -value)
             return True
         return False

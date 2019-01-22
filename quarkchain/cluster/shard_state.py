@@ -154,6 +154,7 @@ class ShardState:
         state = EvmState(
             env=self.env.evm_env, db=self.raw_db, qkc_config=self.env.quark_chain_config
         )
+        state.shard_config = self.shard_config
         if trie_root_hash:
             state.trie.root_hash = trie_root_hash
 
@@ -847,7 +848,7 @@ class ShardState:
         evm_state = self._get_evm_state_from_height(height)
         if not evm_state:
             return 0
-        return evm_state.get_token_balance(recipient, token_id)
+        return evm_state.get_balance(recipient, token_id=token_id)
 
     def get_balances(self, recipient: bytes, height: Optional[int] = None) -> dict:
         evm_state = self._get_evm_state_from_height(height)
@@ -1590,7 +1591,7 @@ class ShardState:
         # Evaluate stakes before the to-be-added block
         evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
         config = self.shard_config.POSW_CONFIG
-        stakes = evm_state.get_token_balance(
+        stakes = evm_state.get_balance(
             coinbase_address, self.env.quark_chain_config.genesis_token
         )
         block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
