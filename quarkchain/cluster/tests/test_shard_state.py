@@ -1511,7 +1511,7 @@ class TestShardState(unittest.TestCase):
 
         # Coinbase in genesis should be disallowed
         self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
-        self.assertEqual(list(state.evm_state.sender_disallow_list)[0], bytes(20))
+        self.assertTrue(bytes(20) in state.evm_state.sender_disallow_list)
 
         m = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m)
@@ -1542,6 +1542,7 @@ class TestShardState(unittest.TestCase):
             if i == 0:
                 # Make sure the disallow rolling window now discards the first addr
                 self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
+                self.assertTrue(bytes(20) not in state.evm_state.sender_disallow_list)
             else:
                 # Disallow list should only have acc2
                 self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
