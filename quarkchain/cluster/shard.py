@@ -535,7 +535,7 @@ class Shard:
                     full_shard_id, str(e)
                 )
             )
-            return
+            raise e
 
         if block.header.create_time > time_ms() // 1000 + 30:
             return
