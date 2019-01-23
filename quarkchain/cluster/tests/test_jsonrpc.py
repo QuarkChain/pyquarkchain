@@ -125,6 +125,8 @@ class TestJSONRPC(unittest.TestCase):
                 from_full_shard_key=acc1.full_shard_key,
                 to_full_shard_key=acc2.full_shard_key,
                 network_id=slaves[0].env.quark_chain_config.NETWORK_ID,
+                gas_token_id=master.env.quark_chain_config.genesis_token,
+                transfer_token_id=master.env.quark_chain_config.genesis_token,
             )
             evm_tx.sign(id1.get_key())
             request = dict(

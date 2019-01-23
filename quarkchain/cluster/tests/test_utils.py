@@ -148,6 +148,8 @@ CONTRACT_WITH_STORAGE = "6080604052348015600f57600080fd5b506104d2600081905550611
 
 
 def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode):
+    gas_token_id = shard_state.env.quark_chain_config.genesis_token
+    transfer_token_id = shard_state.env.quark_chain_config.genesis_token
     evm_tx = EvmTransaction(
         nonce=shard_state.get_transaction_count(from_address.recipient),
         gasprice=1,
@@ -158,6 +160,8 @@ def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode
         from_full_shard_key=from_address.full_shard_key,
         to_full_shard_key=to_full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
     )
     evm_tx.sign(key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
