@@ -603,6 +603,14 @@ class JSONRPCServer:
         gasprice = get_data_default("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
         value = get_data_default("value", quantity_decoder, 0)
         data_ = get_data_default("data", data_decoder, b"")
+        gas_token_id = get_data_default(
+            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
+        )
+        transfer_token_id = get_data_default(
+            "transfer_token_id",
+            quantity_decoder,
+            self.env.quark_chain_config.genesis_token,
+        )
 
         from_full_shard_key = get_data_default(
             "fromFullShardId", full_shard_key_decoder, None
@@ -629,6 +637,8 @@ class JSONRPCServer:
             from_full_shard_key=from_full_shard_key,
             to_full_shard_key=to_full_shard_key,
             network_id=self.master.env.quark_chain_config.NETWORK_ID,
+            gas_token_id=gas_token_id,
+            transfer_token_id=transfer_token_id,
         )
 
         return {
@@ -671,6 +681,15 @@ class JSONRPCServer:
             "networkId", quantity_decoder, self.master.env.quark_chain_config.NETWORK_ID
         )
 
+        gas_token_id = get_data_default(
+            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
+        )
+        transfer_token_id = get_data_default(
+            "transfer_token_id",
+            quantity_decoder,
+            self.env.quark_chain_config.genesis_token,
+        )
+
         if nonce is None:
             raise InvalidParams("Missing nonce")
         if not (v and r and s):
@@ -688,12 +707,14 @@ class JSONRPCServer:
             to,
             value,
             data_,
-            v,
-            r,
-            s,
+            v=v,
+            r=r,
+            s=s,
             from_full_shard_key=from_full_shard_key,
             to_full_shard_key=to_full_shard_key,
             network_id=network_id,
+            gas_token_id=gas_token_id,
+            transfer_token_id=transfer_token_id,
         )
         tx = Transaction(code=Code.create_evm_code(evm_tx))
         success = await self.master.add_transaction(tx)
@@ -1114,6 +1135,14 @@ class JSONRPCServer:
         from_full_shard_key = get_data_default(
             "fromFullShardId", full_shard_key_decoder, 0
         )
+        gas_token_id = get_data_default(
+            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
+        )
+        transfer_token_id = get_data_default(
+            "transfer_token_id",
+            quantity_decoder,
+            self.env.quark_chain_config.genesis_token,
+        )
         # build sample tx
         evm_tx_sample = EvmTransaction(
             0,
@@ -1123,6 +1152,8 @@ class JSONRPCServer:
             value,
             data,
             from_full_shard_key=from_full_shard_key,
+            gas_token_id=gas_token_id,
+            transfer_token_id=transfer_token_id,
         )
         tx = Transaction(code=Code.create_evm_code(evm_tx_sample))
         return await self.master.create_transactions(
@@ -1219,6 +1250,14 @@ class JSONRPCServer:
         data_ = get_data_default("data", data_decoder, b"")
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         sender_address = Address.create_from(sender)
+        gas_token_id = get_data_default(
+            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
+        )
+        transfer_token_id = get_data_default(
+            "transfer_token_id",
+            quantity_decoder,
+            self.env.quark_chain_config.genesis_token,
+        )
 
         network_id = self.master.env.quark_chain_config.NETWORK_ID
 
@@ -1233,6 +1272,8 @@ class JSONRPCServer:
             from_full_shard_key=sender_address.full_shard_key,
             to_full_shard_key=to_full_shard_key,
             network_id=network_id,
+            gas_token_id=gas_token_id,
+            transfer_token_id=transfer_token_id,
         )
 
         tx = Transaction(code=Code.create_evm_code(evm_tx))
