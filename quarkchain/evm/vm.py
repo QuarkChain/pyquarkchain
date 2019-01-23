@@ -84,8 +84,8 @@ class Message(object):
         from_full_shard_key=None,
         to_full_shard_key=None,
         tx_hash=None,
-        gas_token_id=None,
-        transfer_token_id=None,
+        gas_token_id=0,
+        transfer_token_id=0,
     ):
         self.sender = sender
         self.to = to
@@ -108,8 +108,6 @@ class Message(object):
         self.tx_hash = (
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
-        if gas_token_id is None or transfer_token_id is None:
-            raise Exception("Invalid token id in Message")
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
 

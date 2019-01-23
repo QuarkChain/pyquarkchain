@@ -85,6 +85,8 @@ class Transaction(rlp.Serializable):
         to,
         value,
         data,
+        gas_token_id,
+        transfer_token_id,
         v=0,
         r=0,
         s=0,
@@ -92,11 +94,7 @@ class Transaction(rlp.Serializable):
         to_full_shard_key=0,
         network_id=1,
         version=0,
-        gas_token_id=None,
-        transfer_token_id=None,
     ):
-        if gas_token_id is None or transfer_token_id is None:
-           raise InvalidTransaction("Invalid token id")
         self.quark_chain_config = None
 
         to = utils.normalize_address(to, allow_blank=True)
