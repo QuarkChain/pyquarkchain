@@ -377,13 +377,9 @@ class State:
         self.set_and_journal(acct, "touched", True)
 
     def set_balance(self, address, val):
-        token_id = self.shard_config.default_chain_token
-        acct = self.get_and_cache_account(utils.normalize_address(address))
-        if val == self.get_balance(address, token_id=token_id):
-            self.set_and_journal(acct, "touched", True)
-            return
-        self._set_token_balance_and_journal(acct, token_id, val)
-        self.set_and_journal(acct, "touched", True)
+        self.set_token_balance(
+            address, token_id=self.shard_config.default_chain_token, val=val
+        )
 
     def _set_token_balance_and_journal(self, acct, token_id, val):
         """if token_id was not set, journal will erase token_id when reverted
