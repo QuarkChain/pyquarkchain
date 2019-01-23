@@ -262,7 +262,7 @@ index b1d478d..673374f 100644
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 47ee712..3132f83 100644
+index f246e3f..3132f83 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -4,7 +4,6 @@ from typing import Set
@@ -435,7 +435,7 @@ index 47ee712..3132f83 100644
          self.set_and_journal(acct, "touched", True)
  
      def set_code(self, address, value):
-@@ -368,43 +346,11 @@ class State:
+@@ -368,39 +346,11 @@ class State:
          self.set_and_journal(acct, "nonce", value)
          self.set_and_journal(acct, "touched", True)
  
@@ -448,13 +448,9 @@ index 47ee712..3132f83 100644
 -        self.set_and_journal(acct, "touched", True)
 -
 -    def set_balance(self, address, val):
--        token_id = self.shard_config.default_chain_token
--        acct = self.get_and_cache_account(utils.normalize_address(address))
--        if val == self.get_balance(address, token_id=token_id):
--            self.set_and_journal(acct, "touched", True)
--            return
--        self._set_token_balance_and_journal(acct, token_id, val)
--        self.set_and_journal(acct, "touched", True)
+-        self.set_token_balance(
+-            address, token_id=self.shard_config.default_chain_token, val=val
+-        )
 -
 -    def _set_token_balance_and_journal(self, acct, token_id, val):
 -        """if token_id was not set, journal will erase token_id when reverted
@@ -482,7 +478,7 @@ index 47ee712..3132f83 100644
          self.set_and_journal(acct, "touched", True)
  
      def increment_nonce(self, address):
-@@ -471,7 +417,7 @@ class State:
+@@ -467,7 +417,7 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
@@ -491,7 +487,7 @@ index 47ee712..3132f83 100644
  
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -535,18 +481,18 @@ class State:
+@@ -531,18 +481,18 @@ class State:
                  return a.existent_at_start
          return o
  
@@ -517,7 +513,7 @@ index 47ee712..3132f83 100644
              return True
          return False
  
-@@ -561,11 +507,7 @@ class State:
+@@ -557,11 +507,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -530,7 +526,7 @@ index 47ee712..3132f83 100644
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -588,7 +530,7 @@ class State:
+@@ -584,7 +530,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
  
      def del_account(self, address):
@@ -539,7 +535,7 @@ index 47ee712..3132f83 100644
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -653,9 +595,9 @@ class State:
+@@ -649,9 +595,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
