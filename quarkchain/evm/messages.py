@@ -136,7 +136,7 @@ def validate_transaction(state, tx):
 
     # (0) multi native token, tx fee must be paid in QKC (genesis_token)
     # TODODLL: change this
-    if tx.gas_token_id != state.env.quark_chain_config.genesis_token:
+    if tx.gas_token_id != state.qkc_config.genesis_token:
         raise InvalidTransaction("Gas token must be QKC")
 
     # (1) The transaction signature is valid;
@@ -162,34 +162,34 @@ def validate_transaction(state, tx):
     # cost, v0, required in up-front payment.
     if tx.transfer_token_id == tx.gas_token_id:
         total_cost = tx.value + tx.gasprice * tx.startgas
-        if state.get_token_balance(tx.sender, tx.transfer_token_id) < total_cost:
+        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < total_cost:
             raise InsufficientBalance(
                 rp(
                     tx,
                     "token %d balance" % tx.transfer_token_id,
-                    state.get_token_balance(tx.sender, tx.transfer_token_id),
+                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
                     total_cost,
                 )
             )
     else:
-        if state.get_token_balance(tx.sender, tx.transfer_token_id) < tx.value:
+        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < tx.value:
             raise InsufficientBalance(
                 rp(
                     tx,
                     "token %d balance" % tx.transfer_token_id,
-                    state.get_token_balance(tx.sender, tx.transfer_token_id),
+                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
                     tx.value,
                 )
             )
         if (
-            state.get_token_balance(tx.sender, tx.gas_token_id)
+            state.get_balance(tx.sender, token_id=tx.gas_token_id)
             < tx.gasprice * tx.startgas
         ):
             raise InsufficientBalance(
                 rp(
                     tx,
                     "token %d balance" % tx.gas_token_id,
-                    state.get_token_balance(tx.sender, tx.gas_token_id),
+                    state.get_balance(tx.sender, token_id=tx.gas_token_id),
                     tx.gasprice * tx.startgas,
                 )
             )
@@ -242,7 +242,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     # buy startgas
     assert (
-        state.get_token_balance(tx.sender, tx.gas_token_id) >= tx.startgas * tx.gasprice
+        state.get_balance(tx.sender, token_id=tx.gas_token_id) >= tx.startgas * tx.gasprice
     )
     state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
@@ -259,6 +259,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         to_full_shard_key=tx.to_full_shard_key,
         tx_hash=tx_wrapper_hash,
         transfer_token_id=tx.transfer_token_id,
+        gas_token_id=tx.gas_token_id,
     )
 
     # MESSAGE
@@ -367,8 +368,7 @@ class VMExt:
         self.get_code = state.get_code
         self.set_code = state.set_code
         self.get_balances = state.get_balances # gets token balances dict
-        self.get_token_balance = state.get_token_balance
-        self.get_balance = state.get_balance # gets default_chain_token balance
+        self.get_balance = state.get_balance # gets default_chain_token balance if no token_id is passed in
         self.set_balances = state.set_balances # sets token balances dict
         self.set_token_balance = state.set_token_balance
         self.set_balance = state.set_balance # gets default_chain_token balance
@@ -468,7 +468,7 @@ def _apply_msg(ext, msg, code):
         ):
             log_msg.debug(
                 "MSG TRANSFER FAILED",
-                have=ext.get_token_balance(msg.sender, msg.transfer_token_id),
+                have=ext.get_balance(msg.sender, token_id=msg.transfer_token_id),
                 want=msg.value,
             )
             return 1, msg.gas, []

@@ -109,7 +109,7 @@ class Message(object):
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
         if gas_token_id is None or transfer_token_id is None:
-           raise Exception("Invalid token id in Message")
+            raise Exception("Invalid token id in Message")
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
 

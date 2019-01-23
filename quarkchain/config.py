@@ -192,6 +192,7 @@ class ShardConfig(ChainConfig):
                 setattr(self, k, copy.deepcopy(v))
 
         self._root_config = None
+        self._default_chain_token = None
 
     def get_full_shard_id(self) -> int:
         return (self.CHAIN_ID << 16) | self.SHARD_SIZE | self.SHARD_ID

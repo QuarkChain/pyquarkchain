@@ -4,6 +4,7 @@ from typing import Set
 import rlp
 from rlp.sedes.lists import CountableList
 from rlp.sedes import binary
+from quarkchain.config import ChainConfig, ShardConfig
 from quarkchain.evm.utils import (
     hash32,
     trie_root,
@@ -260,7 +261,7 @@ class State:
         self.executing_on_head = executing_on_head
         self.qkc_config = qkc_config
         self.sender_disallow_list = set()  # type: Set[bytes]
-        self.shard_config = None
+        self.shard_config = ShardConfig(ChainConfig())
 
     @property
     def db(self):
@@ -324,7 +325,9 @@ class State:
             utils.normalize_address(address)
         ).token_balances.balances
 
-    def get_balance(self, address, token_id=self.shard_config.default_chain_token):
+    def get_balance(self, address, token_id=None):
+        if token_id is None:
+            token_id = self.shard_config.default_chain_token
         return self.get_and_cache_account(
             utils.normalize_address(address)
         ).token_balances.balance(token_id)
@@ -366,6 +369,15 @@ class State:
         self.set_and_journal(acct, "touched", True)
 
     def set_token_balance(self, address, token_id, val):
+        acct = self.get_and_cache_account(utils.normalize_address(address))
+        if val == self.get_balance(address, token_id=token_id):
+            self.set_and_journal(acct, "touched", True)
+            return
+        self._set_token_balance_and_journal(acct, token_id, val)
+        self.set_and_journal(acct, "touched", True)
+
+    def set_balance(self, address, val):
+        token_id = self.shard_config.default_chain_token
         acct = self.get_and_cache_account(utils.normalize_address(address))
         if val == self.get_balance(address, token_id=token_id):
             self.set_and_journal(acct, "touched", True)
