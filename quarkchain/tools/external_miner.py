@@ -15,10 +15,11 @@ import jsonrpcclient
 from queue import LifoQueue
 
 from quarkchain.cluster.miner import Miner, MiningWork, MiningResult
-from quarkchain.config import ConsensusType
 from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.utils import int_left_most_bit
 
 # disable jsonrpcclient verbose logging
+
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
@@ -72,8 +73,13 @@ def submit_work_rpc(
     return success
 
 
-def repr_shard(full_shard_id: int):
-    return "SHARD %s" % full_shard_id if full_shard_id is not None else "ROOT"
+def repr_shard(full_shard_id: Optional[int]):
+    if full_shard_id is None:
+        return "ROOT"
+    chain = full_shard_id >> 16
+    shard = full_shard_id & 0xffff
+    shard -= 1 << (int_left_most_bit(shard) - 1)
+    return "CHAIN %d SHARD %d" % (chain, shard)
 
 
 class ExternalMiner(threading.Thread):
