@@ -79,7 +79,7 @@ class ShardState:
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
-        self.header_tip = None
+        self.header_tip = None  # MinorBlockHeader
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             last_price=0, last_head=b"", check_blocks=5, percentile=50

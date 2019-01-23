@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from fractions import Fraction
-from typing import Optional
+from typing import Optional, List
 
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import validate_seal
@@ -28,6 +28,19 @@ class LastMinorBlockHeaderList(Serializable):
         self.header_list = header_list
 
 
+def dict_to_token_pair_list(d: dict) -> List[TokenBalancePair]:
+    """keep token balance sorted to maintain deterministic serialization"""
+    retv = []
+    for k in sorted(d):
+        pair = TokenBalancePair(k, d[k])
+        retv.append(pair)
+    return retv
+
+
+def token_pair_list_to_dict(l) -> dict:
+    return {p.token_id: p.balance for p in l}
+
+
 class RootDb:
     """ Storage for all validated root blocks and minor blocks
 
@@ -48,7 +61,7 @@ class RootDb:
         )
         self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
-        self.m_hash_set = set()
+        self.m_hash_dict = dict()
         self.r_header_pool = dict()
         self.tip_header = None
 
@@ -76,7 +89,12 @@ class RootDb:
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
             self.r_header_pool[r_hash] = r_block.header
             for m_header in r_block.minor_block_header_list:
-                self.m_hash_set.add(m_header.get_hash())
+                coinbase = TokenBalanceList.deserialize(
+                    self.db.get(b"mheader_" + m_header.get_hash())
+                ).token_balances
+                self.m_hash_dict[m_header.get_hash()] = token_pair_list_to_dict(
+                    coinbase
+                )
 
             if r_block.header.height <= 0:
                 break
@@ -185,11 +203,12 @@ class RootDb:
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
-        return h in self.m_hash_set
+        return h in self.m_hash_dict.keys()
 
-    def put_minor_block_hash(self, m_hash):
-        self.db.put(b"mheader_" + m_hash, b"")
-        self.m_hash_set.add(m_hash)
+    def put_minor_block_hash(self, m_hash: bytes, coinbase: dict):
+        tokens = TokenBalanceList(dict_to_token_pair_list(coinbase))
+        self.db.put(b"mheader_" + m_hash, tokens.serialize())
+        self.m_hash_dict[m_hash] = coinbase
 
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
@@ -244,8 +263,8 @@ class RootState:
     def get_tip_block(self):
         return self.db.get_root_block_by_hash(self.tip.get_hash())
 
-    def add_validated_minor_block_hash(self, h):
-        self.db.put_minor_block_hash(h)
+    def add_validated_minor_block_hash(self, hash: bytes, coinbase: dict):
+        self.db.put_minor_block_hash(hash, coinbase)
 
     def get_next_block_difficulty(self, create_time=None):
         if create_time is None:

@@ -7,7 +7,7 @@ from quarkchain.cluster.tests.test_utils import (
 from quarkchain.core import Address, Branch, Identity
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
-from quarkchain.cluster.rpc import token_pair_list_to_dict
+from quarkchain.cluster.root_state import token_pair_list_to_dict
 
 
 class TestCluster(unittest.TestCase):

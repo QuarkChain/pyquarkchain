@@ -1188,6 +1188,21 @@ class TransactionReceipt(Serializable):
         return cls(b"", 0, 0, Address.create_empty_account(0), 0, [])
 
 
+class TokenBalancePair(Serializable):
+    FIELDS = [("token_id", uint64), ("balance", uint256)]
+
+    def __init__(self, token_id, balance):
+        self.token_id = token_id
+        self.balance = balance
+
+
+class TokenBalanceList(Serializable):
+    FIELDS = [("token_balances", PrependedSizeListSerializer(4, TokenBalancePair))]
+
+    def __init__(self, token_balances):
+        self.token_balances = token_balances
+
+
 def test():
     priv = KeyAPI.PrivateKey(
         bytes.fromhex(
