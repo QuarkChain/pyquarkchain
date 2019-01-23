@@ -714,3 +714,21 @@ class TestCluster(unittest.TestCase):
                     self.assertIsNotNone(xshard_tx_list)
                 else:
                     self.assertIsNone(xshard_tx_list)
+
+    def test_get_work_from_slave(self):
+        genesis = Address.create_empty_account(full_shard_key=0)
+
+        with ClusterContext(1, genesis, remote_mining=True) as clusters:
+            slaves = clusters[0].slave_list
+
+            # no posw
+            state = clusters[0].get_shard_state(2 | 0)
+            branch = state.create_block_to_mine().header.branch
+            work = call_async(slaves[0].get_work(branch))
+            self.assertEqual(work.difficulty, 10)
+
+            # enable posw, with total stakes equal genesis balance
+            state.shard_config.POSW_CONFIG.ENABLED = True
+            state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 1000000
+            work = call_async(slaves[0].get_work(branch))
+            self.assertEqual(work.difficulty, 0)

@@ -1579,10 +1579,10 @@ class ShardState:
         if not self.shard_config.POSW_CONFIG.ENABLED:
             validate_seal(block.header, consensus_type)
         else:
-            diff = self._posw_diff_adjust(block)
+            diff = self.posw_diff_adjust(block)
             validate_seal(block.header, consensus_type, adjusted_diff=diff)
 
-    def _posw_diff_adjust(self, block: MinorBlock) -> int:
+    def posw_diff_adjust(self, block: MinorBlock) -> int:
         start_time = time.time()
         header = block.header
         diff = header.difficulty

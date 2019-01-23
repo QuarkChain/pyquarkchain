@@ -1407,7 +1407,8 @@ class MasterServer:
 
     async def get_work(self, branch: Optional[Branch]) -> Optional[MiningWork]:
         if not branch:  # get root chain work
-            return await self.root_miner.get_work()
+            work, _ = await self.root_miner.get_work()
+            return work
 
         if branch.value not in self.branch_to_slaves:
             return None

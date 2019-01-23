@@ -486,12 +486,10 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handle_submit_work(self, req: SubmitWorkRequest) -> SubmitWorkResponse:
-        try:
-            res = await self.slave_server.submit_work(
-                req.branch, req.header_hash, req.nonce, req.mixhash
-            )
-        except Exception:
-            Logger.log_exception()
+        res = await self.slave_server.submit_work(
+            req.branch, req.header_hash, req.nonce, req.mixhash
+        )
+        if res is None:
             return SubmitWorkResponse(error_code=1, success=False)
 
         return SubmitWorkResponse(error_code=0, success=res)
@@ -1233,20 +1231,28 @@ class SlaveServer:
         return shard.state.gas_price()
 
     async def get_work(self, branch: Branch) -> Optional[MiningWork]:
-        shard = self.shards.get(branch, None)
-        if not shard:
-            return None
         try:
-            return await shard.miner.get_work()
+            shard = self.shards[branch]
+            work, block = await shard.miner.get_work()
+            if shard.state.shard_config.POSW_CONFIG.ENABLED:
+                check(isinstance(block, MinorBlock))
+                diff = shard.state.posw_diff_adjust(block)
+                work = MiningWork(work.hash, work.height, diff)
+            return work
         except Exception:
             Logger.log_exception()
             return None
 
     async def submit_work(
         self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
-    ) -> bool:
-        """Will raise exceptions if server error, instead of returning None."""
-        return await self.shards[branch].miner.submit_work(header_hash, nonce, mixhash)
+    ) -> Optional[bool]:
+        try:
+            return await self.shards[branch].miner.submit_work(
+                header_hash, nonce, mixhash
+            )
+        except Exception:
+            Logger.log_exception()
+            return None
 
 
 def parse_args():
