@@ -1,17 +1,16 @@
 import argparse
+import copy
 import json
 import os
 import socket
 import tempfile
-
 from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig, ChainConfig
-from quarkchain.core import Address
-from quarkchain.core import ChainMask
-from quarkchain.utils import is_p2, check, Logger
+from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
+from quarkchain.core import Address, ChainMask
+from quarkchain.utils import Logger, check, is_p2
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
@@ -36,6 +35,7 @@ def update_genesis_alloc(cluser_config):
         "QTSLA": 5 * (10 ** 8) * (10 ** 18),
     }
 
+    old_shards = copy.deepcopy(qkc_config.shards)
     try:
         for chain_id in range(qkc_config.CHAIN_SIZE):
             alloc_file = alloc_file_template.format(chain_id)
@@ -59,10 +59,8 @@ def update_genesis_alloc(cluser_config):
         Logger.warning(
             "Error importing genesis accounts from {}: {}".format(alloc_file, e)
         )
-
-        for shard_config in qkc_config.shards.values():
-            shard_config.GENESIS.ALLOC = dict()
-        Logger.warning("Cleared all genesis accounts from config!")
+        qkc_config.shards = old_shards
+        Logger.warning("Cleared all partially imported genesis accounts!")
 
     # each account in loadtest file is funded on all the shards
     try:

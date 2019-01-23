@@ -89,7 +89,6 @@ class ShardGenesis(BaseConfig):
 
     def to_dict(self):
         ret = super().to_dict()
-        ret["ALLOC"] = dict()
         return ret
 
 
@@ -482,6 +481,16 @@ class QuarkChainConfig(BaseConfig):
                     .serialize()
                     .hex()
                 )
+                # filter alloc addresses based on shard id
+                alloc = dict()
+                for address_hex, balances in shard_config.GENESIS.ALLOC.items():
+                    address = Address.create_from(bytes.fromhex(address_hex))
+                    address_shard_id = address.full_shard_key & (
+                        chain_config.SHARD_SIZE - 1
+                    )
+                    if shard_id == address_shard_id:
+                        alloc[address_hex] = balances
+                shard_config.GENESIS.ALLOC = alloc
                 shards[shard_config.get_full_shard_id()] = shard_config
         config.CHAINS = chains
         config.shards = shards
