@@ -149,19 +149,19 @@ class TestMiner(unittest.TestCase):
         async def go():
             nonlocal now
             # no current work, will generate a new one
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(len(work), 3)
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
             self.assertEqual(work.hash, h)
             # cache hit
             now += 1
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(work.hash, h)
             self.assertEqual(len(miner.work_map), 1)
             # new work if interval passed
             now += 10
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(len(miner.work_map), 2)
             self.assertNotEqual(work.hash, h)
             # work map cleaned up if too much time passed
@@ -189,7 +189,7 @@ class TestMiner(unittest.TestCase):
         miner = self.miner_gen(doublesha, create, add, remote=True)
 
         async def go():
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(work.height, 0)
             self.assertEqual(work.difficulty, 5)
             # submitted block doesn't exist
@@ -237,7 +237,7 @@ class TestMiner(unittest.TestCase):
 
         async def go():
             for i in range(42, 100):
-                work = await miner.get_work(now=now)
+                work, _ = await miner.get_work(now=now)
                 self.assertEqual(work.height, 0)
 
                 # guardian: diff 1000 -> 1, any number should work

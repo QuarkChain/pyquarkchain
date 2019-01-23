@@ -13,7 +13,6 @@ from eth_keys import KeyAPI
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from qkchash.qkcpow import QkchashMiner, check_pow as qkchash_check_pow
-from quarkchain.cluster.guardian import Guardian
 from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
 from quarkchain.utils import Logger, sha256, time_ms
@@ -245,7 +244,7 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block())
 
-    async def get_work(self, now=None) -> MiningWork:
+    async def get_work(self, now=None) -> (MiningWork, Block):
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -271,7 +270,10 @@ class Miner:
             if now - b.header.create_time < 7 * 12
         }
 
-        return MiningWork(header_hash, header.height, header.difficulty)
+        return (
+            MiningWork(header_hash, header.height, header.difficulty),
+            copy.deepcopy(self.current_work),
+        )
 
     async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
         if not self.remote:

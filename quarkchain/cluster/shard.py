@@ -19,6 +19,7 @@ from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
 from quarkchain.cluster.shard_state import ShardState
+from quarkchain.config import ShardConfig
 from quarkchain.core import RootBlock, MinorBlockHeader, Transaction, Address
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.db import InMemoryDb, PersistentDb
