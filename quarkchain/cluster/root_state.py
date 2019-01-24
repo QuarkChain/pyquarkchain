@@ -15,6 +15,8 @@ from quarkchain.core import (
     Serializable,
     calculate_merkle_root,
     TokenBalanceMap,
+    TokenBalancePair,
+    TokenBalanceList,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
@@ -39,6 +41,12 @@ def dict_to_token_pair_list(d: dict) -> List[TokenBalancePair]:
 
 def token_pair_list_to_dict(l) -> dict:
     return {p.token_id: p.balance for p in l}
+
+
+def add_dict(dict1: dict, dict2: dict) -> dict:
+    return {
+        key: dict1.get(key, 0) + dict2.get(key, 0) for key in set(dict1) | set(dict2)
+    }
 
 
 class RootDb:
@@ -89,12 +97,10 @@ class RootDb:
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
             self.r_header_pool[r_hash] = r_block.header
             for m_header in r_block.minor_block_header_list:
-                coinbase = TokenBalanceList.deserialize(
+                mtokens = TokenBalanceList.deserialize(
                     self.db.get(b"mheader_" + m_header.get_hash())
                 ).token_balances
-                self.m_hash_dict[m_header.get_hash()] = token_pair_list_to_dict(
-                    coinbase
-                )
+                self.m_hash_dict[m_header.get_hash()] = token_pair_list_to_dict(mtokens)
 
             if r_block.header.height <= 0:
                 break
@@ -205,10 +211,13 @@ class RootDb:
     def contain_minor_block_by_hash(self, h):
         return h in self.m_hash_dict.keys()
 
-    def put_minor_block_hash(self, m_hash: bytes, coinbase: dict):
-        tokens = TokenBalanceList(dict_to_token_pair_list(coinbase))
+    def put_minor_block_hash(self, m_hash: bytes, coinbase_tokens: dict):
+        tokens = TokenBalanceList(dict_to_token_pair_list(coinbase_tokens))
         self.db.put(b"mheader_" + m_hash, tokens.serialize())
-        self.m_hash_dict[m_hash] = coinbase
+        self.m_hash_dict[m_hash] = coinbase_tokens
+
+    def get_minor_block_coinbase_tokens(self, h: bytes):
+        return self.m_hash_dict[h]
 
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
@@ -263,26 +272,40 @@ class RootState:
     def get_tip_block(self):
         return self.db.get_root_block_by_hash(self.tip.get_hash())
 
-    def add_validated_minor_block_hash(self, hash: bytes, coinbase: dict):
-        self.db.put_minor_block_hash(hash, coinbase)
+    def add_validated_minor_block_hash(self, hash: bytes, coinbase_tokens: dict):
+        self.db.put_minor_block_hash(hash, coinbase_tokens)
 
     def get_next_block_difficulty(self, create_time=None):
         if create_time is None:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
-    def __calculate_root_block_coinbase(self, root_block: RootBlock) -> int:
-        # TODO: This method assumes that all shards use the same coinbase token.
+    def __calculate_root_block_coinbase(self, m_hash_list: List[bytes]) -> int:
+        """
+        assumes all minor blocks in m_hash_list have been processed by slaves and thus available when looking up
+        """
+        assert all(
+            [self.db.contain_minor_block_by_hash(m_hash) for m_hash in m_hash_list]
+        )
         coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
         ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
-        minor_block_fee = 0
-        for header in root_block.minor_block_header_list:
-            minor_block_fee += header.coinbase_amount
+        reward_tokens = {}
+        for m_hash in m_hash_list:
+            reward_tokens = add_dict(
+                reward_tokens, self.db.get_minor_block_coinbase_tokens(m_hash)
+            )
         # note the minor block fee is after tax
-        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
-        return coinbase_amount
+        reward_tokens = {
+            k: v * ratio.denominator // ratio.numerator
+            for k, v in reward_tokens.items()
+        }
+        genesis_token = self.env.quark_chain_config.genesis_token
+        reward_tokens[genesis_token] = (
+            reward_tokens.get(genesis_token, 0) + coinbase_amount
+        )
+        return reward_tokens[genesis_token]
 
     def create_block_to_mine(self, m_header_list, address=None, create_time=None):
         if not address:
@@ -300,7 +323,7 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount = self.__calculate_root_block_coinbase(block)
+        coinbase_amount = self.__calculate_root_block_coinbase([header.get_hash() for header in m_header_list])
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
@@ -391,7 +414,7 @@ class RootState:
 
         # Check coinbase
         if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
-            expected_coinbase_amount = self.__calculate_root_block_coinbase(block)
+            expected_coinbase_amount = self.__calculate_root_block_coinbase([header.get_hash() for header in block.minor_block_header_list])
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map.get(
                 self.env.quark_chain_config.genesis_token, 0)
 
