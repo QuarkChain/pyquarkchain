@@ -460,9 +460,10 @@
   "P2P": {
     "NEW_MODULE": true,
     "MAX_PEERS": 30,
-    "BOOT_NODES": "",
-    "PRIV_KEY": "",
-    "UPNP": true
+    "BOOT_NODES": "$BOOT_NODES",
+    "PRIV_KEY": "$PRIV_KEY",
+    "ALLOW_DIAL_IN_RATIO": 0.0,
+    "UPNP": false
   },
   "MONITORING": {
     "NETWORK_NAME": "",
