@@ -503,13 +503,13 @@ class Shard:
     async def handle_new_block(self, block):
         """
         0. if local shard is syncing, doesn't make sense to add, skip
-        1. if block parent is not in local state/new block pool, discard
+        1. if block parent is not in local state/new block pool, discard (TODO: is this necessary?)
         2. if already in cache or in local state/new block pool, pass
         3. validate: check time, difficulty, POW
         4. add it to new minor block broadcast cache
         5. broadcast to all peers (minus peer that sent it, optional)
         6. add_block() to local state (then remove from cache)
-             also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
+           also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
         """
         if self.synchronizer.running:
             # TODO optional: queue the block if it came from broadcast to so that once sync is over,
@@ -525,9 +525,7 @@ class Shard:
             block.header.hash_prev_minor_block
         ):
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
-                raise ValueError(
-                    "prev block not found: hash %d" % block.header.hash_prev_minor_block
-                )
+                return
 
         try:
             self.state.validate_minor_block_seal(block)
