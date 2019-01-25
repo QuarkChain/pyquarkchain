@@ -1580,7 +1580,7 @@ class TestShardState(unittest.TestCase):
         with self.assertRaises(ValueError):
             state.finalize_and_add_block(m)
 
-        # Total stake / block PoSW is 256, so acc should pass the check no matter
+        # Total stake * block PoSW is 256, so acc should pass the check no matter
         # how many blocks he mined before
         for _ in range(4):
             for nonce in range(4):  # Try different nonce
