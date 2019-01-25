@@ -154,7 +154,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 2560000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 10000000000000000000000
         }
       },
       {
@@ -211,7 +211,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 5120000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 20000000000000000000000
         }
       },
       {
@@ -268,7 +268,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 10240000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
         }
       },
       {

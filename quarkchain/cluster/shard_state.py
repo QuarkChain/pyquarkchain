@@ -1594,7 +1594,7 @@ class ShardState:
         stakes = evm_state.get_balance(
             coinbase_address, self.env.quark_chain_config.genesis_token
         )
-        block_threshold = stakes * config.WINDOW_SIZE // config.TOTAL_STAKE_PER_BLOCK
+        block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
         block_threshold = min(config.WINDOW_SIZE, block_threshold)
         # The func is inclusive, so need to fetch block counts until prev block
         # Also only fetch prev window_size - 1 block counts because the
