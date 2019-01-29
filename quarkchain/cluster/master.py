@@ -769,7 +769,7 @@ class MasterServer:
         for branch_value, slaves in self.branch_to_slaves.items():
             Logger.info(
                 "[{}] is run by slave {}".format(
-                    Branch(branch_value).get_full_shard_id(), [s.id for s in slaves]
+                    Branch(branch_value).to_str(), [s.id for s in slaves]
                 )
             )
 

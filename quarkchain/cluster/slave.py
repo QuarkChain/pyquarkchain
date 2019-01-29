@@ -244,7 +244,7 @@ class MasterConnection(ClusterConnection):
             # Tip changed, don't bother creating a fork
             Logger.info(
                 "[{}] dropped stale block {} mined locally".format(
-                    block.header.branch.get_full_shard_id(), block.header.height
+                    block.header.branch.to_str(), block.header.height
                 )
             )
             return AddMinorBlockResponse(error_code=0)
@@ -410,14 +410,14 @@ class MasterConnection(ClusterConnection):
                 except asyncio.TimeoutError as e:
                     Logger.info(
                         "[{}] sync request from master failed due to timeout".format(
-                            req.branch.get_full_shard_id()
+                            req.branch.to_str()
                         )
                     )
                     raise e
 
                 Logger.info(
                     "[{}] sync request from master, downloaded {} blocks ({} - {})".format(
-                        req.branch.get_full_shard_id(),
+                        req.branch.to_str(),
                         len(block_chain),
                         block_chain[0].header.height,
                         block_chain[-1].header.height,
@@ -842,8 +842,7 @@ class SlaveServer:
         for branch, shard in self.shards.items():
             Logger.info(
                 "[{}] start mining with target minor block time {} seconds".format(
-                    branch.get_full_shard_id(),
-                    artificial_tx_config.target_minor_block_time,
+                    branch.to_str(), artificial_tx_config.target_minor_block_time
                 )
             )
             shard.miner.start()
@@ -855,7 +854,7 @@ class SlaveServer:
     def stop_mining(self):
         self.mining = False
         for branch, shard in self.shards.items():
-            Logger.info("[{}] stop mining".format(branch.get_full_shard_id()))
+            Logger.info("[{}] stop mining".format(branch.to_str()))
             shard.miner.disable()
 
     async def __handle_new_connection(self, reader, writer):

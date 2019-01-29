@@ -475,6 +475,9 @@ class Branch(Serializable):
         assert is_p2(shard_size)
         return Branch(shard_size | shard_id)
 
+    def to_str(self):
+        return "{}/{}".format(self.get_chain_id(), self.get_shard_id())
+
 
 class ChainMask(Serializable):
     """ Represent a mask of chains, basically matches all the bits from the right until the leftmost bit is hit.

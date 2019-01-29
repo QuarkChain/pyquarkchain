@@ -178,7 +178,7 @@ class PeerShardConnection(VirtualConnection):
 
         Logger.info(
             "[{}] received new tip with height {}".format(
-                m_header.branch.get_full_shard_id(), m_header.height
+                m_header.branch.to_str(), m_header.height
             )
         )
         self.shard.synchronizer.add_task(m_header, self)
@@ -246,7 +246,7 @@ class SyncTask:
             if self.shard_state.header_tip.height - height > self.max_staleness:
                 Logger.warning(
                     "[{}] abort syncing due to forking at very old block {} << {}".format(
-                        self.header.branch.get_full_shard_id(),
+                        self.header.branch.to_str(),
                         height,
                         self.shard_state.header_tip.height,
                     )
@@ -259,9 +259,7 @@ class SyncTask:
                 return
             Logger.info(
                 "[{}] downloading headers from {} {}".format(
-                    self.shard_state.branch.get_full_shard_id(),
-                    height,
-                    block_hash.hex(),
+                    self.shard_state.branch.to_str(), height, block_hash.hex()
                 )
             )
             block_header_list = await asyncio.wait_for(
@@ -269,7 +267,7 @@ class SyncTask:
             )
             Logger.info(
                 "[{}] downloaded {} headers from peer".format(
-                    self.shard_state.branch.get_full_shard_id(), len(block_header_list)
+                    self.shard_state.branch.to_str(), len(block_header_list)
                 )
             )
             if not self.__validate_block_headers(block_header_list):
@@ -290,7 +288,7 @@ class SyncTask:
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
-                    self.shard_state.branch.get_full_shard_id(), len(block_chain)
+                    self.shard_state.branch.to_str(), len(block_chain)
                 )
             )
             check(len(block_chain) == len(block_header_chain[:100]))
@@ -327,10 +325,9 @@ class SyncTask:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
                 validate_seal(header, consensus_type, adjusted_diff=diff)
             except Exception as e:
-                full_shard_id = header.branch.get_full_shard_id()
                 Logger.warning(
                     "[{}] got block with bad seal in sync: {}".format(
-                        full_shard_id, str(e)
+                        header.branch.to_str(), str(e)
                     )
                 )
                 return False
@@ -530,10 +527,9 @@ class Shard:
         try:
             self.state.validate_minor_block_seal(block)
         except Exception as e:
-            full_shard_id = block.header.branch.get_full_shard_id()
             Logger.warning(
                 "[{}] got block with bad seal in shard: {}".format(
-                    full_shard_id, str(e)
+                    block.header.branch.to_str(), str(e)
                 )
             )
             raise e
@@ -583,7 +579,7 @@ class Shard:
             if future:
                 Logger.info(
                     "[{}] {} is being added ... waiting for it to finish".format(
-                        block.header.branch.get_full_shard_id(), block.header.height
+                        block.header.branch.to_str(), block.header.height
                     )
                 )
                 await future

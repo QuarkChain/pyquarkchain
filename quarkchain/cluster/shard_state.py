@@ -103,7 +103,7 @@ class ShardState:
 
         Logger.info(
             "[{}] Initializing shard state from root height {} hash {}".format(
-                self.full_shard_id,
+                self.branch.to_str(),
                 root_block.header.height,
                 root_block.header.get_hash().hex(),
             )
@@ -125,7 +125,7 @@ class ShardState:
         self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
             "[{}] Done recovery from db. shard tip {} {}, root tip {} {}".format(
-                self.full_shard_id,
+                self.branch.to_str(),
                 self.header_tip.height,
                 header_tip_hash.hex(),
                 self.root_tip.height,
@@ -205,7 +205,7 @@ class ShardState:
 
         Logger.info(
             "[{}] Initialized genensis state at root block {} {}, genesis block hash {}".format(
-                self.full_shard_id,
+                self.branch.to_str(),
                 self.root_tip.height,
                 self.root_tip.get_hash().hex(),
                 self.header_tip.get_hash().hex(),
@@ -453,7 +453,7 @@ class ShardState:
             # TODO:  May put the block back to queue
             raise ValueError(
                 "[{}] prev block not found, block height {} prev hash {}".format(
-                    self.branch.get_full_shard_id(),
+                    self.branch.to_str(),
                     height,
                     block.header.hash_prev_minor_block.hex(),
                 )
@@ -684,7 +684,7 @@ class ShardState:
             ):
                 Logger.info(
                     "[{}] drop old block {} << {}".format(
-                        self.branch.get_full_shard_id(),
+                        self.branch.to_str(),
                         block.header.height,
                         self.header_tip.height,
                     )
@@ -1262,7 +1262,7 @@ class ShardState:
             )
             Logger.info(
                 "[{}] shard tip reset from {} to {} by root block {}".format(
-                    self.branch.get_full_shard_id(),
+                    self.branch.to_str(),
                     orig_header_tip.height,
                     self.header_tip.height,
                     root_block.header.height,
