@@ -31,7 +31,7 @@ def basic(client, ip):
         int(psutil.virtual_memory().total / 1024 / 1024 / 1024)
     )
     msg += "IP:                 {}\n".format(ip)
-    msg += "Shards:             {}\n".format(s["shardSize"])
+    msg += "Chains:             {}\n".format(s["chainSize"])
     msg += "Network Id:         {}\n".format(s["networkId"])
     msg += "Peers:              {}\n".format(", ".join(s["peers"]))
     return msg
@@ -49,7 +49,14 @@ def stats(client):
         "sbps": fstr(s["staleBlockCount60s"] / 60),
         "cpu": fstr(numpy.mean([s["cpus"]])),
         "root": str(s["rootHeight"]),
-        "shards": str([shard.get("height", -1) for shard in s["shards"]]),
+        "shards": " ".join(
+            [
+                "{}/{}-{}".format(
+                    shard["chainId"], shard["shardId"], shard.get("height", -1)
+                )
+                for shard in s["shards"]
+            ]
+        ),
     }
 
 
@@ -69,7 +76,7 @@ def query_stats(client, args):
             sbps="SBPS",
             cpu="CPU",
             root="ROOT",
-            shards="SHARDS",
+            shards="CHAIN/SHARD-HEIGHT",
         )
     )
 
