@@ -165,8 +165,9 @@ def root_block_encoder(block):
             "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
             "height": quantity_encoder(header.height),
             "hash": data_encoder(header.get_hash()),
-            "branch": quantity_encoder(header.branch.value),
-            "shard": quantity_encoder(header.branch.get_full_shard_id()),
+            "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+            "chainId": quantity_encoder(header.branch.get_chain_id()),
+            "shardId": quantity_encoder(header.branch.get_shard_id()),
             "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
             "idPrevMinorBlock": id_encoder(
                 header.hash_prev_minor_block, header.branch.get_full_shard_id()
