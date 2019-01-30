@@ -251,6 +251,18 @@ class RootState:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
+    def __calculate_root_block_coinbase(self, root_block: RootBlock) -> int:
+        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+        reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
+        # the ratio of minor block coinbase
+        ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
+        minor_block_fee = 0
+        for header in root_block.minor_block_header_list:
+            minor_block_fee += header.coinbase_amount
+        # note the minor block fee is after tax
+        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
+        return coinbase_amount
+
     def create_block_to_mine(self, m_header_list, address=None, create_time=None):
         if not address:
             address = Address.create_empty_account()
@@ -267,15 +279,7 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
-        reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
-        # the ratio of minor block coinbase
-        ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
-        minor_block_fee = 0
-        for header in m_header_list:
-            minor_block_fee += header.coinbase_amount
-        # note the minor block fee is after tax
-        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
+        coinbase_amount = self.__calculate_root_block_coinbase(block)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
@@ -361,6 +365,18 @@ class RootState:
         if merkle_hash != block.header.hash_merkle_root:
             raise ValueError("incorrect merkle root")
 
+        # Check coinbase
+        if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
+            coinbase_amount = self.__calculate_root_block_coinbase(block)
+            if coinbase_amount != block.header.coinbase_amount:
+                raise ValueError(
+                    "Bad coinbase amount for root block {}. expect {} but got {}.".format(
+                        block.header.get_hash().hex(),
+                        coinbase_amount,
+                        block.header.coinbase_amount,
+                    )
+                )
+
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         headers_map = dict()  # shard_id -> List[MinorBlockHeader]
         full_shard_id = (
@@ -397,7 +413,6 @@ class RootState:
             headers_map.setdefault(m_header.branch.get_full_shard_id(), []).append(
                 m_header
             )
-            # TODO: Add coinbase
 
         # check minor block headers are linked
         prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
@@ -428,7 +443,6 @@ class RootState:
                             full_shard_id, headers[0].get_hash().hex()
                         )
                     )
-                # TODO: validate genesis block (CRITICAL)
             else:
                 headers = [prev_header_in_last_root_block] + headers
             for i in range(len(headers) - 1):

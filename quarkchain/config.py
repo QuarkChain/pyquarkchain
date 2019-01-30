@@ -292,6 +292,7 @@ class QuarkChainConfig(BaseConfig):
 
     # Testing related
     SKIP_ROOT_DIFFICULTY_CHECK = False
+    SKIP_ROOT_COINBASE_CHECK = False
     SKIP_MINOR_DIFFICULTY_CHECK = False
 
     GENESIS_TOKEN = "TQKC"
