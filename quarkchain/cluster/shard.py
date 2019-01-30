@@ -238,7 +238,6 @@ class SyncTask:
         # descending height
         block_header_chain = [self.header]
 
-        # TODO: Stop if too many headers to revert
         while not self.__has_block_hash(block_header_chain[-1].hash_prev_minor_block):
             block_hash = block_header_chain[-1].hash_prev_minor_block
             height = block_header_chain[-1].height - 1
