@@ -21,13 +21,13 @@ def create_default_state(env, diff_calc=None):
         s_state_list[full_shard_id] = shard_state
 
     # add a root block so that later minor blocks will be broadcasted to neighbor shards
-    root_block = r_state.tip.create_block_to_append()
+    minor_header_list = []
     for state in s_state_list.values():
-        root_block.add_minor_block_header(state.header_tip)
+        minor_header_list.append(state.header_tip)
         block_hash = state.header_tip.get_hash()
         r_state.add_validated_minor_block_hash(block_hash)
 
-    root_block.finalize()
+    root_block = r_state.create_block_to_mine(minor_header_list)
     assert r_state.add_block(root_block)
     for state in s_state_list.values():
         assert state.add_root_block(root_block)
@@ -190,6 +190,7 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_difficulty_and_coinbase(self):
         env = get_test_env()
+        env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
