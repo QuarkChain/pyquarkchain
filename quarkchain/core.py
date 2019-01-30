@@ -176,6 +176,28 @@ class PrependedSizeListSerializer:
         return [self.ser.deserialize(bb) for i in range(size)]
 
 
+class PrependedSizeMapSerializer:
+    def __init__(self, size_bytes, key_ser, value_ser):
+        self.size_bytes = size_bytes
+        self.key_ser = key_ser
+        self.value_ser = value_ser
+
+    def serialize(self, item_map, barray):
+        barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
+        for k, v in item_map.items():
+            self.key_ser.serialize(k, barray)
+            self.value_ser.serialize(v, barray)
+        return barray
+
+    def deserialize(self, bb):
+        size = bb.get_uint(self.size_bytes)
+        item_map = dict()
+        for i in range(size):
+            k = self.key_ser.deserialize(bb)
+            item_map[k] = self.value_ser.deserialize(bb)
+        return item_map
+
+
 class BigUintSerializer:
     """Not infinity, but pretty big: 2^2048-1"""
 

@@ -18,6 +18,8 @@ from quarkchain.core import (
     ByteBuffer,
     hash256,
     EnumSerializer,
+    PrependedSizeMapSerializer,
+    boolean,
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
@@ -208,3 +210,29 @@ class TestEnumSerializer(unittest.TestCase):
         with self.assertRaises(ValueError):
             bb = ByteBuffer(barray)
             vhd = VersionedSimpleHeaderOld.deserialize(bb)
+
+
+class MapData(Serializable):
+    FIELDS = [
+        ("m", PrependedSizeMapSerializer(4, uint32, boolean))
+    ]
+
+    def __init__(self, m):
+        self.m = m
+
+
+class TestMapSerializer(unittest.TestCase):
+    def test_simple(self):
+        m = dict()
+        m[0] = True
+        m[1] = False
+        m[2] = False
+
+        md = MapData(m)
+
+        bmd = md.serialize(bytearray())
+
+        bb = ByteBuffer(bmd)
+        md1 = MapData.deserialize(bb)
+        self.assertEqual(md.m, md1.m)
+        self.assertEqual(len(md1.m), 3)
