@@ -562,7 +562,8 @@ class SlaveConnection(ClusterConnection):
 
     async def handle_add_minor_block_header_request(self, req):
         self.master_server.root_state.add_validated_minor_block_hash(
-            req.minor_block_header.get_hash()
+            req.minor_block_header.get_hash(),
+            req.coinbase_amount_map
         )
         self.master_server.update_shard_stats(req.shard_stats)
         self.master_server.update_tx_count_history(

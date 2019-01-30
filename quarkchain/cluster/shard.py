@@ -19,7 +19,7 @@ from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.config import ShardConfig
-from quarkchain.core import Address, Branch, MinorBlockHeader, RootBlock, Transaction
+from quarkchain.core import Address, Branch, MinorBlockHeader, RootBlock, Transaction, TokenBalanceMap
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 
@@ -482,6 +482,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            TokenBalanceMap({}),
             self.state.get_shard_stats(),
         )
 
@@ -587,7 +588,7 @@ class Shard:
         """
         old_tip = self.state.header_tip
         try:
-            xshard_list = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block)
         except Exception as e:
             Logger.error_exception()
             return False
@@ -627,6 +628,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
@@ -652,7 +654,7 @@ class Shard:
 
             block_hash = block.header.get_hash()
             try:
-                xshard_list = self.state.add_block(block, skip_if_too_old=False)
+                xshard_list, coinbase_amount_map = self.state.add_block(block, skip_if_too_old=False)
             except Exception as e:
                 Logger.error_exception()
                 return False

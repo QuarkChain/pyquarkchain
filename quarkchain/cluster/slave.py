@@ -938,11 +938,11 @@ class SlaveServer:
     # Cluster functions
 
     async def send_minor_block_header_to_master(
-        self, minor_block_header, tx_count, x_shard_tx_count, shard_stats
+        self, minor_block_header, tx_count, x_shard_tx_count, coinbase_amount_map, shard_stats
     ):
         """ Update master that a minor block has been appended successfully """
         request = AddMinorBlockHeaderRequest(
-            minor_block_header, tx_count, x_shard_tx_count, shard_stats
+            minor_block_header, tx_count, x_shard_tx_count, coinbase_amount_map, shard_stats
         )
         _, resp, _ = await self.master.write_rpc_request(
             ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request

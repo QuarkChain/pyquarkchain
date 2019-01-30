@@ -1615,3 +1615,22 @@ class TestShardState(unittest.TestCase):
         m = state.get_tip().create_block_to_append(address=acc, difficulty=1000)
         with self.assertRaises(ValueError):
             state.finalize_and_add_block(m)
+
+    def test_incorrect_coinbase_amount(self):
+        env = get_test_env()
+        state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
+        b = state.create_block_to_mine()
+        evm_state = state.run_block(b)
+        b.finalize(evm_state=evm_state, coinbase_amount=state.get_coinbase_amount())
+        state.add_block(b)
+
+        b = state.create_block_to_mine()
+        evm = state.run_block(b)
+        b.finalize(evm_state=evm_state, coinbase_amount=state.get_coinbase_amount() + 1)
+        with self.assertRaises(ValueError):
+            state.add_block(b)

@@ -19,6 +19,7 @@ from quarkchain.core import (
     RootBlock,
     Transaction,
     Log,
+    TokenBalanceMap,
 )
 from quarkchain.core import (
     mk_receipt_sha,
@@ -697,7 +698,7 @@ class ShardState:
 
         block_hash = block.header.get_hash()
         if self.db.contain_minor_block_by_hash(block_hash):
-            return None
+            return None, None
 
         evm_tx_included = []
         x_shard_receive_tx_list = []
@@ -741,9 +742,6 @@ class ShardState:
                     evm_state.xshard_receive_gas_used,
                 )
             )
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
-        if coinbase_amount != block.header.coinbase_amount:
-            raise ValueError("coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
             raise ValueError("bloom mismatch")
@@ -820,7 +818,9 @@ class ShardState:
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
             )
-        return evm_state.xshard_list
+        return evm_state.xshard_list, TokenBalanceMap(
+            {self.env.quark_chain_config.genesis_token:
+             self.get_coinbase_amount() + evm_state.block_fee})
 
     def get_coinbase_amount(self) -> int:
         local_fee_rate = (
