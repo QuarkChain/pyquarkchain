@@ -40,6 +40,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "P2P_PROTOCOL_VERSION": 0,
     "P2P_COMMAND_SIZE_LIMIT": 4294967295,
     "SKIP_ROOT_DIFFICULTY_CHECK": false,
+    "SKIP_ROOT_COINBASE_CHECK": false,
     "SKIP_MINOR_DIFFICULTY_CHECK": false,
     "GENESIS_TOKEN": "TQKC",
     "ROOT": {
