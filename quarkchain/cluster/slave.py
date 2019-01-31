@@ -423,8 +423,14 @@ class MasterConnection(ClusterConnection):
                         block_chain[-1].header.height,
                     )
                 )
-                check(len(block_chain) == len(blocks_to_download))
 
+                # Step 1: Check if the len is correct
+                if len(block_chain) != len(blocks_to_download):
+                    raise RuntimeError(
+                        "Failed to add minor blocks for syncing root block: " +
+                        "length of downloaded block list is incorrect")
+
+                # Step 2: Check if the blocks are valid
                 add_block_success = await self.slave_server.add_block_list_for_sync(
                     block_chain
                 )
