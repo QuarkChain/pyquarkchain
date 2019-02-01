@@ -167,7 +167,7 @@
           "REMOTE_MINE": true
         },
         "GENESIS": {
-          "ROOT_HEIGHT": 10000,
+          "ROOT_HEIGHT": 0,
           "VERSION": 0,
           "HEIGHT": 0,
           "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -224,7 +224,7 @@
           "REMOTE_MINE": true
         },
         "GENESIS": {
-          "ROOT_HEIGHT": 20000,
+          "ROOT_HEIGHT": 0,
           "VERSION": 0,
           "HEIGHT": 0,
           "HASH_PREV_MINOR_BLOCK": "0000000000000000000000000000000000000000000000000000000000000000",
