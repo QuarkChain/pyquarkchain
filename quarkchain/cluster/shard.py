@@ -1,28 +1,27 @@
 import asyncio
 from collections import deque
-
 from typing import List
 
+from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.p2p_commands import (
-    CommandOp,
     OP_SERIALIZER_MAP,
-    NewMinorBlockHeaderListCommand,
+    CommandOp,
+    Direction,
+    GetMinorBlockHeaderListRequest,
+    GetMinorBlockHeaderListResponse,
     GetMinorBlockListRequest,
     GetMinorBlockListResponse,
-    GetMinorBlockHeaderListRequest,
-    Direction,
-    GetMinorBlockHeaderListResponse,
-    NewTransactionListCommand,
     NewBlockMinorCommand,
+    NewMinorBlockHeaderListCommand,
+    NewTransactionListCommand,
 )
-from quarkchain.cluster.miner import Miner, validate_seal
-from quarkchain.cluster.tx_generator import TransactionGenerator
-from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
+from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
+from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.config import ShardConfig
-from quarkchain.core import RootBlock, MinorBlockHeader, Transaction, Address
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.core import Address, Branch, MinorBlockHeader, RootBlock, Transaction
 from quarkchain.db import InMemoryDb, PersistentDb
+from quarkchain.utils import Logger, check, time_ms
 
 
 class PeerShardConnection(VirtualConnection):
@@ -452,6 +451,26 @@ class Shard:
 
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
+        Logger.info(
+            "[{}] connected to peer {}".format(
+                Branch(self.full_shard_id).to_str(), peer.cluster_peer_id
+            )
+        )
+
+    async def create_peer_shard_connections(self, cluster_peer_ids, master_conn):
+        conns = []
+        for cluster_peer_id in cluster_peer_ids:
+            peer_shard_conn = PeerShardConnection(
+                master_conn=master_conn,
+                cluster_peer_id=cluster_peer_id,
+                shard=self,
+                name="{}_vconn_{}".format(master_conn.name, cluster_peer_id),
+            )
+            asyncio.ensure_future(peer_shard_conn.active_and_loop_forever())
+            conns.append(peer_shard_conn)
+        await asyncio.gather(*[conn.active_future for conn in conns])
+        for conn in conns:
+            self.add_peer(conn)
 
     async def __init_genesis_state(self, root_block: RootBlock):
         block = self.state.init_genesis_state(root_block)
@@ -498,6 +517,7 @@ class Shard:
 
     async def handle_new_block(self, block):
         """
+        This is a fast path for block propagation. The block is broadcasted to peers before being added to local state.
         0. if local shard is syncing, doesn't make sense to add, skip
         1. if block parent is not in local state/new block pool, discard (TODO: is this necessary?)
         2. if already in cache or in local state/new block pool, pass
@@ -523,12 +543,25 @@ class Shard:
             if block.header.hash_prev_minor_block not in self.state.new_block_pool:
                 return
 
+        # Doing full POSW check requires prev block has been added to the state, which could
+        # slow down block propagation.
+        # TODO: this is a copy of the code in SyncTask.__validate_block_headers. this it a helper
         try:
-            self.state.validate_minor_block_seal(block)
+            header = block.header
+            # Note that PoSW may lower diff, so checks here are necessary but not sufficient
+            # More checks happen during block addition
+            shard_config = self.env.quark_chain_config.shards[
+                header.branch.get_full_shard_id()
+            ]
+            consensus_type = shard_config.CONSENSUS_TYPE
+            diff = header.difficulty
+            if shard_config.POSW_CONFIG.ENABLED:
+                diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
+            validate_seal(header, consensus_type, adjusted_diff=diff)
         except Exception as e:
             Logger.warning(
-                "[{}] got block with bad seal in shard: {}".format(
-                    block.header.branch.to_str(), str(e)
+                "[{}] got block with bad seal in handle_new_block: {}".format(
+                    header.branch.to_str(), str(e)
                 )
             )
             raise e

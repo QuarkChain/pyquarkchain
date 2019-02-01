@@ -1628,7 +1628,7 @@ class ShardState:
         """Get coinbase addresses up until block of given hash within the window."""
         curr_block = self.db.get_minor_block_by_hash(header_hash)
         if not curr_block:
-            raise ValueError("curr block not found: hash %d" % header_hash)
+            raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
         header = curr_block.header
         height = header.height
         prev_hash = header.hash_prev_minor_block
