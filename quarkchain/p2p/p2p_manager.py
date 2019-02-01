@@ -253,7 +253,9 @@ class SecurePeer(Peer):
 
         await self.master_server.create_peer_cluster_connections(self.cluster_peer_id)
         Logger.info(
-            "Established virtual shard connections with peer {}".format(self.id.hex())
+            "Established virtual shard connections with {} cluster_peer_id={} id={}".format(
+                self.quark_peer, self.cluster_peer_id, self.id.hex()
+            )
         )
 
     def add_sync_task(self):

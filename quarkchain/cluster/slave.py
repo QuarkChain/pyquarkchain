@@ -112,10 +112,18 @@ class MasterConnection(ClusterConnection):
             # RPC from master
             return None
 
+        if (
+            metadata.branch.get_full_shard_id()
+            not in self.env.quark_chain_config.get_full_shard_ids()
+        ):
+            self.close_with_error(
+                "incorrect forwarding branch {}".format(metadata.branch.to_str())
+            )
+
         shard = self.shards.get(metadata.branch, None)
         if not shard:
-            self.close_with_error("incorrect forwarding branch")
-            return
+            # shard has not been created yet
+            return NULL_CONNECTION
 
         peer_shard_conn = shard.peers.get(metadata.cluster_peer_id, None)
         if peer_shard_conn is None:
@@ -290,12 +298,16 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handle_destroy_cluster_peer_connection_command(self, op, cmd, rpc_id):
+        self.slave_server.remove_cluster_peer_id(cmd.cluster_peer_id)
+
         for shard in self.shards.values():
             peer_shard_conn = shard.peers.pop(cmd.cluster_peer_id, None)
             if peer_shard_conn:
                 peer_shard_conn.get_forwarding_connection().close()
 
     async def handle_create_cluster_peer_connection_request(self, req):
+        self.slave_server.add_cluster_peer_id(req.cluster_peer_id)
+
         shard_to_conn = dict()
         active_futures = []
         for shard in self.shards.values():
@@ -427,8 +439,9 @@ class MasterConnection(ClusterConnection):
                 # Step 1: Check if the len is correct
                 if len(block_chain) != len(blocks_to_download):
                     raise RuntimeError(
-                        "Failed to add minor blocks for syncing root block: " +
-                        "length of downloaded block list is incorrect")
+                        "Failed to add minor blocks for syncing root block: "
+                        + "length of downloaded block list is incorrect"
+                    )
 
                 # Step 2: Check if the blocks are valid
                 add_block_success = await self.slave_server.add_block_list_for_sync(
@@ -804,6 +817,9 @@ class SlaveServer:
         # shard id -> a list of slave running the shard
         self.slave_connection_manager = SlaveConnectionManager(env, self)
 
+        # A set of active cluster peer ids for building Shard.peers when creating new Shard.
+        self.cluster_peer_ids = set()
+
         self.master = None
         self.name = name
         self.mining = False
@@ -823,10 +839,28 @@ class SlaveServer:
                 return True
         return False
 
+    def add_cluster_peer_id(self, cluster_peer_id):
+        self.cluster_peer_ids.add(cluster_peer_id)
+
+    def remove_cluster_peer_id(self, cluster_peer_id):
+        if cluster_peer_id in self.cluster_peer_ids:
+            self.cluster_peer_ids.remove(cluster_peer_id)
+
     async def create_shards(self, root_block: RootBlock):
         """ Create shards based on GENESIS config and root block height if they have
         not been created yet."""
-        futures = []
+
+        async def __init_shard(shard):
+            await shard.init_from_root_block(root_block)
+            await shard.create_peer_shard_connections(
+                self.cluster_peer_ids, self.master
+            )
+            branch = Branch(shard.full_shard_id)
+            self.shards[branch] = shard
+            if self.mining:
+                shard.miner.start()
+
+        new_shards = []
         for (full_shard_id, shard_config) in self.env.quark_chain_config.shards.items():
             branch = Branch(full_shard_id)
             if branch in self.shards:
@@ -834,13 +868,9 @@ class SlaveServer:
             if not self.__cover_shard_id(full_shard_id) or not shard_config.GENESIS:
                 continue
             if root_block.header.height >= shard_config.GENESIS.ROOT_HEIGHT:
-                shard = Shard(self.env, full_shard_id, self)
-                futures.append(shard.init_from_root_block(root_block))
-                self.shards[branch] = shard
-                if self.mining:
-                    shard.miner.start()
+                new_shards.append(Shard(self.env, full_shard_id, self))
 
-        await asyncio.gather(*futures)
+        await asyncio.gather(*[__init_shard(shard) for shard in new_shards])
 
     def start_mining(self, artificial_tx_config):
         self.artificial_tx_config = artificial_tx_config
@@ -1236,6 +1266,8 @@ class SlaveServer:
         return shard.state.gas_price()
 
     async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+        if branch not in self.shards:
+            return None
         try:
             shard = self.shards[branch]
             work, block = await shard.miner.get_work()
