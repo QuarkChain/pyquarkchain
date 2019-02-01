@@ -115,7 +115,12 @@ class ExternalMiner(threading.Thread):
                         work = get_work_rpc(full_shard_id, host=cluster_host)
                     except Exception as e:
                         # ignore network errors and try next one
-                        print("Failed to get work", e)
+                        print(
+                            "Failed to get work for {}".format(
+                                repr_shard(full_shard_id)
+                            ),
+                            e,
+                        )
                         continue
                     # skip duplicate work
                     if (

@@ -1266,6 +1266,8 @@ class SlaveServer:
         return shard.state.gas_price()
 
     async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+        if branch not in self.shards:
+            return None
         try:
             shard = self.shards[branch]
             work, block = await shard.miner.get_work()
