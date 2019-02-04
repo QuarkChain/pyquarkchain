@@ -236,3 +236,12 @@ class TestMapSerializer(unittest.TestCase):
         md1 = MapData.deserialize(bb)
         self.assertEqual(md.m, md1.m)
         self.assertEqual(len(md1.m), 3)
+
+    def test_order(self):
+        m0 = {3: 0, 1: 2, 10: 9}
+        m1 = {10: 9, 3: 0, 1: 2}
+
+        md0 = MapData(m0)
+        md1 = MapData(m1)
+
+        self.assertEqual(md0.serialize(), md1.serialize())

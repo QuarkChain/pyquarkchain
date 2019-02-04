@@ -184,7 +184,7 @@ class PrependedSizeMapSerializer:
 
     def serialize(self, item_map, barray):
         barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
-        for k, v in item_map.items():
+        for k, v in sorted(item_map.items()):
             self.key_ser.serialize(k, barray)
             self.value_ser.serialize(v, barray)
         return barray
