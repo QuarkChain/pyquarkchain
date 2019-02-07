@@ -1169,6 +1169,22 @@ class TransactionReceipt(Serializable):
         return cls(b"", 0, 0, Address.create_empty_account(0), 0, [])
 
 
+class TokenBalanceMap(Serializable):
+    FIELDS = [
+        ("balance_map", PrependedSizeMapSerializer(4, BigUintSerializer(), BigUintSerializer()))
+    ]
+
+    def __init__(self, balance_map):
+        self.balance_map = balance_map
+
+    def sum(self, other):
+        for k, v in other.balance_map.items():
+            self.balance_map[k] = self.balance_map.get(k, 0) + v
+
+    def get_hash(self):
+        return sha3_256(self.serialize())
+
+
 def test():
     priv = KeyAPI.PrivateKey(
         bytes.fromhex(

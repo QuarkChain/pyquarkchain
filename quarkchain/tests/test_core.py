@@ -20,6 +20,7 @@ from quarkchain.core import (
     EnumSerializer,
     PrependedSizeMapSerializer,
     boolean,
+    TokenBalanceMap,
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
@@ -245,3 +246,16 @@ class TestMapSerializer(unittest.TestCase):
         md1 = MapData(m1)
 
         self.assertEqual(md0.serialize(), md1.serialize())
+
+
+class TestTokenBalanceMap(unittest.TestCase):
+    def test_sum(self):
+        m0 = TokenBalanceMap({0: 10})
+        m1 = TokenBalanceMap({1: 20})
+
+        m0.sum(m1)
+        self.assertEqual(m0.balance_map, {0: 10, 1: 20})
+
+        m2 = TokenBalanceMap({0: 30, 2: 50})
+        m0.sum(m2)
+        self.assertEqual(m0.balance_map, {0: 40, 1: 20, 2: 50})
