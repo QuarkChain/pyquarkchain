@@ -727,8 +727,8 @@ class TestCluster(unittest.TestCase):
             work = call_async(slaves[0].get_work(branch))
             self.assertEqual(work.difficulty, 10)
 
-            # enable posw, with total stakes equal genesis balance
+            # enable posw, with total stakes cover all the window
             state.shard_config.POSW_CONFIG.ENABLED = True
-            state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 1000000
+            state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 500000
             work = call_async(slaves[0].get_work(branch))
             self.assertEqual(work.difficulty, 0)

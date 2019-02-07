@@ -1563,7 +1563,8 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
         # Force PoSW
         state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
-        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 256
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 1
+        state.shard_config.POSW_CONFIG.WINDOW_SIZE = 256
         state.shard_config.POSW_CONFIG.DIFF_DIVIDER = 1000
 
         self.assertEqual(
@@ -1579,8 +1580,8 @@ class TestShardState(unittest.TestCase):
         with self.assertRaises(ValueError):
             state.finalize_and_add_block(m)
 
-        # Total stakes in test env for PoSW is 256, so acc should pass the check
-        # no matter how many blocks he mined before
+        # Total stake * block PoSW is 256, so acc should pass the check no matter
+        # how many blocks he mined before
         for _ in range(4):
             for nonce in range(4):  # Try different nonce
                 m = state.get_tip().create_block_to_append(
@@ -1591,13 +1592,14 @@ class TestShardState(unittest.TestCase):
 
     def test_posw_window_edge_cases(self):
         acc = Address(b"\x01" * 20, full_shard_key=0)
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=128)
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=500)
         state = create_default_shard_state(
             env=env, shard_id=0, posw_override=True, no_coinbase=True
         )
-        # Force PoSW, note the window size is 2
+        # Force PoSW
         state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
-        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 256
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 500
+        state.shard_config.POSW_CONFIG.WINDOW_SIZE = 2
         state.shard_config.POSW_CONFIG.DIFF_DIVIDER = 1000
 
         # Use 0 to denote blocks mined by others, 1 for blocks mined by acc,
@@ -1608,7 +1610,7 @@ class TestShardState(unittest.TestCase):
 
         # Make sure stakes didn't change
         self.assertEqual(
-            state.get_token_balance(acc.recipient, self.genesis_token), 128
+            state.get_token_balance(acc.recipient, self.genesis_token), 500
         )
         # 0 <- 1 <- [curr], the window already has one block with PoSW benefit,
         # mining new blocks should fail
