@@ -229,7 +229,7 @@ class TestRootState(unittest.TestCase):
             self.assertEqual(root_block_tmp.header.signature, bytes(65))  # empty sig
             # still use minor block's coinbase amount, 1
             self.assertEqual(
-                root_block_tmp.header.coinbase_amount,
+                root_block_tmp.header.coinbase_amount_map.balance_map[env.quark_chain_config.genesis_token],
                 round((1 + 1) / (1 - tax_rate) * tax_rate + 5),
             )
         env.quark_chain_config.REWARD_TAX_RATE = original_reward_tax_rate

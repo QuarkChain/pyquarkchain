@@ -14,6 +14,7 @@ from quarkchain.core import (
     RootBlockHeader,
     Serializable,
     calculate_merkle_root,
+    TokenBalanceMap,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
@@ -252,6 +253,7 @@ class RootState:
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
     def __calculate_root_block_coinbase(self, root_block: RootBlock) -> int:
+        # TODO: This method assumes that all shards use the same coinbase token.
         coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
@@ -283,7 +285,10 @@ class RootState:
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-        return block.finalize(coinbase_amount=coinbase_amount, coinbase_address=address)
+        return block.finalize(
+            coinbase_amount_map=TokenBalanceMap(
+                {self.env.quark_chain_config.genesis_token: coinbase_amount}),
+            coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.
@@ -367,13 +372,25 @@ class RootState:
 
         # Check coinbase
         if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
-            coinbase_amount = self.__calculate_root_block_coinbase(block)
-            if coinbase_amount != block.header.coinbase_amount:
+            expected_coinbase_amount = self.__calculate_root_block_coinbase(block)
+            actual_coinbase_amount = block.header.coinbase_amount_map.balance_map.get(
+                self.env.quark_chain_config.genesis_token, 0)
+
+            if len(block.header.coinbase_amount_map.balance_map) > 1:
+                raise ValueError("Incorrect coinbase_amount_map: too many tokens")
+
+            if (
+                len(block.header.coinbase_amount_map.balance_map) == 1 and
+                self.env.quark_chain_config.genesis_token not in block.header.coinbase_amount_map.balance_map
+            ):
+                raise ValueError("Incorrect coinbase_amount_map: genesis_token_id not found")
+
+            if expected_coinbase_amount != actual_coinbase_amount:
                 raise ValueError(
                     "Bad coinbase amount for root block {}. expect {} but got {}.".format(
                         block.header.get_hash().hex(),
-                        coinbase_amount,
-                        block.header.coinbase_amount,
+                        expected_coinbase_amount,
+                        actual_coinbase_amount,
                     )
                 )
 
