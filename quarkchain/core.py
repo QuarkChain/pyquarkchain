@@ -1171,13 +1171,13 @@ class TransactionReceipt(Serializable):
 
 class TokenBalanceMap(Serializable):
     FIELDS = [
-        ("balance_map", PrependedSizeMapSerializer(4, BigUintSerializer(), BigUintSerializer()))
+        ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
     ]
 
     def __init__(self, balance_map):
         self.balance_map = balance_map
 
-    def sum(self, other):
+    def add(self, other):
         for k, v in other.balance_map.items():
             self.balance_map[k] = self.balance_map.get(k, 0) + v
 
