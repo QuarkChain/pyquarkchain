@@ -896,6 +896,22 @@ class MinorBlock(Serializable):
         return isinstance(other, MinorBlock) and hash(other) == hash(self)
 
 
+class TokenBalanceMap(Serializable):
+    FIELDS = [
+        ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
+    ]
+
+    def __init__(self, balance_map):
+        self.balance_map = balance_map
+
+    def add(self, other):
+        for k, v in other.balance_map.items():
+            self.balance_map[k] = self.balance_map.get(k, 0) + v
+
+    def get_hash(self):
+        return sha3_256(self.serialize())
+
+
 class RootBlockHeader(Serializable):
     FIELDS = [
         ("version", uint32),
@@ -903,7 +919,7 @@ class RootBlockHeader(Serializable):
         ("hash_prev_block", hash256),
         ("hash_merkle_root", hash256),
         ("coinbase_address", Address),
-        ("coinbase_amount", uint256),
+        ("coinbase_amount_map", TokenBalanceMap),
         ("create_time", uint64),
         ("difficulty", biguint),
         ("nonce", uint64),
@@ -919,7 +935,7 @@ class RootBlockHeader(Serializable):
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
-        coinbase_amount=0,
+        coinbase_amount_map=TokenBalanceMap(dict()),
         create_time=0,
         difficulty=0,
         nonce=0,
@@ -932,7 +948,7 @@ class RootBlockHeader(Serializable):
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
         self.coinbase_address = coinbase_address
-        self.coinbase_amount = coinbase_amount
+        self.coinbase_amount_map = coinbase_amount_map
         self.create_time = create_time
         self.difficulty = difficulty
         self.nonce = nonce
@@ -976,7 +992,7 @@ class RootBlockHeader(Serializable):
             hash_prev_block=self.get_hash(),
             hash_merkle_root=bytes(32),
             coinbase_address=address if address else Address.create_empty_account(),
-            coinbase_amount=self.coinbase_amount,
+            coinbase_amount_map=TokenBalanceMap(dict()),
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,
@@ -1008,13 +1024,15 @@ class RootBlock(Serializable):
         self.tracking_data = tracking_data
 
     def finalize(
-        self, coinbase_amount=0, coinbase_address=Address.create_empty_account()
+        self,
+        coinbase_amount_map=TokenBalanceMap(dict()),
+        coinbase_address=Address.create_empty_account()
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount = coinbase_amount
+        self.header.coinbase_amount_map = coinbase_amount_map
         self.header.coinbase_address = coinbase_address
         return self
 
@@ -1167,22 +1185,6 @@ class TransactionReceipt(Serializable):
     @classmethod
     def create_empty_receipt(cls):
         return cls(b"", 0, 0, Address.create_empty_account(0), 0, [])
-
-
-class TokenBalanceMap(Serializable):
-    FIELDS = [
-        ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
-    ]
-
-    def __init__(self, balance_map):
-        self.balance_map = balance_map
-
-    def add(self, other):
-        for k, v in other.balance_map.items():
-            self.balance_map[k] = self.balance_map.get(k, 0) + v
-
-    def get_hash(self):
-        return sha3_256(self.serialize())
 
 
 def test():
