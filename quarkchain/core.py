@@ -672,6 +672,20 @@ def mk_receipt_sha(receipts, db):
     return t.root_hash
 
 
+class XshardTxCursorInfo(Serializable):
+
+    FIELDS = [
+        ("root_block_height", uint64),
+        ("minor_block_index", uint64),              # 0 root block x shard, >= 1 minor blocks
+        ("xshard_deposit_index", uint64),
+    ]
+
+    def __init__(self, root_block_height, minor_block_index, xshard_deposit_index):
+        self.root_block_height = root_block_height
+        self.minor_block_index = minor_block_index
+        self.xshard_deposit_index = xshard_deposit_index
+
+
 class MinorBlockMeta(Serializable):
     """ Meta data that are not included in root block
     """
@@ -682,6 +696,9 @@ class MinorBlockMeta(Serializable):
         ("hash_evm_receipt_root", hash256),
         ("evm_gas_used", uint256),
         ("evm_cross_shard_receive_gas_used", uint256),
+        ("xshard_tx_cursor_info", XshardTxCursorInfo),
+        ("evm_xshard_gas_limit", uint256),
+
     ]
 
     def __init__(
@@ -691,12 +708,16 @@ class MinorBlockMeta(Serializable):
         hash_evm_receipt_root: bytes = bytes(Constant.HASH_LENGTH),
         evm_gas_used: int = 0,
         evm_cross_shard_receive_gas_used: int = 0,
+        xshard_tx_cursor_info: XshardTxCursorInfo = XshardTxCursorInfo(0, 0, 0),
+        evm_xshard_gas_limit: int = 30000 * 200,
     ):
         self.hash_merkle_root = hash_merkle_root
         self.hash_evm_state_root = hash_evm_state_root
         self.hash_evm_receipt_root = hash_evm_receipt_root
         self.evm_gas_used = evm_gas_used
         self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
+        self.xshard_tx_cursor_info = xshard_tx_cursor_info
+        self.evm_xshard_gas_limit = evm_xshard_gas_limit
 
     def get_hash(self):
         return sha3_256(self.serialize())
@@ -737,7 +758,7 @@ class MinorBlockHeader(Serializable):
         coinbase_amount: int = 0,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
         hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
-        evm_gas_limit: int = 30000 * 400,  # 400 xshard tx
+        evm_gas_limit: int = 30000 * 400,  # 400 transfer tx
         hash_meta: bytes = bytes(Constant.HASH_LENGTH),
         create_time: int = 0,
         difficulty: int = 0,
@@ -804,6 +825,7 @@ class MinorBlock(Serializable):
     def finalize(self, evm_state, coinbase_amount, hash_prev_root_block=None):
         if hash_prev_root_block is not None:
             self.header.hash_prev_root_block = hash_prev_root_block
+        self.meta.xshard_tx_cursor_info = evm_state.xshard_tx_cursor_info
         self.meta.hash_evm_state_root = evm_state.trie.root_hash
         self.meta.evm_gas_used = evm_state.gas_used
         self.meta.evm_cross_shard_receive_gas_used = evm_state.xshard_receive_gas_used
@@ -867,7 +889,9 @@ class MinorBlock(Serializable):
             address = Address.create_empty_account(
                 full_shard_key=self.header.coinbase_address.full_shard_key
             )
-        meta = MinorBlockMeta()
+        meta = MinorBlockMeta(
+            xshard_tx_cursor_info=self.meta.xshard_tx_cursor_info,
+        )
 
         create_time = (
             self.header.create_time + 1 if create_time is None else create_time

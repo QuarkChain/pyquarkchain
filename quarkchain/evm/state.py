@@ -63,6 +63,7 @@ STATE_DEFAULTS = {
     "refunds": 0,
     "xshard_list": [],
     "full_shard_key": 0,  # should be updated before applying each tx
+    "xshard_tx_cursor_info": None
 }
 
 

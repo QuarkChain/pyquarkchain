@@ -237,6 +237,14 @@ class ShardDbOperator(TransactionHistoryMixin):
     def get_root_block_header_by_hash(self, h):
         return self.r_header_pool.get(h, None)
 
+    def get_root_block_header_by_height(self, h, height):
+        r_header = self.get_root_block_header_by_hash(h)
+        if height > r_header.height:
+            return None
+        while height != r_header.height:
+            r_header = self.get_root_block_header_by_hash(r_header.hash_prev_block)
+        return r_header
+
     def contain_root_block_by_hash(self, h):
         return h in self.r_header_pool
 
