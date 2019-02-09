@@ -376,6 +376,7 @@ class RootState:
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map.get(
                 self.env.quark_chain_config.genesis_token, 0)
 
+            # TODO:  Support collecting tax from multiple native tokens
             if len(block.header.coinbase_amount_map.balance_map) > 1:
                 raise ValueError("Incorrect coinbase_amount_map: too many tokens")
 
