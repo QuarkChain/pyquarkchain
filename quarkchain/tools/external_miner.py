@@ -15,9 +15,11 @@ import jsonrpcclient
 from queue import LifoQueue
 
 from quarkchain.cluster.miner import Miner, MiningWork, MiningResult
-from quarkchain.config import ConsensusType
+from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.utils import int_left_most_bit
 
 # disable jsonrpcclient verbose logging
+
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
@@ -33,7 +35,7 @@ def get_jsonrpc_cli(jrpc_url):
 
 
 def get_work_rpc(
-    shard: Optional[int],
+    full_shard_id: Optional[int],
     host: str = "localhost",
     jrpc_port: int = 38391,
     timeout=TIMEOUT,
@@ -41,14 +43,16 @@ def get_work_rpc(
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
     header_hash, height, diff = cli.send(
-        jsonrpcclient.Request("getWork", hex(shard) if shard is not None else None),
+        jsonrpcclient.Request(
+            "getWork", hex(full_shard_id) if full_shard_id is not None else None
+        ),
         timeout=timeout,
     )
     return MiningWork(bytes.fromhex(header_hash[2:]), int(height, 16), int(diff, 16))
 
 
 def submit_work_rpc(
-    shard: Optional[int],
+    full_shard_id: Optional[int],
     res: MiningResult,
     host: str = "localhost",
     jrpc_port: int = 38391,
@@ -59,7 +63,7 @@ def submit_work_rpc(
     success = cli.send(
         jsonrpcclient.Request(
             "submitWork",
-            hex(shard) if shard is not None else None,
+            hex(full_shard_id) if full_shard_id is not None else None,
             "0x" + res.header_hash.hex(),
             hex(res.nonce),
             "0x" + res.mixhash.hex(),
@@ -69,8 +73,13 @@ def submit_work_rpc(
     return success
 
 
-def repr_shard(shard_id):
-    return "SHARD %s" % shard_id if shard_id is not None else "ROOT"
+def repr_shard(full_shard_id: Optional[int]):
+    if full_shard_id is None:
+        return "ROOT"
+    chain = full_shard_id >> 16
+    shard = full_shard_id & 0xffff
+    shard -= 1 << (int_left_most_bit(shard) - 1)
+    return "CHAIN %d SHARD %d" % (chain, shard)
 
 
 class ExternalMiner(threading.Thread):
@@ -101,33 +110,39 @@ class ExternalMiner(threading.Thread):
                 for config in configs:
                     # random sleep between each shard
                     time.sleep(total_wait_time / len(configs))
-                    shard_id = config["shard_id"]
+                    full_shard_id = config["full_shard_id"]
                     try:
-                        work = get_work_rpc(shard_id, host=cluster_host)
+                        work = get_work_rpc(full_shard_id, host=cluster_host)
                     except Exception as e:
                         # ignore network errors and try next one
-                        print("Failed to get work", e)
+                        print(
+                            "Failed to get work for {}".format(
+                                repr_shard(full_shard_id)
+                            ),
+                            e,
+                        )
                         continue
                     # skip duplicate work
                     if (
-                        shard_id in existing_work
-                        and existing_work[shard_id].hash == work.hash
+                        full_shard_id in existing_work
+                        and existing_work[full_shard_id].hash == work.hash
                     ):
                         continue
                     # bookkeeping
-                    existing_work[shard_id] = work
-                    work_map[work.hash] = (work, shard_id)
+                    existing_work[full_shard_id] = work
+                    work_map[work.hash] = (work, full_shard_id)
 
                     mining_params = {
                         "consensus_type": config["consensus_type"],
-                        "shard": shard_id,
+                        "shard": full_shard_id,
+                        "target_time": config["target_block_time"] + time.time(),
                         "rounds": 100,
                     }
                     if mining_thread:
                         input_q.put((work, mining_params))
                         print(
                             "Added work to queue of %s height %d"
-                            % (repr_shard(shard_id), work.height)
+                            % (repr_shard(full_shard_id), work.height)
                         )
                     else:
                         # start the thread to mine
@@ -136,7 +151,7 @@ class ExternalMiner(threading.Thread):
                             args=(work, mining_params, input_q, output_q),
                         )
                         mining_thread.start()
-                        print("Started mining thread on %s" % repr_shard(shard_id))
+                        print("Started mining thread on %s" % repr_shard(full_shard_id))
 
             # loop stopped, notify the mining thread
             if mining_thread:
@@ -159,10 +174,10 @@ class ExternalMiner(threading.Thread):
                 # join and terminate itself too
                 get_work_thread.join()
                 return
-            work, shard_id = work_map.pop(res.header_hash)
+            work, full_shard_id = work_map.pop(res.header_hash)
             while True:
                 try:
-                    success = submit_work_rpc(shard_id, res, host=cluster_host)
+                    success = submit_work_rpc(full_shard_id, res, host=cluster_host)
                     break
                 except Exception as e:
                     print("Failed to submit work, backing off...", e)
@@ -172,7 +187,7 @@ class ExternalMiner(threading.Thread):
                 "Mining result submission result: %s for %s height %d"
                 % (
                     "success" if success else "failure",
-                    repr_shard(shard_id),
+                    repr_shard(full_shard_id),
                     work.height,
                 )
             )
@@ -205,7 +220,7 @@ def main():
         "--shards",
         required=True,
         nargs="+",
-        help='<Required> specify shards to mine, use "R" to indicate root chain',
+        help='<Required> specify shards (identified by full_shard_key) to mine, use "R" to indicate root chain',
     )
     parser.add_argument(
         "--worker", type=int, help="number of worker threads", default=1
@@ -216,7 +231,8 @@ def main():
     args = parser.parse_args()
 
     with open(args.config) as f:
-        config_json = json.load(f)
+        cluster_config = ClusterConfig.from_json(f.read())
+        qkc_config = cluster_config.QUARKCHAIN
 
     global cluster_host
     if args.host:
@@ -229,13 +245,20 @@ def main():
 
     for worker_i, shard_str in zip(cycle(range(args.worker)), args.shards):
         if shard_str.isnumeric():
-            shard_i = int(shard_str)
-            c = config_json["QUARKCHAIN"]["SHARD_LIST"][shard_i]
+            full_shard_key = int(shard_str)
+            full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
+                full_shard_key
+            )
+            c = qkc_config.shards[full_shard_id]
         else:
-            shard_i = None
-            c = config_json["QUARKCHAIN"]["ROOT"]
+            full_shard_id = None
+            c = qkc_config.ROOT
         worker_configs[worker_i].append(
-            {"shard_id": shard_i, "consensus_type": ConsensusType[c["CONSENSUS_TYPE"]]}
+            {
+                "full_shard_id": full_shard_id,
+                "consensus_type": c.CONSENSUS_TYPE,
+                "target_block_time": c.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
+            }
         )
 
     miners = []

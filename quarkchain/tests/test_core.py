@@ -4,14 +4,13 @@ from eth_keys import KeyAPI
 
 from quarkchain.core import (
     Branch,
-    ShardInfo,
     biguint,
     Identity,
     Address,
     RootBlockHeader,
     MinorBlockHeader,
     MinorBlockMeta,
-    ShardMask,
+    ChainMask,
     Optional,
     Serializable,
     uint32,
@@ -19,11 +18,14 @@ from quarkchain.core import (
     ByteBuffer,
     hash256,
     EnumSerializer,
+    PrependedSizeMapSerializer,
+    boolean,
+    TokenBalanceMap,
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
 
-SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 507), (MinorBlockMeta, 160)]
+SIZE_LIST = [(RootBlockHeader, 216), (MinorBlockHeader, 507), (MinorBlockMeta, 160)]
 
 
 class TestDataSize(unittest.TestCase):
@@ -55,18 +57,7 @@ class TestBranch(unittest.TestCase):
     def test_branch(self):
         b = Branch.create(8, 6)
         self.assertEqual(b.get_shard_size(), 8)
-        self.assertEqual(b.get_shard_id(), 6)
-
-
-class TestShardInfo(unittest.TestCase):
-    def test_shard_info(self):
-        info = ShardInfo.create(4, False)
-        self.assertEqual(info.get_shard_size(), 4)
-        self.assertEqual(info.get_reshard_vote(), False)
-
-        info = ShardInfo.create(2147483648, True)
-        self.assertEqual(info.get_shard_size(), 2147483648)
-        self.assertEqual(info.get_reshard_vote(), True)
+        self.assertEqual(b.get_full_shard_id(), 14)
 
 
 class TestIdentity(unittest.TestCase):
@@ -77,33 +68,24 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(id1.get_key(), id2.get_key())
 
 
-class TestShardMask(unittest.TestCase):
-    def test_shard_mask(self):
-        sm0 = ShardMask(0b1)
-        self.assertTrue(sm0.contain_shard_id(0))
-        self.assertTrue(sm0.contain_shard_id(1))
-        self.assertTrue(sm0.contain_shard_id(0b1111111))
+class TestChainMask(unittest.TestCase):
+    def test_chain_mask(self):
+        sm0 = ChainMask(0b1)
+        self.assertTrue(sm0.contain_full_shard_id(0))
+        self.assertTrue(sm0.contain_full_shard_id(1 << 16))
+        self.assertTrue(sm0.contain_full_shard_id(0b1111111))
 
-        sm1 = ShardMask(0b101)
-        self.assertFalse(sm1.contain_shard_id(0))
-        self.assertTrue(sm1.contain_shard_id(0b1))
-        self.assertFalse(sm1.contain_shard_id(0b10))
-        self.assertFalse(sm1.contain_shard_id(0b11))
-        self.assertFalse(sm1.contain_shard_id(0b100))
-        self.assertTrue(sm1.contain_shard_id(0b101))
-        self.assertFalse(sm1.contain_shard_id(0b110))
-        self.assertFalse(sm1.contain_shard_id(0b111))
-        self.assertFalse(sm1.contain_shard_id(0b1000))
-        self.assertTrue(sm1.contain_shard_id(0b1001))
-
-    def test_shard_mask_iterate(self):
-        sm0 = ShardMask(0b11)
-        self.assertEqual(sorted(l for l in sm0.iterate(4)), [1, 0b11])
-        self.assertEqual(sorted(l for l in sm0.iterate(8)), [1, 0b11, 0b101, 0b111])
-
-        sm1 = ShardMask(0b101)
-        self.assertEqual(sorted(l for l in sm1.iterate(8)), [1, 0b101])
-        self.assertEqual(sorted(l for l in sm1.iterate(16)), [1, 0b101, 0b1001, 0b1101])
+        sm1 = ChainMask(0b101)
+        self.assertFalse(sm1.contain_full_shard_id(0))
+        self.assertTrue(sm1.contain_full_shard_id(0b1 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b10 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b11 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b100 << 16))
+        self.assertTrue(sm1.contain_full_shard_id(0b101 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b110 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b111 << 16))
+        self.assertFalse(sm1.contain_full_shard_id(0b1000 << 16))
+        self.assertTrue(sm1.contain_full_shard_id(0b1001 << 16))
 
 
 class Uint32Optional(Serializable):
@@ -163,10 +145,7 @@ class TestRootBlockHeaderSignature(unittest.TestCase):
 
 
 class SimpleHeaderV0(Serializable):
-    FIELDS = [
-        ("version", uint32),
-        ("value", uint32)
-    ]
+    FIELDS = [("version", uint32), ("value", uint32)]
 
     def __init__(self, version, value):
         check(version == 0)
@@ -175,11 +154,7 @@ class SimpleHeaderV0(Serializable):
 
 
 class SimpleHeaderV1(Serializable):
-    FIELDS = [
-        ("version", uint32),
-        ("value", uint32),
-        ("hash_trie", hash256),
-    ]
+    FIELDS = [("version", uint32), ("value", uint32), ("hash_trie", hash256)]
 
     def __init__(self, version, value, hash_trie):
         check(version == 1)
@@ -190,10 +165,7 @@ class SimpleHeaderV1(Serializable):
 
 class VersionedSimpleHeader(Serializable):
     FIELDS = [
-        ("header", EnumSerializer(
-            "version",
-            {0: SimpleHeaderV0, 1: SimpleHeaderV1}
-        ))
+        ("header", EnumSerializer("version", {0: SimpleHeaderV0, 1: SimpleHeaderV1}))
     ]
 
     def __init__(self, header):
@@ -201,19 +173,13 @@ class VersionedSimpleHeader(Serializable):
 
 
 class VersionedSimpleHeaderOld(Serializable):
-    FIELDS = [
-        ("header", EnumSerializer(
-            "version",
-            {0: SimpleHeaderV0}
-        ))
-    ]
+    FIELDS = [("header", EnumSerializer("version", {0: SimpleHeaderV0}))]
 
     def __init__(self, header):
         self.header = header
 
 
 class TestEnumSerializer(unittest.TestCase):
-
     def test_simple(self):
         vh0 = VersionedSimpleHeader(SimpleHeaderV0(0, 123))
         barray = vh0.serialize(bytearray())
@@ -245,3 +211,51 @@ class TestEnumSerializer(unittest.TestCase):
         with self.assertRaises(ValueError):
             bb = ByteBuffer(barray)
             vhd = VersionedSimpleHeaderOld.deserialize(bb)
+
+
+class MapData(Serializable):
+    FIELDS = [
+        ("m", PrependedSizeMapSerializer(4, uint32, boolean))
+    ]
+
+    def __init__(self, m):
+        self.m = m
+
+
+class TestMapSerializer(unittest.TestCase):
+    def test_simple(self):
+        m = dict()
+        m[0] = True
+        m[1] = False
+        m[2] = False
+
+        md = MapData(m)
+
+        bmd = md.serialize(bytearray())
+
+        bb = ByteBuffer(bmd)
+        md1 = MapData.deserialize(bb)
+        self.assertEqual(md.m, md1.m)
+        self.assertEqual(len(md1.m), 3)
+
+    def test_order(self):
+        m0 = {3: 0, 1: 2, 10: 9}
+        m1 = {10: 9, 3: 0, 1: 2}
+
+        md0 = MapData(m0)
+        md1 = MapData(m1)
+
+        self.assertEqual(md0.serialize(), md1.serialize())
+
+
+class TestTokenBalanceMap(unittest.TestCase):
+    def test_add(self):
+        m0 = TokenBalanceMap({0: 10})
+        m1 = TokenBalanceMap({1: 20})
+
+        m0.add(m1)
+        self.assertEqual(m0.balance_map, {0: 10, 1: 20})
+
+        m2 = TokenBalanceMap({0: 30, 2: 50})
+        m0.add(m2)
+        self.assertEqual(m0.balance_map, {0: 40, 1: 20, 2: 50})

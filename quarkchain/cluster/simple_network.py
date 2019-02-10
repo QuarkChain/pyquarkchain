@@ -45,7 +45,7 @@ class Peer(P2PConnection):
 
         # The following fields should be set once active
         self.id = None
-        self.shard_mask_list = None
+        self.chain_mask_list = None
         self.best_root_block_header_observed = None
         self.cluster_peer_id = cluster_peer_id
 
@@ -56,7 +56,7 @@ class Peer(P2PConnection):
             peer_id=self.network.self_id,
             peer_ip=int(self.network.ip),
             peer_port=self.network.port,
-            shard_mask_list=[],
+            chain_mask_list=[],
             root_block_header=self.root_state.tip,
         )
         # Send hello request
@@ -72,9 +72,8 @@ class Peer(P2PConnection):
         """
         op, cmd, rpc_id = await self.read_command()
         if op is None:
-            assert self.state == ConnectionState.CLOSED
             Logger.info("Failed to read command, peer may have closed connection")
-            return "Failed to read command"
+            return super().close_with_error("Failed to read command")
 
         if op != CommandOp.HELLO:
             return self.close_with_error("Hello must be the first command")
@@ -86,23 +85,13 @@ class Peer(P2PConnection):
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         self.ip = ipaddress.ip_address(cmd.peer_ip)
         self.port = cmd.peer_port
 
         Logger.info(
             "Got HELLO from peer {} ({}:{})".format(self.id.hex(), self.ip, self.port)
         )
-
-        # Validate best root and minor blocks from peer
-        # TODO: validate hash and difficulty through a helper function
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
 
         self.best_root_block_header_observed = cmd.root_block_header
 

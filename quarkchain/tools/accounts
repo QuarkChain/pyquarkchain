@@ -11,7 +11,7 @@ def print_account(a):
     print("Address: {0}".format(colorify("0x" + str(a.address), "blue")))
     print(
         "Shard ID (uint32): {0}".format(
-            colorify(str(a.qkc_address.full_shard_id), "green")
+            colorify(str(a.qkc_address.full_shard_key), "green")
         )
     )
     print("Private Key: {0}".format(colorify(str(a.privkey), "red")))

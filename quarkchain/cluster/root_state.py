@@ -1,16 +1,20 @@
-import time
-import json
 import asyncio
+import json
+import time
 from fractions import Fraction
 from typing import Optional
 
-from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.guardian import Guardian
-from quarkchain.core import RootBlock, MinorBlockHeader, RootBlockHeader
+from quarkchain.cluster.miner import validate_seal
 from quarkchain.core import (
-    calculate_merkle_root,
-    Serializable,
+    Address,
+    MinorBlockHeader,
     PrependedSizeListSerializer,
+    RootBlock,
+    RootBlockHeader,
+    Serializable,
+    calculate_merkle_root,
+    TokenBalanceMap,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
@@ -35,10 +39,13 @@ class RootDb:
     Forks can always be downloaded again from peers if they ever became the best chain.
     """
 
-    def __init__(self, db, max_num_blocks_to_recover, count_minor_blocks=False):
+    def __init__(self, db, quark_chain_config, count_minor_blocks=False):
         # TODO: evict old blocks from memory
         self.db = db
-        self.max_num_blocks_to_recover = max_num_blocks_to_recover
+        self.quark_chain_config = quark_chain_config
+        self.max_num_blocks_to_recover = (
+            quark_chain_config.ROOT.max_root_blocks_in_memory
+        )
         self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
         self.m_hash_set = set()
@@ -129,42 +136,44 @@ class RootDb:
             return
 
         # Count minor blocks by miner address
-        shard_size = block.header.shard_info.get_shard_size()
         if block.header.height > 0:
-            shard_recipient_cnt = self.get_block_count(
-                block.header.height - 1, shard_size
-            )
+            shard_recipient_cnt = self.get_block_count(block.header.height - 1)
         else:
-            shard_recipient_cnt = [dict() for _ in range(shard_size)]
+            shard_recipient_cnt = dict()
 
         for header in block.minor_block_header_list:
-            shard = header.branch.get_shard_id()
+            full_shard_id = header.branch.get_full_shard_id()
             recipient = header.coinbase_address.recipient.hex()
-            shard_recipient_cnt[shard][recipient] = (
-                shard_recipient_cnt[shard].get(recipient, 0) + 1
-            )
+            old_count = shard_recipient_cnt.get(full_shard_id, dict()).get(recipient, 0)
+            new_count = old_count + 1
+            shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = new_count
 
-        for shard, r_c in enumerate(shard_recipient_cnt):
+        for full_shard_id, r_c in shard_recipient_cnt.items():
             data = bytearray()
             for recipient, count in r_c.items():
                 data.extend(bytes.fromhex(recipient))
                 data.extend(count.to_bytes(4, "big"))
             check(len(data) % 24 == 0)
-            self.db.put(b"count_%d_%d" % (shard, block.header.height), data)
+            self.db.put(b"count_%d_%d" % (full_shard_id, block.header.height), data)
 
-    def get_block_count(self, root_height, shard_size):
-        """Returns a list(dict(miner_recipient, block_count)) of size shard_size"""
-        shard_recipient_cnt = [dict() for _ in range(shard_size)]
+    def get_block_count(self, root_height):
+        """Returns a dict(full_shard_id, dict(miner_recipient, block_count))"""
+        shard_recipient_cnt = dict()
         if not self.count_minor_blocks:
             return shard_recipient_cnt
 
-        for shard in range(shard_size):
-            data = self.db.get(b"count_%d_%d" % (shard, root_height))
+        full_shard_ids = self.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            root_height
+        )
+        for full_shard_id in full_shard_ids:
+            data = self.db.get(b"count_%d_%d" % (full_shard_id, root_height), None)
+            if data is None:
+                continue
             check(len(data) % 24 == 0)
             for i in range(0, len(data), 24):
                 recipient = data[i : i + 20].hex()
                 count = int.from_bytes(data[i + 20 : i + 24], "big")
-                shard_recipient_cnt[shard][recipient] = count
+                shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = count
         return shard_recipient_cnt
 
     def get_root_block_by_height(self, height):
@@ -211,7 +220,7 @@ class RootState:
         self.raw_db = env.db
         self.db = RootDb(
             self.raw_db,
-            env.quark_chain_config.ROOT.max_root_blocks_in_memory,
+            env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
 
@@ -243,7 +252,22 @@ class RootState:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
-    def create_block_to_mine(self, m_header_list, address, create_time=None):
+    def __calculate_root_block_coinbase(self, root_block: RootBlock) -> int:
+        # TODO: This method assumes that all shards use the same coinbase token.
+        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+        reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
+        # the ratio of minor block coinbase
+        ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
+        minor_block_fee = 0
+        for header in root_block.minor_block_header_list:
+            minor_block_fee += header.coinbase_amount
+        # note the minor block fee is after tax
+        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
+        return coinbase_amount
+
+    def create_block_to_mine(self, m_header_list, address=None, create_time=None):
+        if not address:
+            address = Address.create_empty_account()
         if create_time is None:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         tracking_data = {
@@ -257,19 +281,14 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
-        reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
-        # the ratio of minor block coinbase
-        ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
-        minor_block_fee = 0
-        for header in m_header_list:
-            minor_block_fee += header.coinbase_amount
-        # note the minor block fee is after tax
-        coinbase_amount += minor_block_fee * ratio.denominator // ratio.numerator
+        coinbase_amount = self.__calculate_root_block_coinbase(block)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-        return block.finalize(coinbase_amount=coinbase_amount, coinbase_address=address)
+        return block.finalize(
+            coinbase_amount_map=TokenBalanceMap(
+                {self.env.quark_chain_config.genesis_token: coinbase_amount}),
+            coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.
@@ -334,6 +353,7 @@ class RootState:
         return header == shorter_block_header
 
     def validate_block(self, block, block_hash=None):
+        """Raise on valiadtion errors """
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
@@ -350,10 +370,35 @@ class RootState:
         if merkle_hash != block.header.hash_merkle_root:
             raise ValueError("incorrect merkle root")
 
+        # Check coinbase
+        if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
+            expected_coinbase_amount = self.__calculate_root_block_coinbase(block)
+            actual_coinbase_amount = block.header.coinbase_amount_map.balance_map.get(
+                self.env.quark_chain_config.genesis_token, 0)
+
+            # TODO:  Support collecting tax from multiple native tokens
+            if len(block.header.coinbase_amount_map.balance_map) > 1:
+                raise ValueError("Incorrect coinbase_amount_map: too many tokens")
+
+            if (
+                len(block.header.coinbase_amount_map.balance_map) == 1 and
+                self.env.quark_chain_config.genesis_token not in block.header.coinbase_amount_map.balance_map
+            ):
+                raise ValueError("Incorrect coinbase_amount_map: genesis_token_id not found")
+
+            if expected_coinbase_amount != actual_coinbase_amount:
+                raise ValueError(
+                    "Bad coinbase amount for root block {}. expect {} but got {}.".format(
+                        block.header.get_hash().hex(),
+                        expected_coinbase_amount,
+                        actual_coinbase_amount,
+                    )
+                )
+
         # Check whether all minor blocks are ordered, validated (and linked to previous block)
         headers_map = dict()  # shard_id -> List[MinorBlockHeader]
-        shard_id = (
-            block.minor_block_header_list[0].branch.get_shard_id()
+        full_shard_id = (
+            block.minor_block_header_list[0].branch.get_full_shard_id()
             if block.minor_block_header_list
             else None
         )
@@ -361,7 +406,7 @@ class RootState:
             if not self.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise ValueError(
                     "minor block is not validated. {}-{}".format(
-                        m_header.branch.get_shard_id(), m_header.height
+                        m_header.branch.get_full_shard_id(), m_header.height
                     )
                 )
             if m_header.create_time > block.header.create_time:
@@ -378,24 +423,14 @@ class RootState:
                     "minor block's prev root block must be in the same chain"
                 )
 
-            if m_header.branch.get_shard_id() < shard_id:
+            if m_header.branch.get_full_shard_id() < full_shard_id:
                 raise ValueError("shard id must be ordered")
-            elif m_header.branch.get_shard_id() > shard_id:
-                shard_id = m_header.branch.get_shard_id()
+            elif m_header.branch.get_full_shard_id() > full_shard_id:
+                full_shard_id = m_header.branch.get_full_shard_id()
 
-            headers_map.setdefault(m_header.branch.get_shard_id(), []).append(m_header)
-            # TODO: Add coinbase
-
-        # check proof of progress
-        shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
-            block.header.height
-        )
-        for shard_id in shard_ids_to_check_proof_of_progress:
-            if (
-                len(headers_map.get(shard_id, []))
-                < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS
-            ):
-                raise ValueError("fail to prove progress")
+            headers_map.setdefault(m_header.branch.get_full_shard_id(), []).append(
+                m_header
+            )
 
         # check minor block headers are linked
         prev_last_minor_block_header_list = self.db.get_root_block_last_minor_block_header_list(
@@ -403,27 +438,27 @@ class RootState:
         )
         prev_header_map = dict()  # shard_id -> MinorBlockHeader or None
         for header in prev_last_minor_block_header_list:
-            prev_header_map[header.branch.get_shard_id()] = header
+            prev_header_map[header.branch.get_full_shard_id()] = header
 
-        last_minor_block_header_list = []
-        for shard_id, headers in headers_map.items():
+        full_shard_ids_to_check_proof_of_progress = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            block.header.height
+        )
+        for full_shard_id, headers in headers_map.items():
             check(len(headers) > 0)
 
-            last_minor_block_header_list.append(headers[-1])
-
-            if shard_id not in shard_ids_to_check_proof_of_progress:
+            if full_shard_id not in full_shard_ids_to_check_proof_of_progress:
                 raise ValueError(
                     "found minor block header in root block {} for uninitialized shard {}".format(
-                        block_hash.hex(), shard_id
+                        block_hash.hex(), full_shard_id
                     )
                 )
-            prev_header_in_last_root_block = prev_header_map.get(shard_id, None)
+            prev_header_in_last_root_block = prev_header_map.get(full_shard_id, None)
             if not prev_header_in_last_root_block:
                 # no header in previous root block then it must start with genesis block
                 if headers[0].height != 0:
                     raise ValueError(
                         "genesis block height is not 0 for shard {} block hash {}".format(
-                            shard_id, headers[0].get_hash().hex()
+                            full_shard_id, headers[0].get_hash().hex()
                         )
                     )
             else:
@@ -436,7 +471,9 @@ class RootState:
                         )
                     )
 
-        return block_hash, last_minor_block_header_list
+            prev_header_map[full_shard_id] = headers[-1]
+
+        return block_hash, prev_header_map.values()
 
     def __rewrite_block_index_to(self, block):
         """ Find the common ancestor in the current chain and rewrite index till block """

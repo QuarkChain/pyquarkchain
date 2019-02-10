@@ -3,6 +3,7 @@ import time
 import unittest
 from typing import Optional
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import DoubleSHA256, Miner, MiningWork, validate_seal
 from quarkchain.config import ConsensusType
 from quarkchain.core import RootBlock, RootBlockHeader
@@ -48,7 +49,7 @@ class TestMiner(unittest.TestCase):
         for consensus in (
             ConsensusType.POW_SIMULATE,
             ConsensusType.POW_ETHASH,
-            ConsensusType.POW_SHA3SHA3,
+            ConsensusType.POW_DOUBLESHA256,
         ):
             miner = self.miner_gen(consensus, create, add)
             # should generate 5 blocks and then end
@@ -85,7 +86,7 @@ class TestMiner(unittest.TestCase):
         self.assertEqual(len(self.added_blocks), 2)
 
     def test_sha3sha3(self):
-        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
         block = RootBlock(
             RootBlockHeader(create_time=42, difficulty=5),
             tracking_data="{}".encode("utf-8"),
@@ -95,13 +96,13 @@ class TestMiner(unittest.TestCase):
         miner.input_q.put((None, {}))
         miner.mine_loop(
             work,
-            {"consensus_type": ConsensusType.POW_SHA3SHA3},
+            {"consensus_type": ConsensusType.POW_DOUBLESHA256},
             miner.input_q,
             miner.output_q,
         )
         mined_res = miner.output_q.get()
         block.header.nonce = mined_res.nonce
-        validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
+        validate_seal(block.header, ConsensusType.POW_DOUBLESHA256)
 
     def test_qkchash(self):
         miner = self.miner_gen(ConsensusType.POW_QKCHASH, None, None)
@@ -125,7 +126,7 @@ class TestMiner(unittest.TestCase):
 
     def test_only_remote(self):
         async def go():
-            miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, None, None)
+            miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
             with self.assertRaises(ValueError):
                 await miner.get_work()
             with self.assertRaises(ValueError):
@@ -141,24 +142,26 @@ class TestMiner(unittest.TestCase):
             nonlocal now
             return RootBlock(RootBlockHeader(create_time=now, extra_data=b"{}"))
 
-        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, create, None, remote=True)
+        miner = self.miner_gen(
+            ConsensusType.POW_DOUBLESHA256, create, None, remote=True
+        )
 
         async def go():
             nonlocal now
             # no current work, will generate a new one
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(len(work), 3)
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
             self.assertEqual(work.hash, h)
             # cache hit
             now += 1
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(work.hash, h)
             self.assertEqual(len(miner.work_map), 1)
             # new work if interval passed
             now += 10
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(len(miner.work_map), 2)
             self.assertNotEqual(work.hash, h)
             # work map cleaned up if too much time passed
@@ -171,6 +174,7 @@ class TestMiner(unittest.TestCase):
 
     def test_submit_work(self):
         now = 42
+        doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
@@ -179,12 +183,13 @@ class TestMiner(unittest.TestCase):
             return block
 
         async def add(block_to_add):
+            validate_seal(block_to_add.header, doublesha)
             self.added_blocks.append(block_to_add)
 
-        miner = self.miner_gen(ConsensusType.POW_SHA3SHA3, create, add, remote=True)
+        miner = self.miner_gen(doublesha, create, add, remote=True)
 
         async def go():
-            work = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(work.height, 0)
             self.assertEqual(work.difficulty, 5)
             # submitted block doesn't exist
@@ -210,29 +215,29 @@ class TestMiner(unittest.TestCase):
 
     def test_submit_work_with_guardian(self):
         now = 42
+        doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
         )
+        priv = ecies.generate_privkey()
 
         async def create(retry=True):
             return block
 
-        async def add(_):
-            pass
+        async def add(block_to_add):
+            h = block_to_add.header
+            diff = h.difficulty
+            if h.verify_signature(priv.public_key):
+                diff = Guardian.adjust_difficulty(diff, h.height)
+            validate_seal(block_to_add.header, doublesha, adjusted_diff=diff)
 
         miner = self.miner_gen(
-            ConsensusType.POW_SHA3SHA3,
-            create,
-            add,
-            remote=True,
-            # fake pk, will succeed in test but fail in real world when
-            # adding the block to the root chain
-            guardian_private_key=ecies.generate_privkey(),
+            doublesha, create, add, remote=True, guardian_private_key=priv
         )
 
         async def go():
             for i in range(42, 100):
-                work = await miner.get_work(now=now)
+                work, _ = await miner.get_work(now=now)
                 self.assertEqual(work.height, 0)
 
                 # guardian: diff 1000 -> 1, any number should work
@@ -250,7 +255,7 @@ class TestMiner(unittest.TestCase):
         )
         block.header.nonce = 0
         with self.assertRaises(ValueError):
-            validate_seal(block.header, ConsensusType.POW_SHA3SHA3)
+            validate_seal(block.header, ConsensusType.POW_DOUBLESHA256)
 
         # significantly lowering the diff should pass
-        validate_seal(block.header, ConsensusType.POW_SHA3SHA3, adjusted_diff=1)
+        validate_seal(block.header, ConsensusType.POW_DOUBLESHA256, adjusted_diff=1)

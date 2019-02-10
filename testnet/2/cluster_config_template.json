@@ -179,7 +179,7 @@
                 "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 30
             },
             {
-                "CONSENSUS_TYPE": "POW_SHA3SHA3",
+                "CONSENSUS_TYPE": "POW_DOUBLESHA256",
                 "CONSENSUS_CONFIG": {
                     "TARGET_BLOCK_TIME": 10,
                     "REMOTE_MINE": true
@@ -213,7 +213,7 @@
                 "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 30
             },
             {
-                "CONSENSUS_TYPE": "POW_SHA3SHA3",
+                "CONSENSUS_TYPE": "POW_DOUBLESHA256",
                 "CONSENSUS_CONFIG": {
                     "TARGET_BLOCK_TIME": 10,
                     "REMOTE_MINE": true

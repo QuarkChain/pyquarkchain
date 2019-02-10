@@ -4,6 +4,7 @@ import hashlib
 import io
 import logging
 import os
+import re
 import sys
 import time
 import traceback
@@ -438,6 +439,52 @@ def time_ms():
     the function here is a convenience; you shall use `time.time_ns() // 1e6` if using >=Python 3.7
     """
     return int(time.time() * 1e3)
+
+
+TOKEN_BASE = 36
+ZZZZZZZZZZZZ = 4873763662273663091
+
+
+def token_char_encode(char: str) -> int:
+    if ord(char) >= ord("A") and ord(char) <= ord("Z"):
+        return 10 + ord(char) - ord("A")
+    if ord(char) >= ord("0") and ord(char) <= ord("9"):
+        return ord(char) - ord("0")
+    raise AssertionError("unknown character {}".format(char))
+
+
+def token_char_decode(id: int) -> str:
+    check(id < TOKEN_BASE and id >= 0, "invalid char")
+    if id < 10:
+        return chr(ord("0") + id)
+    return chr(ord("A") + id - 10)
+
+
+def token_id_encode(name: str) -> int:
+    """
+    encode native token name to uint64
+    """
+    check(len(name) < 13, "name too long")
+    check(re.match(r"^[0-9A-Z]+$", name), "name can only contain 0-9, A-Z")
+    id = token_char_encode(name[-1])
+    base = TOKEN_BASE
+    for c in name[-2::-1]:
+        id += base * (token_char_encode(c) + 1)
+        base *= TOKEN_BASE
+    return id
+
+
+def token_id_decode(id: int) -> str:
+    """
+    decode native token name from uint64
+    """
+    check(id >= 0 and id <= ZZZZZZZZZZZZ, "id too big or negative")
+    name = token_char_decode(id % TOKEN_BASE)
+    id = id // TOKEN_BASE - 1
+    while id >= 0:
+        name += token_char_decode(id % TOKEN_BASE)
+        id = id // TOKEN_BASE - 1
+    return name[::-1]
 
 
 def main():

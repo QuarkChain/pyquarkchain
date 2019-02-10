@@ -237,7 +237,7 @@ class SecurePeer(Peer):
             return self.close_with_error("incompatible network id")
 
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         # ip is from peer.remote, there may be 2 cases:
         #  1. dialed-out: ip is from discovery service;
         #  2. dialed-in: ip is from writer.get_extra_info("peername")
@@ -249,19 +249,13 @@ class SecurePeer(Peer):
             "Got HELLO from peer {} ({}:{})".format(self.quark_peer, self.ip, self.port)
         )
 
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
-
         self.best_root_block_header_observed = cmd.root_block_header
 
         await self.master_server.create_peer_cluster_connections(self.cluster_peer_id)
         Logger.info(
-            "Established virtual shard connections with peer {}".format(self.id.hex())
+            "Established virtual shard connections with {} cluster_peer_id={} id={}".format(
+                self.quark_peer, self.cluster_peer_id, self.id.hex()
+            )
         )
 
     def add_sync_task(self):

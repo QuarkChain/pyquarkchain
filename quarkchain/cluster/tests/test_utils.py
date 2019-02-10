@@ -11,7 +11,7 @@ from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.config import ConsensusType
-from quarkchain.core import Address, Branch, Transaction, Code, ShardMask
+from quarkchain.core import Address, Branch, Transaction, Code, ChainMask
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
@@ -19,51 +19,63 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.protocol import AbstractConnection
-from quarkchain.utils import call_async, check
+from quarkchain.utils import call_async, check, is_p2
 
 
 def get_test_env(
     genesis_account=Address.create_empty_account(),
     genesis_minor_quarkash=0,
+    chain_size=2,
     shard_size=2,
-    genesis_root_heights=None,
+    genesis_root_heights=None,  # dict(full_shard_id, genesis_root_height)
     remote_mining=False,
+    genesis_minor_token_balances={},
 ):
+    check(is_p2(shard_size))
     env = DEFAULT_ENV.copy()
 
     env.db = InMemoryDb()
     env.set_network_id(1234567890)
 
     env.cluster_config = ClusterConfig()
-    env.quark_chain_config.update(shard_size, 10, 1)
+    env.quark_chain_config.update(
+        chain_size, shard_size, 10, 1, env.quark_chain_config.GENESIS_TOKEN
+    )
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
-        env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+        env.quark_chain_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 10
 
     env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 40
     env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR = 1024
 
     if genesis_root_heights:
-        check(len(genesis_root_heights) == shard_size)
-        for shard_id in range(shard_size):
-            shard = env.quark_chain_config.SHARD_LIST[shard_id]
-            shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[shard_id]
+        check(len(genesis_root_heights) == shard_size * chain_size)
+        for chain_id in range(chain_size):
+            for shard_id in range(shard_size):
+                full_shard_id = chain_id << 16 | shard_size | shard_id
+                shard = env.quark_chain_config.shards[full_shard_id]
+                shard.GENESIS.ROOT_HEIGHT = genesis_root_heights[full_shard_id]
 
     # fund genesis account in all shards
-    for i, shard in enumerate(env.quark_chain_config.SHARD_LIST):
-        addr = genesis_account.address_in_shard(i).serialize().hex()
-        shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
+    for full_shard_id, shard in env.quark_chain_config.shards.items():
+        addr = genesis_account.address_in_shard(full_shard_id).serialize().hex()
+        if len(genesis_minor_token_balances) != 0:
+            shard.GENESIS.ALLOC[addr] = genesis_minor_token_balances
+        else:
+            shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
         shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
         shard.DIFFICULTY_ADJUSTMENT_FACTOR = 512
         if remote_mining:
-            shard.CONSENSUS_TYPE = ConsensusType.POW_SHA3SHA3
+            shard.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             shard.GENESIS.DIFFICULTY = 10
+        shard.POSW_CONFIG.WINDOW_SIZE = 2
 
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
+    env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
 
@@ -82,7 +94,13 @@ def create_transfer_transaction(
     gas_price=1,
     nonce=None,
     data=b"",
+    gas_token_id=None,
+    transfer_token_id=None,
 ):
+    if gas_token_id is None:
+        gas_token_id = shard_state.env.quark_chain_config.genesis_token
+    if transfer_token_id is None:
+        transfer_token_id = shard_state.env.quark_chain_config.genesis_token
     """ Create an in-shard xfer tx
     """
     evm_tx = EvmTransaction(
@@ -94,9 +112,11 @@ def create_transfer_transaction(
         to=to_address.recipient,
         value=value,
         data=data,
-        from_full_shard_id=from_address.full_shard_id,
-        to_full_shard_id=to_address.full_shard_id,
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_address.full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
     )
     evm_tx.sign(key=key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
@@ -128,7 +148,9 @@ contract Storage {
 CONTRACT_WITH_STORAGE = "6080604052348015600f57600080fd5b506104d260008190555061162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002081905550603580606c6000396000f3006080604052600080fd00a165627a7a72305820a6ef942c101f06333ac35072a8ff40332c71d0e11cd0e6d86de8cae7b42696550029"
 
 
-def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode):
+def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode):
+    gas_token_id = shard_state.env.quark_chain_config.genesis_token
+    transfer_token_id = shard_state.env.quark_chain_config.genesis_token
     evm_tx = EvmTransaction(
         nonce=shard_state.get_transaction_count(from_address.recipient),
         gasprice=1,
@@ -136,40 +158,73 @@ def _contract_tx_gen(shard_state, key, from_address, to_full_shard_id, bytecode)
         value=0,
         to=b"",
         data=bytes.fromhex(bytecode),
-        from_full_shard_id=from_address.full_shard_id,
-        to_full_shard_id=to_full_shard_id,
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_full_shard_key,
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
     )
     evm_tx.sign(key)
     return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
 
 
 def create_contract_creation_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
-        shard_state, key, from_address, to_full_shard_id, CONTRACT_CREATION_BYTECODE
+        shard_state, key, from_address, to_full_shard_key, CONTRACT_CREATION_BYTECODE
     )
 
 
 def create_contract_creation_with_event_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
         shard_state,
         key,
         from_address,
-        to_full_shard_id,
+        to_full_shard_key,
         CONTRACT_CREATION_WITH_EVENT_BYTECODE,
     )
 
 
 def create_contract_with_storage_transaction(
-    shard_state, key, from_address, to_full_shard_id
+    shard_state, key, from_address, to_full_shard_key
 ):
     return _contract_tx_gen(
-        shard_state, key, from_address, to_full_shard_id, CONTRACT_WITH_STORAGE
+        shard_state, key, from_address, to_full_shard_key, CONTRACT_WITH_STORAGE
     )
+
+
+def contract_creation_tx(
+    shard_state,
+    key,
+    from_address,
+    to_full_shard_key,
+    bytecode,
+    gas=100000,
+    gas_token_id=None,
+    transfer_token_id=None,
+):
+    if gas_token_id is None:
+        gas_token_id = shard_state.env.quark_chain_config.genesis_token
+    if transfer_token_id is None:
+        transfer_token_id = shard_state.env.quark_chain_config.genesis_token
+    evm_tx = EvmTransaction(
+        nonce=shard_state.get_transaction_count(from_address.recipient),
+        gasprice=1,
+        startgas=gas,
+        value=0,
+        to=b"",
+        data=bytes.fromhex(bytecode),
+        from_full_shard_key=from_address.full_shard_key,
+        to_full_shard_key=to_full_shard_key,
+        network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        gas_token_id=gas_token_id,
+        transfer_token_id=transfer_token_id,
+    )
+    evm_tx.sign(key)
+    return Transaction(in_list=[], code=Code.create_evm_code(evm_tx), out_list=[])
 
 
 class Cluster:
@@ -179,15 +234,15 @@ class Cluster:
         self.network = network
         self.peer = peer
 
-    def get_shard(self, shard_id) -> Shard:
-        branch = Branch.create(self.master.env.quark_chain_config.SHARD_SIZE, shard_id)
+    def get_shard(self, full_shard_id: int) -> Shard:
+        branch = Branch(full_shard_id)
         for slave in self.slave_list:
             if branch in slave.shards:
                 return slave.shards[branch]
         return None
 
-    def get_shard_state(self, shard_id) -> ShardState:
-        shard = self.get_shard(shard_id)
+    def get_shard_state(self, full_shard_id: int) -> ShardState:
+        shard = self.get_shard(full_shard_id)
         if not shard:
             return None
         return shard.state
@@ -208,6 +263,7 @@ def get_next_port():
 def create_test_clusters(
     num_cluster,
     genesis_account,
+    chain_size,
     shard_size,
     num_slaves,
     genesis_root_heights,
@@ -227,6 +283,7 @@ def create_test_clusters(
         env = get_test_env(
             genesis_account,
             genesis_minor_quarkash=1000000,
+            chain_size=chain_size,
             shard_size=shard_size,
             genesis_root_heights=genesis_root_heights,
             remote_mining=remote_mining,
@@ -240,16 +297,16 @@ def create_test_clusters(
         if small_coinbase:
             # prevent breaking previous tests after tweaking default rewards
             env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
-            for c in env.quark_chain_config.SHARD_LIST:
+            for c in env.quark_chain_config.shards.values():
                 c.COINBASE_AMOUNT = 5
 
         env.cluster_config.SLAVE_LIST = []
+        check(is_p2(num_slaves))
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
-            slave_config.SHARD_MASK_LIST = [ShardMask(num_slaves | j)]
-            slave_config.DB_PATH_ROOT = None  # TODO: fix the db in config
+            slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         slave_server_list = []
@@ -317,6 +374,7 @@ class ClusterContext(ContextDecorator):
         self,
         num_cluster,
         genesis_account=Address.create_empty_account(),
+        chain_size=2,
         shard_size=2,
         num_slaves=None,
         genesis_root_heights=None,
@@ -325,16 +383,21 @@ class ClusterContext(ContextDecorator):
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
+        self.chain_size = chain_size
         self.shard_size = shard_size
-        self.num_slaves = num_slaves if num_slaves else shard_size
+        self.num_slaves = num_slaves if num_slaves else chain_size
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
+
+        check(is_p2(self.num_slaves))
+        check(is_p2(self.shard_size))
 
     def __enter__(self):
         self.cluster_list = create_test_clusters(
             self.num_cluster,
             self.genesis_account,
+            self.chain_size,
             self.shard_size,
             self.num_slaves,
             self.genesis_root_heights,
@@ -343,5 +406,5 @@ class ClusterContext(ContextDecorator):
         )
         return self.cluster_list
 
-    def __exit__(self, *exc):
+    def __exit__(self, exc_type, exc_val, traceback):
         shutdown_clusters(self.cluster_list)

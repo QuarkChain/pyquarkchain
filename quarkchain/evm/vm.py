@@ -81,9 +81,11 @@ class Message(object):
         transfers_value=True,
         static=False,
         is_cross_shard=False,
-        from_full_shard_id=None,
-        to_full_shard_id=None,
+        from_full_shard_key=None,
+        to_full_shard_key=None,
         tx_hash=None,
+        gas_token_id=0,
+        transfer_token_id=0,
     ):
         self.sender = sender
         self.to = to
@@ -101,11 +103,13 @@ class Message(object):
         self.transfers_value = transfers_value
         self.static = static
         self.is_cross_shard = is_cross_shard
-        self.from_full_shard_id = from_full_shard_id
-        self.to_full_shard_id = to_full_shard_id
+        self.from_full_shard_key = from_full_shard_key
+        self.to_full_shard_key = to_full_shard_key
         self.tx_hash = (
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
     def __repr__(self):
         return "<Message(to:%s...)>" % self.to[:8]
@@ -147,11 +151,11 @@ def preprocess_code(code):
     code = code + b"\x00" * 32
     while i < len(code) - 32:
         codebyte = safe_ord(code[i])
-        if codebyte == 0x5b:
+        if codebyte == 0x5B:
             o |= 1 << i
-        if 0x60 <= codebyte <= 0x7f:
-            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5e])
-            i += codebyte - 0x5e
+        if 0x60 <= codebyte <= 0x7F:
+            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5E])
+            i += codebyte - 0x5E
         else:
             i += 1
     return o, pushcache
@@ -270,6 +274,11 @@ def vm_trace(ext, msg, compustate, opcode, pushcache, tracer=log_vm_op):
 
 # Main function
 def vm_execute(ext, msg, code):
+
+    # early exit if msg.sender is disallowed
+    if msg.sender in ext.sender_disallow_list:
+        return vm_exception("SENDER NOT ALLOWED")
+
     # precompute trace flag
     # if we trace vm, we're in slow mode anyway
     trace_vm = log_vm_op.is_active("trace")
@@ -375,10 +384,10 @@ def vm_execute(ext, msg, code):
 
         # Valid operations
         # Pushes first because they are very frequent
-        if 0x60 <= opcode <= 0x7f:
+        if 0x60 <= opcode <= 0x7F:
             stk.append(pushcache[compustate.pc - 1])
             # Move 1 byte forward for 0x60, up to 32 bytes for 0x7f
-            compustate.pc += opcode - 0x5f
+            compustate.pc += opcode - 0x5F
         # Arithmetic
         elif opcode < 0x10:
             if op == "STOP":
@@ -636,12 +645,12 @@ def vm_execute(ext, msg, code):
         # DUPn (eg. DUP1: a b c -> a b c c, DUP3: a b c -> a b c a)
         elif op[:3] == "DUP":
             # 0x7f - opcode is a negative number, -1 for 0x80 ... -16 for 0x8f
-            stk.append(stk[0x7f - opcode])
+            stk.append(stk[0x7F - opcode])
         # SWAPn (eg. SWAP1: a b c d -> a b d c, SWAP3: a b c d -> d b c a)
         elif op[:4] == "SWAP":
             # 0x8e - opcode is a negative number, -2 for 0x90 ... -17 for 0x9f
-            temp = stk[0x8e - opcode]
-            stk[0x8e - opcode] = stk[-1]
+            temp = stk[0x8E - opcode]
+            stk[0x8E - opcode] = stk[-1]
             stk[-1] = temp
         # Logs (aka "events")
         elif op[:3] == "LOG":
@@ -690,7 +699,7 @@ def vm_execute(ext, msg, code):
                     ingas,
                     cd,
                     msg.depth + 1,
-                    to_full_shard_id=msg.from_full_shard_id,
+                    to_full_shard_key=msg.from_full_shard_key,
                 )
                 o, gas, data = ext.create(create_msg)
                 if o:

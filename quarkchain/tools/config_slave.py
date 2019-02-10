@@ -50,7 +50,7 @@ def main():
                 "HOST": host,
                 "PORT": int(port),
                 "ID": "S%d" % i,
-                "SHARD_MASK_LIST": [i | slave_num],
+                "CHAIN_MASK_LIST": [i | slave_num],
             }
             slave_servers.append(s)
             i += 1

@@ -17,7 +17,7 @@ class TestFilter(unittest.TestCase):
     def setUp(self):
         super().setUp()
         id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_id=0)
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -25,7 +25,7 @@ class TestFilter(unittest.TestCase):
             shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
-            to_full_shard_id=acc1.full_shard_id,
+            to_full_shard_key=acc1.full_shard_key,
         )
         self.assertTrue(state.add_tx(tx))
         b = state.create_block_to_mine(address=acc1)
@@ -43,7 +43,7 @@ class TestFilter(unittest.TestCase):
                 key=id1.get_key(),
                 from_address=acc1,
                 to_address=Address.create_from_identity(
-                    Identity.create_random_identity(), full_shard_id=0
+                    Identity.create_random_identity(), full_shard_key=0
                 ),
                 value=1,
                 gas=40000,
@@ -84,7 +84,7 @@ class TestFilter(unittest.TestCase):
         for criteria in hit_criteria:
             addresses = []
             if not criteria:
-                addresses = [Address(self.log.recipient, full_shard_id=0)]
+                addresses = [Address(self.log.recipient, full_shard_key=0)]
             f = self.filter_gen_with_criteria(criteria, addresses)
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 1)

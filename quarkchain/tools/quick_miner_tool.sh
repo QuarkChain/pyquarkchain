@@ -27,11 +27,11 @@ echo "Step 2: Download a snapshot of the database. Your cluster only need to syn
 the blocks mined in the past 12 hours or less."
 
 
-curl https://s3-us-west-2.amazonaws.com/testnet2/data/23/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/23/LATEST`.tar.gz --output data.tar.gz 
+curl https://s3-us-west-2.amazonaws.com/testnet2/data/24/`curl https://s3-us-west-2.amazonaws.com/testnet2/data/24/LATEST`.tar.gz --output data.tar.gz 
 
 tar xvfz data.tar.gz
 
-miner_data_path="$(pwd -P)/quarkchain/cluster/data"
+miner_data_path="$(pwd -P)/quarkchain/cluster/qkc-data/"
 
 rm -rf $miner_data_path
 
@@ -42,7 +42,8 @@ screen -S jobs -X screen bash
 
 screen -S jobs -p bash -X title cluster
 
-screen -S jobs -p cluster -X stuff $'python3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2/cluster_config_template.json" 
+
+screen -S jobs -p cluster -X stuff $'python3 quarkchain/cluster/cluster.py --cluster_config "$(pwd -P)/testnet/2.4/cluster_config_template.json" 
 '
 
 
@@ -66,7 +67,7 @@ while true; do
         [Yy]* )
                 screen -S jobs -X screen bash;
                 screen -S jobs -p bash -X title miners;
-                screen -S jobs -p miners -X stuff $'bash quarkchain/tools/external_miner_manager.sh -c "$(pwd -P)/testnet/2/cluster_config_template.json" -p 8 -h localhost 
+                screen -S jobs -p miners -X stuff $'bash quarkchain/tools/external_miner_manager.sh -c "$(pwd -P)/testnet/2.4/cluster_config_template.json" -p 8 -h localhost 
                 ';
                 break;;
         [Nn]* ) bash quarkchain/tools/quick_miner_stopper.sh

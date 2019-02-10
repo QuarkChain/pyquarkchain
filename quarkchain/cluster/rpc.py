@@ -20,7 +20,7 @@ from quarkchain.core import (
     Serializable,
     Address,
     Branch,
-    ShardMask,
+    ChainMask,
 )
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
@@ -31,33 +31,33 @@ from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, b
 class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
+        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
         ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
-    def __init__(self, id, shard_mask_list, root_tip):
-        """ Empty shard_mask_list means root """
+    def __init__(self, id, chain_mask_list, root_tip):
+        """ Empty chain_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.shard_mask_list = shard_mask_list
+        self.chain_mask_list = chain_mask_list
         self.root_tip = root_tip
 
 
 class Pong(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
+        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
-    def __init__(self, id, shard_mask_list):
-        """ Empty slave_id and shard_mask_list means root """
+    def __init__(self, id, chain_mask_list):
+        """ Empty slave_id and chain_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.shard_mask_list = shard_mask_list
+        self.chain_mask_list = chain_mask_list
 
 
 class SlaveInfo(Serializable):
@@ -65,14 +65,14 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
-        ("shard_mask_list", PrependedSizeListSerializer(4, ShardMask)),
+        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
-    def __init__(self, id, host, port, shard_mask_list):
+    def __init__(self, id, host, port, chain_mask_list):
         self.id = id if isinstance(id, bytes) else bytes(id, "ascii")
         self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
-        self.shard_mask_list = shard_mask_list
+        self.chain_mask_list = chain_mask_list
 
 
 class ConnectToSlavesRequest(Serializable):
@@ -282,10 +282,21 @@ class TransactionDetail(Serializable):
         ("block_height", uint64),
         ("timestamp", uint64),  # block timestamp
         ("success", boolean),
+        ("gas_token_id", uint64),
+        ("transfer_token_id", uint64),
     ]
 
     def __init__(
-        self, tx_hash, from_address, to_address, value, block_height, timestamp, success
+        self,
+        tx_hash,
+        from_address,
+        to_address,
+        value,
+        block_height,
+        timestamp,
+        success,
+        gas_token_id,
+        transfer_token_id,
     ):
         self.tx_hash = tx_hash
         self.from_address = from_address
@@ -294,6 +305,8 @@ class TransactionDetail(Serializable):
         self.block_height = block_height
         self.timestamp = timestamp
         self.success = success
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
 
 
 class GetTransactionListByAddressResponse(Serializable):
@@ -453,18 +466,30 @@ class GetAccountDataRequest(Serializable):
         self.block_height = block_height
 
 
+def token_pair_list_to_dict(l):
+    return {p.token_id: p.balance for p in l}
+
+
+class TokenBalancePair(Serializable):
+    FIELDS = [("token_id", uint64), ("balance", uint256)]
+
+    def __init__(self, token_id, balance):
+        self.token_id = token_id
+        self.balance = balance
+
+
 class AccountBranchData(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("transaction_count", uint256),
-        ("balance", uint256),
+        ("token_balances", PrependedSizeListSerializer(4, TokenBalancePair)),
         ("is_contract", boolean),
     ]
 
-    def __init__(self, branch, transaction_count, balance, is_contract):
+    def __init__(self, branch, transaction_count, token_balances, is_contract):
         self.branch = branch
         self.transaction_count = transaction_count
-        self.balance = balance
+        self.token_balances = token_balances
         self.is_contract = is_contract
 
 

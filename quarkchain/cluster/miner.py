@@ -13,7 +13,6 @@ from eth_keys import KeyAPI
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from qkchash.qkcpow import QkchashMiner, check_pow as qkchash_check_pow
-from quarkchain.cluster.guardian import Guardian
 from quarkchain.config import ConsensusType
 from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
 from quarkchain.utils import Logger, sha256, time_ms
@@ -43,7 +42,7 @@ def validate_seal(
             block_header.get_hash_for_mining(), block_header.mixhash, nonce_bytes, diff
         ):
             raise ValueError("invalid pow proof")
-    elif consensus_type == ConsensusType.POW_SHA3SHA3:
+    elif consensus_type == ConsensusType.POW_DOUBLESHA256:
         target = (2 ** 256 // (diff or 1) - 1).to_bytes(32, byteorder="big")
         h = sha256(sha256(block_header.get_hash_for_mining() + nonce_bytes))
         if not h < target:
@@ -203,8 +202,8 @@ class Miner:
                         self._track(block)
                         self._log_status(block)
                     await self.add_block_async_func(block)
-                except Exception as ex:
-                    Logger.error(ex)
+                except Exception:
+                    Logger.error_exception()
 
         async def mine_new_block():
             """Get a new block and start mining.
@@ -245,7 +244,7 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block())
 
-    async def get_work(self, now=None) -> MiningWork:
+    async def get_work(self, now=None) -> (MiningWork, Block):
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -271,7 +270,10 @@ class Miner:
             if now - b.header.create_time < 7 * 12
         }
 
-        return MiningWork(header_hash, header.height, header.difficulty)
+        return (
+            MiningWork(header_hash, header.height, header.difficulty),
+            copy.deepcopy(self.current_work),
+        )
 
     async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
         if not self.remote:
@@ -279,33 +281,24 @@ class Miner:
 
         if header_hash not in self.work_map:
             return False
-        block = self.work_map[header_hash]
-        header = copy.copy(block.header)
+        # this copy is necessary since there might be multiple submissions concurrently
+        block = copy.deepcopy(self.work_map[header_hash])
+        header = block.header
         header.nonce, header.mixhash = nonce, mixhash
 
-        # lower the difficulty for root block signed by guardian
+        # sign as a guardian
         if self.guardian_private_key and isinstance(block, RootBlock):
-            diff = Guardian.adjust_difficulty(header.difficulty, header.height)
-            try:
-                validate_seal(header, self.consensus_type, adjusted_diff=diff)
-            except ValueError:
-                return False
-            # sign as a guardian
             header.sign_with_private_key(self.guardian_private_key)
-        else:  # minor block, or doesn't have guardian private key
-            try:
-                validate_seal(header, self.consensus_type)
-            except ValueError:
-                return False
 
-        block.header = header  # actual update
         try:
             await self.add_block_async_func(block)
-            del self.work_map[header_hash]
-            self.current_work = None
+            # a previous submission of the same work could have removed the key
+            if header_hash in self.work_map:
+                del self.work_map[header_hash]
+                self.current_work = None
             return True
-        except Exception as ex:
-            Logger.error(ex)
+        except Exception:
+            Logger.error_exception()
             return False
 
     @staticmethod
@@ -320,7 +313,7 @@ class Miner:
             ConsensusType.POW_SIMULATE: Simulate,
             ConsensusType.POW_ETHASH: Ethash,
             ConsensusType.POW_QKCHASH: Qkchash,
-            ConsensusType.POW_SHA3SHA3: DoubleSHA256,
+            ConsensusType.POW_DOUBLESHA256: DoubleSHA256,
         }
         progress = {}
 
@@ -342,10 +335,13 @@ class Miner:
                 mining_algo_gen = consensus_to_mining_algo[consensus_type]
                 mining_algo = mining_algo_gen(work, **mining_params)
                 # progress tracking if mining param contains shard info
-                if "shard" in mining_params:
-                    shard = mining_params["shard"]
+                if "full_shard_id" in mining_params:
+                    full_shard_id = mining_params["full_shard_id"]
                     # skip blocks with height lower or equal
-                    if shard in progress and progress[shard] >= work.height:
+                    if (
+                        full_shard_id in progress
+                        and progress[full_shard_id] >= work.height
+                    ):
                         # get newer work and restart mining
                         debug_log("stale work, try to get new one", 1.0)
                         work, mining_params = input_q.get(block=True)
@@ -363,8 +359,8 @@ class Miner:
                     if res:
                         debug_log("mining success", 1.0)
                         output_q.put(res)
-                        if "shard" in mining_params:
-                            progress[mining_params["shard"]] = work.height
+                        if "full_shard_id" in mining_params:
+                            progress[mining_params["full_shard_id"]] = work.height
                         work, mining_params = input_q.get(block=True)
                         break  # break inner loop to refresh mining params
                     # no result for mining, check if new work arrives
@@ -395,12 +391,12 @@ class Miner:
     @staticmethod
     def _log_status(block: Block):
         is_root = isinstance(block, RootBlock)
-        shard = "R" if is_root else block.header.branch.get_shard_id()
+        full_shard_id = "R" if is_root else block.header.branch.get_full_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
         Logger.info_every_sec(
             "[{}] {} [{}] ({:.2f}) {}".format(
-                shard,
+                full_shard_id,
                 block.header.height,
                 count,
                 elapsed,
@@ -417,7 +413,7 @@ class Miner:
             target_block_time = target_block_time * (1 - gas_used_ratio * 0.4)
             Logger.debug(
                 "[{}] target block time {:.2f}".format(
-                    block.header.branch.get_shard_id(), target_block_time
+                    block.header.branch.get_full_shard_id(), target_block_time
                 )
             )
         return numpy.random.exponential(target_block_time)

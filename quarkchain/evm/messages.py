@@ -91,7 +91,7 @@ class Receipt(rlp.Serializable):
         ("bloom", int256),
         ("logs", CountableList(Log)),
         ("contract_address", Binary.fixed_length(20, allow_empty=True)),
-        ("contract_full_shard_id", BigEndianInt(4)),
+        ("contract_full_shard_key", BigEndianInt(4)),
     ]
 
     @property
@@ -100,7 +100,7 @@ class Receipt(rlp.Serializable):
         return bloom.bloom_from_list(utils.flatten(bloomables))
 
 
-def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
+def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     bloomables = [x.bloomables() for x in logs]
     ret_bloom = bloom.bloom_from_list(utils.flatten(bloomables))
     o = Receipt(
@@ -109,7 +109,7 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_id):
         bloom=ret_bloom,
         logs=logs,
         contract_address=contract_address,
-        contract_full_shard_id=contract_full_shard_id,
+        contract_full_shard_key=contract_full_shard_key,
     )
     return o
 
@@ -134,6 +134,11 @@ def config_fork_specific_validation(config, blknum, tx):
 
 def validate_transaction(state, tx):
 
+    # (0) multi native token, tx fee must be paid in QKC (genesis_token)
+    # TODODLL: change this
+    if tx.gas_token_id != state.qkc_config.genesis_token:
+        raise InvalidTransaction("Gas token must be QKC")
+
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
@@ -155,12 +160,39 @@ def validate_transaction(state, tx):
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
-    total_cost = tx.value + tx.gasprice * tx.startgas
-
-    if state.get_balance(tx.sender) < total_cost:
-        raise InsufficientBalance(
-            rp(tx, "balance", state.get_balance(tx.sender), total_cost)
-        )
+    if tx.transfer_token_id == tx.gas_token_id:
+        total_cost = tx.value + tx.gasprice * tx.startgas
+        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < total_cost:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.transfer_token_id,
+                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
+                    total_cost,
+                )
+            )
+    else:
+        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < tx.value:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.transfer_token_id,
+                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
+                    tx.value,
+                )
+            )
+        if (
+            state.get_balance(tx.sender, token_id=tx.gas_token_id)
+            < tx.gasprice * tx.startgas
+        ):
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %d balance" % tx.gas_token_id,
+                    state.get_balance(tx.sender, token_id=tx.gas_token_id),
+                    tx.gasprice * tx.startgas,
+                )
+            )
 
     # check block gas limit
     if state.gas_used + tx.startgas > state.gas_limit:
@@ -194,7 +226,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     state.refunds = 0
     validate_transaction(state, tx)
 
-    state.full_shard_id = tx.to_full_shard_id
+    state.full_shard_key = tx.to_full_shard_key
 
     intrinsic_gas = tx.intrinsic_gas_used
     log_tx.debug("TX NEW", txdict=tx.to_dict())
@@ -209,8 +241,10 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
 
     # buy startgas
-    assert state.get_balance(tx.sender) >= tx.startgas * tx.gasprice
-    state.delta_balance(tx.sender, -tx.startgas * tx.gasprice)
+    assert (
+        state.get_balance(tx.sender, token_id=tx.gas_token_id) >= tx.startgas * tx.gasprice
+    )
+    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -220,10 +254,12 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         tx.startgas - intrinsic_gas,
         message_data,
         code_address=tx.to,
-        is_cross_shard=tx.is_cross_shard(),
-        from_full_shard_id=tx.from_full_shard_id,
-        to_full_shard_id=tx.to_full_shard_id,
+        is_cross_shard=tx.is_cross_shard,
+        from_full_shard_key=tx.from_full_shard_key,
+        to_full_shard_key=tx.to_full_shard_key,
         tx_hash=tx_wrapper_hash,
+        transfer_token_id=tx.transfer_token_id,
+        gas_token_id=tx.gas_token_id,
     )
 
     # MESSAGE
@@ -244,6 +280,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     gas_used = tx.startgas - gas_remained
 
+    # pay CORRECT tx fee (after tax) to coinbase so that each step of state is accurate
     # Transaction failed
     if not result:
         log_tx.debug(
@@ -252,14 +289,17 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             startgas=tx.startgas,
             gas_remained=gas_remained,
         )
-        state.delta_balance(tx.sender, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         fee = (
             tx.gasprice
             * gas_used
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
+        # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += tx.gasprice * gas_used
         output = b""
         success = 0
@@ -273,15 +313,18 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             gas_used -= min(state.refunds, gas_used // 2)
             state.refunds = 0
         # sell remaining gas
-        state.delta_balance(tx.sender, tx.gasprice * gas_remained)
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        )
         # if x-shard, reserve part of the gas for the target shard miner
         fee = (
             tx.gasprice
-            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard() else 0))
+            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard else 0))
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        state.delta_balance(state.block_coinbase, fee)
+        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
+        # TODODLL change block_fee to map to track gas token for tax
         state.block_fee += fee
         if tx.to:
             output = bytearray_to_bytestr(data)
@@ -298,7 +341,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     suicides = state.suicides
     state.suicides = []
     for s in suicides:
-        state.set_balance(s, 0)
+        state.set_balances(s, {})
         state.del_account(s)
 
     # Pre-Metropolis: commit state after every tx
@@ -306,7 +349,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.commit()
 
     # Construct a receipt
-    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_id)
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
     state.logs = []
     state.add_receipt(r)
     state.set_param("bloom", state.bloom | r.bloom)
@@ -324,8 +367,11 @@ class VMExt:
         self._state = state
         self.get_code = state.get_code
         self.set_code = state.set_code
-        self.get_balance = state.get_balance
-        self.set_balance = state.set_balance
+        self.get_balances = state.get_balances # gets token balances dict
+        self.get_balance = state.get_balance # gets default_chain_token balance if no token_id is passed in
+        self.set_balances = state.set_balances # sets token balances dict
+        self.set_token_balance = state.set_token_balance
+        self.set_balance = state.set_balance # gets default_chain_token balance
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
@@ -365,6 +411,8 @@ class VMExt:
         self.reset_storage = state.reset_storage
         self.tx_origin = tx.sender if tx else b"\x00" * 20
         self.tx_gasprice = tx.gasprice if tx else 0
+        self.sender_disallow_list = state.sender_disallow_list
+        self.default_state_token = state.shard_config.default_chain_token
 
 
 def apply_msg(ext, msg):
@@ -387,33 +435,50 @@ def _apply_msg(ext, msg, code):
             pre_storage=ext.log_storage(msg.to),
             static=msg.static,
             depth=msg.depth,
+            gas_token_id=msg.gas_token_id,
+            transfer_token_id=msg.transfer_token_id,
         )
+
+    # early exit if msg.sender is disallowed
+    if msg.sender in ext.sender_disallow_list:
+        log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
+        return 0, 0, []
 
     # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
         if msg.is_cross_shard:
-            if not ext.deduct_value(msg.sender, msg.value):
+            if not ext.deduct_value(msg.sender, msg.transfer_token_id, msg.value):
                 return 1, msg.gas, []
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.core.CrossShardTransactionDeposit(
                     tx_hash=msg.tx_hash,
                     from_address=quarkchain.core.Address(
-                        msg.sender, msg.from_full_shard_id
+                        msg.sender, msg.from_full_shard_key
                     ),
-                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_id),
+                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                     value=msg.value,
                     gas_price=ext.tx_gasprice,
+                    gas_token_id=msg.gas_token_id,
+                    transfer_token_id=msg.transfer_token_id,
                 )
             )
-        elif not ext.transfer_value(msg.sender, msg.to, msg.value):
+        elif not ext.transfer_value(
+            msg.sender, msg.to, msg.transfer_token_id, msg.value
+        ):
             log_msg.debug(
-                "MSG TRANSFER FAILED", have=ext.get_balance(msg.to), want=msg.value
+                "MSG TRANSFER FAILED",
+                have=ext.get_balance(msg.sender, token_id=msg.transfer_token_id),
+                want=msg.value,
             )
             return 1, msg.gas, []
 
     if msg.is_cross_shard:
         # Cross shard contract call is not supported
+        return 1, msg.gas, []
+
+    if msg.transfer_token_id != ext.default_state_token:
+        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 1, msg.gas, []
 
     # Main loop
@@ -439,9 +504,9 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
-def mk_contract_address(sender, full_shard_id, nonce):
+def mk_contract_address(sender, full_shard_key, nonce):
     return utils.sha3(
-        rlp.encode([utils.normalize_address(sender), full_shard_id, nonce])
+        rlp.encode([utils.normalize_address(sender), full_shard_key, nonce])
     )[12:]
 
 
@@ -451,17 +516,21 @@ def create_contract(ext, msg):
     if msg.is_cross_shard:
         return 0, msg.gas, b""
 
+    if msg.transfer_token_id != ext.default_state_token:
+        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
+        return 0, msg.gas, b""
+
     code = msg.data.extract_all()
 
     if ext.tx_origin != msg.sender:
         ext.increment_nonce(msg.sender)
 
     if ext.post_constantinople_hardfork() and msg.sender == null_address:
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, 0)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, 0)
         # msg.to = sha3(msg.sender + code)[12:]
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_id, nonce)
+        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, nonce)
 
     if ext.post_metropolis_hardfork() and (
         ext.get_nonce(msg.to) or len(ext.get_code(msg.to))
@@ -469,9 +538,9 @@ def create_contract(ext, msg):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
         return 0, 0, b""
 
-    b = ext.get_balance(msg.to)
-    if b > 0:
-        ext.set_balance(msg.to, b)
+    b = ext.get_balances(msg.to)
+    if b != {}:
+        ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
         # ext.reset_storage(msg.to)

@@ -7,12 +7,11 @@ from quarkchain.core import (
     MinorBlockHeader,
     MinorBlock,
     Branch,
-    ShardInfo,
     RootBlockHeader,
     RootBlock,
 )
 from quarkchain.evm.state import State as EvmState
-from quarkchain.utils import sha3_256, check
+from quarkchain.utils import sha3_256, check, token_id_encode
 
 
 class GenesisManager:
@@ -27,7 +26,6 @@ class GenesisManager:
         header = RootBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
-            shard_info=ShardInfo.create(genesis.SHARD_SIZE),
             hash_prev_block=bytes.fromhex(genesis.HASH_PREV_BLOCK),
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             create_time=genesis.TIMESTAMP,
@@ -36,21 +34,35 @@ class GenesisManager:
         return RootBlock(header=header, minor_block_header_list=[])
 
     def create_minor_block(
-        self, root_block: RootBlock, shard_id: int, evm_state: EvmState
+        self, root_block: RootBlock, full_shard_id: int, evm_state: EvmState
     ) -> MinorBlock:
         """ Create genesis block for shard.
         Genesis block's hash_prev_root_block is set to the genesis root block.
         Genesis state will be committed to the given evm_state.
+        Based on ALLOC, genesis_token will be added to initial accounts.
         """
-        branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
-        shard_config = self._qkc_config.SHARD_LIST[shard_id]
+        branch = Branch(full_shard_id)
+        shard_config = self._qkc_config.shards[full_shard_id]
         genesis = shard_config.GENESIS
 
-        for address_hex, amount_in_wei in genesis.ALLOC.items():
+        for address_hex, alloc_amount in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
-            check(address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
-            evm_state.full_shard_id = address.full_shard_id
-            evm_state.delta_balance(address.recipient, amount_in_wei)
+            check(
+                self._qkc_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                == full_shard_id
+            )
+            evm_state.full_shard_key = address.full_shard_key
+            if isinstance(alloc_amount, dict):
+                for k, v in alloc_amount.items():
+                    evm_state.delta_token_balance(
+                        address.recipient, token_id_encode(k), v
+                    )
+            else:
+                evm_state.delta_token_balance(
+                    address.recipient, self._qkc_config.genesis_token, alloc_amount
+                )
 
         evm_state.commit()
 
@@ -65,7 +77,7 @@ class GenesisManager:
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
-        coinbase_address = Address.create_empty_account(shard_id)
+        coinbase_address = Address.create_empty_account(full_shard_id)
 
         header = MinorBlockHeader(
             version=genesis.VERSION,

@@ -3,16 +3,10 @@ import random
 import time
 from typing import Optional
 
+from quarkchain.config import QuarkChainConfig
 from quarkchain.core import Address, Code, Transaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import Logger
-from quarkchain.config import QuarkChainConfig
-
-
-def random_full_shard_id(shard_size, shard_id):
-    full_shard_id = random.randint(0, (2 ** 32) - 1)
-    shard_mask = shard_size - 1
-    return full_shard_id & (~shard_mask) | shard_id
 
 
 class Account:
@@ -22,9 +16,9 @@ class Account:
 
 
 class TransactionGenerator:
-    def __init__(self, qkc_config: QuarkChainConfig, shard: int):
+    def __init__(self, qkc_config: QuarkChainConfig, shard):
         self.qkc_config = qkc_config
-        self.shard_id = shard.shard_id
+        self.full_shard_id = shard.full_shard_id
         self.shard = shard
         self.running = False
 
@@ -47,7 +41,7 @@ class TransactionGenerator:
     async def __gen(self, num_tx, x_shard_percent, sample_tx: Transaction):
         Logger.info(
             "[{}] start generating {} transactions with {}% cross-shard".format(
-                self.shard_id, num_tx, x_shard_percent
+                self.full_shard_id, num_tx, x_shard_percent
             )
         )
         if num_tx <= 0:
@@ -76,7 +70,7 @@ class TransactionGenerator:
         end_time = time.time()
         Logger.info(
             "[{}] generated {} transactions in {:.2f} seconds".format(
-                self.shard_id, total, end_time - start_time
+                self.full_shard_id, total, end_time - start_time
             )
         )
         self.running = False
@@ -84,39 +78,36 @@ class TransactionGenerator:
     def create_transaction(
         self, account, nonce, x_shard_percent, sample_evm_tx
     ) -> Optional[Transaction]:
-        shard_size = self.qkc_config.SHARD_SIZE
-        shard_mask = shard_size - 1
-        from_shard = self.shard_id
-
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
         if (
-            sample_evm_tx.from_full_shard_id
-            and (sample_evm_tx.from_full_shard_id & shard_mask) != from_shard
+            sample_evm_tx.from_full_shard_key
+            and self.qkc_config.get_full_shard_id_by_full_shard_key(
+                sample_evm_tx.from_full_shard_key
+            )
+            != self.full_shard_id
         ):
             return None
 
-        if sample_evm_tx.from_full_shard_id:
-            from_full_shard_id = sample_evm_tx.from_full_shard_id
+        if sample_evm_tx.from_full_shard_key:
+            from_full_shard_key = sample_evm_tx.from_full_shard_key
         else:
-            from_full_shard_id = (
-                account.address.full_shard_id & (~shard_mask) | from_shard
-            )
+            from_full_shard_key = self.full_shard_id
 
         if not sample_evm_tx.to:
             to_address = random.choice(self.accounts).address
             recipient = to_address.recipient
-            to_full_shard_id = to_address.full_shard_id & (~shard_mask) | from_shard
+            to_full_shard_key = self.full_shard_id
         else:
             recipient = sample_evm_tx.to
-            to_full_shard_id = from_full_shard_id
+            to_full_shard_key = from_full_shard_key
 
         if random.randint(1, 100) <= x_shard_percent:
             # x-shard tx
-            to_shard = random.randint(0, self.qkc_config.SHARD_SIZE - 1)
-            if to_shard == self.shard_id:
-                to_shard = (to_shard + 1) % self.qkc_config.SHARD_SIZE
-            to_full_shard_id = to_full_shard_id & (~shard_mask) | to_shard
+            to_full_shard_id = random.choice(
+                self.qkc_config.get_full_shard_ids() - [self.full_shard_id]
+            )
+            to_full_shard_key = to_full_shard_id
 
         value = sample_evm_tx.value
         if not sample_evm_tx.data:
@@ -129,8 +120,8 @@ class TransactionGenerator:
             to=recipient,
             value=value,
             data=sample_evm_tx.data,
-            from_full_shard_id=from_full_shard_id,
-            to_full_shard_id=to_full_shard_id,
+            from_full_shard_key=from_full_shard_key,
+            to_full_shard_key=to_full_shard_key,
             network_id=self.qkc_config.NETWORK_ID,
         )
         evm_tx.sign(account.key)

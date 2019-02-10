@@ -1,6 +1,7 @@
 import argparse
 import asyncio
-import ipaddress
+import os
+
 import psutil
 import random
 import time
@@ -66,7 +67,7 @@ from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
-    ShardMask,
+    ChainMask,
     Log,
     Address,
     RootBlock,
@@ -165,7 +166,7 @@ class SyncTask:
                 raise RuntimeError("Bad peer missing blocks for headers they have")
 
             for block in block_chain:
-                await asyncio.wait_for(self.__add_block(block), TIMEOUT)
+                await self.__add_block(block)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
@@ -341,7 +342,7 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-        self, env, reader, writer, master_server, slave_id, shard_mask_list, name=None
+        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
     ):
         super().__init__(
             env,
@@ -354,8 +355,8 @@ class SlaveConnection(ClusterConnection):
         )
         self.master_server = master_server
         self.id = slave_id
-        self.shard_mask_list = shard_mask_list
-        check(len(shard_mask_list) > 0)
+        self.chain_mask_list = chain_mask_list
+        check(len(chain_mask_list) > 0)
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
@@ -375,15 +376,15 @@ class SlaveConnection(ClusterConnection):
     def validate_connection(self, connection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
 
-    def has_shard(self, shard_id):
-        for shard_mask in self.shard_mask_list:
-            if shard_mask.contain_shard_id(shard_id):
+    def has_shard(self, full_shard_id: int):
+        for chain_mask in self.chain_mask_list:
+            if chain_mask.contain_full_shard_id(full_shard_id):
                 return True
         return False
 
-    def has_overlap(self, shard_mask):
-        for local_shard_mask in self.shard_mask_list:
-            if local_shard_mask.has_overlap(shard_mask):
+    def has_overlap(self, chain_mask: ChainMask):
+        for local_chain_mask in self.chain_mask_list:
+            if local_chain_mask.has_overlap(chain_mask):
                 return True
         return False
 
@@ -399,7 +400,7 @@ class SlaveConnection(ClusterConnection):
             cmd=req,
             metadata=ClusterMetadata(branch=ROOT_BRANCH, cluster_peer_id=0),
         )
-        return (resp.id, resp.shard_mask_list)
+        return (resp.id, resp.chain_mask_list)
 
     async def send_connect_to_slaves(self, slave_info_list):
         """ Make slave connect to other slaves.
@@ -605,9 +606,9 @@ class MasterServer:
 
         self.artificial_tx_config = ArtificialTxConfig(
             target_root_block_time=self.env.quark_chain_config.ROOT.CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
-            target_minor_block_time=self.env.quark_chain_config.SHARD_LIST[
-                0
-            ].CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
+            target_minor_block_time=next(
+                iter(self.env.quark_chain_config.shards.values())
+            ).CONSENSUS_CONFIG.TARGET_BLOCK_TIME,
         )
 
         self.synchronizer = Synchronizer()
@@ -647,21 +648,14 @@ class MasterServer:
             guardian_private_key=self.env.quark_chain_config.guardian_private_key,
         )
 
-    def __get_shard_size(self):
-        # TODO: replace it with dynamic size
-        return self.env.quark_chain_config.SHARD_SIZE
-
-    def get_shard_size(self):
-        return self.__get_shard_size()
-
     def get_artificial_tx_config(self):
         return self.artificial_tx_config
 
     def __has_all_shards(self):
         """ Returns True if all the shards have been run by at least one node """
-        return len(self.branch_to_slaves) == self.__get_shard_size() and all(
-            [len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()]
-        )
+        return len(self.branch_to_slaves) == len(
+            self.env.quark_chain_config.get_full_shard_ids()
+        ) and all([len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()])
 
     async def __connect(self, host, port):
         """ Retries until success """
@@ -694,7 +688,7 @@ class MasterServer:
                 writer,
                 self,
                 slave_info.id,
-                slave_info.shard_mask_list,
+                slave_info.chain_mask_list,
                 name="{}_slave_{}".format(self.name, slave_info.id),
             )
             await slave.wait_until_active()
@@ -703,27 +697,27 @@ class MasterServer:
 
         results = await asyncio.gather(*futures)
 
+        full_shard_ids = self.env.quark_chain_config.get_full_shard_ids()
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
-            id, shard_mask_list = result
+            id, chain_mask_list = result
             if id != slave.id:
                 Logger.error(
                     "Slave id does not match. expect {} got {}".format(slave.id, id)
                 )
                 self.shutdown()
-            if shard_mask_list != slave.shard_mask_list:
+            if chain_mask_list != slave.chain_mask_list:
                 Logger.error(
                     "Slave {} shard mask list does not match. expect {} got {}".format(
-                        slave.id, slave.shard_mask_list, shard_mask_list
+                        slave.id, slave.chain_mask_list, chain_mask_list
                     )
                 )
                 self.shutdown()
 
             self.slave_pool.add(slave)
-            for shard_id in range(self.__get_shard_size()):
-                branch = Branch.create(self.__get_shard_size(), shard_id)
-                if slave.has_shard(shard_id):
-                    self.branch_to_slaves.setdefault(branch.value, []).append(slave)
+            for full_shard_id in full_shard_ids:
+                if slave.has_shard(full_shard_id):
+                    self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
 
     async def __setup_slave_to_slave_connections(self):
         """ Make slaves connect to other slaves.
@@ -775,7 +769,7 @@ class MasterServer:
         for branch_value, slaves in self.branch_to_slaves.items():
             Logger.info(
                 "[{}] is run by slave {}".format(
-                    Branch(branch_value).get_shard_id(), [s.id for s in slaves]
+                    Branch(branch_value).to_str(), [s.id for s in slaves]
                 )
             )
 
@@ -793,8 +787,7 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def start_and_loop(self):
-        self.start()
+    def do_loop(self):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -817,7 +810,6 @@ class MasterServer:
         return self.shutdown_future
 
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
-        """ Try to create a root block to mine or return None if failed proof-of-progress """
         futures = []
         for slave in self.slave_pool:
             request = GetUnconfirmedHeadersRequest()
@@ -830,21 +822,12 @@ class MasterServer:
 
         # Slaves may run multiple copies of the same branch
         # branch_value -> HeaderList
-        shard_id_to_header_list = dict()
+        full_shard_id_to_header_list = dict()
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return None, None
+                return None
             for headers_info in response.headers_info_list:
-                if headers_info.branch.get_shard_size() != self.__get_shard_size():
-                    Logger.error(
-                        "Expect shard size {} got {}".format(
-                            self.__get_shard_size(),
-                            headers_info.branch.get_shard_size(),
-                        )
-                    )
-                    return None, None
-
                 height = 0
                 for header in headers_info.header_list:
                     # check headers are ordered by height
@@ -854,88 +837,19 @@ class MasterServer:
                     # Filter out the ones unknown to the master
                     if not self.root_state.is_minor_block_validated(header.get_hash()):
                         break
-                    shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_shard_id(), []
+                    full_shard_id_to_header_list.setdefault(
+                        headers_info.branch.get_full_shard_id(), []
                     ).append(header)
 
         header_list = []
-        # check proof of progress
-        shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
+        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
             self.root_state.tip.height + 1
         )
-        for shard_id in shard_ids_to_check:
-            headers = shard_id_to_header_list.get(shard_id, [])
+        for full_shard_id in full_shard_ids_to_check:
+            headers = full_shard_id_to_header_list.get(full_shard_id, [])
             header_list.extend(headers)
-            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
-                Logger.info(
-                    "Failed to create root block {} due to shard {} failing proof-of-progress check".format(
-                        self.root_state.tip.height + 1, shard_id
-                    )
-                )
-                return None
 
         return self.root_state.create_block_to_mine(header_list, address)
-
-    async def __create_root_block_to_mine_or_fallback_to_minor_block(self, address):
-        """ Try to create a root block to mine or fallback to create minor block if failed proof-of-progress
-        TODO: reuse code in __create_root_block_to_mine
-        """
-        futures = []
-        for slave in self.slave_pool:
-            request = GetUnconfirmedHeadersRequest()
-            futures.append(
-                slave.write_rpc_request(
-                    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
-                )
-            )
-        responses = await asyncio.gather(*futures)
-
-        # Slaves may run multiple copies of the same branch
-        # branch_value -> HeaderList
-        shard_id_to_header_list = dict()
-        for response in responses:
-            _, response, _ = response
-            if response.error_code != 0:
-                return None, None
-            for headers_info in response.headers_info_list:
-                if headers_info.branch.get_shard_size() != self.__get_shard_size():
-                    Logger.error(
-                        "Expect shard size {} got {}".format(
-                            self.__get_shard_size(),
-                            headers_info.branch.get_shard_size(),
-                        )
-                    )
-                    return None, None
-
-                height = 0
-                for header in headers_info.header_list:
-                    # check headers are ordered by height
-                    check(height == 0 or height + 1 == header.height)
-                    height = header.height
-
-                    # Filter out the ones unknown to the master
-                    if not self.root_state.is_minor_block_validated(header.get_hash()):
-                        break
-                    shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_shard_id(), []
-                    ).append(header)
-
-        header_list = []
-        # check proof of progress
-        shard_ids_to_check = self.env.quark_chain_config.get_initialized_shard_ids_before_root_height(
-            self.root_state.tip.height + 1
-        )
-        for shard_id in shard_ids_to_check:
-            headers = shard_id_to_header_list.get(shard_id, [])
-            header_list.extend(headers)
-            if len(headers) < self.env.quark_chain_config.PROOF_OF_PROGRESS_BLOCKS:
-                # Fallback to create minor block
-                block = await self.__get_minor_block_to_mine(
-                    Branch.create(self.__get_shard_size(), shard_id), address
-                )
-                return (None, None) if not block else (False, block)
-
-        return True, self.root_state.create_block_to_mine(header_list, address)
 
     async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
@@ -950,27 +864,26 @@ class MasterServer:
         return response.block if response.error_code == 0 else None
 
     async def get_next_block_to_mine(
-        self, address, shard_mask_value=0, prefer_root=False, randomize_output=True
+        self, address, chain_mask_value=0, prefer_root=False, randomize_output=True
     ):
         """ Returns (is_root_block, block)
 
-        shard_mask_value = 0 means considering root chain and all the shards
+        chain_mask_value = 0 means considering root chain and all the shards
         """
         # Mining old blocks is useless
         if self.synchronizer.running:
             return None, None
 
-        if prefer_root and shard_mask_value == 0:
-            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(
-                address
-            )
+        if prefer_root and chain_mask_value == 0:
+            root = await self.__create_root_block_to_mine(address)
+            return (True, root) if root else (None, None)
 
-        shard_mask = None if shard_mask_value == 0 else ShardMask(shard_mask_value)
+        chain_mask = None if chain_mask_value == 0 else ChainMask(chain_mask_value)
         futures = []
 
         # Collect EcoInfo from shards
         for slave in self.slave_pool:
-            if shard_mask and not slave.has_overlap(shard_mask):
+            if chain_mask and not slave.has_overlap(chain_mask):
                 continue
             request = GetEcoInfoListRequest()
             futures.append(
@@ -994,13 +907,13 @@ class MasterServer:
             root_coinbase_amount += eco_info.unconfirmed_headers_coinbase_amount
         root_coinbase_amount = root_coinbase_amount // 2
 
-        branch_value_with_max_eco = 0 if shard_mask is None else None
+        branch_value_with_max_eco = 0 if chain_mask is None else None
         max_eco = root_coinbase_amount / self.root_state.get_next_block_difficulty()
 
         dup_eco_count = 1
         block_height = 0
         for branch_value, eco_info in branch_value_to_eco_info.items():
-            if shard_mask and not shard_mask.contain_branch(Branch(branch_value)):
+            if chain_mask and not chain_mask.contain_branch(Branch(branch_value)):
                 continue
             # TODO: Obtain block reward and tx fee
             eco = eco_info.coinbase_amount / eco_info.difficulty
@@ -1028,9 +941,8 @@ class MasterServer:
                     max_eco = eco
 
         if branch_value_with_max_eco == 0:
-            return await self.__create_root_block_to_mine_or_fallback_to_minor_block(
-                address
-            )
+            root = await self.__create_root_block_to_mine(address)
+            return (True, root) if root else (None, None)
 
         block = await self.__get_minor_block_to_mine(
             Branch(branch_value_with_max_eco), address
@@ -1060,7 +972,7 @@ class MasterServer:
 
         check(
             len(branch_to_account_branch_data)
-            == len(self.env.quark_chain_config.get_genesis_shard_ids())
+            == len(self.env.quark_chain_config.get_full_shard_ids())
         )
         return branch_to_account_branch_data
 
@@ -1068,9 +980,10 @@ class MasterServer:
         self, address: Address, block_height: Optional[int] = None
     ):
         # TODO: Only query the shard who has the address
-        shard_id = address.get_shard_id(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), shard_id)
-        slaves = self.branch_to_slaves.get(branch.value, None)
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        slaves = self.branch_to_slaves.get(full_shard_id, None)
         if not slaves:
             return None
         slave = slaves[0]
@@ -1079,15 +992,15 @@ class MasterServer:
             ClusterOp.GET_ACCOUNT_DATA_REQUEST, request
         )
         for account_branch_data in resp.account_branch_data_list:
-            if account_branch_data.branch == branch:
+            if account_branch_data.branch.value == full_shard_id:
                 return account_branch_data
         return None
 
     async def add_transaction(self, tx, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return False
 
@@ -1114,8 +1027,8 @@ class MasterServer:
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1284,27 +1197,28 @@ class MasterServer:
 
     def get_block_count(self):
         header = self.root_state.tip
-        shard_r_c = self.root_state.db.get_block_count(
-            header.height, header.shard_info.get_shard_size()
-        )
+        shard_r_c = self.root_state.db.get_block_count(header.height)
         return {"rootHeight": header.height, "shardRC": shard_r_c}
 
     async def get_stats(self):
-        shards = [dict() for i in range(self.__get_shard_size())]
+        shards = []
         for shard_stats in self.branch_to_shard_stats.values():
-            shard_id = shard_stats.branch.get_shard_id()
-            shards[shard_id]["height"] = shard_stats.height
-            shards[shard_id]["difficulty"] = shard_stats.difficulty
-            shards[shard_id]["coinbaseAddress"] = (
-                "0x" + shard_stats.coinbase_address.to_hex()
-            )
-            shards[shard_id]["timestamp"] = shard_stats.timestamp
-            shards[shard_id]["txCount60s"] = shard_stats.tx_count60s
-            shards[shard_id]["pendingTxCount"] = shard_stats.pending_tx_count
-            shards[shard_id]["totalTxCount"] = shard_stats.total_tx_count
-            shards[shard_id]["blockCount60s"] = shard_stats.block_count60s
-            shards[shard_id]["staleBlockCount60s"] = shard_stats.stale_block_count60s
-            shards[shard_id]["lastBlockTime"] = shard_stats.last_block_time
+            shard = dict()
+            shard["fullShardId"] = shard_stats.branch.get_full_shard_id()
+            shard["chainId"] = shard_stats.branch.get_chain_id()
+            shard["shardId"] = shard_stats.branch.get_shard_id()
+            shard["height"] = shard_stats.height
+            shard["difficulty"] = shard_stats.difficulty
+            shard["coinbaseAddress"] = "0x" + shard_stats.coinbase_address.to_hex()
+            shard["timestamp"] = shard_stats.timestamp
+            shard["txCount60s"] = shard_stats.tx_count60s
+            shard["pendingTxCount"] = shard_stats.pending_tx_count
+            shard["totalTxCount"] = shard_stats.total_tx_count
+            shard["blockCount60s"] = shard_stats.block_count60s
+            shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
+            shard["lastBlockTime"] = shard_stats.last_block_time
+            shards.append(shard)
+        shards.sort(key=lambda x: x["fullShardId"])
 
         tx_count60s = sum(
             [
@@ -1354,8 +1268,8 @@ class MasterServer:
 
         return {
             "networkId": self.env.quark_chain_config.NETWORK_ID,
+            "chainSize": self.env.quark_chain_config.CHAIN_SIZE,
             "shardServerCount": len(self.slave_pool),
-            "shardSize": self.__get_shard_size(),
             "rootHeight": self.root_state.tip.height,
             "rootDifficulty": self.root_state.tip.difficulty,
             "rootCoinbaseAddress": "0x" + self.root_state.tip.coinbase_address.to_hex(),
@@ -1423,10 +1337,10 @@ class MasterServer:
         return await slave.get_transaction_receipt(tx_hash, branch)
 
     async def get_transactions_by_address(self, address, start, limit):
-        branch = Branch.create(
-            self.__get_shard_size(), address.get_shard_id(self.__get_shard_size())
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
         )
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_transactions_by_address(address, start, limit)
 
     async def get_logs(
@@ -1452,8 +1366,8 @@ class MasterServer:
         self, tx: Transaction, from_address: Address
     ) -> Optional[int]:
         evm_tx = tx.code.get_evm_transaction()
-        evm_tx.set_shard_size(self.__get_shard_size())
-        branch = Branch.create(self.__get_shard_size(), evm_tx.from_shard_id())
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1463,25 +1377,25 @@ class MasterServer:
     async def get_storage_at(
         self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
-        if branch.value not in self.branch_to_slaves:
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        if full_shard_id not in self.branch_to_slaves:
             return None
 
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_storage_at(address, key, block_height)
 
     async def get_code(
         self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
-        shard_size = self.__get_shard_size()
-        shard_id = address.get_shard_id(shard_size)
-        branch = Branch.create(shard_size, shard_id)
-        if branch.value not in self.branch_to_slaves:
+        full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            address.full_shard_key
+        )
+        if full_shard_id not in self.branch_to_slaves:
             return None
 
-        slave = self.branch_to_slaves[branch.value][0]
+        slave = self.branch_to_slaves[full_shard_id][0]
         return await slave.get_code(address, block_height)
 
     async def gas_price(self, branch: Branch) -> Optional[int]:
@@ -1493,7 +1407,8 @@ class MasterServer:
 
     async def get_work(self, branch: Optional[Branch]) -> Optional[MiningWork]:
         if not branch:  # get root chain work
-            return await self.root_miner.get_work()
+            work, _ = await self.root_miner.get_work()
+            return work
 
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1533,6 +1448,8 @@ def parse_args():
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCServer
 
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
     env = parse_args()
     root_state = RootState(env)
 
@@ -1555,10 +1472,7 @@ def main():
     public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
     private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
 
-    try:
-        loop.run_until_complete(master.shutdown_future)
-    except KeyboardInterrupt:
-        pass
+    master.do_loop()
 
     public_json_rpc_server.shutdown()
     private_json_rpc_server.shutdown()
