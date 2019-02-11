@@ -442,7 +442,6 @@ class ShardState:
         # This will check signature, nonce, balance, gas limit
         validate_transaction(evm_state, evm_tx)
 
-        # TODO: xshard gas limit check
         return evm_tx
 
     def get_gas_limit(self, gas_limit=None):
