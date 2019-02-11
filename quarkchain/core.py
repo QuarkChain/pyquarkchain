@@ -182,11 +182,12 @@ class PrependedSizeMapSerializer:
         self.key_ser = key_ser
         self.value_ser = value_ser
 
-    def serialize(self, item_map, barray):
+    def serialize(self, item_map: dict, barray):
         barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
-        for k, v in sorted(item_map.items()):
+        # keep keys sorted to maintain deterministic serialization
+        for k in sorted(item_map):
             self.key_ser.serialize(k, barray)
-            self.value_ser.serialize(v, barray)
+            self.value_ser.serialize(item_map[k], barray)
         return barray
 
     def deserialize(self, bb):
@@ -901,7 +902,7 @@ class TokenBalanceMap(Serializable):
         ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
     ]
 
-    def __init__(self, balance_map):
+    def __init__(self, balance_map: dict):
         self.balance_map = balance_map
 
     def add(self, other):
