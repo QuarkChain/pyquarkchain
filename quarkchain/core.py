@@ -898,9 +898,7 @@ class MinorBlock(Serializable):
 
 
 class TokenBalanceMap(Serializable):
-    FIELDS = [
-        ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
-    ]
+    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
 
     def __init__(self, balance_map: dict):
         self.balance_map = balance_map
@@ -1026,14 +1024,14 @@ class RootBlock(Serializable):
 
     def finalize(
         self,
-        coinbase_amount_map=TokenBalanceMap(dict()),
-        coinbase_address=Address.create_empty_account()
+        coinbase_amount_map=dict(),
+        coinbase_address=Address.create_empty_account(),
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount_map = coinbase_amount_map
+        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map)
         self.header.coinbase_address = coinbase_address
         return self
 

@@ -201,7 +201,7 @@ class TestRootState(unittest.TestCase):
         root_block1.add_minor_block_header(b2.header).add_minor_block_header(
             b3.header
         ).finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block1.minor_block_header_list]
             )
         )
@@ -229,7 +229,7 @@ class TestRootState(unittest.TestCase):
             .add_minor_block_header(b5.header)
         )
         root_block2.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block2.minor_block_header_list]
             )
         )
@@ -288,7 +288,9 @@ class TestRootState(unittest.TestCase):
             self.assertEqual(root_block_tmp.header.signature, bytes(65))  # empty sig
             # still use minor block's coinbase amount, 1
             self.assertEqual(
-                root_block_tmp.header.coinbase_amount_map.balance_map[env.quark_chain_config.genesis_token],
+                root_block_tmp.header.coinbase_amount_map.balance_map[
+                    env.quark_chain_config.genesis_token
+                ],
                 round((1 + 1) / (1 - tax_rate) * tax_rate + 5),
             )
         env.quark_chain_config.REWARD_TAX_RATE = original_reward_tax_rate
@@ -348,7 +350,7 @@ class TestRootState(unittest.TestCase):
         # create a fork
         root_block00.header.create_time += 1
         root_block00.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block00.minor_block_header_list]
             )
         )
@@ -431,7 +433,7 @@ class TestRootState(unittest.TestCase):
             nonce=0
         ).add_minor_block_header(m1.header)
         root_block1.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block1.minor_block_header_list]
             )
         )
@@ -439,7 +441,7 @@ class TestRootState(unittest.TestCase):
             nonce=1
         ).add_minor_block_header(m1.header)
         root_block2.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block2.minor_block_header_list]
             )
         )
@@ -461,7 +463,7 @@ class TestRootState(unittest.TestCase):
             m2.header
         )
         root_block3.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block3.minor_block_header_list]
             )
         )
@@ -473,7 +475,7 @@ class TestRootState(unittest.TestCase):
             m2.header
         )
         root_block4.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block4.minor_block_header_list]
             )
         )
@@ -521,7 +523,7 @@ class TestRootState(unittest.TestCase):
             nonce=0
         ).add_minor_block_header(m1.header)
         root_block1.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block1.minor_block_header_list]
             )
         )
@@ -529,7 +531,7 @@ class TestRootState(unittest.TestCase):
             nonce=1
         ).add_minor_block_header(m2.header)
         root_block2.finalize(
-            coinbase_amount=r_state.coinbase_with_tax(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
                 [header.get_hash() for header in root_block2.minor_block_header_list]
             )
         )

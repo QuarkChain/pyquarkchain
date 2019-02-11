@@ -1311,13 +1311,18 @@ class ShardState:
         if self.branch.is_in_branch(r_block.header.coinbase_address.full_shard_key):
             check(len(r_block.header.coinbase_amount_map.balance_map) <= 1)
             if len(r_block.header.coinbase_amount_map.balance_map) == 1:
-                check(self.genesis_token_id in r_block.header.coinbase_amount_map.balance_map)
+                check(
+                    self.genesis_token_id
+                    in r_block.header.coinbase_amount_map.balance_map
+                )
             tx_list.append(
                 CrossShardTransactionDeposit(
                     tx_hash=bytes(32),
                     from_address=Address.create_empty_account(0),
                     to_address=r_block.header.coinbase_address,
-                    value=r_block.header.coinbase_amount_map.balance_map.get(self.genesis_token_id, 0),
+                    value=r_block.header.coinbase_amount_map.balance_map.get(
+                        self.genesis_token_id, 0
+                    ),
                     gas_price=0,
                     gas_token_id=self.genesis_token_id,
                     transfer_token_id=self.genesis_token_id,  # root block coinbase is only in QKC
