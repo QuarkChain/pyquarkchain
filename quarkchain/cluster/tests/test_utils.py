@@ -75,7 +75,6 @@ def get_test_env(
 
     env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = True
     env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = True
-    env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK = True
     env.cluster_config.ENABLE_TRANSACTION_HISTORY = True
     env.cluster_config.DB_PATH_ROOT = ""
 

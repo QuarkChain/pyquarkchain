@@ -243,7 +243,6 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_difficulty_and_coinbase(self):
         env = get_test_env()
-        env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
