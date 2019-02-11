@@ -1023,15 +1023,13 @@ class RootBlock(Serializable):
         self.tracking_data = tracking_data
 
     def finalize(
-        self,
-        coinbase_amount_map=dict(),
-        coinbase_address=Address.create_empty_account(),
+        self, coinbase_amount_map=None, coinbase_address=Address.create_empty_account()
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map)
+        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
         self.header.coinbase_address = coinbase_address
         return self
 

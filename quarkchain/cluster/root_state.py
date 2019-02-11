@@ -190,7 +190,7 @@ class RootDb:
     def contain_minor_block_by_hash(self, h):
         return h in self.m_hash_dict.keys()
 
-    def put_minor_block_hash(self, m_hash: bytes, coinbase_tokens: dict):
+    def put_minor_block_coinbase(self, m_hash: bytes, coinbase_tokens: dict):
         tokens = TokenBalanceMap(coinbase_tokens)
         self.db.put(b"mheader_" + m_hash, tokens.serialize())
         self.m_hash_dict[m_hash] = coinbase_tokens
@@ -252,7 +252,7 @@ class RootState:
         return self.db.get_root_block_by_hash(self.tip.get_hash())
 
     def add_validated_minor_block_hash(self, hash: bytes, coinbase_tokens: dict):
-        self.db.put_minor_block_hash(hash, coinbase_tokens)
+        self.db.put_minor_block_coinbase(hash, coinbase_tokens)
 
     def get_next_block_difficulty(self, create_time=None):
         if create_time is None:
