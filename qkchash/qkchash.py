@@ -2,6 +2,7 @@ import bisect
 import ctypes
 import time
 import unittest
+from functools import lru_cache
 from typing import Dict, List
 
 from Crypto.Hash import keccak
@@ -129,6 +130,9 @@ class QkcHashCache:
         self._native._cache_destroy(self._ptr)
 
 
+cache_seeds = [b'\x00' * 32] # type: List[bytes]
+EPOCH_LENGTH = 30000  # blocks per epoch
+
 class QkcHashNative:
     def __init__(self, lib_path="libqkchash.so"):
         self._lib = ctypes.CDLL(lib_path)
@@ -152,10 +156,19 @@ class QkcHashNative:
         self._cache_destroy.restype = None
         self._cache_destroy.argtypes = (ctypes.c_void_p,)
 
+    @lru_cache(maxsize=10)
     def make_cache(self, entries, seed):
         cache = list_to_uint64_array(make_cache(entries, seed))
         ptr = self._cache_create(cache, len(cache))
         return QkcHashCache(self, ptr)
+
+    def make_cache_block_number(self, entries, block_number):
+        while (len(cache_seeds) <= block_number // EPOCH_LENGTH):
+            new_seed = serialize_hash(sha3_256(cache_seeds[-1]))
+            cache_seeds.append(new_seed)
+        
+        seed = cache_seeds[block_number // EPOCH_LENGTH]
+        return self.make_cache(entries, seed)
 
     def dup_cache(self, cache):
         return cache
