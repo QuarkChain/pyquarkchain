@@ -47,7 +47,6 @@ from quarkchain.cluster.rpc import (
     GetMinorBlockResponse,
     GetTransactionResponse,
     AccountBranchData,
-    TokenBalancePair,
     BatchAddXshardTxListRequest,
     BatchAddXshardTxListResponse,
     MineResponse,
@@ -75,6 +74,7 @@ from quarkchain.core import (
     RootBlock,
     RootBlockHeader,
     TransactionReceipt,
+    TokenBalanceMap,
 )
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
@@ -1152,20 +1152,14 @@ class SlaveServer:
     ) -> List[AccountBranchData]:
         results = []
         for branch, shard in self.shards.items():
-            balance_list = []
             token_balances = shard.state.get_balances(address.recipient, block_height)
-            for k in sorted(
-                token_balances
-            ):  # keep token balance sorted to maintain deterministic serialization
-                kv = TokenBalancePair(k, token_balances[k])
-                balance_list.append(kv)
             results.append(
                 AccountBranchData(
                     branch=branch,
                     transaction_count=shard.state.get_transaction_count(
                         address.recipient, block_height
                     ),
-                    token_balances=balance_list,
+                    token_balances=TokenBalanceMap(token_balances),
                     is_contract=len(
                         shard.state.get_code(address.recipient, block_height)
                     )

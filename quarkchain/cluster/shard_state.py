@@ -79,7 +79,7 @@ class ShardState:
         self.tx_queue = TransactionQueue()  # queue of EvmTransaction
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
-        self.header_tip = None
+        self.header_tip = None  # MinorBlockHeader
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             last_price=0, last_head=b"", check_blocks=5, percentile=50
@@ -1311,13 +1311,18 @@ class ShardState:
         if self.branch.is_in_branch(r_block.header.coinbase_address.full_shard_key):
             check(len(r_block.header.coinbase_amount_map.balance_map) <= 1)
             if len(r_block.header.coinbase_amount_map.balance_map) == 1:
-                check(self.genesis_token_id in r_block.header.coinbase_amount_map.balance_map)
+                check(
+                    self.genesis_token_id
+                    in r_block.header.coinbase_amount_map.balance_map
+                )
             tx_list.append(
                 CrossShardTransactionDeposit(
                     tx_hash=bytes(32),
                     from_address=Address.create_empty_account(0),
                     to_address=r_block.header.coinbase_address,
-                    value=r_block.header.coinbase_amount_map.balance_map.get(self.genesis_token_id, 0),
+                    value=r_block.header.coinbase_amount_map.balance_map.get(
+                        self.genesis_token_id, 0
+                    ),
                     gas_price=0,
                     gas_token_id=self.genesis_token_id,
                     transfer_token_id=self.genesis_token_id,  # root block coinbase is only in QKC

@@ -268,7 +268,12 @@ class SyncTask:
                 self.master_server.update_shard_stats(result.shard_stats)
 
         for m_header in minor_block_header_list:
-            self.root_state.add_validated_minor_block_hash(m_header.get_hash())
+            self.root_state.add_validated_minor_block_hash(
+                m_header.get_hash(),
+                {
+                    self.master_server.env.quark_chain_config.genesis_token: m_header.coinbase_amount
+                },
+            )
 
 
 class Synchronizer:
@@ -562,7 +567,10 @@ class SlaveConnection(ClusterConnection):
 
     async def handle_add_minor_block_header_request(self, req):
         self.master_server.root_state.add_validated_minor_block_hash(
-            req.minor_block_header.get_hash()
+            req.minor_block_header.get_hash(),
+            {
+                self.master_server.env.quark_chain_config.genesis_token: req.minor_block_header.coinbase_amount
+            },
         )
         self.master_server.update_shard_stats(req.shard_stats)
         self.master_server.update_tx_count_history(

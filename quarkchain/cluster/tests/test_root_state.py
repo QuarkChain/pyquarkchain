@@ -25,7 +25,10 @@ def create_default_state(env, diff_calc=None):
     for state in s_state_list.values():
         minor_header_list.append(state.header_tip)
         block_hash = state.header_tip.get_hash()
-        r_state.add_validated_minor_block_hash(block_hash)
+        r_state.add_validated_minor_block_hash(
+            block_hash,
+            {env.quark_chain_config.genesis_token: state.header_tip.coinbase_amount},
+        )
 
     root_block = r_state.create_block_to_mine(minor_header_list)
     assert r_state.add_block(root_block)
@@ -64,8 +67,14 @@ class TestRootState(unittest.TestCase):
         b1 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
         root_block = r_state.create_block_to_mine([b0.header, b1.header])
 
         self.assertTrue(r_state.add_block(root_block))
@@ -92,8 +101,14 @@ class TestRootState(unittest.TestCase):
         b1 = s_state1.create_block_to_mine()
         s_state1.finalize_and_add_block(b1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
 
         root_block = r_state.create_block_to_mine([])
         self.assertTrue(r_state.add_block(root_block))
@@ -112,8 +127,14 @@ class TestRootState(unittest.TestCase):
         b1 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
         root_block0 = r_state.create_block_to_mine([b0.header, b1.header])
 
         self.assertTrue(r_state.add_block(root_block0))
@@ -123,8 +144,14 @@ class TestRootState(unittest.TestCase):
         b3 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b3)
 
-        r_state.add_validated_minor_block_hash(b2.header.get_hash())
-        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b2.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b2.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b3.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b3.header.coinbase_amount},
+        )
         root_block1 = r_state.create_block_to_mine([b2.header, b3.header])
 
         self.assertTrue(r_state.add_block(root_block1))
@@ -143,8 +170,14 @@ class TestRootState(unittest.TestCase):
         b3 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
 
         root_block0 = r_state.create_block_to_mine([b0.header, b1.header])
         root_block1 = r_state.create_block_to_mine([])
@@ -156,12 +189,22 @@ class TestRootState(unittest.TestCase):
         add_minor_block_to_cluster(s_states, b2)
         add_minor_block_to_cluster(s_states, b3)
 
-        r_state.add_validated_minor_block_hash(b2.header.get_hash())
-        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b2.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b2.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b3.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b3.header.coinbase_amount},
+        )
 
         root_block1.add_minor_block_header(b2.header).add_minor_block_header(
             b3.header
-        ).finalize()
+        ).finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block1.minor_block_header_list]
+            )
+        )
 
         self.assertFalse(r_state.add_block(root_block1))
         self.assertFalse(s_state0.add_root_block(root_block1))
@@ -172,13 +215,23 @@ class TestRootState(unittest.TestCase):
         add_minor_block_to_cluster(s_states, b4)
         add_minor_block_to_cluster(s_states, b5)
 
-        r_state.add_validated_minor_block_hash(b4.header.get_hash())
-        r_state.add_validated_minor_block_hash(b5.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b4.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b4.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b5.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b5.header.coinbase_amount},
+        )
         root_block2 = (
             root_block1.create_block_to_append()
             .add_minor_block_header(b4.header)
             .add_minor_block_header(b5.header)
-            .finalize()
+        )
+        root_block2.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block2.minor_block_header_list]
+            )
         )
 
         self.assertTrue(r_state.add_block(root_block2))
@@ -190,7 +243,6 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_difficulty_and_coinbase(self):
         env = get_test_env()
-        env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
@@ -214,8 +266,14 @@ class TestRootState(unittest.TestCase):
         self.assertEqual(b0.header.coinbase_amount, 1)
         self.assertEqual(b1.header.coinbase_amount, 1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
 
         # Test coinbase
         original_reward_tax_rate = env.quark_chain_config.REWARD_TAX_RATE
@@ -229,7 +287,9 @@ class TestRootState(unittest.TestCase):
             self.assertEqual(root_block_tmp.header.signature, bytes(65))  # empty sig
             # still use minor block's coinbase amount, 1
             self.assertEqual(
-                root_block_tmp.header.coinbase_amount_map.balance_map[env.quark_chain_config.genesis_token],
+                root_block_tmp.header.coinbase_amount_map.balance_map[
+                    env.quark_chain_config.genesis_token
+                ],
                 round((1 + 1) / (1 - tax_rate) * tax_rate + 5),
             )
         env.quark_chain_config.REWARD_TAX_RATE = original_reward_tax_rate
@@ -272,8 +332,14 @@ class TestRootState(unittest.TestCase):
         b1 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b1)
 
-        r_state.add_validated_minor_block_hash(b0.header.get_hash())
-        r_state.add_validated_minor_block_hash(b1.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b0.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b1.header.coinbase_amount},
+        )
         root_block0 = r_state.create_block_to_mine([b0.header, b1.header])
 
         root_block00 = r_state.create_block_to_mine([b0.header, b1.header])
@@ -282,7 +348,11 @@ class TestRootState(unittest.TestCase):
 
         # create a fork
         root_block00.header.create_time += 1
-        root_block00.finalize()
+        root_block00.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block00.minor_block_header_list]
+            )
+        )
         self.assertNotEqual(
             root_block0.header.get_hash(), root_block00.header.get_hash()
         )
@@ -298,8 +368,14 @@ class TestRootState(unittest.TestCase):
         b3 = s_state1.create_block_to_mine()
         add_minor_block_to_cluster(s_states, b3)
 
-        r_state.add_validated_minor_block_hash(b2.header.get_hash())
-        r_state.add_validated_minor_block_hash(b3.header.get_hash())
+        r_state.add_validated_minor_block_hash(
+            b2.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b2.header.coinbase_amount},
+        )
+        r_state.add_validated_minor_block_hash(
+            b3.header.get_hash(),
+            {env.quark_chain_config.genesis_token: b3.header.coinbase_amount},
+        )
         root_block1 = r_state.create_block_to_mine([b2.header, b3.header])
 
         self.assertTrue(r_state.add_block(root_block1))
@@ -348,16 +424,25 @@ class TestRootState(unittest.TestCase):
         m1 = s_state0.get_tip().create_block_to_append()
         add_minor_block_to_cluster(s_states, m1)
 
-        r_state.add_validated_minor_block_hash(m1.header.get_hash())
-        root_block1 = (
-            root_block0.create_block_to_append(nonce=0)
-            .add_minor_block_header(m1.header)
-            .finalize()
+        r_state.add_validated_minor_block_hash(
+            m1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: m1.header.coinbase_amount},
         )
-        root_block2 = (
-            root_block0.create_block_to_append(nonce=1)
-            .add_minor_block_header(m1.header)
-            .finalize()
+        root_block1 = root_block0.create_block_to_append(
+            nonce=0
+        ).add_minor_block_header(m1.header)
+        root_block1.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block1.minor_block_header_list]
+            )
+        )
+        root_block2 = root_block0.create_block_to_append(
+            nonce=1
+        ).add_minor_block_header(m1.header)
+        root_block2.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block2.minor_block_header_list]
+            )
         )
 
         self.assertTrue(r_state.add_block(root_block1))
@@ -369,20 +454,29 @@ class TestRootState(unittest.TestCase):
         m2.header.hash_prev_root_block = root_block2.header.get_hash()
         add_minor_block_to_cluster(s_states, m2)
 
-        r_state.add_validated_minor_block_hash(m2.header.get_hash())
-        root_block3 = (
-            root_block1.create_block_to_append()
-            .add_minor_block_header(m2.header)
-            .finalize()
+        r_state.add_validated_minor_block_hash(
+            m2.header.get_hash(),
+            {env.quark_chain_config.genesis_token: m2.header.coinbase_amount},
+        )
+        root_block3 = root_block1.create_block_to_append().add_minor_block_header(
+            m2.header
+        )
+        root_block3.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block3.minor_block_header_list]
+            )
         )
 
         with self.assertRaises(ValueError):
             r_state.add_block(root_block3)
 
-        root_block4 = (
-            root_block2.create_block_to_append()
-            .add_minor_block_header(m2.header)
-            .finalize()
+        root_block4 = root_block2.create_block_to_append().add_minor_block_header(
+            m2.header
+        )
+        root_block4.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block4.minor_block_header_list]
+            )
         )
         self.assertTrue(r_state.add_block(root_block4))
 
@@ -416,17 +510,29 @@ class TestRootState(unittest.TestCase):
         add_minor_block_to_cluster(s_states, m1)
         add_minor_block_to_cluster(s_states, m2)
 
-        r_state.add_validated_minor_block_hash(m1.header.get_hash())
-        r_state.add_validated_minor_block_hash(m2.header.get_hash())
-        root_block1 = (
-            root_block0.create_block_to_append(nonce=0)
-            .add_minor_block_header(m1.header)
-            .finalize()
+        r_state.add_validated_minor_block_hash(
+            m1.header.get_hash(),
+            {env.quark_chain_config.genesis_token: m1.header.coinbase_amount},
         )
-        root_block2 = (
-            root_block0.create_block_to_append(nonce=1)
-            .add_minor_block_header(m2.header)
-            .finalize()
+        r_state.add_validated_minor_block_hash(
+            m2.header.get_hash(),
+            {env.quark_chain_config.genesis_token: m2.header.coinbase_amount},
+        )
+        root_block1 = root_block0.create_block_to_append(
+            nonce=0
+        ).add_minor_block_header(m1.header)
+        root_block1.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block1.minor_block_header_list]
+            )
+        )
+        root_block2 = root_block0.create_block_to_append(
+            nonce=1
+        ).add_minor_block_header(m2.header)
+        root_block2.finalize(
+            coinbase_amount_map=r_state._calculate_root_block_coinbase(
+                [header.get_hash() for header in root_block2.minor_block_header_list]
+            )
         )
 
         self.assertTrue(r_state.add_block(root_block1))

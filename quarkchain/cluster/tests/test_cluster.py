@@ -7,7 +7,6 @@ from quarkchain.cluster.tests.test_utils import (
 from quarkchain.core import Address, Branch, Identity
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
-from quarkchain.cluster.rpc import token_pair_list_to_dict
 
 
 class TestCluster(unittest.TestCase):
@@ -102,9 +101,9 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(block1.header.branch.value, 0b10)
             self.assertEqual(len(block1.tx_list), 1)
 
-            original_balance_acc1 = token_pair_list_to_dict(
-                call_async(master.get_primary_account_data(acc1)).token_balances
-            )
+            original_balance_acc1 = call_async(
+                master.get_primary_account_data(acc1)
+            ).token_balances.balance_map
             gas_paid = (opcodes.GTXXSHARDCOST + opcodes.GTXCOST) * 3
             self.assertTrue(
                 call_async(
@@ -112,10 +111,14 @@ class TestCluster(unittest.TestCase):
                 )
             )
             self.assertEqual(
-                token_pair_list_to_dict(
-                    call_async(master.get_primary_account_data(acc1)).token_balances
-                )[genesis_token],
-                original_balance_acc1[genesis_token] - 54321 - gas_paid,
+                call_async(
+                    master.get_primary_account_data(acc1)
+                ).token_balances.balance_map,
+                {
+                    genesis_token: original_balance_acc1[genesis_token]
+                    - 54321
+                    - gas_paid
+                },
             )
             self.assertEqual(
                 clusters[0]
@@ -155,9 +158,9 @@ class TestCluster(unittest.TestCase):
             )
             # Expect withdrawTo is included in acc3's balance
             self.assertEqual(
-                token_pair_list_to_dict(
-                    call_async(master.get_primary_account_data(acc3)).token_balances
-                ),
+                call_async(
+                    master.get_primary_account_data(acc3)
+                ).token_balances.balance_map,
                 {genesis_token: 54321},
             )
 
@@ -671,9 +674,9 @@ class TestCluster(unittest.TestCase):
                 call_async(master.add_raw_minor_block(b4.header.branch, b4.serialize()))
             )
             self.assertEqual(
-                token_pair_list_to_dict(
-                    call_async(master.get_primary_account_data(acc3)).token_balances
-                ),
+                call_async(
+                    master.get_primary_account_data(acc3)
+                ).token_balances.balance_map,
                 {genesis_token: 54321},
             )
 

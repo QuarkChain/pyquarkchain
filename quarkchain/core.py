@@ -8,7 +8,7 @@ import argparse
 import copy
 import random
 import typing
-from typing import List
+from typing import List, Dict
 
 import ecdsa
 import rlp
@@ -182,7 +182,7 @@ class PrependedSizeMapSerializer:
         self.key_ser = key_ser
         self.value_ser = value_ser
 
-    def serialize(self, item_map: dict, barray):
+    def serialize(self, item_map: Dict, barray):
         barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
         # keep keys sorted to maintain deterministic serialization
         for k in sorted(item_map):
@@ -898,15 +898,13 @@ class MinorBlock(Serializable):
 
 
 class TokenBalanceMap(Serializable):
-    FIELDS = [
-        ("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))
-    ]
+    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
 
-    def __init__(self, balance_map: dict):
+    def __init__(self, balance_map: Dict):
         self.balance_map = balance_map
 
-    def add(self, other):
-        for k, v in other.balance_map.items():
+    def add(self, other: Dict):
+        for k, v in other.items():
             self.balance_map[k] = self.balance_map.get(k, 0) + v
 
     def get_hash(self):
@@ -1025,15 +1023,13 @@ class RootBlock(Serializable):
         self.tracking_data = tracking_data
 
     def finalize(
-        self,
-        coinbase_amount_map=TokenBalanceMap(dict()),
-        coinbase_address=Address.create_empty_account()
+        self, coinbase_amount_map=None, coinbase_address=Address.create_empty_account()
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount_map = coinbase_amount_map
+        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
         self.header.coinbase_address = coinbase_address
         return self
 

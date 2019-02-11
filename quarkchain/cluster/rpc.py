@@ -21,6 +21,7 @@ from quarkchain.core import (
     Address,
     Branch,
     ChainMask,
+    TokenBalanceMap,
 )
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
@@ -466,23 +467,11 @@ class GetAccountDataRequest(Serializable):
         self.block_height = block_height
 
 
-def token_pair_list_to_dict(l):
-    return {p.token_id: p.balance for p in l}
-
-
-class TokenBalancePair(Serializable):
-    FIELDS = [("token_id", uint64), ("balance", uint256)]
-
-    def __init__(self, token_id, balance):
-        self.token_id = token_id
-        self.balance = balance
-
-
 class AccountBranchData(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("transaction_count", uint256),
-        ("token_balances", PrependedSizeListSerializer(4, TokenBalancePair)),
+        ("token_balances", TokenBalanceMap),
         ("is_contract", boolean),
     ]
 
