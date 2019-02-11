@@ -214,9 +214,7 @@ class TestEnumSerializer(unittest.TestCase):
 
 
 class MapData(Serializable):
-    FIELDS = [
-        ("m", PrependedSizeMapSerializer(4, uint32, boolean))
-    ]
+    FIELDS = [("m", PrependedSizeMapSerializer(4, uint32, boolean))]
 
     def __init__(self, m):
         self.m = m
@@ -253,9 +251,9 @@ class TestTokenBalanceMap(unittest.TestCase):
         m0 = TokenBalanceMap({0: 10})
         m1 = TokenBalanceMap({1: 20})
 
-        m0.add(m1)
+        m0.add(m1.balance_map)
         self.assertEqual(m0.balance_map, {0: 10, 1: 20})
 
         m2 = TokenBalanceMap({0: 30, 2: 50})
-        m0.add(m2)
+        m0.add(m2.balance_map)
         self.assertEqual(m0.balance_map, {0: 40, 1: 20, 2: 50})

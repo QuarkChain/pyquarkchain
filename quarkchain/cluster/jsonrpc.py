@@ -13,7 +13,6 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams
 
 from quarkchain.cluster.master import MasterServer
-from quarkchain.cluster.rpc import TokenBalancePair
 from quarkchain.core import (
     Address,
     Branch,
@@ -23,6 +22,7 @@ from quarkchain.core import (
     RootBlock,
     Transaction,
     TransactionReceipt,
+    TokenBalanceMap,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
@@ -316,9 +316,9 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     return resp
 
 
-def balances_encoder(balances: List[TokenBalancePair]) -> List[Dict]:
+def balances_encoder(balances: TokenBalanceMap) -> List[Dict]:
     balance_list = []
-    for pair in balances:
+    for pair in balances.balance_map:
         balance_list.append(
             {
                 "tokenId": quantity_encoder(pair.token_id),

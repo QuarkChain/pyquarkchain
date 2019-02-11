@@ -15,8 +15,6 @@ from quarkchain.core import (
     Serializable,
     calculate_merkle_root,
     TokenBalanceMap,
-    TokenBalancePair,
-    TokenBalanceList,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
@@ -28,25 +26,6 @@ class LastMinorBlockHeaderList(Serializable):
 
     def __init__(self, header_list):
         self.header_list = header_list
-
-
-def dict_to_token_pair_list(d: dict) -> List[TokenBalancePair]:
-    """keep token balance sorted to maintain deterministic serialization"""
-    retv = []
-    for k in sorted(d):
-        pair = TokenBalancePair(k, d[k])
-        retv.append(pair)
-    return retv
-
-
-def token_pair_list_to_dict(l) -> dict:
-    return {p.token_id: p.balance for p in l}
-
-
-def add_dict(dict1: dict, dict2: dict) -> dict:
-    return {
-        key: dict1.get(key, 0) + dict2.get(key, 0) for key in set(dict1) | set(dict2)
-    }
 
 
 class RootDb:
@@ -97,10 +76,10 @@ class RootDb:
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
             self.r_header_pool[r_hash] = r_block.header
             for m_header in r_block.minor_block_header_list:
-                mtokens = TokenBalanceList.deserialize(
+                mtokens = TokenBalanceMap.deserialize(
                     self.db.get(b"mheader_" + m_header.get_hash())
-                ).token_balances
-                self.m_hash_dict[m_header.get_hash()] = token_pair_list_to_dict(mtokens)
+                ).balance_map
+                self.m_hash_dict[m_header.get_hash()] = mtokens
 
             if r_block.header.height <= 0:
                 break
@@ -212,7 +191,7 @@ class RootDb:
         return h in self.m_hash_dict.keys()
 
     def put_minor_block_hash(self, m_hash: bytes, coinbase_tokens: dict):
-        tokens = TokenBalanceList(dict_to_token_pair_list(coinbase_tokens))
+        tokens = TokenBalanceMap(coinbase_tokens)
         self.db.put(b"mheader_" + m_hash, tokens.serialize())
         self.m_hash_dict[m_hash] = coinbase_tokens
 
@@ -291,11 +270,10 @@ class RootState:
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
         ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
-        reward_tokens = {}
+        reward_tokens_map = TokenBalanceMap({})
         for m_hash in m_hash_list:
-            reward_tokens = add_dict(
-                reward_tokens, self.db.get_minor_block_coinbase_tokens(m_hash)
-            )
+            reward_tokens_map.add(self.db.get_minor_block_coinbase_tokens(m_hash))
+        reward_tokens = reward_tokens_map.balance_map
         # note the minor block fee is after tax
         reward_tokens = {
             k: v * ratio.denominator // ratio.numerator

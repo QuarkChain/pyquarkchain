@@ -21,7 +21,7 @@ from quarkchain.core import (
     Address,
     Branch,
     ChainMask,
-    TokenBalancePair,
+    TokenBalanceMap,
 )
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
@@ -471,7 +471,7 @@ class AccountBranchData(Serializable):
     FIELDS = [
         ("branch", Branch),
         ("transaction_count", uint256),
-        ("token_balances", PrependedSizeListSerializer(4, TokenBalancePair)),
+        ("token_balances", TokenBalanceMap),
         ("is_contract", boolean),
     ]
 
