@@ -1441,6 +1441,7 @@ class TestShardState(unittest.TestCase):
             gas=b0.meta.evm_xshard_gas_limit + 1,
             gas_price=1,
         )
+        self.assertFalse(state0.add_tx(tx0))
         b0.add_tx(tx0)
         with self.assertRaisesRegexp(RuntimeError, "xshard evm tx exceeds xshard gas limit"):
             state0.finalize_and_add_block(b0)
@@ -1456,6 +1457,7 @@ class TestShardState(unittest.TestCase):
             gas=opcodes.GTXCOST * 10,
             gas_price=1,
         )
+        self.assertFalse(state0.add_tx(tx2, xshard_gas_limit=opcodes.GTXCOST * 9))
         b2.add_tx(tx2)
         with self.assertRaisesRegexp(RuntimeError, "xshard evm tx exceeds xshard gas limit"):
             state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXCOST * 9)

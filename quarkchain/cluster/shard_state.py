@@ -481,7 +481,7 @@ class ShardState:
         evm_state = self.evm_state.ephemeral_clone()
         evm_state.gas_used = 0
         try:
-            evm_tx = self.__validate_tx(tx, evm_state)
+            evm_tx = self.__validate_tx(tx, evm_state, xshard_gas_limit=xshard_gas_limit)
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
             return True
