@@ -183,7 +183,7 @@ class XshardTxCursor:
             self.xshard_deposit_index = 1
             return self.__get_current_tx()
 
-    def getCursorInfo(self):
+    def get_cursor_info(self):
         root_block_height = self.rblock.header.height if self.rblock is not None else self.max_rblock_header.height + 1
         return XshardTxCursorInfo(
             root_block_height=root_block_height,
@@ -1400,7 +1400,7 @@ class ShardState:
                 break
 
         evm_state.xshard_receive_gas_used = evm_state.gas_used
-        return tx_list, cursor.getCursorInfo()
+        return tx_list, cursor.get_cursor_info()
 
     def contain_remote_minor_block_hash(self, h):
         return self.db.contain_remote_minor_block_hash(h)
