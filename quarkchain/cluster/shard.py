@@ -587,7 +587,7 @@ class Shard:
         """
         old_tip = self.state.header_tip
         try:
-            xshard_list = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block)
         except Exception as e:
             Logger.error_exception()
             return False
@@ -627,6 +627,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
@@ -652,7 +653,9 @@ class Shard:
 
             block_hash = block.header.get_hash()
             try:
-                xshard_list = self.state.add_block(block, skip_if_too_old=False)
+                xshard_list, coinbase_amount_map = self.state.add_block(
+                    block, skip_if_too_old=False
+                )
             except Exception as e:
                 Logger.error_exception()
                 return False

@@ -736,7 +736,7 @@ class MinorBlockHeader(Serializable):
         ("branch", Branch),
         ("height", uint64),
         ("coinbase_address", Address),
-        ("coinbase_amount", uint256),
+        ("coinbase_amount_map", TokenBalanceMap),
         ("hash_prev_minor_block", hash256),
         ("hash_prev_root_block", hash256),
         ("evm_gas_limit", uint256),
@@ -755,7 +755,7 @@ class MinorBlockHeader(Serializable):
         height: int = 0,
         branch: Branch = Branch(1),
         coinbase_address: Address = Address.create_empty_account(),
-        coinbase_amount: int = 0,
+        coinbase_amount_map: Dict = None,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
         hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
         evm_gas_limit: int = 30000 * 400,  # 400 transfer tx
@@ -771,7 +771,7 @@ class MinorBlockHeader(Serializable):
         self.height = height
         self.branch = branch
         self.coinbase_address = coinbase_address
-        self.coinbase_amount = coinbase_amount
+        self.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
         self.hash_prev_minor_block = hash_prev_minor_block
         self.hash_prev_root_block = hash_prev_root_block
         self.evm_gas_limit = evm_gas_limit
@@ -822,14 +822,14 @@ class MinorBlock(Serializable):
         self.meta.hash_merkle_root = self.calculate_merkle_root()
         return self
 
-    def finalize(self, evm_state, coinbase_amount, hash_prev_root_block=None):
+    def finalize(self, evm_state, coinbase_amount_map, hash_prev_root_block=None):
         if hash_prev_root_block is not None:
             self.header.hash_prev_root_block = hash_prev_root_block
         self.meta.xshard_tx_cursor_info = evm_state.xshard_tx_cursor_info
         self.meta.hash_evm_state_root = evm_state.trie.root_hash
         self.meta.evm_gas_used = evm_state.gas_used
         self.meta.evm_cross_shard_receive_gas_used = evm_state.xshard_receive_gas_used
-        self.header.coinbase_amount = coinbase_amount
+        self.header.coinbase_amount_map = coinbase_amount_map
         self.finalize_merkle_root()
         self.meta.hash_evm_receipt_root = mk_receipt_sha(
             evm_state.receipts, evm_state.db
@@ -880,7 +880,7 @@ class MinorBlock(Serializable):
         self,
         create_time=None,
         address=None,
-        coinbase_amount=0,
+        coinbase_amount_map=None,
         difficulty=None,
         extra_data=b"",
         nonce=0,
@@ -902,7 +902,7 @@ class MinorBlock(Serializable):
             height=self.header.height + 1,
             branch=self.header.branch,
             coinbase_address=address,
-            coinbase_amount=coinbase_amount,
+            coinbase_amount_map=coinbase_amount_map,
             hash_prev_minor_block=self.header.get_hash(),
             hash_prev_root_block=self.header.hash_prev_root_block,
             evm_gas_limit=self.header.evm_gas_limit,
@@ -958,7 +958,7 @@ class RootBlockHeader(Serializable):
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
-        coinbase_amount_map=TokenBalanceMap(dict()),
+        coinbase_amount_map=None,
         create_time=0,
         difficulty=0,
         nonce=0,
@@ -971,7 +971,7 @@ class RootBlockHeader(Serializable):
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
         self.coinbase_address = coinbase_address
-        self.coinbase_amount_map = coinbase_amount_map
+        self.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
         self.create_time = create_time
         self.difficulty = difficulty
         self.nonce = nonce
@@ -1015,7 +1015,7 @@ class RootBlockHeader(Serializable):
             hash_prev_block=self.get_hash(),
             hash_merkle_root=bytes(32),
             coinbase_address=address if address else Address.create_empty_account(),
-            coinbase_amount_map=TokenBalanceMap(dict()),
+            coinbase_amount_map=None,
             create_time=create_time,
             difficulty=difficulty,
             nonce=nonce,

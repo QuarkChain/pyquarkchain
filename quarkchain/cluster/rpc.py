@@ -574,7 +574,7 @@ class SyncMinorBlockListResponse(Serializable):
 
 
 class AddMinorBlockHeaderRequest(Serializable):
-    """ Notify master about a successfully added minro block.
+    """ Notify master about a successfully added minor block.
     Piggyback the ShardStats in the same request.
     """
 
@@ -582,13 +582,22 @@ class AddMinorBlockHeaderRequest(Serializable):
         ("minor_block_header", MinorBlockHeader),
         ("tx_count", uint32),  # the total number of tx in the block
         ("x_shard_tx_count", uint32),  # the number of xshard tx in the block
+        ("coinbase_amount_map", TokenBalanceMap),
         ("shard_stats", ShardStats),
     ]
 
-    def __init__(self, minor_block_header, tx_count, x_shard_tx_count, shard_stats):
+    def __init__(
+        self,
+        minor_block_header,
+        tx_count,
+        x_shard_tx_count,
+        coinbase_amount_map,
+        shard_stats,
+    ):
         self.minor_block_header = minor_block_header
         self.tx_count = tx_count
         self.x_shard_tx_count = x_shard_tx_count
+        self.coinbase_amount_map = coinbase_amount_map
         self.shard_stats = shard_stats
 
 

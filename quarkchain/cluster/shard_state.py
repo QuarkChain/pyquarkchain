@@ -20,6 +20,7 @@ from quarkchain.core import (
     Transaction,
     Log,
     XshardTxCursorInfo,
+    TokenBalanceMap,
 )
 from quarkchain.core import (
     mk_receipt_sha,
@@ -696,12 +697,9 @@ class ShardState:
                 raise e
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_token_balance(
-            evm_state.block_coinbase,
-            self.env.quark_chain_config.genesis_token,
-            pure_coinbase_amount,
-        )
+        pure_coinbase_amount = self.get_coinbase_amount_map()
+        for k, v in pure_coinbase_amount.balance_map.items():
+            evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
         # Update actual root hash
         evm_state.commit()
@@ -852,8 +850,15 @@ class ShardState:
                     evm_state.xshard_receive_gas_used,
                 )
             )
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
-        if coinbase_amount != block.header.coinbase_amount:
+        coinbase_amount_map = self.get_coinbase_amount_map()
+        coinbase_amount_map.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+
+        if (
+            coinbase_amount_map.balance_map
+            != block.header.coinbase_amount_map.balance_map
+        ):
             raise ValueError("coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
@@ -933,13 +938,16 @@ class ShardState:
             )
         return evm_state.xshard_list
 
-    def get_coinbase_amount(self) -> int:
+    def get_coinbase_amount_map(self) -> TokenBalanceMap:
         coinbase_amount = (
             self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
             * self.local_fee_rate.numerator
             // self.local_fee_rate.denominator
         )
-        return coinbase_amount
+        # shard coinbase only in genesis_token
+        return TokenBalanceMap(
+            {self.env.quark_chain_config.genesis_token: coinbase_amount}
+        )
 
     def get_tip(self) -> MinorBlock:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
@@ -949,10 +957,11 @@ class ShardState:
         gas_limit and xshard_gas_limit is used to verify customized gas limits and they are for test purpose only
         '''
         evm_state = self.run_block(block)
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
-        block.finalize(
-            evm_state=evm_state,
-            coinbase_amount=coinbase_amount)
+        coinbase_amount_map = self.get_coinbase_amount_map()
+        coinbase_amount_map.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+        block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
         self.add_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
 
     def get_token_balance(
@@ -1144,12 +1153,9 @@ class ShardState:
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_token_balance(
-            evm_state.block_coinbase,
-            self.env.quark_chain_config.genesis_token,
-            pure_coinbase_amount,
-        )
+        pure_coinbase_amount = self.get_coinbase_amount_map()
+        for k, v in pure_coinbase_amount.balance_map.items():
+            evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
         # Update actual root hash
         evm_state.commit()
