@@ -778,6 +778,7 @@ class ShardState:
         gas_limit and xshard_gas_limit are used for testing only.
         Returns None if block is already added.
         Returns a list of CrossShardTransactionDeposit from block.
+        Additionally, returns a map of reward token balances for this block
         Raises on any error.
         """
         start_time = time.time()
@@ -803,7 +804,7 @@ class ShardState:
 
         block_hash = block.header.get_hash()
         if self.db.contain_minor_block_by_hash(block_hash):
-            return None
+            return None, None
 
         evm_tx_included = []
         x_shard_receive_tx_list = []
@@ -851,6 +852,7 @@ class ShardState:
                 )
             )
         coinbase_amount_map = self.get_coinbase_amount_map()
+        # add block reward
         coinbase_amount_map.add(
             {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
         )
@@ -936,7 +938,7 @@ class ShardState:
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
             )
-        return evm_state.xshard_list
+        return evm_state.xshard_list, coinbase_amount_map
 
     def get_coinbase_amount_map(self) -> TokenBalanceMap:
         coinbase_amount = (
@@ -1068,10 +1070,15 @@ class ShardState:
         return headers[0:max_blocks]
 
     def get_unconfirmed_headers_coinbase_amount(self) -> int:
+        """ only returns genesis token coinbase amount
+        TODO remove coinbase_amount_map from minor header, this is the ONLY place that requires it
+        """
         amount = 0
         headers = self.get_unconfirmed_header_list()
         for header in headers:
-            amount += header.coinbase_amount
+            amount += header.coinbase_amount_map.balance_map.get(
+                self.env.quark_chain_config.genesis_token, 0
+            )
         return amount
 
     def __get_max_blocks_in_one_root_block(self) -> int:
@@ -1160,8 +1167,10 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        coinbase_amount = pure_coinbase_amount + evm_state.block_fee
-        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
+        pure_coinbase_amount.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+        block.finalize(evm_state=evm_state, coinbase_amount_map=pure_coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")

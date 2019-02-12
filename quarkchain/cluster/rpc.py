@@ -22,6 +22,7 @@ from quarkchain.core import (
     Branch,
     ChainMask,
     TokenBalanceMap,
+    PrependedSizeMapSerializer,
 )
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
@@ -563,10 +564,15 @@ class SyncMinorBlockListRequest(Serializable):
 
 
 class SyncMinorBlockListResponse(Serializable):
-    FIELDS = [("error_code", uint32), ("shard_stats", Optional(ShardStats))]
+    FIELDS = [
+        ("error_code", uint32),
+        ("block_coinbase_map", PrependedSizeMapSerializer(4, hash256, TokenBalanceMap)),
+        ("shard_stats", Optional(ShardStats)),
+    ]
 
-    def __init__(self, error_code, shard_stats=None):
+    def __init__(self, error_code, coinbase_amount_map=None, shard_stats=None):
         self.error_code = error_code
+        self.block_coinbase_map = block_coinbase_map or {}
         self.shard_stats = shard_stats
 
 
