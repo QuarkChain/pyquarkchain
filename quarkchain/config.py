@@ -131,15 +131,6 @@ class ChainConfig(BaseConfig):
     COINBASE_ADDRESS = bytes(24).hex()
     COINBASE_AMOUNT = 5 * QUARKSH_TO_JIAOZI
 
-    # Gas Limit
-    GAS_LIMIT_EMA_DENOMINATOR = 1024
-    GAS_LIMIT_ADJUSTMENT_FACTOR = 1024
-    GAS_LIMIT_MINIMUM = 5000
-    GAS_LIMIT_MAXIMUM = 2 ** 63 - 1
-
-    GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR = 3
-    GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR = 2
-
     DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
     DIFFICULTY_ADJUSTMENT_FACTOR = 512
 
@@ -366,6 +357,10 @@ class QuarkChainConfig(BaseConfig):
         # a simple heuristic to make sure it's at least a percent number
         assert ret.denominator <= 100
         return ret
+
+    @property
+    def gas_limit(self):
+        return ShardGenesis.GAS_LIMIT
 
     def get_full_shard_id_by_full_shard_key(self, full_shard_key: int) -> int:
         chain_id = full_shard_key >> 16

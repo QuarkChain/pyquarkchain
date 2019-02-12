@@ -368,81 +368,6 @@ class ShardState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def __validate_gas_limit(self, gas_limit: int, parent_gas_limit: int):
-        """Raise ValueError if validation failed"""
-
-        def compute_gas_limit_bounds(parent_gas_limit: int) -> Tuple[int, int]:
-            """
-            Compute the boundaries for the block gas limit based on the parent block.
-            """
-            boundary_range = (
-                parent_gas_limit // self.shard_config.GAS_LIMIT_ADJUSTMENT_FACTOR
-            )
-            upper_bound = parent_gas_limit + boundary_range
-            lower_bound = max(
-                self.shard_config.GAS_LIMIT_MINIMUM, parent_gas_limit - boundary_range
-            )
-            return lower_bound, upper_bound
-
-        low_bound, high_bound = compute_gas_limit_bounds(parent_gas_limit)
-        if gas_limit < low_bound:
-            raise ValueError(
-                "gas limit {} is too low. minimum is {}".format(gas_limit, low_bound)
-            )
-        elif gas_limit > high_bound:
-            raise ValueError(
-                "gas limit {} is too hight. maximum is {}".format(gas_limit, high_bound)
-            )
-
-    def __compute_gas_limit(
-        self, parent_gas_limit, parent_gas_used, gas_limit_floor: int
-    ) -> int:
-        """
-        A simple strategy for adjusting the gas limit. (from py-evm)
-
-        For each block:
-
-        - decrease by 1/1024th of the gas limit from the previous block
-        - increase by 50% of the total gas used by the previous block
-
-        If the value is less than the given `gas_limit_floor`:
-
-        - increase the gas limit by 1/1024th of the gas limit from the previous block.
-
-        If the value is less than the GAS_LIMIT_MINIMUM:
-
-        - use the GAS_LIMIT_MINIMUM as the new gas limit.
-        """
-        shard_config = self.shard_config
-        if gas_limit_floor < shard_config.GAS_LIMIT_MINIMUM:
-            raise ValueError(
-                "`gas_limit_floor` value must be greater than the "
-                "GAS_LIMIT_MINIMUM.  Got {0}.  must be greater than "
-                "{1}".format(gas_limit_floor, shard_config.GAS_LIMIT_MINIMUM)
-            )
-
-        decay = parent_gas_limit // shard_config.GAS_LIMIT_EMA_DENOMINATOR
-
-        if parent_gas_used:
-            usage_increase = (
-                (parent_gas_used * shard_config.GAS_LIMIT_USAGE_ADJUSTMENT_NUMERATOR)
-                // shard_config.GAS_LIMIT_USAGE_ADJUSTMENT_DENOMINATOR
-                // shard_config.GAS_LIMIT_EMA_DENOMINATOR
-            )
-        else:
-            usage_increase = 0
-
-        gas_limit = max(
-            shard_config.GAS_LIMIT_MINIMUM, parent_gas_limit - decay + usage_increase
-        )
-
-        if gas_limit < shard_config.GAS_LIMIT_MINIMUM:
-            return shard_config.GAS_LIMIT_MINIMUM
-        elif gas_limit < gas_limit_floor:
-            return parent_gas_limit + decay
-        else:
-            return gas_limit
-
     def __validate_block(self, block: MinorBlock):
         """ Validate a block before running evm transactions
         """
@@ -491,7 +416,9 @@ class ShardState:
         ):
             raise ValueError("tracking_data in block is too large")
 
-        self.__validate_gas_limit(block.header.evm_gas_limit, prev_header.evm_gas_limit)
+        if block.header.evm_gas_limit != self.env.quark_chain_config.gas_limit:
+            raise ValueError("incorrect gas limit, expected %d, actual %d" % (
+                self.env.quark_chain_config.gas_limit, block.header.evm_gas_limit))
 
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
@@ -1032,11 +959,7 @@ class ShardState:
         block = prev_block.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
         )
-        block.header.evm_gas_limit = self.__compute_gas_limit(
-            prev_block.header.evm_gas_limit,
-            prev_block.meta.evm_gas_used,
-            self.shard_config.GENESIS.GAS_LIMIT,
-        )
+        block.header.evm_gas_limit = self.env.quark_chain_config.gas_limit
 
         evm_state = self._get_evm_state_for_new_block(block)
 
