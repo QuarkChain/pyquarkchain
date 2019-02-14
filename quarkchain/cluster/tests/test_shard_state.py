@@ -9,7 +9,7 @@ from quarkchain.cluster.tests.test_utils import (
 )
 from quarkchain.config import ConsensusType
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
-from quarkchain.core import Identity, Address, TokenBalanceMap
+from quarkchain.core import Identity, Address
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
@@ -902,7 +902,7 @@ class TestShardState(unittest.TestCase):
             state.root_tip.create_block_to_append()
             .add_minor_block_header(state.header_tip)
             .finalize(
-                coinbase_amount_map=TokenBalanceMap(dict({env.quark_chain_config.genesis_token: 1000000})),
+                coinbase_amount_map={env.quark_chain_config.genesis_token: 1000000},
                 coinbase_address=acc2
             )
         )
@@ -1126,7 +1126,7 @@ class TestShardState(unittest.TestCase):
             state0.root_tip.create_block_to_append()
             .add_minor_block_header(b1.header)
             .finalize(
-                coinbase_amount_map=TokenBalanceMap(dict({env0.quark_chain_config.genesis_token: 1000000})),
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
                 coinbase_address=acc1)
         )
         state0.add_root_block(root_block)
@@ -1315,7 +1315,7 @@ class TestShardState(unittest.TestCase):
             .add_minor_block_header(b2.header)
             .add_minor_block_header(b1.header)
             .finalize(
-                coinbase_amount_map=TokenBalanceMap(dict({env0.quark_chain_config.genesis_token: 1000000})),
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
                 coinbase_address=acc1)
         )
         state0.add_root_block(root_block)
@@ -1381,7 +1381,7 @@ class TestShardState(unittest.TestCase):
         root_block = (
             state0.root_tip.create_block_to_append()
             .finalize(
-                coinbase_amount_map=TokenBalanceMap(dict({env0.quark_chain_config.genesis_token: 1000000})),
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
                 coinbase_address=acc1)
         )
         state0.add_root_block(root_block)
