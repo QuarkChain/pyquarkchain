@@ -394,6 +394,17 @@ class TestShardState(unittest.TestCase):
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
 
+        # add a xshard tx with large startgas
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=state.get_xshard_gas_limit() + 1,
+        )
+        self.assertFalse(state.add_tx(tx))
+
         # xshard tx
         tx = create_transfer_transaction(
             shard_state=state,
@@ -406,7 +417,7 @@ class TestShardState(unittest.TestCase):
         self.assertTrue(state.add_tx(tx))
 
         b1 = state.create_block_to_mine(address=acc3)
-        self.assertEqual(len(b1.tx_list), 0)
+        self.assertEqual(len(b1.tx_list), 1)
 
         # inshard tx
         tx = create_transfer_transaction(
@@ -488,7 +499,10 @@ class TestShardState(unittest.TestCase):
                 gas=40000,
             )
         )
-        b1 = state.create_block_to_mine(address=acc3, gas_limit=40000)
+        # Inshard gas limit is 40000 - 20000
+        b1 = state.create_block_to_mine(address=acc3, gas_limit=40000, xshard_gas_limit=20000)
+        self.assertEqual(len(b1.tx_list), 0)
+        b1 = state.create_block_to_mine(address=acc3, gas_limit=40000, xshard_gas_limit=0)
         self.assertEqual(len(b1.tx_list), 1)
         b1 = state.create_block_to_mine(address=acc3)
         self.assertEqual(len(b1.tx_list), 2)
@@ -874,6 +888,31 @@ class TestShardState(unittest.TestCase):
         evm_state0 = state0.evm_state
         self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
+    def test_xshard_from_root_block(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env, shard_id=0)
+
+        # Add a root block to update block gas limit so that xshard tx can be included
+        root_block = (
+            state.root_tip.create_block_to_append()
+            .add_minor_block_header(state.header_tip)
+            .finalize(
+                coinbase_amount_map={env.quark_chain_config.genesis_token: 1000000},
+                coinbase_address=acc2
+            )
+        )
+        state.add_root_block(root_block)
+
+        b0 = state.create_block_to_mine()
+        state.finalize_and_add_block(b0)
+
+        self.assertEqual(state.get_token_balance(acc2.recipient, self.genesis_token), 1000000)
+
     def test_xshard_for_two_root_blocks(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -972,11 +1011,8 @@ class TestShardState(unittest.TestCase):
         state0.add_root_block(root_block1)
 
         # Test x-shard gas limit when create_block_to_mine
-        b5 = state0.create_block_to_mine(address=acc3, gas_limit=0)
-        # Current algorithm allows at least one root block to be included
-        self.assertEqual(b5.header.hash_prev_root_block, root_block0.header.get_hash())
         b6 = state0.create_block_to_mine(address=acc3, gas_limit=opcodes.GTXXSHARDCOST)
-        self.assertEqual(b6.header.hash_prev_root_block, root_block0.header.get_hash())
+        self.assertEqual(b6.header.hash_prev_root_block, root_block1.header.get_hash())
         # There are two x-shard txs: one is root block coinbase with zero gas, and another is from shard 1
         b7 = state0.create_block_to_mine(
             address=acc3, gas_limit=2 * opcodes.GTXXSHARDCOST
@@ -1007,6 +1043,438 @@ class TestShardState(unittest.TestCase):
         # Check gas used for receiving x-shard tx
         self.assertEqual(state0.evm_state.gas_used, 18000)
         self.assertEqual(state0.evm_state.xshard_receive_gas_used, 18000)
+
+    def test_xshard_gas_limit(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
+        # Add one block in shard 1 with 2 x-shard txs
+        b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
+        tx0 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b1.add_tx(tx0)
+        tx1 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=111111,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b1.add_tx(tx1)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b1.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx0.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=888888,
+                        gas_price=2,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    ),
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx1.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=111111,
+                        gas_price=2,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    )
+                ]
+            ),
+        )
+
+        # Create a root block containing the block with the x-shard tx
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(b1.header)
+            .finalize(
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
+                coinbase_address=acc1)
+        )
+        state0.add_root_block(root_block)
+
+        # Add b0 and make sure one x-shard tx's are added
+        b2 = state0.create_block_to_mine(address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 888888,
+        )
+        # Half collected by root
+        self.assertEqual(
+            state0.get_token_balance(acc3.recipient, self.genesis_token),
+            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+        )
+
+        # X-shard gas used
+        evmState0 = state0.evm_state
+        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
+        # Add b2 and make sure all x-shard tx's are added
+        b2 = state0.create_block_to_mine(address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 888888 + 111111,
+        )
+
+        # Add b3 and make sure no x-shard tx's are added
+        b3 = state0.create_block_to_mine(address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 888888 + 111111,
+        )
+
+        b4 = state0.create_block_to_mine(address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b4, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        self.assertNotEqual(b2.meta.xshard_tx_cursor_info, b3.meta.xshard_tx_cursor_info)
+        self.assertEqual(b3.meta.xshard_tx_cursor_info, b4.meta.xshard_tx_cursor_info)
+
+        b5 = state0.create_block_to_mine(
+            address=acc3,
+            gas_limit=opcodes.GTXXSHARDCOST,
+            xshard_gas_limit=2 * opcodes.GTXXSHARDCOST
+        )
+        with self.assertRaises(ValueError):
+            # xsahrd_gas_limit should be smaller than gas_limit
+            state0.finalize_and_add_block(
+                b5,
+                gas_limit=opcodes.GTXXSHARDCOST,
+                xshard_gas_limit=2 * opcodes.GTXXSHARDCOST
+            )
+
+        b6 = state0.create_block_to_mine(
+            address=acc3,
+            xshard_gas_limit=opcodes.GTXXSHARDCOST
+        )
+        with self.assertRaises(ValueError):
+            # xshard_gas_limit should be gas_limit // 2
+            state0.finalize_and_add_block(b6)
+
+    def test_xshard_gas_limit_from_multiple_shards(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_from_identity(id1, full_shard_key=8)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env2 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
+        state2 = create_default_shard_state(env=env1, shard_id=8)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .add_minor_block_header(state2.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+        state2.add_root_block(root_block)
+
+        # Add one block in shard 1 with 2 x-shard txs
+        b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
+        tx0 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b1.add_tx(tx0)
+        tx1 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=111111,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b1.add_tx(tx1)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b1.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx0.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=888888,
+                        gas_price=2,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    ),
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx1.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=111111,
+                        gas_price=2,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    )
+                ]
+            ),
+        )
+
+        # Add one block in shard 1 with 2 x-shard txs
+        b2 = state2.get_tip().create_block_to_append()
+        b2.header.hash_prev_root_block = root_block.header.get_hash()
+        tx3 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=12345,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=2,
+        )
+        b2.add_tx(tx3)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b2.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx3.get_hash(),
+                        from_address=acc3,
+                        to_address=acc1,
+                        value=12345,
+                        gas_price=2,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    ),
+                ]
+            ),
+        )
+
+        # Create a root block containing the block with the x-shard tx
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(b2.header)
+            .add_minor_block_header(b1.header)
+            .finalize(
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
+                coinbase_address=acc1)
+        )
+        state0.add_root_block(root_block)
+
+        # Add b0 and make sure one x-shard tx's are added
+        b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 12345,
+        )
+
+        # X-shard gas used
+        evmState0 = state0.evm_state
+        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
+        # Add b2 and make sure all x-shard tx's are added
+        b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 12345 + 888888,
+        )
+
+        # Add b3 and make sure no x-shard tx's are added
+        b3 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000 + 12345 + 888888 + 111111,
+        )
+
+    def test_xshard_rootblock_coinbase(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
+        # Create a root block containing the block with the x-shard tx
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .finalize(
+                coinbase_amount_map={env0.quark_chain_config.genesis_token: 1000000},
+                coinbase_address=acc1)
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
+        # Add b0 and make sure one x-shard tx's are added
+        b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 1000000,
+        )
+
+        # Add b0 and make sure one x-shard tx's are added
+        b3 = state1.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
+        state1.finalize_and_add_block(b3, xshard_gas_limit=opcodes.GTXXSHARDCOST)
+
+        # Root block coinbase does not consume xshard gas
+        self.assertEqual(
+            state1.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000,
+        )
+
+    def test_xshard_smart_contract(self):
+        pass
+
+    def test_xshard_sender_gas_limit(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+
+        b0 = state0.get_tip().create_block_to_append()
+        b0.header.hash_prev_root_block = root_block.header.get_hash()
+        tx0 = create_transfer_transaction(
+            shard_state=state0,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=888888,
+            gas=b0.meta.evm_xshard_gas_limit + 1,
+            gas_price=1,
+        )
+        self.assertFalse(state0.add_tx(tx0))
+        b0.add_tx(tx0)
+        with self.assertRaisesRegexp(RuntimeError, "xshard evm tx exceeds xshard gas limit"):
+            state0.finalize_and_add_block(b0)
+
+        b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXCOST * 9, include_tx=False)
+        b2.header.hash_prev_root_block = root_block.header.get_hash()
+        tx2 = create_transfer_transaction(
+            shard_state=state0,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=888888,
+            gas=opcodes.GTXCOST * 10,
+            gas_price=1,
+        )
+        self.assertFalse(state0.add_tx(tx2, xshard_gas_limit=opcodes.GTXCOST * 9))
+        b2.add_tx(tx2)
+        with self.assertRaisesRegexp(RuntimeError, "xshard evm tx exceeds xshard gas limit"):
+            state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXCOST * 9)
+
+        b1 = state0.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
+        tx1 = create_transfer_transaction(
+            shard_state=state0,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=888888,
+            gas=b1.meta.evm_xshard_gas_limit,
+            gas_price=1,
+        )
+        b1.add_tx(tx1)
+        state0.finalize_and_add_block(b1)
 
     def test_fork_resolve(self):
         id1 = Identity.create_random_identity()
