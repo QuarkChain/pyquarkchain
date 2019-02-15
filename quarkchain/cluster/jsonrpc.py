@@ -153,7 +153,7 @@ def root_block_encoder(block):
         "nonce": quantity_encoder(header.nonce),
         "hashMerkleRoot": data_encoder(header.hash_merkle_root),
         "miner": address_encoder(header.coinbase_address.serialize()),
-        "coinbase": quantity_encoder(header.coinbase_amount),
+        "coinbase": balances_encoder(header.coinbase_amount_map),
         "difficulty": quantity_encoder(header.difficulty),
         "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
@@ -176,7 +176,7 @@ def root_block_encoder(block):
             "nonce": quantity_encoder(header.nonce),
             "difficulty": quantity_encoder(header.difficulty),
             "miner": address_encoder(header.coinbase_address.serialize()),
-            "coinbase": quantity_encoder(header.coinbase_amount),
+            "coinbase": balances_encoder(header.coinbase_amount_map),
             "timestamp": quantity_encoder(header.create_time),
         }
         d["minorBlockHeaders"].append(h)
@@ -210,7 +210,7 @@ def minor_block_encoder(block, include_transactions=False):
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
         "miner": address_encoder(header.coinbase_address.serialize()),
-        "coinbase": quantity_encoder(header.coinbase_amount),
+        "coinbase": balances_encoder(header.coinbase_amount_map),
         "difficulty": quantity_encoder(header.difficulty),
         "extraData": data_encoder(header.extra_data),
         "gasLimit": quantity_encoder(header.evm_gas_limit),
@@ -318,12 +318,12 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
 
 def balances_encoder(balances: TokenBalanceMap) -> List[Dict]:
     balance_list = []
-    for pair in balances.balance_map:
+    for k, v in balances.balance_map.items():
         balance_list.append(
             {
-                "tokenId": quantity_encoder(pair.token_id),
-                "tokenStr": token_id_decode(pair.token_id),
-                "balance": quantity_encoder(pair.balance),
+                "tokenId": quantity_encoder(k),
+                "tokenStr": token_id_decode(k),
+                "balance": quantity_encoder(v),
             }
         )
     return balance_list

@@ -473,7 +473,7 @@ class Shard:
             self.add_peer(conn)
 
     async def __init_genesis_state(self, root_block: RootBlock):
-        block = self.state.init_genesis_state(root_block)
+        block, coinbase_amount_map = self.state.init_genesis_state(root_block)
         xshard_list = []
         await self.slave.broadcast_xshard_tx_list(
             block, xshard_list, root_block.header.height
@@ -482,6 +482,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 

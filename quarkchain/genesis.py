@@ -95,4 +95,7 @@ class GenesisManager:
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),
         )
-        return MinorBlock(header=header, meta=meta, tx_list=[])
+        return (
+            MinorBlock(header=header, meta=meta, tx_list=[]),
+            TokenBalanceMap(coinbase_tokens),
+        )

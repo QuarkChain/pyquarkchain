@@ -64,7 +64,7 @@ class TestShardState(unittest.TestCase):
         root_block.header.height = 0
         root_block.finalize()
 
-        new_genesis_block = state.init_genesis_state(root_block)
+        new_genesis_block, _ = state.init_genesis_state(root_block)
         self.assertNotEqual(
             new_genesis_block.header.get_hash(), genesis_header.get_hash()
         )

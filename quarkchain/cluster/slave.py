@@ -949,7 +949,7 @@ class SlaveServer:
         minor_block_header,
         tx_count,
         x_shard_tx_count,
-        coinbase_amount_map,
+        coinbase_amount_map: TokenBalanceMap,
         shard_stats,
     ):
         """ Update master that a minor block has been appended successfully """

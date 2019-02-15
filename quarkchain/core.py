@@ -647,6 +647,22 @@ class Transaction(Serializable):
         return True
 
 
+class TokenBalanceMap(Serializable):
+    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
+
+    def __init__(self, balance_map: Dict):
+        if not isinstance(balance_map, Dict):
+            raise TypeError("TokenBalanceMap can only accept dict object")
+        self.balance_map = balance_map
+
+    def add(self, other: Dict):
+        for k, v in other.items():
+            self.balance_map[k] = self.balance_map.get(k, 0) + v
+
+    def get_hash(self):
+        return sha3_256(self.serialize())
+
+
 def calculate_merkle_root(item_list):
     if len(item_list) == 0:
         return bytes(32)
@@ -717,22 +733,6 @@ class MinorBlockMeta(Serializable):
         self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
         self.xshard_tx_cursor_info = xshard_tx_cursor_info
         self.evm_xshard_gas_limit = evm_xshard_gas_limit
-
-    def get_hash(self):
-        return sha3_256(self.serialize())
-
-
-class TokenBalanceMap(Serializable):
-    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
-
-    def __init__(self, balance_map: Dict):
-        if not isinstance(balance_map, Dict):
-            raise TypeError("TokenBalanceMap can only accept dict object")
-        self.balance_map = balance_map
-
-    def add(self, other: Dict):
-        for k, v in other.items():
-            self.balance_map[k] = self.balance_map.get(k, 0) + v
 
     def get_hash(self):
         return sha3_256(self.serialize())
