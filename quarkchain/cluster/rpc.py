@@ -570,7 +570,7 @@ class SyncMinorBlockListResponse(Serializable):
         ("shard_stats", Optional(ShardStats)),
     ]
 
-    def __init__(self, error_code, coinbase_amount_map=None, shard_stats=None):
+    def __init__(self, error_code, coinbase_tokens=None, shard_stats=None):
         self.error_code = error_code
         self.block_coinbase_map = block_coinbase_map or {}
         self.shard_stats = shard_stats

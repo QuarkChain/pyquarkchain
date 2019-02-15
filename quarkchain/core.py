@@ -676,7 +676,7 @@ class XshardTxCursorInfo(Serializable):
 
     FIELDS = [
         ("root_block_height", uint64),
-        ("minor_block_index", uint64),              # 0 root block x shard, >= 1 minor blocks
+        ("minor_block_index", uint64),  # 0 root block x shard, >= 1 minor blocks
         ("xshard_deposit_index", uint64),
     ]
 
@@ -698,7 +698,6 @@ class MinorBlockMeta(Serializable):
         ("evm_cross_shard_receive_gas_used", uint256),
         ("xshard_tx_cursor_info", XshardTxCursorInfo),
         ("evm_xshard_gas_limit", uint256),
-
     ]
 
     def __init__(
@@ -718,6 +717,22 @@ class MinorBlockMeta(Serializable):
         self.evm_cross_shard_receive_gas_used = evm_cross_shard_receive_gas_used
         self.xshard_tx_cursor_info = xshard_tx_cursor_info
         self.evm_xshard_gas_limit = evm_xshard_gas_limit
+
+    def get_hash(self):
+        return sha3_256(self.serialize())
+
+
+class TokenBalanceMap(Serializable):
+    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
+
+    def __init__(self, balance_map: Dict):
+        if not isinstance(balance_map, Dict):
+            raise TypeError("TokenBalanceMap can only accept dict object")
+        self.balance_map = balance_map
+
+    def add(self, other: Dict):
+        for k, v in other.items():
+            self.balance_map[k] = self.balance_map.get(k, 0) + v
 
     def get_hash(self):
         return sha3_256(self.serialize())
@@ -755,7 +770,7 @@ class MinorBlockHeader(Serializable):
         height: int = 0,
         branch: Branch = Branch(1),
         coinbase_address: Address = Address.create_empty_account(),
-        coinbase_amount_map: Dict = None,
+        coinbase_amount_map: TokenBalanceMap = None,
         hash_prev_minor_block: bytes = bytes(Constant.HASH_LENGTH),
         hash_prev_root_block: bytes = bytes(Constant.HASH_LENGTH),
         evm_gas_limit: int = 30000 * 400,  # 400 transfer tx
@@ -771,7 +786,7 @@ class MinorBlockHeader(Serializable):
         self.height = height
         self.branch = branch
         self.coinbase_address = coinbase_address
-        self.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
+        self.coinbase_amount_map = coinbase_amount_map or TokenBalanceMap({})
         self.hash_prev_minor_block = hash_prev_minor_block
         self.hash_prev_root_block = hash_prev_root_block
         self.evm_gas_limit = evm_gas_limit
@@ -822,7 +837,9 @@ class MinorBlock(Serializable):
         self.meta.hash_merkle_root = self.calculate_merkle_root()
         return self
 
-    def finalize(self, evm_state, coinbase_amount_map, hash_prev_root_block=None):
+    def finalize(
+        self, evm_state, coinbase_amount_map: TokenBalanceMap, hash_prev_root_block=None
+    ):
         if hash_prev_root_block is not None:
             self.header.hash_prev_root_block = hash_prev_root_block
         self.meta.xshard_tx_cursor_info = evm_state.xshard_tx_cursor_info
@@ -880,7 +897,7 @@ class MinorBlock(Serializable):
         self,
         create_time=None,
         address=None,
-        coinbase_amount_map=None,
+        coinbase_tokens: Dict = None,
         difficulty=None,
         extra_data=b"",
         nonce=0,
@@ -889,9 +906,7 @@ class MinorBlock(Serializable):
             address = Address.create_empty_account(
                 full_shard_key=self.header.coinbase_address.full_shard_key
             )
-        meta = MinorBlockMeta(
-            xshard_tx_cursor_info=self.meta.xshard_tx_cursor_info,
-        )
+        meta = MinorBlockMeta(xshard_tx_cursor_info=self.meta.xshard_tx_cursor_info)
 
         create_time = (
             self.header.create_time + 1 if create_time is None else create_time
@@ -902,7 +917,7 @@ class MinorBlock(Serializable):
             height=self.header.height + 1,
             branch=self.header.branch,
             coinbase_address=address,
-            coinbase_amount_map=coinbase_amount_map,
+            coinbase_amount_map=TokenBalanceMap(coinbase_tokens or {}),
             hash_prev_minor_block=self.header.get_hash(),
             hash_prev_root_block=self.header.hash_prev_root_block,
             evm_gas_limit=self.header.evm_gas_limit,
@@ -919,20 +934,6 @@ class MinorBlock(Serializable):
 
     def __eq__(self, other):
         return isinstance(other, MinorBlock) and hash(other) == hash(self)
-
-
-class TokenBalanceMap(Serializable):
-    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
-
-    def __init__(self, balance_map: Dict):
-        self.balance_map = balance_map
-
-    def add(self, other: Dict):
-        for k, v in other.items():
-            self.balance_map[k] = self.balance_map.get(k, 0) + v
-
-    def get_hash(self):
-        return sha3_256(self.serialize())
 
 
 class RootBlockHeader(Serializable):
@@ -958,7 +959,7 @@ class RootBlockHeader(Serializable):
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
-        coinbase_amount_map=None,
+        coinbase_amount_map: TokenBalanceMap = None,
         create_time=0,
         difficulty=0,
         nonce=0,
@@ -971,7 +972,7 @@ class RootBlockHeader(Serializable):
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
         self.coinbase_address = coinbase_address
-        self.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
+        self.coinbase_amount_map = coinbase_amount_map or TokenBalanceMap({})
         self.create_time = create_time
         self.difficulty = difficulty
         self.nonce = nonce
@@ -1047,13 +1048,15 @@ class RootBlock(Serializable):
         self.tracking_data = tracking_data
 
     def finalize(
-        self, coinbase_amount_map=None, coinbase_address=Address.create_empty_account()
+        self,
+        coinbase_tokens: Dict = None,
+        coinbase_address=Address.create_empty_account(),
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
         )
 
-        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_amount_map or {})
+        self.header.coinbase_amount_map = TokenBalanceMap(coinbase_tokens or {})
         self.header.coinbase_address = coinbase_address
         return self
 
