@@ -408,6 +408,7 @@ class MasterConnection(ClusterConnection):
 
         BLOCK_BATCH_SIZE = 100
         block_hash_list = req.minor_block_hash_list
+        block_coinbase_map = {}
         # empty
         if not block_hash_list:
             return SyncMinorBlockListResponse(error_code=0)
@@ -444,20 +445,26 @@ class MasterConnection(ClusterConnection):
                     )
 
                 # Step 2: Check if the blocks are valid
-                add_block_success = await self.slave_server.add_block_list_for_sync(
+                add_block_success, coinbase_amount_list = await self.slave_server.add_block_list_for_sync(
                     block_chain
                 )
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
                     )
+                check(len(blocks_to_download) == len(coinbase_amount_list))
+                for hash, coinbase in zip(blocks_to_download, coinbase_amount_list):
+                    if coinbase:
+                        block_coinbase_map[hash] = coinbase
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
 
             branch = block_chain[0].header.branch
             shard = self.slave_server.shards.get(branch, None)
             check(shard is not None)
             return SyncMinorBlockListResponse(
-                error_code=0, shard_stats=shard.state.get_shard_stats()
+                error_code=0,
+                shard_stats=shard.state.get_shard_stats(),
+                block_coinbase_map=block_coinbase_map,
             )
         except Exception:
             Logger.error_exception()
@@ -938,11 +945,20 @@ class SlaveServer:
     # Cluster functions
 
     async def send_minor_block_header_to_master(
-        self, minor_block_header, tx_count, x_shard_tx_count, shard_stats
+        self,
+        minor_block_header,
+        tx_count,
+        x_shard_tx_count,
+        coinbase_amount_map: TokenBalanceMap,
+        shard_stats,
     ):
         """ Update master that a minor block has been appended successfully """
         request = AddMinorBlockHeaderRequest(
-            minor_block_header, tx_count, x_shard_tx_count, shard_stats
+            minor_block_header,
+            tx_count,
+            x_shard_tx_count,
+            coinbase_amount_map,
+            shard_stats,
         )
         _, resp, _ = await self.master.write_rpc_request(
             ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST, request
@@ -1090,7 +1106,7 @@ class SlaveServer:
         Returns true if blocks are successfully added. False on any error.
         """
         if not block_list:
-            return True
+            return True, None
         branch = block_list[0].header.branch
         shard = self.shards.get(branch, None)
         check(shard is not None)

@@ -449,9 +449,9 @@ def test_topic_table():
 
 def test_get_v5_topic():
     les_topic = discovery.get_v5_topic(LESProtocol, MinorBlockHeader().get_hash())
-    assert les_topic == b"LES@3d7de0b17a11990f"
+    assert les_topic == b"LES@0ce4d51d78f9d944"
     les2_topic = discovery.get_v5_topic(LESProtocolV2, MinorBlockHeader().get_hash())
-    assert les2_topic == b"LES2@3d7de0b17a11990f"
+    assert les2_topic == b"LES2@0ce4d51d78f9d944"
 
 
 def remove_whitespace(s):

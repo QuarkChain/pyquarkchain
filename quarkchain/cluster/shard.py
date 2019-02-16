@@ -473,7 +473,7 @@ class Shard:
             self.add_peer(conn)
 
     async def __init_genesis_state(self, root_block: RootBlock):
-        block = self.state.init_genesis_state(root_block)
+        block, coinbase_amount_map = self.state.init_genesis_state(root_block)
         xshard_list = []
         await self.slave.broadcast_xshard_tx_list(
             block, xshard_list, root_block.header.height
@@ -482,6 +482,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
@@ -587,7 +588,7 @@ class Shard:
         """
         old_tip = self.state.header_tip
         try:
-            xshard_list = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block)
         except Exception as e:
             Logger.error_exception()
             return False
@@ -627,6 +628,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
@@ -638,12 +640,15 @@ class Shard:
         """ Add blocks in batch to reduce RPCs. Will NOT broadcast to peers.
 
         Returns true if blocks are successfully added. False on any error.
+        Additionally, returns list of coinbase_amount_map for each block
+            (list can contain None indicating that the block has been added and master should receive token map soon)
         This function only adds blocks to local and propagate xshard list to other shards.
         It does NOT notify master because the master should already have the minor header list,
         and will add them once this function returns successfully.
         """
+        coinbase_amount_list = []
         if not block_list:
-            return True
+            return True, coinbase_amount_list
 
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
@@ -652,10 +657,13 @@ class Shard:
 
             block_hash = block.header.get_hash()
             try:
-                xshard_list = self.state.add_block(block, skip_if_too_old=False)
+                xshard_list, coinbase_amount_map = self.state.add_block(
+                    block, skip_if_too_old=False
+                )
+                coinbase_amount_list.append(coinbase_amount_map)
             except Exception as e:
                 Logger.error_exception()
-                return False
+                return False, coinbase_amount_list
 
             # block already existed in local shard state
             # but might not have been propagated to other shards and master
@@ -681,7 +689,7 @@ class Shard:
 
         await asyncio.gather(*existing_add_block_futures)
 
-        return True
+        return True, coinbase_amount_list
 
     def add_tx_list(self, tx_list, source_peer=None):
         if not tx_list:

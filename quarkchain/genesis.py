@@ -9,6 +9,7 @@ from quarkchain.core import (
     Branch,
     RootBlockHeader,
     RootBlock,
+    TokenBalanceMap,
 )
 from quarkchain.evm.state import State as EvmState
 from quarkchain.utils import sha3_256, check, token_id_encode
@@ -72,11 +73,12 @@ class GenesisManager:
         )
 
         local_fee_rate = 1 - self._qkc_config.reward_tax_rate  # type: Fraction
-        coinbase_amount = (
-            shard_config.COINBASE_AMOUNT
+        coinbase_tokens = {
+            self._qkc_config.genesis_token: shard_config.COINBASE_AMOUNT
             * local_fee_rate.numerator
             // local_fee_rate.denominator
-        )
+        }
+
         coinbase_address = Address.create_empty_account(full_shard_id)
 
         header = MinorBlockHeader(
@@ -87,10 +89,13 @@ class GenesisManager:
             hash_prev_root_block=root_block.header.get_hash(),
             evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
-            coinbase_amount=coinbase_amount,
+            coinbase_amount_map=TokenBalanceMap(coinbase_tokens),
             coinbase_address=coinbase_address,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),
         )
-        return MinorBlock(header=header, meta=meta, tx_list=[])
+        return (
+            MinorBlock(header=header, meta=meta, tx_list=[]),
+            TokenBalanceMap(coinbase_tokens),
+        )

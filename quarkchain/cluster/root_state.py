@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from fractions import Fraction
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import validate_seal
@@ -251,7 +251,7 @@ class RootState:
     def get_tip_block(self):
         return self.db.get_root_block_by_hash(self.tip.get_hash())
 
-    def add_validated_minor_block_hash(self, hash: bytes, coinbase_tokens: dict):
+    def add_validated_minor_block_hash(self, hash: bytes, coinbase_tokens: Dict):
         self.db.put_minor_block_coinbase(hash, coinbase_tokens)
 
     def get_next_block_difficulty(self, create_time=None):
@@ -259,7 +259,7 @@ class RootState:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
-    def _calculate_root_block_coinbase(self, m_hash_list: List[bytes]) -> dict:
+    def _calculate_root_block_coinbase(self, m_hash_list: List[bytes]) -> Dict:
         """
         assumes all minor blocks in m_hash_list have been processed by slaves and thus available when looking up
         """
@@ -301,15 +301,13 @@ class RootState:
         )
         block.minor_block_header_list = m_header_list
 
-        coinbase_amount_map = self._calculate_root_block_coinbase(
+        coinbase_tokens = self._calculate_root_block_coinbase(
             [header.get_hash() for header in m_header_list]
         )
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
-        return block.finalize(
-            coinbase_amount_map=coinbase_amount_map, coinbase_address=address
-        )
+        return block.finalize(coinbase_tokens=coinbase_tokens, coinbase_address=address)
 
     def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
         """ Validate the block header.
@@ -399,13 +397,13 @@ class RootState:
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
 
             # TODO:  Support collecting tax from multiple native tokens
-            if len(block.header.coinbase_amount_map.balance_map) > 1:
+            if len(actual_coinbase_amount) > 1:
                 raise ValueError("Incorrect coinbase_amount_map: too many tokens")
 
             if (
-                len(block.header.coinbase_amount_map.balance_map) == 1
+                len(actual_coinbase_amount) == 1
                 and self.env.quark_chain_config.genesis_token
-                not in block.header.coinbase_amount_map.balance_map
+                not in actual_coinbase_amount
             ):
                 raise ValueError(
                     "Incorrect coinbase_amount_map: genesis_token_id not found"

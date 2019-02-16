@@ -266,14 +266,14 @@ class SyncTask:
                 raise RuntimeError("Unable to download minor blocks from root block")
             if result.shard_stats:
                 self.master_server.update_shard_stats(result.shard_stats)
+            for k, v in result.block_coinbase_map.items():
+                self.root_state.add_validated_minor_block_hash(k, v.balance_map)
 
         for m_header in minor_block_header_list:
-            self.root_state.add_validated_minor_block_hash(
-                m_header.get_hash(),
-                {
-                    self.master_server.env.quark_chain_config.genesis_token: m_header.coinbase_amount
-                },
-            )
+            if not self.root_state.is_minor_block_validated(m_header.get_hash()):
+                raise RuntimeError(
+                    "minor block is still unavailable in master after root block sync"
+                )
 
 
 class Synchronizer:
@@ -567,10 +567,7 @@ class SlaveConnection(ClusterConnection):
 
     async def handle_add_minor_block_header_request(self, req):
         self.master_server.root_state.add_validated_minor_block_hash(
-            req.minor_block_header.get_hash(),
-            {
-                self.master_server.env.quark_chain_config.genesis_token: req.minor_block_header.coinbase_amount
-            },
+            req.minor_block_header.get_hash(), req.coinbase_amount_map.balance_map
         )
         self.master_server.update_shard_stats(req.shard_stats)
         self.master_server.update_tx_count_history(

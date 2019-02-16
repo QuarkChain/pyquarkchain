@@ -22,6 +22,7 @@ from quarkchain.core import (
     Branch,
     ChainMask,
     TokenBalanceMap,
+    PrependedSizeMapSerializer,
 )
 from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
 
@@ -563,10 +564,15 @@ class SyncMinorBlockListRequest(Serializable):
 
 
 class SyncMinorBlockListResponse(Serializable):
-    FIELDS = [("error_code", uint32), ("shard_stats", Optional(ShardStats))]
+    FIELDS = [
+        ("error_code", uint32),
+        ("block_coinbase_map", PrependedSizeMapSerializer(4, hash256, TokenBalanceMap)),
+        ("shard_stats", Optional(ShardStats)),
+    ]
 
-    def __init__(self, error_code, shard_stats=None):
+    def __init__(self, error_code, block_coinbase_map=None, shard_stats=None):
         self.error_code = error_code
+        self.block_coinbase_map = block_coinbase_map or {}
         self.shard_stats = shard_stats
 
 
@@ -574,7 +580,7 @@ class SyncMinorBlockListResponse(Serializable):
 
 
 class AddMinorBlockHeaderRequest(Serializable):
-    """ Notify master about a successfully added minro block.
+    """ Notify master about a successfully added minor block.
     Piggyback the ShardStats in the same request.
     """
 
@@ -582,13 +588,22 @@ class AddMinorBlockHeaderRequest(Serializable):
         ("minor_block_header", MinorBlockHeader),
         ("tx_count", uint32),  # the total number of tx in the block
         ("x_shard_tx_count", uint32),  # the number of xshard tx in the block
+        ("coinbase_amount_map", TokenBalanceMap),
         ("shard_stats", ShardStats),
     ]
 
-    def __init__(self, minor_block_header, tx_count, x_shard_tx_count, shard_stats):
+    def __init__(
+        self,
+        minor_block_header,
+        tx_count,
+        x_shard_tx_count,
+        coinbase_amount_map,
+        shard_stats,
+    ):
         self.minor_block_header = minor_block_header
         self.tx_count = tx_count
         self.x_shard_tx_count = x_shard_tx_count
+        self.coinbase_amount_map = coinbase_amount_map
         self.shard_stats = shard_stats
 
 

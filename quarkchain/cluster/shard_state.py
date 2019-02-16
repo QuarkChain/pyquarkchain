@@ -20,6 +20,7 @@ from quarkchain.core import (
     Transaction,
     Log,
     XshardTxCursorInfo,
+    TokenBalanceMap,
 )
 from quarkchain.core import (
     mk_receipt_sha,
@@ -67,10 +68,11 @@ class XshardTxCursor:
         self.db = shard_state.db
 
         # Recover cursor
-        self.max_rblock_header = self.db.get_root_block_header_by_hash(mblock_header.hash_prev_root_block)
+        self.max_rblock_header = self.db.get_root_block_header_by_hash(
+            mblock_header.hash_prev_root_block
+        )
         rblock_header = self.db.get_root_block_header_by_height(
-            mblock_header.hash_prev_root_block,
-            cursor_info.root_block_height
+            mblock_header.hash_prev_root_block, cursor_info.root_block_height
         )
         self.mblock_index = cursor_info.minor_block_index
         self.xshard_deposit_index = cursor_info.xshard_deposit_index
@@ -81,7 +83,9 @@ class XshardTxCursor:
             self.rblock = self.db.get_root_block_by_hash(rblock_header.get_hash())
             if self.mblock_index != 0:
                 self.xtx_list = self.db.get_minor_block_xshard_tx_list(
-                    self.rblock.minor_block_header_list[self.mblock_index - 1].get_hash()
+                    self.rblock.minor_block_header_list[
+                        self.mblock_index - 1
+                    ].get_hash()
                 ).tx_list
         else:
             # EOF
@@ -94,7 +98,9 @@ class XshardTxCursor:
             # TODO: For single native token only
             if self.xshard_deposit_index == 1:
                 coinbase_amount = 0
-                if self.shard_state.branch.is_in_branch(self.rblock.header.coinbase_address.full_shard_key):
+                if self.shard_state.branch.is_in_branch(
+                    self.rblock.header.coinbase_address.full_shard_key
+                ):
                     coinbase_amount = self.rblock.header.coinbase_amount_map.balance_map.get(
                         self.shard_state.genesis_token_id, 0
                     )
@@ -107,7 +113,8 @@ class XshardTxCursor:
                     value=coinbase_amount,
                     gas_price=0,
                     gas_token_id=self.shard_state.genesis_token_id,
-                    transfer_token_id=self.shard_state.genesis_token_id)
+                    transfer_token_id=self.shard_state.genesis_token_id,
+                )
 
             return None
         elif self.xshard_deposit_index < len(self.xtx_list):
@@ -116,8 +123,8 @@ class XshardTxCursor:
             return None
 
     def get_next_tx(self):
-        ''' Return XshardDeposit if succeed else return None
-        '''
+        """ Return XshardDeposit if succeed else return None
+        """
         # Check if reach EOF
         if self.rblock is None:
             return None
@@ -136,26 +143,36 @@ class XshardTxCursor:
             # If it is not neighbor, move to next minor block
             mblock_header = self.rblock.minor_block_header_list[self.mblock_index - 1]
             if (
-                not self.shard_state._is_neighbor(mblock_header.branch, self.rblock.header.height) or
-                mblock_header.branch == self.shard_state.branch
+                not self.shard_state._is_neighbor(
+                    mblock_header.branch, self.rblock.header.height
+                )
+                or mblock_header.branch == self.shard_state.branch
             ):
                 check(self.xshard_deposit_index == 0)
                 self.mblock_index += 1
                 continue
 
             # Check if the neighbor has the permission to send tx to local shard
-            prev_root_header = self.db.get_root_block_header_by_hash(mblock_header.hash_prev_root_block)
+            prev_root_header = self.db.get_root_block_header_by_hash(
+                mblock_header.hash_prev_root_block
+            )
             if (
-                prev_root_header.height <= self.shard_state.env.quark_chain_config.get_genesis_root_height(
+                prev_root_header.height
+                <= self.shard_state.env.quark_chain_config.get_genesis_root_height(
                     self.shard_state.full_shard_id
                 )
             ):
                 check(self.xshard_deposit_index == 0)
-                check(self.db.get_minor_block_xshard_tx_list(mblock_header.get_hash()) is None)
+                check(
+                    self.db.get_minor_block_xshard_tx_list(mblock_header.get_hash())
+                    is None
+                )
                 self.mblock_index += 1
                 continue
 
-            self.xtx_list = self.db.get_minor_block_xshard_tx_list(mblock_header.get_hash()).tx_list
+            self.xtx_list = self.db.get_minor_block_xshard_tx_list(
+                mblock_header.get_hash()
+            ).tx_list
 
             tx = self.__get_current_tx()
             if tx is not None:
@@ -167,8 +184,7 @@ class XshardTxCursor:
 
         # Move to next root block
         rblock_header = self.db.get_root_block_header_by_height(
-            self.max_rblock_header.get_hash(),
-            self.rblock.header.height + 1
+            self.max_rblock_header.get_hash(), self.rblock.header.height + 1
         )
         if rblock_header is None:
             # EOF
@@ -184,11 +200,16 @@ class XshardTxCursor:
             return self.__get_current_tx()
 
     def get_cursor_info(self):
-        root_block_height = self.rblock.header.height if self.rblock is not None else self.max_rblock_header.height + 1
+        root_block_height = (
+            self.rblock.header.height
+            if self.rblock is not None
+            else self.max_rblock_header.height + 1
+        )
         return XshardTxCursorInfo(
             root_block_height=root_block_height,
             minor_block_index=self.mblock_index,
-            xshard_deposit_index=self.xshard_deposit_index)
+            xshard_deposit_index=self.xshard_deposit_index,
+        )
 
 
 class ShardState:
@@ -314,12 +335,13 @@ class ShardState:
         If a genesis block has already been created (probably from another root block
         with the same height), create and store the new genesis block from root_block
         without modifying the in-memory state of this ShardState object.
+        Additionally returns the coinbase_amount_map from the genesis block
         """
         height = self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         check(root_block.header.height == height)
 
         genesis_manager = GenesisManager(self.env.quark_chain_config)
-        genesis_block = genesis_manager.create_minor_block(
+        genesis_block, coinbase_amount_map = genesis_manager.create_minor_block(
             root_block,
             self.full_shard_id,
             self.__create_evm_state(trie_root_hash=None, header_hash=None),
@@ -331,7 +353,7 @@ class ShardState:
 
         if self.initialized:
             # already initialized. just return the block without resetting the state.
-            return genesis_block
+            return genesis_block, coinbase_amount_map
 
         # block index should not be overwritten if there is already a genesis block
         # this must happen after the above initialization check
@@ -357,10 +379,15 @@ class ShardState:
             )
         )
         self.initialized = True
-        return genesis_block
+        return genesis_block, coinbase_amount_map
 
     def __validate_tx(
-        self, tx: Transaction, evm_state, from_address=None, gas=None, xshard_gas_limit=None
+        self,
+        tx: Transaction,
+        evm_state,
+        from_address=None,
+        gas=None,
+        xshard_gas_limit=None,
     ) -> EvmTransaction:
         """from_address will be set for execute_tx"""
         # UTXOs are not supported now
@@ -455,14 +482,17 @@ class ShardState:
         return self.get_gas_limit(gas_limit=gas_limit) // 2
 
     def get_gas_limit_all(self, gas_limit=None, xshard_gas_limit=None):
-        return self.get_gas_limit(gas_limit), self.get_xshard_gas_limit(gas_limit, xshard_gas_limit)
+        return (
+            self.get_gas_limit(gas_limit),
+            self.get_xshard_gas_limit(gas_limit, xshard_gas_limit),
+        )
 
     def add_tx(self, tx: Transaction, xshard_gas_limit=None):
-        ''' Add a tx to the tx queue
+        """ Add a tx to the tx queue
         xshard_gas_limit is used for testing, which discards the tx if
         - tx is x-shard; and
         - tx's startgas exceeds xshard_gas_limit
-        '''
+        """
         if (
             len(self.tx_queue)
             > self.env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
@@ -481,7 +511,9 @@ class ShardState:
         evm_state = self.evm_state.ephemeral_clone()
         evm_state.gas_used = 0
         try:
-            evm_tx = self.__validate_tx(tx, evm_state, xshard_gas_limit=xshard_gas_limit)
+            evm_tx = self.__validate_tx(
+                tx, evm_state, xshard_gas_limit=xshard_gas_limit
+            )
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
             return True
@@ -532,7 +564,9 @@ class ShardState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def __validate_block(self, block: MinorBlock, gas_limit=None, xshard_gas_limit=None):
+    def __validate_block(
+        self, block: MinorBlock, gas_limit=None, xshard_gas_limit=None
+    ):
         """ Validate a block before running evm transactions
         """
         height = block.header.height
@@ -581,16 +615,24 @@ class ShardState:
             raise ValueError("tracking_data in block is too large")
 
         # Gas limit check
-        gas_limit, xshard_gas_limit = self.get_gas_limit_all(gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
+        gas_limit, xshard_gas_limit = self.get_gas_limit_all(
+            gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit
+        )
         if block.header.evm_gas_limit != gas_limit:
-            raise ValueError("incorrect gas limit, expected %d, actual %d" % (
-                gas_limit, block.header.evm_gas_limit))
+            raise ValueError(
+                "incorrect gas limit, expected %d, actual %d"
+                % (gas_limit, block.header.evm_gas_limit)
+            )
         if block.meta.evm_xshard_gas_limit >= block.header.evm_gas_limit:
-            raise ValueError("xshard_gas_limit %d should not exceed total gas_limit %d" % (
-                block.meta.evm_xshard_gas_limit, block.header.evm_gas_limit))
+            raise ValueError(
+                "xshard_gas_limit %d should not exceed total gas_limit %d"
+                % (block.meta.evm_xshard_gas_limit, block.header.evm_gas_limit)
+            )
         if block.meta.evm_xshard_gas_limit != xshard_gas_limit:
-            raise ValueError("incorrect xshard gas limit, expected %d, actual %d" % (
-                xshard_gas_limit, block.meta.evm_xshard_gas_limit))
+            raise ValueError(
+                "incorrect xshard gas limit, expected %d, actual %d"
+                % (xshard_gas_limit, block.meta.evm_xshard_gas_limit)
+            )
 
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
@@ -647,11 +689,7 @@ class ShardState:
         self.validate_minor_block_seal(block)
 
     def run_block(
-        self,
-        block,
-        evm_state=None,
-        evm_tx_included=None,
-        x_shard_receive_tx_list=None,
+        self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
     ):
         if evm_tx_included is None:
             evm_tx_included = []
@@ -667,21 +705,18 @@ class ShardState:
         )
 
         xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
-            evm_state=evm_state,
-            mblock=block,
+            evm_state=evm_state, mblock=block
         )
         x_shard_receive_tx_list.extend(xtx_list)
 
         # Adjust inshard gas limit if xshard gas limit is not exhausted
         if evm_state.gas_used < block.meta.evm_xshard_gas_limit:
-            evm_state.gas_limit -= (block.meta.evm_xshard_gas_limit - evm_state.gas_used)
+            evm_state.gas_limit -= block.meta.evm_xshard_gas_limit - evm_state.gas_used
 
         for idx, tx in enumerate(block.tx_list):
             try:
                 evm_tx = self.__validate_tx(
-                    tx,
-                    evm_state,
-                    xshard_gas_limit=block.meta.evm_xshard_gas_limit
+                    tx, evm_state, xshard_gas_limit=block.meta.evm_xshard_gas_limit
                 )
                 evm_tx.set_quark_chain_config(self.env.quark_chain_config)
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
@@ -696,12 +731,9 @@ class ShardState:
                 raise e
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_token_balance(
-            evm_state.block_coinbase,
-            self.env.quark_chain_config.genesis_token,
-            pure_coinbase_amount,
-        )
+        pure_coinbase_amount = self.get_coinbase_amount_map()
+        for k, v in pure_coinbase_amount.balance_map.items():
+            evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
         # Update actual root hash
         evm_state.commit()
@@ -775,11 +807,14 @@ class ShardState:
             evm_tx_list.append(tx.code.get_evm_transaction())
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
-    def add_block(self, block, skip_if_too_old=True, gas_limit=None, xshard_gas_limit=None):
+    def add_block(
+        self, block, skip_if_too_old=True, gas_limit=None, xshard_gas_limit=None
+    ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
         Returns None if block is already added.
         Returns a list of CrossShardTransactionDeposit from block.
+        Additionally, returns a map of reward token balances for this block
         Raises on any error.
         """
         start_time = time.time()
@@ -805,12 +840,14 @@ class ShardState:
 
         block_hash = block.header.get_hash()
         if self.db.contain_minor_block_by_hash(block_hash):
-            return None
+            return None, None
 
         evm_tx_included = []
         x_shard_receive_tx_list = []
         # Throw exception if fail to run
-        self.__validate_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
+        self.__validate_block(
+            block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit
+        )
         evm_state = self.run_block(
             block,
             evm_tx_included=evm_tx_included,
@@ -852,8 +889,16 @@ class ShardState:
                     evm_state.xshard_receive_gas_used,
                 )
             )
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
-        if coinbase_amount != block.header.coinbase_amount:
+        coinbase_amount_map = self.get_coinbase_amount_map()
+        # add block reward
+        coinbase_amount_map.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+
+        if (
+            coinbase_amount_map.balance_map
+            != block.header.coinbase_amount_map.balance_map
+        ):
             raise ValueError("coinbase reward incorrect")
 
         if evm_state.bloom != block.header.bloom:
@@ -931,28 +976,32 @@ class ShardState:
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
             )
-        return evm_state.xshard_list
+        return evm_state.xshard_list, coinbase_amount_map
 
-    def get_coinbase_amount(self) -> int:
+    def get_coinbase_amount_map(self) -> TokenBalanceMap:
         coinbase_amount = (
             self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
             * self.local_fee_rate.numerator
             // self.local_fee_rate.denominator
         )
-        return coinbase_amount
+        # shard coinbase only in genesis_token
+        return TokenBalanceMap(
+            {self.env.quark_chain_config.genesis_token: coinbase_amount}
+        )
 
     def get_tip(self) -> MinorBlock:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
 
     def finalize_and_add_block(self, block, gas_limit=None, xshard_gas_limit=None):
-        ''' Finalize the block by filling post-tx data including tx fee collected
+        """ Finalize the block by filling post-tx data including tx fee collected
         gas_limit and xshard_gas_limit is used to verify customized gas limits and they are for test purpose only
-        '''
+        """
         evm_state = self.run_block(block)
-        coinbase_amount = self.get_coinbase_amount() + evm_state.block_fee
-        block.finalize(
-            evm_state=evm_state,
-            coinbase_amount=coinbase_amount)
+        coinbase_amount_map = self.get_coinbase_amount_map()
+        coinbase_amount_map.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+        block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
         self.add_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
 
     def get_token_balance(
@@ -1059,10 +1108,15 @@ class ShardState:
         return headers[0:max_blocks]
 
     def get_unconfirmed_headers_coinbase_amount(self) -> int:
+        """ only returns genesis token coinbase amount
+        TODO remove coinbase_amount_map from minor header, this is the ONLY place that requires it
+        """
         amount = 0
         headers = self.get_unconfirmed_header_list()
         for header in headers:
-            amount += header.coinbase_amount
+            amount += header.coinbase_amount_map.balance_map.get(
+                self.env.quark_chain_config.genesis_token, 0
+            )
         return amount
 
     def __get_max_blocks_in_one_root_block(self) -> int:
@@ -1104,7 +1158,7 @@ class ShardState:
         address=None,
         gas_limit=None,
         xshard_gas_limit=None,
-        include_tx=True
+        include_tx=True,
     ):
         """ Create a block to append and include TXs to maximize rewards
         """
@@ -1123,7 +1177,9 @@ class ShardState:
 
         # Add corrected gas limit
         # Set gas_limit.  Since gas limit is fixed between blocks, this is for test purpose only.
-        gas_limit, xshard_gas_limit = self.get_gas_limit_all(gas_limit, xshard_gas_limit)
+        gas_limit, xshard_gas_limit = self.get_gas_limit_all(
+            gas_limit, xshard_gas_limit
+        )
         block.header.evm_gas_limit = gas_limit
         block.meta.evm_xshard_gas_limit = xshard_gas_limit
         evm_state = self._get_evm_state_for_new_block(block)
@@ -1132,30 +1188,28 @@ class ShardState:
         # This is part of consensus.
         block.header.hash_prev_root_block = self.root_tip.get_hash()
         xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
-            evm_state=evm_state,
-            mblock=block,
+            evm_state=evm_state, mblock=block
         )
 
         # Adjust inshard tx limit if xshard gas limit is not exhausted
         if evm_state.gas_used < xshard_gas_limit:
-            evm_state.gas_limit -= (xshard_gas_limit - evm_state.gas_used)
+            evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
         if include_tx:
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount()
-        evm_state.delta_token_balance(
-            evm_state.block_coinbase,
-            self.env.quark_chain_config.genesis_token,
-            pure_coinbase_amount,
-        )
+        pure_coinbase_amount = self.get_coinbase_amount_map()
+        for k, v in pure_coinbase_amount.balance_map.items():
+            evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
         # Update actual root hash
         evm_state.commit()
 
-        coinbase_amount = pure_coinbase_amount + evm_state.block_fee
-        block.finalize(evm_state=evm_state, coinbase_amount=coinbase_amount)
+        pure_coinbase_amount.add(
+            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
+        )
+        block.finalize(evm_state=evm_state, coinbase_amount_map=pure_coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
@@ -1369,11 +1423,16 @@ class ShardState:
         evm_state.delta_token_balance(
             tx.to_address.recipient, tx.transfer_token_id, tx.value
         )
-        evm_state.gas_used = evm_state.gas_used + (opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0)
+        evm_state.gas_used = evm_state.gas_used + (
+            opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
+        )
         check(evm_state.gas_used <= evm_state.gas_limit)
 
         xshard_fee = (
-            opcodes.GTXXSHARDCOST * tx.gas_price * self.local_fee_rate.numerator // self.local_fee_rate.denominator
+            opcodes.GTXXSHARDCOST
+            * tx.gas_price
+            * self.local_fee_rate.numerator
+            // self.local_fee_rate.denominator
         )
         evm_state.block_fee += xshard_fee
         evm_state.delta_token_balance(
@@ -1381,7 +1440,9 @@ class ShardState:
         )
 
     def __run_cross_shard_tx_with_cursor(self, evm_state, mblock):
-        cursor_info = self.db.get_minor_block_meta_by_hash(mblock.header.hash_prev_minor_block).xshard_tx_cursor_info
+        cursor_info = self.db.get_minor_block_meta_by_hash(
+            mblock.header.hash_prev_minor_block
+        ).xshard_tx_cursor_info
         cursor = XshardTxCursor(self, mblock.header, cursor_info)
         tx_list = []
 
