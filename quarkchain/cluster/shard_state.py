@@ -37,6 +37,7 @@ from quarkchain.evm.messages import apply_transaction, validate_transaction
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
@@ -891,9 +892,7 @@ class ShardState:
             )
         coinbase_amount_map = self.get_coinbase_amount_map()
         # add block reward
-        coinbase_amount_map.add(
-            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
-        )
+        coinbase_amount_map.add(evm_state.block_fee_tokens)
 
         if (
             coinbase_amount_map.balance_map
@@ -998,9 +997,7 @@ class ShardState:
         """
         evm_state = self.run_block(block)
         coinbase_amount_map = self.get_coinbase_amount_map()
-        coinbase_amount_map.add(
-            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
-        )
+        coinbase_amount_map.add(evm_state.block_fee_tokens)
         block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
         self.add_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
 
@@ -1206,9 +1203,7 @@ class ShardState:
         # Update actual root hash
         evm_state.commit()
 
-        pure_coinbase_amount.add(
-            {self.env.quark_chain_config.genesis_token: evm_state.block_fee}
-        )
+        pure_coinbase_amount.add(evm_state.block_fee_tokens)
         block.finalize(evm_state=evm_state, coinbase_amount_map=pure_coinbase_amount)
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
@@ -1434,7 +1429,7 @@ class ShardState:
             * self.local_fee_rate.numerator
             // self.local_fee_rate.denominator
         )
-        evm_state.block_fee += xshard_fee
+        add_dict(evm_state.block_fee_tokens, {tx.gas_token_id: xshard_fee})
         evm_state.delta_token_balance(
             evm_state.block_coinbase, tx.gas_token_id, xshard_fee
         )

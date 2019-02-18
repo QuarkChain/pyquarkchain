@@ -1545,9 +1545,7 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(
             evm_state=evm_state,
-            coinbase_amount_map=TokenBalanceMap(
-                {self.genesis_token: evm_state.block_fee}
-            ),
+            coinbase_amount_map=TokenBalanceMap(evm_state.block_fee_tokens),
         )
 
         root_block = (
@@ -1594,9 +1592,7 @@ class TestShardState(unittest.TestCase):
         evm_state = state1.run_block(b1)
         b1.finalize(
             evm_state=evm_state,
-            coinbase_amount_map=TokenBalanceMap(
-                {self.genesis_token: evm_state.block_fee}
-            ),
+            coinbase_amount_map=TokenBalanceMap(evm_state.block_fee_tokens),
         )
 
         # Add one empty root block
