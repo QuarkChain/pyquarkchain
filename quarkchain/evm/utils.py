@@ -5,6 +5,7 @@ from rlp.sedes import big_endian_int, BigEndianInt, Binary
 from quarkchain.rlp.utils import decode_hex, encode_hex, ascii_chr, str_to_bytes
 import random
 from quarkchain.utils import sha3_256 as sha3
+from typing import Dict
 
 
 try:

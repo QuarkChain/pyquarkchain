@@ -162,9 +162,6 @@ class TestNativeTokenShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
         self.assertEqual(
-            state.get_token_balance(id1.recipient, QETH), 10000000 - opcodes.GTXCOST
-        )
-        self.assertEqual(
             state.get_token_balance(acc1.recipient, QETH),
             10000000 - opcodes.GTXCOST - 12345,
         )
