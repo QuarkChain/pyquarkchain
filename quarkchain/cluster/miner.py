@@ -39,7 +39,11 @@ def validate_seal(
             raise ValueError("invalid pow proof")
     elif consensus_type == ConsensusType.POW_QKCHASH:
         if not qkchash_check_pow(
-            block_header.get_hash_for_mining(), block_header.mixhash, nonce_bytes, diff
+            block_header.height,
+            block_header.get_hash_for_mining(),
+            block_header.mixhash,
+            nonce_bytes,
+            diff,
         ):
             raise ValueError("invalid pow proof")
     elif consensus_type == ConsensusType.POW_DOUBLESHA256:
@@ -98,7 +102,7 @@ class Ethash(MiningAlgorithm):
 
 class Qkchash(MiningAlgorithm):
     def __init__(self, work: MiningWork, **kwargs):
-        self.miner = QkchashMiner(work.difficulty, work.hash)
+        self.miner = QkchashMiner(work.height, work.difficulty, work.hash)
 
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         nonce_found, mixhash = self.miner.mine(
