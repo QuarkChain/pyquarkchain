@@ -3,7 +3,7 @@ import unittest
 from qkchash.qkcpow import QkchashMiner, check_pow
 
 
-class TestQkcpow(unittest.TestCase):
+class TestQkcPow(unittest.TestCase):
     def test_pow(self):
         header = (2 ** 256 - 1234567890).to_bytes(32, "big")
         diff = 10
@@ -20,7 +20,7 @@ class TestQkcpow(unittest.TestCase):
         self.assertTrue(check_pow(height, header, mixhash, nonce, diff))
 
         # In the same epoch
-        height = 3000 
+        height = 3000
         self.assertTrue(check_pow(height, header, mixhash, nonce, diff))
 
         # wrong epoch

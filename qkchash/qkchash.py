@@ -39,6 +39,7 @@ def serialize_cache(ds):
 
 serialize_dataset = serialize_cache
 
+
 # sha3 hash function, outputs 64 bytes
 
 
@@ -130,8 +131,9 @@ class QkcHashCache:
         self._native._cache_destroy(self._ptr)
 
 
-cache_seeds = [b'\x00' * 32] # type: List[bytes]
+cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 EPOCH_LENGTH = 30000  # blocks per epoch
+
 
 class QkcHashNative:
     def __init__(self, lib_path="libqkchash.so"):
@@ -162,13 +164,6 @@ class QkcHashNative:
         ptr = self._cache_create(cache, len(cache))
         return QkcHashCache(self, ptr)
 
-    def make_cache_block_number(self, entries, block_number):
-        seed = get_seed_from_block_number(block_number)
-        return self.make_cache(entries, seed)
-
-    def dup_cache(self, cache):
-        return cache
-
     def calculate_hash(self, header, nonce, cache):
         s = sha3_512(header + nonce[::-1])
         seed = list_to_uint64_array(s)
@@ -183,12 +178,13 @@ class QkcHashNative:
 
 
 def get_seed_from_block_number(block_number: int):
-    while (len(cache_seeds) <= block_number // EPOCH_LENGTH):
+    while len(cache_seeds) <= block_number // EPOCH_LENGTH:
         new_seed = serialize_hash(sha3_256(cache_seeds[-1]))
         cache_seeds.append(new_seed)
-        
+
     seed = cache_seeds[block_number // EPOCH_LENGTH]
     return seed
+
 
 def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
     s = sha3_512(header + nonce[::-1])
@@ -236,19 +232,27 @@ class TestQkcHash(unittest.TestCase):
         cache = make_cache(CACHE_ENTRIES, bytes())
         self.assertEqual(len(cache), CACHE_ENTRIES)
 
-        v0 = [11967621512234744254, 11712119753881699857,
-              4190255959603841725, 6654395615551794006]
+        v0 = [
+            11967621512234744254,
+            11712119753881699857,
+            4190255959603841725,
+            6654395615551794006,
+        ]
         h0 = qkchash(bytes(), bytes(), cache)
         self.assertEqual(h0["mix digest"], serialize_hash(v0))
 
-        v1 = [12754842531904701011, 8384861435613290118,
-              2739024099562295228, 4448910328080420635]
+        v1 = [
+            12754842531904701011,
+            8384861435613290118,
+            2739024099562295228,
+            4448910328080420635,
+        ]
         h1 = qkchash(b"Hello World!", bytes(), cache)
         self.assertEqual(h1["mix digest"], serialize_hash(v1))
 
 
 def test_qkchash_perf():
-    N = 10
+    n = 10
     start_time = time.time()
     cache = make_cache(CACHE_ENTRIES, bytes())
     used_time = time.time() - start_time
@@ -256,12 +260,12 @@ def test_qkchash_perf():
 
     start_time = time.time()
     h0 = []
-    for nonce in range(N):
+    for nonce in range(n):
         h0.append(qkchash(bytes(4), nonce.to_bytes(4, byteorder="big"), cache))
     used_time = time.time() - start_time
     print(
         "Python version, time used: %.2f, hashes per sec: %.2f"
-        % (used_time, N / used_time)
+        % (used_time, n / used_time)
     )
 
     # Native version
@@ -270,18 +274,15 @@ def test_qkchash_perf():
 
     start_time = time.time()
     h1 = []
-    N = 1000
-    for nonce in range(N):
-        dup_cache = native.dup_cache(cache)
+    n = 1000
+    for nonce in range(n):
         h1.append(
-            native.calculate_hash(
-                bytes(4), nonce.to_bytes(4, byteorder="big"), dup_cache
-            )
+            native.calculate_hash(bytes(4), nonce.to_bytes(4, byteorder="big"), cache)
         )
     used_time = time.time() - start_time
     print(
         "Native version, time used: %.2f, hashes per sec: %.2f"
-        % (used_time, N / used_time)
+        % (used_time, n / used_time)
     )
 
     print("Equal: ", h0 == h1[0 : len(h0)])
