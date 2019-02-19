@@ -2,8 +2,7 @@ import os
 from functools import lru_cache
 from typing import Optional, Tuple
 
-from qkchash.qkchash import CACHE_ENTRIES, make_cache, qkchash, QkcHashNative
-
+from qkchash.qkchash import CACHE_ENTRIES, make_cache, qkchash, QkcHashNative, get_seed_from_block_number
 
 
 def get_qkchashlib_path():
@@ -30,8 +29,13 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
-    current_cache = QKC_HASH_NATIVE.make_cache_block_number(CACHE_ENTRIES, block_number)
-    mining_output = QKC_HASH_NATIVE.calculate_hash(header_hash, nonce, current_cache)
+    if QKC_HASH_NATIVE is None:
+        seed = get_seed_from_block_number(block_number)
+        current_cache = make_cache(CACHE_ENTRIES, seed)	
+        mining_output = qkchash(header_hash, nonce, current_cache)
+    else:
+        current_cache = QKC_HASH_NATIVE.make_cache_block_number(CACHE_ENTRIES, block_number)
+        mining_output = QKC_HASH_NATIVE.calculate_hash(header_hash, nonce, current_cache)
 
     if mining_output["mix digest"] != mixhash:
         return False
@@ -66,8 +70,13 @@ def mine(
         # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
 
-        current_cache = QKC_HASH_NATIVE.make_cache_block_number(CACHE_ENTRIES, block_number)
-        mining_output = QKC_HASH_NATIVE.calculate_hash(
+        if QKC_HASH_NATIVE is None:
+            seed = get_seed_from_block_number(block_number)
+            current_cache = make_cache(CACHE_ENTRIES, seed)	
+            mining_output = qkchash(header_hash, bin_nonce, current_cache)
+        else:
+            current_cache = QKC_HASH_NATIVE.make_cache_block_number(CACHE_ENTRIES, block_number)
+            mining_output = QKC_HASH_NATIVE.calculate_hash(
                 header_hash, bin_nonce, current_cache
             )
 

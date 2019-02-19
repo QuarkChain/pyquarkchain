@@ -163,11 +163,7 @@ class QkcHashNative:
         return QkcHashCache(self, ptr)
 
     def make_cache_block_number(self, entries, block_number):
-        while (len(cache_seeds) <= block_number // EPOCH_LENGTH):
-            new_seed = serialize_hash(sha3_256(cache_seeds[-1]))
-            cache_seeds.append(new_seed)
-        
-        seed = cache_seeds[block_number // EPOCH_LENGTH]
+        seed = get_seed_from_block_number(block_number)
         return self.make_cache(entries, seed)
 
     def dup_cache(self, cache):
@@ -185,6 +181,14 @@ class QkcHashNative:
             "result": serialize_hash(sha3_256(s + result[:])),
         }
 
+
+def get_seed_from_block_number(block_number: int):
+    while (len(cache_seeds) <= block_number // EPOCH_LENGTH):
+        new_seed = serialize_hash(sha3_256(cache_seeds[-1]))
+        cache_seeds.append(new_seed)
+        
+    seed = cache_seeds[block_number // EPOCH_LENGTH]
+    return seed
 
 def qkchash(header: bytes, nonce: bytes, cache: List) -> Dict[str, bytes]:
     s = sha3_512(header + nonce[::-1])
