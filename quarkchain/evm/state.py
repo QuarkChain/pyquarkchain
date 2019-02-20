@@ -52,7 +52,7 @@ STATE_DEFAULTS = {
     "block_number": 0,
     "block_coinbase": b"\x00" * 20,
     "block_difficulty": 1,
-    "block_fee": 0,
+    "block_fee_tokens": {},
     "timestamp": 0,
     "logs": [],
     "receipts": [],
@@ -63,7 +63,7 @@ STATE_DEFAULTS = {
     "refunds": 0,
     "xshard_list": [],
     "full_shard_key": 0,  # should be updated before applying each tx
-    "xshard_tx_cursor_info": None
+    "xshard_tx_cursor_info": None,
 }
 
 

@@ -5,40 +5,49 @@ from rlp.sedes import big_endian_int, BigEndianInt, Binary
 from quarkchain.rlp.utils import decode_hex, encode_hex, ascii_chr, str_to_bytes
 import random
 from quarkchain.utils import sha3_256 as sha3
+from typing import Dict
 
 
 try:
     import coincurve
 except ImportError:
     import warnings
-    warnings.warn('could not import coincurve', ImportWarning)
+
+    warnings.warn("could not import coincurve", ImportWarning)
     coincurve = None
+
 
 class Memoize:
     def __init__(self, fn):
         self.fn = fn
         self.memo = {}
+
     def __call__(self, *args):
         if args not in self.memo:
             self.memo[args] = self.fn(*args)
         return self.memo[args]
 
-def big_endian_to_int(x): return big_endian_int.deserialize(
-    str_to_bytes(x).lstrip(b'\x00'))
+
+def big_endian_to_int(x):
+    return big_endian_int.deserialize(str_to_bytes(x).lstrip(b"\x00"))
 
 
-def int_to_big_endian(x): return big_endian_int.serialize(x)
+def int_to_big_endian(x):
+    return big_endian_int.serialize(x)
 
 
 TT256 = 2 ** 256
 TT256M1 = 2 ** 256 - 1
 TT255 = 2 ** 255
-SECP256K1P = 2**256 - 4294968273
+SECP256K1P = 2 ** 256 - 4294968273
 
 if sys.version_info.major == 2:
-    def is_numeric(x): return isinstance(x, (int, long))
 
-    def is_string(x): return isinstance(x, (str, unicode))
+    def is_numeric(x):
+        return isinstance(x, (int, long))
+
+    def is_string(x):
+        return isinstance(x, (str, unicode))
 
     def to_string(value):
         return str(value)
@@ -50,29 +59,34 @@ if sys.version_info.major == 2:
 
     def to_string_for_regexp(value):
         return str(value)
+
     unicode = unicode
 
     def bytearray_to_bytestr(value):
-        return bytes(''.join(chr(c) for c in value))
+        return bytes("".join(chr(c) for c in value))
 
     def encode_int32(v):
         return zpad(int_to_big_endian(v), 32)
 
     def bytes_to_int(value):
-        return big_endian_to_int(bytes(''.join(chr(c) for c in value)))
+        return big_endian_to_int(bytes("".join(chr(c) for c in value)))
+
 
 else:
-    def is_numeric(x): return isinstance(x, int)
 
-    def is_string(x): return isinstance(x, bytes)
+    def is_numeric(x):
+        return isinstance(x, int)
+
+    def is_string(x):
+        return isinstance(x, bytes)
 
     def to_string(value):
         if isinstance(value, bytes):
             return value
         if isinstance(value, str):
-            return bytes(value, 'utf-8')
+            return bytes(value, "utf-8")
         if isinstance(value, int):
-            return bytes(str(value), 'utf-8')
+            return bytes(str(value), "utf-8")
 
     def int_to_bytes(value):
         if isinstance(value, bytes):
@@ -80,25 +94,27 @@ else:
         return int_to_big_endian(value)
 
     def to_string_for_regexp(value):
-        return str(to_string(value), 'utf-8')
+        return str(to_string(value), "utf-8")
+
     unicode = str
 
     def bytearray_to_bytestr(value):
         return bytes(value)
 
     def encode_int32(v):
-        return v.to_bytes(32, byteorder='big')
+        return v.to_bytes(32, byteorder="big")
 
     def bytes_to_int(value):
-        return int.from_bytes(value, byteorder='big')
+        return int.from_bytes(value, byteorder="big")
 
 
 def ecrecover_to_pub(rawhash, v, r, s):
     if coincurve and hasattr(coincurve, "PublicKey"):
         try:
             pk = coincurve.PublicKey.from_signature_and_message(
-                zpad(bytearray_to_bytestr(int_to_32bytearray(r)), 32) + zpad(bytearray_to_bytestr(int_to_32bytearray(s)), 32) +
-                ascii_chr(v - 27),
+                zpad(bytearray_to_bytestr(int_to_32bytearray(r)), 32)
+                + zpad(bytearray_to_bytestr(int_to_32bytearray(s)), 32)
+                + ascii_chr(v - 27),
                 rawhash,
                 hasher=None,
             )
@@ -111,13 +127,13 @@ def ecrecover_to_pub(rawhash, v, r, s):
             x, y = result
             pub = encode_int32(x) + encode_int32(y)
         else:
-            raise ValueError('Invalid VRS')
+            raise ValueError("Invalid VRS")
     assert len(pub) == 64
     return pub
 
 
 def ecsign(rawhash, key):
-    if coincurve and hasattr(coincurve, 'PrivateKey'):
+    if coincurve and hasattr(coincurve, "PrivateKey"):
         pk = coincurve.PrivateKey(key)
         signature = pk.sign_recoverable(rawhash, hasher=None)
         v = safe_ord(signature[64]) + 27
@@ -142,6 +158,7 @@ def safe_ord(value):
     else:
         return ord(value)
 
+
 # decorator
 
 
@@ -149,11 +166,13 @@ def debug(label):
     def deb(f):
         def inner(*args, **kwargs):
             i = random.randrange(1000000)
-            print(label, i, 'start', args)
+            print(label, i, "start", args)
             x = f(*args, **kwargs)
-            print(label, i, 'end', x)
+            print(label, i, "end", x)
             return x
+
         return inner
+
     return deb
 
 
@@ -174,13 +193,15 @@ def bytearray_to_int(arr):
 def int_to_32bytearray(i):
     o = [0] * 32
     for x in range(32):
-        o[31 - x] = i & 0xff
+        o[31 - x] = i & 0xFF
         i >>= 8
     return o
 
 
-assert encode_hex(
-    sha3(b'')) == 'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470'
+assert (
+    encode_hex(sha3(b""))
+    == "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470"
+)
 
 
 @Memoize
@@ -192,14 +213,14 @@ def privtoaddr(k):
 
 def checksum_encode(addr):  # Takes a 20-byte binary address as input
     addr = normalize_address(addr)
-    o = ''
+    o = ""
     v = big_endian_to_int(sha3(addr))
     for i, c in enumerate(encode_hex(addr)):
-        if c in '0123456789':
+        if c in "0123456789":
             o += c
         else:
-            o += c.upper() if (v & (2**(255 - 4 * i))) else c.lower()
-    return '0x' + o
+            o += c.upper() if (v & (2 ** (255 - 4 * i))) else c.lower()
+    return "0x" + o
 
 
 def check_checksum(addr):
@@ -209,9 +230,9 @@ def check_checksum(addr):
 def normalize_address(x, allow_blank=False):
     if is_numeric(x):
         return int_to_addr(x)
-    if allow_blank and x in {'', b''}:
-        return b''
-    if len(x) in (42, 50) and x[:2] in {'0x', b'0x'}:
+    if allow_blank and x in {"", b""}:
+        return b""
+    if len(x) in (42, 50) and x[:2] in {"0x", b"0x"}:
         x = x[2:]
     if len(x) in (40, 48):
         x = decode_hex(x)
@@ -230,11 +251,11 @@ def normalize_key(key):
         o = key
     elif len(key) == 64:
         o = decode_hex(key)
-    elif len(key) == 66 and key[:2] == '0x':
+    elif len(key) == 66 and key[:2] == "0x":
         o = decode_hex(key[2:])
     else:
         raise Exception("Invalid key format: %r" % key)
-    if o == b'\x00' * 32:
+    if o == b"\x00" * 32:
         raise Exception("Zero privkey invalid")
     return o
 
@@ -251,7 +272,7 @@ def zpad(x, l):
     >>> zpad('\xca\xfe', 2)
     '\xca\xfe'
     """
-    return b'\x00' * max(0, l - len(x)) + x
+    return b"\x00" * max(0, l - len(x)) + x
 
 
 def rzpad(value, total_length):
@@ -266,15 +287,15 @@ def rzpad(value, total_length):
     >>> zpad('\xca\xfe', 2)
     '\xca\xfe'
     """
-    return value + b'\x00' * max(0, total_length - len(value))
+    return value + b"\x00" * max(0, total_length - len(value))
 
 
 def int_to_addr(x):
-    o = [b''] * 20
+    o = [b""] * 20
     for i in range(20):
-        o[19 - i] = ascii_chr(x & 0xff)
+        o[19 - i] = ascii_chr(x & 0xFF)
         x >>= 8
-    return b''.join(o)
+    return b"".join(o)
 
 
 def coerce_addr_to_bin(x):
@@ -316,9 +337,9 @@ def coerce_to_bytes(x):
 def parse_int_or_hex(s):
     if is_numeric(s):
         return s
-    elif s[:2] in (b'0x', '0x'):
+    elif s[:2] in (b"0x", "0x"):
         s = to_string(s)
-        tail = (b'0' if len(s) % 2 else b'') + s[2:]
+        tail = (b"0" if len(s) % 2 else b"") + s[2:]
         return big_endian_to_int(decode_hex(tail))
     else:
         return int(s)
@@ -355,7 +376,7 @@ def decode_addr(v):
 
 def decode_int(v):
     """decodes and integer from serialization"""
-    if len(v) > 0 and (v[0] == b'\x00' or v[0] == 0):
+    if len(v) > 0 and (v[0] == b"\x00" or v[0] == 0):
         raise Exception("No leading zero bytes allowed for integers")
     return big_endian_to_int(v)
 
@@ -386,14 +407,14 @@ def encode_int256(v):
 
 
 def scan_bin(v):
-    if v[:2] in ('0x', b'0x'):
+    if v[:2] in ("0x", b"0x"):
         return decode_hex(v[2:])
     else:
         return decode_hex(v)
 
 
 def scan_int(v):
-    if v[:2] in ('0x', b'0x'):
+    if v[:2] in ("0x", b"0x"):
         return big_endian_to_int(decode_hex(v[2:]))
     else:
         return int(v)
@@ -417,39 +438,38 @@ encoders = {
 
 # Encoding to printable format
 printers = {
-    "bin": lambda v: '0x' + encode_hex(v),
+    "bin": lambda v: "0x" + encode_hex(v),
     "addr": lambda v: v,
     "int": lambda v: to_string(v),
     "trie_root": lambda v: encode_hex(v),
-    "int256b": lambda x: encode_hex(zpad(encode_int256(x), 256))
+    "int256b": lambda x: encode_hex(zpad(encode_int256(x), 256)),
 }
 
 # Decoding from printable format
 scanners = {
     "bin": scan_bin,
-    "addr": lambda x: x[2:] if x[:2] in (b'0x', '0x') else x,
+    "addr": lambda x: x[2:] if x[:2] in (b"0x", "0x") else x,
     "int": scan_int,
     "trie_root": lambda x: scan_bin,
-    "int256b": lambda x: big_endian_to_int(decode_hex(x))
+    "int256b": lambda x: big_endian_to_int(decode_hex(x)),
 }
 
 
 def int_to_hex(x):
     o = encode_hex(encode_int(x))
-    return '0x' + (o[1:] if (len(o) > 0 and o[0] == b'0') else o)
+    return "0x" + (o[1:] if (len(o) > 0 and o[0] == b"0") else o)
 
 
 def remove_0x_head(s):
-    return s[2:] if s[:2] in (b'0x', '0x') else s
+    return s[2:] if s[:2] in (b"0x", "0x") else s
 
 
 def parse_as_bin(s):
-    return decode_hex(s[2:] if s[:2] == '0x' else s)
+    return decode_hex(s[2:] if s[:2] == "0x" else s)
 
 
 def parse_as_int(s):
-    return s if is_numeric(s) else int(
-        '0' + s[2:], 16) if s[:2] == '0x' else int(s)
+    return s if is_numeric(s) else int("0" + s[2:], 16) if s[:2] == "0x" else int(s)
 
 
 def print_func_call(ignore_first_arg=False, max_call_number=100):
@@ -470,49 +490,58 @@ def print_func_call(ignore_first_arg=False, max_call_number=100):
     def display(x):
         x = to_string(x)
         try:
-            x.decode('ascii')
+            x.decode("ascii")
         except BaseException:
-            return 'NON_PRINTABLE'
+            return "NON_PRINTABLE"
         return x
 
-    local = {'call_number': 0}
+    local = {"call_number": 0}
 
     def inner(f):
-
         @wraps(f)
         def wrapper(*args, **kwargs):
-            local['call_number'] += 1
+            local["call_number"] += 1
             tmp_args = args[1:] if ignore_first_arg and len(args) else args
-            this_call_number = local['call_number']
-            print(('{0}#{1} args: {2}, {3}'.format(
-                f.__name__,
-                this_call_number,
-                ', '.join([display(x) for x in tmp_args]),
-                ', '.join(display(key) + '=' + to_string(value)
-                          for key, value in kwargs.items())
-            )))
+            this_call_number = local["call_number"]
+            print(
+                (
+                    "{0}#{1} args: {2}, {3}".format(
+                        f.__name__,
+                        this_call_number,
+                        ", ".join([display(x) for x in tmp_args]),
+                        ", ".join(
+                            display(key) + "=" + to_string(value)
+                            for key, value in kwargs.items()
+                        ),
+                    )
+                )
+            )
             res = f(*args, **kwargs)
-            print(('{0}#{1} return: {2}'.format(
-                f.__name__,
-                this_call_number,
-                display(res))))
+            print(
+                (
+                    "{0}#{1} return: {2}".format(
+                        f.__name__, this_call_number, display(res)
+                    )
+                )
+            )
 
-            if local['call_number'] > 100:
+            if local["call_number"] > 100:
                 raise Exception("Touch max call number!")
             return res
+
         return wrapper
+
     return inner
 
 
 def dump_state(trie):
-    res = ''
+    res = ""
     for k, v in list(trie.to_dict().items()):
-        res += '%r:%r\n' % (encode_hex(k), encode_hex(v))
+        res += "%r:%r\n" % (encode_hex(k), encode_hex(v))
     return res
 
 
-class Denoms():
-
+class Denoms:
     def __init__(self):
         self.wei = 1
         self.babbage = 10 ** 3
@@ -540,15 +569,20 @@ hash32 = Binary.fixed_length(32)
 trie_root = Binary.fixed_length(32, allow_empty=True)
 
 
+def add_dict(d: Dict, other: Dict):
+    for k, v in other.items():
+        d[k] = d.get(k, 0) + v
+
+
 class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[91m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[91m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
 
 
 def DEBUG(msg, *args, **kwargs):

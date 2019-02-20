@@ -96,7 +96,8 @@ class TestNativeTokenShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
-            genesis_account=acc1, genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000}
+            genesis_account=acc1,
+            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000},
         )
         state = create_default_shard_state(env=env)
         tx = create_transfer_transaction(
@@ -132,7 +133,6 @@ class TestNativeTokenShardState(unittest.TestCase):
 
     def test_native_token_gas(self):
         """in-shard transfer QETH using native token as gas
-        TODODLL: support native token as gas
         """
         QETH = token_id_encode("QETH")
         id1 = Identity.create_random_identity()
@@ -155,19 +155,12 @@ class TestNativeTokenShardState(unittest.TestCase):
             gas_token_id=QETH,
             transfer_token_id=QETH,
         )
-        self.assertFalse(
-            state.add_tx(tx)
-        )  # warning log: Failed to add transaction: Gas token must be QKC
-        return
 
         self.assertTrue(state.add_tx(tx))
         b1 = state.create_block_to_mine(address=acc3)
         self.assertEqual(len(b1.tx_list), 1)
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
-        self.assertEqual(
-            state.get_token_balance(id1.recipient, QETH), 10000000 - opcodes.GTXCOST
-        )
         self.assertEqual(
             state.get_token_balance(acc1.recipient, QETH),
             10000000 - opcodes.GTXCOST - 12345,
@@ -203,7 +196,10 @@ class TestNativeTokenShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000, "QETHXX": 999999},
+            genesis_minor_token_balances={
+                self.GENESIS_TOKEN: 10000000,
+                "QETHXX": 999999,
+            },
         )
         state = create_default_shard_state(env=env, shard_id=0)
         env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -274,12 +270,18 @@ class TestNativeTokenShardState(unittest.TestCase):
 
         env0 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000, "QETHXX": 999999},
+            genesis_minor_token_balances={
+                self.GENESIS_TOKEN: 10000000,
+                "QETHXX": 999999,
+            },
             shard_size=64,
         )
         env1 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000, "QETHXX": 999999},
+            genesis_minor_token_balances={
+                self.GENESIS_TOKEN: 10000000,
+                "QETHXX": 999999,
+            },
             shard_size=64,
         )
         state0 = create_default_shard_state(env=env0, shard_id=0)
@@ -372,7 +374,10 @@ class TestNativeTokenShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={self.GENESIS_TOKEN: 200 * 10 ** 18, "QETH": 99999},
+            genesis_minor_token_balances={
+                self.GENESIS_TOKEN: 200 * 10 ** 18,
+                "QETH": 99999,
+            },
         )
         state = create_default_shard_state(env=env)
 

@@ -6,7 +6,7 @@ import rlp
 # to bypass circular imports
 import quarkchain.core
 
-from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr
+from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr, add_dict
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.sedes.binary import Binary
 from quarkchain.rlp.utils import decode_hex, encode_hex
@@ -134,11 +134,6 @@ def config_fork_specific_validation(config, blknum, tx):
 
 def validate_transaction(state, tx):
 
-    # (0) multi native token, tx fee must be paid in QKC (genesis_token)
-    # TODODLL: change this
-    if tx.gas_token_id != state.qkc_config.genesis_token:
-        raise InvalidTransaction("Gas token must be QKC")
-
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
@@ -242,7 +237,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     # buy startgas
     assert (
-        state.get_balance(tx.sender, token_id=tx.gas_token_id) >= tx.startgas * tx.gasprice
+        state.get_balance(tx.sender, token_id=tx.gas_token_id)
+        >= tx.startgas * tx.gasprice
     )
     state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
@@ -299,8 +295,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             // local_fee_rate.denominator
         )
         state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        # TODODLL change block_fee to map to track gas token for tax
-        state.block_fee += tx.gasprice * gas_used
+        add_dict(state.block_fee_tokens, {tx.gas_token_id: tx.gasprice * gas_used})
         output = b""
         success = 0
     # Transaction success
@@ -324,8 +319,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             // local_fee_rate.denominator
         )
         state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        # TODODLL change block_fee to map to track gas token for tax
-        state.block_fee += fee
+        add_dict(state.block_fee_tokens, {tx.gas_token_id: fee})
         if tx.to:
             output = bytearray_to_bytestr(data)
         else:
@@ -367,11 +361,13 @@ class VMExt:
         self._state = state
         self.get_code = state.get_code
         self.set_code = state.set_code
-        self.get_balances = state.get_balances # gets token balances dict
-        self.get_balance = state.get_balance # gets default_chain_token balance if no token_id is passed in
-        self.set_balances = state.set_balances # sets token balances dict
+        self.get_balances = state.get_balances  # gets token balances dict
+        self.get_balance = (
+            state.get_balance
+        )  # gets default_chain_token balance if no token_id is passed in
+        self.set_balances = state.set_balances  # sets token balances dict
         self.set_token_balance = state.set_token_balance
-        self.set_balance = state.set_balance # gets default_chain_token balance
+        self.set_balance = state.set_balance  # gets default_chain_token balance
         self.get_nonce = state.get_nonce
         self.set_nonce = state.set_nonce
         self.increment_nonce = state.increment_nonce
