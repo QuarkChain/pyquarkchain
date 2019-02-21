@@ -371,14 +371,10 @@ class TestNativeTokenShardState(unittest.TestCase):
         acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
-            genesis_account=acc1,
-            genesis_minor_token_balances={
-                self.GENESIS_TOKEN: 10000000,
-                "QETHXX": 999999,
-            },
+            genesis_account=acc1, genesis_minor_token_balances={"QETHXX": 9999999}
         )
         state = create_default_shard_state(env=env, shard_id=0)
-        env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env1 = get_test_env(genesis_account=acc1, genesis_minor_token_balances={})
         state1 = create_default_shard_state(env=env1, shard_id=1)
 
         # Add a root block to update block gas limit so that xshard tx can be included
@@ -395,9 +391,9 @@ class TestNativeTokenShardState(unittest.TestCase):
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
-            value=888888,
+            value=8888888,
             gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-            gas_token_id=self.genesis_token,
+            gas_token_id=QETH,
             transfer_token_id=QETH,
         )
         state.add_tx(tx)
@@ -415,29 +411,33 @@ class TestNativeTokenShardState(unittest.TestCase):
                 tx_hash=tx.get_hash(),
                 from_address=acc1,
                 to_address=acc2,
-                value=888888,
+                value=8888888,
                 gas_price=1,
-                gas_token_id=self.genesis_token,
+                gas_token_id=QETH,
                 transfer_token_id=QETH,
             ),
         )
         self.assertEqual(
-            state.get_token_balance(id1.recipient, self.genesis_token),
-            10000000 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
+            state.get_token_balance(id1.recipient, QETH),
+            9999999 - 8888888 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
         )
-        self.assertEqual(state.get_token_balance(id1.recipient, QETH), 999999 - 888888)
 
         # Make sure the xshard gas is not used by local block
         self.assertEqual(
             state.evm_state.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST
         )
-        # GTXXSHARDCOST is consumed by remote shard
+        # block coinbase for mining is still in genesis_token
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.getAfterTaxReward(self.shard_coinbase),
+        )
+        # GTXXSHARDCOST is consumed by remote shard
+        self.assertEqual(
+            state.get_token_balance(acc3.recipient, QETH),
+            self.getAfterTaxReward(opcodes.GTXCOST),
         )
 
-    def test_xshard_native_token_received(self):
+    def test_xshard_native_token_gas_received(self):
         QETH = token_id_encode("QETHXX")
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -446,18 +446,12 @@ class TestNativeTokenShardState(unittest.TestCase):
 
         env0 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={
-                self.GENESIS_TOKEN: 10000000,
-                "QETHXX": 999999,
-            },
+            genesis_minor_token_balances={"QETHXX": 9999999},
             shard_size=64,
         )
         env1 = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={
-                self.GENESIS_TOKEN: 10000000,
-                "QETHXX": 999999,
-            },
+            genesis_minor_token_balances={"QETHXX": 9999999},
             shard_size=64,
         )
         state0 = create_default_shard_state(env=env0, shard_id=0)
@@ -485,10 +479,10 @@ class TestNativeTokenShardState(unittest.TestCase):
             key=id1.get_key(),
             from_address=acc2,
             to_address=acc1,
-            value=888888,
+            value=8888888,
             gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
             gas_price=2,
-            gas_token_id=self.genesis_token,
+            gas_token_id=QETH,
             transfer_token_id=QETH,
         )
         b1.add_tx(tx)
@@ -502,9 +496,9 @@ class TestNativeTokenShardState(unittest.TestCase):
                         tx_hash=tx.get_hash(),
                         from_address=acc2,
                         to_address=acc1,
-                        value=888888,
+                        value=8888888,
                         gas_price=2,
-                        gas_token_id=self.genesis_token,
+                        gas_token_id=QETH,
                         transfer_token_id=QETH,
                     )
                 ]
@@ -525,12 +519,16 @@ class TestNativeTokenShardState(unittest.TestCase):
         state0.finalize_and_add_block(b2)
 
         self.assertEqual(
-            state0.get_token_balance(acc1.recipient, QETH), 999999 + 888888
+            state0.get_token_balance(acc1.recipient, QETH), 9999999 + 8888888
         )
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            self.getAfterTaxReward(self.shard_coinbase),
+        )
+        self.assertEqual(
+            state0.get_token_balance(acc3.recipient, QETH),
+            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2),
         )
 
         # X-shard gas used
