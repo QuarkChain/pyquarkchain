@@ -29,7 +29,7 @@ def get_test_env(
     shard_size=2,
     genesis_root_heights=None,  # dict(full_shard_id, genesis_root_height)
     remote_mining=False,
-    genesis_minor_token_balances={},
+    genesis_minor_token_balances=None,
 ):
     check(is_p2(shard_size))
     env = DEFAULT_ENV.copy()
@@ -61,7 +61,7 @@ def get_test_env(
     # fund genesis account in all shards
     for full_shard_id, shard in env.quark_chain_config.shards.items():
         addr = genesis_account.address_in_shard(full_shard_id).serialize().hex()
-        if len(genesis_minor_token_balances) != 0:
+        if genesis_minor_token_balances is not None:
             shard.GENESIS.ALLOC[addr] = genesis_minor_token_balances
         else:
             shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
