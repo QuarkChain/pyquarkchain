@@ -358,8 +358,9 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        self.assertEqual(
+            state0.evm_state.xshard_receive_gas_used, opcodes.GTXXSHARDCOST
+        )
 
     def test_xshard_native_token_gas_sent(self):
         """x-shard transfer QETH using QETH as gas
@@ -532,8 +533,9 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        self.assertEqual(
+            state0.evm_state.xshard_receive_gas_used, opcodes.GTXXSHARDCOST
+        )
 
     def test_contract_suicide(self):
         """
