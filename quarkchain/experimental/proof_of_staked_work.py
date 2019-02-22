@@ -1,11 +1,14 @@
 import random
 
+# A miner uses two addresses to mine depending on whether PoSW condition is satisfied.
+optimal_posw = True
+
 # Hash power of each miner
 h = [100, 100, 100, 100]
 # window_size = 64
 window_size = 256
 alpha = 2
-beta = 2   # 0 means the miner must have allowance
+beta = 20   # 0 means the miner must have allowance
 sp = [1, 2, 4, 13]
 
 
@@ -26,7 +29,7 @@ def main():
     print("Alpha: %d, Beta: %d" % (alpha, beta))
     blocks = []
     N = 100000
-    blocks_in_window = [0] * len(h)
+    blocks_in_window = [0] * len(h) * 2
     ch = [0] * len(h)
     eh = [0] * len(h)
     eH = 0
@@ -52,6 +55,9 @@ def main():
                 break
             c -= ch[j]
 
+        # If not benefit from posw, using the address without stake
+        if ch[bp] != h[bp] and optimal_posw:
+            bp += len(h)
         blocks.append(bp)
         blocks_in_window[bp] += 1
 
@@ -61,7 +67,7 @@ def main():
 
     bc = [0] * len(h)
     for b in blocks:
-        bc[b] += 1
+        bc[b % len(h)] += 1
 
     for i in range(len(bc)):
         print("Miner %d: %.2f%%" % (i, bc[i] / N * 100))
