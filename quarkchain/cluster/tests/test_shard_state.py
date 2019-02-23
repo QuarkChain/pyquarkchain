@@ -1661,8 +1661,10 @@ class TestShardState(unittest.TestCase):
         )
         state = create_default_shard_state(env=env, shard_id=0)
 
+        max_mblock_in_rblock = state.shard_config.max_blocks_per_shard_in_one_root_block
+
         headers = [state.header_tip]
-        for i in range(13):
+        for i in range(max_mblock_in_rblock):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
             headers.append(b.header)
@@ -1674,12 +1676,13 @@ class TestShardState(unittest.TestCase):
         )
 
         # Too many blocks
-        self.assertRaises(ValueError, state.add_root_block, root_block)
+        with self.assertRaisesRegexp(ValueError, "too many minor blocks in the root block"):
+            state.add_root_block(root_block)
 
-        self.assertEqual(state.get_unconfirmed_header_list(), headers[:13])
+        self.assertEqual(state.get_unconfirmed_header_list(), headers[:max_mblock_in_rblock])
 
         # 10 blocks is okay
-        root_block.minor_block_header_list = headers[:13]
+        root_block.minor_block_header_list = headers[:max_mblock_in_rblock]
         root_block.finalize()
         state.add_root_block(root_block)
 
