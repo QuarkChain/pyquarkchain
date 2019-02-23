@@ -55,9 +55,10 @@ class TestTransaction(unittest.TestCase):
 
 class TestBranch(unittest.TestCase):
     def test_branch(self):
-        b = Branch.create(8, 6)
+        b = Branch.create(3, 8, 6)
         self.assertEqual(b.get_shard_size(), 8)
-        self.assertEqual(b.get_full_shard_id(), 14)
+        self.assertEqual(b.get_full_shard_id(), (3 << 16) + 14)
+        self.assertEqual(b.get_chain_id(), 3)
 
 
 class TestIdentity(unittest.TestCase):
