@@ -570,21 +570,20 @@ class TokenBalanceMap(Serializable):
 
 
 def calculate_merkle_root(item_list):
+    ''' Using ETH2.0 SSZ style hash tree
+    '''
     if len(item_list) == 0:
-        return bytes(32)
+        sha_tree = [bytes(32)]
+    else:
+        sha_tree = [sha3_256(item.serialize()) for item in item_list]
 
-    sha_tree = []
-    for item in item_list:
-        sha_tree.append(sha3_256(item.serialize()))
-
+    zbytes = bytes(32)
     while len(sha_tree) != 1:
-        next_sha_tree = []
-        for i in range(0, len(sha_tree) - 1, 2):
-            next_sha_tree.append(sha3_256(sha_tree[i] + sha_tree[i + 1]))
         if len(sha_tree) % 2 != 0:
-            next_sha_tree.append(sha3_256(sha_tree[-1] + sha_tree[-1]))
-        sha_tree = next_sha_tree
-    return sha_tree[0]
+            sha_tree.append(zbytes)
+        sha_tree = [sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)]
+        zbytes = sha3_256(zbytes + zbytes)
+    return sha3_256(sha_tree[0] + len(item_list).to_bytes(8, "big"))
 
 
 def mk_receipt_sha(receipts, db):

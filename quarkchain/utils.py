@@ -39,6 +39,12 @@ def is_p2(v):
     return (v & (v - 1)) == 0
 
 
+def p2_roundup(v):
+    ''' Roundup to nearest P2, v must be non-negative integer
+    '''
+    return 2 ** (v - 1).bit_length()
+
+
 def sha3_256(x):
     if isinstance(x, bytearray):
         x = bytes(x)
