@@ -869,90 +869,19 @@ class MasterServer:
         return response.block if response.error_code == 0 else None
 
     async def get_next_block_to_mine(
-        self, address, chain_mask_value=0, prefer_root=False, randomize_output=True
-    ):
-        """ Returns (is_root_block, block)
-
-        chain_mask_value = 0 means considering root chain and all the shards
-        """
+        self, address, branch_value: Optional[int]
+    ) -> Optional[Union[RootBlock, MinorBlock]]:
+        """Return root block is branch value provided is None."""
         # Mining old blocks is useless
         if self.synchronizer.running:
-            return None, None
+            return None
 
-        if prefer_root and chain_mask_value == 0:
+        if branch_value is None:
             root = await self.__create_root_block_to_mine(address)
-            return (True, root) if root else (None, None)
+            return root or None
 
-        chain_mask = None if chain_mask_value == 0 else ChainMask(chain_mask_value)
-        futures = []
-
-        # Collect EcoInfo from shards
-        for slave in self.slave_pool:
-            if chain_mask and not slave.has_overlap(chain_mask):
-                continue
-            request = GetEcoInfoListRequest()
-            futures.append(
-                slave.write_rpc_request(ClusterOp.GET_ECO_INFO_LIST_REQUEST, request)
-            )
-        responses = await asyncio.gather(*futures)
-
-        # Slaves may run multiple copies of the same branch
-        # We only need one EcoInfo per branch
-        # branch_value -> EcoInfo
-        branch_value_to_eco_info = dict()
-        for response in responses:
-            _, response, _ = response
-            if response.error_code != 0:
-                return None, None
-            for eco_info in response.eco_info_list:
-                branch_value_to_eco_info[eco_info.branch.value] = eco_info
-
-        root_coinbase_amount = 0
-        for branch_value, eco_info in branch_value_to_eco_info.items():
-            root_coinbase_amount += eco_info.unconfirmed_headers_coinbase_amount
-        root_coinbase_amount = root_coinbase_amount // 2
-
-        branch_value_with_max_eco = 0 if chain_mask is None else None
-        max_eco = root_coinbase_amount / self.root_state.get_next_block_difficulty()
-
-        dup_eco_count = 1
-        block_height = 0
-        for branch_value, eco_info in branch_value_to_eco_info.items():
-            if chain_mask and not chain_mask.contain_branch(Branch(branch_value)):
-                continue
-            # TODO: Obtain block reward and tx fee
-            eco = eco_info.coinbase_amount / eco_info.difficulty
-            if (
-                branch_value_with_max_eco is None
-                or eco > max_eco
-                or (
-                    eco == max_eco
-                    and branch_value_with_max_eco > 0
-                    and block_height > eco_info.height
-                )
-            ):
-                branch_value_with_max_eco = branch_value
-                max_eco = eco
-                dup_eco_count = 1
-                block_height = eco_info.height
-            elif eco == max_eco and randomize_output:
-                # The current block with max eco has smaller height, mine the block first
-                # This should be only used during bootstrap.
-                if branch_value_with_max_eco > 0 and block_height < eco_info.height:
-                    continue
-                dup_eco_count += 1
-                if random.random() < 1 / dup_eco_count:
-                    branch_value_with_max_eco = branch_value
-                    max_eco = eco
-
-        if branch_value_with_max_eco == 0:
-            root = await self.__create_root_block_to_mine(address)
-            return (True, root) if root else (None, None)
-
-        block = await self.__get_minor_block_to_mine(
-            Branch(branch_value_with_max_eco), address
-        )
-        return (None, None) if not block else (False, block)
+        block = await self.__get_minor_block_to_mine(Branch(branch_value), address)
+        return block or None
 
     async def get_account_data(self, address: Address):
         """ Returns a dict where key is Branch and value is AccountBranchData """
