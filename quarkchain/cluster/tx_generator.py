@@ -44,30 +44,37 @@ class TransactionGenerator:
                 self.full_shard_id, num_tx, x_shard_percent
             )
         )
-        if num_tx <= 0:
-            return
-        start_time = time.time()
-        tx_list = []
-        total = 0
-        sample_evm_tx = sample_tx.code.get_evm_transaction()
-        for account in self.accounts:
-            nonce = self.shard.state.get_transaction_count(account.address.recipient)
-            tx = self.create_transaction(account, nonce, x_shard_percent, sample_evm_tx)
-            if not tx:
-                continue
-            tx_list.append(tx)
-            total += 1
-            if len(tx_list) >= 600 or total >= num_tx:
-                self.shard.add_tx_list(tx_list)
-                tx_list = []
-                await asyncio.sleep(
-                    random.uniform(8, 12)
-                )  # yield CPU so that other stuff won't be held for too long
+        try:
+            if num_tx <= 0:
+                return
+            start_time = time.time()
+            tx_list = []
+            total = 0
+            sample_evm_tx = sample_tx.code.get_evm_transaction()
+            for account in self.accounts:
+                nonce = self.shard.state.get_transaction_count(
+                    account.address.recipient
+                )
+                tx = self.create_transaction(
+                    account, nonce, x_shard_percent, sample_evm_tx
+                )
+                if not tx:
+                    continue
+                tx_list.append(tx)
+                total += 1
+                if len(tx_list) >= 600 or total >= num_tx:
+                    self.shard.add_tx_list(tx_list)
+                    tx_list = []
+                    await asyncio.sleep(
+                        random.uniform(8, 12)
+                    )  # yield CPU so that other stuff won't be held for too long
 
-            if total >= num_tx:
-                break
+                if total >= num_tx:
+                    break
 
-        end_time = time.time()
+            end_time = time.time()
+        except Exception as e:
+            Logger.error(e)
         Logger.info(
             "[{}] generated {} transactions in {:.2f} seconds".format(
                 self.full_shard_id, total, end_time - start_time
@@ -120,6 +127,8 @@ class TransactionGenerator:
             to=recipient,
             value=value,
             data=sample_evm_tx.data,
+            gas_token_id=sample_evm_tx.gas_token_id,
+            transfer_token_id=sample_evm_tx.transfer_token_id,
             from_full_shard_key=from_full_shard_key,
             to_full_shard_key=to_full_shard_key,
             network_id=self.qkc_config.NETWORK_ID,
