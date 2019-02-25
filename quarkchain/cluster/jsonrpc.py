@@ -1062,23 +1062,6 @@ class JSONRPCServer:
     ######################## Private Methods ########################
 
     @private_methods.add
-    @decode_arg("coinbase_address", address_decoder)
-    @decode_arg("chain_mask_value", quantity_decoder)
-    async def getNextBlockToMine(
-        self, coinbase_address, chain_mask_value, prefer_root=False
-    ):
-        address = Address.deserialize(coinbase_address)
-        is_root_block, block = await self.master.get_next_block_to_mine(
-            address, chain_mask_value, prefer_root=prefer_root
-        )
-        if not block:
-            return None
-        return {
-            "isRootBlock": is_root_block,
-            "blockData": data_encoder(block.serialize()),
-        }
-
-    @private_methods.add
     @decode_arg("branch", quantity_decoder)
     @decode_arg("block_data", data_decoder)
     async def addBlock(self, branch, block_data):
