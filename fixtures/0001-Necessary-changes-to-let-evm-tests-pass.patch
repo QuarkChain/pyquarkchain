@@ -267,7 +267,7 @@ index 926e788..673374f 100644
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 611acc4..350e5c6 100644
+index 6491c8d..350e5c6 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -4,7 +4,6 @@ from typing import Set
@@ -287,7 +287,7 @@ index 611acc4..350e5c6 100644
      "timestamp": 0,
      "logs": [],
      "receipts": [],
-@@ -63,17 +62,16 @@ STATE_DEFAULTS = {
+@@ -63,18 +62,16 @@ STATE_DEFAULTS = {
      "refunds": 0,
      "xshard_list": [],
      "full_shard_key": 0,  # should be updated before applying each tx
@@ -304,10 +304,11 @@ index 611acc4..350e5c6 100644
          ("storage", trie_root),
          ("code_hash", hash32),
 -        ("full_shard_key", BigEndianInt(4)),
+-        ("optional", binary),
      ]
  
  
-@@ -83,7 +81,7 @@ class TokenBalancePair(rlp.Serializable):
+@@ -84,7 +81,7 @@ class TokenBalancePair(rlp.Serializable):
  
  class TokenBalances:
      """interface for token balances
@@ -316,7 +317,7 @@ index 611acc4..350e5c6 100644
      """
  
      def __init__(self, data: bytes, db):
-@@ -101,8 +99,6 @@ class TokenBalances:
+@@ -102,8 +99,6 @@ class TokenBalances:
                  raise Exception("Unknown enum byte in token_balances")
  
      def serialize(self):
@@ -325,7 +326,7 @@ index 611acc4..350e5c6 100644
          retv = self.enum
          if self.enum == b"\x00":
              l = []
-@@ -118,22 +114,22 @@ class TokenBalances:
+@@ -119,22 +114,22 @@ class TokenBalances:
          return retv
  
      def balance(self, token_id):
@@ -355,11 +356,11 @@ index 611acc4..350e5c6 100644
          db=None,
      ):
          self.db = env.db if db is None else db
-@@ -141,12 +137,12 @@ class Account:
+@@ -142,12 +137,12 @@ class Account:
          self.env = env
          self.address = address
  
--        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key)
+-        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b'')
 +        acc = _Account(nonce, balance, storage, code_hash)
          self.nonce = acc.nonce
 +        self.balance = acc.balance
@@ -371,7 +372,7 @@ index 611acc4..350e5c6 100644
  
          self.storage_cache = {}
          self.storage_trie = SecureTrie(Trie(self.db))
-@@ -195,7 +191,7 @@ class Account:
+@@ -196,7 +191,7 @@ class Account:
          db.put(BLANK_HASH, b"")
          o = cls(
              initial_nonce,
@@ -380,7 +381,7 @@ index 611acc4..350e5c6 100644
              trie.BLANK_ROOT,
              BLANK_HASH,
              full_shard_key,
-@@ -207,11 +203,7 @@ class Account:
+@@ -208,11 +203,7 @@ class Account:
          return o
  
      def is_blank(self):
@@ -393,7 +394,7 @@ index 611acc4..350e5c6 100644
  
      @property
      def exists(self):
-@@ -224,7 +216,7 @@ class Account:
+@@ -225,7 +216,7 @@ class Account:
          for k, v in self.storage_cache.items():
              odict[utils.encode_int(k)] = rlp.encode(utils.encode_int(v))
          return {
@@ -402,7 +403,7 @@ index 611acc4..350e5c6 100644
              "nonce": str(self.nonce),
              "code": "0x" + encode_hex(self.code),
              "storage": {
-@@ -262,7 +254,6 @@ class State:
+@@ -263,7 +254,6 @@ class State:
          self.executing_on_head = executing_on_head
          self.qkc_config = qkc_config
          self.sender_disallow_list = set()  # type: Set[bytes]
@@ -410,7 +411,7 @@ index 611acc4..350e5c6 100644
  
      @property
      def db(self):
-@@ -300,10 +291,9 @@ class State:
+@@ -301,10 +291,9 @@ class State:
              o = rlp.decode(rlpdata, _Account)
              o = Account(
                  nonce=o.nonce,
@@ -422,7 +423,7 @@ index 611acc4..350e5c6 100644
                  env=self.env,
                  address=address,
                  db=self.db,
-@@ -321,17 +311,8 @@ class State:
+@@ -322,17 +311,8 @@ class State:
          o._cached_rlp = None
          return o
  
@@ -442,7 +443,7 @@ index 611acc4..350e5c6 100644
  
      def get_code(self, address):
          return self.get_and_cache_account(utils.normalize_address(address)).code
-@@ -350,12 +331,9 @@ class State:
+@@ -351,12 +331,9 @@ class State:
          self.journal.append(lambda: setattr(acct, param, preval))
          setattr(acct, param, val)
  
@@ -457,7 +458,7 @@ index 611acc4..350e5c6 100644
          self.set_and_journal(acct, "touched", True)
  
      def set_code(self, address, value):
-@@ -369,39 +347,11 @@ class State:
+@@ -370,39 +347,11 @@ class State:
          self.set_and_journal(acct, "nonce", value)
          self.set_and_journal(acct, "touched", True)
  
@@ -500,7 +501,7 @@ index 611acc4..350e5c6 100644
          self.set_and_journal(acct, "touched", True)
  
      def increment_nonce(self, address):
-@@ -468,7 +418,7 @@ class State:
+@@ -469,7 +418,7 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
@@ -509,7 +510,7 @@ index 611acc4..350e5c6 100644
  
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -532,18 +482,18 @@ class State:
+@@ -533,18 +482,18 @@ class State:
                  return a.existent_at_start
          return o
  
@@ -535,7 +536,7 @@ index 611acc4..350e5c6 100644
              return True
          return False
  
-@@ -558,11 +508,7 @@ class State:
+@@ -559,12 +508,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -544,11 +545,12 @@ index 611acc4..350e5c6 100644
 -                        acct.storage,
 -                        acct.code_hash,
 -                        acct.full_shard_key,
+-                        b'',
 +                        acct.nonce, acct.balance, acct.storage, acct.code_hash
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -585,7 +531,7 @@ class State:
+@@ -587,7 +531,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
  
      def del_account(self, address):
@@ -557,7 +559,7 @@ index 611acc4..350e5c6 100644
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -650,9 +596,9 @@ class State:
+@@ -652,9 +596,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
