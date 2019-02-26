@@ -846,3 +846,32 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(
                 clusters[0].get_shard_state(1 | 0).get_tip().header.height, 1
             )
+
+    def test_createTransactions(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=1)
+
+        loadtest_accounts = [
+            {
+                "address": "b067ac9ebeeecb10bbcd1088317959d58d1e38f6b0ee10d5",
+                "key": "ca0143c9aa51c3013f08e83f3b6368a4f3ba5b52c4841c6e0c22c300f7ee6827",
+            },
+            {
+                "address": "9f2b984937ff8e3f20d2a2592f342f47257870909fffa247",
+                "key": "40efdb8528de149c35fb43a572fc821d8fbdf2469dcc7fe1a9e847ef29e3c941",
+            },
+        ]
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True, loadtest_accounts=loadtest_accounts
+        ) as clusters, jrpc_server_context(clusters[0].master):
+            slaves = clusters[0].slave_list
+            master = clusters[0].master
+
+            block = call_async(
+                master.get_next_block_to_mine(address=acc2, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+
+            send_request("createTransactions", {"numTxPerShard": 1, "xShardPercent": 0})

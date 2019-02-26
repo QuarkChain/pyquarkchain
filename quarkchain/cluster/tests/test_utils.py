@@ -268,6 +268,7 @@ def create_test_clusters(
     genesis_root_heights,
     remote_mining=False,
     small_coinbase=False,
+    loadtest_accounts=None,
 ):
     # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
@@ -292,6 +293,7 @@ def create_test_clusters(
         env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
+        env.quark_chain_config.loadtest_accounts = loadtest_accounts or []
 
         if small_coinbase:
             # prevent breaking previous tests after tweaking default rewards
@@ -379,6 +381,7 @@ class ClusterContext(ContextDecorator):
         genesis_root_heights=None,
         remote_mining=False,
         small_coinbase=False,
+        loadtest_accounts=None,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -388,6 +391,7 @@ class ClusterContext(ContextDecorator):
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
+        self.loadtest_accounts = loadtest_accounts
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -402,6 +406,7 @@ class ClusterContext(ContextDecorator):
             self.genesis_root_heights,
             remote_mining=self.remote_mining,
             small_coinbase=self.small_coinbase,
+            loadtest_accounts=self.loadtest_accounts,
         )
         return self.cluster_list
 
