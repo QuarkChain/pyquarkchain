@@ -93,11 +93,14 @@ def format_qkc(qkc: Decimal):
 
 def query_address(client, args):
     address_hex = args.address.lower().lstrip("0").lstrip("x")
+    token_str = args.token.upper()
     assert len(address_hex) == 48
 
     print("Querying balances for 0x{}".format(address_hex))
     format = "{time:20} {total:>18}    {shards}"
-    print(format.format(time="Timestamp", total="Total", shards="Shards"))
+    print(
+        format.format(time="Timestamp", total="Total", shards="Shards (%s)" % token_str)
+    )
 
     while True:
         data = client.send(
@@ -105,7 +108,11 @@ def query_address(client, args):
                 "getAccountData", address="0x" + address_hex, include_shards=True
             )
         )
-        shards_wei = [int(s["balance"], 16) for s in data["shards"]]
+        shards_wei = []
+        for shard_balance in data["shards"]:
+            for token_balances in shard_balance["balances"]:
+                if token_balances["tokenStr"].upper() == token_str:
+                    shards_wei.append(int(token_balances["balance"], 16))
         total = format_qkc(Decimal(sum(shards_wei)) / (10 ** 18))
         shards_qkc = ", ".join(
             [format_qkc(Decimal(d) / (10 ** 18)) for d in shards_wei]
@@ -135,6 +142,13 @@ def main():
         type=str,
         help="Query account balance if a QKC address is provided",
     )
+    parser.add_argument(
+        "-t",
+        "--token",
+        default="TQKC",
+        type=str,
+        help="Query account balance for a specific token",
+    )
     args = parser.parse_args()
 
     private_endpoint = "http://{}:38491".format(args.ip)
@@ -151,5 +165,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # query stats from local cluster
     main()
