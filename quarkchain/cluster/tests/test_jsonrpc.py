@@ -874,6 +874,4 @@ class TestJSONRPC(unittest.TestCase):
             )
             call_async(master.add_root_block(block))
 
-            response = send_request(
-                "createTransactions", {"numTxPerShard": 1, "xShardPercent": 0}
-            )
+            send_request("createTransactions", {"numTxPerShard": 1, "xShardPercent": 0})
