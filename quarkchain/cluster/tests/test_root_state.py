@@ -537,3 +537,32 @@ class TestRootState(unittest.TestCase):
         s_state0_recovered.init_from_root_block(root_block1)
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(s_states, m3)
+
+    def test_root_state_add_root_block_too_many_minor_blocks(self):
+        env = get_test_env()
+        r_state, s_states = create_default_state(env)
+        s_state0 = s_states[2 | 0]
+        headers = []
+        max_mblock_in_rblock = s_state0.shard_config.max_blocks_per_shard_in_one_root_block
+
+        for i in range(max_mblock_in_rblock + 1):
+            b = s_state0.create_block_to_mine()
+            add_minor_block_to_cluster(s_states, b)
+            headers.append(b.header)
+            r_state.add_validated_minor_block_hash(
+                b.header.get_hash(), b.header.coinbase_amount_map.balance_map
+            )
+
+        root_block = r_state.create_block_to_mine(
+            m_header_list=headers,
+            create_time=headers[-1].create_time + 1
+        )
+        with self.assertRaisesRegexp(ValueError, "too many minor blocks in the root block for shard"):
+            r_state.add_block(root_block)
+
+        headers = headers[:max_mblock_in_rblock]
+        root_block = r_state.create_block_to_mine(
+            m_header_list=headers,
+            create_time=headers[-1].create_time + 1
+        )
+        r_state.add_block(root_block)
