@@ -142,7 +142,7 @@ class Account:
         self.env = env
         self.address = address
 
-        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key)
+        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b'')
         self.nonce = acc.nonce
         self.storage = acc.storage
         self.code_hash = acc.code_hash
@@ -564,6 +564,7 @@ class State:
                         acct.storage,
                         acct.code_hash,
                         acct.full_shard_key,
+                        b'',
                     )
                     self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:
