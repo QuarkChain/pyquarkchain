@@ -138,7 +138,7 @@ pypy3 cluster.py --p2p --bootnodes=$BOOTSTRAP_ENODE
 
 Effectively, `newkey.py` gives the bootstrap node an identity, and you will need to provide the public key to anyone who wants to connect to the bootnodes for discovery. Read https://github.com/QuarkChain/pyquarkchain/wiki/Networking#commandline-flags-explained for details on the commandline flags.
 
-## Monitor Cluster
+## Monitoring Clusters
 Use the [`stats`](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/tools/stats) tool in the repo to monitor the status of a cluster. It queries the given cluster through JSON RPC every 10 seconds and produces an entry.
 ```bash
 $ quarkchain/tools/stats --ip=localhost
