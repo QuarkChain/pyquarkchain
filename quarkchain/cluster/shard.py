@@ -19,7 +19,13 @@ from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
 from quarkchain.config import ShardConfig
-from quarkchain.core import Address, Branch, MinorBlockHeader, RootBlock, Transaction
+from quarkchain.core import (
+    Address,
+    Branch,
+    MinorBlockHeader,
+    RootBlock,
+    TypedTransaction,
+)
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 
@@ -702,5 +708,5 @@ class Shard:
             return
         self.broadcast_tx_list(valid_tx_list, source_peer)
 
-    def add_tx(self, tx: Transaction):
+    def add_tx(self, tx: TypedTransaction):
         return self.state.add_tx(tx)

@@ -13,7 +13,7 @@ from quarkchain.core import (
     Constant,
 )
 from quarkchain.core import (
-    Transaction,
+    TypedTransaction,
     Optional,
     PrependedSizeBytesSerializer,
     PrependedSizeListSerializer,
@@ -133,7 +133,7 @@ class GenTxRequest(Serializable):
     FIELDS = [
         ("num_tx_per_shard", uint32),
         ("x_shard_percent", uint32),  # [0, 100]
-        ("tx", Transaction),  # sample tx
+        ("tx", TypedTransaction),  # sample tx
     ]
 
     def __init__(self, num_tx_per_shard, x_shard_percent, tx):
@@ -220,7 +220,7 @@ class GetTransactionResponse(Serializable):
 
 class ExecuteTransactionRequest(Serializable):
     FIELDS = [
-        ("tx", Transaction),
+        ("tx", TypedTransaction),
         ("from_address", Address),
         ("block_height", Optional(uint64)),
     ]
@@ -495,7 +495,7 @@ class GetAccountDataResponse(Serializable):
 
 
 class AddTransactionRequest(Serializable):
-    FIELDS = [("tx", Transaction)]
+    FIELDS = [("tx", TypedTransaction)]
 
     def __init__(self, tx):
         self.tx = tx
@@ -695,9 +695,9 @@ class GetLogResponse(Serializable):
 
 
 class EstimateGasRequest(Serializable):
-    FIELDS = [("tx", Transaction), ("from_address", Address)]
+    FIELDS = [("tx", TypedTransaction), ("from_address", Address)]
 
-    def __init__(self, tx: Transaction, from_address: Address):
+    def __init__(self, tx: TypedTransaction, from_address: Address):
         self.tx = tx
         self.from_address = from_address
 

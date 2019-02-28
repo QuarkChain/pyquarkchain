@@ -136,11 +136,11 @@ class TestCluster(unittest.TestCase):
             # check the tx is received by the other cluster
             tx_queue = clusters[1].get_shard_state(0b10).tx_queue
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            self.assertEqual(tx_queue.pop_transaction(), tx1.code.get_evm_transaction())
+            self.assertEqual(tx_queue.pop_transaction(), tx1.tx.to_evm_tx())
 
             tx_queue = clusters[1].get_shard_state(0b11).tx_queue
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            self.assertEqual(tx_queue.pop_transaction(), tx2.code.get_evm_transaction())
+            self.assertEqual(tx_queue.pop_transaction(), tx2.tx.to_evm_tx())
 
     def test_add_minor_block_request_list(self):
         id1 = Identity.create_random_identity()

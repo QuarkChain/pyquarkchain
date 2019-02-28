@@ -4,7 +4,7 @@ import time
 from typing import Optional
 
 from quarkchain.config import QuarkChainConfig
-from quarkchain.core import Address, Code, Transaction
+from quarkchain.core import Address, SerializedEvmTransaction, TypedTransaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import Logger
 
@@ -29,7 +29,7 @@ class TransactionGenerator:
             )
             self.accounts.append(account)
 
-    def generate(self, num_tx, x_shard_percent, tx: Transaction):
+    def generate(self, num_tx, x_shard_percent, tx: TypedTransaction):
         """Generate a bunch of transactions in the network """
         if self.running or not self.shard.state.initialized:
             return False
@@ -38,7 +38,7 @@ class TransactionGenerator:
         asyncio.ensure_future(self.__gen(num_tx, x_shard_percent, tx))
         return True
 
-    async def __gen(self, num_tx, x_shard_percent, sample_tx: Transaction):
+    async def __gen(self, num_tx, x_shard_percent, sample_tx: TypedTransaction):
         Logger.info(
             "[{}] start generating {} transactions with {}% cross-shard".format(
                 self.full_shard_id, num_tx, x_shard_percent
@@ -50,7 +50,7 @@ class TransactionGenerator:
             start_time = time.time()
             tx_list = []
             total = 0
-            sample_evm_tx = sample_tx.code.get_evm_transaction()
+            sample_evm_tx = sample_tx.tx.to_evm_tx()
             for account in self.accounts:
                 nonce = self.shard.state.get_transaction_count(
                     account.address.recipient
@@ -84,7 +84,7 @@ class TransactionGenerator:
 
     def create_transaction(
         self, account, nonce, x_shard_percent, sample_evm_tx
-    ) -> Optional[Transaction]:
+    ) -> Optional[TypedTransaction]:
         # skip if from shard is specified and not matching current branch
         # FIXME: it's possible that clients want to specify '0x0' as the full shard ID, however it will not be supported
         if (
@@ -134,4 +134,4 @@ class TransactionGenerator:
             network_id=self.qkc_config.NETWORK_ID,
         )
         evm_tx.sign(account.key)
-        return Transaction(code=Code.create_evm_code(evm_tx))
+        return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))

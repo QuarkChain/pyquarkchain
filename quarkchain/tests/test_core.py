@@ -14,7 +14,6 @@ from quarkchain.core import (
     Optional,
     Serializable,
     uint32,
-    Transaction,
     ByteBuffer,
     hash256,
     EnumSerializer,
@@ -24,7 +23,6 @@ from quarkchain.core import (
     TypedTransaction,
     SerializedEvmTransaction,
 )
-from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 
@@ -39,22 +37,6 @@ class TestDataSize(unittest.TestCase):
             size = tup[1]
             with self.subTest(cls.__name__):
                 self.assertEqual(len(cls().serialize()), size)
-
-
-class TestTransaction(unittest.TestCase):
-    def test_transaction(self):
-        id1 = Identity.create_random_identity()
-        acc2 = Address.create_random_account()
-
-        tx = create_random_test_transaction(id1, acc2)
-
-        barray = tx.serialize(bytearray())
-
-        bb = ByteBuffer(barray)
-        tx1 = Transaction.deserialize(bb)
-        self.assertEqual(bb.remaining(), 0)
-        self.assertEqual(tx, tx1)
-        self.assertTrue(tx1.verify_signature([id1.get_recipient()]))
 
 
 class TestBranch(unittest.TestCase):

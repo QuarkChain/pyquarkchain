@@ -65,7 +65,7 @@ from quarkchain.cluster.rpc import (
     SlaveInfo,
 )
 from quarkchain.cluster.shard import Shard, PeerShardConnection
-from quarkchain.core import Branch, Transaction, Address, Log
+from quarkchain.core import Branch, TypedTransaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,
     MinorBlock,
@@ -890,7 +890,9 @@ class SlaveServer:
             )
             shard.miner.start()
 
-    def create_transactions(self, num_tx_per_shard, x_shard_percent, tx: Transaction):
+    def create_transactions(
+        self, num_tx_per_shard, x_shard_percent, tx: TypedTransaction
+    ):
         for shard in self.shards.values():
             shard.tx_generator.generate(num_tx_per_shard, x_shard_percent, tx)
 
@@ -1112,8 +1114,8 @@ class SlaveServer:
         check(shard is not None)
         return await shard.add_block_list_for_sync(block_list)
 
-    def add_tx(self, tx: Transaction) -> bool:
-        evm_tx = tx.code.get_evm_transaction()
+    def add_tx(self, tx: TypedTransaction) -> bool:
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
@@ -1121,8 +1123,8 @@ class SlaveServer:
             return False
         return shard.add_tx(tx)
 
-    def execute_tx(self, tx, from_address) -> Optional[bytes]:
-        evm_tx = tx.code.get_evm_transaction()
+    def execute_tx(self, tx: TypedTransaction, from_address) -> Optional[bytes]:
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
@@ -1234,8 +1236,8 @@ class SlaveServer:
             return None
         return shard.state.get_logs(addresses, topics, start_block, end_block)
 
-    def estimate_gas(self, tx, from_address) -> Optional[int]:
-        evm_tx = tx.code.get_evm_transaction()
+    def estimate_gas(self, tx: TypedTransaction, from_address) -> Optional[int]:
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)

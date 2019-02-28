@@ -445,28 +445,6 @@ class Address(Serializable):
         return set(self.recipient) == {0}
 
 
-class TransactionInput(Serializable):
-    FIELDS = [("hash", hash256), ("index", uint8)]
-
-    def __init__(self, hash: bytes, index: int) -> None:
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
-
-    def get_hash_hex(self):
-        return self.hash.hex()
-
-
-class TransactionOutput(Serializable):
-    FIELDS = [("address", Address), ("quarkash", uint256)]
-
-    def __init__(self, address: Address, quarkash: int):
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
-
-    def get_address_hex(self):
-        return self.address.serialize().hex()
-
-
 class Branch(Serializable):
     FIELDS = [("value", uint32)]
 
@@ -528,68 +506,6 @@ class ChainMask(Serializable):
         return masks_have_overlap(self.value, chain_mask.value)
 
 
-class Code(Serializable):
-    OP_TRANSFER = b"\1"
-    OP_EVM = b"\2"
-    OP_SHARD_COINBASE = b"m"
-    OP_ROOT_COINBASE = b"r"
-    # TODO: Replace it with vary-size bytes serializer
-    FIELDS = [("code", PrependedSizeBytesSerializer(4))]
-
-    def __init__(self, code=OP_TRANSFER):
-        fields = {k: v for k, v in locals().items() if k != "self"}
-        super(type(self), self).__init__(**fields)
-
-    @classmethod
-    def get_transfer_code(cls):
-        """ Transfer quarkash from input list to output list
-        If evm is None, then no balance is withdrawn from evm account.
-        """
-        return Code(code=cls.OP_TRANSFER)
-
-    @classmethod
-    def create_minor_block_coinbase_code(cls, height, branch):
-        return Code(
-            code=cls.OP_SHARD_COINBASE
-            + height.to_bytes(4, byteorder="big")
-            + branch.serialize()
-        )
-
-    @classmethod
-    def create_root_block_coinbase_code(cls, height):
-        return Code(code=cls.OP_ROOT_COINBASE + height.to_bytes(4, byteorder="big"))
-
-    @classmethod
-    def create_evm_code(cls, evm_tx):
-        return Code(cls.OP_EVM + rlp.encode(evm_tx))
-
-    def is_valid_op(self):
-        if len(self.code) == 0:
-            return False
-        return (
-            self.is_transfer()
-            or self.is_shard_coinbase()
-            or self.is_root_coinbase()
-            or self.is_evm()
-        )
-
-    def is_transfer(self):
-        return self.code[:1] == self.OP_TRANSFER
-
-    def is_shard_coinbase(self):
-        return self.code[:1] == self.OP_SHARD_COINBASE
-
-    def is_root_coinbase(self):
-        return self.code[:1] == self.OP_ROOT_COINBASE
-
-    def is_evm(self):
-        return self.code[:1] == self.OP_EVM
-
-    def get_evm_transaction(self) -> EvmTransaction:
-        assert self.is_evm()
-        return rlp.decode(self.code[1:], EvmTransaction)
-
-
 class TransactionType:
     SERIALIZED_EVM = 0
 
@@ -623,7 +539,9 @@ class TypedTransaction(Serializable):
         (
             "tx",
             EnumSerializer(
-                "type", {TransactionType.SERIALIZED_EVM: SerializedEvmTransaction}
+                "type",
+                {TransactionType.SERIALIZED_EVM: SerializedEvmTransaction},
+                size=1,
             ),
         )
     ]
@@ -631,62 +549,8 @@ class TypedTransaction(Serializable):
     def __init__(self, tx):
         self.tx = tx
 
-
-class Transaction(Serializable):
-    FIELDS = [
-        ("in_list", PrependedSizeListSerializer(1, TransactionInput)),
-        ("code", Code),
-        ("out_list", PrependedSizeListSerializer(1, TransactionOutput)),
-        ("sign_list", PrependedSizeListSerializer(1, FixedSizeBytesSerializer(65))),
-    ]
-
-    def __init__(self, in_list=None, code=Code(), out_list=None, sign_list=None):
-        self.in_list = [] if in_list is None else in_list
-        self.out_list = [] if out_list is None else out_list
-        self.sign_list = [] if sign_list is None else sign_list
-        self.code = code
-
-    def serialize_unsigned(self, barray: bytearray = None) -> bytearray:
-        barray = barray if barray is not None else bytearray()
-        return self.serialize_without(["sign_list"], barray)
-
     def get_hash(self):
         return sha3_256(self.serialize())
-
-    def get_hash_hex(self):
-        return self.get_hash().hex()
-
-    def get_hash_unsigned(self):
-        return sha3_256(self.serialize_unsigned())
-
-    def sign(self, keys):
-        """ Sign the transaction with keys.  It doesn't mean the transaction is valid in the chain since it doesn't
-        check whether the tx_input's addresses (recipents) match the keys
-        """
-        sign_list = []
-        for key in keys:
-            sig = KeyAPI.PrivateKey(key).sign_msg(self.get_hash_unsigned())
-            sign_list.append(
-                sig.r.to_bytes(32, byteorder="big")
-                + sig.s.to_bytes(32, byteorder="big")
-                + sig.v.to_bytes(1, byteorder="big")
-            )
-        self.sign_list = sign_list
-        return self
-
-    def verify_signature(self, recipients):
-        """ Verify whether the signatures are from a list of recipients.  Doesn't verify if the transaction is valid on
-        the chain
-        """
-        if len(recipients) != len(self.sign_list):
-            return False
-
-        for i in range(len(recipients)):
-            sig = KeyAPI.Signature(signature_bytes=self.sign_list[i])
-            pub = sig.recover_public_key_from_msg(self.get_hash_unsigned())
-            if pub.to_canonical_address() != recipients[i]:
-                return False
-        return True
 
 
 class TokenBalanceMap(Serializable):
@@ -851,7 +715,7 @@ class MinorBlock(Serializable):
     FIELDS = [
         ("header", MinorBlockHeader),
         ("meta", MinorBlockMeta),
-        ("tx_list", PrependedSizeListSerializer(4, Transaction)),
+        ("tx_list", PrependedSizeListSerializer(4, TypedTransaction)),
         (
             "tracking_data",
             PrependedSizeBytesSerializer(2),
@@ -862,7 +726,7 @@ class MinorBlock(Serializable):
         self,
         header: MinorBlockHeader,
         meta: MinorBlockMeta,
-        tx_list: List[Transaction] = None,
+        tx_list: List[TypedTransaction] = None,
         tracking_data: bytes = b"",
     ):
         self.header = header
@@ -933,7 +797,7 @@ class MinorBlock(Serializable):
         )
 
     def get_block_prices(self) -> List[int]:
-        return [tx.code.get_evm_transaction().gasprice for tx in self.tx_list]
+        return [typed_tx.tx.to_evm_tx().gasprice for typed_tx in self.tx_list]
 
     def create_block_to_append(
         self,

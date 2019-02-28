@@ -16,13 +16,13 @@ from quarkchain.cluster.master import MasterServer
 from quarkchain.core import (
     Address,
     Branch,
-    Code,
     Log,
     MinorBlock,
     RootBlock,
-    Transaction,
-    TransactionReceipt,
+    SerializedEvmTransaction,
     TokenBalanceMap,
+    TransactionReceipt,
+    TypedTransaction,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
@@ -236,7 +236,7 @@ def tx_encoder(block, i):
     `transaction` is the `i`th transaction in `block`.
     """
     tx = block.tx_list[i]
-    evm_tx = tx.code.get_evm_transaction()
+    evm_tx = tx.tx.to_evm_tx()
     branch = block.header.branch
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
@@ -291,7 +291,7 @@ def loglist_encoder(loglist: List[Log]):
 
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     tx = block.tx_list[i]
-    evm_tx = tx.code.get_evm_transaction()
+    evm_tx = tx.tx.to_evm_tx()
     resp = {
         "transactionId": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
         "transactionHash": data_encoder(tx.get_hash()),
@@ -717,7 +717,7 @@ class JSONRPCServer:
             gas_token_id=gas_token_id,
             transfer_token_id=transfer_token_id,
         )
-        tx = Transaction(code=Code.create_evm_code(evm_tx))
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
             return None
@@ -728,7 +728,7 @@ class JSONRPCServer:
     @decode_arg("tx_data", data_decoder)
     async def sendRawTransaction(self, tx_data):
         evm_tx = rlp.decode(tx_data, EvmTransaction)
-        tx = Transaction(code=Code.create_evm_code(evm_tx))
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
             return "0x" + bytes(32 + 4).hex()
@@ -1139,7 +1139,7 @@ class JSONRPCServer:
             gas_token_id=gas_token_id,
             transfer_token_id=transfer_token_id,
         )
-        tx = Transaction(code=Code.create_evm_code(evm_tx_sample))
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx_sample))
         return await self.master.create_transactions(
             num_tx_per_shard, x_shard_percent, tx
         )
@@ -1260,7 +1260,7 @@ class JSONRPCServer:
             transfer_token_id=transfer_token_id,
         )
 
-        tx = Transaction(code=Code.create_evm_code(evm_tx))
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         if is_call:
             res = await self.master.execute_transaction(
                 tx, sender_address, data["block_height"]
