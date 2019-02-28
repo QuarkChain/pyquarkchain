@@ -21,9 +21,13 @@ from quarkchain.core import (
     PrependedSizeMapSerializer,
     boolean,
     TokenBalanceMap,
+    TypedTransaction,
+    SerializedEvmTransaction,
 )
 from quarkchain.tests.test_utils import create_random_test_transaction
 from quarkchain.utils import check
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+
 
 SIZE_LIST = [(RootBlockHeader, 216), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
 
@@ -212,6 +216,18 @@ class TestEnumSerializer(unittest.TestCase):
         with self.assertRaises(ValueError):
             bb = ByteBuffer(barray)
             vhd = VersionedSimpleHeaderOld.deserialize(bb)
+
+
+class TestTypedTransaction(unittest.TestCase):
+    def test_serialized_evm_tx(self):
+        evm_tx = EvmTransaction(1, 2, 3, b"", 4, b"", 5, 6)
+        serialized_evm_tx = SerializedEvmTransaction.from_evm_tx(evm_tx)
+        typed_tx = TypedTransaction(serialized_evm_tx)
+        typed_tx_bytes = typed_tx.serialize()
+
+        recovered_typed_tx = TypedTransaction.deserialize(typed_tx_bytes)
+        self.assertEqual(recovered_typed_tx.tx, serialized_evm_tx)
+        self.assertEqual(recovered_typed_tx.tx.to_evm_tx(), evm_tx)
 
 
 class MapData(Serializable):
