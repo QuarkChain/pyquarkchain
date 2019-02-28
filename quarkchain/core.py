@@ -590,6 +590,48 @@ class Code(Serializable):
         return rlp.decode(self.code[1:], EvmTransaction)
 
 
+class TransactionType:
+    SERIALIZED_EVM = 0
+
+
+class SerializedEvmTransaction(Serializable):
+    FIELDS = [("type", uint8), ("serialized_tx", PrependedSizeBytesSerializer(4))]
+
+    def __init__(self, type, serialized_tx):
+        check(type == TransactionType.SERIALIZED_EVM)
+        self.type = TransactionType.SERIALIZED_EVM
+        self.serialized_tx = serialized_tx
+
+    @classmethod
+    def from_evm_tx(cls, evm_tx: EvmTransaction):
+        return SerializedEvmTransaction(
+            TransactionType.SERIALIZED_EVM, rlp.encode(evm_tx)
+        )
+
+    def to_evm_tx(self) -> EvmTransaction:
+        return rlp.decode(self.serialized_tx, EvmTransaction)
+
+
+class TypedTransaction(Serializable):
+    # The wrapped tx can be of any transaction type
+    # To add new transaction type:
+    #     1. Add a new type in TransactionType
+    #     2. Create the new transaction class and make sure the first field is ("type", uint8)
+    #     3. Add the new tx type to the EnumSerializer
+    #     4. Add a new test to TestTypedTransaction in test_core.py
+    FIELDS = [
+        (
+            "tx",
+            EnumSerializer(
+                "type", {TransactionType.SERIALIZED_EVM: SerializedEvmTransaction}
+            ),
+        )
+    ]
+
+    def __init__(self, tx):
+        self.tx = tx
+
+
 class Transaction(Serializable):
     FIELDS = [
         ("in_list", PrependedSizeListSerializer(1, TransactionInput)),
