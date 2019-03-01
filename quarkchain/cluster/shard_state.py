@@ -716,7 +716,7 @@ class ShardState:
                 raise e
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount_map()
+        pure_coinbase_amount = self.get_coinbase_amount_map(block.header.height)
         for k, v in pure_coinbase_amount.balance_map.items():
             evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
@@ -874,7 +874,7 @@ class ShardState:
                     evm_state.xshard_receive_gas_used,
                 )
             )
-        coinbase_amount_map = self.get_coinbase_amount_map()
+        coinbase_amount_map = self.get_coinbase_amount_map(block.header.height)
         # add block reward
         coinbase_amount_map.add(evm_state.block_fee_tokens)
 
@@ -961,11 +961,23 @@ class ShardState:
             )
         return evm_state.xshard_list, coinbase_amount_map
 
-    def get_coinbase_amount_map(self) -> TokenBalanceMap:
+    def get_coinbase_amount_map(self, height) -> TokenBalanceMap:
+        epoch = (
+            height
+            // self.env.quark_chain_config.shards[self.full_shard_id].EPOCH_INTERVAL
+        )
+        decay_numerator = (
+            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
+        )
+        decay_denominator = (
+            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
+        )
         coinbase_amount = (
             self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
             * self.local_fee_rate.numerator
+            * decay_numerator
             // self.local_fee_rate.denominator
+            // decay_denominator
         )
         # shard coinbase only in genesis_token
         return TokenBalanceMap(
@@ -980,7 +992,7 @@ class ShardState:
         gas_limit and xshard_gas_limit is used to verify customized gas limits and they are for test purpose only
         """
         evm_state = self.run_block(block)
-        coinbase_amount_map = self.get_coinbase_amount_map()
+        coinbase_amount_map = self.get_coinbase_amount_map(block.header.height)
         coinbase_amount_map.add(evm_state.block_fee_tokens)
         block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
         self.add_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
@@ -1179,7 +1191,7 @@ class ShardState:
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner
-        pure_coinbase_amount = self.get_coinbase_amount_map()
+        pure_coinbase_amount = self.get_coinbase_amount_map(block.header.height)
         for k, v in pure_coinbase_amount.balance_map.items():
             evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 

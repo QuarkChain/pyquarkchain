@@ -61,6 +61,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         },
         "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
         "COINBASE_AMOUNT": 120000000000000000000,
+        "EPOCH_INTERVAL": 2100000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
     },
@@ -89,6 +90,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
             "COINBASE_AMOUNT": 5000000000000000000,
+            "EPOCH_INTERVAL": 12600000,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
@@ -123,6 +125,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
             "COINBASE_AMOUNT": 5000000000000000000,
+            "EPOCH_INTERVAL": 12600000,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
@@ -157,6 +160,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             },
             "COINBASE_ADDRESS": "000000000000000000000000000000000000000000000000",
             "COINBASE_AMOUNT": 5000000000000000000,
+            "EPOCH_INTERVAL": 12600000,
             "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
             "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
@@ -169,7 +173,8 @@ class TestQuarkChainConfig(unittest.TestCase):
         }
     ],
     "SHARDS": null,
-    "REWARD_TAX_RATE": 0.5
+    "REWARD_TAX_RATE": 0.5,
+    "BLOCK_REWARD_DECAY_FACTOR": 0.5
 }"""
         print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)

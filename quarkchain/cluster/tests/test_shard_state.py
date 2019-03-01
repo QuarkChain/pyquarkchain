@@ -2131,13 +2131,14 @@ class TestShardState(unittest.TestCase):
         b = state.create_block_to_mine()
         evm_state = state.run_block(b)
         b.finalize(
-            evm_state=evm_state, coinbase_amount_map=state.get_coinbase_amount_map()
+            evm_state=evm_state,
+            coinbase_amount_map=state.get_coinbase_amount_map(b.header.height),
         )
         state.add_block(b)
 
         b = state.create_block_to_mine()
         evm = state.run_block(b)
-        wrong_coinbase = state.get_coinbase_amount_map()
+        wrong_coinbase = state.get_coinbase_amount_map(b.header.height)
         wrong_coinbase.add({self.genesis_token: +1})
         b.finalize(evm_state=evm_state, coinbase_amount_map=wrong_coinbase)
         with self.assertRaises(ValueError):

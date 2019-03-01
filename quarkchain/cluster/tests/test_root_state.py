@@ -191,7 +191,8 @@ class TestRootState(unittest.TestCase):
             b3.header
         ).finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block1.minor_block_header_list]
+                [header.get_hash() for header in root_block1.minor_block_header_list],
+                root_block1.header.height,
             )
         )
 
@@ -217,7 +218,8 @@ class TestRootState(unittest.TestCase):
         )
         root_block2.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block2.minor_block_header_list]
+                [header.get_hash() for header in root_block2.minor_block_header_list],
+                root_block2.header.height,
             )
         )
 
@@ -339,7 +341,8 @@ class TestRootState(unittest.TestCase):
         root_block00.header.create_time += 1
         root_block00.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block00.minor_block_header_list]
+                [header.get_hash() for header in root_block00.minor_block_header_list],
+                root_block00.header.height,
             )
         )
         self.assertNotEqual(
@@ -419,7 +422,8 @@ class TestRootState(unittest.TestCase):
         ).add_minor_block_header(m1.header)
         root_block1.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block1.minor_block_header_list]
+                [header.get_hash() for header in root_block1.minor_block_header_list],
+                root_block1.header.height,
             )
         )
         root_block2 = root_block0.create_block_to_append(
@@ -427,7 +431,8 @@ class TestRootState(unittest.TestCase):
         ).add_minor_block_header(m1.header)
         root_block2.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block2.minor_block_header_list]
+                [header.get_hash() for header in root_block2.minor_block_header_list],
+                root_block2.header.height,
             )
         )
 
@@ -448,7 +453,8 @@ class TestRootState(unittest.TestCase):
         )
         root_block3.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block3.minor_block_header_list]
+                [header.get_hash() for header in root_block3.minor_block_header_list],
+                root_block3.header.height,
             )
         )
 
@@ -460,7 +466,8 @@ class TestRootState(unittest.TestCase):
         )
         root_block4.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block4.minor_block_header_list]
+                [header.get_hash() for header in root_block4.minor_block_header_list],
+                root_block4.header.height,
             )
         )
         self.assertTrue(r_state.add_block(root_block4))
@@ -506,7 +513,8 @@ class TestRootState(unittest.TestCase):
         ).add_minor_block_header(m1.header)
         root_block1.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block1.minor_block_header_list]
+                [header.get_hash() for header in root_block1.minor_block_header_list],
+                root_block1.header.height,
             )
         )
         root_block2 = root_block0.create_block_to_append(
@@ -514,7 +522,8 @@ class TestRootState(unittest.TestCase):
         ).add_minor_block_header(m2.header)
         root_block2.finalize(
             coinbase_tokens=r_state._calculate_root_block_coinbase(
-                [header.get_hash() for header in root_block2.minor_block_header_list]
+                [header.get_hash() for header in root_block2.minor_block_header_list],
+                root_block2.header.height,
             )
         )
 
