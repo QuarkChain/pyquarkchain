@@ -16,7 +16,13 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_creation_with_event_transaction,
     create_contract_with_storage_transaction,
 )
-from quarkchain.core import Address, Branch, Code, Identity, Transaction
+from quarkchain.core import (
+    Address,
+    Branch,
+    Identity,
+    SerializedEvmTransaction,
+    TypedTransaction,
+)
 from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm import opcodes
@@ -145,7 +151,7 @@ class TestJSONRPC(unittest.TestCase):
                 toFullShardId="0x00000001",
                 network_id=hex(slaves[0].env.quark_chain_config.NETWORK_ID),
             )
-            tx = Transaction(code=Code.create_evm_code(evm_tx))
+            tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
             response = send_request("sendTransaction", [request])
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")

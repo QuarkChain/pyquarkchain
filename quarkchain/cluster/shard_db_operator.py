@@ -40,7 +40,7 @@ class TransactionHistoryMixin:
         return CrossShardTransactionList.deserialize(data).tx_list
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
         addr = Address(evm_tx.sender, evm_tx.from_full_shard_key)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
@@ -139,7 +139,7 @@ class TransactionHistoryMixin:
                 m_block = self.get_minor_block_by_height(height)
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
-                evm_tx = tx.code.get_evm_transaction()
+                evm_tx = tx.tx.to_evm_tx()
                 tx_list.append(
                     TransactionDetail(
                         tx.get_hash(),

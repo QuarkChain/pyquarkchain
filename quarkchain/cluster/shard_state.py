@@ -2,9 +2,9 @@ import asyncio
 import functools
 import json
 import time
-from collections import defaultdict, deque, Counter
+from collections import Counter, defaultdict, deque
 from fractions import Fraction
-from typing import Optional, Tuple, List, Union, Dict
+from typing import Dict, List, Optional, Tuple, Union
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.miner import validate_seal
@@ -12,24 +12,22 @@ from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
 from quarkchain.core import (
-    calculate_merkle_root,
     Address,
     Branch,
-    Code,
-    RootBlock,
-    Transaction,
-    Log,
-    XshardTxCursorInfo,
-    TokenBalanceMap,
-)
-from quarkchain.core import (
-    mk_receipt_sha,
-    CrossShardTransactionList,
     CrossShardTransactionDeposit,
+    CrossShardTransactionList,
+    Log,
     MinorBlock,
     MinorBlockHeader,
     MinorBlockMeta,
+    RootBlock,
+    SerializedEvmTransaction,
+    TokenBalanceMap,
     TransactionReceipt,
+    TypedTransaction,
+    XshardTxCursorInfo,
+    calculate_merkle_root,
+    mk_receipt_sha,
 )
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
@@ -384,28 +382,14 @@ class ShardState:
 
     def __validate_tx(
         self,
-        tx: Transaction,
+        tx: TypedTransaction,
         evm_state,
         from_address=None,
         gas=None,
         xshard_gas_limit=None,
     ) -> EvmTransaction:
         """from_address will be set for execute_tx"""
-        # UTXOs are not supported now
-        if len(tx.in_list) != 0:
-            raise RuntimeError("input list must be empty")
-        if len(tx.out_list) != 0:
-            raise RuntimeError("output list must be empty")
-        if len(tx.sign_list) != 0:
-            raise RuntimeError("sign list must be empty")
-
-        # Check OP code
-        if len(tx.code.code) == 0:
-            raise RuntimeError("empty op code")
-        if not tx.code.is_evm():
-            raise RuntimeError("only evm transaction is supported now")
-
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
 
         if from_address:
             check(evm_tx.from_full_shard_key == from_address.full_shard_key)
@@ -488,7 +472,7 @@ class ShardState:
             self.get_xshard_gas_limit(gas_limit, xshard_gas_limit),
         )
 
-    def add_tx(self, tx: Transaction, xshard_gas_limit=None):
+    def add_tx(self, tx: TypedTransaction, xshard_gas_limit=None):
         """ Add a tx to the tx queue
         xshard_gas_limit is used for testing, which discards the tx if
         - tx is x-shard; and
@@ -799,13 +783,13 @@ class ShardState:
     def __add_transactions_from_block(self, block):
         for tx in block.tx_list:
             self.tx_dict[tx.get_hash()] = tx
-            self.tx_queue.add_transaction(tx.code.get_evm_transaction())
+            self.tx_queue.add_transaction(tx.tx.to_evm_tx())
 
     def __remove_transactions_from_block(self, block):
         evm_tx_list = []
         for tx in block.tx_list:
             self.tx_dict.pop(tx.get_hash(), None)
-            evm_tx_list.append(tx.code.get_evm_transaction())
+            evm_tx_list.append(tx.tx.to_evm_tx())
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
     def add_block(
@@ -1039,7 +1023,7 @@ class ShardState:
         return int_result.to_bytes(32, byteorder="big")
 
     def execute_tx(
-        self, tx: Transaction, from_address, height: Optional[int] = None
+        self, tx: TypedTransaction, from_address, height: Optional[int] = None
     ) -> Optional[bytes]:
         """Execute the tx using a copy of state
         """
@@ -1051,7 +1035,7 @@ class ShardState:
         state.gas_used = 0
 
         # Use the maximum gas allowed if gas is 0
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
         gas = evm_tx.startgas if evm_tx.startgas else state.gas_limit
 
         try:
@@ -1133,8 +1117,8 @@ class ShardState:
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
             to_branch = Branch(evm_tx.to_full_shard_id)
 
+            tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
             try:
-                tx = Transaction(code=Code.create_evm_code(evm_tx))
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 block.add_tx(tx)
                 poped_txs.append(evm_tx)
@@ -1142,7 +1126,6 @@ class ShardState:
                 Logger.warning_every_sec(
                     "Failed to include transaction: {}".format(e), 1
                 )
-                tx = Transaction(code=Code.create_evm_code(evm_tx))
                 self.tx_dict.pop(tx.get_hash(), None)
 
         # We don't want to drop the transactions if the mined block failed to be appended
@@ -1498,7 +1481,9 @@ class ShardState:
                 if Address(tx.sender, tx.from_full_shard_key) == address:
                     tx_list.append(
                         TransactionDetail(
-                            Transaction(code=Code.create_evm_code(tx)).get_hash(),
+                            TypedTransaction(
+                                SerializedEvmTransaction.from_evm_tx(tx)
+                            ).get_hash(),
                             address,
                             Address(tx.to, tx.to_full_shard_key) if tx.to else None,
                             tx.value,
@@ -1571,9 +1556,9 @@ class ShardState:
             Logger.error_exception()
             return None
 
-    def estimate_gas(self, tx: Transaction, from_address) -> Optional[int]:
+    def estimate_gas(self, tx: TypedTransaction, from_address) -> Optional[int]:
         """Estimate a tx's gas usage by binary searching."""
-        evm_tx_start_gas = tx.code.get_evm_transaction().startgas
+        evm_tx_start_gas = tx.tx.to_evm_tx().startgas
         # binary search. similar as in go-ethereum
         lo = 21000 - 1
         hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else self.evm_state.gas_limit

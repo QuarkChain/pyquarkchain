@@ -72,9 +72,9 @@ from quarkchain.core import (
     Address,
     RootBlock,
     TransactionReceipt,
+    TypedTransaction,
     MinorBlock,
 )
-from quarkchain.core import Transaction
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, check, time_ms
@@ -446,7 +446,7 @@ class SlaveConnection(ClusterConnection):
         return resp.error_code == 0
 
     async def execute_transaction(
-        self, tx: Transaction, from_address, block_height: Optional[int]
+        self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ):
         request = ExecuteTransactionRequest(tx, from_address, block_height)
         _, resp, _ = await self.write_rpc_request(
@@ -514,7 +514,7 @@ class SlaveConnection(ClusterConnection):
         return resp.logs if resp.error_code == 0 else None
 
     async def estimate_gas(
-        self, tx: Transaction, from_address: Address
+        self, tx: TypedTransaction, from_address: Address
     ) -> Optional[int]:
         request = EstimateGasRequest(tx, from_address)
         _, resp, _ = await self.write_rpc_request(
@@ -930,9 +930,9 @@ class MasterServer:
                 return account_branch_data
         return None
 
-    async def add_transaction(self, tx, from_peer=None):
+    async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
@@ -957,10 +957,10 @@ class MasterServer:
         return True
 
     async def execute_transaction(
-        self, tx: Transaction, from_address, block_height: Optional[int]
+        self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
@@ -1098,7 +1098,7 @@ class MasterServer:
             await self.stop_mining()
 
     async def create_transactions(
-        self, num_tx_per_shard, xshard_percent, tx: Transaction
+        self, num_tx_per_shard, xshard_percent, tx: TypedTransaction
     ):
         """Create transactions and add to the network for load testing"""
         futures = []
@@ -1297,9 +1297,9 @@ class MasterServer:
         return await slave.get_logs(branch, addresses, topics, start_block, end_block)
 
     async def estimate_gas(
-        self, tx: Transaction, from_address: Address
+        self, tx: TypedTransaction, from_address: Address
     ) -> Optional[int]:
-        evm_tx = tx.code.get_evm_transaction()
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:

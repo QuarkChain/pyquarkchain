@@ -1,6 +1,14 @@
 from enum import IntEnum
 
-from quarkchain.core import Branch, uint8, uint16, uint32, uint128, hash256, Transaction
+from quarkchain.core import (
+    Branch,
+    uint8,
+    uint16,
+    uint32,
+    uint128,
+    hash256,
+    TypedTransaction,
+)
 from quarkchain.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
 from quarkchain.core import Serializable, PrependedSizeListSerializer
 
@@ -74,7 +82,7 @@ class NewMinorBlockHeaderListCommand(Serializable):
 class NewTransactionListCommand(Serializable):
     """ Broadcast transactions """
 
-    FIELDS = [("transaction_list", PrependedSizeListSerializer(4, Transaction))]
+    FIELDS = [("transaction_list", PrependedSizeListSerializer(4, TypedTransaction))]
 
     def __init__(self, transaction_list=None):
         self.transaction_list = transaction_list if transaction_list is not None else []
