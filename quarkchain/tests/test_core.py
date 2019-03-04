@@ -22,8 +22,10 @@ from quarkchain.core import (
     TokenBalanceMap,
     TypedTransaction,
     SerializedEvmTransaction,
+    calculate_merkle_root,
+    sha3_256,
 )
-from quarkchain.utils import check
+from quarkchain.utils import check, p2_roundup
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 
 
@@ -256,3 +258,40 @@ class TestTokenBalanceMap(unittest.TestCase):
         m2 = TokenBalanceMap({0: 30, 2: 50})
         m0.add(m2.balance_map)
         self.assertEqual(m0.balance_map, {0: 40, 1: 20, 2: 50})
+
+
+def calculate_merkle_root1(item_list):
+    ''' Same version as calculate_merkle_root(), but zpadding hashed vector to nearest p2
+    '''
+    if len(item_list) == 0:
+        sha_tree = [bytes(32)]
+    else:
+        sha_tree = [sha3_256(item.serialize()) for item in item_list]
+
+    for i in range(len(sha_tree), p2_roundup(len(sha_tree))):
+        sha_tree.append(bytes(32))
+
+    while len(sha_tree) != 1:
+        sha_tree = [sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)]
+    return sha3_256(sha_tree[0] + len(item_list).to_bytes(8, "big"))
+
+
+class TestCalculateMerkleTree(unittest.TestCase):
+    def test_tree(self):
+
+        class Data(Serializable):
+            FIELDS = [
+                ("value", uint32),
+            ]
+
+            def __init__(self, value):
+                self.value = value
+        N = 64
+
+        for n in range(N + 1):
+            item_list = [Data(i) for i in range(n)]
+            print(n)
+
+            hash0 = calculate_merkle_root(item_list)
+            hash1 = calculate_merkle_root1(item_list)
+            self.assertEqual(hash0, hash1)
