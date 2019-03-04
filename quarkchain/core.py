@@ -847,6 +847,7 @@ class RootBlockHeader(Serializable):
         ("height", uint32),
         ("hash_prev_block", hash256),
         ("hash_merkle_root", hash256),
+        ("hash_evm_state_root", hash256),
         ("coinbase_address", Address),
         ("coinbase_amount_map", TokenBalanceMap),
         ("create_time", uint64),
@@ -863,6 +864,7 @@ class RootBlockHeader(Serializable):
         height=0,
         hash_prev_block=bytes(Constant.HASH_LENGTH),
         hash_merkle_root=bytes(Constant.HASH_LENGTH),
+        hash_evm_state_root=bytes(Constant.HASH_LENGTH),
         coinbase_address=Address.create_empty_account(),
         coinbase_amount_map: TokenBalanceMap = None,
         create_time=0,
@@ -876,6 +878,7 @@ class RootBlockHeader(Serializable):
         self.height = height
         self.hash_prev_block = hash_prev_block
         self.hash_merkle_root = hash_merkle_root
+        self.hash_evm_state_root = hash_evm_state_root
         self.coinbase_address = coinbase_address
         self.coinbase_amount_map = coinbase_amount_map or TokenBalanceMap({})
         self.create_time = create_time
@@ -919,7 +922,8 @@ class RootBlockHeader(Serializable):
             version=self.version,
             height=self.height + 1,
             hash_prev_block=self.get_hash(),
-            hash_merkle_root=bytes(32),
+            hash_merkle_root=bytes(Constant.HASH_LENGTH),
+            hash_evm_state_root=trie.BLANK_ROOT,
             coinbase_address=address if address else Address.create_empty_account(),
             coinbase_amount_map=None,
             create_time=create_time,
@@ -956,6 +960,7 @@ class RootBlock(Serializable):
         self,
         coinbase_tokens: Dict = None,
         coinbase_address=Address.create_empty_account(),
+        hash_evm_state_root=None,
     ):
         self.header.hash_merkle_root = calculate_merkle_root(
             self.minor_block_header_list
@@ -963,6 +968,7 @@ class RootBlock(Serializable):
 
         self.header.coinbase_amount_map = TokenBalanceMap(coinbase_tokens or {})
         self.header.coinbase_address = coinbase_address
+        self.hash_evm_state_root = trie.BLANK_ROOT if hash_evm_state_root is None else hash_evm_state_root
         return self
 
     def add_minor_block_header(self, header):

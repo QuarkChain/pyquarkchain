@@ -29,7 +29,7 @@ from quarkchain.utils import check, p2_roundup
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 
 
-SIZE_LIST = [(RootBlockHeader, 216), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
+SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
 
 
 class TestDataSize(unittest.TestCase):
