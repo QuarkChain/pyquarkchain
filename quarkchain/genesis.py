@@ -31,6 +31,7 @@ class GenesisManager:
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
+            total_difficulty=genesis.DIFFICULTY,
         )
         return RootBlock(header=header, minor_block_header_list=[])
 

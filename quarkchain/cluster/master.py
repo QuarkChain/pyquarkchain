@@ -319,7 +319,7 @@ class Synchronizer:
         check(len(self.tasks) > 0)
         peer, header = max(self.tasks.items(), key=lambda pair: pair[1].height)
         del self.tasks[peer]
-        return (header, peer)
+        return header, peer
 
     async def __run(self):
         Logger.info("[R] synchronizer started!")
@@ -405,7 +405,7 @@ class SlaveConnection(ClusterConnection):
             cmd=req,
             metadata=ClusterMetadata(branch=ROOT_BRANCH, cluster_peer_id=0),
         )
-        return (resp.id, resp.chain_mask_list)
+        return resp.id, resp.chain_mask_list
 
     async def send_connect_to_slaves(self, slave_info_list):
         """ Make slave connect to other slaves.
