@@ -552,7 +552,9 @@ class TestRootState(unittest.TestCase):
         r_state, s_states = create_default_state(env)
         s_state0 = s_states[2 | 0]
         headers = []
-        max_mblock_in_rblock = s_state0.shard_config.max_blocks_per_shard_in_one_root_block
+        max_mblock_in_rblock = (
+            s_state0.shard_config.max_blocks_per_shard_in_one_root_block
+        )
 
         for i in range(max_mblock_in_rblock + 1):
             b = s_state0.create_block_to_mine()
@@ -563,15 +565,49 @@ class TestRootState(unittest.TestCase):
             )
 
         root_block = r_state.create_block_to_mine(
-            m_header_list=headers,
-            create_time=headers[-1].create_time + 1
+            m_header_list=headers, create_time=headers[-1].create_time + 1
         )
-        with self.assertRaisesRegexp(ValueError, "too many minor blocks in the root block for shard"):
+        with self.assertRaisesRegexp(
+            ValueError, "too many minor blocks in the root block for shard"
+        ):
             r_state.add_block(root_block)
 
         headers = headers[:max_mblock_in_rblock]
         root_block = r_state.create_block_to_mine(
-            m_header_list=headers,
-            create_time=headers[-1].create_time + 1
+            m_header_list=headers, create_time=headers[-1].create_time + 1
         )
         r_state.add_block(root_block)
+
+    def test_root_coinbase_decay(self):
+        env = get_test_env()
+        r_state, s_states = create_default_state(env)
+        coinbase = r_state._calculate_root_block_coinbase(
+            [], env.quark_chain_config.ROOT.EPOCH_INTERVAL
+        )
+        self.assertEqual(
+            coinbase,
+            {
+                env.quark_chain_config.genesis_token: env.quark_chain_config.ROOT.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR
+            },
+        )
+        coinbase = r_state._calculate_root_block_coinbase(
+            [], env.quark_chain_config.ROOT.EPOCH_INTERVAL + 1
+        )
+        self.assertEqual(
+            coinbase,
+            {
+                env.quark_chain_config.genesis_token: env.quark_chain_config.ROOT.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR
+            },
+        )
+        coinbase = r_state._calculate_root_block_coinbase(
+            [], env.quark_chain_config.ROOT.EPOCH_INTERVAL * 2
+        )
+        self.assertEqual(
+            coinbase,
+            {
+                env.quark_chain_config.genesis_token: env.quark_chain_config.ROOT.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR ** 2
+            },
+        )
