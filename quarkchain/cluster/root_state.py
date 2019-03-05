@@ -19,6 +19,7 @@ from quarkchain.core import (
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import Logger, check, time_ms
+from quarkchain.evm.trie import BLANK_ROOT
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -388,6 +389,10 @@ class RootState:
         merkle_hash = calculate_merkle_root(block.minor_block_header_list)
         if merkle_hash != block.header.hash_merkle_root:
             raise ValueError("incorrect merkle root")
+
+        # Check the trie
+        if block.header.hash_evm_state_root != BLANK_ROOT:
+            raise ValueError("incorrect evm state root")
 
         # Check coinbase
         if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
