@@ -130,6 +130,7 @@ class ChainConfig(BaseConfig):
 
     COINBASE_ADDRESS = bytes(24).hex()
     COINBASE_AMOUNT = 5 * QUARKSH_TO_JIAOZI
+    EPOCH_INTERVAL = 210000 * 60  # same as Bitcoin but considering 10s per block
 
     DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
     DIFFICULTY_ADJUSTMENT_FACTOR = 512
@@ -232,6 +233,7 @@ class RootConfig(BaseConfig):
 
     COINBASE_ADDRESS = bytes(24).hex()
     COINBASE_AMOUNT = 120 * QUARKSH_TO_JIAOZI
+    EPOCH_INTERVAL = 210000 * 10  # same as Bitcoin but considering 60s per block
 
     DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 40
     DIFFICULTY_ADJUSTMENT_FACTOR = 1024
@@ -296,6 +298,8 @@ class QuarkChainConfig(BaseConfig):
     # On mining rewards
     REWARD_TAX_RATE = 0.5  # percentage of rewards should go to root block mining
 
+    BLOCK_REWARD_DECAY_FACTOR = 0.5
+
     def __init__(self):
         self.loadtest_accounts = (
             []
@@ -350,6 +354,13 @@ class QuarkChainConfig(BaseConfig):
 
         # check the chain id starts from 0 to (CHAIN_SIZE - 1)
         check(set(chain_id_to_shard_ids.keys()) == set(range(self.CHAIN_SIZE)))
+
+    @property
+    def block_reward_decay_factor(self) -> Fraction:
+        ret = Fraction(self.BLOCK_REWARD_DECAY_FACTOR).limit_denominator()
+        # a simple heuristic to make sure it's at least a percent number
+        assert ret.denominator <= 100
+        return ret
 
     @property
     def reward_tax_rate(self) -> Fraction:

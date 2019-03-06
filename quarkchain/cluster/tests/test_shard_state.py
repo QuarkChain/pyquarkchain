@@ -1676,10 +1676,14 @@ class TestShardState(unittest.TestCase):
         )
 
         # Too many blocks
-        with self.assertRaisesRegexp(ValueError, "too many minor blocks in the root block"):
+        with self.assertRaisesRegexp(
+            ValueError, "too many minor blocks in the root block"
+        ):
             state.add_root_block(root_block)
 
-        self.assertEqual(state.get_unconfirmed_header_list(), headers[:max_mblock_in_rblock])
+        self.assertEqual(
+            state.get_unconfirmed_header_list(), headers[:max_mblock_in_rblock]
+        )
 
         # 10 blocks is okay
         root_block.minor_block_header_list = headers[:max_mblock_in_rblock]
@@ -2131,14 +2135,46 @@ class TestShardState(unittest.TestCase):
         b = state.create_block_to_mine()
         evm_state = state.run_block(b)
         b.finalize(
-            evm_state=evm_state, coinbase_amount_map=state.get_coinbase_amount_map()
+            evm_state=evm_state,
+            coinbase_amount_map=state.get_coinbase_amount_map(b.header.height),
         )
         state.add_block(b)
 
         b = state.create_block_to_mine()
         evm = state.run_block(b)
-        wrong_coinbase = state.get_coinbase_amount_map()
+        wrong_coinbase = state.get_coinbase_amount_map(b.header.height)
         wrong_coinbase.add({self.genesis_token: +1})
         b.finalize(evm_state=evm_state, coinbase_amount_map=wrong_coinbase)
         with self.assertRaises(ValueError):
             state.add_block(b)
+
+    def test_shard_coinbase_decay(self):
+        env = get_test_env()
+        state = create_default_shard_state(env=env)
+        coinbase = state.get_coinbase_amount_map(state.shard_config.EPOCH_INTERVAL)
+        self.assertEqual(
+            coinbase.balance_map,
+            {
+                env.quark_chain_config.genesis_token: state.shard_config.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR
+                * env.quark_chain_config.REWARD_TAX_RATE
+            },
+        )
+        coinbase = state.get_coinbase_amount_map(state.shard_config.EPOCH_INTERVAL + 1)
+        self.assertEqual(
+            coinbase.balance_map,
+            {
+                env.quark_chain_config.genesis_token: state.shard_config.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR
+                * env.quark_chain_config.REWARD_TAX_RATE
+            },
+        )
+        coinbase = state.get_coinbase_amount_map(state.shard_config.EPOCH_INTERVAL * 2)
+        self.assertEqual(
+            coinbase.balance_map,
+            {
+                env.quark_chain_config.genesis_token: state.shard_config.COINBASE_AMOUNT
+                * env.quark_chain_config.BLOCK_REWARD_DECAY_FACTOR ** 2
+                * env.quark_chain_config.REWARD_TAX_RATE
+            },
+        )

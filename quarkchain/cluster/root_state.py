@@ -260,14 +260,25 @@ class RootState:
             create_time = max(self.tip.create_time + 1, int(time.time()))
         return self.diff_calc.calculate_diff_with_parent(self.tip, create_time)
 
-    def _calculate_root_block_coinbase(self, m_hash_list: List[bytes]) -> Dict:
+    def _calculate_root_block_coinbase(
+        self, m_hash_list: List[bytes], height: int
+    ) -> Dict:
         """
         assumes all minor blocks in m_hash_list have been processed by slaves and thus available when looking up
         """
         assert all(
             [self.db.contain_minor_block_by_hash(m_hash) for m_hash in m_hash_list]
         )
-        coinbase_amount = self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+        epoch = height // self.env.quark_chain_config.ROOT.EPOCH_INTERVAL
+        numerator = (
+            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
+        )
+        denominator = (
+            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
+        )
+        coinbase_amount = (
+            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT * numerator // denominator
+        )
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
         ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
@@ -303,7 +314,7 @@ class RootState:
         block.minor_block_header_list = m_header_list
 
         coinbase_tokens = self._calculate_root_block_coinbase(
-            [header.get_hash() for header in m_header_list]
+            [header.get_hash() for header in m_header_list], block.header.height
         )
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
@@ -397,7 +408,8 @@ class RootState:
         # Check coinbase
         if not self.env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK:
             expected_coinbase_amount = self._calculate_root_block_coinbase(
-                [header.get_hash() for header in block.minor_block_header_list]
+                [header.get_hash() for header in block.minor_block_header_list],
+                block.header.height,
             )
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
 
