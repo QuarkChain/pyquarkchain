@@ -1311,7 +1311,7 @@ class ShardState:
             )
 
         # No change to root tip
-        if root_block.header.height <= self.root_tip.height:
+        if root_block.header.total_difficulty <= self.root_tip.total_difficulty:
             check(
                 self.__is_same_root_chain(
                     self.root_tip,
@@ -1322,7 +1322,7 @@ class ShardState:
             )
             return False
 
-        # Switch to the longest root block
+        # Switch to the root block with higher total diff
         self.root_tip = root_block.header
         self.confirmed_header_tip = shard_header
 
