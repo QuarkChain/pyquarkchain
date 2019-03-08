@@ -854,11 +854,11 @@ class RootBlockHeader(Serializable):
         ("coinbase_amount_map", TokenBalanceMap),
         ("create_time", uint64),
         ("difficulty", biguint),
+        ("total_difficulty", biguint),
         ("nonce", uint64),
         ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
         ("signature", FixedSizeBytesSerializer(65)),
-        ("total_difficulty", biguint),
     ]
 
     def __init__(
@@ -872,11 +872,11 @@ class RootBlockHeader(Serializable):
         coinbase_amount_map: TokenBalanceMap = None,
         create_time=0,
         difficulty=0,
+        total_difficulty=0,
         nonce=0,
         extra_data: bytes = b"",
         mixhash: bytes = bytes(Constant.HASH_LENGTH),
         signature: bytes = bytes(65),
-        total_difficulty=0,
     ):
         self.version = version
         self.height = height
@@ -887,11 +887,11 @@ class RootBlockHeader(Serializable):
         self.coinbase_amount_map = coinbase_amount_map or TokenBalanceMap({})
         self.create_time = create_time
         self.difficulty = difficulty
+        self.total_difficulty = total_difficulty
         self.nonce = nonce
         self.extra_data = extra_data
         self.mixhash = mixhash
         self.signature = signature
-        self.total_difficulty = total_difficulty
 
     def get_hash(self):
         return sha3_256(self.serialize_without(["signature"]))
@@ -934,9 +934,9 @@ class RootBlockHeader(Serializable):
             coinbase_amount_map=None,
             create_time=create_time,
             difficulty=difficulty,
+            total_difficulty=total_difficulty,
             nonce=nonce,
             extra_data=extra_data,
-            total_difficulty=total_difficulty,
         )
         return RootBlock(header)
 
