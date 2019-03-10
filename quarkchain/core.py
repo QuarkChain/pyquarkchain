@@ -570,8 +570,8 @@ class TokenBalanceMap(Serializable):
 
 
 def calculate_merkle_root(item_list):
-    ''' Using ETH2.0 SSZ style hash tree
-    '''
+    """ Using ETH2.0 SSZ style hash tree
+    """
     if len(item_list) == 0:
         sha_tree = [bytes(32)]
     else:
@@ -581,7 +581,9 @@ def calculate_merkle_root(item_list):
     while len(sha_tree) != 1:
         if len(sha_tree) % 2 != 0:
             sha_tree.append(zbytes)
-        sha_tree = [sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)]
+        sha_tree = [
+            sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)
+        ]
         zbytes = sha3_256(zbytes + zbytes)
     return sha3_256(sha_tree[0] + len(item_list).to_bytes(8, "big"))
 
@@ -852,6 +854,7 @@ class RootBlockHeader(Serializable):
         ("coinbase_amount_map", TokenBalanceMap),
         ("create_time", uint64),
         ("difficulty", biguint),
+        ("total_difficulty", biguint),
         ("nonce", uint64),
         ("extra_data", PrependedSizeBytesSerializer(2)),
         ("mixhash", hash256),
@@ -869,6 +872,7 @@ class RootBlockHeader(Serializable):
         coinbase_amount_map: TokenBalanceMap = None,
         create_time=0,
         difficulty=0,
+        total_difficulty=0,
         nonce=0,
         extra_data: bytes = b"",
         mixhash: bytes = bytes(Constant.HASH_LENGTH),
@@ -883,6 +887,7 @@ class RootBlockHeader(Serializable):
         self.coinbase_amount_map = coinbase_amount_map or TokenBalanceMap({})
         self.create_time = create_time
         self.difficulty = difficulty
+        self.total_difficulty = total_difficulty
         self.nonce = nonce
         self.extra_data = extra_data
         self.mixhash = mixhash
@@ -918,6 +923,7 @@ class RootBlockHeader(Serializable):
     ):
         create_time = self.create_time + 1 if create_time is None else create_time
         difficulty = difficulty if difficulty is not None else self.difficulty
+        total_difficulty = self.total_difficulty + difficulty
         header = RootBlockHeader(
             version=self.version,
             height=self.height + 1,
@@ -928,6 +934,7 @@ class RootBlockHeader(Serializable):
             coinbase_amount_map=None,
             create_time=create_time,
             difficulty=difficulty,
+            total_difficulty=total_difficulty,
             nonce=nonce,
             extra_data=extra_data,
         )
@@ -968,7 +975,9 @@ class RootBlock(Serializable):
 
         self.header.coinbase_amount_map = TokenBalanceMap(coinbase_tokens or {})
         self.header.coinbase_address = coinbase_address
-        self.hash_evm_state_root = trie.BLANK_ROOT if hash_evm_state_root is None else hash_evm_state_root
+        self.hash_evm_state_root = (
+            trie.BLANK_ROOT if hash_evm_state_root is None else hash_evm_state_root
+        )
         return self
 
     def add_minor_block_header(self, header):

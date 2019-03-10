@@ -197,8 +197,8 @@ class TestMiner(unittest.TestCase):
             self.assertFalse(res)
 
             solver = DoubleSHA256(work)
-            sol = solver.mine(100, 200).nonce
-            self.assertGreater(sol, 100)  # ensure non-solution is tried
+            sol = solver.mine(200, 300).nonce
+            self.assertGreater(sol, 200)  # ensure non-solution is tried
             non_sol = sol - 1
             # invalid pow proof
             res = await miner.submit_work(work.hash, non_sol, sha3_256(b""))

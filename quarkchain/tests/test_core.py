@@ -29,7 +29,7 @@ from quarkchain.utils import check, p2_roundup
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 
 
-SIZE_LIST = [(RootBlockHeader, 248), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
+SIZE_LIST = [(RootBlockHeader, 249), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
 
 
 class TestDataSize(unittest.TestCase):
@@ -261,8 +261,8 @@ class TestTokenBalanceMap(unittest.TestCase):
 
 
 def calculate_merkle_root1(item_list):
-    ''' Same version as calculate_merkle_root(), but zpadding hashed vector to nearest p2
-    '''
+    """ Same version as calculate_merkle_root(), but zpadding hashed vector to nearest p2
+    """
     if len(item_list) == 0:
         sha_tree = [bytes(32)]
     else:
@@ -272,20 +272,20 @@ def calculate_merkle_root1(item_list):
         sha_tree.append(bytes(32))
 
     while len(sha_tree) != 1:
-        sha_tree = [sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)]
+        sha_tree = [
+            sha3_256(sha_tree[i] + sha_tree[i + 1]) for i in range(0, len(sha_tree), 2)
+        ]
     return sha3_256(sha_tree[0] + len(item_list).to_bytes(8, "big"))
 
 
 class TestCalculateMerkleTree(unittest.TestCase):
     def test_tree(self):
-
         class Data(Serializable):
-            FIELDS = [
-                ("value", uint32),
-            ]
+            FIELDS = [("value", uint32)]
 
             def __init__(self, value):
                 self.value = value
+
         N = 64
 
         for n in range(N + 1):
