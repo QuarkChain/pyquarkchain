@@ -583,7 +583,7 @@ class TestRootState(unittest.TestCase):
         env = get_test_env(shard_size=1)
         r_state, s_states = create_default_state(env)
 
-        coinbase = r_state._calculate_root_block_coinbase([])
+        coinbase = r_state._calculate_root_block_coinbase([], 0)
         rb0 = r_state.get_tip_block()
 
         # one fork with more blocks but small total diff
