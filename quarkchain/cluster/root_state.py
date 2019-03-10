@@ -488,7 +488,11 @@ class RootState:
 
             shard_config = self.env.quark_chain_config.shards[full_shard_id]
             if len(headers) > shard_config.max_blocks_per_shard_in_one_root_block:
-                raise ValueError("too many minor blocks in the root block for shard {}".format(full_shard_id))
+                raise ValueError(
+                    "too many minor blocks in the root block for shard {}".format(
+                        full_shard_id
+                    )
+                )
 
             if full_shard_id not in full_shard_ids_to_check_proof_of_progress:
                 raise ValueError(
@@ -568,7 +572,7 @@ class RootState:
                 )
             )
 
-        if self.tip.height < block.header.height:
+        if self.tip.total_difficulty < block.header.total_difficulty:
             self.tip = block.header
             self.db.update_tip_hash(block_hash)
             self.__rewrite_block_index_to(block)

@@ -579,6 +579,25 @@ class TestRootState(unittest.TestCase):
         )
         r_state.add_block(root_block)
 
+    def test_root_chain_fork_using_largest_total_diff(self):
+        env = get_test_env(shard_size=1)
+        r_state, s_states = create_default_state(env)
+
+        coinbase = r_state._calculate_root_block_coinbase([], 0)
+        rb0 = r_state.get_tip_block()
+
+        # one fork with more blocks but small total diff
+        rb1 = rb0.create_block_to_append(difficulty=int(1e6)).finalize(coinbase)
+        rb2 = rb1.create_block_to_append(difficulty=int(1e6)).finalize(coinbase)
+        # another fork with less blocks but higher total diff
+        rb3 = rb0.create_block_to_append(difficulty=int(3e6)).finalize(coinbase)
+
+        # rb3 should be added as the tip
+        self.assertTrue(r_state.add_block(rb1))
+        self.assertTrue(r_state.add_block(rb2))
+        self.assertTrue(r_state.add_block(rb3))
+        self.assertEqual(r_state.tip.get_hash(), rb3.header.get_hash())
+
     def test_root_coinbase_decay(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)

@@ -1925,14 +1925,19 @@ class TestShardState(unittest.TestCase):
         +--+  /  +--+    +--+     +--+
         |r0|<----|m1|<---|m2| <---|m3|
         +--+  \  +--+    +--+     +--+
-               \   |       \
-                \+--+.     +--+
-                 |r2|<-----|r3| (r3 includes m2)
-                 +--+      +--+
+          |    \   |       \
+          |     \+--+.     +--+
+          |      |r2|<-----|r3| (r3 includes m2)
+          |      +--+      +--+
+          |
+          |      +--+
+          +-----+|r4| (r4 includes m1)
+                 +--+
 
         Initial state: r0 <- m1 <- m2
         Adding r1, r2, m3 makes r1 the root_tip, m3 the header_tip
         Adding r3 should change the root_tip to r3, header_tip to m2
+        Adding r4 (greater total diff) will reset root_tip to r4, header_tip to m2
         """
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -1945,8 +1950,9 @@ class TestShardState(unittest.TestCase):
         m2 = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m2)
 
-        r1 = state.root_tip.create_block_to_append()
-        r2 = state.root_tip.create_block_to_append()
+        r0 = state.root_tip
+        r1 = r0.create_block_to_append()
+        r2 = r0.create_block_to_append()
         r1.minor_block_header_list.append(m1.header)
         r1.finalize()
 
@@ -1970,6 +1976,14 @@ class TestShardState(unittest.TestCase):
         r3.finalize()
         state.add_root_block(r3)
         self.assertEqual(state.root_tip, r3.header)
+        self.assertEqual(state.header_tip, m2.header)
+
+        # greater total diff
+        r4 = r0.create_block_to_append(difficulty=r3.header.total_difficulty * 2)
+        r4.minor_block_header_list.append(m1.header)
+        r4.finalize()
+        state.add_root_block(r4)
+        self.assertEqual(state.root_tip, r4.header)
         self.assertEqual(state.header_tip, m2.header)
 
     def test_posw_fetch_previous_coinbase_address(self):
