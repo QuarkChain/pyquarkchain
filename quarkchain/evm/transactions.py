@@ -275,17 +275,6 @@ class Transaction(rlp.Serializable):
     def __structlog__(self):
         return encode_hex(self.hash)
 
-    # This method should be called for block numbers >= HOMESTEAD_FORK_BLKNUM only.
-    # The >= operator is replaced by > because the integer division N/2 always produces the value
-    # which is by 0.5 less than the real N/2
-    def check_low_s_metropolis(self):
-        if self.s > secpk1n // 2:
-            raise InvalidTransaction("Invalid signature S value!")
-
-    def check_low_s_homestead(self):
-        if self.s > secpk1n // 2 or self.s == 0:
-            raise InvalidTransaction("Invalid signature S value!")
-
 
 class UnsignedTransaction(rlp.Serializable):
     fields = [

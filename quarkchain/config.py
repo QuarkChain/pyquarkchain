@@ -534,4 +534,4 @@ class QuarkChainConfig(BaseConfig):
 
 
 def get_default_evm_config():
-    return dict(quarkchain.evm.config.config_metropolis)
+    return dict(quarkchain.evm.config.default_config)
