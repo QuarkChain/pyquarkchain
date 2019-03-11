@@ -145,7 +145,7 @@ def main():
     parser.add_argument(
         "-t",
         "--token",
-        default="TQKC",
+        default="QKC",
         type=str,
         help="Query account balance for a specific token",
     )
