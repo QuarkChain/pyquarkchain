@@ -1,16 +1,16 @@
 """
-multi_cluster.py - starts multiple clusters on localhost, and have them inter-connect using either simple network or real p2p
+tool_multi_cluster.py - starts multiple clusters on localhost, and have them inter-connect using either simple network or real p2p
 Usage:
-multi_cluster.py accepts the same arguments as cluster.py
+tool_multi_cluster.py accepts the same arguments as cluster.py
 additional arguments:
 --num_clusters
 also note that p2p bootstrap key is fixed to a test value
 
 Examples:
 1. simple network, with one (random) cluster mining
-python multi_cluster.py --start_simulated_mining
+python tool_multi_cluster.py --start_simulated_mining
 2. p2p module, with one (random) cluster mining
-python multi_cluster.py --p2p --start_simulated_mining
+python tool_multi_cluster.py --p2p --start_simulated_mining
 """
 
 

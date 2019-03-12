@@ -345,9 +345,8 @@ class BasePeer(BaseService):
 
         If the streams have already been closed, do nothing.
         """
-        if self.reader.at_eof():
-            return
-        self.reader.feed_eof()
+        if not self.reader.at_eof():
+            self.reader.feed_eof()
         self.writer.close()
 
     @property
@@ -795,7 +794,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
 
     _report_interval = 60
     _peer_boot_timeout = DEFAULT_PEER_BOOT_TIMEOUT
-    _fill_pool_ratio = 0.65 # only proactively fill peer pool to _fill_pool_ratio*max_peers
+    _fill_pool_ratio = (
+        0.65
+    )  # only proactively fill peer pool to _fill_pool_ratio*max_peers
 
     def __init__(
         self,
