@@ -2,8 +2,8 @@
 
 import argparse
 import operator
-from pprint import pprint
 
+from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.db import PersistentDb
 from quarkchain.cluster.root_state import RootDb
 
@@ -12,21 +12,29 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default="data/master.db", type=str)
     parser.add_argument("--root_height", default=0, type=int)
+    parser.add_argument("--cluster_config", required=True, type=str)
     args = parser.parse_args()
     return args
 
 
 def shard_id_to_algorithm(shard_id: int) -> str:
-    if shard_id < 4:
-        return "ETHASH"
-    if shard_id < 6:
-        return "SHA2SHA2"
-    return "QKCHASH"
+    m = {
+        1: "ETHASH",
+        65537: "ETHASH",
+        131073: "ETHASH",
+        196609: "ETHASH",
+        262146: "DOUBLESHA256",
+        262147: "DOUBLESHA256",
+        327682: "QKCHASH",
+        327683: "QKCHASH",
+    }
+    return m[shard_id]
 
 
 def main():
     args = parse_args()
-    db = RootDb(PersistentDb(args.db), 0)
+    config = ClusterConfig.create_from_args(args)
+    db = RootDb(PersistentDb(args.db), config.QUARKCHAIN, 0)
     header = db.get_tip_header()
     if not header:
         raise RuntimeError("Not a valid RootDb")
