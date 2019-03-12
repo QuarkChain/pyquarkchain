@@ -121,7 +121,7 @@ class POSWConfig(BaseConfig):
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
     SHARD_SIZE = 2
-    DEFAULT_CHAIN_TOKEN = "TQKC"
+    DEFAULT_CHAIN_TOKEN = "QKC"
 
     CONSENSUS_TYPE = ConsensusType.NONE
     # Only set when CONSENSUS_TYPE is not NONE
@@ -288,7 +288,7 @@ class QuarkChainConfig(BaseConfig):
     SKIP_ROOT_COINBASE_CHECK = False
     SKIP_MINOR_DIFFICULTY_CHECK = False
 
-    GENESIS_TOKEN = "TQKC"
+    GENESIS_TOKEN = "QKC"
 
     ROOT = None  # type: RootConfig
     CHAINS = None
