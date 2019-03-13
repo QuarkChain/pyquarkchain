@@ -636,9 +636,6 @@ class ShardState:
             if diff != block.header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-        if not self.branch.is_in_branch(block.header.coinbase_address.full_shard_key):
-            raise ValueError("coinbase output must be in local shard")
-
         # Check whether the root header is in the root chain
         root_block_header = self.db.get_root_block_header_by_hash(
             block.header.hash_prev_root_block
