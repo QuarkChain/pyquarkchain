@@ -153,6 +153,28 @@ def validate_transaction(state, tx):
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
 
+    # (4.0) require transfer_token_id and gas_token_id to be in balances
+    # either this, or reject 0 gas_price transactions
+    balances = state.get_balances(tx.sender)
+    if tx.transfer_token_id not in balances:
+        raise InsufficientBalance(
+            rp(
+                tx,
+                "token %d balance" % tx.transfer_token_id,
+                state.get_balance(tx.sender, token_id=tx.transfer_token_id),
+                ">0",
+            )
+        )
+    if tx.gas_token_id not in balances:
+        raise InsufficientBalance(
+            rp(
+                tx,
+                "token %d balance" % tx.gas_token_id,
+                state.get_balance(tx.sender, token_id=tx.gas_token_id),
+                ">0",
+            )
+        )
+
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.
     if tx.transfer_token_id == tx.gas_token_id:
