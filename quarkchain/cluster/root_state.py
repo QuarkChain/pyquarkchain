@@ -412,20 +412,6 @@ class RootState:
                 block.header.height,
             )
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
-
-            # TODO:  Support collecting tax from multiple native tokens
-            if len(actual_coinbase_amount) > 1:
-                raise ValueError("Incorrect coinbase_amount_map: too many tokens")
-
-            if (
-                len(actual_coinbase_amount) == 1
-                and self.env.quark_chain_config.genesis_token
-                not in actual_coinbase_amount
-            ):
-                raise ValueError(
-                    "Incorrect coinbase_amount_map: genesis_token_id not found"
-                )
-
             if expected_coinbase_amount != actual_coinbase_amount:
                 raise ValueError(
                     "Bad coinbase amount for root block {}. expect {} but got {}.".format(
