@@ -983,6 +983,12 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             self.logger.exception(
                 "Unexpected error during auth/p2p handshake with %r", remote
             )
+        if remote.__repr__() in auth.opened_connections:
+            reader, writer = auth.opened_connections[remote.__repr__()]
+            reader.feed_eof()
+            writer.close()
+            self.logger.error("Closing connection to %r", remote.__repr__())
+            del auth.opened_connections[remote.__repr__()]
         return None
 
     @contextlib.contextmanager

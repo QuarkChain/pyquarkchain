@@ -37,6 +37,8 @@ from .constants import (
     SUPPORTED_RLPX_VERSION,
 )
 
+opened_connections = {}
+
 
 async def handshake(
     remote: kademlia.Node, privkey: datatypes.PrivateKey, token: CancelToken
@@ -52,6 +54,7 @@ async def handshake(
     use_eip8 = False
     initiator = HandshakeInitiator(remote, privkey, use_eip8, token)
     reader, writer = await initiator.connect()
+    opened_connections[remote.__repr__()] = (reader, writer)
     aes_secret, mac_secret, egress_mac, ingress_mac = await _handshake(
         initiator, reader, writer, token
     )
