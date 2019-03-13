@@ -158,10 +158,17 @@ class BaseServer(BaseService):
             await self._receive_handshake(reader, writer)
         except expected_exceptions as e:
             self.logger.debug("Could not complete handshake: %s", e)
+            self.logger.error("Could not complete handshake: %s", e)
+            reader.feed_eof()
+            writer.close()
         except OperationCancelled:
-            pass
+            self.logger.error("OperationCancelled")
+            reader.feed_eof()
+            writer.close()
         except Exception as e:
             self.logger.exception("Unexpected error handling handshake")
+            reader.feed_eof()
+            writer.close()
 
     async def _receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
