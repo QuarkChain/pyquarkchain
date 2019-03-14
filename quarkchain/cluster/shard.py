@@ -433,7 +433,7 @@ class Shard:
             # Do not add stale block
             if self.state.header_tip.height >= block.header.height:
                 return
-            await self.handle_new_block(block)
+            await self.handle_new_block(block, force=True)
 
         def __get_mining_param():
             return {
@@ -522,7 +522,7 @@ class Shard:
                 continue
             peer.broadcast_tx_list(tx_list)
 
-    async def handle_new_block(self, block):
+    async def handle_new_block(self, block, force=False):
         """
         This is a fast path for block propagation. The block is broadcasted to peers before being added to local state.
         0. if local shard is syncing, doesn't make sense to add, skip
@@ -539,6 +539,12 @@ class Shard:
             # catch up immediately
             return
 
+        if not force:
+            if (
+                block.header.branch.get_full_shard_id() == 0x20001
+                and block.header.height >= 1461
+            ):
+                return
         if block.header.get_hash() in self.state.new_block_pool:
             return
         if self.state.db.contain_minor_block_by_hash(block.header.get_hash()):
@@ -586,15 +592,15 @@ class Shard:
             )
         )
         self.broadcast_new_block(block)
-        await self.add_block(block)
+        await self.add_block(block, force=force)
 
-    async def add_block(self, block):
+    async def add_block(self, block, force=False):
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
         old_tip = self.state.header_tip
         try:
-            xshard_list, coinbase_amount_map = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block, force=force)
         except Exception as e:
             Logger.error_exception()
             return False

@@ -38,7 +38,7 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.utils import Logger, check, time_ms, token_id_encode
 
 
 class GasPriceSuggestionOracle:
@@ -390,6 +390,8 @@ class ShardState:
     ) -> EvmTransaction:
         """from_address will be set for execute_tx"""
         evm_tx = tx.tx.to_evm_tx()
+        # if evm_tx.transfer_token_id == token_id_encode('TQKC'):
+        #     raise RuntimeError('Hello')
 
         if from_address:
             check(evm_tx.from_full_shard_key == from_address.full_shard_key)
@@ -793,7 +795,12 @@ class ShardState:
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
     def add_block(
-        self, block, skip_if_too_old=True, gas_limit=None, xshard_gas_limit=None
+        self,
+        block,
+        skip_if_too_old=True,
+        gas_limit=None,
+        xshard_gas_limit=None,
+        force=False,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
@@ -804,6 +811,12 @@ class ShardState:
         """
         start_time = time.time()
         start_ms = time_ms()
+        if not force:
+            if (
+                block.header.branch.get_full_shard_id() == 0x20001
+                and block.header.height >= 1461
+            ):
+                raise ValueError("Hello")
 
         if skip_if_too_old:
             if (
