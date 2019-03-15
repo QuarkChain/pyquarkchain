@@ -886,7 +886,7 @@ class ShardState:
         # or they are equal length but the root height confirmed by the block is longer
         update_tip = False
         prev_root_header = self.db.get_root_block_header_by_hash(
-            block.header.hash_prev_root_block, consistency_check=False
+            block.header.hash_prev_root_block
         )
         tip_prev_root_header = self.db.get_root_block_header_by_hash(
             self.header_tip.hash_prev_root_block, consistency_check=False
@@ -910,9 +910,7 @@ class ShardState:
                 disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
                 self.evm_state.sender_disallow_list = disallow_list
             self.header_tip = block.header
-            tip_prev_root_header = self.db.get_root_block_header_by_hash(
-                self.header_tip.hash_prev_root_block, consistency_check=False
-            )
+            tip_prev_root_header = prev_root_header
             self.meta_tip = block.meta
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
