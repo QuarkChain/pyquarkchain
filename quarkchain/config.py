@@ -517,8 +517,9 @@ class QuarkChainConfig(BaseConfig):
         if self._allowed_token_ids is None:
             self._allowed_token_ids = {self.genesis_token}
             for _, shard in self.shards.items():
-                for token_id in shard.GENESIS.ALLOC:
-                    self._allowed_token_ids.add(token_id)
+                for _, token_dict in shard.GENESIS.ALLOC.items():
+                    for token_id in token_dict:
+                        self._allowed_token_ids.add(token_id_encode(token_id))
         return self._allowed_token_ids
 
     @property

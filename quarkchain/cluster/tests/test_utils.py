@@ -70,7 +70,9 @@ def get_test_env(
         if genesis_minor_token_balances is not None:
             shard.GENESIS.ALLOC[addr] = genesis_minor_token_balances
         else:
-            shard.GENESIS.ALLOC[addr] = genesis_minor_quarkash
+            shard.GENESIS.ALLOC[addr] = {
+                env.quark_chain_config.GENESIS_TOKEN: genesis_minor_quarkash
+            }
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
         shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
         shard.DIFFICULTY_ADJUSTMENT_FACTOR = 512

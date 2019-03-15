@@ -87,7 +87,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(tx_list[0].gas_token_id, self.genesis_token)
         self.assertEqual(tx_list[0].transfer_token_id, QETH)
 
-    def test_native_token_transfer_0_value(self):
+    def test_native_token_transfer_0_value_success(self):
         """to prevent storage spamming, do not delta_token_balance does not take action if value is 0
         """
         MALICIOUS0 = token_id_encode("MALICIOUS0")
@@ -97,7 +97,10 @@ class TestNativeTokenShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000},
+            genesis_minor_token_balances={
+                self.GENESIS_TOKEN: 10000000,
+                "MALICIOUS0": 0,
+            },
         )
         state = create_default_shard_state(env=env)
         tx = create_transfer_transaction(
@@ -130,6 +133,44 @@ class TestNativeTokenShardState(unittest.TestCase):
             state.get_balances(acc1.recipient),
             {self.genesis_token: 10000000 - opcodes.GTXCOST},
         )
+
+    def test_disallowed_unknown_token(self):
+        """do not allow tx with unknown token id
+        """
+        MALICIOUS0 = token_id_encode("MALICIOUS0")
+        MALICIOUS1 = token_id_encode("MALICIOUS1")
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={self.GENESIS_TOKEN: 10000000},
+        )
+        state = create_default_shard_state(env=env)
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc1,
+            value=0,
+            gas=opcodes.GTXCOST,
+            gas_token_id=self.genesis_token,
+            transfer_token_id=MALICIOUS0,
+        )
+        self.assertFalse(state.add_tx(tx))
+
+        tx1 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc1,
+            value=0,
+            gas=opcodes.GTXCOST,
+            gas_token_id=MALICIOUS1,
+            transfer_token_id=self.genesis_token,
+        )
+        self.assertFalse(state.add_tx(tx1))
 
     def test_native_token_gas(self):
         """in-shard transfer QETH using native token as gas
