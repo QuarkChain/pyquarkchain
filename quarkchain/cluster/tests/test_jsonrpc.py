@@ -41,8 +41,10 @@ def jrpc_server_context(master):
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
     server = JSONRPCServer.start_test_server(env, master)
-    yield server
-    server.shutdown()
+    try:
+        yield server
+    finally:
+        server.shutdown()
 
 
 def send_request(*args):
