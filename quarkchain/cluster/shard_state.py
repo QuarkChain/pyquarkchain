@@ -153,7 +153,7 @@ class XshardTxCursor:
 
             # Check if the neighbor has the permission to send tx to local shard
             prev_root_header = self.db.get_root_block_header_by_hash(
-                mblock_header.hash_prev_root_block
+                mblock_header.hash_prev_root_block, consistency_check=False
             )
             if (
                 prev_root_header.height
@@ -546,7 +546,9 @@ class ShardState:
 
         header = longer_block_header
         for i in range(longer_block_header.height - shorter_block_header.height):
-            header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
+            header = self.db.get_root_block_header_by_hash(
+                header.hash_prev_block, consistency_check=False
+            )
         return header == shorter_block_header
 
     def __validate_block(
@@ -1331,7 +1333,9 @@ class ShardState:
         # the worst case would be that we go all the way back to orig_block (shard_header)
         while not self.__is_same_root_chain(
             self.root_tip,
-            self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block),
+            self.db.get_root_block_header_by_hash(
+                self.header_tip.hash_prev_root_block, consistency_check=False
+            ),
         ):
             if self.header_tip.height == 0:
                 # we are at genesis block now but the root block it points to is still on a fork from root_tip.
