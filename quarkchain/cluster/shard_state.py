@@ -888,6 +888,8 @@ class ShardState:
         prev_root_header = self.db.get_root_block_header_by_hash(
             block.header.hash_prev_root_block
         )
+        if not prev_root_header:
+            raise ValueError("missing prev root block")
         tip_prev_root_header = self.db.get_root_block_header_by_hash(
             self.header_tip.hash_prev_root_block, consistency_check=False
         )
