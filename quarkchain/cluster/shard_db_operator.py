@@ -229,13 +229,27 @@ class ShardDbOperator(TransactionHistoryMixin):
         r_minor_header_hash = r_minor_header.get_hash() if r_minor_header else b""
         self.db.put(b"r_last_m" + root_block_hash, r_minor_header_hash)
 
-    def get_root_block_by_hash(self, h):
-        if h not in self.r_header_pool:
+    def get_root_block_by_hash(self, h, consistency_check=True):
+        """
+        Consistency check being true means whatever in memory should already have enough
+        information (no missing root block, minor block etc). Skipping the check by reading
+        directly from database may have unwanted consequences.
+        """
+        if consistency_check and h not in self.r_header_pool:
             return None
-        return RootBlock.deserialize(self.db.get(b"rblock_" + h))
 
-    def get_root_block_header_by_hash(self, h):
-        return self.r_header_pool.get(h, None)
+        raw_block = self.db.get(b"rblock_" + h, None)
+        if not raw_block:
+            return None
+        return RootBlock.deserialize(raw_block)
+
+    def get_root_block_header_by_hash(self, h, consistency_check=True):
+        header = self.r_header_pool.get(h, None)
+        if not header and not consistency_check:
+            block = self.get_root_block_by_hash(h, False)
+            if block:
+                header = block.header
+        return header
 
     def get_root_block_header_by_height(self, h, height):
         r_header = self.get_root_block_header_by_hash(h)

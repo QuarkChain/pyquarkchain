@@ -682,13 +682,6 @@ class ShardState:
             x_shard_receive_tx_list = []
         if evm_state is None:
             evm_state = self._get_evm_state_for_new_block(block, ephemeral=False)
-        root_block_header = self.db.get_root_block_header_by_hash(
-            block.header.hash_prev_root_block
-        )
-        prev_header = self.db.get_minor_block_header_by_hash(
-            block.header.hash_prev_minor_block
-        )
-
         xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
             evm_state=evm_state, mblock=block
         )
@@ -892,10 +885,13 @@ class ShardState:
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
         update_tip = False
-        if not self.__is_same_root_chain(
-            self.root_tip,
-            self.db.get_root_block_header_by_hash(block.header.hash_prev_root_block),
-        ):
+        prev_root_header = self.db.get_root_block_header_by_hash(
+            block.header.hash_prev_root_block, consistency_check=False
+        )
+        tip_prev_root_header = self.db.get_root_block_header_by_hash(
+            self.header_tip.hash_prev_root_block, consistency_check=False
+        )
+        if not self.__is_same_root_chain(self.root_tip, prev_root_header):
             # Don't update tip if the block depends on a root block that is not root_tip or root_tip's ancestor
             update_tip = False
         elif block.header.hash_prev_minor_block == self.header_tip.get_hash():
@@ -904,14 +900,7 @@ class ShardState:
             if block.header.height > self.header_tip.height:
                 update_tip = True
             elif block.header.height == self.header_tip.height:
-                update_tip = (
-                    self.db.get_root_block_header_by_hash(
-                        block.header.hash_prev_root_block
-                    ).height
-                    > self.db.get_root_block_header_by_hash(
-                        self.header_tip.hash_prev_root_block
-                    ).height
-                )
+                update_tip = prev_root_header.height > tip_prev_root_header.height
 
         if update_tip:
             self.__rewrite_block_index_to(block)
@@ -921,16 +910,12 @@ class ShardState:
                 disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
                 self.evm_state.sender_disallow_list = disallow_list
             self.header_tip = block.header
+            tip_prev_root_header = self.db.get_root_block_header_by_hash(
+                self.header_tip.hash_prev_root_block, consistency_check=False
+            )
             self.meta_tip = block.meta
 
-        check(
-            self.__is_same_root_chain(
-                self.root_tip,
-                self.db.get_root_block_header_by_hash(
-                    self.header_tip.hash_prev_root_block
-                ),
-            )
-        )
+        check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(
             "Add block took {} seconds for {} tx".format(
                 time.time() - start_time, len(block.tx_list)
@@ -1313,25 +1298,17 @@ class ShardState:
 
         self.db.put_root_block(root_block, shard_header)
         if shard_header:
-            check(
-                self.__is_same_root_chain(
-                    root_block.header,
-                    self.db.get_root_block_header_by_hash(
-                        shard_header.hash_prev_root_block
-                    ),
-                )
+            prev_root_header = self.db.get_root_block_header_by_hash(
+                shard_header.hash_prev_root_block, consistency_check=False
             )
+            check(self.__is_same_root_chain(root_block.header, prev_root_header))
 
         # No change to root tip
+        tip_prev_root_header = self.db.get_root_block_header_by_hash(
+            self.header_tip.hash_prev_root_block, consistency_check=False
+        )
         if root_block.header.total_difficulty <= self.root_tip.total_difficulty:
-            check(
-                self.__is_same_root_chain(
-                    self.root_tip,
-                    self.db.get_root_block_header_by_hash(
-                        self.header_tip.hash_prev_root_block
-                    ),
-                )
-            )
+            check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
             return False
 
         # Switch to the root block with higher total diff
