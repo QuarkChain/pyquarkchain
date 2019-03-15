@@ -1,5 +1,5 @@
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index 926e788..673374f 100644
+index 5d3a9e5..673374f 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
 @@ -6,7 +6,7 @@ import rlp
@@ -11,7 +11,15 @@ index 926e788..673374f 100644
  from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
  from rlp.sedes.binary import Binary
  from quarkchain.rlp.utils import decode_hex, encode_hex
-@@ -138,8 +138,7 @@ def validate_transaction(state, tx):
+@@ -25,7 +25,6 @@ from quarkchain.evm.exceptions import (
+     InvalidTransaction,
+ )
+ from quarkchain.evm.slogging import get_logger
+-from quarkchain.utils import token_id_decode
+ 
+ 
+ null_address = b"\xff" * 20
+@@ -139,8 +138,7 @@ def validate_transaction(state, tx):
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
  
@@ -21,8 +29,24 @@ index 926e788..673374f 100644
  
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
-@@ -155,39 +154,12 @@ def validate_transaction(state, tx):
+@@ -154,55 +152,14 @@ def validate_transaction(state, tx):
+     if tx.startgas < total_gas:
+         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
  
+-    # (4.0) require transfer_token_id and gas_token_id to be in allowed list
+-    if tx.transfer_token_id not in state.qkc_config.allowed_transfer_token_ids:
+-        raise InsufficientBalance(
+-            "{}: token {} is not in allowed transfer_token list".format(
+-                tx.__repr__(), token_id_decode(tx.transfer_token_id)
+-            )
+-        )
+-    if tx.gas_token_id not in state.qkc_config.allowed_gas_token_ids:
+-        raise InsufficientBalance(
+-            "{}: token {} is not in allowed gas_token list".format(
+-                tx.__repr__(), token_id_decode(tx.gas_token_id)
+-            )
+-        )
+-
      # (4) the sender account balance contains at least the
      # cost, v0, required in up-front payment.
 -    if tx.transfer_token_id == tx.gas_token_id:
@@ -67,7 +91,7 @@ index 926e788..673374f 100644
  
      # check block gas limit
      if state.gas_used + tx.startgas > state.gas_limit:
-@@ -212,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
+@@ -227,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
  
  
@@ -76,7 +100,7 @@ index 926e788..673374f 100644
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
      TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
      """
-@@ -236,11 +208,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -251,11 +208,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
      )
  
      # buy startgas
@@ -90,7 +114,7 @@ index 926e788..673374f 100644
  
      message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
      message = vm.Message(
-@@ -254,8 +223,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -269,8 +223,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
          from_full_shard_key=tx.from_full_shard_key,
          to_full_shard_key=tx.to_full_shard_key,
          tx_hash=tx_wrapper_hash,
@@ -99,7 +123,7 @@ index 926e788..673374f 100644
      )
  
      # MESSAGE
-@@ -285,17 +252,15 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -300,17 +252,15 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              startgas=tx.startgas,
              gas_remained=gas_remained,
          )
@@ -120,7 +144,7 @@ index 926e788..673374f 100644
          output = b""
          success = 0
      # Transaction success
-@@ -308,9 +273,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -323,9 +273,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              gas_used -= min(state.refunds, gas_used // 2)
              state.refunds = 0
          # sell remaining gas
@@ -131,7 +155,7 @@ index 926e788..673374f 100644
          # if x-shard, reserve part of the gas for the target shard miner
          fee = (
              tx.gasprice
-@@ -318,8 +281,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -333,8 +281,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              * local_fee_rate.numerator
              // local_fee_rate.denominator
          )
@@ -142,7 +166,7 @@ index 926e788..673374f 100644
          if tx.to:
              output = bytearray_to_bytestr(data)
          else:
-@@ -335,7 +298,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -350,7 +298,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
      suicides = state.suicides
      state.suicides = []
      for s in suicides:
@@ -151,7 +175,7 @@ index 926e788..673374f 100644
          state.del_account(s)
  
      # Pre-Metropolis: commit state after every tx
-@@ -361,13 +324,8 @@ class VMExt:
+@@ -376,13 +324,8 @@ class VMExt:
          self._state = state
          self.get_code = state.get_code
          self.set_code = state.set_code
@@ -167,7 +191,7 @@ index 926e788..673374f 100644
          self.get_nonce = state.get_nonce
          self.set_nonce = state.set_nonce
          self.increment_nonce = state.increment_nonce
-@@ -408,7 +366,6 @@ class VMExt:
+@@ -423,7 +366,6 @@ class VMExt:
          self.tx_origin = tx.sender if tx else b"\x00" * 20
          self.tx_gasprice = tx.gasprice if tx else 0
          self.sender_disallow_list = state.sender_disallow_list
@@ -175,7 +199,7 @@ index 926e788..673374f 100644
  
  
  def apply_msg(ext, msg):
-@@ -431,20 +388,13 @@ def _apply_msg(ext, msg, code):
+@@ -446,20 +388,13 @@ def _apply_msg(ext, msg, code):
              pre_storage=ext.log_storage(msg.to),
              static=msg.static,
              depth=msg.depth,
@@ -197,7 +221,7 @@ index 926e788..673374f 100644
                  return 1, msg.gas, []
              ext.add_cross_shard_transaction_deposit(
                  quarkchain.core.CrossShardTransactionDeposit(
-@@ -455,17 +405,14 @@ def _apply_msg(ext, msg, code):
+@@ -470,17 +405,14 @@ def _apply_msg(ext, msg, code):
                      to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                      value=msg.value,
                      gas_price=ext.tx_gasprice,
@@ -220,7 +244,7 @@ index 926e788..673374f 100644
              )
              return 1, msg.gas, []
  
-@@ -473,10 +420,6 @@ def _apply_msg(ext, msg, code):
+@@ -488,10 +420,6 @@ def _apply_msg(ext, msg, code):
          # Cross shard contract call is not supported
          return 1, msg.gas, []
  
@@ -231,7 +255,7 @@ index 926e788..673374f 100644
      # Main loop
      if msg.code_address in ext.specials:
          res, gas, dat = ext.specials[msg.code_address](ext, msg)
-@@ -501,9 +444,7 @@ def _apply_msg(ext, msg, code):
+@@ -516,9 +444,7 @@ def _apply_msg(ext, msg, code):
  
  
  def mk_contract_address(sender, full_shard_key, nonce):
@@ -242,7 +266,7 @@ index 926e788..673374f 100644
  
  
  def create_contract(ext, msg):
-@@ -512,10 +453,6 @@ def create_contract(ext, msg):
+@@ -527,10 +453,6 @@ def create_contract(ext, msg):
      if msg.is_cross_shard:
          return 0, msg.gas, b""
  
@@ -253,7 +277,7 @@ index 926e788..673374f 100644
      code = msg.data.extract_all()
  
      if ext.tx_origin != msg.sender:
-@@ -534,9 +471,9 @@ def create_contract(ext, msg):
+@@ -549,9 +471,9 @@ def create_contract(ext, msg):
          log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
          return 0, 0, b""
  

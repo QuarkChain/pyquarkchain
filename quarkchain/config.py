@@ -329,7 +329,8 @@ class QuarkChainConfig(BaseConfig):
 
         self.init_and_validate()
 
-        self._genesis_token = None
+        self._genesis_token = None  # genesis token id
+        self._allowed_token_ids = None  # set of allowed token ids based on config
 
     def init_and_validate(self):
         self._chain_id_to_shard_size = dict()
@@ -510,6 +511,24 @@ class QuarkChainConfig(BaseConfig):
         if self._genesis_token is None:
             self._genesis_token = token_id_encode(self.GENESIS_TOKEN)
         return self._genesis_token
+
+    @property
+    def allowed_token_ids(self):
+        if self._allowed_token_ids is None:
+            self._allowed_token_ids = {self.genesis_token}
+            for _, shard in self.shards.items():
+                for _, token_dict in shard.GENESIS.ALLOC.items():
+                    for token_id in token_dict:
+                        self._allowed_token_ids.add(token_id_encode(token_id))
+        return self._allowed_token_ids
+
+    @property
+    def allowed_transfer_token_ids(self):
+        return self.allowed_token_ids
+
+    @property
+    def allowed_gas_token_ids(self):
+        return self.allowed_token_ids
 
 
 def get_default_evm_config():
