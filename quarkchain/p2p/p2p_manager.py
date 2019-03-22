@@ -331,11 +331,17 @@ class QuarkServer(BaseServer):
     """
 
     def _make_peer_pool(self):
+        whitelist_nodes = []
+        if self.bootstrap_nodes:
+            whitelist_nodes.extend(self.bootstrap_nodes)
+        if self.preferred_nodes:
+            whitelist_nodes.extend(self.preferred_nodes)
         return QuarkPeerPool(
             privkey=self.privkey,
             context=QuarkContext(),
             listen_port=self.port,
             token=self.cancel_token,
+            whitelist_nodes=whitelist_nodes,
         )
 
     def _make_syncer(self):
