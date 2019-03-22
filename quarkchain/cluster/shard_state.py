@@ -619,6 +619,13 @@ class ShardState:
                 % (xshard_gas_limit, block.meta.evm_xshard_gas_limit)
             )
 
+        if (
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None and
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP > block.header.create_time and
+            len(block.tx_list) != 0
+        ):
+            raise ValueError("tx_list should be empty before tx is enabled")
+
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
         if merkle_hash != block.meta.hash_merkle_root:
@@ -1184,7 +1191,12 @@ class ShardState:
         if evm_state.gas_used < xshard_gas_limit:
             evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
-        if include_tx:
+        if (
+            include_tx and (
+                self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None or
+                block.header.create_time >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+            )
+        ):
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner

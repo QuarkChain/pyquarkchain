@@ -2192,3 +2192,35 @@ class TestShardState(unittest.TestCase):
                 * env.quark_chain_config.REWARD_TAX_RATE
             },
         )
+
+    def test_enable_tx_timestamp(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=50000,
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine()
+        self.assertEqual(len(b1.tx_list), 1)
+
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = b1.header.create_time + 100
+        b2 = state.create_block_to_mine()
+        self.assertEqual(len(b2.tx_list), 0)
+
+        with self.assertRaisesRegexp(ValueError, "tx_list should be empty before tx is enabled"):
+            state.finalize_and_add_block(b1)
