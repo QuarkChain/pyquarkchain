@@ -40,6 +40,8 @@ def jrpc_server_context(master):
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
+    # to pass the circleCi
+    env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
     server = JSONRPCServer.start_test_server(env, master)
     try:
         yield server
