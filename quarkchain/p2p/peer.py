@@ -5,7 +5,6 @@ import datetime
 import functools
 import operator
 import struct
-import numpy
 from abc import ABC, abstractmethod
 
 from typing import (
@@ -826,7 +825,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
 
         # IP to unblacklist time, we blacklist by IP
-        self.blacklist = {}  # type: Dict[str, int]
+        self._blacklist = {}  # type: Dict[str, int]
 
     # async def handle_peer_count_requests(self) -> None:
     #     async def f() -> None:
@@ -920,6 +919,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         # FIXME: PeerPool should probably no longer be a BaseService, but for now we're keeping it
         # so in order to ensure we cancel all peers when we terminate.
         self.run_task(self._periodically_report_stats())
+        self.run_task(self._periodically_unblacklist())
         await self.cancel_token.wait()
 
     async def stop_all_peers(self) -> None:
@@ -937,17 +937,27 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         await self.stop_all_peers()
 
     def blacklist(self, remote_address: Address) -> None:
-        cooldown_sec = numpy.random.exponential(BLACKLIST_COOLDOWN_SEC)
-        self.blacklist[remote_address.ip] = time_ms() // 1000 + cooldown_sec
+        self._blacklist[remote_address.ip] = time_ms() // 1000 + BLACKLIST_COOLDOWN_SEC
 
     def chk_blacklist(self, remote_address: Address) -> bool:
-        if remote_address.ip not in self.blacklist:
+        if remote_address.ip not in self._blacklist:
             return False
         now = time_ms() // 1000
-        if now >= self.blacklist[remote_address.ip]:
-            del self.blacklist[remote_address.ip]
+        if now >= self._blacklist[remote_address.ip]:
+            del self._blacklist[remote_address.ip]
             return False
         return True
+
+    async def _periodically_unblacklist(self) -> None:
+        while self.is_operational:
+            now = time_ms() // 1000
+            remove = set()
+            for ip, t in self._blacklist.items():
+                if now >= t:
+                    remove.add(ip)
+            for ip in remove:
+                del self._blacklist[ip]
+            await self.sleep(self._report_interval)
 
     async def connect(self, remote: Node) -> BasePeer:
         """
@@ -966,10 +976,11 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
         if self.chk_blacklist(remote.address):
-            Logger.warning(
+            Logger.warning_every_n(
                 "{} has been blacklisted, will not connect; discovery should have removed it".format(
                     remote.address
-                )
+                ),
+                100
             )
             return None
         expected_exceptions = (
@@ -1074,7 +1085,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             )
             self.logger.info(
                 "Blacklisted peers: count={}, examples=({})".format(
-                    len(self.blacklist), list(self.blacklist.keys())[10:]
+                    len(self._blacklist), list(self._blacklist.keys())[:10]
                 )
             )
             subscribers = len(self._subscribers)

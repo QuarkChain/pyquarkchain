@@ -991,7 +991,7 @@ class DiscoveryService(BaseService):
         for bucket in self.proto.routing.buckets:
             for node in bucket.nodes:
                 if self.peer_pool.chk_blacklist(node.address):
-                    self.logger.info_every_n("{} is blacklisted, removing from routing table".format(node), 100)
+                    Logger.info_every_n("{} is blacklisted, removing from routing table".format(node), 100)
                     self.proto.routing.remove_node(node)
 
         await self.peer_pool.connect_to_nodes(
