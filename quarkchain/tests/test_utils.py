@@ -1,9 +1,7 @@
 import pytest
 import random
 
-from quarkchain.core import Address, random_bytes
-
-from quarkchain.utils import token_id_encode, token_id_decode, ZZZZZZZZZZZZ
+from quarkchain.utils import token_id_encode, token_id_decode, TOKEN_MAX, TOKEN_ID_MAX
 
 
 ENCODED_VALUES = [
@@ -15,7 +13,7 @@ ENCODED_VALUES = [
     ("20", 108),
     ("ZZ", 1331),
     ("QKC", 35760),
-    ("ZZZZZZZZZZZZ", ZZZZZZZZZZZZ),
+    (TOKEN_MAX, TOKEN_ID_MAX),
     # ("2V4D00153RFRF", 2**64-1),
 ]
 
@@ -30,7 +28,7 @@ def test_random_token():
     COUNT = 100000
     random.seed(2)
     for i in range(COUNT):
-        id = random.randint(0, ZZZZZZZZZZZZ)
+        id = random.randint(0, TOKEN_ID_MAX)
         assert id == token_id_encode(token_id_decode(id))
 
 
@@ -42,10 +40,10 @@ def test_token_id_exceptions():
     with pytest.raises(AssertionError):
         token_id_encode("btc")
     with pytest.raises(AssertionError):
-        token_id_encode("ZZZZZZZZZZZZZ")
+        token_id_encode(TOKEN_MAX + "Z")
     with pytest.raises(AssertionError):
         token_id_decode(2 ** 64 - 1)
     with pytest.raises(AssertionError):
         token_id_decode(-1)
     with pytest.raises(AssertionError):
-        token_id_decode(ZZZZZZZZZZZZ + 1)
+        token_id_decode(TOKEN_ID_MAX + 1)
