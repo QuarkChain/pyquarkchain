@@ -167,7 +167,7 @@ class BaseServer(BaseService):
             await self._receive_handshake(reader, writer)
         except expected_exceptions as e:
             self.logger.debug("Could not complete handshake: %s", e)
-            self.logger.error_every_n("Could not complete handshake: {}".format(e), 100)
+            Logger.error_every_n("Could not complete handshake: {}".format(e), 100)
             reader.feed_eof()
             writer.close()
         except OperationCancelled:

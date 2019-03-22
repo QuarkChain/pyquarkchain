@@ -807,6 +807,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         max_peers: int = DEFAULT_MAX_PEERS,
         token: CancelToken = None,
         event_bus=None,
+        whitelist_nodes=None,
     ) -> None:
         super().__init__(token)
 
@@ -824,6 +825,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.listen_port = listen_port
         self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
 
+        self.whitelist_nodes = whitelist_nodes
         # IP to unblacklist time, we blacklist by IP
         self._blacklist = {}  # type: Dict[str, int]
 
@@ -937,6 +939,10 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         await self.stop_all_peers()
 
     def blacklist(self, remote_address: Address) -> None:
+        # never blacklist bootstap
+        for node in self.whitelist_nodes:
+            if node.address.ip == remote_address.ip:
+                return
         self._blacklist[remote_address.ip] = time_ms() // 1000 + BLACKLIST_COOLDOWN_SEC
 
     def chk_blacklist(self, remote_address: Address) -> bool:
@@ -1023,7 +1029,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             reader, writer = auth.opened_connections[remote.__repr__()]
             reader.feed_eof()
             writer.close()
-            self.logger.error("Closing connection to %r", remote.__repr__())
+            Logger.error_every_n("Closing connection to {}".format(remote.__repr__()), 100)
             del auth.opened_connections[remote.__repr__()]
         self.blacklist(remote.address)
         return None
