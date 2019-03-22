@@ -5,6 +5,7 @@ import datetime
 import functools
 import operator
 import struct
+import numpy
 from abc import ABC, abstractmethod
 
 from typing import (
@@ -34,12 +35,12 @@ from eth_utils import to_tuple
 from eth_hash.preimage import BasePreImage
 from eth_keys import datatypes
 
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, time_ms
 from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
 
 from quarkchain.p2p import auth
 from quarkchain.p2p import protocol
-from quarkchain.p2p.kademlia import Node
+from quarkchain.p2p.kademlia import Node, Address
 from quarkchain.p2p.exceptions import (
     BadAckMessage,
     DecryptionError,
@@ -69,6 +70,7 @@ from .constants import (
     DEFAULT_PEER_BOOT_TIMEOUT,
     HEADER_LEN,
     MAC_LEN,
+    BLACKLIST_COOLDOWN_SEC,
 )
 
 
@@ -823,6 +825,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.listen_port = listen_port
         self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
 
+        # IP to unblacklist time, we blacklist by IP
+        self.blacklist = {}  # type: Dict[str, int]
+
     # async def handle_peer_count_requests(self) -> None:
     #     async def f() -> None:
     #         # FIXME: There must be a way to cancel event_bus.stream() when our token is triggered,
@@ -931,6 +936,19 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
     async def _cleanup(self) -> None:
         await self.stop_all_peers()
 
+    def blacklist(self, remote_address: Address) -> None:
+        cooldown_sec = numpy.random.exponential(BLACKLIST_COOLDOWN_SEC)
+        self.blacklist[remote_address.ip] = time_ms() // 1000 + cooldown_sec
+
+    def chk_blacklist(self, remote_address: Address) -> bool:
+        if remote_address.ip not in self.blacklist:
+            return False
+        now = time_ms() // 1000
+        if now >= self.blacklist[remote_address.ip]:
+            del self.blacklist[remote_address.ip]
+            return False
+        return True
+
     async def connect(self, remote: Node) -> BasePeer:
         """
         Connect to the given remote and return a Peer instance when successful.
@@ -946,6 +964,13 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             return None
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
+            return None
+        if self.chk_blacklist(remote.address):
+            Logger.warning(
+                "{} has been blacklisted, will not connect; discovery should have removed it".format(
+                    remote.address
+                )
+            )
             return None
         expected_exceptions = (
             HandshakeFailure,
@@ -989,6 +1014,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             writer.close()
             self.logger.error("Closing connection to %r", remote.__repr__())
             del auth.opened_connections[remote.__repr__()]
+        self.blacklist(remote.address)
         return None
 
     @contextlib.contextmanager
@@ -1045,6 +1071,11 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                 "Connected peers: %d inbound, %d outbound",
                 inbound_peers,
                 (len(self.connected_nodes) - inbound_peers),
+            )
+            self.logger.info(
+                "Blacklisted peers: count={}, examples=({})".format(
+                    len(self.blacklist), list(self.blacklist.keys())[10:]
+                )
             )
             subscribers = len(self._subscribers)
             if subscribers:

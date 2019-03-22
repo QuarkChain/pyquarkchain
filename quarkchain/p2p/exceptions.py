@@ -167,3 +167,6 @@ class UnableToGetDiscV5Ticket(BaseP2PError):
     Raised when we're unable to get a discv5 ticket from a remote peer.
     """
     pass
+
+class BlacklistedPeer(BaseP2PError):
+    pass

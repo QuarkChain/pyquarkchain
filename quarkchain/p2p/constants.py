@@ -76,3 +76,6 @@ SEAL_CHECK_RANDOM_SAMPLE_RATE = 48
 # The amount of time that the BasePeerPool will wait for a peer to boot before
 # aborting the connection attempt.
 DEFAULT_PEER_BOOT_TIMEOUT = 20
+
+# expectation of period between adding a blacklisted node and removing it
+BLACKLIST_COOLDOWN_SEC = 24 * 3600
