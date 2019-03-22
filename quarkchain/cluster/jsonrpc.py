@@ -392,7 +392,11 @@ class JSONRPCServer:
     @classmethod
     def start_public_server(cls, env, master_server):
         server = cls(
-            env, master_server, env.cluster_config.JSON_RPC_PORT, public_methods
+            env,
+            master_server, 
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            public_methods
         )
         server.start()
         return server
@@ -403,6 +407,7 @@ class JSONRPCServer:
             env,
             master_server,
             env.cluster_config.PRIVATE_JSON_RPC_PORT,
+            env.cluster_config.PRIVATE_JSON_RPC_HOST,
             private_methods,
         )
         server.start()
@@ -415,13 +420,19 @@ class JSONRPCServer:
             methods.add(method)
         for method in private_methods.values():
             methods.add(method)
-        server = cls(env, master_server, env.cluster_config.JSON_RPC_PORT, methods)
+        server = cls(
+            env,
+            master_server,
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            methods)
         server.start()
         return server
 
-    def __init__(self, env, master_server: MasterServer, port, methods: AsyncMethods):
+    def __init__(self, env, master_server: MasterServer, port, host, methods: AsyncMethods):
         self.loop = asyncio.get_event_loop()
         self.port = port
+        self.host = host
         self.env = env
         self.master = master_server
         self.counters = dict()
@@ -472,7 +483,7 @@ class JSONRPCServer:
         )
         self.runner = web.AppRunner(app, access_log=None)
         self.loop.run_until_complete(self.runner.setup())
-        site = web.TCPSite(self.runner, "0.0.0.0", self.port)
+        site = web.TCPSite(self.runner, self.host, self.port)
         self.loop.run_until_complete(site.start())
 
     def shutdown(self):
