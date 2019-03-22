@@ -212,6 +212,9 @@ OP_RPC_MAP = {
 }
 
 TIMEOUT = 10
+# Current minor block size is up to 6M gas / 4 (zero-byte gas) = 1.5M
+# Per-command size is now 128M so 128M / 1.5M = 85
+MINOR_BLOCK_BATCH_SIZE = 50
 
 
 class SyncTask:
@@ -288,14 +291,14 @@ class SyncTask:
         block_header_chain.reverse()
         while len(block_header_chain) > 0:
             block_chain = await asyncio.wait_for(
-                self.__download_blocks(block_header_chain[:100]), TIMEOUT
+                self.__download_blocks(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]), TIMEOUT
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
                     self.shard_state.branch.to_str(), len(block_chain)
                 )
             )
-            check(len(block_chain) == len(block_header_chain[:100]))
+            check(len(block_chain) == len(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]))
 
             for block in block_chain:
                 # Stop if the block depends on an unknown root block

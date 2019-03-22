@@ -15,7 +15,7 @@ from rlp.sedes import big_endian_int, binary, BigEndianInt
 from quarkchain.rlp.utils import str_to_bytes, ascii_chr
 
 from quarkchain.evm import opcodes
-from quarkchain.utils import sha3_256, is_p2, check
+from quarkchain.utils import sha3_256, check, TOKEN_ID_MAX, SHARD_KEY_MAX
 from quarkchain.evm.solidity_abi_utils import tx_to_typed_data, typed_signature_hash
 
 # in the yellow paper it is specified that s should be smaller than
@@ -122,6 +122,11 @@ class Transaction(rlp.Serializable):
             or self.startgas >= TT256
             or self.value >= TT256
             or self.nonce >= TT256
+            or self.version >= TT256
+            or self.gas_token_id > TOKEN_ID_MAX
+            or self.transfer_token_id > TOKEN_ID_MAX
+            or self.from_full_shard_key > SHARD_KEY_MAX
+            or self.to_full_shard_key > SHARD_KEY_MAX
         ):
             raise InvalidTransaction("Values way too high!")
 

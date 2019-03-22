@@ -25,6 +25,7 @@ class ProxyConnection(Connection):
         loop=None,
         metadata_class=None,
         name=None,
+        command_size_limit=None,
     ):
         super().__init__(
             env,
@@ -36,6 +37,7 @@ class ProxyConnection(Connection):
             loop=loop,
             metadata_class=metadata_class,
             name=name,
+            command_size_limit=command_size_limit,
         )
 
     def get_connection_to_forward(self, metadata) -> AbstractConnection:
@@ -192,6 +194,7 @@ class P2PConnection(ProxyConnection):
         op_rpc_map,
         loop=None,
         metadata_class=None,
+        command_size_limit=None,
     ):
         super().__init__(
             env,
@@ -203,6 +206,7 @@ class P2PConnection(ProxyConnection):
             loop,
             P2PMetadata,
             name=metadata_class,
+            command_size_limit=command_size_limit,
         )
 
     def get_cluster_peer_id(self):

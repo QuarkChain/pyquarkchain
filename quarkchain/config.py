@@ -281,7 +281,7 @@ class QuarkChainConfig(BaseConfig):
 
     # P2P
     P2P_PROTOCOL_VERSION = 0
-    P2P_COMMAND_SIZE_LIMIT = (2 ** 32) - 1  # unlimited right now
+    P2P_COMMAND_SIZE_LIMIT = 128 * 1024 * 1024  # 128M
 
     # Testing related
     SKIP_ROOT_DIFFICULTY_CHECK = False
