@@ -79,3 +79,5 @@ DEFAULT_PEER_BOOT_TIMEOUT = 20
 
 # period between adding a blacklisted node and removing it
 BLACKLIST_COOLDOWN_SEC = 24 * 3600
+
+UNBLACKLIST_INTERVAL = 15 * 60

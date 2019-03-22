@@ -70,6 +70,7 @@ from .constants import (
     HEADER_LEN,
     MAC_LEN,
     BLACKLIST_COOLDOWN_SEC,
+    UNBLACKLIST_INTERVAL,
 )
 
 
@@ -825,7 +826,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         self.listen_port = listen_port
         self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
 
-        self.whitelist_nodes = whitelist_nodes
+        self.whitelist_nodes = whitelist_nodes or []
         # IP to unblacklist time, we blacklist by IP
         self._blacklist = {}  # type: Dict[str, int]
 
@@ -963,7 +964,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                     remove.add(ip)
             for ip in remove:
                 del self._blacklist[ip]
-            await self.sleep(self._report_interval)
+            await self.sleep(UNBLACKLIST_INTERVAL)
 
     async def connect(self, remote: Node) -> BasePeer:
         """
