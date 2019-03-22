@@ -1,9 +1,9 @@
 {
   "P2P_PORT": 38291,
   "JSON_RPC_PORT": 38391,
-  "JSON_RPC_HOST": "127.0.0.1",
+  "JSON_RPC_HOST": "localhost",
   "PRIVATE_JSON_RPC_PORT": 38491,
-  "PRIVATE_JSON_RPC_HOST": "127.0.0.1",
+  "PRIVATE_JSON_RPC_HOST": "localhost",
   "ENABLE_TRANSACTION_HISTORY": false,
   "DB_PATH_ROOT": "./qkc-data/testnet24",
   "LOG_LEVEL": "info",

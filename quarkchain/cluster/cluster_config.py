@@ -135,8 +135,8 @@ class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
-    JSON_RPC_HOST = "127.0.0.1"
-    PRIVATE_JSON_RPC_HOST = "127.0.0.1"
+    JSON_RPC_HOST = "localhost"
+    PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
@@ -243,7 +243,9 @@ class ClusterConfig(BaseConfig):
         )
         parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT, type=int)
         parser.add_argument(
-            "--json_rpc_port", default=ClusterConfig.JSON_RPC_PORT, type=int
+            "--json_rpc_port", 
+            default=ClusterConfig.JSON_RPC_PORT,
+            type=int,
         )
         parser.add_argument(
             "--json_rpc_private_port",
@@ -251,7 +253,9 @@ class ClusterConfig(BaseConfig):
             type=int,
         )
         parser.add_argument(
-            "--json_rpc_host", default=ClusterConfig.JSON_RPC_HOST, type=str
+            "--json_rpc_host",
+            default=ClusterConfig.JSON_RPC_HOST,
+            type=str,
         )
         parser.add_argument(
             "--json_rpc_private_host",
