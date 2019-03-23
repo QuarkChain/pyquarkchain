@@ -300,6 +300,7 @@ class QuarkChainConfig(BaseConfig):
 
     BLOCK_REWARD_DECAY_FACTOR = 0.5
     ENABLE_TX_TIMESTAMP = None
+    ENABLE_EVM_TIMESTAMP = None
 
     def __init__(self):
         self.loadtest_accounts = (
