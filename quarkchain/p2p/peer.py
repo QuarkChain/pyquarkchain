@@ -69,7 +69,7 @@ from .constants import (
     DEFAULT_PEER_BOOT_TIMEOUT,
     HEADER_LEN,
     MAC_LEN,
-    BLACKLIST_COOLDOWN_SEC,
+    DIALOUT_BLACKLIST_COOLDOWN_SEC,
     UNBLACKLIST_INTERVAL,
 )
 
@@ -828,7 +828,8 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
 
         self.whitelist_nodes = whitelist_nodes or []
         # IP to unblacklist time, we blacklist by IP
-        self._blacklist = {}  # type: Dict[str, int]
+        self._dialout_blacklist = {}  # type: Dict[str, int]
+        self._dialin_blacklist = {}  # type: Dict[str, int]
 
     # async def handle_peer_count_requests(self) -> None:
     #     async def f() -> None:
@@ -939,19 +940,35 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
     async def _cleanup(self) -> None:
         await self.stop_all_peers()
 
-    def blacklist(self, remote_address: Address) -> None:
+    def dialout_blacklist(self, remote_address: Address) -> None:
         # never blacklist bootstap
         for node in self.whitelist_nodes:
             if node.address.ip == remote_address.ip:
                 return
-        self._blacklist[remote_address.ip] = time_ms() // 1000 + BLACKLIST_COOLDOWN_SEC
+        self._dialout_blacklist[remote_address.ip] = time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
 
-    def chk_blacklist(self, remote_address: Address) -> bool:
-        if remote_address.ip not in self._blacklist:
+    def chk_dialout_blacklist(self, remote_address: Address) -> bool:
+        if remote_address.ip not in self._dialout_blacklist:
             return False
         now = time_ms() // 1000
-        if now >= self._blacklist[remote_address.ip]:
-            del self._blacklist[remote_address.ip]
+        if now >= self._dialout_blacklist[remote_address.ip]:
+            del self._dialout_blacklist[remote_address.ip]
+            return False
+        return True
+
+    def dialin_blacklist(self, remote_address: Address) -> None:
+        # never blacklist bootstap
+        for node in self.whitelist_nodes:
+            if node.address.ip == remote_address.ip:
+                return
+        self._dialin_blacklist[remote_address.ip] = time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
+
+    def chk_dialin_blacklist(self, remote_address: Address) -> bool:
+        if remote_address.ip not in self._dialin_blacklist:
+            return False
+        now = time_ms() // 1000
+        if now >= self._dialin_blacklist[remote_address.ip]:
+            del self._dialin_blacklist[remote_address.ip]
             return False
         return True
 
@@ -959,11 +976,17 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         while self.is_operational:
             now = time_ms() // 1000
             remove = set()
-            for ip, t in self._blacklist.items():
+            for ip, t in self._dialout_blacklist.items():
                 if now >= t:
                     remove.add(ip)
             for ip in remove:
-                del self._blacklist[ip]
+                del self._dialout_blacklist[ip]
+            remove = set()
+            for ip, t in self._dialin_blacklist.items():
+                if now >= t:
+                    remove.add(ip)
+            for ip in remove:
+                del self._dialin_blacklist[ip]
             await self.sleep(UNBLACKLIST_INTERVAL)
 
     async def connect(self, remote: Node) -> BasePeer:
@@ -982,9 +1005,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
-        if self.chk_blacklist(remote.address):
+        if self.chk_dialout_blacklist(remote.address):
             Logger.warning_every_n(
-                "{} has been blacklisted, will not connect; discovery should have removed it".format(
+                "failed to connect {} at least once, will not connect again; discovery should have removed it".format(
                     remote.address
                 ),
                 100
@@ -1032,7 +1055,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             writer.close()
             Logger.error_every_n("Closing connection to {}".format(remote.__repr__()), 100)
             del auth.opened_connections[remote.__repr__()]
-        self.blacklist(remote.address)
+        self.dialout_blacklist(remote.address)
         return None
 
     @contextlib.contextmanager
@@ -1091,8 +1114,11 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                 (len(self.connected_nodes) - inbound_peers),
             )
             self.logger.info(
-                "Blacklisted peers: count={}, examples=({})".format(
-                    len(self._blacklist), list(self._blacklist.keys())[:10]
+                "Blacklisted peers: dialout count={}, examples=({}); dialin count={}, examples=({})".format(
+                    len(self._dialout_blacklist),
+                    list(self._dialout_blacklist.keys())[:10],
+                    len(self._dialin_blacklist),
+                    list(self._dialin_blacklist.keys())[:10],
                 )
             )
             subscribers = len(self._subscribers)

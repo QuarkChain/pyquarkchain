@@ -150,8 +150,8 @@ class BaseServer(BaseService):
     ) -> None:
         ip, socket, *_ = writer.get_extra_info("peername")
         remote_address = Address(ip, socket)
-        if self.peer_pool.chk_blacklist(remote_address):
-            self.logger.info_every_n(
+        if self.peer_pool.chk_dialin_blacklist(remote_address):
+            Logger.info_every_n(
                 "{} has been blacklisted, refusing connection".format(remote_address),
                 100,
             )
@@ -178,7 +178,6 @@ class BaseServer(BaseService):
             self.logger.exception("Unexpected error handling handshake")
             reader.feed_eof()
             writer.close()
-            self.peer_pool.blacklist(remote_address)
 
     async def _receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
