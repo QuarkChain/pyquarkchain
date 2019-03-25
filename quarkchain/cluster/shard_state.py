@@ -153,7 +153,7 @@ class XshardTxCursor:
 
             # Check if the neighbor has the permission to send tx to local shard
             prev_root_header = self.db.get_root_block_header_by_hash(
-                mblock_header.hash_prev_root_block, consistency_check=False
+                mblock_header.hash_prev_root_block
             )
             if (
                 prev_root_header.height
@@ -453,11 +453,13 @@ class ShardState:
 
         # Check if EVM is disabled
         if (
-            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None and
-            evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+            and evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
         ):
             if evm_tx.to == b"" or evm_tx.data != b"":
-                raise RuntimeError("smart contract tx is not allowed before evm is enabled")
+                raise RuntimeError(
+                    "smart contract tx is not allowed before evm is enabled"
+                )
 
         # This will check signature, nonce, balance, gas limit
         validate_transaction(evm_state, evm_tx)
@@ -554,9 +556,7 @@ class ShardState:
 
         header = longer_block_header
         for i in range(longer_block_header.height - shorter_block_header.height):
-            header = self.db.get_root_block_header_by_hash(
-                header.hash_prev_block, consistency_check=False
-            )
+            header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
     def __validate_block(
@@ -630,9 +630,10 @@ class ShardState:
             )
 
         if (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None and
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP > block.header.create_time and
-            len(block.tx_list) != 0
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+            and self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+            > block.header.create_time
+            and len(block.tx_list) != 0
         ):
             raise ValueError("tx_list should be empty before tx is enabled")
 
@@ -905,7 +906,7 @@ class ShardState:
         if not prev_root_header:
             raise ValueError("missing prev root block")
         tip_prev_root_header = self.db.get_root_block_header_by_hash(
-            self.header_tip.hash_prev_root_block, consistency_check=False
+            self.header_tip.hash_prev_root_block
         )
         if not self.__is_same_root_chain(self.root_tip, prev_root_header):
             # Don't update tip if the block depends on a root block that is not root_tip or root_tip's ancestor
@@ -1132,8 +1133,9 @@ class ShardState:
 
             # Check if EMV is disabled
             if (
-                self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None and
-                block.header.create_time < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+                self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+                and block.header.create_time
+                < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
             ):
                 if evm_tx.to == b"" or evm_tx.data != b"":
                     # Drop the smart contract creation tx from tx_queue
@@ -1196,11 +1198,10 @@ class ShardState:
         if evm_state.gas_used < xshard_gas_limit:
             evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
-        if (
-            include_tx and (
-                self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None or
-                block.header.create_time >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-            )
+        if include_tx and (
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None
+            or block.header.create_time
+            >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
         ):
             self.__add_transactions_to_block(block, evm_state)
 
@@ -1328,13 +1329,13 @@ class ShardState:
         self.db.put_root_block(root_block, shard_header)
         if shard_header:
             prev_root_header = self.db.get_root_block_header_by_hash(
-                shard_header.hash_prev_root_block, consistency_check=False
+                shard_header.hash_prev_root_block
             )
             check(self.__is_same_root_chain(root_block.header, prev_root_header))
 
         # No change to root tip
         tip_prev_root_header = self.db.get_root_block_header_by_hash(
-            self.header_tip.hash_prev_root_block, consistency_check=False
+            self.header_tip.hash_prev_root_block
         )
         if root_block.header.total_difficulty <= self.root_tip.total_difficulty:
             check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
@@ -1360,9 +1361,7 @@ class ShardState:
         # the worst case would be that we go all the way back to orig_block (shard_header)
         while not self.__is_same_root_chain(
             self.root_tip,
-            self.db.get_root_block_header_by_hash(
-                self.header_tip.hash_prev_root_block, consistency_check=False
-            ),
+            self.db.get_root_block_header_by_hash(self.header_tip.hash_prev_root_block),
         ):
             if self.header_tip.height == 0:
                 # we are at genesis block now but the root block it points to is still on a fork from root_tip.
