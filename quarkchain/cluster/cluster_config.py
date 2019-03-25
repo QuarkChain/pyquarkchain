@@ -135,6 +135,8 @@ class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
+    JSON_RPC_HOST = "localhost"
+    PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
@@ -241,12 +243,24 @@ class ClusterConfig(BaseConfig):
         )
         parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT, type=int)
         parser.add_argument(
-            "--json_rpc_port", default=ClusterConfig.JSON_RPC_PORT, type=int
+            "--json_rpc_port", 
+            default=ClusterConfig.JSON_RPC_PORT,
+            type=int,
         )
         parser.add_argument(
             "--json_rpc_private_port",
             default=ClusterConfig.PRIVATE_JSON_RPC_PORT,
             type=int,
+        )
+        parser.add_argument(
+            "--json_rpc_host",
+            default=ClusterConfig.JSON_RPC_HOST,
+            type=str,
+        )
+        parser.add_argument(
+            "--json_rpc_private_host",
+            default=ClusterConfig.PRIVATE_JSON_RPC_HOST,
+            type=str,
         )
         parser.add_argument(
             "--enable_transaction_history",
@@ -318,6 +332,8 @@ class ClusterConfig(BaseConfig):
             config.P2P_PORT = args.p2p_port
             config.JSON_RPC_PORT = args.json_rpc_port
             config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
+            config.JSON_RPC_HOST = args.json_rpc_host
+            config.PRIVATE_JSON_RPC_HOST = args.json_rpc_private_host
 
             config.CLEAN = args.clean
             config.START_SIMULATED_MINING = args.start_simulated_mining

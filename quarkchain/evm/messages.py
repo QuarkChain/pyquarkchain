@@ -25,6 +25,7 @@ from quarkchain.evm.exceptions import (
     InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
+from quarkchain.utils import token_id_decode
 
 
 null_address = b"\xff" * 20
@@ -152,6 +153,20 @@ def validate_transaction(state, tx):
     total_gas = tx.intrinsic_gas_used
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
+
+    # (4.0) require transfer_token_id and gas_token_id to be in allowed list
+    if tx.transfer_token_id not in state.qkc_config.allowed_transfer_token_ids:
+        raise InsufficientBalance(
+            "{}: token {} is not in allowed transfer_token list".format(
+                tx.__repr__(), token_id_decode(tx.transfer_token_id)
+            )
+        )
+    if tx.gas_token_id not in state.qkc_config.allowed_gas_token_ids:
+        raise InsufficientBalance(
+            "{}: token {} is not in allowed gas_token list".format(
+                tx.__repr__(), token_id_decode(tx.gas_token_id)
+            )
+        )
 
     # (4) the sender account balance contains at least the
     # cost, v0, required in up-front payment.

@@ -987,6 +987,13 @@ class DiscoveryService(BaseService):
         if self._last_lookup + self._lookup_interval < time.time():
             self.run_task(self.maybe_lookup_random_node())
 
+        # remove blacklisted nodes from the routing table, then return results
+        for bucket in self.proto.routing.buckets:
+            for node in bucket.nodes:
+                if self.peer_pool.chk_blacklist(node.address):
+                    Logger.info_every_n("{} is blacklisted, removing from routing table".format(node), 100)
+                    self.proto.routing.remove_node(node)
+
         await self.peer_pool.connect_to_nodes(
             self.proto.get_nodes_to_connect(self.peer_pool.max_peers))
 

@@ -148,6 +148,15 @@ class BaseServer(BaseService):
     async def receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        ip, socket, *_ = writer.get_extra_info("peername")
+        remote_address = Address(ip, socket)
+        if self.peer_pool.chk_blacklist(remote_address):
+            self.logger.info_every_n(
+                "{} has been blacklisted, refusing connection".format(remote_address),
+                100,
+            )
+            reader.feed_eof()
+            writer.close()
         expected_exceptions = (
             TimeoutError,
             PeerConnectionLost,
@@ -158,7 +167,7 @@ class BaseServer(BaseService):
             await self._receive_handshake(reader, writer)
         except expected_exceptions as e:
             self.logger.debug("Could not complete handshake: %s", e)
-            self.logger.error("Could not complete handshake: %s", e)
+            Logger.error_every_n("Could not complete handshake: {}".format(e), 100)
             reader.feed_eof()
             writer.close()
         except OperationCancelled:
@@ -169,6 +178,7 @@ class BaseServer(BaseService):
             self.logger.exception("Unexpected error handling handshake")
             reader.feed_eof()
             writer.close()
+            self.peer_pool.blacklist(remote_address)
 
     async def _receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -176,7 +186,6 @@ class BaseServer(BaseService):
         msg = await self.wait(
             reader.read(ENCRYPTED_AUTH_MSG_LEN), timeout=REPLY_TIMEOUT
         )
-
         ip, socket, *_ = writer.get_extra_info("peername")
         remote_address = Address(ip, socket)
         self.logger.debug("Receiving handshake from %s", remote_address)
