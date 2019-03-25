@@ -1765,13 +1765,13 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        blockHeaders = [state.header_tip]
-        blockMetas = [state.meta_tip]
+        block_headers = [state.header_tip]
+        block_meta = [state.meta_tip]
         for i in range(12):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
-            blockHeaders.append(b.header)
-            blockMetas.append(b.meta)
+            block_headers.append(b.header)
+            block_meta.append(b.meta)
 
         # add a fork
         b1 = state.db.get_minor_block_by_height(3)
@@ -1780,31 +1780,31 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.db.get_minor_block_by_hash(b1.header.get_hash()), b1)
 
         root_block = state.root_tip.create_block_to_append()
-        root_block.minor_block_header_list = blockHeaders[:5]
+        root_block.minor_block_header_list = block_headers[:5]
         root_block.finalize()
 
         state.add_root_block(root_block)
 
-        recoveredState = ShardState(env=env, full_shard_id=2 | 0)
+        recovered_state = ShardState(env=env, full_shard_id=2 | 0)
 
-        recoveredState.init_from_root_block(root_block)
+        recovered_state.init_from_root_block(root_block)
         # forks are pruned
         self.assertIsNone(
-            recoveredState.db.get_minor_block_by_hash(b1.header.get_hash())
+            recovered_state.db.get_minor_block_by_hash(b1.header.get_hash())
         )
         self.assertEqual(
-            recoveredState.db.get_minor_block_by_hash(
+            recovered_state.db.get_minor_block_by_hash(
                 b1.header.get_hash(), consistency_check=False
             ),
             b1,
         )
 
-        self.assertEqual(recoveredState.root_tip, root_block.header)
-        self.assertEqual(recoveredState.header_tip, blockHeaders[4])
-        self.assertEqual(recoveredState.confirmed_header_tip, blockHeaders[4])
-        self.assertEqual(recoveredState.meta_tip, blockMetas[4])
+        self.assertEqual(recovered_state.root_tip, root_block.header)
+        self.assertEqual(recovered_state.header_tip, block_headers[4])
+        self.assertEqual(recovered_state.confirmed_header_tip, block_headers[4])
+        self.assertEqual(recovered_state.meta_tip, block_meta[4])
         self.assertEqual(
-            recoveredState.evm_state.trie.root_hash, blockMetas[4].hash_evm_state_root
+            recovered_state.evm_state.trie.root_hash, block_meta[4].hash_evm_state_root
         )
 
     def test_shard_state_recovery_from_genesis(self):
@@ -1814,32 +1814,33 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        blockHeaders = [state.header_tip]
-        blockMetas = [state.meta_tip]
+        block_headers = [state.header_tip]
+        block_meta = [state.meta_tip]
         for i in range(12):
             b = state.get_tip().create_block_to_append(address=acc1)
             state.finalize_and_add_block(b)
-            blockHeaders.append(b.header)
-            blockMetas.append(b.meta)
+            block_headers.append(b.header)
+            block_meta.append(b.meta)
 
         # Add a few empty root blocks
+        root_block = None
         for i in range(3):
             root_block = state.root_tip.create_block_to_append()
             root_block.finalize()
             state.add_root_block(root_block)
 
-        recoveredState = ShardState(env=env, full_shard_id=2 | 0)
+        recovered_state = ShardState(env=env, full_shard_id=2 | 0)
 
         # expect to recover from genesis
-        recoveredState.init_from_root_block(root_block)
+        recovered_state.init_from_root_block(root_block)
 
         genesis = state.db.get_minor_block_by_height(0)
-        self.assertEqual(recoveredState.root_tip, root_block.header)
-        self.assertEqual(recoveredState.header_tip, genesis.header)
-        self.assertIsNone(recoveredState.confirmed_header_tip)
-        self.assertEqual(recoveredState.meta_tip, genesis.meta)
+        self.assertEqual(recovered_state.root_tip, root_block.header)
+        self.assertEqual(recovered_state.header_tip, genesis.header)
+        self.assertIsNone(recovered_state.confirmed_header_tip)
+        self.assertEqual(recovered_state.meta_tip, genesis.meta)
         self.assertEqual(
-            recoveredState.evm_state.trie.root_hash, genesis.meta.hash_evm_state_root
+            recovered_state.evm_state.trie.root_hash, genesis.meta.hash_evm_state_root
         )
 
     def test_add_block_receipt_root_not_match(self):
@@ -2223,7 +2224,9 @@ class TestShardState(unittest.TestCase):
         b2 = state.create_block_to_mine()
         self.assertEqual(len(b2.tx_list), 0)
 
-        with self.assertRaisesRegexp(ValueError, "tx_list should be empty before tx is enabled"):
+        with self.assertRaisesRegexp(
+            ValueError, "tx_list should be empty before tx is enabled"
+        ):
             state.finalize_and_add_block(b1)
 
     def test_enable_evm_timestamp_with_contract_create(self):
@@ -2239,10 +2242,7 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(root_block)
 
         tx = create_contract_creation_transaction(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_full_shard_key=0,
+            shard_state=state, key=id1.get_key(), from_address=acc1, to_full_shard_key=0
         )
         self.assertTrue(state.add_tx(tx))
 
@@ -2254,8 +2254,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(b2.tx_list), 0)
 
         with self.assertRaisesRegexp(
-            RuntimeError,
-            "smart contract tx is not allowed before evm is enabled"
+            RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
 
@@ -2290,7 +2289,6 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(b2.tx_list), 0)
 
         with self.assertRaisesRegexp(
-            RuntimeError,
-            "smart contract tx is not allowed before evm is enabled"
+            RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
