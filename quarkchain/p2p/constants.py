@@ -77,7 +77,9 @@ SEAL_CHECK_RANDOM_SAMPLE_RATE = 48
 # aborting the connection attempt.
 DEFAULT_PEER_BOOT_TIMEOUT = 20
 
-# period between adding a blacklisted node and removing it
-BLACKLIST_COOLDOWN_SEC = 24 * 3600
+# period between adding a dialout_blacklisted node and removing it
+DIALOUT_BLACKLIST_COOLDOWN_SEC = 24 * 3600
+
+DIALIN_BLACKLIST_COOLDOWN_SEC = 8 * 3600
 
 UNBLACKLIST_INTERVAL = 15 * 60

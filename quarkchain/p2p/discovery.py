@@ -990,8 +990,8 @@ class DiscoveryService(BaseService):
         # remove blacklisted nodes from the routing table, then return results
         for bucket in self.proto.routing.buckets:
             for node in bucket.nodes:
-                if self.peer_pool.chk_blacklist(node.address):
-                    Logger.info_every_n("{} is blacklisted, removing from routing table".format(node), 100)
+                if self.peer_pool.chk_dialin_blacklist(node.address) or self.peer_pool.chk_dialout_blacklist(node.address):
+                    Logger.info_every_n("we failed to connect to {}, removing from routing table".format(node), 100)
                     self.proto.routing.remove_node(node)
 
         await self.peer_pool.connect_to_nodes(
