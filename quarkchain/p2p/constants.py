@@ -80,4 +80,6 @@ DEFAULT_PEER_BOOT_TIMEOUT = 20
 # period between adding a dialout_blacklisted node and removing it
 DIALOUT_BLACKLIST_COOLDOWN_SEC = 24 * 3600
 
+DIALIN_BLACKLIST_COOLDOWN_SEC = 8 * 3600
+
 UNBLACKLIST_INTERVAL = 15 * 60

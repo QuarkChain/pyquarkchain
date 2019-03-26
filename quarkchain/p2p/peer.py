@@ -70,6 +70,7 @@ from .constants import (
     HEADER_LEN,
     MAC_LEN,
     DIALOUT_BLACKLIST_COOLDOWN_SEC,
+    DIALIN_BLACKLIST_COOLDOWN_SEC,
     UNBLACKLIST_INTERVAL,
 )
 
@@ -961,7 +962,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         for node in self.whitelist_nodes:
             if node.address.ip == remote_address.ip:
                 return
-        self._dialin_blacklist[remote_address.ip] = time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
+        self._dialin_blacklist[remote_address.ip] = time_ms() // 1000 + DIALIN_BLACKLIST_COOLDOWN_SEC
 
     def chk_dialin_blacklist(self, remote_address: Address) -> bool:
         if remote_address.ip not in self._dialin_blacklist:
@@ -975,18 +976,13 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
     async def _periodically_unblacklist(self) -> None:
         while self.is_operational:
             now = time_ms() // 1000
-            remove = set()
-            for ip, t in self._dialout_blacklist.items():
-                if now >= t:
-                    remove.add(ip)
-            for ip in remove:
-                del self._dialout_blacklist[ip]
-            remove = set()
-            for ip, t in self._dialin_blacklist.items():
-                if now >= t:
-                    remove.add(ip)
-            for ip in remove:
-                del self._dialin_blacklist[ip]
+            for blk in (self._dialout_blacklist,self._dialin_blacklist):
+                remove = []
+                for ip, t in blk.items():
+                    if now >= t:
+                        remove.append(ip)
+                for ip in remove:
+                    del blk[ip]
             await self.sleep(UNBLACKLIST_INTERVAL)
 
     async def connect(self, remote: Node) -> BasePeer:
