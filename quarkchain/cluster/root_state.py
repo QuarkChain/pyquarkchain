@@ -107,6 +107,11 @@ class RootDb:
         self.db.put(b"tipHash", block_hash)
 
     def get_root_block_by_hash(self, h, consistency_check=True):
+        """
+        Consistency check being true means whatever in memory should already have enough
+        information (no missing root block, minor block etc). Skipping the check by reading
+        directly from database may have unwanted consequences.
+        """
         if consistency_check and h not in self.r_header_pool:
             return None
 

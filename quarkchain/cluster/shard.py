@@ -626,9 +626,9 @@ class Shard:
 
         self.add_block_futures[block.header.get_hash()] = self.loop.create_future()
 
-        prev_root_height = self.state.db.get_root_block_by_hash(
+        prev_root_height = self.state.db.get_root_block_header_by_hash(
             block.header.hash_prev_root_block
-        ).header.height
+        ).height
         await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
         await self.slave.send_minor_block_header_to_master(
             block.header,
@@ -679,9 +679,9 @@ class Shard:
                 if future:
                     existing_add_block_futures.append(future)
             else:
-                prev_root_height = self.state.db.get_root_block_by_hash(
+                prev_root_height = self.state.db.get_root_block_header_by_hash(
                     block.header.hash_prev_root_block
-                ).header.height
+                ).height
                 block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
                 self.add_block_futures[block_hash] = self.loop.create_future()
 

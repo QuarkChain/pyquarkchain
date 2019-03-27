@@ -453,11 +453,13 @@ class ShardState:
 
         # Check if EVM is disabled
         if (
-            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None and
-            evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+            and evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
         ):
             if evm_tx.to == b"" or evm_tx.data != b"":
-                raise RuntimeError("smart contract tx is not allowed before evm is enabled")
+                raise RuntimeError(
+                    "smart contract tx is not allowed before evm is enabled"
+                )
 
         # This will check signature, nonce, balance, gas limit
         validate_transaction(evm_state, evm_tx)
@@ -628,9 +630,10 @@ class ShardState:
             )
 
         if (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None and
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP > block.header.create_time and
-            len(block.tx_list) != 0
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+            and self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+            > block.header.create_time
+            and len(block.tx_list) != 0
         ):
             raise ValueError("tx_list should be empty before tx is enabled")
 
@@ -694,13 +697,6 @@ class ShardState:
             x_shard_receive_tx_list = []
         if evm_state is None:
             evm_state = self._get_evm_state_for_new_block(block, ephemeral=False)
-        root_block_header = self.db.get_root_block_header_by_hash(
-            block.header.hash_prev_root_block
-        )
-        prev_header = self.db.get_minor_block_header_by_hash(
-            block.header.hash_prev_minor_block
-        )
-
         xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
             evm_state=evm_state, mblock=block
         )
@@ -904,10 +900,15 @@ class ShardState:
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
         update_tip = False
-        if not self.__is_same_root_chain(
-            self.root_tip,
-            self.db.get_root_block_header_by_hash(block.header.hash_prev_root_block),
-        ):
+        prev_root_header = self.db.get_root_block_header_by_hash(
+            block.header.hash_prev_root_block
+        )
+        if not prev_root_header:
+            raise ValueError("missing prev root block")
+        tip_prev_root_header = self.db.get_root_block_header_by_hash(
+            self.header_tip.hash_prev_root_block
+        )
+        if not self.__is_same_root_chain(self.root_tip, prev_root_header):
             # Don't update tip if the block depends on a root block that is not root_tip or root_tip's ancestor
             update_tip = False
         elif block.header.hash_prev_minor_block == self.header_tip.get_hash():
@@ -916,14 +917,7 @@ class ShardState:
             if block.header.height > self.header_tip.height:
                 update_tip = True
             elif block.header.height == self.header_tip.height:
-                update_tip = (
-                    self.db.get_root_block_header_by_hash(
-                        block.header.hash_prev_root_block
-                    ).height
-                    > self.db.get_root_block_header_by_hash(
-                        self.header_tip.hash_prev_root_block
-                    ).height
-                )
+                update_tip = prev_root_header.height > tip_prev_root_header.height
 
         if update_tip:
             self.__rewrite_block_index_to(block)
@@ -933,16 +927,10 @@ class ShardState:
                 disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
                 self.evm_state.sender_disallow_list = disallow_list
             self.header_tip = block.header
+            tip_prev_root_header = prev_root_header
             self.meta_tip = block.meta
 
-        check(
-            self.__is_same_root_chain(
-                self.root_tip,
-                self.db.get_root_block_header_by_hash(
-                    self.header_tip.hash_prev_root_block
-                ),
-            )
-        )
+        check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(
             "Add block took {} seconds for {} tx".format(
                 time.time() - start_time, len(block.tx_list)
@@ -1145,8 +1133,9 @@ class ShardState:
 
             # Check if EMV is disabled
             if (
-                self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None and
-                block.header.create_time < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+                self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+                and block.header.create_time
+                < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
             ):
                 if evm_tx.to == b"" or evm_tx.data != b"":
                     # Drop the smart contract creation tx from tx_queue
@@ -1209,11 +1198,10 @@ class ShardState:
         if evm_state.gas_used < xshard_gas_limit:
             evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
-        if (
-            include_tx and (
-                self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None or
-                block.header.create_time >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-            )
+        if include_tx and (
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None
+            or block.header.create_time
+            >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
         ):
             self.__add_transactions_to_block(block, evm_state)
 
@@ -1340,25 +1328,17 @@ class ShardState:
 
         self.db.put_root_block(root_block, shard_header)
         if shard_header:
-            check(
-                self.__is_same_root_chain(
-                    root_block.header,
-                    self.db.get_root_block_header_by_hash(
-                        shard_header.hash_prev_root_block
-                    ),
-                )
+            prev_root_header = self.db.get_root_block_header_by_hash(
+                shard_header.hash_prev_root_block
             )
+            check(self.__is_same_root_chain(root_block.header, prev_root_header))
 
         # No change to root tip
+        tip_prev_root_header = self.db.get_root_block_header_by_hash(
+            self.header_tip.hash_prev_root_block
+        )
         if root_block.header.total_difficulty <= self.root_tip.total_difficulty:
-            check(
-                self.__is_same_root_chain(
-                    self.root_tip,
-                    self.db.get_root_block_header_by_hash(
-                        self.header_tip.hash_prev_root_block
-                    ),
-                )
-            )
+            check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
             return False
 
         # Switch to the root block with higher total diff

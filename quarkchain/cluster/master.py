@@ -1187,12 +1187,10 @@ class MasterServer:
 
         root_last_block_time = 0
         if self.root_state.tip.height >= 3:
-            prev = self.root_state.db.get_root_block_by_hash(
+            prev = self.root_state.db.get_root_block_header_by_hash(
                 self.root_state.tip.hash_prev_block
             )
-            root_last_block_time = (
-                self.root_state.tip.create_time - prev.header.create_time
-            )
+            root_last_block_time = self.root_state.tip.create_time - prev.create_time
 
         tx_count_history = []
         for item in self.tx_count_history:
