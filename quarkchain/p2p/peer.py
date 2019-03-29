@@ -1011,9 +1011,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             )
             return None
         blacklistworthy_exceptions = (
-            HandshakeFailure,    # after secure handshake handshake, when talking p2p command, eg. parsing hello failed no matching p2p capabilities
+            HandshakeFailure,    # after secure handshake handshake, when negotiating p2p command, eg. parsing hello failed; no matching p2p capabilities
             PeerConnectionLost,  # conn lost while reading
-            TimeoutError,        # eg. read timeout, raised by CancelToken
+            TimeoutError,        # eg. read timeout (raised by CancelToken)
             UnreachablePeer,     # ConnectionRefusedError, OSError
         )
         expected_exceptions = (

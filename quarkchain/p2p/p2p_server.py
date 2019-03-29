@@ -25,6 +25,7 @@ from quarkchain.p2p.exceptions import (
     DecryptionError,
     HandshakeFailure,
     PeerConnectionLost,
+    HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.p2p_proto import DisconnectReason
 from quarkchain.p2p.peer import BasePeer, PeerConnection
@@ -162,6 +163,7 @@ class BaseServer(BaseService):
             PeerConnectionLost,
             HandshakeFailure,
             asyncio.IncompleteReadError,
+            HandshakeDisconnectedFailure,
         )
         try:
             await self._receive_handshake(reader, writer)
