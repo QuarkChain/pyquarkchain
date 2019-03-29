@@ -51,6 +51,7 @@ from quarkchain.p2p.exceptions import (
     UnexpectedMessage,
     UnknownProtocolCommand,
     UnreachablePeer,
+    HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.service import BaseService
 from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since
@@ -281,7 +282,7 @@ class BasePeer(BaseService):
         if isinstance(cmd, Disconnect):
             msg = cast(Dict[str, Any], msg)
             # Peers sometimes send a disconnect msg before they send the sub-proto handshake.
-            raise HandshakeFailure(
+            raise HandshakeDisconnectedFailure(
                 "{} disconnected before completing sub-proto handshake: {}".format(
                     self, msg["reason_name"]
                 )
@@ -306,7 +307,7 @@ class BasePeer(BaseService):
         if isinstance(cmd, Disconnect):
             msg = cast(Dict[str, Any], msg)
             # Peers sometimes send a disconnect msg before they send the initial P2P handshake.
-            raise HandshakeFailure(
+            raise HandshakeDisconnectedFailure(
                 "{} disconnected before completing sub-proto handshake: {}".format(
                     self, msg["reason_name"]
                 )
@@ -1009,11 +1010,14 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                 100
             )
             return None
+        blacklistworthy_exceptions = (
+            HandshakeFailure,    # after secure handshake handshake, when negotiating p2p command, eg. parsing hello failed; no matching p2p capabilities
+            PeerConnectionLost,  # conn lost while reading
+            TimeoutError,        # eg. read timeout (raised by CancelToken)
+            UnreachablePeer,     # ConnectionRefusedError, OSError
+        )
         expected_exceptions = (
-            HandshakeFailure,
-            PeerConnectionLost,
-            TimeoutError,
-            UnreachablePeer,
+            HandshakeDisconnectedFailure,  # during secure handshake, disconnected before getting ack; or got Disconnect cmd for some known reason
         )
         try:
             self.logger.debug("Connecting to %s...", remote)
@@ -1028,30 +1032,39 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         except BadAckMessage:
             # This is kept separate from the `expected_exceptions` to be sure that we aren't
             # silencing an error in our authentication code.
-            self.logger.error("Got bad auth ack from %r", remote)
+            Logger.error_every_n("Got bad auth ack from {}".format(remote), 100)
             # dump the full stacktrace in the debug logs
             self.logger.debug("Got bad auth ack from %r", remote, exc_info=True)
+            self.dialout_blacklist(remote.address)
         except MalformedMessage:
             # This is kept separate from the `expected_exceptions` to be sure that we aren't
             # silencing an error in how we decode messages during handshake.
-            self.logger.error("Got malformed response from %r during handshake", remote)
+            Logger.error_every_n("Got malformed response from {} during handshake".format(remote), 100)
             # dump the full stacktrace in the debug logs
             self.logger.debug("Got malformed response from %r", remote, exc_info=True)
-        except expected_exceptions as e:
+            self.dialout_blacklist(remote.address)
+        except blacklistworthy_exceptions as e:
             self.logger.debug(
                 "Could not complete handshake with %r: %s", remote, repr(e)
             )
+            Logger.error_every_n("Could not complete handshake with {}: {}".format(repr(remote), repr(e)), 100)
+            self.dialout_blacklist(remote.address)
+        except expected_exceptions as e:
+            self.logger.debug(
+                "Disconnected during handshake %r: %s", remote, repr(e)
+            )
+            Logger.error_every_n("Disconnected during handshake {}: {}".format(repr(remote), repr(e)), 100)
         except Exception:
             self.logger.exception(
                 "Unexpected error during auth/p2p handshake with %r", remote
             )
+            self.dialout_blacklist(remote.address)
         if remote.__repr__() in auth.opened_connections:
             reader, writer = auth.opened_connections[remote.__repr__()]
             reader.feed_eof()
             writer.close()
             Logger.error_every_n("Closing connection to {}".format(remote.__repr__()), 100)
             del auth.opened_connections[remote.__repr__()]
-        self.dialout_blacklist(remote.address)
         return None
 
     @contextlib.contextmanager
