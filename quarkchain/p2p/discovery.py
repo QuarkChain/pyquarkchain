@@ -76,7 +76,8 @@ V5_HANDLER_TYPE = Callable[[kademlia.Node, Tuple[Any, ...], Hash32, bytes], None
 
 MAX_ENTRIES_PER_TOPIC = 50
 # UDP packet constants.
-V5_ID_STRING = b"temporary discovery v5"
+V5_ID_STRING = b"qkc topic discovery"
+QKC_ID_STRING = b"qkc discovery"
 MAC_SIZE = 256 // 8  # 32
 SIG_SIZE = 520 // 8  # 65
 HEAD_SIZE = MAC_SIZE + SIG_SIZE  # 97
@@ -420,14 +421,19 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         # https://github.com/ethereum/go-ethereum/blob/c4712bf96bc1bae4a5ad4600e9719e4a74bde7d5/p2p/discv5/udp.go#L149  # noqa: E501
         if text_if_str(to_bytes, data).startswith(V5_ID_STRING):
             self.receive_v5(address, cast(bytes, data))
+        elif text_if_str(to_bytes, data).startswith(QKC_ID_STRING):
+            self.receive(address, cast(bytes, data)[len(QKC_ID_STRING):])
         else:
-            self.receive(address, cast(bytes, data))
+            pass  # do not proceed for other discovery packets
 
     def error_received(self, exc: Exception) -> None:
         self.logger.error('error received: %s', exc)
 
     def send(self, node: kademlia.Node, message: bytes) -> None:
         self.transport.sendto(message, (node.address.ip, node.address.udp_port))
+
+    def send_qkc(self, node: kademlia.Node, message: bytes) -> None:
+        self.send(node, QKC_ID_STRING + message)
 
     async def stop(self) -> None:
         self.logger.info('stopping discovery')
@@ -441,7 +447,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         try:
             remote_pubkey, cmd_id, payload, message_hash = _unpack_v4(message)
         except DefectiveMessage as e:
-            self.logger.error('error unpacking message (%s) from %s: %s', message, address, e)
+            Logger.error_every_n("error unpacking message ({}) from {}: {}".format(message, address, e), 100)
             return
 
         # As of discovery version 4, expiration is the last element for all packets, so
@@ -454,7 +460,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
 
         cmd = CMD_ID_MAP[cmd_id]
         if len(payload) != cmd.elem_count:
-            self.logger.error('invalid %s payload: %s', cmd.name, payload)
+            Logger.error_every_n("invalid {} payload: {}".format(cmd.name, payload), 100)
             return
         node = kademlia.Node(remote_pubkey, address)
         handler = self._get_handler(cmd)
@@ -496,7 +502,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         version = rlp.sedes.big_endian_int.serialize(PROTO_VERSION)
         payload = (version, self.address.to_endpoint(), node.address.to_endpoint())
         message = _pack_v4(CMD_PING.id, payload, self.privkey)
-        self.send(node, message)
+        self.send_qkc(node, message)
         # Return the msg hash, which is used as a token to identify pongs.
         token = message[:MAC_SIZE]
         self.logger.trace('>>> ping (v4) %s (token == %s)', node, encode_hex(token))
@@ -512,13 +518,13 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
             target_node_id).rjust(kademlia.k_pubkey_size // 8, b'\0')
         self.logger.trace('>>> find_node to %s', node)
         message = _pack_v4(CMD_FIND_NODE.id, tuple([node_id]), self.privkey)
-        self.send(node, message)
+        self.send_qkc(node, message)
 
     def send_pong_v4(self, node: kademlia.Node, token: Hash32) -> None:
         self.logger.trace('>>> pong %s', node)
         payload = (node.address.to_endpoint(), token)
         message = _pack_v4(CMD_PONG.id, payload, self.privkey)
-        self.send(node, message)
+        self.send_qkc(node, message)
 
     def send_neighbours_v4(self, node: kademlia.Node, neighbours: List[kademlia.Node]) -> None:
         nodes = []
@@ -532,7 +538,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
                 CMD_NEIGHBOURS.id, tuple([nodes[i:i + max_neighbours]]), self.privkey)
             self.logger.trace('>>> neighbours to %s: %s',
                               node, neighbours[i:i + max_neighbours])
-            self.send(node, message)
+            self.send_qkc(node, message)
 
     def process_neighbours(self, remote: kademlia.Node, neighbours: List[kademlia.Node]) -> None:
         """Process a neighbours response.
@@ -633,12 +639,12 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         try:
             remote_pubkey, cmd_id, payload, message_hash = _unpack_v5(message)
         except DefectiveMessage as e:
-            self.logger.error('error unpacking message (%s) from %s: %s', message, address, e)
+            Logger.error_every_n("error unpacking message ({}) from {}: {}".format(message, address, e), 100)
             return
 
         cmd = CMD_ID_MAP_V5[cmd_id]
         if len(payload) != cmd.elem_count:
-            self.logger.error('invalid %s payload: %s', cmd.name, payload)
+            Logger.error_every_n("invalid {} payload: {}".format(cmd.name, payload), 100)
             return
         node = kademlia.Node(remote_pubkey, address)
         handler = self._get_handler_v5(cmd)
