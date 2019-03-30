@@ -231,7 +231,9 @@ class Peer(P2PConnection):
         block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.root_state.db.get_root_block_header_by_hash(block_hash)
+            header = self.root_state.db.get_root_block_header_by_hash(
+                block_hash, consistency_check=False
+            )
             header_list.append(header)
             if header.height == 0:
                 break
