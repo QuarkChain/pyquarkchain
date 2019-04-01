@@ -60,7 +60,7 @@ class TestTxSize(unittest.TestCase):
             startgas=30000,
             to=acc1.recipient,
             value=0,
-            data=b'',
+            data=b"",
             from_full_shard_key=0xFFFF,
             to_full_shard_key=0xFFFF,
             network_id=1,
@@ -77,7 +77,7 @@ class TestTxSize(unittest.TestCase):
             startgas=TT256 - 1,
             to=acc1.recipient,
             value=TT256 - 1,
-            data=b'',
+            data=b"",
             from_full_shard_key=SHARD_KEY_MAX,
             to_full_shard_key=SHARD_KEY_MAX,
             network_id=1,
@@ -296,6 +296,23 @@ class TestMapSerializer(unittest.TestCase):
 
 
 class TestTokenBalanceMap(unittest.TestCase):
+    def test_token_serialization(self):
+        # ignore 0 values in TokenBalanceMap
+        m0 = TokenBalanceMap({3234: 10, 0: 0, 3567: 0})
+        m1 = TokenBalanceMap({3234: 10})
+        self.assertEqual(m0.serialize(bytearray()), m1.serialize(bytearray()))
+
+        m0 = TokenBalanceMap({3232: 109, 0: 0, 3567: 999999})
+        bb = bytearray(b"\x00\x00\x00\x03\x00\x00\x02\x0c\xa0\x01m\x02\r\xef\x03\x0fB?")
+        self.assertEqual(
+            TokenBalanceMap.deserialize(bb).balance_map, {3232: 109, 3567: 999999}
+        )
+
+        # if value_ser is not of biguint type, do not omit 0 values
+        md0 = MapData({5: 0, 1: 2, 10: 9})
+        md1 = MapData({10: 9, 3: 0, 1: 2})
+        self.assertNotEqual(md0.serialize(), md1.serialize())
+
     def test_add(self):
         m0 = TokenBalanceMap({0: 10})
         m1 = TokenBalanceMap({1: 20})

@@ -177,12 +177,18 @@ class PrependedSizeListSerializer:
 
 
 class PrependedSizeMapSerializer:
+    """
+    does not serialize/deserialize biguint values that evalulate to False
+    """
+
     def __init__(self, size_bytes, key_ser, value_ser):
         self.size_bytes = size_bytes
         self.key_ser = key_ser
         self.value_ser = value_ser
 
     def serialize(self, item_map: Dict, barray):
+        if self.value_ser is biguint:
+            item_map = {k: v for k, v in item_map.items() if v != 0}
         barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
         # keep keys sorted to maintain deterministic serialization
         for k in sorted(item_map):
@@ -196,6 +202,8 @@ class PrependedSizeMapSerializer:
         for i in range(size):
             k = self.key_ser.deserialize(bb)
             item_map[k] = self.value_ser.deserialize(bb)
+            if self.value_ser is biguint and item_map[k] == 0:
+                del item_map[k]
         return item_map
 
 
