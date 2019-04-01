@@ -54,7 +54,7 @@ from quarkchain.p2p.exceptions import (
     HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.service import BaseService
-from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since
+from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since, CLUSTER_PEER_ID_LEN
 from quarkchain.p2p.p2p_proto import (
     Disconnect,
     DisconnectReason,
@@ -903,6 +903,10 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             await peer.disconnect(DisconnectReason.timeout)
             return
         else:
+            if peer.remote.id % CLUSTER_PEER_ID_LEN in self.cluster_peer_map:
+                Logger.error("{} already in cluster peer id".format(peer.remote.id))
+                await peer.disconnect(DisconnectReason.already_connected)
+                return
             self._add_peer(peer, buffer.get_messages())
 
     def _add_peer(self, peer: BasePeer, msgs: Tuple[PeerMessage, ...]) -> None:
@@ -913,7 +917,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         """
         self.logger.info("Adding %s to pool", peer)
         self.connected_nodes[peer.remote] = peer
-        self.cluster_peer_map[peer.remote.id % 2 ** 64] = peer
+        self.cluster_peer_map[peer.remote.id % CLUSTER_PEER_ID_LEN] = peer
         peer.add_finished_callback(self._peer_finished)
         for subscriber in self._subscribers:
             subscriber.register_peer(peer)
@@ -1099,7 +1103,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if peer.remote in self.connected_nodes:
             self.logger.info("%s finished, removing from pool", peer)
             self.connected_nodes.pop(peer.remote)
-            self.cluster_peer_map.pop(peer.remote.id % 2 ** 64)
+            self.cluster_peer_map.pop(peer.remote.id % CLUSTER_PEER_ID_LEN)
         else:
             self.logger.warning(
                 "%s finished but was not found in connected_nodes (%s)",
