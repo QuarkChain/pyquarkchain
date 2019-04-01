@@ -238,6 +238,7 @@ class Connection(AbstractConnection):
         loop=None,
         metadata_class=Metadata,
         name=None,
+        command_size_limit=None,   # No limit
     ):
         loop = loop if loop else asyncio.get_event_loop()
         super().__init__(
@@ -246,6 +247,7 @@ class Connection(AbstractConnection):
         self.env = env
         self.reader = reader
         self.writer = writer
+        self.command_size_limit = command_size_limit
 
     async def __read_fully(self, n, allow_eof=False):
         ba = bytearray()
@@ -269,7 +271,7 @@ class Connection(AbstractConnection):
             return None, None
         size = int.from_bytes(size_bytes, byteorder="big")
 
-        if size > self.env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT:
+        if self.command_size_limit is not None and size > self.command_size_limit:
             raise RuntimeError("{}: command package exceed limit".format(self.name))
 
         metadata_bytes = await self.__read_fully(self.metadata_class.get_byte_size())

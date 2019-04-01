@@ -447,6 +447,8 @@ def time_ms():
     return int(time.time() * 1e3)
 
 
+SHARD_KEY_MAX = (256 ** 4) - 1
+
 TOKEN_BASE = 36
 TOKEN_ID_MAX = 4873763662273663091    # ZZZZZZZZZZZZ
 TOKEN_MAX = "ZZZZZZZZZZZZ"

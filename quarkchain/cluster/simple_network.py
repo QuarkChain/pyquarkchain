@@ -37,7 +37,13 @@ class Peer(P2PConnection):
         if name is None:
             name = "{}_peer_{}".format(master_server.name, cluster_peer_id)
         super().__init__(
-            env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP
+            env=env,
+            reader=reader,
+            writer=writer,
+            op_ser_map=OP_SERIALIZER_MAP,
+            op_non_rpc_map=OP_NONRPC_MAP,
+            op_rpc_map=OP_RPC_MAP,
+            command_size_limit=env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT
         )
         self.network = network
         self.master_server = master_server

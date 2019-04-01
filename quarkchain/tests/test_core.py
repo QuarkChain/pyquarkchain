@@ -25,11 +25,19 @@ from quarkchain.core import (
     calculate_merkle_root,
     sha3_256,
 )
-from quarkchain.utils import check, p2_roundup
+from quarkchain.cluster.tests.test_utils import (
+    create_transfer_transaction,
+    get_test_env,
+)
+
+from quarkchain.utils import check, p2_roundup, SHARD_KEY_MAX, TOKEN_ID_MAX
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.evm.utils import TT256
 
 
 SIZE_LIST = [(RootBlockHeader, 249), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
+TX_MAX_SIZE = 258
+TX_MIN_SIZE = 120
 
 
 class TestDataSize(unittest.TestCase):
@@ -39,6 +47,46 @@ class TestDataSize(unittest.TestCase):
             size = tup[1]
             with self.subTest(cls.__name__):
                 self.assertEqual(len(cls().serialize()), size)
+
+
+class TestTxSize(unittest.TestCase):
+    def test_tx_size(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        evm_tx = EvmTransaction(
+            nonce=0,
+            gasprice=1,
+            startgas=30000,
+            to=acc1.recipient,
+            value=0,
+            data=b'',
+            from_full_shard_key=0xFFFF,
+            to_full_shard_key=0xFFFF,
+            network_id=1,
+            gas_token_id=12345,
+            transfer_token_id=1234,
+        )
+        evm_tx.sign(key=id1.get_key())
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
+        self.assertEqual(len(tx.serialize()), TX_MIN_SIZE)
+
+        evm_tx = EvmTransaction(
+            nonce=TT256 - 1,
+            gasprice=TT256 - 1,
+            startgas=TT256 - 1,
+            to=acc1.recipient,
+            value=TT256 - 1,
+            data=b'',
+            from_full_shard_key=SHARD_KEY_MAX,
+            to_full_shard_key=SHARD_KEY_MAX,
+            network_id=1,
+            gas_token_id=TOKEN_ID_MAX,
+            transfer_token_id=TOKEN_ID_MAX,
+        )
+        evm_tx.sign(key=id1.get_key())
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
+        self.assertEqual(len(tx.serialize()), TX_MAX_SIZE)
 
 
 class TestBranch(unittest.TestCase):
