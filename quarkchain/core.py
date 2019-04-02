@@ -178,17 +178,18 @@ class PrependedSizeListSerializer:
 
 class PrependedSizeMapSerializer:
     """
-    does not serialize/deserialize biguint values that evalulate to False
+    does not serialize/deserialize key/value pairs if skip_func(key, value) == True
     """
 
-    def __init__(self, size_bytes, key_ser, value_ser):
+    def __init__(self, size_bytes, key_ser, value_ser, skip_func=None):
         self.size_bytes = size_bytes
         self.key_ser = key_ser
         self.value_ser = value_ser
+        self.skip_func = skip_func
 
     def serialize(self, item_map: Dict, barray):
-        if self.value_ser is biguint:
-            item_map = {k: v for k, v in item_map.items() if v != 0}
+        if self.skip_func:
+            item_map = {k: v for k, v in item_map.items() if not self.skip_func(k, v)}
         barray.extend(len(item_map).to_bytes(self.size_bytes, byteorder="big"))
         # keep keys sorted to maintain deterministic serialization
         for k in sorted(item_map):
@@ -202,8 +203,8 @@ class PrependedSizeMapSerializer:
         for i in range(size):
             k = self.key_ser.deserialize(bb)
             item_map[k] = self.value_ser.deserialize(bb)
-            if self.value_ser is biguint and item_map[k] == 0:
-                del item_map[k]
+        if self.skip_func:
+            item_map = {k: v for k, v in item_map.items() if not self.skip_func(k, v)}
         return item_map
 
 
@@ -562,7 +563,12 @@ class TypedTransaction(Serializable):
 
 
 class TokenBalanceMap(Serializable):
-    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
+    FIELDS = [
+        (
+            "balance_map",
+            PrependedSizeMapSerializer(4, biguint, biguint, lambda k, v: v == 0),
+        )
+    ]
 
     def __init__(self, balance_map: Dict):
         if not isinstance(balance_map, Dict):
