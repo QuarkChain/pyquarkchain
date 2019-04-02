@@ -28,6 +28,7 @@ from quarkchain.core import (
 )
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
+from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 
 
 class PeerShardConnection(VirtualConnection):
@@ -47,6 +48,10 @@ class PeerShardConnection(VirtualConnection):
     def get_metadata_to_write(self, metadata):
         """ Override VirtualConnection.get_metadata_to_write()
         """
+        if self.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
+            self.close_with_error(
+                "PeerShardConnection: remote is using reserved cluster peer id which is prohibited"
+            )
         return ClusterMetadata(self.shard_state.branch, self.cluster_peer_id)
 
     def close_with_error(self, error):
@@ -291,7 +296,8 @@ class SyncTask:
         block_header_chain.reverse()
         while len(block_header_chain) > 0:
             block_chain = await asyncio.wait_for(
-                self.__download_blocks(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]), TIMEOUT
+                self.__download_blocks(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]),
+                TIMEOUT,
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(

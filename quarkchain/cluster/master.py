@@ -77,6 +77,7 @@ from quarkchain.core import (
 )
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_manager import P2PManager
+from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
@@ -369,7 +370,7 @@ class SlaveConnection(ClusterConnection):
         """ Override ProxyConnection.get_connection_to_forward()
         Forward traffic from slave to peer
         """
-        if metadata.cluster_peer_id == 0:
+        if metadata.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
             return None
 
         peer = self.master_server.get_peer(metadata.cluster_peer_id)
@@ -403,7 +404,9 @@ class SlaveConnection(ClusterConnection):
         op, resp, rpc_id = await self.write_rpc_request(
             op=ClusterOp.PING,
             cmd=req,
-            metadata=ClusterMetadata(branch=ROOT_BRANCH, cluster_peer_id=0),
+            metadata=ClusterMetadata(
+                branch=ROOT_BRANCH, cluster_peer_id=RESERVED_CLUSTER_PEER_ID
+            ),
         )
         return resp.id, resp.chain_mask_list
 

@@ -20,7 +20,7 @@ from quarkchain.p2p.exceptions import (
     PeerConnectionLost,
     HandshakeFailure,
 )
-from quarkchain.p2p.utils import sxor
+from quarkchain.p2p.utils import sxor, CLUSTER_PEER_ID_LEN, RESERVED_CLUSTER_PEER_ID
 
 
 class QuarkProtocol(Protocol):
@@ -203,7 +203,7 @@ class SecurePeer(Peer):
     master_server = None
 
     def __init__(self, quark_peer: QuarkPeer):
-        cluster_peer_id = quark_peer.remote.id % 2 ** 64
+        cluster_peer_id = quark_peer.remote.id % CLUSTER_PEER_ID_LEN
         super().__init__(
             env=self.env,
             reader=None,
@@ -217,8 +217,13 @@ class SecurePeer(Peer):
 
     async def start(self) -> str:
         """ Override Peer.start()
-        exchange hello command, establish cluster connections in master
+        exchange hello command, establish cluster connections in master;
+        executed during subprotocol handshake
         """
+        if self.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
+            return self.close_with_error(
+                "Remote is using reserved cluster peer id which is prohibited"
+            )
         self.send_hello()
 
         op, cmd, rpc_id = await self.read_command()
