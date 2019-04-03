@@ -1788,15 +1788,8 @@ class TestShardState(unittest.TestCase):
         recovered_state = ShardState(env=env, full_shard_id=2 | 0)
 
         recovered_state.init_from_root_block(root_block)
-        # forks are pruned
-        self.assertIsNone(
-            recovered_state.db.get_minor_block_by_hash(b1.header.get_hash())
-        )
         self.assertEqual(
-            recovered_state.db.get_minor_block_by_hash(
-                b1.header.get_hash(), consistency_check=False
-            ),
-            b1,
+            recovered_state.db.get_minor_block_by_hash(b1.header.get_hash()), b1
         )
 
         self.assertEqual(recovered_state.root_tip, root_block.header)
@@ -1860,10 +1853,6 @@ class TestShardState(unittest.TestCase):
             evm_state=evm_state, coinbase_amount_map=b1.header.coinbase_amount_map
         )
         b1.meta.hash_evm_receipt_root = bytes(32)
-        # low-level db operation to clear existing records
-        del state.db.m_header_pool[b1.header.get_hash()]
-        with self.assertRaises(ValueError):
-            state.add_block(b1)
 
     def test_not_update_tip_on_root_fork(self):
         """ block's hash_prev_root_block must be on the same chain with root_tip to update tip.

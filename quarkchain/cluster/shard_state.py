@@ -2,7 +2,7 @@ import asyncio
 import functools
 import json
 import time
-from collections import Counter, defaultdict, deque
+from collections import Counter, deque
 from fractions import Fraction
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -1065,9 +1065,6 @@ class ShardState:
             create_time = max(int(time.time()), self.header_tip.create_time + 1)
         return self.diff_calc.calculate_diff_with_parent(self.header_tip, create_time)
 
-    def get_next_block_reward(self):
-        return self.reward_calc.get_block_reward(self)
-
     def get_next_block_coinbase_amount(self):
         # TODO: add block reward
         # TODO: the current calculation is bogus and just serves as a placeholder.
@@ -1127,7 +1124,6 @@ class ShardState:
                 break
 
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
-            to_branch = Branch(evm_tx.to_full_shard_id)
 
             tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
@@ -1233,9 +1229,6 @@ class ShardState:
 
     def contain_block_by_hash(self, h):
         return self.db.contain_minor_block_by_hash(h)
-
-    def get_pending_tx_size(self):
-        return self.transaction_pool.size()
 
     #
     # ============================ Cross-shard transaction handling =============================
