@@ -172,7 +172,7 @@ class TestCluster(unittest.TestCase):
                 .contain_remote_minor_block_hash(b1.header.get_hash())
             )
             self.assertTrue(
-                clusters[0].master.root_state.is_minor_block_validated(
+                clusters[0].master.root_state.db.contain_minor_block_by_hash(
                     b1.header.get_hash()
                 )
             )
@@ -184,7 +184,7 @@ class TestCluster(unittest.TestCase):
                 .contain_block_by_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
-                lambda: clusters[1].master.root_state.is_minor_block_validated(
+                lambda: clusters[1].master.root_state.db.contain_minor_block_by_hash(
                     b1.header.get_hash()
                 )
             )
@@ -402,7 +402,9 @@ class TestCluster(unittest.TestCase):
                     .state.contain_block_by_hash(block.header.get_hash())
                 )
                 assert_true_with_timeout(
-                    lambda: clusters[1].master.root_state.is_minor_block_validated(
+                    lambda: clusters[
+                        1
+                    ].master.root_state.db.contain_minor_block_by_hash(
                         block.header.get_hash()
                     )
                 )

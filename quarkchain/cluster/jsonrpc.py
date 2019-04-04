@@ -393,10 +393,10 @@ class JSONRPCServer:
     def start_public_server(cls, env, master_server):
         server = cls(
             env,
-            master_server, 
+            master_server,
             env.cluster_config.JSON_RPC_PORT,
             env.cluster_config.JSON_RPC_HOST,
-            public_methods
+            public_methods,
         )
         server.start()
         return server
@@ -425,11 +425,14 @@ class JSONRPCServer:
             master_server,
             env.cluster_config.JSON_RPC_PORT,
             env.cluster_config.JSON_RPC_HOST,
-            methods)
+            methods,
+        )
         server.start()
         return server
 
-    def __init__(self, env, master_server: MasterServer, port, host, methods: AsyncMethods):
+    def __init__(
+        self, env, master_server: MasterServer, port, host, methods: AsyncMethods
+    ):
         self.loop = asyncio.get_event_loop()
         self.port = port
         self.host = host
@@ -749,7 +752,9 @@ class JSONRPCServer:
     @decode_arg("block_id", data_decoder)
     async def getRootBlockById(self, block_id):
         try:
-            block = self.master.root_state.db.get_root_block_by_hash(block_id, False)
+            block = self.master.root_state.db.get_root_block_by_hash(
+                block_id, consistency_check=False
+            )
             return root_block_encoder(block)
         except Exception:
             return None
@@ -758,7 +763,7 @@ class JSONRPCServer:
     async def getRootBlockByHeight(self, height=None):
         if height is not None:
             height = quantity_decoder(height)
-        block = self.master.root_state.get_root_block_by_height(height)
+        block = self.master.root_state.db.get_root_block_by_height(height)
         if not block:
             return None
         return root_block_encoder(block)
