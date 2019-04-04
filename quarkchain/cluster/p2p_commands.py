@@ -197,11 +197,22 @@ class NewBlockMinorCommand(Serializable):
         self.block = block
 
 
+class PingPongCommand(Serializable):
+    """
+    with 32B message which is undefined at the moment
+    """
+
+    FIELDS = [("message", hash256)]
+
+    def __init__(self, message):
+        self.message = message
+
+
 class CommandOp:
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
     NEW_TRANSACTION_LIST = 2
-    GET_PEER_LIST_REQUEST = 3
+    GET_PEER_LIST_REQUEST = 3  # only handled by simple_network peers
     GET_PEER_LIST_RESPONSE = 4
     GET_ROOT_BLOCK_HEADER_LIST_REQUEST = 5
     GET_ROOT_BLOCK_HEADER_LIST_RESPONSE = 6
@@ -212,6 +223,8 @@ class CommandOp:
     GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 11
     GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 12
     NEW_BLOCK_MINOR = 13
+    PING = 14
+    PONG = 15
 
 
 OP_SERIALIZER_MAP = {
@@ -229,4 +242,6 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST: GetMinorBlockHeaderListRequest,
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE: GetMinorBlockHeaderListResponse,
     CommandOp.NEW_BLOCK_MINOR: NewBlockMinorCommand,
+    CommandOp.PING: PingPongCommand,
+    CommandOp.PONG: PingPongCommand,
 }
