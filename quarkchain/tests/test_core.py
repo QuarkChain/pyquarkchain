@@ -1,5 +1,7 @@
 import unittest
 
+from typing import Dict
+
 from eth_keys import KeyAPI
 
 from quarkchain.core import (
@@ -60,7 +62,7 @@ class TestTxSize(unittest.TestCase):
             startgas=30000,
             to=acc1.recipient,
             value=0,
-            data=b'',
+            data=b"",
             from_full_shard_key=0xFFFF,
             to_full_shard_key=0xFFFF,
             network_id=1,
@@ -77,7 +79,7 @@ class TestTxSize(unittest.TestCase):
             startgas=TT256 - 1,
             to=acc1.recipient,
             value=TT256 - 1,
-            data=b'',
+            data=b"",
             from_full_shard_key=SHARD_KEY_MAX,
             to_full_shard_key=SHARD_KEY_MAX,
             network_id=1,
@@ -269,6 +271,15 @@ class MapData(Serializable):
         self.m = m
 
 
+class FakeTokenBalanceMap(Serializable):
+    FIELDS = [("balance_map", PrependedSizeMapSerializer(4, biguint, biguint))]
+
+    def __init__(self, balance_map: Dict):
+        if not isinstance(balance_map, Dict):
+            raise TypeError("TokenBalanceMap can only accept dict object")
+        self.balance_map = balance_map
+
+
 class TestMapSerializer(unittest.TestCase):
     def test_simple(self):
         m = dict()
@@ -296,6 +307,28 @@ class TestMapSerializer(unittest.TestCase):
 
 
 class TestTokenBalanceMap(unittest.TestCase):
+    def test_token_serialization(self):
+        # ignore 0 values in TokenBalanceMap
+        m0 = TokenBalanceMap({3234: 10, 0: 0, 3567: 0})
+        m1 = TokenBalanceMap({3234: 10})
+        self.assertEqual(m0.serialize(bytearray()), m1.serialize(bytearray()))
+        self.assertEqual(
+            TokenBalanceMap.deserialize(m0.serialize(bytearray())).balance_map,
+            {3234: 10},
+        )
+
+        mx = FakeTokenBalanceMap({3232: 109, 0: 0, 3567: 999999})
+        bb = bytearray(b"\x00\x00\x00\x03\x00\x00\x02\x0c\xa0\x01m\x02\r\xef\x03\x0fB?")
+        self.assertEqual(mx.serialize(bytearray()), bb)
+        self.assertEqual(
+            TokenBalanceMap.deserialize(bb).balance_map, {3232: 109, 3567: 999999}
+        )
+
+        # if skip_func == None, do not omit key/value pairs
+        md0 = MapData({5: 0, 1: 2, 10: 9})
+        md1 = MapData({10: 9, 3: 0, 1: 2})
+        self.assertNotEqual(md0.serialize(), md1.serialize())
+
     def test_add(self):
         m0 = TokenBalanceMap({0: 10})
         m1 = TokenBalanceMap({1: 20})
