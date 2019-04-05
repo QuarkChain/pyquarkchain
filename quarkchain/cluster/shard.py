@@ -69,8 +69,8 @@ class PeerShardConnection(VirtualConnection):
     def broadcast_new_tip(self):
         if self.best_root_block_header_observed:
             if (
-                self.shard_state.root_tip.height
-                < self.best_root_block_header_observed.height
+                self.shard_state.root_tip.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return
             if self.shard_state.root_tip == self.best_root_block_header_observed:
@@ -150,18 +150,18 @@ class PeerShardConnection(VirtualConnection):
         if self.best_root_block_header_observed:
             # check root header is not decreasing
             if (
-                cmd.root_block_header.height
-                < self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return self.close_with_error(
-                    "best observed root header height is decreasing {} < {}".format(
-                        cmd.root_block_header.height,
-                        self.best_root_block_header_observed.height,
+                    "best observed root header total_difficulty is decreasing {} < {}".format(
+                        cmd.root_block_header.total_difficulty,
+                        self.best_root_block_header_observed.total_difficulty,
                     )
                 )
             if (
-                cmd.root_block_header.height
-                == self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                == self.best_root_block_header_observed.total_difficulty
             ):
                 if cmd.root_block_header != self.best_root_block_header_observed:
                     return self.close_with_error(
