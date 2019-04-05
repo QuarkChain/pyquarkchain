@@ -543,7 +543,7 @@ class Shard:
         """
         This is a fast path for block propagation. The block is broadcasted to peers before being added to local state.
         0. if local shard is syncing, doesn't make sense to add, skip
-        1. if block parent is not in local state/new block pool, discard (TODO: is this necessary?)
+        1. if block parent is not in local state/new block pool, discard
         2. if already in cache or in local state/new block pool, pass
         3. validate: check time, difficulty, POW
         4. add it to new minor block broadcast cache
@@ -579,6 +579,36 @@ class Shard:
             ]
             consensus_type = shard_config.CONSENSUS_TYPE
             diff = header.difficulty
+
+            # Check difficulty
+            if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
+                if not self.state.db.contain_minor_block_by_hash(
+                    block.header.hash_prev_minor_block
+                ):
+                    raise ValueError(
+                        "[{}] prev block not found, block height {} prev hash {}".format(
+                            self.state.branch.to_str(),
+                            block.header.height,
+                            block.header.hash_prev_minor_block.hex(),
+                        )
+                    )
+                prev_header = self.state.db.get_minor_block_header_by_hash(
+                    block.header.hash_prev_minor_block
+                )
+
+                if block.header.height != prev_header.height + 1:
+                    raise ValueError("height mismatch")
+
+                if block.header.branch != self.state.branch:
+                    raise ValueError("branch mismatch")
+
+                diff = self.state.diff_calc.calculate_diff_with_parent(
+                    prev_header, block.header.create_time
+                )
+
+            if diff != block.header.difficulty:
+                raise ValueError("incorrect difficulty")
+
             if shard_config.POSW_CONFIG.ENABLED:
                 diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
             validate_seal(header, consensus_type, adjusted_diff=diff)
