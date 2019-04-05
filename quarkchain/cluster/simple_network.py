@@ -25,6 +25,10 @@ from quarkchain.protocol import ConnectionState
 from quarkchain.utils import Logger
 
 
+ROOT_BLOCK_BATCH_SIZE = 100
+ROOT_BLOCK_HEADER_LIST_LIMIT = 500
+
+
 class Peer(P2PConnection):
     """Endpoint for communication with other clusters
 
@@ -238,7 +242,7 @@ class Peer(P2PConnection):
     # ----------------------- RPC handlers ---------------------------------
 
     async def handle_get_root_block_header_list_request(self, request):
-        if request.limit <= 0:
+        if request.limit <= 0 or request.limit > 2 * ROOT_BLOCK_HEADER_LIST_LIMIT:
             self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
@@ -257,6 +261,8 @@ class Peer(P2PConnection):
         return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
 
     async def handle_get_root_block_list_request(self, request):
+        if len(request.root_block_hash_list) > 2 * ROOT_BLOCK_BATCH_SIZE:
+            self.close_with_error("Bad number of root block requested")
         r_block_list = []
         for h in request.root_block_hash_list:
             r_block = self.root_state.db.get_root_block_by_hash(
