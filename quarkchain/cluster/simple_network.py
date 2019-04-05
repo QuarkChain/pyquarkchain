@@ -43,7 +43,7 @@ class Peer(P2PConnection):
             op_ser_map=OP_SERIALIZER_MAP,
             op_non_rpc_map=OP_NONRPC_MAP,
             op_rpc_map=OP_RPC_MAP,
-            command_size_limit=env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT
+            command_size_limit=env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT,
         )
         self.network = network
         self.master_server = master_server
@@ -169,9 +169,6 @@ class Peer(P2PConnection):
         )
         return super().close_with_error(error)
 
-    async def handle_error(self, op, cmd, rpc_id):
-        self.close_with_error("Unexpected op {}".format(op))
-
     async def handle_get_peer_list_request(self, request):
         resp = GetPeerListResponse()
         for peer_id, peer in self.network.active_peer_pool.items():
@@ -196,7 +193,17 @@ class Peer(P2PConnection):
 
         return self.master_server.get_slave_connection(metadata.branch)
 
-    # ----------------------- RPC handlers ---------------------------------
+    # ----------------------- Non-RPC handlers -----------------------------
+
+    async def handle_error(self, op, cmd, rpc_id):
+        self.close_with_error("Unexpected op {}".format(op))
+
+    async def handle_new_transaction_list(self, op, cmd, rpc_id):
+        for tx in cmd.transaction_list:
+            Logger.debug(
+                "Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex())
+            )
+            await self.master_server.add_transaction(tx, self)
 
     async def handle_new_minor_block_header_list(self, op, cmd, rpc_id):
         if len(cmd.minor_block_header_list) != 0:
@@ -220,12 +227,15 @@ class Peer(P2PConnection):
         self.best_root_block_header_observed = cmd.root_block_header
         self.master_server.handle_new_root_block_header(cmd.root_block_header, self)
 
-    async def handle_new_transaction_list(self, op, cmd, rpc_id):
-        for tx in cmd.transaction_list:
-            Logger.debug(
-                "Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex())
-            )
-            await self.master_server.add_transaction(tx, self)
+    async def handle_ping(self, op, cmd, rpc_id):
+        # does nothing
+        pass
+
+    async def handle_pong(self, op, cmd, rpc_id):
+        # does nothing
+        pass
+
+    # ----------------------- RPC handlers ---------------------------------
 
     async def handle_get_root_block_header_list_request(self, request):
         if request.limit <= 0:
@@ -277,6 +287,8 @@ OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handle_error,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handle_new_minor_block_header_list,
     CommandOp.NEW_TRANSACTION_LIST: Peer.handle_new_transaction_list,
+    CommandOp.PING: Peer.handle_ping,
+    CommandOp.PONG: Peer.handle_pong,
 }
 
 # For RPC request commands
