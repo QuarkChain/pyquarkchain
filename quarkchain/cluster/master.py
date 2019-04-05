@@ -62,7 +62,11 @@ from quarkchain.cluster.rpc import (
     GetTransactionReceiptRequest,
     GetTransactionListByAddressRequest,
 )
-from quarkchain.cluster.simple_network import SimpleNetwork
+from quarkchain.cluster.simple_network import (
+    SimpleNetwork,
+    ROOT_BLOCK_BATCH_SIZE,
+    ROOT_BLOCK_HEADER_LIST_LIMIT,
+)
 from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
@@ -82,7 +86,7 @@ from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 
 
-TIMEOUT = 10
+SYNC_TIMEOUT = 10
 
 
 class SyncTask:
@@ -133,7 +137,7 @@ class SyncTask:
                 )
             )
             block_header_list = await asyncio.wait_for(
-                self.__download_block_headers(block_hash), TIMEOUT
+                self.__download_block_headers(block_hash), SYNC_TIMEOUT
             )
             self.__validate_block_headers(block_header_list)
             for header in block_header_list:
@@ -153,7 +157,8 @@ class SyncTask:
 
         while len(block_header_chain) > 0:
             block_chain = await asyncio.wait_for(
-                self.__download_blocks(block_header_chain[:100]), TIMEOUT
+                self.__download_blocks(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]),
+                SYNC_TIMEOUT,
             )
             Logger.info(
                 "[R] downloaded {} blocks ({} - {}) from peer".format(
@@ -162,7 +167,7 @@ class SyncTask:
                     block_chain[-1].header.height,
                 )
             )
-            if len(block_chain) != len(block_header_chain[:100]):
+            if len(block_chain) != len(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]):
                 # TODO: tag bad peer
                 raise RuntimeError("Bad peer missing blocks for headers they have")
 
@@ -203,7 +208,9 @@ class SyncTask:
 
     async def __download_block_headers(self, block_hash):
         request = GetRootBlockHeaderListRequest(
-            block_hash=block_hash, limit=500, direction=Direction.GENESIS
+            block_hash=block_hash,
+            limit=ROOT_BLOCK_HEADER_LIST_LIMIT,
+            direction=Direction.GENESIS,
         )
         op, resp, rpc_id = await self.peer.write_rpc_request(
             CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request
