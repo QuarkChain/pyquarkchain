@@ -165,8 +165,8 @@ class PeerShardConnection(VirtualConnection):
             ):
                 if cmd.root_block_header != self.best_root_block_header_observed:
                     return self.close_with_error(
-                        "best observed root header changed with same height {}".format(
-                            self.best_root_block_header_observed.height
+                        "best observed root header changed with same total_difficulty {}".format(
+                            self.best_root_block_header_observed.total_difficulty
                         )
                     )
 
