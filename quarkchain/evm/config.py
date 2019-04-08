@@ -53,29 +53,7 @@ default_config = dict(
     EXPDIFF_FREE_PERIODS=2,
     # Blank account initial nonce
     ACCOUNT_INITIAL_NONCE=0,
-    # DAO fork
-    DAO_FORK_BLKNUM=1920000,
-    DAO_FORK_BLKHASH=decode_hex(
-        "4985f5ca3d2afbec36529aa96f74de3cc10a2a4a6c44f2157a57d2c6059a11bb"
-    ),
-    DAO_FORK_BLKEXTRA=decode_hex("64616f2d686172642d666f726b"),
-    DAO_WITHDRAWER=utils.normalize_address(
-        "0xbf4ed7b27f1d666546e30d74d50d173d20bca754"
-    ),
-    # Anti-DoS fork
-    ANTI_DOS_FORK_BLKNUM=2463000,
-    CONTRACT_CODE_SIZE_LIMIT=0x6000,
-    # Default consensus strategy: ethash, poa, casper, pbft
-    CONSENSUS_STRATEGY="ethash",
-    # Serenity fork
-    SERENITY_FORK_BLKNUM=2 ** 99,
     PREV_HEADER_DEPTH=256,
-    SYSTEM_ENTRY_POINT=utils.int_to_addr(2 ** 160 - 2),
-    SERENITY_HEADER_VERIFIER=utils.int_to_addr(255),
-    SERENITY_HEADER_POST_FINALIZER=utils.int_to_addr(254),
-    SERENITY_GETTER_CODE=decode_hex(
-        "60ff331436604014161560155760203560003555005b6000355460205260206020f3"
-    ),
     # Custom specials
     CUSTOM_SPECIALS={},
 )
