@@ -142,7 +142,7 @@ class Account:
         self.env = env
         self.address = address
 
-        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b'')
+        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b"")
         self.nonce = acc.nonce
         self.storage = acc.storage
         self.code_hash = acc.code_hash
@@ -476,61 +476,8 @@ class State:
         self.journal.append(lambda: setattr(self, k, preval))
         setattr(self, k, v)
 
-    def is_SERENITY(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["SERENITY_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["SERENITY_FORK_BLKNUM"]
-
-    def is_HOMESTEAD(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["HOMESTEAD_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["HOMESTEAD_FORK_BLKNUM"]
-
-    def is_METROPOLIS(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["METROPOLIS_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["METROPOLIS_FORK_BLKNUM"]
-
-    def is_CONSTANTINOPLE(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["CONSTANTINOPLE_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["CONSTANTINOPLE_FORK_BLKNUM"]
-
-    def is_ANTI_DOS(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["ANTI_DOS_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["ANTI_DOS_FORK_BLKNUM"]
-
-    def is_SPURIOUS_DRAGON(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
-
-    def is_DAO(self, at_fork_height=False):
-        if at_fork_height:
-            return self.block_number == self.config["DAO_FORK_BLKNUM"]
-        else:
-            return self.block_number >= self.config["DAO_FORK_BLKNUM"]
-
     def account_exists(self, address):
-        if self.is_SPURIOUS_DRAGON():
-            o = not self.get_and_cache_account(
-                utils.normalize_address(address)
-            ).is_blank()
-        else:
-            a = self.get_and_cache_account(address)
-            if a.deleted and not a.touched:
-                return False
-            if a.touched:
-                return True
-            else:
-                return a.existent_at_start
+        o = not self.get_and_cache_account(utils.normalize_address(address)).is_blank()
         return o
 
     def transfer_value(self, from_addr, to_addr, token_id, value):
@@ -564,7 +511,7 @@ class State:
                         acct.storage,
                         acct.code_hash,
                         acct.full_shard_key,
-                        b'',
+                        b"",
                     )
                     self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:
