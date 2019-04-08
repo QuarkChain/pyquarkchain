@@ -634,3 +634,96 @@ class TestCluster(unittest.TestCase):
             state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 500000
             work = call_async(slaves[0].get_work(branch))
             self.assertEqual(work.difficulty, 0)
+
+
+    def test_handle_get_minor_block_list_request_with_total_diff(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1) as clusters:
+            cluster0_root_state = clusters[0].master.root_state
+            cluster1_root_state = clusters[1].master.root_state
+            coinbase = cluster1_root_state._calculate_root_block_coinbase([], 0)
+
+            # Cluster 0 generates a root block of height 1 with 1e6 difficulty
+            rb0 = cluster0_root_state.get_tip_block()
+            rb1 = rb0.create_block_to_append(difficulty=int(1e6)).finalize(coinbase)
+
+            # Establish cluster connection
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1",
+                    clusters[0].master.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,
+                )
+            )
+
+            # Cluster 0 broadcasts the root block to cluster 1
+            call_async(clusters[0].master.add_root_block(rb1))
+            self.assertEqual(cluster0_root_state.tip.get_hash(), rb1.header.get_hash())
+
+            # Make sure the root block tip of cluster 1 is changed
+            assert_true_with_timeout(
+                lambda: cluster1_root_state.tip == rb1.header, 2
+            )
+
+            # Cluster 1 generates a minor block and broadcasts to cluster 0
+            shard_state = clusters[1].get_shard_state(0b10)
+            coinbase_amount = (
+                shard_state.env.quark_chain_config.shards[
+                    shard_state.full_shard_id
+                ].COINBASE_AMOUNT
+                // 2
+            )
+            b1 = shard_state.get_tip().create_block_to_append()
+            evm_state = shard_state.run_block(b1)
+            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
+            coinbase_amount_map.add(
+                {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
+            )
+            b1.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            add_result = call_async(
+                clusters[1].master.add_raw_minor_block(b1.header.branch, b1.serialize())
+            )
+            self.assertTrue(add_result)
+
+            # Make sure another cluster received the new minor block
+            assert_true_with_timeout(
+                lambda: clusters[1]
+                .get_shard_state(0b10)
+                .contain_block_by_hash(b1.header.get_hash())
+            )
+            assert_true_with_timeout(
+                lambda: clusters[0].master.root_state.is_minor_block_validated(
+                    b1.header.get_hash()
+                )
+            )
+            
+            # Cluster 1 generates a new root block with higher total difficulty
+            rb2 = rb0.create_block_to_append(difficulty=int(3e6)).finalize(coinbase)
+            call_async(clusters[1].master.add_root_block(rb2))
+            self.assertEqual(cluster1_root_state.tip.get_hash(), rb2.header.get_hash())
+
+            # Generate a minor block b2
+            b2 = shard_state.get_tip().create_block_to_append()
+            evm_state = shard_state.run_block(b2)
+            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
+            coinbase_amount_map.add(
+                {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
+            )
+            b2.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            add_result = call_async(
+                clusters[1].master.add_raw_minor_block(b2.header.branch, b2.serialize())
+            )
+            self.assertTrue(add_result)
+
+            # Make sure another cluster received the new minor block
+            assert_true_with_timeout(
+                lambda: clusters[1]
+                .get_shard_state(0b10)
+                .contain_block_by_hash(b2.header.get_hash())
+            )
+            assert_true_with_timeout(
+                lambda: clusters[0].master.root_state.is_minor_block_validated(
+                    b2.header.get_hash()
+                )
+            )
