@@ -115,9 +115,7 @@ class PeerShardConnection(VirtualConnection):
         block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.shard_state.db.get_minor_block_header_by_hash(
-                block_hash, consistency_check=False
-            )
+            header = self.shard_state.db.get_minor_block_header_by_hash(block_hash)
             header_list.append(header)
             if header.height == 0:
                 break
@@ -132,9 +130,7 @@ class PeerShardConnection(VirtualConnection):
             self.close_with_error("Bad number of minor blocks requested")
         m_block_list = []
         for m_block_hash in request.minor_block_hash_list:
-            m_block = self.shard_state.db.get_minor_block_by_hash(
-                m_block_hash, consistency_check=False
-            )
+            m_block = self.shard_state.db.get_minor_block_by_hash(m_block_hash)
             if m_block is None:
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit

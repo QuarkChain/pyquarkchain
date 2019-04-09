@@ -23,9 +23,7 @@ from quarkchain.core import (
     SerializedEvmTransaction,
     TypedTransaction,
 )
-from quarkchain.core import MinorBlock, RootBlock
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.evm import opcodes
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256

@@ -1190,7 +1190,7 @@ class SlaveServer:
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.db.get_minor_block_by_hash(block_hash, False)
+        return shard.state.db.get_minor_block_by_hash(block_hash)
 
     def get_minor_block_by_height(self, height, branch):
         shard = self.shards.get(branch, None)

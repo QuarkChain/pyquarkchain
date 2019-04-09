@@ -167,7 +167,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.env = env
         self.db = db
         self.branch = branch
-        # TODO:  iterate db to recover pools and set
+        # TODO:  limit in-memory cache size
         self.m_header_pool = dict()
         self.m_meta_pool = dict()
         self.x_shard_set = set()
@@ -262,7 +262,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         r_minor_header_hash = self.db.get(b"r_last_m" + root_hash, None)
         if r_minor_header_hash is None or r_minor_header_hash == b"":
             return None
-        return self.get_minor_block_header_by_hash(r_minor_header_hash, False)
+        return self.get_minor_block_header_by_hash(r_minor_header_hash)
 
     def put_genesis_block(self, root_block_hash, genesis_block):
         self.db.put(b"genesis_" + root_block_hash, genesis_block.serialize())
@@ -305,35 +305,30 @@ class ShardDbOperator(TransactionHistoryMixin):
             return 0
         return int.from_bytes(count_bytes, "big")
 
-    def get_minor_block_header_by_hash(
-        self, h, consistency_check=True
-    ) -> Optional[MinorBlockHeader]:
-        header = self.m_header_pool.get(h, None)
-        if not header and not consistency_check:
-            block = self.get_minor_block_by_hash(h, False)
-            header = block.header if block else None
-        return header
+    def get_minor_block_header_by_hash(self, h) -> Optional[MinorBlockHeader]:
+        block = self.get_minor_block_by_hash(h)
+        if block:
+            self.m_header_pool[h] = block.header
+            return block.header
+        return None
 
     def get_minor_block_evm_root_hash_by_hash(self, h):
-        if h not in self.m_header_pool:
-            return None
-        check(h in self.m_meta_pool)
-        meta = self.m_meta_pool[h]
-        return meta.hash_evm_state_root
+        meta = self.get_minor_block_meta_by_hash(h)
+        return meta.hash_evm_state_root if meta else None
 
     def get_minor_block_meta_by_hash(self, h):
-        return self.m_meta_pool.get(h, None)
+        block = self.get_minor_block_by_hash(h)
+        if block:
+            self.m_meta_pool[h] = block.meta
+            return block.meta
+        return None
 
-    def get_minor_block_by_hash(
-        self, h: bytes, consistency_check=True
-    ) -> Optional[MinorBlock]:
-        if consistency_check and h not in self.m_header_pool:
-            return None
+    def get_minor_block_by_hash(self, h: bytes) -> Optional[MinorBlock]:
         data = self.db.get(b"mblock_" + h, None)
         return MinorBlock.deserialize(data) if data else None
 
     def contain_minor_block_by_hash(self, h):
-        return h in self.m_header_pool
+        return h in self.m_header_pool or (b"mblock_" + h) in self.db
 
     def put_minor_block_index(self, block):
         self.db.put(b"mi_%d" % block.header.height, block.header.get_hash())
@@ -346,7 +341,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         if key not in self.db:
             return None
         block_hash = self.db.get(key)
-        return self.get_minor_block_by_hash(block_hash, False)
+        return self.get_minor_block_by_hash(block_hash)
 
     def get_block_count_by_height(self, height):
         """ Return the total number of blocks with the given height"""
