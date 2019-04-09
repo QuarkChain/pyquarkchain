@@ -26,6 +26,10 @@ from quarkchain.core import (
     RootBlock,
     TypedTransaction,
 )
+from quarkchain.constants import (
+    ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST,
+    ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION,
+)
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
@@ -586,7 +590,10 @@ class Shard:
             )
             raise e
 
-        if block.header.create_time > time_ms() // 1000 + 30:
+        if (
+            block.header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST
+        ):
             return
 
         self.state.new_block_pool[block.header.get_hash()] = block

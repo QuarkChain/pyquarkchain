@@ -16,6 +16,7 @@ from quarkchain.core import (
     calculate_merkle_root,
     TokenBalanceMap,
 )
+from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import Logger, check, time_ms
@@ -341,6 +342,12 @@ class RootState:
 
         if prev_block_header.height + 1 != height:
             raise ValueError("incorrect block height")
+
+        if (
+            block_header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
+        ):
+            raise ValueError("block too far into future")
 
         if block_header.create_time <= prev_block_header.create_time:
             raise ValueError(
