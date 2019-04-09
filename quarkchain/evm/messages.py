@@ -115,32 +115,11 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     return o
 
 
-def config_fork_specific_validation(config, blknum, tx):
-    # (1) The transaction signature is valid;
-    _ = tx.sender
-    if _ is None:
-        pass
-    if blknum >= config["CONSTANTINOPLE_FORK_BLKNUM"]:
-        tx.check_low_s_metropolis()
-    else:
-        if tx.sender == null_address:
-            raise InvalidTransaction("EIP86 transactions not available yet")
-        if blknum >= config["HOMESTEAD_FORK_BLKNUM"]:
-            tx.check_low_s_homestead()
-
-    if tx.network_id != config["NETWORK_ID"]:
-        raise InvalidTransaction("Wrong network ID")
-    return True
-
-
 def validate_transaction(state, tx):
 
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
-
-    # assert config_fork_specific_validation(
-    #     state.config, state.block_number, tx)
 
     # (2) the transaction nonce is valid (equivalent to the
     #     sender account's current nonce);
@@ -353,10 +332,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.set_balances(s, {})
         state.del_account(s)
 
-    # Pre-Metropolis: commit state after every tx
-    if not state.is_METROPOLIS() and not SKIP_MEDSTATES:
-        state.commit()
-
     # Construct a receipt
     r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
     state.logs = []
@@ -405,13 +380,7 @@ class VMExt:
         self.create = lambda msg: create_contract(self, msg)
         self.msg = lambda msg: _apply_msg(self, msg, self.get_code(msg.code_address))
         self.account_exists = state.account_exists
-        self.post_homestead_hardfork = lambda: state.is_HOMESTEAD()
-        self.post_metropolis_hardfork = lambda: state.is_METROPOLIS()
-        self.post_constantinople_hardfork = lambda: state.is_CONSTANTINOPLE()
-        self.post_serenity_hardfork = lambda: state.is_SERENITY()
-        self.post_anti_dos_hardfork = lambda: state.is_ANTI_DOS()
-        self.post_spurious_dragon_hardfork = lambda: state.is_SPURIOUS_DRAGON()
-        self.blockhash_store = state.config["METROPOLIS_BLOCKHASH_STORE"]
+        self.blockhash_store = 0x20
         self.snapshot = state.snapshot
         self.revert = state.revert
         self.transfer_value = state.transfer_value
@@ -536,16 +505,14 @@ def create_contract(ext, msg):
     if ext.tx_origin != msg.sender:
         ext.increment_nonce(msg.sender)
 
-    if ext.post_constantinople_hardfork() and msg.sender == null_address:
+    if msg.sender == null_address:
         msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, 0)
         # msg.to = sha3(msg.sender + code)[12:]
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
         msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, nonce)
 
-    if ext.post_metropolis_hardfork() and (
-        ext.get_nonce(msg.to) or len(ext.get_code(msg.to))
-    ):
+    if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
         return 0, 0, b""
 
@@ -561,7 +528,7 @@ def create_contract(ext, msg):
     msg.data = vm.CallData([], 0, 0)
     snapshot = ext.snapshot()
 
-    ext.set_nonce(msg.to, 1 if ext.post_spurious_dragon_hardfork() else 0)
+    ext.set_nonce(msg.to, 1)
     res, gas, dat = _apply_msg(ext, msg, code)
 
     log_msg.debug(
@@ -576,9 +543,7 @@ def create_contract(ext, msg):
             # ext.set_code(msg.to, b'')
             return 1, gas, msg.to
         gcost = len(dat) * opcodes.GCONTRACTBYTE
-        if gas >= gcost and (
-            len(dat) <= 24576 or not ext.post_spurious_dragon_hardfork()
-        ):
+        if gas >= gcost and (len(dat) <= 24576):
             gas -= gcost
         else:
             dat = []
@@ -588,9 +553,8 @@ def create_contract(ext, msg):
                 want=gcost,
                 block_number=ext.block_number,
             )
-            if ext.post_homestead_hardfork():
-                ext.revert(snapshot)
-                return 0, 0, b""
+            ext.revert(snapshot)
+            return 0, 0, b""
         ext.set_code(msg.to, bytearray_to_bytestr(dat))
         log_msg.debug("SETTING CODE", addr=encode_hex(msg.to), lendat=len(dat))
         return 1, gas, msg.to

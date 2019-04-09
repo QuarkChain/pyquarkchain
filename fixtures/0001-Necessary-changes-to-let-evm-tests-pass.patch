@@ -1,5 +1,127 @@
+diff --git a/quarkchain/evm/config.py b/quarkchain/evm/config.py
+index 7f2e403..8f8f232 100644
+--- a/quarkchain/evm/config.py
++++ b/quarkchain/evm/config.py
+@@ -2,6 +2,7 @@ from quarkchain.rlp.utils import decode_hex
+ 
+ from quarkchain.evm import utils
+ from quarkchain.db import InMemoryDb, Db
++import copy
+ 
+ 
+ default_config = dict(
+@@ -10,12 +11,12 @@ default_config = dict(
+     # Genesis block gas limit
+     GENESIS_GAS_LIMIT=3141592,
+     # Genesis block prevhash, coinbase, nonce
+-    GENESIS_PREVHASH=b"\x00" * 32,
+-    GENESIS_COINBASE=b"\x00" * 20,
++    GENESIS_PREVHASH=b'\x00' * 32,
++    GENESIS_COINBASE=b'\x00' * 20,
+     GENESIS_NONCE=utils.zpad(utils.encode_int(42), 8),
+-    GENESIS_MIXHASH=b"\x00" * 32,
++    GENESIS_MIXHASH=b'\x00' * 32,
+     GENESIS_TIMESTAMP=0,
+-    GENESIS_EXTRA_DATA=b"",
++    GENESIS_EXTRA_DATA=b'',
+     GENESIS_INITIAL_ALLOC={},
+     # Minimum gas limit
+     MIN_GAS_LIMIT=5000,
+@@ -51,18 +52,91 @@ default_config = dict(
+     # Exponential difficulty timebomb period
+     EXPDIFF_PERIOD=100000,
+     EXPDIFF_FREE_PERIODS=2,
++    # Delay in Byzantium
++    METROPOLIS_DELAY_PERIODS=30,
+     # Blank account initial nonce
+     ACCOUNT_INITIAL_NONCE=0,
++    # Homestead fork
++    HOMESTEAD_FORK_BLKNUM=1150000,
++    HOMESTEAD_DIFF_ADJUSTMENT_CUTOFF=10,
++    # Metropolis fork
++    METROPOLIS_FORK_BLKNUM=4370000,
++    METROPOLIS_ENTRY_POINT=2 ** 160 - 1,
++    METROPOLIS_STATEROOT_STORE=0x10,
++    METROPOLIS_BLOCKHASH_STORE=0x20,
++    METROPOLIS_WRAPAROUND=65536,
++    METROPOLIS_GETTER_CODE=decode_hex('6000355460205260206020f3'),
++    METROPOLIS_DIFF_ADJUSTMENT_CUTOFF=9,
++    # Constantinople fork
++    CONSTANTINOPLE_FORK_BLKNUM=2**100,
++    # DAO fork
++    DAO_FORK_BLKNUM=1920000,
++    DAO_FORK_BLKHASH=decode_hex(
++        '4985f5ca3d2afbec36529aa96f74de3cc10a2a4a6c44f2157a57d2c6059a11bb'),
++    DAO_FORK_BLKEXTRA=decode_hex('64616f2d686172642d666f726b'),
++    DAO_WITHDRAWER=utils.normalize_address(
++        '0xbf4ed7b27f1d666546e30d74d50d173d20bca754'),
++    # Anti-DoS fork
++    ANTI_DOS_FORK_BLKNUM=2463000,
++    SPURIOUS_DRAGON_FORK_BLKNUM=2675000,
++    CONTRACT_CODE_SIZE_LIMIT=0x6000,
++    # Default consensus strategy: ethash, poa, casper, pbft
++    CONSENSUS_STRATEGY='ethash',
++    # Serenity fork
++    SERENITY_FORK_BLKNUM=2**99,
+     PREV_HEADER_DEPTH=256,
++    SYSTEM_ENTRY_POINT=utils.int_to_addr(2**160 - 2),
++    SERENITY_HEADER_VERIFIER=utils.int_to_addr(255),
++    SERENITY_HEADER_POST_FINALIZER=utils.int_to_addr(254),
++    SERENITY_GETTER_CODE=decode_hex(
++        '60ff331436604014161560155760203560003555005b6000355460205260206020f3'),
+     # Custom specials
+     CUSTOM_SPECIALS={},
+ )
+-assert default_config["NEPHEW_REWARD"] == default_config["BLOCK_REWARD"] // 32
++assert default_config['NEPHEW_REWARD'] == \
++    default_config['BLOCK_REWARD'] // 32
+ 
+ 
+ class Env(object):
++
+     def __init__(self, db=None, config=None, global_config=None):
+         self.db = InMemoryDb() if db is None else db
+         assert isinstance(self.db, Db)
+         self.config = config or dict(default_config)
+         self.global_config = global_config or dict()
++
++
++config_frontier = copy.copy(default_config)
++config_frontier["HOMESTEAD_FORK_BLKNUM"] = 2**99
++config_frontier["ANTI_DOS_FORK_BLKNUM"] = 2**99
++config_frontier["SPURIOUS_DRAGON_FORK_BLKNUM"] = 2**99
++config_frontier["METROPOLIS_FORK_BLKNUM"] = 2**99
++config_frontier["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
++
++config_homestead = copy.copy(default_config)
++config_homestead["HOMESTEAD_FORK_BLKNUM"] = 0
++config_homestead["ANTI_DOS_FORK_BLKNUM"] = 2**99
++config_homestead["SPURIOUS_DRAGON_FORK_BLKNUM"] = 2**99
++config_homestead["METROPOLIS_FORK_BLKNUM"] = 2**99
++config_homestead["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
++
++config_tangerine = copy.copy(default_config)
++config_tangerine["HOMESTEAD_FORK_BLKNUM"] = 0
++config_tangerine["ANTI_DOS_FORK_BLKNUM"] = 0
++config_tangerine["SPURIOUS_DRAGON_FORK_BLKNUM"] = 2**99
++config_tangerine["METROPOLIS_FORK_BLKNUM"] = 2**99
++config_tangerine["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
++
++config_spurious = copy.copy(default_config)
++config_spurious["HOMESTEAD_FORK_BLKNUM"] = 0
++config_spurious["ANTI_DOS_FORK_BLKNUM"] = 0
++config_spurious["SPURIOUS_DRAGON_FORK_BLKNUM"] = 0
++config_spurious["METROPOLIS_FORK_BLKNUM"] = 2**99
++config_spurious["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
++
++config_metropolis = copy.copy(default_config)
++config_metropolis["HOMESTEAD_FORK_BLKNUM"] = 0
++config_metropolis["ANTI_DOS_FORK_BLKNUM"] = 0
++config_metropolis["SPURIOUS_DRAGON_FORK_BLKNUM"] = 0
++config_metropolis["METROPOLIS_FORK_BLKNUM"] = 0
++config_metropolis["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index 5d3a9e5..673374f 100644
+index 9749dea..673374f 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
 @@ -6,7 +6,7 @@ import rlp
@@ -19,17 +141,40 @@ index 5d3a9e5..673374f 100644
  
  
  null_address = b"\xff" * 20
-@@ -139,8 +138,7 @@ def validate_transaction(state, tx):
+@@ -115,12 +114,32 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
+     return o
+ 
+ 
++def config_fork_specific_validation(config, blknum, tx):
++    # (1) The transaction signature is valid;
++    _ = tx.sender
++    if _ is None:
++        pass
++    if blknum >= config["CONSTANTINOPLE_FORK_BLKNUM"]:
++        tx.check_low_s_metropolis()
++    else:
++        if tx.sender == null_address:
++            raise InvalidTransaction("EIP86 transactions not available yet")
++        if blknum >= config["HOMESTEAD_FORK_BLKNUM"]:
++            tx.check_low_s_homestead()
++
++    if tx.network_id != config["NETWORK_ID"]:
++        raise InvalidTransaction("Wrong network ID")
++    return True
++
++
+ def validate_transaction(state, tx):
+ 
+     # (1) The transaction signature is valid;
      if not tx.sender:  # sender is set and validated on Transaction initialization
          raise UnsignedTransaction(tx)
  
--    # assert config_fork_specific_validation(
--    #     state.config, state.block_number, tx)
 +    assert config_fork_specific_validation(state.config, state.block_number, tx)
- 
++
      # (2) the transaction nonce is valid (equivalent to the
      #     sender account's current nonce);
-@@ -154,55 +152,14 @@ def validate_transaction(state, tx):
+     req_nonce = 0 if tx.sender == null_address else state.get_nonce(tx.sender)
+@@ -133,55 +152,14 @@ def validate_transaction(state, tx):
      if tx.startgas < total_gas:
          raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
  
@@ -91,7 +236,7 @@ index 5d3a9e5..673374f 100644
  
      # check block gas limit
      if state.gas_used + tx.startgas > state.gas_limit:
-@@ -227,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
+@@ -206,7 +184,7 @@ def apply_message(state, msg=None, **kwargs):
      return bytearray_to_bytestr(data) if result else None
  
  
@@ -100,7 +245,7 @@ index 5d3a9e5..673374f 100644
      """tx_wrapper_hash is the hash for quarkchain.core.Transaction
      TODO: remove quarkchain.core.Transaction wrapper and use evm.Transaction directly
      """
-@@ -251,11 +208,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -230,11 +208,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
      )
  
      # buy startgas
@@ -114,7 +259,7 @@ index 5d3a9e5..673374f 100644
  
      message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
      message = vm.Message(
-@@ -269,8 +223,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -248,8 +223,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
          from_full_shard_key=tx.from_full_shard_key,
          to_full_shard_key=tx.to_full_shard_key,
          tx_hash=tx_wrapper_hash,
@@ -123,7 +268,7 @@ index 5d3a9e5..673374f 100644
      )
  
      # MESSAGE
-@@ -300,17 +252,15 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -279,17 +252,15 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              startgas=tx.startgas,
              gas_remained=gas_remained,
          )
@@ -144,7 +289,7 @@ index 5d3a9e5..673374f 100644
          output = b""
          success = 0
      # Transaction success
-@@ -323,9 +273,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -302,9 +273,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              gas_used -= min(state.refunds, gas_used // 2)
              state.refunds = 0
          # sell remaining gas
@@ -155,7 +300,7 @@ index 5d3a9e5..673374f 100644
          # if x-shard, reserve part of the gas for the target shard miner
          fee = (
              tx.gasprice
-@@ -333,8 +281,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -312,8 +281,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
              * local_fee_rate.numerator
              // local_fee_rate.denominator
          )
@@ -166,7 +311,7 @@ index 5d3a9e5..673374f 100644
          if tx.to:
              output = bytearray_to_bytestr(data)
          else:
-@@ -350,7 +298,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
+@@ -329,9 +298,13 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
      suicides = state.suicides
      state.suicides = []
      for s in suicides:
@@ -174,8 +319,14 @@ index 5d3a9e5..673374f 100644
 +        state.set_balance(s, 0)
          state.del_account(s)
  
-     # Pre-Metropolis: commit state after every tx
-@@ -376,13 +324,8 @@ class VMExt:
++    # Pre-Metropolis: commit state after every tx
++    if not state.is_METROPOLIS() and not SKIP_MEDSTATES:
++        state.commit()
++
+     # Construct a receipt
+     r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
+     state.logs = []
+@@ -351,13 +324,8 @@ class VMExt:
          self._state = state
          self.get_code = state.get_code
          self.set_code = state.set_code
@@ -191,7 +342,22 @@ index 5d3a9e5..673374f 100644
          self.get_nonce = state.get_nonce
          self.set_nonce = state.set_nonce
          self.increment_nonce = state.increment_nonce
-@@ -423,7 +366,6 @@ class VMExt:
+@@ -380,7 +348,13 @@ class VMExt:
+         self.create = lambda msg: create_contract(self, msg)
+         self.msg = lambda msg: _apply_msg(self, msg, self.get_code(msg.code_address))
+         self.account_exists = state.account_exists
+-        self.blockhash_store = 0x20
++        self.post_homestead_hardfork = lambda: state.is_HOMESTEAD()
++        self.post_metropolis_hardfork = lambda: state.is_METROPOLIS()
++        self.post_constantinople_hardfork = lambda: state.is_CONSTANTINOPLE()
++        self.post_serenity_hardfork = lambda: state.is_SERENITY()
++        self.post_anti_dos_hardfork = lambda: state.is_ANTI_DOS()
++        self.post_spurious_dragon_hardfork = lambda: state.is_SPURIOUS_DRAGON()
++        self.blockhash_store = state.config["METROPOLIS_BLOCKHASH_STORE"]
+         self.snapshot = state.snapshot
+         self.revert = state.revert
+         self.transfer_value = state.transfer_value
+@@ -392,7 +366,6 @@ class VMExt:
          self.tx_origin = tx.sender if tx else b"\x00" * 20
          self.tx_gasprice = tx.gasprice if tx else 0
          self.sender_disallow_list = state.sender_disallow_list
@@ -199,7 +365,7 @@ index 5d3a9e5..673374f 100644
  
  
  def apply_msg(ext, msg):
-@@ -446,20 +388,13 @@ def _apply_msg(ext, msg, code):
+@@ -415,20 +388,13 @@ def _apply_msg(ext, msg, code):
              pre_storage=ext.log_storage(msg.to),
              static=msg.static,
              depth=msg.depth,
@@ -221,7 +387,7 @@ index 5d3a9e5..673374f 100644
                  return 1, msg.gas, []
              ext.add_cross_shard_transaction_deposit(
                  quarkchain.core.CrossShardTransactionDeposit(
-@@ -470,17 +405,14 @@ def _apply_msg(ext, msg, code):
+@@ -439,17 +405,14 @@ def _apply_msg(ext, msg, code):
                      to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                      value=msg.value,
                      gas_price=ext.tx_gasprice,
@@ -244,7 +410,7 @@ index 5d3a9e5..673374f 100644
              )
              return 1, msg.gas, []
  
-@@ -488,10 +420,6 @@ def _apply_msg(ext, msg, code):
+@@ -457,10 +420,6 @@ def _apply_msg(ext, msg, code):
          # Cross shard contract call is not supported
          return 1, msg.gas, []
  
@@ -255,7 +421,7 @@ index 5d3a9e5..673374f 100644
      # Main loop
      if msg.code_address in ext.specials:
          res, gas, dat = ext.specials[msg.code_address](ext, msg)
-@@ -516,9 +444,7 @@ def _apply_msg(ext, msg, code):
+@@ -485,9 +444,7 @@ def _apply_msg(ext, msg, code):
  
  
  def mk_contract_address(sender, full_shard_key, nonce):
@@ -266,7 +432,7 @@ index 5d3a9e5..673374f 100644
  
  
  def create_contract(ext, msg):
-@@ -527,10 +453,6 @@ def create_contract(ext, msg):
+@@ -496,29 +453,27 @@ def create_contract(ext, msg):
      if msg.is_cross_shard:
          return 0, msg.gas, b""
  
@@ -277,7 +443,20 @@ index 5d3a9e5..673374f 100644
      code = msg.data.extract_all()
  
      if ext.tx_origin != msg.sender:
-@@ -549,9 +471,9 @@ def create_contract(ext, msg):
+         ext.increment_nonce(msg.sender)
+ 
+-    if msg.sender == null_address:
++    if ext.post_constantinople_hardfork() and msg.sender == null_address:
+         msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, 0)
+         # msg.to = sha3(msg.sender + code)[12:]
+     else:
+         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
+         msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, nonce)
+ 
+-    if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
++    if ext.post_metropolis_hardfork() and (
++        ext.get_nonce(msg.to) or len(ext.get_code(msg.to))
++    ):
          log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
          return 0, 0, b""
  
@@ -290,8 +469,256 @@ index 5d3a9e5..673374f 100644
          ext.set_nonce(msg.to, 0)
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
+@@ -528,7 +483,7 @@ def create_contract(ext, msg):
+     msg.data = vm.CallData([], 0, 0)
+     snapshot = ext.snapshot()
+ 
+-    ext.set_nonce(msg.to, 1)
++    ext.set_nonce(msg.to, 1 if ext.post_spurious_dragon_hardfork() else 0)
+     res, gas, dat = _apply_msg(ext, msg, code)
+ 
+     log_msg.debug(
+@@ -543,7 +498,9 @@ def create_contract(ext, msg):
+             # ext.set_code(msg.to, b'')
+             return 1, gas, msg.to
+         gcost = len(dat) * opcodes.GCONTRACTBYTE
+-        if gas >= gcost and (len(dat) <= 24576):
++        if gas >= gcost and (
++            len(dat) <= 24576 or not ext.post_spurious_dragon_hardfork()
++        ):
+             gas -= gcost
+         else:
+             dat = []
+@@ -553,8 +510,9 @@ def create_contract(ext, msg):
+                 want=gcost,
+                 block_number=ext.block_number,
+             )
+-            ext.revert(snapshot)
+-            return 0, 0, b""
++            if ext.post_homestead_hardfork():
++                ext.revert(snapshot)
++                return 0, 0, b""
+         ext.set_code(msg.to, bytearray_to_bytestr(dat))
+         log_msg.debug("SETTING CODE", addr=encode_hex(msg.to), lendat=len(dat))
+         return 1, gas, msg.to
+diff --git a/quarkchain/evm/specials.py b/quarkchain/evm/specials.py
+index ac2406f..0f38d72 100644
+--- a/quarkchain/evm/specials.py
++++ b/quarkchain/evm/specials.py
+@@ -7,7 +7,7 @@ from quarkchain.evm import utils, opcodes
+ from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
+ 
+ 
+-ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
++ZERO_PRIVKEY_ADDR = decode_hex('3f17f1962b36e491b30a40b2405849e597ba5fb5')
+ 
+ 
+ def proc_ecrecover(ext, msg):
+@@ -19,7 +19,7 @@ def proc_ecrecover(ext, msg):
+ 
+     message_hash_bytes = [0] * 32
+     msg.data.extract_copy(message_hash_bytes, 0, 0, 32)
+-    message_hash = b"".join(map(ascii_chr, message_hash_bytes))
++    message_hash = b''.join(map(ascii_chr, message_hash_bytes))
+ 
+     # TODO: This conversion isn't really necessary.
+     # TODO: Invesitage if the check below is really needed.
+@@ -39,9 +39,8 @@ def proc_ecrecover(ext, msg):
+ 
+ def proc_sha256(ext, msg):
+     # print('sha256 proc', msg.gas)
+-    OP_GAS = (
+-        opcodes.GSHA256BASE + (utils.ceil32(msg.data.size) // 32) * opcodes.GSHA256WORD
+-    )
++    OP_GAS = opcodes.GSHA256BASE + \
++        (utils.ceil32(msg.data.size) // 32) * opcodes.GSHA256WORD
+     gas_cost = OP_GAS
+     if msg.gas < gas_cost:
+         return 0, 0, []
+@@ -52,23 +51,20 @@ def proc_sha256(ext, msg):
+ 
+ def proc_ripemd160(ext, msg):
+     # print('ripemd160 proc', msg.gas)
+-    OP_GAS = (
+-        opcodes.GRIPEMD160BASE
+-        + (utils.ceil32(msg.data.size) // 32) * opcodes.GRIPEMD160WORD
+-    )
++    OP_GAS = opcodes.GRIPEMD160BASE + \
++        (utils.ceil32(msg.data.size) // 32) * opcodes.GRIPEMD160WORD
+     gas_cost = OP_GAS
+     if msg.gas < gas_cost:
+         return 0, 0, []
+     d = msg.data.extract_all()
+-    o = [0] * 12 + [safe_ord(x) for x in hashlib.new("ripemd160", d).digest()]
++    o = [0] * 12 + [safe_ord(x) for x in hashlib.new('ripemd160', d).digest()]
+     return 1, msg.gas - gas_cost, o
+ 
+ 
+ def proc_identity(ext, msg):
+-    # print('identity proc', msg.gas)
+-    OP_GAS = opcodes.GIDENTITYBASE + opcodes.GIDENTITYWORD * (
+-        utils.ceil32(msg.data.size) // 32
+-    )
++    #print('identity proc', msg.gas)
++    OP_GAS = opcodes.GIDENTITYBASE + \
++        opcodes.GIDENTITYWORD * (utils.ceil32(msg.data.size) // 32)
+     gas_cost = OP_GAS
+     if msg.gas < gas_cost:
+         return 0, 0, []
+@@ -87,20 +83,22 @@ def mult_complexity(x):
+ 
+ 
+ def proc_modexp(ext, msg):
+-    print("modexp proc", msg.gas)
++    if not ext.post_metropolis_hardfork():
++        return 1, msg.gas, []
++    print('modexp proc', msg.gas)
+     baselen = msg.data.extract32(0)
+     explen = msg.data.extract32(32)
+     modlen = msg.data.extract32(64)
+-    first_exp_bytes = msg.data.extract32(96 + baselen) >> (8 * max(32 - explen, 0))
++    first_exp_bytes = msg.data.extract32(
++        96 + baselen) >> (8 * max(32 - explen, 0))
+     bitlength = -1
+     while first_exp_bytes:
+         bitlength += 1
+         first_exp_bytes >>= 1
+     adjusted_explen = max(bitlength, 0) + 8 * max(explen - 32, 0)
+-    gas_cost = (
+-        mult_complexity(max(modlen, baselen)) * max(adjusted_explen, 1)
+-    ) // opcodes.GMODEXPQUADDIVISOR
+-    print(baselen, explen, modlen, "expected gas cost", gas_cost)
++    gas_cost = (mult_complexity(max(modlen, baselen)) *
++                max(adjusted_explen, 1)) // opcodes.GMODEXPQUADDIVISOR
++    print(baselen, explen, modlen, 'expected gas cost', gas_cost)
+     if msg.gas < gas_cost:
+         return 0, 0, []
+     if baselen == 0:
+@@ -118,18 +116,15 @@ def proc_modexp(ext, msg):
+     o = pow(
+         utils.big_endian_to_int(base),
+         utils.big_endian_to_int(exp),
+-        utils.big_endian_to_int(mod),
+-    )
+-    return (
+-        1,
+-        msg.gas - gas_cost,
+-        [safe_ord(x) for x in utils.zpad(utils.int_to_big_endian(o), modlen)],
+-    )
++        utils.big_endian_to_int(mod))
++    return 1, msg.gas - \
++        gas_cost, [
++            safe_ord(x) for x in utils.zpad(
++                utils.int_to_big_endian(o), modlen)]
+ 
+ 
+ def validate_point(x, y):
+     import py_ecc.optimized_bn128 as bn128
+-
+     FQ = bn128.FQ
+     if x >= bn128.field_modulus or y >= bn128.field_modulus:
+         return False
+@@ -143,10 +138,11 @@ def validate_point(x, y):
+ 
+ 
+ def proc_ecadd(ext, msg):
++    if not ext.post_metropolis_hardfork():
++        return 1, msg.gas, []
+     import py_ecc.optimized_bn128 as bn128
+-
+     FQ = bn128.FQ
+-    print("ecadd proc:", msg.gas)
++    print('ecadd proc:', msg.gas)
+     if msg.gas < opcodes.GECADD:
+         return 0, 0, []
+     x1 = msg.data.extract32(0)
+@@ -158,18 +154,17 @@ def proc_ecadd(ext, msg):
+     if p1 is False or p2 is False:
+         return 0, 0, []
+     o = bn128.normalize(bn128.add(p1, p2))
+-    return (
+-        1,
+-        msg.gas - opcodes.GECADD,
+-        [safe_ord(x) for x in (encode_int32(o[0].n) + encode_int32(o[1].n))],
+-    )
++    return 1, msg.gas - \
++        opcodes.GECADD, [safe_ord(x) for x in (
++            encode_int32(o[0].n) + encode_int32(o[1].n))]
+ 
+ 
+ def proc_ecmul(ext, msg):
++    if not ext.post_metropolis_hardfork():
++        return 1, msg.gas, []
+     import py_ecc.optimized_bn128 as bn128
+-
+     FQ = bn128.FQ
+-    print("ecmul proc", msg.gas)
++    print('ecmul proc', msg.gas)
+     if msg.gas < opcodes.GECMUL:
+         return 0, 0, []
+     x = msg.data.extract32(0)
+@@ -179,18 +174,16 @@ def proc_ecmul(ext, msg):
+     if p is False:
+         return 0, 0, []
+     o = bn128.normalize(bn128.multiply(p, m))
+-    return (
+-        1,
+-        msg.gas - opcodes.GECMUL,
+-        [safe_ord(c) for c in (encode_int32(o[0].n) + encode_int32(o[1].n))],
+-    )
++    return (1, msg.gas - opcodes.GECMUL,
++            [safe_ord(c) for c in (encode_int32(o[0].n) + encode_int32(o[1].n))])
+ 
+ 
+ def proc_ecpairing(ext, msg):
++    if not ext.post_metropolis_hardfork():
++        return 1, msg.gas, []
+     import py_ecc.optimized_bn128 as bn128
+-
+     FQ = bn128.FQ
+-    print("pairing proc", msg.gas)
++    print('pairing proc', msg.gas)
+     # Data must be an exact multiple of 192 byte
+     if msg.data.size % 192:
+         return 0, 0, []
+@@ -228,23 +221,21 @@ def proc_ecpairing(ext, msg):
+ 
+ 
+ specials = {
+-    decode_hex(k): v
+-    for k, v in {
+-        b"0000000000000000000000000000000000000001": proc_ecrecover,
+-        b"0000000000000000000000000000000000000002": proc_sha256,
+-        b"0000000000000000000000000000000000000003": proc_ripemd160,
+-        b"0000000000000000000000000000000000000004": proc_identity,
+-        b"0000000000000000000000000000000000000005": proc_modexp,
+-        b"0000000000000000000000000000000000000006": proc_ecadd,
+-        b"0000000000000000000000000000000000000007": proc_ecmul,
+-        b"0000000000000000000000000000000000000008": proc_ecpairing,
++    decode_hex(k): v for k, v in
++    {
++        b'0000000000000000000000000000000000000001': proc_ecrecover,
++        b'0000000000000000000000000000000000000002': proc_sha256,
++        b'0000000000000000000000000000000000000003': proc_ripemd160,
++        b'0000000000000000000000000000000000000004': proc_identity,
++        b'0000000000000000000000000000000000000005': proc_modexp,
++        b'0000000000000000000000000000000000000006': proc_ecadd,
++        b'0000000000000000000000000000000000000007': proc_ecmul,
++        b'0000000000000000000000000000000000000008': proc_ecpairing,
+     }.items()
+ }
+ 
+-if __name__ == "__main__":
+-
++if __name__ == '__main__':
+     class msg(object):
+-        data = "testdata"
++        data = 'testdata'
+         gas = 500
+-
+     proc_ripemd160(None, msg)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 6491c8d..350e5c6 100644
+index 6422f18..350e5c6 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -4,7 +4,6 @@ from typing import Set
@@ -384,7 +811,7 @@ index 6491c8d..350e5c6 100644
          self.env = env
          self.address = address
  
--        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b'')
+-        acc = _Account(nonce, token_balances, storage, code_hash, full_shard_key, b"")
 +        acc = _Account(nonce, balance, storage, code_hash)
          self.nonce = acc.nonce
 +        self.balance = acc.balance
@@ -525,7 +952,7 @@ index 6491c8d..350e5c6 100644
          self.set_and_journal(acct, "touched", True)
  
      def increment_nonce(self, address):
-@@ -469,7 +418,7 @@ class State:
+@@ -469,29 +418,82 @@ class State:
          if (
              three_touched and 2675000 < self.block_number < 2675200
          ):  # Compatibility with weird geth+parity bug
@@ -534,8 +961,65 @@ index 6491c8d..350e5c6 100644
  
      def set_param(self, k, v):
          preval = getattr(self, k)
-@@ -533,18 +482,18 @@ class State:
-                 return a.existent_at_start
+         self.journal.append(lambda: setattr(self, k, preval))
+         setattr(self, k, v)
+ 
++    def is_SERENITY(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["SERENITY_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["SERENITY_FORK_BLKNUM"]
++
++    def is_HOMESTEAD(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["HOMESTEAD_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["HOMESTEAD_FORK_BLKNUM"]
++
++    def is_METROPOLIS(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["METROPOLIS_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["METROPOLIS_FORK_BLKNUM"]
++
++    def is_CONSTANTINOPLE(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["CONSTANTINOPLE_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["CONSTANTINOPLE_FORK_BLKNUM"]
++
++    def is_ANTI_DOS(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["ANTI_DOS_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["ANTI_DOS_FORK_BLKNUM"]
++
++    def is_SPURIOUS_DRAGON(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["SPURIOUS_DRAGON_FORK_BLKNUM"]
++
++    def is_DAO(self, at_fork_height=False):
++        if at_fork_height:
++            return self.block_number == self.config["DAO_FORK_BLKNUM"]
++        else:
++            return self.block_number >= self.config["DAO_FORK_BLKNUM"]
++
+     def account_exists(self, address):
+-        o = not self.get_and_cache_account(utils.normalize_address(address)).is_blank()
++        if self.is_SPURIOUS_DRAGON():
++            o = not self.get_and_cache_account(
++                utils.normalize_address(address)
++            ).is_blank()
++        else:
++            a = self.get_and_cache_account(address)
++            if a.deleted and not a.touched:
++                return False
++            if a.touched:
++                return True
++            else:
++                return a.existent_at_start
          return o
  
 -    def transfer_value(self, from_addr, to_addr, token_id, value):
@@ -560,7 +1044,7 @@ index 6491c8d..350e5c6 100644
              return True
          return False
  
-@@ -559,12 +508,7 @@ class State:
+@@ -506,12 +508,7 @@ class State:
                  self.changed[addr] = True
                  if self.account_exists(addr) or allow_empties:
                      _acct = _Account(
@@ -569,12 +1053,12 @@ index 6491c8d..350e5c6 100644
 -                        acct.storage,
 -                        acct.code_hash,
 -                        acct.full_shard_key,
--                        b'',
+-                        b"",
 +                        acct.nonce, acct.balance, acct.storage, acct.code_hash
                      )
                      self.trie.update(addr, rlp.encode(_acct))
                      if self.executing_on_head:
-@@ -587,7 +531,7 @@ class State:
+@@ -534,7 +531,7 @@ class State:
          return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
  
      def del_account(self, address):
@@ -583,7 +1067,7 @@ index 6491c8d..350e5c6 100644
          self.set_nonce(address, 0)
          self.set_code(address, b"")
          self.reset_storage(address)
-@@ -652,9 +596,9 @@ class State:
+@@ -599,9 +596,9 @@ class State:
                      addr = decode_hex(addr)
                  assert len(addr) == 20
                  if "wei" in data:
@@ -597,7 +1081,7 @@ index 6491c8d..350e5c6 100644
                      state.set_code(addr, parse_as_bin(data["code"]))
                  if "nonce" in data:
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
-index c209923..4c6a252 100644
+index d6b9de5..9d6d8fb 100644
 --- a/quarkchain/evm/transactions.py
 +++ b/quarkchain/evm/transactions.py
 @@ -85,8 +85,6 @@ class Transaction(rlp.Serializable):
@@ -618,7 +1102,7 @@ index c209923..4c6a252 100644
      ):
          self.quark_chain_config = None
  
-@@ -247,10 +247,7 @@ class Transaction(rlp.Serializable):
+@@ -252,10 +252,7 @@ class Transaction(rlp.Serializable):
  
      @property
      def is_cross_shard(self):
@@ -630,3 +1114,211 @@ index c209923..4c6a252 100644
  
      def __eq__(self, other):
          return isinstance(other, self.__class__) and self.hash == other.hash
+@@ -275,6 +272,17 @@ class Transaction(rlp.Serializable):
+     def __structlog__(self):
+         return encode_hex(self.hash)
+ 
++    # This method should be called for block numbers >= HOMESTEAD_FORK_BLKNUM only.
++    # The >= operator is replaced by > because the integer division N/2 always produces the value
++    # which is by 0.5 less than the real N/2
++    def check_low_s_metropolis(self):
++        if self.s > secpk1n // 2:
++            raise InvalidTransaction("Invalid signature S value!")
++
++    def check_low_s_homestead(self):
++        if self.s > secpk1n // 2 or self.s == 0:
++            raise InvalidTransaction("Invalid signature S value!")
++
+ 
+ class UnsignedTransaction(rlp.Serializable):
+     fields = [
+diff --git a/quarkchain/evm/vm.py b/quarkchain/evm/vm.py
+index 5727e19..3b8cbaa 100644
+--- a/quarkchain/evm/vm.py
++++ b/quarkchain/evm/vm.py
+@@ -304,6 +304,9 @@ def vm_execute(ext, msg, code):
+         if opcode not in opcodes.opcodes:
+             return vm_exception("INVALID OP", opcode=opcode)
+ 
++        if opcode in opcodes.opcodesMetropolis and not ext.post_metropolis_hardfork():
++            return vm_exception("INVALID OP (not yet enabled)", opcode=opcode)
++
+         op, in_args, out_args, fee = opcodes.opcodes[opcode]
+ 
+         # Apply operation
+@@ -427,7 +430,8 @@ def vm_execute(ext, msg, code):
+                 # calc n bytes to represent exponent
+                 nbytes = len(utils.encode_int(exponent))
+                 expfee = nbytes * opcodes.GEXPONENTBYTE
+-                expfee += opcodes.EXP_SUPPLEMENTAL_GAS * nbytes
++                if ext.post_spurious_dragon_hardfork():
++                    expfee += opcodes.EXP_SUPPLEMENTAL_GAS * nbytes
+                 if compustate.gas < expfee:
+                     compustate.gas = 0
+                     return vm_exception("OOG EXPONENT")
+@@ -487,8 +491,9 @@ def vm_execute(ext, msg, code):
+             elif op == "ADDRESS":
+                 stk.append(utils.coerce_to_int(msg.to))
+             elif op == "BALANCE":
+-                if not eat_gas(compustate, opcodes.BALANCE_SUPPLEMENTAL_GAS):
+-                    return vm_exception("OUT OF GAS")
++                if ext.post_anti_dos_hardfork():
++                    if not eat_gas(compustate, opcodes.BALANCE_SUPPLEMENTAL_GAS):
++                        return vm_exception("OUT OF GAS")
+                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
+                 stk.append(ext.get_balance(addr))
+             elif op == "ORIGIN":
+@@ -537,13 +542,15 @@ def vm_execute(ext, msg, code):
+             elif op == "GASPRICE":
+                 stk.append(ext.tx_gasprice)
+             elif op == "EXTCODESIZE":
+-                if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
+-                    return vm_exception("OUT OF GAS")
++                if ext.post_anti_dos_hardfork():
++                    if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
++                        return vm_exception("OUT OF GAS")
+                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
+                 stk.append(len(ext.get_code(addr) or b""))
+             elif op == "EXTCODECOPY":
+-                if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
+-                    return vm_exception("OUT OF GAS")
++                if ext.post_anti_dos_hardfork():
++                    if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
++                        return vm_exception("OUT OF GAS")
+                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
+                 start, s2, size = stk.pop(), stk.pop(), stk.pop()
+                 extcode = ext.get_code(addr) or b""
+@@ -560,7 +567,11 @@ def vm_execute(ext, msg, code):
+         # Block info
+         elif opcode < 0x50:
+             if op == "BLOCKHASH":
+-                stk.append(utils.big_endian_to_int(ext.block_hash(stk.pop())))
++                if ext.post_constantinople_hardfork() and False:
++                    bh_addr = ext.blockhash_store
++                    stk.append(ext.get_storage_data(bh_addr, stk.pop()))
++                else:
++                    stk.append(utils.big_endian_to_int(ext.block_hash(stk.pop())))
+             elif op == "COINBASE":
+                 stk.append(utils.big_endian_to_int(ext.block_coinbase))
+             elif op == "TIMESTAMP":
+@@ -591,8 +602,9 @@ def vm_execute(ext, msg, code):
+                     return vm_exception("OOG EXTENDING MEMORY")
+                 mem[s0] = s1 % 256
+             elif op == "SLOAD":
+-                if not eat_gas(compustate, opcodes.SLOAD_SUPPLEMENTAL_GAS):
+-                    return vm_exception("OUT OF GAS")
++                if ext.post_anti_dos_hardfork():
++                    if not eat_gas(compustate, opcodes.SLOAD_SUPPLEMENTAL_GAS):
++                        return vm_exception("OUT OF GAS")
+                 stk.append(ext.get_storage_data(msg.to, stk.pop()))
+             elif op == "SSTORE":
+                 s0, s1 = stk.pop(), stk.pop()
+@@ -678,7 +690,8 @@ def vm_execute(ext, msg, code):
+             if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
+                 cd = CallData(mem, mstart, msz)
+                 ingas = compustate.gas
+-                ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
++                if ext.post_anti_dos_hardfork():
++                    ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
+                 create_msg = Message(
+                     msg.to,
+                     b"",
+@@ -736,20 +749,31 @@ def vm_execute(ext, msg, code):
+             # Extra gas costs based on various factors
+             extra_gas = 0
+             # Creating a new account
+-            if op == "CALL" and not ext.account_exists(to) and (value > 0):
++            if (
++                op == "CALL"
++                and not ext.account_exists(to)
++                and (value > 0 or not ext.post_spurious_dragon_hardfork())
++            ):
+                 extra_gas += opcodes.GCALLNEWACCOUNT
+             # Value transfer
+             if value > 0:
+                 extra_gas += opcodes.GCALLVALUETRANSFER
+             # Cost increased from 40 to 700 in Tangerine Whistle
+-            extra_gas += opcodes.CALL_SUPPLEMENTAL_GAS
++            if ext.post_anti_dos_hardfork():
++                extra_gas += opcodes.CALL_SUPPLEMENTAL_GAS
+             # Compute child gas limit
+-            if compustate.gas < extra_gas:
+-                return vm_exception("OUT OF GAS", needed=extra_gas)
+-            gas = min(
+-                gas,
+-                all_but_1n(compustate.gas - extra_gas, opcodes.CALL_CHILD_LIMIT_DENOM),
+-            )
++            if ext.post_anti_dos_hardfork():
++                if compustate.gas < extra_gas:
++                    return vm_exception("OUT OF GAS", needed=extra_gas)
++                gas = min(
++                    gas,
++                    all_but_1n(
++                        compustate.gas - extra_gas, opcodes.CALL_CHILD_LIMIT_DENOM
++                    ),
++                )
++            else:
++                if compustate.gas < gas + extra_gas:
++                    return vm_exception("OUT OF GAS", needed=gas + extra_gas)
+             submsg_gas = gas + opcodes.GSTIPEND * (value > 0)
+             # Verify that there is sufficient balance and depth
+             if ext.get_balance(msg.to) < value or msg.depth >= MAX_DEPTH:
+@@ -773,7 +797,7 @@ def vm_execute(ext, msg, code):
+                         code_address=to,
+                         static=msg.static,
+                     )
+-                elif op == "DELEGATECALL":
++                elif ext.post_homestead_hardfork() and op == "DELEGATECALL":
+                     call_msg = Message(
+                         msg.sender,
+                         msg.to,
+@@ -785,7 +809,7 @@ def vm_execute(ext, msg, code):
+                         transfers_value=False,
+                         static=msg.static,
+                     )
+-                elif op == "STATICCALL":
++                elif ext.post_metropolis_hardfork() and op == "STATICCALL":
+                     call_msg = Message(
+                         msg.to,
+                         to,
+@@ -830,6 +854,8 @@ def vm_execute(ext, msg, code):
+             return peaceful_exit("RETURN", compustate.gas, mem[s0 : s0 + s1])
+         # Revert opcode (Metropolis)
+         elif op == "REVERT":
++            if not ext.post_metropolis_hardfork():
++                return vm_exception("Opcode not yet enabled")
+             s0, s1 = stk.pop(), stk.pop()
+             if not mem_extend(mem, compustate, op, s0, s1):
+                 return vm_exception("OOG EXTENDING MEMORY")
+@@ -841,12 +867,15 @@ def vm_execute(ext, msg, code):
+             to = utils.encode_int(stk.pop())
+             to = ((b"\x00" * (32 - len(to))) + to)[12:]
+             xfer = ext.get_balance(msg.to)
+-            extra_gas = (
+-                opcodes.SUICIDE_SUPPLEMENTAL_GAS
+-                + (not ext.account_exists(to)) * (xfer > 0) * opcodes.GCALLNEWACCOUNT
+-            )
+-            if not eat_gas(compustate, extra_gas):
+-                return vm_exception("OUT OF GAS")
++            if ext.post_anti_dos_hardfork():
++                extra_gas = (
++                    opcodes.SUICIDE_SUPPLEMENTAL_GAS
++                    + (not ext.account_exists(to))
++                    * (xfer > 0 or not ext.post_spurious_dragon_hardfork())
++                    * opcodes.GCALLNEWACCOUNT
++                )
++                if not eat_gas(compustate, extra_gas):
++                    return vm_exception("OUT OF GAS")
+             ext.set_balance(to, ext.get_balance(to) + xfer)
+             ext.set_balance(msg.to, 0)
+             ext.add_suicide(msg.to)
+diff --git a/quarkchain/config.py b/quarkchain/config.py
+index 52fcad5..dc0316b 100644
+--- a/quarkchain/config.py
++++ b/quarkchain/config.py
+@@ -534,4 +534,4 @@ class QuarkChainConfig(BaseConfig):
+ 
+ 
+ def get_default_evm_config():
+-    return dict(quarkchain.evm.config.default_config)
++    return dict(quarkchain.evm.config.config_metropolis)

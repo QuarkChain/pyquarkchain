@@ -31,6 +31,13 @@ from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 
 
+SYNC_TIMEOUT = 10
+# Current minor block size is up to 6M gas / 4 (zero-byte gas) = 1.5M
+# Per-command size is now 128M so 128M / 1.5M = 85
+MINOR_BLOCK_BATCH_SIZE = 50
+MINOR_BLOCK_HEADER_LIST_LIMIT = 100
+
+
 class PeerShardConnection(VirtualConnection):
     """ A virtual connection between local shard and remote shard
     """
@@ -69,8 +76,8 @@ class PeerShardConnection(VirtualConnection):
     def broadcast_new_tip(self):
         if self.best_root_block_header_observed:
             if (
-                self.shard_state.root_tip.height
-                < self.best_root_block_header_observed.height
+                self.shard_state.root_tip.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return
             if self.shard_state.root_tip == self.best_root_block_header_observed:
@@ -99,7 +106,7 @@ class PeerShardConnection(VirtualConnection):
     async def handle_get_minor_block_header_list_request(self, request):
         if request.branch != self.shard_state.branch:
             self.close_with_error("Wrong branch from peer")
-        if request.limit <= 0:
+        if request.limit <= 0 or request.limit > 2 * MINOR_BLOCK_HEADER_LIST_LIMIT:
             self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
@@ -119,6 +126,8 @@ class PeerShardConnection(VirtualConnection):
         )
 
     async def handle_get_minor_block_list_request(self, request):
+        if len(request.minor_block_hash_list) > 2 * MINOR_BLOCK_BATCH_SIZE:
+            self.close_with_error("Bad number of minor blocks requested")
         m_block_list = []
         for m_block_hash in request.minor_block_hash_list:
             m_block = self.shard_state.db.get_minor_block_by_hash(m_block_hash)
@@ -146,23 +155,23 @@ class PeerShardConnection(VirtualConnection):
         if self.best_root_block_header_observed:
             # check root header is not decreasing
             if (
-                cmd.root_block_header.height
-                < self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return self.close_with_error(
-                    "best observed root header height is decreasing {} < {}".format(
-                        cmd.root_block_header.height,
-                        self.best_root_block_header_observed.height,
+                    "best observed root header total_difficulty is decreasing {} < {}".format(
+                        cmd.root_block_header.total_difficulty,
+                        self.best_root_block_header_observed.total_difficulty,
                     )
                 )
             if (
-                cmd.root_block_header.height
-                == self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                == self.best_root_block_header_observed.total_difficulty
             ):
                 if cmd.root_block_header != self.best_root_block_header_observed:
                     return self.close_with_error(
-                        "best observed root header changed with same height {}".format(
-                            self.best_root_block_header_observed.height
+                        "best observed root header changed with same total_difficulty {}".format(
+                            self.best_root_block_header_observed.total_difficulty
                         )
                     )
 
@@ -211,11 +220,6 @@ OP_RPC_MAP = {
         PeerShardConnection.handle_get_minor_block_list_request,
     ),
 }
-
-TIMEOUT = 10
-# Current minor block size is up to 6M gas / 4 (zero-byte gas) = 1.5M
-# Per-command size is now 128M so 128M / 1.5M = 85
-MINOR_BLOCK_BATCH_SIZE = 50
 
 
 class SyncTask:
@@ -271,7 +275,7 @@ class SyncTask:
                 )
             )
             block_header_list = await asyncio.wait_for(
-                self.__download_block_headers(block_hash), TIMEOUT
+                self.__download_block_headers(block_hash), SYNC_TIMEOUT
             )
             Logger.info(
                 "[{}] downloaded {} headers from peer".format(
@@ -293,14 +297,18 @@ class SyncTask:
         while len(block_header_chain) > 0:
             block_chain = await asyncio.wait_for(
                 self.__download_blocks(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]),
-                TIMEOUT,
+                SYNC_TIMEOUT,
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
                     self.shard_state.branch.to_str(), len(block_chain)
                 )
             )
-            check(len(block_chain) == len(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]))
+            if len(block_chain) != len(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]):
+                # TODO: tag bad peer
+                return self.shard_conn.close_with_error(
+                    "Bad peer sending less than requested blocks"
+                )
 
             for block in block_chain:
                 # Stop if the block depends on an unknown root block
@@ -346,7 +354,7 @@ class SyncTask:
         request = GetMinorBlockHeaderListRequest(
             block_hash=block_hash,
             branch=self.shard_state.branch,
-            limit=100,
+            limit=MINOR_BLOCK_HEADER_LIST_LIMIT,
             direction=Direction.GENESIS,
         )
         op, resp, rpc_id = await self.shard_conn.write_rpc_request(

@@ -7,7 +7,7 @@ from quarkchain.evm import utils, opcodes
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
 
 
-ZERO_PRIVKEY_ADDR = decode_hex('3f17f1962b36e491b30a40b2405849e597ba5fb5')
+ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
 
 
 def proc_ecrecover(ext, msg):
@@ -19,7 +19,7 @@ def proc_ecrecover(ext, msg):
 
     message_hash_bytes = [0] * 32
     msg.data.extract_copy(message_hash_bytes, 0, 0, 32)
-    message_hash = b''.join(map(ascii_chr, message_hash_bytes))
+    message_hash = b"".join(map(ascii_chr, message_hash_bytes))
 
     # TODO: This conversion isn't really necessary.
     # TODO: Invesitage if the check below is really needed.
@@ -39,8 +39,9 @@ def proc_ecrecover(ext, msg):
 
 def proc_sha256(ext, msg):
     # print('sha256 proc', msg.gas)
-    OP_GAS = opcodes.GSHA256BASE + \
-        (utils.ceil32(msg.data.size) // 32) * opcodes.GSHA256WORD
+    OP_GAS = (
+        opcodes.GSHA256BASE + (utils.ceil32(msg.data.size) // 32) * opcodes.GSHA256WORD
+    )
     gas_cost = OP_GAS
     if msg.gas < gas_cost:
         return 0, 0, []
@@ -51,20 +52,23 @@ def proc_sha256(ext, msg):
 
 def proc_ripemd160(ext, msg):
     # print('ripemd160 proc', msg.gas)
-    OP_GAS = opcodes.GRIPEMD160BASE + \
-        (utils.ceil32(msg.data.size) // 32) * opcodes.GRIPEMD160WORD
+    OP_GAS = (
+        opcodes.GRIPEMD160BASE
+        + (utils.ceil32(msg.data.size) // 32) * opcodes.GRIPEMD160WORD
+    )
     gas_cost = OP_GAS
     if msg.gas < gas_cost:
         return 0, 0, []
     d = msg.data.extract_all()
-    o = [0] * 12 + [safe_ord(x) for x in hashlib.new('ripemd160', d).digest()]
+    o = [0] * 12 + [safe_ord(x) for x in hashlib.new("ripemd160", d).digest()]
     return 1, msg.gas - gas_cost, o
 
 
 def proc_identity(ext, msg):
-    #print('identity proc', msg.gas)
-    OP_GAS = opcodes.GIDENTITYBASE + \
-        opcodes.GIDENTITYWORD * (utils.ceil32(msg.data.size) // 32)
+    # print('identity proc', msg.gas)
+    OP_GAS = opcodes.GIDENTITYBASE + opcodes.GIDENTITYWORD * (
+        utils.ceil32(msg.data.size) // 32
+    )
     gas_cost = OP_GAS
     if msg.gas < gas_cost:
         return 0, 0, []
@@ -83,22 +87,20 @@ def mult_complexity(x):
 
 
 def proc_modexp(ext, msg):
-    if not ext.post_metropolis_hardfork():
-        return 1, msg.gas, []
-    print('modexp proc', msg.gas)
+    print("modexp proc", msg.gas)
     baselen = msg.data.extract32(0)
     explen = msg.data.extract32(32)
     modlen = msg.data.extract32(64)
-    first_exp_bytes = msg.data.extract32(
-        96 + baselen) >> (8 * max(32 - explen, 0))
+    first_exp_bytes = msg.data.extract32(96 + baselen) >> (8 * max(32 - explen, 0))
     bitlength = -1
     while first_exp_bytes:
         bitlength += 1
         first_exp_bytes >>= 1
     adjusted_explen = max(bitlength, 0) + 8 * max(explen - 32, 0)
-    gas_cost = (mult_complexity(max(modlen, baselen)) *
-                max(adjusted_explen, 1)) // opcodes.GMODEXPQUADDIVISOR
-    print(baselen, explen, modlen, 'expected gas cost', gas_cost)
+    gas_cost = (
+        mult_complexity(max(modlen, baselen)) * max(adjusted_explen, 1)
+    ) // opcodes.GMODEXPQUADDIVISOR
+    print(baselen, explen, modlen, "expected gas cost", gas_cost)
     if msg.gas < gas_cost:
         return 0, 0, []
     if baselen == 0:
@@ -116,15 +118,18 @@ def proc_modexp(ext, msg):
     o = pow(
         utils.big_endian_to_int(base),
         utils.big_endian_to_int(exp),
-        utils.big_endian_to_int(mod))
-    return 1, msg.gas - \
-        gas_cost, [
-            safe_ord(x) for x in utils.zpad(
-                utils.int_to_big_endian(o), modlen)]
+        utils.big_endian_to_int(mod),
+    )
+    return (
+        1,
+        msg.gas - gas_cost,
+        [safe_ord(x) for x in utils.zpad(utils.int_to_big_endian(o), modlen)],
+    )
 
 
 def validate_point(x, y):
     import py_ecc.optimized_bn128 as bn128
+
     FQ = bn128.FQ
     if x >= bn128.field_modulus or y >= bn128.field_modulus:
         return False
@@ -138,11 +143,10 @@ def validate_point(x, y):
 
 
 def proc_ecadd(ext, msg):
-    if not ext.post_metropolis_hardfork():
-        return 1, msg.gas, []
     import py_ecc.optimized_bn128 as bn128
+
     FQ = bn128.FQ
-    print('ecadd proc:', msg.gas)
+    print("ecadd proc:", msg.gas)
     if msg.gas < opcodes.GECADD:
         return 0, 0, []
     x1 = msg.data.extract32(0)
@@ -154,17 +158,18 @@ def proc_ecadd(ext, msg):
     if p1 is False or p2 is False:
         return 0, 0, []
     o = bn128.normalize(bn128.add(p1, p2))
-    return 1, msg.gas - \
-        opcodes.GECADD, [safe_ord(x) for x in (
-            encode_int32(o[0].n) + encode_int32(o[1].n))]
+    return (
+        1,
+        msg.gas - opcodes.GECADD,
+        [safe_ord(x) for x in (encode_int32(o[0].n) + encode_int32(o[1].n))],
+    )
 
 
 def proc_ecmul(ext, msg):
-    if not ext.post_metropolis_hardfork():
-        return 1, msg.gas, []
     import py_ecc.optimized_bn128 as bn128
+
     FQ = bn128.FQ
-    print('ecmul proc', msg.gas)
+    print("ecmul proc", msg.gas)
     if msg.gas < opcodes.GECMUL:
         return 0, 0, []
     x = msg.data.extract32(0)
@@ -174,16 +179,18 @@ def proc_ecmul(ext, msg):
     if p is False:
         return 0, 0, []
     o = bn128.normalize(bn128.multiply(p, m))
-    return (1, msg.gas - opcodes.GECMUL,
-            [safe_ord(c) for c in (encode_int32(o[0].n) + encode_int32(o[1].n))])
+    return (
+        1,
+        msg.gas - opcodes.GECMUL,
+        [safe_ord(c) for c in (encode_int32(o[0].n) + encode_int32(o[1].n))],
+    )
 
 
 def proc_ecpairing(ext, msg):
-    if not ext.post_metropolis_hardfork():
-        return 1, msg.gas, []
     import py_ecc.optimized_bn128 as bn128
+
     FQ = bn128.FQ
-    print('pairing proc', msg.gas)
+    print("pairing proc", msg.gas)
     # Data must be an exact multiple of 192 byte
     if msg.data.size % 192:
         return 0, 0, []
@@ -221,21 +228,23 @@ def proc_ecpairing(ext, msg):
 
 
 specials = {
-    decode_hex(k): v for k, v in
-    {
-        b'0000000000000000000000000000000000000001': proc_ecrecover,
-        b'0000000000000000000000000000000000000002': proc_sha256,
-        b'0000000000000000000000000000000000000003': proc_ripemd160,
-        b'0000000000000000000000000000000000000004': proc_identity,
-        b'0000000000000000000000000000000000000005': proc_modexp,
-        b'0000000000000000000000000000000000000006': proc_ecadd,
-        b'0000000000000000000000000000000000000007': proc_ecmul,
-        b'0000000000000000000000000000000000000008': proc_ecpairing,
+    decode_hex(k): v
+    for k, v in {
+        b"0000000000000000000000000000000000000001": proc_ecrecover,
+        b"0000000000000000000000000000000000000002": proc_sha256,
+        b"0000000000000000000000000000000000000003": proc_ripemd160,
+        b"0000000000000000000000000000000000000004": proc_identity,
+        b"0000000000000000000000000000000000000005": proc_modexp,
+        b"0000000000000000000000000000000000000006": proc_ecadd,
+        b"0000000000000000000000000000000000000007": proc_ecmul,
+        b"0000000000000000000000000000000000000008": proc_ecpairing,
     }.items()
 }
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+
     class msg(object):
-        data = 'testdata'
+        data = "testdata"
         gas = 500
+
     proc_ripemd160(None, msg)
