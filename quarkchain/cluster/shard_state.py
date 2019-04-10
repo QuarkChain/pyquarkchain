@@ -29,6 +29,7 @@ from quarkchain.core import (
     calculate_merkle_root,
     mk_receipt_sha,
 )
+from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
@@ -586,6 +587,12 @@ class ShardState:
 
         if block.header.branch != self.branch:
             raise ValueError("branch mismatch")
+
+        if (
+            block.header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
+        ):
+            raise ValueError("block too far into future")
 
         if block.header.create_time <= prev_header.create_time:
             raise ValueError(
