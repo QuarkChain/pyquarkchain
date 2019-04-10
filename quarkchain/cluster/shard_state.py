@@ -656,12 +656,7 @@ class ShardState:
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
-        if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
-            diff = self.diff_calc.calculate_diff_with_parent(
-                prev_header, block.header.create_time
-            )
-            if diff != block.header.difficulty:
-                raise ValueError("incorrect difficulty")
+        self.validate_diff_match_prev(block.header, prev_header)
 
         # Check whether the root header is in the root chain
         root_block_header = self.db.get_root_block_header_by_hash(
@@ -696,6 +691,14 @@ class ShardState:
 
         # Check PoW / PoSW
         self.validate_minor_block_seal(block)
+
+    def validate_diff_match_prev(self, curr_header, prev_header):
+        if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
+            diff = self.diff_calc.calculate_diff_with_parent(
+                prev_header, curr_header.create_time
+            )
+            if diff != curr_header.difficulty:
+                raise ValueError("incorrect difficulty")
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
@@ -1642,6 +1645,7 @@ class ShardState:
         return price
 
     def validate_minor_block_seal(self, block: MinorBlock):
+        """A more complete validation on PoSW."""
         consensus_type = self.env.quark_chain_config.shards[
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
