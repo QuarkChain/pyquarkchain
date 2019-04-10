@@ -452,6 +452,16 @@ class ShardState:
         if evm_tx.is_cross_shard and evm_tx.startgas > xshard_gas_limit:
             raise RuntimeError("xshard evm tx exceeds xshard gas limit")
 
+        # check if TX is disabled
+        if (
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+            and evm_state.timestamp < self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+        ):
+            if evm_tx.sender not in self.env.quark_chain_config.tx_whitelist_senders:
+                raise RuntimeError(
+                    "unwhitelisted senders not allowed before tx is enabled"
+                )
+
         # Check if EVM is disabled
         if (
             self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
@@ -635,14 +645,6 @@ class ShardState:
                 "incorrect xshard gas limit, expected %d, actual %d"
                 % (xshard_gas_limit, block.meta.evm_xshard_gas_limit)
             )
-
-        if (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
-            and self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-            > block.header.create_time
-            and len(block.tx_list) != 0
-        ):
-            raise ValueError("tx_list should be empty before tx is enabled")
 
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
@@ -1134,6 +1136,18 @@ class ShardState:
 
             tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
+            # check if TX is disabled
+            if (
+                self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+                and block.header.create_time
+                < self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+            ):
+                if (
+                    evm_tx.sender
+                    not in self.env.quark_chain_config.tx_whitelist_senders
+                ):
+                    continue
+
             # Check if EMV is disabled
             if (
                 self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
@@ -1201,11 +1215,7 @@ class ShardState:
         if evm_state.gas_used < xshard_gas_limit:
             evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
-        if include_tx and (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None
-            or block.header.create_time
-            >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-        ):
+        if include_tx:
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner
