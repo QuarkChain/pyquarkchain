@@ -565,7 +565,7 @@ class Shard:
 
         # Doing full POSW check requires prev block has been added to the state, which could
         # slow down block propagation.
-        # TODO: this is a copy of the code in SyncTask.__validate_block_headers. this it a helper
+        # TODO: this is a copy of the code in SyncTask.__validate_block_headers.
         try:
             header = block.header
             # Note that PoSW may lower diff, so checks here are necessary but not sufficient

@@ -106,8 +106,8 @@ class XshardTxCursor:
 
                 # Perform x-shard from root chain coinbase
                 return CrossShardTransactionDeposit(
-                    tx_hash=self.rblock.header.get_hash(),
-                    from_address=self.rblock.header.coinbase_address,
+                    tx_hash=bytes(32),
+                    from_address=Address.create_empty_account(0),
                     to_address=self.rblock.header.coinbase_address,
                     value=coinbase_amount,
                     gas_price=0,
