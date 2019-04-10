@@ -27,10 +27,6 @@ from quarkchain.core import (
     calculate_merkle_root,
     sha3_256,
 )
-from quarkchain.cluster.tests.test_utils import (
-    create_transfer_transaction,
-    get_test_env,
-)
 
 from quarkchain.utils import check, p2_roundup, SHARD_KEY_MAX, TOKEN_ID_MAX
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -39,7 +35,7 @@ from quarkchain.evm.utils import TT256
 
 SIZE_LIST = [(RootBlockHeader, 249), (MinorBlockHeader, 479), (MinorBlockMeta, 216)]
 TX_MAX_SIZE = 258
-TX_MIN_SIZE = 120
+TX_MIN_SIZE = 116
 
 
 class TestDataSize(unittest.TestCase):
