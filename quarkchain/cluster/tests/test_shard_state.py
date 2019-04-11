@@ -2187,9 +2187,13 @@ class TestShardState(unittest.TestCase):
         )
 
     def test_enable_tx_timestamp(self):
+        # whitelist acc1, make tx to acc2
+        # but do not whitelist acc2 and tx fails
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
+        id2 = Identity.create_random_identity()
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -2203,7 +2207,7 @@ class TestShardState(unittest.TestCase):
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
-            value=12345,
+            value=5000000,
             gas=50000,
         )
         self.assertTrue(state.add_tx(tx))
@@ -2212,13 +2216,31 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(b1.tx_list), 1)
 
         env.quark_chain_config.ENABLE_TX_TIMESTAMP = b1.header.create_time + 100
+        env.quark_chain_config.TX_WHITELIST_SENDERS = [acc1.recipient.hex()]
         b2 = state.create_block_to_mine()
-        self.assertEqual(len(b2.tx_list), 0)
+        self.assertEqual(len(b2.tx_list), 1)
+        state.finalize_and_add_block(b2)
+
+        tx2 = create_transfer_transaction(
+            shard_state=state,
+            key=id2.get_key(),
+            from_address=acc2,
+            to_address=acc3,
+            value=12345,
+            gas=50000,
+        )
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = None
+        self.assertTrue(state.add_tx(tx2))
+        b3 = state.create_block_to_mine()
+        self.assertEqual(len(b3.tx_list), 1)
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = b1.header.create_time + 100
+        b4 = state.create_block_to_mine()
+        self.assertEqual(len(b4.tx_list), 0)
 
         with self.assertRaisesRegexp(
-            ValueError, "tx_list should be empty before tx is enabled"
+            RuntimeError, "unwhitelisted senders not allowed before tx is enabled"
         ):
-            state.finalize_and_add_block(b1)
+            state.finalize_and_add_block(b3)
 
     def test_enable_evm_timestamp_with_contract_create(self):
         id1 = Identity.create_random_identity()

@@ -176,6 +176,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "REWARD_TAX_RATE": 0.5,
     "BLOCK_REWARD_DECAY_FACTOR": 0.5,
     "ENABLE_TX_TIMESTAMP": null,
+    "TX_WHITELIST_SENDERS": [],
     "ENABLE_EVM_TIMESTAMP": null
 }"""
         print(config.to_json())
