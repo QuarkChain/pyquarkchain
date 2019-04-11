@@ -62,11 +62,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionReceiptRequest,
     GetTransactionListByAddressRequest,
 )
-from quarkchain.cluster.simple_network import (
-    SimpleNetwork,
-    ROOT_BLOCK_BATCH_SIZE,
-    ROOT_BLOCK_HEADER_LIST_LIMIT,
-)
+from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
@@ -84,9 +80,11 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
-
-
-SYNC_TIMEOUT = 10
+from quarkchain.constants import (
+    SYNC_TIMEOUT,
+    ROOT_BLOCK_BATCH_SIZE,
+    ROOT_BLOCK_HEADER_LIST_LIMIT,
+)
 
 
 class SyncTask:

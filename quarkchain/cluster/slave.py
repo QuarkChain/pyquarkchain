@@ -65,6 +65,7 @@ from quarkchain.cluster.rpc import (
     SlaveInfo,
 )
 from quarkchain.cluster.shard import Shard, PeerShardConnection
+from quarkchain.constants import SYNC_TIMEOUT
 from quarkchain.core import Branch, TypedTransaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,
@@ -79,9 +80,6 @@ from quarkchain.core import (
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
 from quarkchain.utils import check, Logger
-
-
-TIMEOUT = 10
 
 
 class MasterConnection(ClusterConnection):
@@ -418,7 +416,7 @@ class MasterConnection(ClusterConnection):
                 blocks_to_download = block_hash_list[:BLOCK_BATCH_SIZE]
                 try:
                     block_chain = await asyncio.wait_for(
-                        __download_blocks(blocks_to_download), TIMEOUT
+                        __download_blocks(blocks_to_download), SYNC_TIMEOUT
                     )
                 except asyncio.TimeoutError as e:
                     Logger.info(
