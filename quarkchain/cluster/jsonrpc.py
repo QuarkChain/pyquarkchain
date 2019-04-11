@@ -393,10 +393,10 @@ class JSONRPCServer:
     def start_public_server(cls, env, master_server):
         server = cls(
             env,
-            master_server, 
+            master_server,
             env.cluster_config.JSON_RPC_PORT,
             env.cluster_config.JSON_RPC_HOST,
-            public_methods
+            public_methods,
         )
         server.start()
         return server
@@ -425,11 +425,14 @@ class JSONRPCServer:
             master_server,
             env.cluster_config.JSON_RPC_PORT,
             env.cluster_config.JSON_RPC_HOST,
-            methods)
+            methods,
+        )
         server.start()
         return server
 
-    def __init__(self, env, master_server: MasterServer, port, host, methods: AsyncMethods):
+    def __init__(
+        self, env, master_server: MasterServer, port, host, methods: AsyncMethods
+    ):
         self.loop = asyncio.get_event_loop()
         self.port = port
         self.host = host
@@ -555,6 +558,7 @@ class JSONRPCServer:
         if include_shards and block_height is not None:
             return None
 
+        primary = None
         address = Address.deserialize(address)
         if not include_shards:
             account_branch_data = await self.master.get_primary_account_data(
@@ -597,74 +601,6 @@ class JSONRPCServer:
                 primary = data
 
         return {"primary": primary, "shards": shards}
-
-    @public_methods.add
-    async def sendUnsigedTransaction(self, **data):
-        """ Returns the unsigned hash of the evm transaction """
-        if not isinstance(data, dict):
-            raise InvalidParams("Transaction must be an object")
-
-        def get_data_default(key, decoder, default=None):
-            if key in data:
-                return decoder(data[key])
-            return default
-
-        nonce = get_data_default("nonce", quantity_decoder, None)
-        to = get_data_default("to", recipient_decoder, b"")
-        startgas = get_data_default("gas", quantity_decoder, DEFAULT_STARTGAS)
-        gasprice = get_data_default("gasPrice", quantity_decoder, DEFAULT_GASPRICE)
-        value = get_data_default("value", quantity_decoder, 0)
-        data_ = get_data_default("data", data_decoder, b"")
-        gas_token_id = get_data_default(
-            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
-        )
-        transfer_token_id = get_data_default(
-            "transfer_token_id",
-            quantity_decoder,
-            self.env.quark_chain_config.genesis_token,
-        )
-
-        from_full_shard_key = get_data_default(
-            "fromFullShardId", full_shard_key_decoder, None
-        )
-        to_full_shard_key = get_data_default(
-            "toFullShardId", full_shard_key_decoder, None
-        )
-
-        if nonce is None:
-            raise InvalidParams("nonce is missing")
-        if from_full_shard_key is None:
-            raise InvalidParams("fromFullShardId is missing")
-
-        if to_full_shard_key is None:
-            to_full_shard_key = from_full_shard_key
-
-        evm_tx = EvmTransaction(
-            nonce,
-            gasprice,
-            startgas,
-            to,
-            value,
-            data_,
-            from_full_shard_key=from_full_shard_key,
-            to_full_shard_key=to_full_shard_key,
-            network_id=self.master.env.quark_chain_config.NETWORK_ID,
-            gas_token_id=gas_token_id,
-            transfer_token_id=transfer_token_id,
-        )
-
-        return {
-            "txHashUnsigned": data_encoder(evm_tx.hash_unsigned),
-            "nonce": quantity_encoder(evm_tx.nonce),
-            "to": data_encoder(evm_tx.to),
-            "fromFullShardId": full_shard_key_encoder(evm_tx.from_full_shard_key),
-            "toFullShardId": full_shard_key_encoder(evm_tx.to_full_shard_key),
-            "value": quantity_encoder(evm_tx.value),
-            "gasPrice": quantity_encoder(evm_tx.gasprice),
-            "gas": quantity_encoder(evm_tx.startgas),
-            "data": data_encoder(evm_tx.data),
-            "networkId": quantity_encoder(evm_tx.network_id),
-        }
 
     @public_methods.add
     async def sendTransaction(self, data):
