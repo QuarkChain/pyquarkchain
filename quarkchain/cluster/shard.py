@@ -192,10 +192,11 @@ class PeerShardConnection(VirtualConnection):
         if self.shard_state.header_tip.height >= m_header.height:
             return
 
-        Logger.info(
+        Logger.info_every_sec(
             "[{}] received new tip with height {}".format(
                 m_header.branch.to_str(), m_header.height
-            )
+            ),
+            5
         )
         self.shard.synchronizer.add_task(m_header, self)
 
@@ -685,7 +686,9 @@ class Shard:
                 xshard_list, coinbase_amount_map = self.state.add_block(
                     block, skip_if_too_old=False
                 )
-                coinbase_amount_list.append(coinbase_amount_map)
+                # coinbase_amount_map may be None if the block exists
+                # adding the block header one since the block is already validated.
+                coinbase_amount_list.append(block.header.coinbase_amount_map)
             except Exception as e:
                 Logger.error_exception()
                 return False, coinbase_amount_list
