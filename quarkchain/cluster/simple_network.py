@@ -20,13 +20,14 @@ from quarkchain.cluster.p2p_commands import (
     GetRootBlockListResponse,
 )
 from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID
+from quarkchain.constants import (
+    NEW_TRANSACTION_LIST_LIMIT,
+    ROOT_BLOCK_BATCH_SIZE,
+    ROOT_BLOCK_HEADER_LIST_LIMIT,
+)
 from quarkchain.core import random_bytes
 from quarkchain.protocol import ConnectionState
 from quarkchain.utils import Logger
-
-
-ROOT_BLOCK_BATCH_SIZE = 100
-ROOT_BLOCK_HEADER_LIST_LIMIT = 500
 
 
 class Peer(P2PConnection):
@@ -203,6 +204,8 @@ class Peer(P2PConnection):
         self.close_with_error("Unexpected op {}".format(op))
 
     async def handle_new_transaction_list(self, op, cmd, rpc_id):
+        if len(cmd.transaction_list) > NEW_TRANSACTION_LIST_LIMIT:
+            self.close_with_error("Too many transactions in one command")
         for tx in cmd.transaction_list:
             Logger.debug(
                 "Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex())

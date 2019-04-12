@@ -29,17 +29,14 @@ from quarkchain.core import (
 from quarkchain.constants import (
     ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST,
     ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION,
+    NEW_TRANSACTION_LIST_LIMIT,
+    MINOR_BLOCK_BATCH_SIZE,
+    MINOR_BLOCK_HEADER_LIST_LIMIT,
+    SYNC_TIMEOUT,
 )
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-
-
-SYNC_TIMEOUT = 10
-# Current minor block size is up to 6M gas / 4 (zero-byte gas) = 1.5M
-# Per-command size is now 128M so 128M / 1.5M = 85
-MINOR_BLOCK_BATCH_SIZE = 50
-MINOR_BLOCK_HEADER_LIST_LIMIT = 100
 
 
 class PeerShardConnection(VirtualConnection):
@@ -203,6 +200,8 @@ class PeerShardConnection(VirtualConnection):
         self.shard.synchronizer.add_task(m_header, self)
 
     async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
+        if len(cmd.transaction_list) > NEW_TRANSACTION_LIST_LIMIT:
+            self.close_with_error("Too many transactions in one command")
         self.shard.add_tx_list(cmd.transaction_list, self)
 
 
