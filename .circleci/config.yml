@@ -58,7 +58,7 @@ jobs:
       - run:
           name: Run unittest/py.test Tests
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then pypy3 -m pytest ; fi
+            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then pypy3 -m pytest --timeout=30; fi
 
       - run:
           name: Run EVM Tests
