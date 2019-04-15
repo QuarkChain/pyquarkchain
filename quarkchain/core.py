@@ -322,6 +322,7 @@ uint2048 = UintSerializer(256)
 hash256 = FixedSizeBytesSerializer(32)
 boolean = BooleanSerializer()
 biguint = BigUintSerializer()
+signature65 = FixedSizeBytesSerializer(65)
 
 
 def serialize_list(l: list, barray: bytearray, serializer=None) -> None:
