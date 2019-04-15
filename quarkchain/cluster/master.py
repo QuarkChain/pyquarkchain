@@ -129,13 +129,19 @@ class SyncTask:
                 )
                 return
 
+            download_start_time = time_ms()
             Logger.info(
-                "[R] downloading block header list from {} {}".format(
+                "[R] downloading block header list from height {} with hash {}".format(
                     height, block_hash.hex()
                 )
             )
             block_header_list = await asyncio.wait_for(
                 self.__download_block_headers(block_hash), SYNC_TIMEOUT
+            )
+            Logger.info(
+                "[R] downloaded block header list from height {} with hash {}, use {} ms".format(
+                    height, block_hash.hex(), time_ms() - download_start_time
+                )
             )
             self.__validate_block_headers(block_header_list)
             for header in block_header_list:
