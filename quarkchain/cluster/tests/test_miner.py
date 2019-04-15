@@ -306,6 +306,3 @@ class TestMiner(unittest.TestCase):
 
         # significantly lowering the diff should pass
         validate_seal(block.header, ConsensusType.POW_DOUBLESHA256, adjusted_diff=1)
-
-
-    
