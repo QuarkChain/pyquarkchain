@@ -28,12 +28,10 @@ from quarkchain.core import (
 )
 from quarkchain.constants import (
     ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST,
-    ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION,
     NEW_TRANSACTION_LIST_LIMIT,
     MINOR_BLOCK_BATCH_SIZE,
     MINOR_BLOCK_HEADER_LIST_LIMIT,
     SYNC_TIMEOUT,
-    ALLOWED_STALE_BLOCKS_HEIGHT_DIFF,
 )
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
