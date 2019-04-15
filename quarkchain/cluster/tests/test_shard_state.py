@@ -7,7 +7,6 @@ from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
     create_contract_creation_transaction,
-    contract_creation_tx,
 )
 from quarkchain.config import ConsensusType
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
@@ -43,7 +42,6 @@ class TestShardState(unittest.TestCase):
         assert config.REWARD_TAX_RATE == 0.5
         self.tax_rate = config.reward_tax_rate  # type: Fraction
         self.genesis_token = config.genesis_token  # type: int
-        self.genesis_token_str = config.GENESIS_TOKEN  # type: str
 
     def get_after_tax_reward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
@@ -2245,7 +2243,6 @@ class TestShardState(unittest.TestCase):
     def test_enable_evm_timestamp_with_contract_create(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -2305,70 +2302,3 @@ class TestShardState(unittest.TestCase):
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
-
-    def test_failed_transaction_gas(self):
-        """in-shard revert contract transaction validating the failed transaction gas used
-        """
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
-
-        env = get_test_env(
-            genesis_account=acc1,
-            genesis_minor_token_balances={self.genesis_token_str: 200 * 10 ** 18},
-        )
-        state = create_default_shard_state(env=env)
-        # Create failed contract with revert operation
-        contract_creation_with_revert_bytecode = (
-            "6080604052348015600f57600080fd5b50600080fdfe"
-        )
-        """
-        pragma solidity ^0.5.1;
-        contract RevertContract {
-            constructor() public {
-                revert();
-            }
-        }
-        """
-        # This transaction cost is calculated by remix, which is different than the opcodes.GTXCOST due to revert.
-        FAILED_TRANSACTION_COST = 54416
-        tx = contract_creation_tx(
-            shard_state=state,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_full_shard_key=acc1.full_shard_key,
-            bytecode=contract_creation_with_revert_bytecode,
-            gas_token_id=self.genesis_token,
-            transfer_token_id=self.genesis_token,
-        )
-        # Should succeed
-        self.assertTrue(state.add_tx(tx))
-        b1 = state.create_block_to_mine(address=acc2)
-        self.assertEqual(len(b1.tx_list), 1)
-
-        state.finalize_and_add_block(b1)
-        self.assertEqual(state.header_tip, b1.header)
-
-        # Check receipts and make sure the transaction is failed
-        self.assertEqual(len(state.evm_state.receipts), 1)
-        self.assertEqual(state.evm_state.receipts[0].state_root, b"")
-        self.assertEqual(state.evm_state.receipts[0].gas_used, FAILED_TRANSACTION_COST)
-
-        # Make sure the FAILED_TRANSACTION_COST is consumed by the sender
-        self.assertEqual(
-            state.get_token_balance(id1.recipient, self.genesis_token),
-            200 * 10 ** 18 - FAILED_TRANSACTION_COST,
-        )
-        # Make sure the accurate gas fee is obtained by the miner
-        self.assertEqual(
-            state.get_token_balance(acc2.recipient, self.genesis_token),
-            self.get_after_tax_reward(FAILED_TRANSACTION_COST + self.shard_coinbase),
-        )
-        self.assertEqual(
-            b1.header.coinbase_amount_map.balance_map,
-            {
-                env.quark_chain_config.genesis_token: self.get_after_tax_reward(
-                    FAILED_TRANSACTION_COST + self.shard_coinbase
-                )
-            },
-        )

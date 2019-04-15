@@ -283,9 +283,9 @@ index 9749dea..673374f 100644
              // local_fee_rate.denominator
          )
 -        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
--        add_dict(state.block_fee_tokens, {tx.gas_token_id: fee})
+-        add_dict(state.block_fee_tokens, {tx.gas_token_id: tx.gasprice * gas_used})
 +        state.delta_balance(state.block_coinbase, fee)
-+        state.block_fee += fee
++        state.block_fee += tx.gasprice * gas_used
          output = b""
          success = 0
      # Transaction success

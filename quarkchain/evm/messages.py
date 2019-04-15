@@ -289,7 +289,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             // local_fee_rate.denominator
         )
         state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        add_dict(state.block_fee_tokens, {tx.gas_token_id: fee})
+        add_dict(state.block_fee_tokens, {tx.gas_token_id: tx.gasprice * gas_used})
         output = b""
         success = 0
     # Transaction success
