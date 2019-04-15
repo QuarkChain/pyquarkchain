@@ -3,7 +3,6 @@ import asyncio
 import os
 
 import psutil
-import random
 import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple
@@ -26,7 +25,6 @@ from quarkchain.cluster.protocol import (
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse,
-    GetEcoInfoListRequest,
     GetNextBlockToMineRequest,
     GetUnconfirmedHeadersRequest,
     GetAccountDataRequest,
@@ -78,7 +76,7 @@ from quarkchain.core import (
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-from quarkchain.utils import Logger, check
+from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
