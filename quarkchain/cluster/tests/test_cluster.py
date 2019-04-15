@@ -69,7 +69,6 @@ class TestCluster(unittest.TestCase):
             # shard 1 created at root height 2
             self.assertIsNotNone(clusters[0].get_shard(id2))
 
-            call_async(master.get_next_block_to_mine(acc1, branch_value=None))
             self.assertEqual(len(root.minor_block_header_list), 1)
             call_async(master.add_root_block(root))
 
