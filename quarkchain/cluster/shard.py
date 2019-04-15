@@ -667,7 +667,6 @@ class Shard:
 
         Returns true if blocks are successfully added. False on any error.
         Additionally, returns list of coinbase_amount_map for each block
-            (list can contain None indicating that the block has been added and master should receive token map soon)
         This function only adds blocks to local and propagate xshard list to other shards.
         It does NOT notify master because the master should already have the minor header list,
         and will add them once this function returns successfully.
