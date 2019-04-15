@@ -78,7 +78,7 @@ from quarkchain.core import (
 from quarkchain.db import PersistentDb
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.utils import Logger, check
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
@@ -180,7 +180,7 @@ class SyncTask:
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
-        return self.root_state.contain_root_block_by_hash(block_hash)
+        return self.root_state.db.contain_root_block_by_hash(block_hash)
 
     def __validate_block_headers(self, block_header_list):
         """Raise on validation failure"""
@@ -249,7 +249,7 @@ class SyncTask:
         minor_block_download_map = dict()
         for m_block_header in minor_block_header_list:
             m_block_hash = m_block_header.get_hash()
-            if not self.root_state.is_minor_block_validated(m_block_hash):
+            if not self.root_state.db.contain_minor_block_by_hash(m_block_hash):
                 minor_block_download_map.setdefault(m_block_header.branch, []).append(
                     m_block_hash
                 )
@@ -282,7 +282,7 @@ class SyncTask:
                 self.root_state.add_validated_minor_block_hash(k, v.balance_map)
 
         for m_header in minor_block_header_list:
-            if not self.root_state.is_minor_block_validated(m_header.get_hash()):
+            if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
                     "minor block is still unavailable in master after root block sync"
                 )
@@ -854,7 +854,9 @@ class MasterServer:
                     height = header.height
 
                     # Filter out the ones unknown to the master
-                    if not self.root_state.is_minor_block_validated(header.get_hash()):
+                    if not self.root_state.db.contain_minor_block_by_hash(
+                        header.get_hash()
+                    ):
                         break
                     full_shard_id_to_header_list.setdefault(
                         headers_info.branch.get_full_shard_id(), []
