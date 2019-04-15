@@ -452,8 +452,7 @@ class MasterConnection(ClusterConnection):
                     )
                 check(len(blocks_to_download) == len(coinbase_amount_list))
                 for hash, coinbase in zip(blocks_to_download, coinbase_amount_list):
-                    if coinbase:
-                        block_coinbase_map[hash] = coinbase
+                    block_coinbase_map[hash] = coinbase
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
 
             branch = block_chain[0].header.branch

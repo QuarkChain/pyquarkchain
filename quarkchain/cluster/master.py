@@ -3,7 +3,6 @@ import asyncio
 import os
 
 import psutil
-import random
 import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple
@@ -26,7 +25,6 @@ from quarkchain.cluster.protocol import (
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse,
-    GetEcoInfoListRequest,
     GetNextBlockToMineRequest,
     GetUnconfirmedHeadersRequest,
     GetAccountDataRequest,
@@ -129,13 +127,19 @@ class SyncTask:
                 )
                 return
 
+            download_start_time = time_ms()
             Logger.info(
-                "[R] downloading block header list from {} {}".format(
+                "[R] downloading block header list from height {} with hash {}".format(
                     height, block_hash.hex()
                 )
             )
             block_header_list = await asyncio.wait_for(
                 self.__download_block_headers(block_hash), SYNC_TIMEOUT
+            )
+            Logger.info(
+                "[R] downloaded block header list from height {} with hash {}, use {} ms".format(
+                    height, block_hash.hex(), time_ms() - download_start_time
+                )
             )
             self.__validate_block_headers(block_header_list)
             for header in block_header_list:
@@ -174,7 +178,7 @@ class SyncTask:
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
-        return self.root_state.contain_root_block_by_hash(block_hash)
+        return self.root_state.db.contain_root_block_by_hash(block_hash)
 
     def __validate_block_headers(self, block_header_list):
         """Raise on validation failure"""
@@ -243,7 +247,7 @@ class SyncTask:
         minor_block_download_map = dict()
         for m_block_header in minor_block_header_list:
             m_block_hash = m_block_header.get_hash()
-            if not self.root_state.is_minor_block_validated(m_block_hash):
+            if not self.root_state.db.contain_minor_block_by_hash(m_block_hash):
                 minor_block_download_map.setdefault(m_block_header.branch, []).append(
                     m_block_hash
                 )
@@ -276,7 +280,7 @@ class SyncTask:
                 self.root_state.add_validated_minor_block_hash(k, v.balance_map)
 
         for m_header in minor_block_header_list:
-            if not self.root_state.is_minor_block_validated(m_header.get_hash()):
+            if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
                     "minor block is still unavailable in master after root block sync"
                 )
@@ -848,7 +852,9 @@ class MasterServer:
                     height = header.height
 
                     # Filter out the ones unknown to the master
-                    if not self.root_state.is_minor_block_validated(header.get_hash()):
+                    if not self.root_state.db.contain_minor_block_by_hash(
+                        header.get_hash()
+                    ):
                         break
                     full_shard_id_to_header_list.setdefault(
                         headers_info.branch.get_full_shard_id(), []

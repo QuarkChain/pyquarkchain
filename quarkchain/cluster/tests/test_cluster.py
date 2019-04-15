@@ -172,7 +172,7 @@ class TestCluster(unittest.TestCase):
                 .contain_remote_minor_block_hash(b1.header.get_hash())
             )
             self.assertTrue(
-                clusters[0].master.root_state.is_minor_block_validated(
+                clusters[0].master.root_state.db.contain_minor_block_by_hash(
                     b1.header.get_hash()
                 )
             )
@@ -184,7 +184,7 @@ class TestCluster(unittest.TestCase):
                 .contain_block_by_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
-                lambda: clusters[1].master.root_state.is_minor_block_validated(
+                lambda: clusters[1].master.root_state.db.contain_minor_block_by_hash(
                     b1.header.get_hash()
                 )
             )
@@ -402,7 +402,9 @@ class TestCluster(unittest.TestCase):
                     .state.contain_block_by_hash(block.header.get_hash())
                 )
                 assert_true_with_timeout(
-                    lambda: clusters[1].master.root_state.is_minor_block_validated(
+                    lambda: clusters[
+                        1
+                    ].master.root_state.db.contain_minor_block_by_hash(
                         block.header.get_hash()
                     )
                 )
@@ -634,7 +636,6 @@ class TestCluster(unittest.TestCase):
             work = call_async(slaves[0].get_work(branch))
             self.assertEqual(work.difficulty, 0)
 
-
     def test_handle_get_minor_block_list_request_with_total_diff(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -661,9 +662,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(cluster0_root_state.tip.get_hash(), rb1.header.get_hash())
 
             # Make sure the root block tip of cluster 1 is changed
-            assert_true_with_timeout(
-                lambda: cluster1_root_state.tip == rb1.header, 2
-            )
+            assert_true_with_timeout(lambda: cluster1_root_state.tip == rb1.header, 2)
 
             # Cluster 1 generates a minor block and broadcasts to cluster 0
             shard_state = clusters[1].get_shard_state(0b10)
@@ -692,11 +691,11 @@ class TestCluster(unittest.TestCase):
                 .contain_block_by_hash(b1.header.get_hash())
             )
             assert_true_with_timeout(
-                lambda: clusters[0].master.root_state.is_minor_block_validated(
+                lambda: clusters[0].master.root_state.db.contain_minor_block_by_hash(
                     b1.header.get_hash()
                 )
             )
-            
+
             # Cluster 1 generates a new root block with higher total difficulty
             rb2 = rb0.create_block_to_append(difficulty=int(3e6)).finalize(coinbase)
             call_async(clusters[1].master.add_root_block(rb2))
@@ -722,7 +721,7 @@ class TestCluster(unittest.TestCase):
                 .contain_block_by_hash(b2.header.get_hash())
             )
             assert_true_with_timeout(
-                lambda: clusters[0].master.root_state.is_minor_block_validated(
+                lambda: clusters[0].master.root_state.db.contain_minor_block_by_hash(
                     b2.header.get_hash()
                 )
             )

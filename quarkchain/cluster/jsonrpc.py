@@ -685,7 +685,9 @@ class JSONRPCServer:
     @decode_arg("block_id", data_decoder)
     async def getRootBlockById(self, block_id):
         try:
-            block = self.master.root_state.db.get_root_block_by_hash(block_id, False)
+            block = self.master.root_state.db.get_root_block_by_hash(
+                block_id, consistency_check=False
+            )
             return root_block_encoder(block)
         except Exception:
             return None
@@ -694,7 +696,7 @@ class JSONRPCServer:
     async def getRootBlockByHeight(self, height=None):
         if height is not None:
             height = quantity_decoder(height)
-        block = self.master.root_state.get_root_block_by_height(height)
+        block = self.master.root_state.db.get_root_block_by_height(height)
         if not block:
             return None
         return root_block_encoder(block)

@@ -122,9 +122,9 @@ class RootDb:
         return RootBlock.deserialize(raw_block)
 
     def get_root_block_header_by_hash(self, h, consistency_check=True):
-        header = self.r_header_pool.get(h, None)
+        header = self.r_header_pool.get(h)
         if not header and not consistency_check:
-            block = self.get_root_block_by_hash(h, False)
+            block = self.get_root_block_by_hash(h, consistency_check=False)
             if block:
                 header = block.header
         return header
@@ -191,7 +191,7 @@ class RootDb:
         if key not in self.db:
             return None
         block_hash = self.db.get(key)
-        return self.get_root_block_by_hash(block_hash, False)
+        return self.get_root_block_by_hash(block_hash, consistency_check=False)
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
@@ -392,7 +392,9 @@ class RootState:
 
         header = longer_block_header
         for i in range(longer_block_header.height - shorter_block_header.height):
-            header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
+            header = self.db.get_root_block_header_by_hash(
+                header.hash_prev_block, consistency_check=False
+            )
         return header == shorter_block_header
 
     def validate_block(self, block, block_hash=None):
@@ -455,7 +457,9 @@ class RootState:
                 )
             if not self.__is_same_chain(
                 self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
+                self.db.get_root_block_header_by_hash(
+                    m_header.hash_prev_root_block, consistency_check=False
+                ),
             ):
                 raise ValueError(
                     "minor block's prev root block must be in the same chain"
@@ -576,23 +580,3 @@ class RootState:
             self.__rewrite_block_index_to(block)
             return True
         return False
-
-    # -------------------------------- Root block db related operations ------------------------------
-    def get_root_block_by_hash(self, h):
-        return self.db.get_root_block_by_hash(h)
-
-    def contain_root_block_by_hash(self, h):
-        return self.db.contain_root_block_by_hash(h)
-
-    def get_root_block_header_by_hash(self, h):
-        return self.db.get_root_block_header_by_hash(h)
-
-    def get_root_block_by_height(self, height: Optional[int]):
-        tip = self.tip  # type: RootBlockHeader
-        return self.db.get_root_block_by_height(
-            tip.height if height is None else height
-        )
-
-    # --------------------------------- Minor block db related operations ----------------------------
-    def is_minor_block_validated(self, h):
-        return self.db.contain_minor_block_by_hash(h)
