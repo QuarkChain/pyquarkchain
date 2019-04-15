@@ -224,7 +224,9 @@ class ShardConfig(ChainConfig):
 class RootConfig(BaseConfig):
     # To ignore super old blocks from peers
     # This means the network will fork permanently after a long partition
-    MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
+    # Use Ethereum's number, which is
+    # - 30000 * 3 blocks = 90000 * 15 / 3600 = 375 hours = 375 * 3600 / 60 = 22500
+    MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 22500
 
     CONSENSUS_TYPE = ConsensusType.NONE  # type: ConsensusType
     # Only set when CONSENSUS_TYPE is not NONE

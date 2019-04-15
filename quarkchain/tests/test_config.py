@@ -44,7 +44,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "SKIP_MINOR_DIFFICULTY_CHECK": false,
     "GENESIS_TOKEN": "QKC",
     "ROOT": {
-        "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 60,
+        "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 22500,
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
             "TARGET_BLOCK_TIME": 60,
