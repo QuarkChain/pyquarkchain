@@ -573,6 +573,7 @@ class Shard:
             > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST
         ):
             return
+        # Ignore old blocks
         if (
             self.state.header_tip
             and self.state.header_tip.height - block.header.height
