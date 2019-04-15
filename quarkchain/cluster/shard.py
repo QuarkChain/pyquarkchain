@@ -28,7 +28,6 @@ from quarkchain.core import (
 )
 from quarkchain.constants import (
     ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST,
-    ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION,
     NEW_TRANSACTION_LIST_LIMIT,
     MINOR_BLOCK_BATCH_SIZE,
     MINOR_BLOCK_HEADER_LIST_LIMIT,
@@ -561,15 +560,31 @@ class Shard:
         if self.state.db.contain_minor_block_by_hash(block.header.get_hash()):
             return
 
-        if not self.state.db.contain_minor_block_by_hash(
-            block.header.hash_prev_minor_block
+        prev_hash, prev_header = block.header.hash_prev_minor_block, None
+        if prev_hash in self.state.new_block_pool:
+            prev_header = self.state.new_block_pool[prev_hash].header
+        else:
+            prev_header = self.state.db.get_minor_block_header_by_hash(prev_hash)
+        if prev_header is None:  # Missing prev
+            return
+
+        # Sanity check on timestamp and block height
+        if (
+            block.header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST
         ):
-            if block.header.hash_prev_minor_block not in self.state.new_block_pool:
-                return
+            return
+        # Ignore old blocks
+        if (
+            self.state.header_tip
+            and self.state.header_tip.height - block.header.height
+            > self.state.shard_config.max_stale_minor_block_height_diff
+        ):
+            return
 
         # Doing full POSW check requires prev block has been added to the state, which could
         # slow down block propagation.
-        # TODO: this is a copy of the code in SyncTask.__validate_block_headers. this it a helper
+        # TODO: this is a copy of the code in SyncTask.__validate_block_headers
         try:
             header = block.header
             # Note that PoSW may lower diff, so checks here are necessary but not sufficient
@@ -579,22 +594,20 @@ class Shard:
             ]
             consensus_type = shard_config.CONSENSUS_TYPE
             diff = header.difficulty
+
+            # Check difficulty
+            self.state.validate_diff_match_prev(block.header, prev_header)
+
             if shard_config.POSW_CONFIG.ENABLED:
                 diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
             validate_seal(header, consensus_type, adjusted_diff=diff)
         except Exception as e:
             Logger.warning(
-                "[{}] got block with bad seal in handle_new_block: {}".format(
+                "[{}] got bad block in handle_new_block: {}".format(
                     header.branch.to_str(), str(e)
                 )
             )
             raise e
-
-        if (
-            block.header.create_time
-            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST
-        ):
-            return
 
         self.state.new_block_pool[block.header.get_hash()] = block
 
@@ -620,7 +633,7 @@ class Shard:
             return False
 
         # only remove from pool if the block successfully added to state,
-        #   this may cache failed blocks but prevents them being broadcasted more than needed
+        # this may cache failed blocks but prevents them being broadcasted more than needed
         # TODO add ttl to blocks in new_block_pool
         self.state.new_block_pool.pop(block.header.get_hash(), None)
         # block has been added to local state, broadcast tip so that peers can sync if needed

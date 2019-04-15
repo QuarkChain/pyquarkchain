@@ -8,6 +8,23 @@ from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
 
 
+def _tip_gen(shard_state):
+    coinbase_amount = (
+        shard_state.env.quark_chain_config.shards[
+            shard_state.full_shard_id
+        ].COINBASE_AMOUNT
+        // 2
+    )
+    b = shard_state.get_tip().create_block_to_append()
+    evm_state = shard_state.run_block(b)
+    coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
+    coinbase_amount_map.add(
+        {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
+    )
+    b.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+    return b
+
+
 class TestCluster(unittest.TestCase):
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
@@ -52,7 +69,6 @@ class TestCluster(unittest.TestCase):
             # shard 1 created at root height 2
             self.assertIsNotNone(clusters[0].get_shard(id2))
 
-            block = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
             self.assertEqual(len(root.minor_block_header_list), 1)
             call_async(master.add_root_block(root))
 
@@ -120,7 +136,6 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(call_async(master.add_transaction(tx1)))
             self.assertEqual(len(clusters[0].get_shard_state(0b10).tx_queue), 1)
 
-            branch1 = Branch(2 | 1)
             tx2 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0b11),
                 key=id1.get_key(),
@@ -147,19 +162,7 @@ class TestCluster(unittest.TestCase):
 
         with ClusterContext(2, acc1) as clusters:
             shard_state = clusters[0].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state.env.quark_chain_config.shards[
-                    shard_state.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
-            b1 = shard_state.get_tip().create_block_to_append()
-            evm_state = shard_state.run_block(b1)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            b1.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            b1 = _tip_gen(shard_state)
             add_result = call_async(
                 clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
             )
@@ -200,22 +203,8 @@ class TestCluster(unittest.TestCase):
             # add blocks in cluster 0
             block_header_list = [clusters[0].get_shard_state(2 | 0).header_tip]
             shard_state0 = clusters[0].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state0.env.quark_chain_config.shards[
-                    shard_state0.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
             for i in range(7):
-                b1 = shard_state0.get_tip().create_block_to_append()
-                evm_state = shard_state0.run_block(b1)
-                coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-                coinbase_amount_map.add(
-                    {shard_state0.env.quark_chain_config.genesis_token: coinbase_amount}
-                )
-                b1.finalize(
-                    evm_state=evm_state, coinbase_amount_map=coinbase_amount_map
-                )
+                b1 = _tip_gen(shard_state0)
                 add_result = call_async(
                     clusters[0].master.add_raw_minor_block(
                         b1.header.branch, b1.serialize()
@@ -226,19 +215,7 @@ class TestCluster(unittest.TestCase):
 
             block_header_list.append(clusters[0].get_shard_state(2 | 1).header_tip)
             shard_state0 = clusters[0].get_shard_state(0b11)
-            coinbase_amount = (
-                shard_state0.env.quark_chain_config.shards[
-                    shard_state0.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
-            b2 = shard_state0.get_tip().create_block_to_append()
-            evm_state = shard_state0.run_block(b2)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state0.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            b2.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            b2 = _tip_gen(shard_state0)
             add_result = call_async(
                 clusters[0].master.add_raw_minor_block(b2.header.branch, b2.serialize())
             )
@@ -247,19 +224,7 @@ class TestCluster(unittest.TestCase):
 
             # add 1 block in cluster 1
             shard_state1 = clusters[1].get_shard_state(0b11)
-            coinbase_amount = (
-                shard_state1.env.quark_chain_config.shards[
-                    shard_state1.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
-            b3 = shard_state1.get_tip().create_block_to_append()
-            evm_state = shard_state1.run_block(b3)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state1.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            b3.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            b3 = _tip_gen(shard_state1)
             add_result = call_async(
                 clusters[1].master.add_raw_minor_block(b3.header.branch, b3.serialize())
             )
@@ -310,22 +275,8 @@ class TestCluster(unittest.TestCase):
             block_list = []
             # cluster 0 has 13 blocks added
             shard_state0 = clusters[0].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state0.env.quark_chain_config.shards[
-                    shard_state0.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
             for i in range(13):
-                block = shard_state0.get_tip().create_block_to_append()
-                evm_state = shard_state0.run_block(block)
-                coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-                coinbase_amount_map.add(
-                    {shard_state0.env.quark_chain_config.genesis_token: coinbase_amount}
-                )
-                block.finalize(
-                    evm_state=evm_state, coinbase_amount_map=coinbase_amount_map
-                )
+                block = _tip_gen(shard_state0)
                 add_result = call_async(
                     clusters[0].master.add_raw_minor_block(
                         block.header.branch, block.serialize()
@@ -337,22 +288,8 @@ class TestCluster(unittest.TestCase):
 
             # cluster 1 has 12 blocks added
             shard_state0 = clusters[1].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state0.env.quark_chain_config.shards[
-                    shard_state0.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
             for i in range(12):
-                block = shard_state0.get_tip().create_block_to_append()
-                evm_state = shard_state0.run_block(block)
-                coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-                coinbase_amount_map.add(
-                    {shard_state0.env.quark_chain_config.genesis_token: coinbase_amount}
-                )
-                block.finalize(
-                    evm_state=evm_state, coinbase_amount_map=coinbase_amount_map
-                )
+                block = _tip_gen(shard_state0)
                 add_result = call_async(
                     clusters[1].master.add_raw_minor_block(
                         block.header.branch, block.serialize()
@@ -371,19 +308,7 @@ class TestCluster(unittest.TestCase):
 
             # a new block from cluster 0 will trigger sync in cluster 1
             shard_state0 = clusters[0].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state0.env.quark_chain_config.shards[
-                    shard_state0.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
-            block = shard_state0.get_tip().create_block_to_append()
-            evm_state = shard_state0.run_block(block)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state0.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            block = _tip_gen(shard_state0)
             add_result = call_async(
                 clusters[0].master.add_raw_minor_block(
                     block.header.branch, block.serialize()
@@ -666,19 +591,7 @@ class TestCluster(unittest.TestCase):
 
             # Cluster 1 generates a minor block and broadcasts to cluster 0
             shard_state = clusters[1].get_shard_state(0b10)
-            coinbase_amount = (
-                shard_state.env.quark_chain_config.shards[
-                    shard_state.full_shard_id
-                ].COINBASE_AMOUNT
-                // 2
-            )
-            b1 = shard_state.get_tip().create_block_to_append()
-            evm_state = shard_state.run_block(b1)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            b1.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            b1 = _tip_gen(shard_state)
             add_result = call_async(
                 clusters[1].master.add_raw_minor_block(b1.header.branch, b1.serialize())
             )
@@ -702,13 +615,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(cluster1_root_state.tip.get_hash(), rb2.header.get_hash())
 
             # Generate a minor block b2
-            b2 = shard_state.get_tip().create_block_to_append()
-            evm_state = shard_state.run_block(b2)
-            coinbase_amount_map = TokenBalanceMap(evm_state.block_fee_tokens)
-            coinbase_amount_map.add(
-                {shard_state.env.quark_chain_config.genesis_token: coinbase_amount}
-            )
-            b2.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+            b2 = _tip_gen(shard_state)
             add_result = call_async(
                 clusters[1].master.add_raw_minor_block(b2.header.branch, b2.serialize())
             )
@@ -725,3 +632,26 @@ class TestCluster(unittest.TestCase):
                     b2.header.get_hash()
                 )
             )
+
+    def test_new_block_pool(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(1, acc1) as clusters:
+            shard_state = clusters[0].get_shard_state(0b10)
+            b1 = _tip_gen(shard_state)
+            add_result = call_async(
+                clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
+            )
+            self.assertTrue(add_result)
+
+            # Update config to force checking diff
+            clusters[
+                0
+            ].master.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
+            b2 = b1.create_block_to_append(difficulty=12345)
+            shard = clusters[0].slave_list[0].shards[b2.header.branch]
+            with self.assertRaises(ValueError):
+                call_async(shard.handle_new_block(b2))
+            # Also the block should not exist in new block pool
+            self.assertTrue(b2.header.get_hash() not in shard.state.new_block_pool)
