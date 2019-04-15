@@ -50,6 +50,7 @@ from quarkchain.cluster.rpc import (
     GetWorkResponse,
     SubmitWorkRequest,
     SubmitWorkResponse,
+    AddMinorBlockHeaderListResponse,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -276,13 +277,14 @@ class SyncTask:
                 raise RuntimeError("Unable to download minor blocks from root block")
             if result.shard_stats:
                 self.master_server.update_shard_stats(result.shard_stats)
-            for k, v in result.block_coinbase_map.items():
-                self.root_state.add_validated_minor_block_hash(k, v.balance_map)
 
         for m_header in minor_block_header_list:
             if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
-                    "minor block is still unavailable in master after root block sync"
+                    "minor block {} from {} is still unavailable in master after root block sync".format(
+                        m_header.get_hash().hex(),
+                        m_header.branch.to_str(),
+                    )
                 )
 
 
@@ -590,12 +592,27 @@ class SlaveConnection(ClusterConnection):
             artificial_tx_config=self.master_server.get_artificial_tx_config(),
         )
 
+    async def handle_add_minor_block_header_list_request(self, req):
+        check(len(req.minor_block_header_list) == len(req.coinbase_amount_map_list))
+        for minor_block_header, coinbase_amount_map in zip(req.minor_block_header_list, req.coinbase_amount_map_list):
+            self.master_server.root_state.add_validated_minor_block_hash(
+                minor_block_header.get_hash(), coinbase_amount_map.balance_map
+            )
+            Logger.info("adding {} mblock to db".format(minor_block_header.get_hash().hex()))
+        return AddMinorBlockHeaderListResponse(
+            error_code=0,
+        )
+
 
 OP_RPC_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: (
         ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE,
         SlaveConnection.handle_add_minor_block_header_request,
-    )
+    ),
+    ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST: (
+        ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE,
+        SlaveConnection.handle_add_minor_block_header_list_request,
+    ),
 }
 
 
