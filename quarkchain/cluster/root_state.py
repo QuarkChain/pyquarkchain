@@ -195,7 +195,15 @@ class RootDb:
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
-        return h in self.m_hash_dict.keys()
+        if h in self.m_hash_dict:
+            return True
+
+        tokens = self.db.get(b"mheader_" + h)
+        if tokens is None:
+            return False
+
+        self.m_hash_dict[h] = TokenBalanceMap.deserialize(tokens).balance_map
+        return True
 
     def put_minor_block_coinbase(self, m_hash: bytes, coinbase_tokens: dict):
         tokens = TokenBalanceMap(coinbase_tokens)
@@ -203,6 +211,9 @@ class RootDb:
         self.m_hash_dict[m_hash] = coinbase_tokens
 
     def get_minor_block_coinbase_tokens(self, h: bytes):
+        if not self.contain_minor_block_by_hash(h):
+            raise KeyError()
+
         return self.m_hash_dict[h]
 
     # ------------------------- Common operations -----------------------------------------
