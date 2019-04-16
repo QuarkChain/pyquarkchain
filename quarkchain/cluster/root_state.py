@@ -391,6 +391,9 @@ class RootState:
             ):
                 adjusted_diff = Guardian.adjust_difficulty(diff, block_header.height)
 
+        if block_header.difficulty + prev_block_header.total_difficulty != block_header.total_difficulty:
+            raise ValueError("incorrect total difficulty")
+
         # Check PoW if applicable
         consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
         validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
