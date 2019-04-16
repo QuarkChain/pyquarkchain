@@ -120,7 +120,6 @@ class TestRootState(unittest.TestCase):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
-        root_block.header.version = 0
         root_block.header.total_difficulty += 1
         with self.assertRaisesRegexp(ValueError, "incorrect total difficulty"):
             r_state.add_block(root_block)
