@@ -166,6 +166,9 @@ class RootDb:
             check(len(data) % 24 == 0)
             self.db.put(b"count_%d_%d" % (full_shard_id, block.header.height), data)
 
+    def remove_root_block_index(self, height):
+        self.db.remove(b"ri_%d" % height)
+
     def get_block_count(self, root_height):
         """Returns a dict(full_shard_id, dict(miner_recipient, block_count))"""
         shard_recipient_cnt = dict()
@@ -549,8 +552,13 @@ class RootState:
 
         return block_hash, prev_header_map.values()
 
-    def __rewrite_block_index_to(self, block):
+    def __rewrite_block_index_to(self, old_block_header, new_block):
         """ Find the common ancestor in the current chain and rewrite index till block """
+        # If old block height is greater than new block's, remove the indices
+        for i in range(new_block.header.height + 1, old_block_header.height + 1):
+            self.db.remove_root_block_index(i)
+
+        block = new_block
         while block.header.height >= 0:
             orig_block = self.db.get_root_block_by_height(block.header.height)
             if orig_block and orig_block.header == block.header:
@@ -599,8 +607,10 @@ class RootState:
             )
 
         if self.tip.total_difficulty < block.header.total_difficulty:
+            old_tip = self.tip
             self.tip = block.header
+            # TODO: Atomicity during shutdown
             self.db.update_tip_hash(block_hash)
-            self.__rewrite_block_index_to(block)
+            self.__rewrite_block_index_to(old_tip, block)
             return True
         return False
