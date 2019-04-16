@@ -263,6 +263,46 @@ class Peer(P2PConnection):
             block_hash = header.hash_prev_block
         return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
 
+    async def handle_get_root_block_header_list_with_skip_request(self, request):
+        if request.limit <= 0 or request.limit > 2 * ROOT_BLOCK_HEADER_LIST_LIMIT:
+            self.close_with_error("Bad limit")
+        if request.direction != Direction.GENESIS and request.direction != Direction.TIP:
+            self.close_with_error("Bad direction")
+        if request.type != 0 and request.type != 1:
+            self.close_with_error("Bad type value")
+
+        if request.type == 1:
+            block_height = request.get_height()
+        else:
+            block_hash = request.get_hash()
+            block_header = self.root_state.db.get_root_block_header_by_hash(
+                block_hash, consistency_check=False
+            )
+            if block_header is None:
+                return GetRootBlockHeaderListResponse(self.root_state.tip, [])
+
+            # Check if it is canonical chain
+            block_height = block_header.height
+            if self.root_state.db.get_root_block_header_by_height(block_height) != block_header:
+                return GetRootBlockHeaderListResponse(self.root_state.tip, [])
+
+        header_list = []
+        while (
+            len(header_list) < request.limit
+            and block_height >= 0
+            and block_height <= self.root_state.tip.height
+        ):
+            block_header = self.root_state.db.get_root_block_header_by_height(block_height)
+            if block_header is None:
+                break
+            header_list.append(block_header)
+            if request.direction == Direction.GENESIS:
+                block_height -= (request.skip + 1)
+            else:
+                block_height += (request.skip + 1)
+
+        return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
+
     async def handle_get_root_block_list_request(self, request):
         if len(request.root_block_hash_list) > 2 * ROOT_BLOCK_BATCH_SIZE:
             self.close_with_error("Bad number of root block requested")
@@ -313,6 +353,10 @@ OP_RPC_MAP = {
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST: (
         CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
         Peer.handle_get_root_block_list_request,
+    ),
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: (
+        CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE,
+        Peer.handle_get_root_block_header_list_with_skip_request,
     ),
 }
 

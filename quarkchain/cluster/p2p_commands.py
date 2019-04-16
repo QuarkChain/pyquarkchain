@@ -11,6 +11,7 @@ from quarkchain.core import (
 )
 from quarkchain.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
 from quarkchain.core import Serializable, PrependedSizeListSerializer
+from quarkchain.utils import check
 
 
 class HelloCommand(Serializable):
@@ -120,6 +121,51 @@ class GetRootBlockHeaderListResponse(Serializable):
         self.block_header_list = block_header_list
 
 
+class GetRootBlockHeaderListWithSkipRequest(Serializable):
+    FIELDS = [
+        ("type", uint8),       # 0 block hash, 1 block height
+        ("data", hash256),
+        ("limit", uint32),
+        ("skip", uint32),
+        ("direction", uint8),  # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, type, data, limit, skip, direction):
+        self.type = type
+        self.data = data
+        self.limit = limit
+        self.skip = skip
+        self.direction = direction
+
+    def get_height(self):
+        check(self.type == 1)
+        return int.from_bytes(self.data, byteorder="big")
+
+    def get_hash(self):
+        check(self.type == 0)
+        return self.data
+
+    @staticmethod
+    def create_for_height(height, limit, skip, direction):
+        return GetRootBlockHeaderListWithSkipRequest(
+            1,
+            height.to_bytes(32, byteorder="big"),
+            limit,
+            skip,
+            direction
+        )
+
+    @staticmethod
+    def create_for_hash(hash, limit, skip, direction):
+        return GetRootBlockHeaderListWithSkipRequest(
+            0,
+            hash,
+            limit,
+            skip,
+            direction
+        )
+
+
 class GetRootBlockListRequest(Serializable):
     """ RPC to get a root block list.  The RPC should be only fired by root chain
     """
@@ -225,6 +271,8 @@ class CommandOp:
     NEW_BLOCK_MINOR = 13
     PING = 14
     PONG = 15
+    GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 16
+    GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 17
 
 
 OP_SERIALIZER_MAP = {
@@ -244,4 +292,6 @@ OP_SERIALIZER_MAP = {
     CommandOp.NEW_BLOCK_MINOR: NewBlockMinorCommand,
     CommandOp.PING: PingPongCommand,
     CommandOp.PONG: PingPongCommand,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetRootBlockHeaderListWithSkipRequest,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetRootBlockHeaderListResponse,
 }
