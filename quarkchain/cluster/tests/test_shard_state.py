@@ -89,6 +89,25 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state.header_tip, new_genesis_block.header)
         self.assertEqual(new_genesis_block, state.db.get_minor_block_by_height(0))
 
+    def test_blocks_with_incorrect_version(self):
+        env = get_test_env()
+        state = create_default_shard_state(env=env)
+        root_block = state.root_tip.create_block_to_append()
+        root_block.header.version = 1
+        with self.assertRaisesRegexp(ValueError, "incorrect root block version"):
+            state.add_root_block(root_block.finalize())
+
+        root_block.header.version = 0
+        state.add_root_block(root_block.finalize())
+
+        shard_block = state.create_block_to_mine()
+        shard_block.header.version = 1
+        with self.assertRaisesRegexp(ValueError, "incorrect minor block version"):
+            state.finalize_and_add_block(shard_block)
+
+        shard_block.header.version = 0
+        state.finalize_and_add_block(shard_block)
+
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]

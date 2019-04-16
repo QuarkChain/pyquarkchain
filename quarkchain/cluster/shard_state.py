@@ -575,6 +575,9 @@ class ShardState:
     ):
         """ Validate a block before running evm transactions
         """
+        if block.header.version != 0:
+            raise ValueError("incorrect minor block version")
+
         height = block.header.height
         if height < 1:
             raise ValueError("unexpected height")
@@ -1274,6 +1277,9 @@ class ShardState:
             root_block.header.height
             > self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         )
+        if root_block.header.version != 0:
+            raise ValueError("incorrect root block version")
+
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")
 

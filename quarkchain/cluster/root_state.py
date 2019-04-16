@@ -399,6 +399,9 @@ class RootState:
 
     def validate_block(self, block, block_hash=None):
         """Raise on valiadtion errors """
+        if block.header.version != 0:
+            raise ValueError("incorrect root block version")
+
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
