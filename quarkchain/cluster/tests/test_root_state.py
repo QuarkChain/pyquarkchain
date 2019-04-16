@@ -68,6 +68,14 @@ class TestRootState(unittest.TestCase):
         root_block.header.version = 0
         r_state.add_block(root_block)
 
+    def test_blocks_with_incorrect_height(self):
+        env = get_test_env()
+        r_state, s_states = create_default_state(env)
+        root_block = r_state.create_block_to_mine([])
+        root_block.header.height += 1
+        with self.assertRaisesRegexp(ValueError, "incorrect block height"):
+            r_state.add_block(root_block)
+
     def test_root_state_and_shard_state_add_block(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
