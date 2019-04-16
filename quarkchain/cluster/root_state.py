@@ -193,6 +193,13 @@ class RootDb:
         block_hash = self.db.get(key)
         return self.get_root_block_by_hash(block_hash, consistency_check=False)
 
+    def get_root_block_header_by_height(self, height):
+        key = b"ri_%d" % height
+        if key not in self.db:
+            return None
+        block_hash = self.db.get(key)
+        return self.get_root_block_header_by_hash(block_hash, consistency_check=False)
+
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
         if h in self.m_hash_dict:
