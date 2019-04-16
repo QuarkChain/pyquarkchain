@@ -76,6 +76,46 @@ class TestRootState(unittest.TestCase):
         with self.assertRaisesRegexp(ValueError, "incorrect block height"):
             r_state.add_block(root_block)
 
+    def test_blocks_with_incorrect_merkle_and_minor_block_list(self):
+        env = get_test_env()
+        r_state, s_states = create_default_state(env)
+        self.assertEqual(r_state.tip.total_difficulty, 2000000)
+        s_state0 = s_states[2 | 0]
+        s_state1 = s_states[2 | 1]
+        b0 = s_state0.create_block_to_mine()
+        add_minor_block_to_cluster(s_states, b0)
+        b1 = s_state1.create_block_to_mine()
+        add_minor_block_to_cluster(s_states, b1)
+
+        r_state.add_validated_minor_block_hash(
+            b0.header.get_hash(), b0.header.coinbase_amount_map.balance_map
+        )
+        r_state.add_validated_minor_block_hash(
+            b1.header.get_hash(), b1.header.coinbase_amount_map.balance_map
+        )
+        root_block0 = r_state.create_block_to_mine([b0.header, b1.header])
+        root_block1 = r_state.create_block_to_mine([b0.header])
+
+        with self.assertRaisesRegexp(ValueError, "incorrect merkle root"):
+            root_block1.header.hash_merkle_root = root_block0.header.hash_merkle_root
+            r_state.add_block(root_block1)
+
+        root_block_with_incorrect_mlist0 = r_state.create_block_to_mine(
+            [b0.header, b0.header, b1.header]
+        )
+        root_block_with_incorrect_mlist1 = r_state.create_block_to_mine(
+            [b0.header, b1.header, b1.header]
+        )
+        root_block_with_incorrect_mlist2 = r_state.create_block_to_mine(
+            [b1.header, b0.header]
+        )
+        with self.assertRaisesRegexp(ValueError, "does not link to previous block"):
+            r_state.add_block(root_block_with_incorrect_mlist0)
+        with self.assertRaisesRegexp(ValueError, "does not link to previous block"):
+            r_state.add_block(root_block_with_incorrect_mlist1)
+        with self.assertRaisesRegexp(ValueError, "shard id must be ordered"):
+            r_state.add_block(root_block_with_incorrect_mlist2)
+
     def test_root_state_and_shard_state_add_block(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
