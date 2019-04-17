@@ -263,6 +263,16 @@ class Serializable:
             h_list.append(getattr(self, name))
         return hash(tuple(h_list))
 
+    def to_dict(self):
+        d = dict()
+        for name, ser in self.FIELDS:
+            v = getattr(self, name)
+            if isinstance(v, Serializable):
+                d[name] = v.to_dict()
+            else:
+                d[name] = v
+        return d
+
 
 class Optional:
     def __init__(self, serializer):
