@@ -347,6 +347,12 @@ class ShardDbOperator(TransactionHistoryMixin):
         """ Return the total number of blocks with the given height"""
         return len(self.height_to_minor_block_hashes.setdefault(height, set()))
 
+    def is_minor_block_committed_by_hash(self, h):
+        return self.db.get(b"commit_" + h) is not None
+
+    def commit_minor_block_by_hash(self, h):
+        self.put(b"commit_" + h, b"")
+
     # ------------------------- Transaction db operations --------------------------------
     def put_transaction_index(self, tx, block_height, index):
         tx_hash = tx.get_hash()

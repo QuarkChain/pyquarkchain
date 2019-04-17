@@ -38,6 +38,12 @@ from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 
 
+class BlockCommitStatus:
+    UNCOMMITTED = 0             # The other slaves and the master may not have the block info
+    COMMITING = 1               # The block info is propagating to other slaves and the master
+    COMMITTED = 2               # The other slaves and the master have received the block info
+
+
 class PeerShardConnection(VirtualConnection):
     """ A virtual connection between local shard and remote shard
     """
@@ -621,13 +627,45 @@ class Shard:
         self.broadcast_new_block(block)
         await self.add_block(block)
 
+    def __get_block_commit_status_by_hash(self, block_hash):
+        # If the block is committed, it means
+        # - All neighor shards/slaves receives x-shard tx list
+        # - The block header is sent to master
+        # then return immediately
+        if self.state.is_committed_by_hash(block_hash):
+            return BlockCommitStatus.COMMITTED, None
+
+        # Check if the block is being propagating to other slaves and the master
+        # Let's make sure all the shards and master got it before committing it
+        future = self.add_block_futures.get(block_hash, None)
+        if future is not None:
+            return BlockCommitStatus.COMMITTING, future
+
+        return BlockCommitStatus.UNCOMMITTED, None
+
     async def add_block(self, block):
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
+
+        block_hash = block.header.get_hash()
+        commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
+        if commit_status == BlockCommitStatus.COMMITTED:
+            return True
+        elif commit_status == BlockCommitStatus.COMMITING:
+            Logger.info(
+                "[{}] {} is being added ... waiting for it to finish".format(
+                    block.header.branch.to_str(), block.header.height
+                )
+            )
+            await future
+            return True
+
+        check(commit_status == BlockCommitStatus.UNCOMMITTED)
+        # Validate and add the block
         old_tip = self.state.header_tip
         try:
-            xshard_list, coinbase_amount_map = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block, force=True)
         except Exception as e:
             Logger.error_exception()
             return False
@@ -635,7 +673,7 @@ class Shard:
         # only remove from pool if the block successfully added to state,
         # this may cache failed blocks but prevents them being broadcasted more than needed
         # TODO add ttl to blocks in new_block_pool
-        self.state.new_block_pool.pop(block.header.get_hash(), None)
+        self.state.new_block_pool.pop(block_hash, None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
             if old_tip != self.state.header_tip:
@@ -643,21 +681,8 @@ class Shard:
         except Exception:
             Logger.warning_every_sec("broadcast tip failure", 1)
 
-        # block already existed in local shard state
-        # but might not have been propagated to other shards and master
-        # let's make sure all the shards and master got it before return
-        if xshard_list is None:
-            future = self.add_block_futures.get(block.header.get_hash(), None)
-            if future:
-                Logger.info(
-                    "[{}] {} is being added ... waiting for it to finish".format(
-                        block.header.branch.to_str(), block.header.height
-                    )
-                )
-                await future
-            return True
-
-        self.add_block_futures[block.header.get_hash()] = self.loop.create_future()
+        # Add the block in future and wait
+        self.add_block_futures[block_hash] = self.loop.create_future()
 
         prev_root_height = self.state.db.get_root_block_header_by_hash(
             block.header.hash_prev_root_block
@@ -671,8 +696,13 @@ class Shard:
             self.state.get_shard_stats(),
         )
 
-        self.add_block_futures[block.header.get_hash()].set_result(None)
-        del self.add_block_futures[block.header.get_hash()]
+        # Commit the block
+        self.state.commit_by_hash(block_hash)
+        Logger.debug("committed mblock {}".format(block_hash.hex()))
+
+        # Notify the rest
+        self.add_block_futures[block_hash].set_result(None)
+        del self.add_block_futures[block_hash]
         return True
 
     async def add_block_list_for_sync(self, block_list):
@@ -690,13 +720,39 @@ class Shard:
 
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
+        uncommitted_block_header_list = []
+        uncommitted_coinbase_amount_map_list = []
         for block in block_list:
             check(block.header.branch.get_full_shard_id() == self.full_shard_id)
 
             block_hash = block.header.get_hash()
+            commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
+            if commit_status == BlockCommitStatus.COMMITTED:
+                # Skip processing the block if it is already committed
+                Logger.warning(
+                    "minor block to sync {} is already committed".format(
+                        block_hash.hex(),
+                    )
+                )
+                continue
+            elif commit_status == BlockCommitStatus.COMMITING:
+                # Check if the block is being propagating to other slaves and the master
+                # Let's make sure all the shards and master got it before committing it
+                Logger.info(
+                    "[{}] {} is being added ... waiting for it to finish".format(
+                        block.header.branch.to_str(), block.header.height
+                    )
+                )
+                existing_add_block_futures.append(future)
+                continue
+
+            check(commit_status == BlockCommitStatus.UNCOMMITTED)
+            # Validate and add the block
             try:
                 xshard_list, coinbase_amount_map = self.state.add_block(
-                    block, skip_if_too_old=False
+                    block,
+                    skip_if_too_old=False,
+                    force=True,
                 )
                 # coinbase_amount_map may be None if the block exists
                 # adding the block header one since the block is already validated.
@@ -705,28 +761,33 @@ class Shard:
                 Logger.error_exception()
                 return False, coinbase_amount_list
 
-            # block already existed in local shard state
-            # but might not have been propagated to other shards and master
-            # let's make sure all the shards and master got it before return
-            if xshard_list is None:
-                future = self.add_block_futures.get(block_hash, None)
-                if future:
-                    existing_add_block_futures.append(future)
-            else:
-                prev_root_height = self.state.db.get_root_block_header_by_hash(
-                    block.header.hash_prev_root_block
-                ).height
-                block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
-                self.add_block_futures[block_hash] = self.loop.create_future()
+            prev_root_height = self.state.db.get_root_block_header_by_hash(
+                block.header.hash_prev_root_block
+            ).height
+            block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
+            self.add_block_futures[block_hash] = self.loop.create_future()
+            uncommitted_block_header_list.append(block.header)
+            uncommitted_coinbase_amount_map_list.append(block.header.coinbase_amount_map)
 
         await self.slave.batch_broadcast_xshard_tx_list(
             block_hash_to_x_shard_list, block_list[0].header.branch
         )
+        check(len(uncommitted_coinbase_amount_map_list) == len(uncommitted_block_header_list))
+        await self.slave.send_minor_block_header_list_to_master(
+            uncommitted_block_header_list,
+            uncommitted_coinbase_amount_map_list,
+        )
 
-        for block_hash in block_hash_to_x_shard_list.keys():
+        # Commit all blocks and notify all rest add block operations
+        for block_header in uncommitted_block_header_list:
+            block_hash = block_header.get_hash()
+            self.state.commit_by_hash(block_hash)
+            Logger.debug("committed mblock {}".format(block_hash.hex()))
+
             self.add_block_futures[block_hash].set_result(None)
             del self.add_block_futures[block_hash]
 
+        # Wait for the other add block operations
         await asyncio.gather(*existing_add_block_futures)
 
         return True, coinbase_amount_list

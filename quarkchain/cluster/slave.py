@@ -31,6 +31,7 @@ from quarkchain.cluster.rpc import (
     GetWorkResponse,
     SubmitWorkRequest,
     SubmitWorkResponse,
+    AddMinorBlockHeaderListRequest,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -964,6 +965,20 @@ class SlaveServer:
         )
         check(resp.error_code == 0)
         self.artificial_tx_config = resp.artificial_tx_config
+
+    async def send_minor_block_header_list_to_master(
+        self,
+        minor_block_header_list,
+        coinbase_amount_map_list,
+    ):
+        request = AddMinorBlockHeaderListRequest(
+            minor_block_header_list,
+            coinbase_amount_map_list
+        )
+        _, resp, _ = await self.master.write_rpc_request(
+            ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST, request
+        )
+        check(resp.error_code == 0)
 
     def __get_branch_to_add_xshard_tx_list_request(
         self, block_hash, xshard_tx_list, prev_root_height

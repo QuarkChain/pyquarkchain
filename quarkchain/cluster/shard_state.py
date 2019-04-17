@@ -816,11 +816,16 @@ class ShardState:
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
     def add_block(
-        self, block, skip_if_too_old=True, gas_limit=None, xshard_gas_limit=None
+        self,
+        block,
+        skip_if_too_old=True,
+        gas_limit=None,
+        xshard_gas_limit=None,
+        force=False,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
-        Returns None if block is already added.
+        Returns None if block is already added (if force is False).
         Returns a list of CrossShardTransactionDeposit from block.
         Additionally, returns a map of reward token balances for this block
         Raises on any error.
@@ -847,7 +852,7 @@ class ShardState:
                 )
 
         block_hash = block.header.get_hash()
-        if self.db.contain_minor_block_by_hash(block_hash):
+        if not force and self.db.contain_minor_block_by_hash(block_hash):
             return None, None
 
         evm_tx_included = []
@@ -1749,3 +1754,9 @@ class ShardState:
             length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
         coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)
+
+    def is_committed_by_hash(self, h):
+        return self.db.is_minor_block_committed_by_hash(h)
+
+    def commit_by_hash(self, h):
+        self.db.commit_minor_block_by_hash(h)
