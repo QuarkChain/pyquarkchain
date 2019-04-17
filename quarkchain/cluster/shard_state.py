@@ -940,15 +940,13 @@ class ShardState:
                 update_tip = prev_root_header.height > tip_prev_root_header.height
 
         if update_tip:
-            self.__rewrite_block_index_to(block)
-            self.evm_state = evm_state
+            tip_prev_root_header = prev_root_header
             # Safe to update PoSW blacklist here
             if self.shard_config.POSW_CONFIG.ENABLED:
                 disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
-                self.evm_state.sender_disallow_list = disallow_list
-            self.header_tip = block.header
-            tip_prev_root_header = prev_root_header
-            self.meta_tip = block.meta
+                evm_state.sender_disallow_list = disallow_list
+
+            self.__update_tip(block, evm_state=evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(
@@ -1272,6 +1270,14 @@ class ShardState:
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
 
+    def __update_tip(self, block, evm_state=None):
+        self.__rewrite_block_index_to(block)
+        if evm_state is None:
+            evm_state = self.__create_evm_state(block.meta.hash_evm_state_root, block.header.get_hash())
+        self.evm_state = evm_state
+        self.header_tip = block.header
+        self.meta_tip = block.meta
+
     def add_root_block(self, root_block: RootBlock):
         """ Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
@@ -1337,7 +1343,7 @@ class ShardState:
         last_minor_header_in_prev_root_block = self.db.get_last_confirmed_minor_block_header_at_root_block(
             root_block.header.hash_prev_block
         )
-        if shard_headers:
+        if len(shard_headers) != 0:
             # Master should assure this check will not fail
             check(
                 shard_headers[0].height == 0
@@ -1351,7 +1357,7 @@ class ShardState:
         # shard_header can be None meaning the genesis shard block has not been confirmed by any root block
 
         self.db.put_root_block(root_block, shard_header)
-        if shard_header:
+        if shard_header is not None:
             prev_root_header = self.db.get_root_block_header_by_hash(
                 shard_header.hash_prev_root_block
             )
@@ -1413,11 +1419,7 @@ class ShardState:
             )
 
         if self.header_tip != orig_header_tip:
-            header_tip_hash = self.header_tip.get_hash()
-            self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
-            self.__rewrite_block_index_to(
-                self.db.get_minor_block_by_hash(header_tip_hash)
-            )
+            self.__update_tip(self.db.get_minor_block_by_hash(self.header_tip.get_hash()))
             Logger.info(
                 "[{}] shard tip reset from {} to {} by root block {}".format(
                     self.branch.to_str(),
