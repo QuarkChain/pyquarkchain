@@ -10,6 +10,7 @@ from quarkchain.core import (
     RootBlockHeader,
     RootBlock,
     TokenBalanceMap,
+    XshardTxCursorInfo,
 )
 from quarkchain.evm.state import State as EvmState
 from quarkchain.utils import sha3_256, check, token_id_encode
@@ -64,6 +65,7 @@ class GenesisManager:
         meta = MinorBlockMeta(
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
+            xshard_tx_cursor_info=XshardTxCursorInfo(root_block.header.height, 0, 0),
         )
 
         local_fee_rate = 1 - self._qkc_config.reward_tax_rate  # type: Fraction
