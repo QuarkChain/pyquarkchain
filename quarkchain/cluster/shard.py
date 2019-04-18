@@ -37,11 +37,9 @@ from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 
-
-class BlockCommitStatus:
-    UNCOMMITTED = 0  # The other slaves and the master may not have the block info
-    COMMITTING = 1  # The block info is propagating to other slaves and the master
-    COMMITTED = 2  # The other slaves and the master have received the block info
+BLOCK_UNCOMMITTED = 0  # The other slaves and the master may not have the block info
+BLOCK_COMMITTING = 1  # The block info is propagating to other slaves and the master
+BLOCK_COMMITTED = 2  # The other slaves and the master have received the block info
 
 
 class PeerShardConnection(VirtualConnection):
@@ -590,7 +588,7 @@ class Shard:
 
         # Doing full POSW check requires prev block has been added to the state, which could
         # slow down block propagation.
-        # TODO: this is a copy of the code in SyncTask.__validate_block_headers.
+        # TODO: this is a copy of the code in SyncTask.__validate_block_headers
         try:
             header = block.header
             # Note that PoSW may lower diff, so checks here are necessary but not sufficient
@@ -629,19 +627,19 @@ class Shard:
 
     def __get_block_commit_status_by_hash(self, block_hash):
         # If the block is committed, it means
-        # - All neighor shards/slaves receives x-shard tx list
+        # - All neighbor shards/slaves receives x-shard tx list
         # - The block header is sent to master
         # then return immediately
         if self.state.is_committed_by_hash(block_hash):
-            return BlockCommitStatus.COMMITTED, None
+            return BLOCK_COMMITTED, None
 
         # Check if the block is being propagating to other slaves and the master
         # Let's make sure all the shards and master got it before committing it
-        future = self.add_block_futures.get(block_hash, None)
+        future = self.add_block_futures.get(block_hash)
         if future is not None:
-            return BlockCommitStatus.COMMITTING, future
+            return BLOCK_COMMITTING, future
 
-        return BlockCommitStatus.UNCOMMITTED, None
+        return BLOCK_UNCOMMITTED, None
 
     async def add_block(self, block):
         """ Returns true if block is successfully added. False on any error.
@@ -650,9 +648,9 @@ class Shard:
 
         block_hash = block.header.get_hash()
         commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
-        if commit_status == BlockCommitStatus.COMMITTED:
+        if commit_status == BLOCK_COMMITTED:
             return True
-        elif commit_status == BlockCommitStatus.COMMITTING:
+        elif commit_status == BLOCK_COMMITTING:
             Logger.info(
                 "[{}] {} is being added ... waiting for it to finish".format(
                     block.header.branch.to_str(), block.header.height
@@ -661,7 +659,7 @@ class Shard:
             await future
             return True
 
-        check(commit_status == BlockCommitStatus.UNCOMMITTED)
+        check(commit_status == BLOCK_UNCOMMITTED)
         # Validate and add the block
         old_tip = self.state.header_tip
         try:
@@ -727,7 +725,7 @@ class Shard:
 
             block_hash = block.header.get_hash()
             commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
-            if commit_status == BlockCommitStatus.COMMITTED:
+            if commit_status == BLOCK_COMMITTED:
                 # Skip processing the block if it is already committed
                 Logger.warning(
                     "minor block to sync {} is already committed".format(
@@ -735,7 +733,7 @@ class Shard:
                     )
                 )
                 continue
-            elif commit_status == BlockCommitStatus.COMMITTING:
+            elif commit_status == BLOCK_COMMITTING:
                 # Check if the block is being propagating to other slaves and the master
                 # Let's make sure all the shards and master got it before committing it
                 Logger.info(
@@ -746,7 +744,7 @@ class Shard:
                 existing_add_block_futures.append(future)
                 continue
 
-            check(commit_status == BlockCommitStatus.UNCOMMITTED)
+            check(commit_status == BLOCK_UNCOMMITTED)
             # Validate and add the block
             try:
                 xshard_list, coinbase_amount_map = self.state.add_block(

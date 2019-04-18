@@ -3,7 +3,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
 )
-from quarkchain.core import Address, Branch, Identity, TokenBalanceMap
+from quarkchain.core import Address, Branch, Identity, TokenBalanceMap, XshardTxCursorInfo
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
 from quarkchain.cluster.p2p_commands import (
@@ -42,7 +42,7 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(len(clusters), 3)
 
     def test_create_shard_at_different_height(self):
-        acc1 = Address.create_random_account()
+        acc1 = Address.create_random_account(0)
         id1 = 0 << 16 | 1 | 0
         id2 = 1 << 16 | 1 | 0
         genesis_root_heights = {id1: 1, id2: 2}
@@ -58,24 +58,92 @@ class TestCluster(unittest.TestCase):
             self.assertIsNone(clusters[0].get_shard(id1))
             self.assertIsNone(clusters[0].get_shard(id2))
 
-            root = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
-            self.assertEqual(len(root.minor_block_header_list), 0)
-            call_async(master.add_root_block(root))
+            # Add root block with height 1, which will automatically create genesis block for shard 0
+            root0 = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
+            self.assertEqual(root0.header.height, 1)
+            self.assertEqual(len(root0.minor_block_header_list), 0)
+            self.assertEqual(
+                root0.header.coinbase_amount_map.balance_map[
+                    master.env.quark_chain_config.genesis_token
+                ],
+                master.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+            )
+            call_async(master.add_root_block(root0))
 
             # shard 0 created at root height 1
             self.assertIsNotNone(clusters[0].get_shard(id1))
             self.assertIsNone(clusters[0].get_shard(id2))
 
-            root = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
-            self.assertEqual(len(root.minor_block_header_list), 1)
-            call_async(master.add_root_block(root))
+            # shard 0 block should have correct root block and cursor info
+            shard_state = clusters[0].get_shard(id1).state
+            self.assertEqual(
+                shard_state.header_tip.hash_prev_root_block,
+                root0.header.get_hash()
+            )
+            self.assertEqual(
+                shard_state.get_tip().meta.xshard_tx_cursor_info,
+                XshardTxCursorInfo(1, 0, 0),
+            )
+            self.assertEqual(
+                shard_state.get_token_balance(
+                    acc1.recipient,
+                    shard_state.env.quark_chain_config.genesis_token
+                ),
+                1000000,        # from create_test_clusters in genesis alloc
+            )
+
+            # Add root block with height 2, which will automatically create genesis block for shard 1
+            root1 = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
+            self.assertEqual(len(root1.minor_block_header_list), 1)
+            self.assertEqual(
+                root1.header.coinbase_amount_map.balance_map[
+                    master.env.quark_chain_config.genesis_token
+                ],
+                master.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+                + root1.minor_block_header_list[0].coinbase_amount_map.balance_map[
+                    master.env.quark_chain_config.genesis_token
+                ]
+            )
+            self.assertEqual(
+                root1.minor_block_header_list[0],
+                shard_state.header_tip
+            )
+            call_async(master.add_root_block(root1))
 
             self.assertIsNotNone(clusters[0].get_shard(id1))
             # shard 1 created at root height 2
             self.assertIsNotNone(clusters[0].get_shard(id2))
 
-            self.assertEqual(len(root.minor_block_header_list), 1)
-            call_async(master.add_root_block(root))
+            # X-shard from root should be deposited to the shard
+            mblock = shard_state.create_block_to_mine()
+            self.assertEqual(
+                mblock.meta.xshard_tx_cursor_info,
+                XshardTxCursorInfo(root1.header.height + 1, 0, 0),
+            )
+            call_async(clusters[0].get_shard(id1).add_block(mblock))
+            self.assertEqual(
+                shard_state.get_token_balance(
+                    acc1.recipient,
+                    shard_state.env.quark_chain_config.genesis_token
+                ),
+                root1.header.coinbase_amount_map.balance_map[
+                    shard_state.env.quark_chain_config.genesis_token
+                ] + root0.header.coinbase_amount_map.balance_map[
+                    shard_state.env.quark_chain_config.genesis_token
+                ] + 1000000         # from create_test_clusters in genesis alloc
+            )
+            self.assertEqual(
+                mblock.header.coinbase_amount_map.balance_map[
+                    shard_state.env.quark_chain_config.genesis_token
+                ],
+                shard_state.shard_config.COINBASE_AMOUNT // 2
+            )
+
+            # Add root block with height 3, which will include
+            # - the genesis block for shard 1; and
+            # - the added block for shard 0.
+            root2 = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
+            self.assertEqual(len(root2.minor_block_header_list), 2)
 
     def test_get_primary_account_data(self):
         id1 = Identity.create_random_identity()
