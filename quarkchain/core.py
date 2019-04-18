@@ -915,12 +915,12 @@ class RootBlockHeader(Serializable):
         return sha3_256(self.serialize_without(["nonce", "mixhash", "signature"]))
 
     def sign_with_private_key(self, private_key: KeyAPI.PrivateKey):
-        self.signature = private_key.sign_msg_hash(self.get_hash()).to_bytes()
+        self.signature = private_key.sign_msg_hash(self.get_hash_for_mining()).to_bytes()
 
     def verify_signature(self, public_key: KeyAPI.PublicKey):
         try:
             return public_key.verify_msg_hash(
-                self.get_hash(), KeyAPI.Signature(signature_bytes=self.signature)
+                self.get_hash_for_mining(), KeyAPI.Signature(signature_bytes=self.signature)
             )
         except eth_keys.exceptions.BadSignature:
             return False
