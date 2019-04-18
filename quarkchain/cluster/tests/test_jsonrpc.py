@@ -848,7 +848,14 @@ class TestJSONRPC(unittest.TestCase):
                 nonce = solver.mine(0, 10000).nonce
                 mixhash = "0x" + sha3_256(b"").hex()
                 resp = send_request(
-                    "submitWork", [shard_id, header_hash_hex, hex(nonce), mixhash, "0x" + bytes(65).hex()]
+                    "submitWork",
+                    [
+                        shard_id,
+                        header_hash_hex,
+                        hex(nonce),
+                        mixhash,
+                        "0x" + bytes(65).hex(),
+                    ],
                 )
                 self.assertTrue(resp)
 
@@ -856,7 +863,6 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(
                 clusters[0].get_shard_state(1 | 0).get_tip().header.height, 1
             )
-
 
     def test_createTransactions(self):
         id1 = Identity.create_random_identity()

@@ -213,7 +213,6 @@ class TestMiner(unittest.TestCase):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
 
-
     def test_submit_work_with_guardian(self):
         now = 42
         doublesha = ConsensusType.POW_DOUBLESHA256
@@ -265,13 +264,11 @@ class TestMiner(unittest.TestCase):
 
             if h.verify_signature(priv.public_key):
                 diff = Guardian.adjust_difficulty(diff, h.height)
-      
+
             validate_seal(block_to_add.header, doublesha, adjusted_diff=diff)
 
         # just with the guardian public key
-        miner = self.miner_gen(
-            doublesha, create, add, remote=True, guardian_public_key=priv.public_key
-        )
+        miner = self.miner_gen(doublesha, create, add, remote=True)
 
         async def go():
             for i in range(42, 100):
@@ -284,7 +281,7 @@ class TestMiner(unittest.TestCase):
                 block.header.mixhash = sha3_256(b"")
                 block.header.sign_with_private_key(priv)
                 signature = block.header.signature
-                
+
                 # reset the signature to the default value
                 block.header.signature = bytes(65)
                 # submit the signature through the submit work

@@ -562,7 +562,12 @@ class SlaveConnection(ClusterConnection):
         )
 
     async def submit_work(
-        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes, signature: bytes = bytes(65),
+        self,
+        branch: Branch,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: bytes = bytes(65),
     ) -> bool:
         request = SubmitWorkRequest(branch, header_hash, nonce, mixhash, signature)
         _, resp, _ = await self.write_rpc_request(
@@ -659,7 +664,6 @@ class MasterServer:
             __get_mining_params,
             remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
             guardian_private_key=self.env.quark_chain_config.guardian_private_key,
-            guardian_public_key=self.env.quark_chain_config.guardian_public_key,
         )
 
     def get_artificial_tx_config(self):
@@ -1357,10 +1361,17 @@ class MasterServer:
         return await slave.get_work(branch)
 
     async def submit_work(
-        self, branch: Optional[Branch], header_hash: bytes, nonce: int, mixhash: bytes, signature: bytes = bytes(65),
+        self,
+        branch: Optional[Branch],
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: bytes = bytes(65),
     ) -> bool:
         if not branch:  # submit root chain work
-            return await self.root_miner.submit_work(header_hash, nonce, mixhash, signature)
+            return await self.root_miner.submit_work(
+                header_hash, nonce, mixhash, signature
+            )
 
         if branch.value not in self.branch_to_slaves:
             return False

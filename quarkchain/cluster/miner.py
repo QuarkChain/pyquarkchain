@@ -142,7 +142,6 @@ class Miner:
         get_mining_param_func: Callable[[], Dict[str, Any]],
         remote: bool = False,
         guardian_private_key: Optional[KeyAPI.PrivateKey] = None,
-        guardian_public_key: Optional[KeyAPI.PublicKey] = None,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -170,7 +169,6 @@ class Miner:
         self.remote = remote
         self.current_work = None  # type: Optional[Block]
         self.guardian_private_key = guardian_private_key
-        self.guardian_public_key = guardian_public_key
 
     def start(self):
         self.enabled = True
@@ -281,7 +279,13 @@ class Miner:
             copy.deepcopy(self.current_work),
         )
 
-    async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes, signature: bytes = bytes(65),) -> bool:
+    async def submit_work(
+        self,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = bytes(65),
+    ) -> bool:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -296,12 +300,8 @@ class Miner:
             header.sign_with_private_key(self.guardian_private_key)
 
         # remote sign as a guardian
-        if isinstance(block, RootBlock) and header.signature == bytes(65) and signature != bytes(65):
+        if isinstance(block, RootBlock) and signature != bytes(65):
             header.signature = signature
-            if not header.verify_signature(
-                self.guardian_public_key
-                ):
-                signature = bytes(65)
 
         try:
             await self.add_block_async_func(block)
