@@ -243,10 +243,11 @@ class RootState:
 
     def __init__(self, env, diff_calc=None):
         self.env = env
+        self.root_config = env.quark_chain_config.ROOT
         if not diff_calc:
-            cutoff = env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
-            diff_factor = env.quark_chain_config.ROOT.DIFFICULTY_ADJUSTMENT_FACTOR
-            min_diff = env.quark_chain_config.ROOT.GENESIS.DIFFICULTY
+            cutoff = self.root_config.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME
+            diff_factor = self.root_config.DIFFICULTY_ADJUSTMENT_FACTOR
+            min_diff = self.root_config.GENESIS.DIFFICULTY
             check(cutoff > 0 and diff_factor > 0 and min_diff > 0)
             diff_calc = EthDifficultyCalculator(
                 cutoff=cutoff, diff_factor=diff_factor, minimum_diff=min_diff
@@ -296,7 +297,7 @@ class RootState:
         assert all(
             [self.db.contain_minor_block_by_hash(m_hash) for m_hash in m_hash_list]
         )
-        epoch = height // self.env.quark_chain_config.ROOT.EPOCH_INTERVAL
+        epoch = height // self.root_config.EPOCH_INTERVAL
         numerator = (
             self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
         )
@@ -304,7 +305,7 @@ class RootState:
             self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
         )
         coinbase_amount = (
-            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT * numerator // denominator
+            self.root_config.COINBASE_AMOUNT * numerator // denominator
         )
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
@@ -405,7 +406,7 @@ class RootState:
             raise ValueError("incorrect total difficulty")
 
         # Check PoW if applicable
-        consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
+        consensus_type = self.root_config.CONSENSUS_TYPE
         validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
 
         return block_hash
