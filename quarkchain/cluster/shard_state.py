@@ -107,13 +107,15 @@ class XshardTxCursor:
 
                 # Perform x-shard from root chain coinbase
                 return CrossShardTransactionDeposit(
-                    tx_hash=bytes(32),
+                    # Use root block hash as identifier.
+                    tx_hash=self.rblock.header.get_hash(),
                     from_address=Address.create_empty_account(0),
                     to_address=self.rblock.header.coinbase_address,
                     value=coinbase_amount,
                     gas_price=0,
                     gas_token_id=self.shard_state.genesis_token_id,
                     transfer_token_id=self.shard_state.genesis_token_id,
+                    is_coinbase=True,
                 )
 
             return None
@@ -1535,6 +1537,7 @@ class ShardState:
                             success=False,
                             gas_token_id=tx.gas_token_id,
                             transfer_token_id=tx.transfer_token_id,
+                            is_coibase=False,
                         )
                     )
             return tx_list, b""
