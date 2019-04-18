@@ -18,7 +18,6 @@ from quarkchain.cluster.tests.test_utils import (
 )
 from quarkchain.core import (
     Address,
-    Branch,
     Identity,
     SerializedEvmTransaction,
     TypedTransaction,
@@ -91,22 +90,22 @@ class TestJSONRPC(unittest.TestCase):
                 )
 
             response = send_request(
-                "getTransactionCount", "0x" + acc2.serialize().hex()
+                "getTransactionCount", ["0x" + acc2.serialize().hex()]
             )
             self.assertEqual(response, "0x0")
 
             response = send_request(
-                "getTransactionCount", "0x" + acc1.serialize().hex()
+                "getTransactionCount", ["0x" + acc1.serialize().hex()]
             )
             self.assertEqual(response, "0x3")
             response = send_request(
-                "getTransactionCount", "0x" + acc1.serialize().hex(), "latest"
+                "getTransactionCount", ["0x" + acc1.serialize().hex(), "latest"]
             )
             self.assertEqual(response, "0x3")
 
             for i in range(3):
                 response = send_request(
-                    "getTransactionCount", "0x" + acc1.serialize().hex(), hex(i + 1)
+                    "getTransactionCount", ["0x" + acc1.serialize().hex(), hex(i + 1)]
                 )
                 self.assertEqual(response, hex(i + 1))
 
@@ -171,7 +170,6 @@ class TestJSONRPC(unittest.TestCase):
         with ClusterContext(
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
-            slaves = clusters[0].slave_list
             master = clusters[0].master
 
             block = call_async(
@@ -220,7 +218,7 @@ class TestJSONRPC(unittest.TestCase):
             )
 
             with self.assertRaises(Exception):
-                send_request("sendTransaction", request)
+                send_request("sendTransaction", [request])
 
     def test_getMinorBlock(self):
         id1 = Identity.create_random_identity()
@@ -252,37 +250,35 @@ class TestJSONRPC(unittest.TestCase):
             # By id
             resp = send_request(
                 "getMinorBlockById",
-                "0x" + block1.header.get_hash().hex() + "0" * 8,
-                False,
+                ["0x" + block1.header.get_hash().hex() + "0" * 8, False],
             )
             self.assertEqual(
                 resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
             )
             resp = send_request(
                 "getMinorBlockById",
-                "0x" + block1.header.get_hash().hex() + "0" * 8,
-                True,
+                ["0x" + block1.header.get_hash().hex() + "0" * 8, True],
             )
             self.assertEqual(
                 resp["transactions"][0]["hash"], "0x" + tx.get_hash().hex()
             )
 
-            resp = send_request("getMinorBlockById", "0x" + "ff" * 36, True)
+            resp = send_request("getMinorBlockById", ["0x" + "ff" * 36, True])
             self.assertIsNone(resp)
 
             # By height
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x1", False)
+            resp = send_request("getMinorBlockByHeight", ["0x0", "0x1", False])
             self.assertEqual(
                 resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
             )
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x1", True)
+            resp = send_request("getMinorBlockByHeight", ["0x0", "0x1", True])
             self.assertEqual(
                 resp["transactions"][0]["hash"], "0x" + tx.get_hash().hex()
             )
 
-            resp = send_request("getMinorBlockByHeight", "0x1", "0x2", False)
+            resp = send_request("getMinorBlockByHeight", ["0x1", "0x2", False])
             self.assertIsNone(resp)
-            resp = send_request("getMinorBlockByHeight", "0x0", "0x4", False)
+            resp = send_request("getMinorBlockByHeight", ["0x0", "0x4", False])
             self.assertIsNone(resp)
 
     def test_getTransactionById(self):
@@ -314,9 +310,11 @@ class TestJSONRPC(unittest.TestCase):
 
             resp = send_request(
                 "getTransactionById",
-                "0x"
-                + tx.get_hash().hex()
-                + acc1.full_shard_key.to_bytes(4, "big").hex(),
+                [
+                    "0x"
+                    + tx.get_hash().hex()
+                    + acc1.full_shard_key.to_bytes(4, "big").hex()
+                ],
             )
             self.assertEqual(resp["hash"], "0x" + tx.get_hash().hex())
 
@@ -351,7 +349,7 @@ class TestJSONRPC(unittest.TestCase):
 
             # gas is not specified in the request
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex()}, "latest"
+                "call", [{"to": "0x" + acc1.serialize().hex()}, "latest"]
             )
 
             self.assertEqual(response, "0x")
@@ -372,7 +370,7 @@ class TestJSONRPC(unittest.TestCase):
 
             # insufficient gas
             response = send_request(
-                "call", {"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}, None
+                "call", [{"to": "0x" + acc1.serialize().hex(), "gas": "0x1"}, None]
             )
 
             self.assertIsNone(response, "failed tx should return None")
@@ -390,7 +388,7 @@ class TestJSONRPC(unittest.TestCase):
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_server_context(clusters[0].master):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
-                resp = send_request(endpoint, "0x" + bytes(36).hex())
+                resp = send_request(endpoint, ["0x" + bytes(36).hex()])
                 self.assertIsNone(resp)
 
     def test_getTransactionReceipt_on_transfer(self):
@@ -420,9 +418,11 @@ class TestJSONRPC(unittest.TestCase):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(
                     endpoint,
-                    "0x"
-                    + tx.get_hash().hex()
-                    + acc1.full_shard_key.to_bytes(4, "big").hex(),
+                    [
+                        "0x"
+                        + tx.get_hash().hex()
+                        + acc1.full_shard_key.to_bytes(4, "big").hex()
+                    ],
                 )
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
@@ -483,9 +483,11 @@ class TestJSONRPC(unittest.TestCase):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(
                     endpoint,
-                    "0x"
-                    + tx.get_hash().hex()
-                    + acc2.full_shard_key.to_bytes(4, "big").hex(),
+                    [
+                        "0x"
+                        + tx.get_hash().hex()
+                        + acc2.full_shard_key.to_bytes(4, "big").hex()
+                    ],
                 )
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
@@ -518,7 +520,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
-                resp = send_request(endpoint, "0x" + tx.get_hash().hex() + "00000002")
+                resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000002"])
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
                 self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
@@ -567,7 +569,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
-                resp = send_request(endpoint, "0x" + tx.get_hash().hex() + "00000002")
+                resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000002"])
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x0")
                 self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
@@ -607,10 +609,10 @@ class TestJSONRPC(unittest.TestCase):
             for using_eth_endpoint in (True, False):
                 shard_id = hex(acc1.full_shard_key)
                 if using_eth_endpoint:
-                    req = lambda o: send_request("eth_getLogs", o, shard_id)
+                    req = lambda o: send_request("eth_getLogs", [o, shard_id])
                 else:
                     # `None` needed to bypass some request modification
-                    req = lambda o: send_request("getLogs", o, shard_id)
+                    req = lambda o: send_request("getLogs", [o, shard_id])
 
                 # no filter object as wild cards
                 resp = req({})
@@ -697,10 +699,10 @@ class TestJSONRPC(unittest.TestCase):
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
                     req = lambda k: send_request(
-                        "eth_getStorageAt", created_addr[:-8], k, "0x0"
+                        "eth_getStorageAt", [created_addr[:-8], k, "0x0"]
                     )
                 else:
-                    req = lambda k: send_request("getStorageAt", created_addr, k)
+                    req = lambda k: send_request("getStorageAt", [created_addr, k])
 
                 # first storage
                 response = req("0x0")
@@ -756,9 +758,9 @@ class TestJSONRPC(unittest.TestCase):
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
-                    resp = send_request("eth_getCode", created_addr[:-8], "0x0")
+                    resp = send_request("eth_getCode", [created_addr[:-8], "0x0"])
                 else:
-                    resp = send_request("getCode", created_addr)
+                    resp = send_request("getCode", [created_addr])
 
                 self.assertEqual(
                     resp,
@@ -796,9 +798,9 @@ class TestJSONRPC(unittest.TestCase):
 
             for using_eth_endpoint in (True, False):
                 if using_eth_endpoint:
-                    resp = send_request("eth_gasPrice", "0x0")
+                    resp = send_request("eth_gasPrice", ["0x0"])
                 else:
-                    resp = send_request("gasPrice", "0x0")
+                    resp = send_request("gasPrice", ["0x0"])
 
                 self.assertEqual(resp, "0xc")
 
@@ -823,7 +825,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(slaves[0].add_tx(tx))
 
             for shard_id in ["0x0", None]:  # shard, then root
-                resp = send_request("getWork", shard_id)
+                resp = send_request("getWork", [shard_id])
                 self.assertEqual(resp[1:], ["0x1", "0xa"])  # height and diff
 
                 header_hash_hex = resp[0]
@@ -846,7 +848,7 @@ class TestJSONRPC(unittest.TestCase):
                 nonce = solver.mine(0, 10000).nonce
                 mixhash = "0x" + sha3_256(b"").hex()
                 resp = send_request(
-                    "submitWork", shard_id, header_hash_hex, hex(nonce), mixhash
+                    "submitWork", [shard_id, header_hash_hex, hex(nonce), mixhash]
                 )
                 self.assertTrue(resp)
 

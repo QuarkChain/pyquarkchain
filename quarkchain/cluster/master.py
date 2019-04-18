@@ -3,7 +3,6 @@ import asyncio
 import os
 
 import psutil
-import random
 import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple
@@ -26,7 +25,6 @@ from quarkchain.cluster.protocol import (
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderResponse,
-    GetEcoInfoListRequest,
     GetNextBlockToMineRequest,
     GetUnconfirmedHeadersRequest,
     GetAccountDataRequest,
@@ -52,6 +50,7 @@ from quarkchain.cluster.rpc import (
     GetWorkResponse,
     SubmitWorkRequest,
     SubmitWorkResponse,
+    AddMinorBlockHeaderListResponse,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -62,11 +61,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionReceiptRequest,
     GetTransactionListByAddressRequest,
 )
-from quarkchain.cluster.simple_network import (
-    SimpleNetwork,
-    ROOT_BLOCK_BATCH_SIZE,
-    ROOT_BLOCK_HEADER_LIST_LIMIT,
-)
+from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
@@ -84,9 +79,11 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.cluster.cluster_config import ClusterConfig
-
-
-SYNC_TIMEOUT = 10
+from quarkchain.constants import (
+    SYNC_TIMEOUT,
+    ROOT_BLOCK_BATCH_SIZE,
+    ROOT_BLOCK_HEADER_LIST_LIMIT,
+)
 
 
 class SyncTask:
@@ -131,13 +128,19 @@ class SyncTask:
                 )
                 return
 
+            download_start_time = time_ms()
             Logger.info(
-                "[R] downloading block header list from {} {}".format(
+                "[R] downloading block header list from height {} with hash {}".format(
                     height, block_hash.hex()
                 )
             )
             block_header_list = await asyncio.wait_for(
                 self.__download_block_headers(block_hash), SYNC_TIMEOUT
+            )
+            Logger.info(
+                "[R] downloaded block header list from height {} with hash {}, use {} ms".format(
+                    height, block_hash.hex(), time_ms() - download_start_time
+                )
             )
             self.__validate_block_headers(block_header_list)
             for header in block_header_list:
@@ -176,7 +179,7 @@ class SyncTask:
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
-        return self.root_state.contain_root_block_by_hash(block_hash)
+        return self.root_state.db.contain_root_block_by_hash(block_hash)
 
     def __validate_block_headers(self, block_header_list):
         """Raise on validation failure"""
@@ -245,7 +248,7 @@ class SyncTask:
         minor_block_download_map = dict()
         for m_block_header in minor_block_header_list:
             m_block_hash = m_block_header.get_hash()
-            if not self.root_state.is_minor_block_validated(m_block_hash):
+            if not self.root_state.db.contain_minor_block_by_hash(m_block_hash):
                 minor_block_download_map.setdefault(m_block_header.branch, []).append(
                     m_block_hash
                 )
@@ -274,13 +277,14 @@ class SyncTask:
                 raise RuntimeError("Unable to download minor blocks from root block")
             if result.shard_stats:
                 self.master_server.update_shard_stats(result.shard_stats)
-            for k, v in result.block_coinbase_map.items():
-                self.root_state.add_validated_minor_block_hash(k, v.balance_map)
 
         for m_header in minor_block_header_list:
-            if not self.root_state.is_minor_block_validated(m_header.get_hash()):
+            if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
-                    "minor block is still unavailable in master after root block sync"
+                    "minor block {} from {} is still unavailable in master after root block sync".format(
+                        m_header.get_hash().hex(),
+                        m_header.branch.to_str(),
+                    )
                 )
 
 
@@ -588,12 +592,27 @@ class SlaveConnection(ClusterConnection):
             artificial_tx_config=self.master_server.get_artificial_tx_config(),
         )
 
+    async def handle_add_minor_block_header_list_request(self, req):
+        check(len(req.minor_block_header_list) == len(req.coinbase_amount_map_list))
+        for minor_block_header, coinbase_amount_map in zip(req.minor_block_header_list, req.coinbase_amount_map_list):
+            self.master_server.root_state.add_validated_minor_block_hash(
+                minor_block_header.get_hash(), coinbase_amount_map.balance_map
+            )
+            Logger.info("adding {} mblock to db".format(minor_block_header.get_hash().hex()))
+        return AddMinorBlockHeaderListResponse(
+            error_code=0,
+        )
+
 
 OP_RPC_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_REQUEST: (
         ClusterOp.ADD_MINOR_BLOCK_HEADER_RESPONSE,
         SlaveConnection.handle_add_minor_block_header_request,
-    )
+    ),
+    ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST: (
+        ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE,
+        SlaveConnection.handle_add_minor_block_header_list_request,
+    ),
 }
 
 
@@ -850,7 +869,9 @@ class MasterServer:
                     height = header.height
 
                     # Filter out the ones unknown to the master
-                    if not self.root_state.is_minor_block_validated(header.get_hash()):
+                    if not self.root_state.db.contain_minor_block_by_hash(
+                        header.get_hash()
+                    ):
                         break
                     full_shard_id_to_header_list.setdefault(
                         headers_info.branch.get_full_shard_id(), []

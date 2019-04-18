@@ -31,6 +31,7 @@ from quarkchain.cluster.rpc import (
     GetWorkResponse,
     SubmitWorkRequest,
     SubmitWorkResponse,
+    AddMinorBlockHeaderListRequest,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -65,6 +66,7 @@ from quarkchain.cluster.rpc import (
     SlaveInfo,
 )
 from quarkchain.cluster.shard import Shard, PeerShardConnection
+from quarkchain.constants import SYNC_TIMEOUT
 from quarkchain.core import Branch, TypedTransaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,
@@ -79,9 +81,6 @@ from quarkchain.core import (
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
 from quarkchain.utils import check, Logger
-
-
-TIMEOUT = 10
 
 
 class MasterConnection(ClusterConnection):
@@ -418,7 +417,7 @@ class MasterConnection(ClusterConnection):
                 blocks_to_download = block_hash_list[:BLOCK_BATCH_SIZE]
                 try:
                     block_chain = await asyncio.wait_for(
-                        __download_blocks(blocks_to_download), TIMEOUT
+                        __download_blocks(blocks_to_download), SYNC_TIMEOUT
                     )
                 except asyncio.TimeoutError as e:
                     Logger.info(
@@ -454,8 +453,7 @@ class MasterConnection(ClusterConnection):
                     )
                 check(len(blocks_to_download) == len(coinbase_amount_list))
                 for hash, coinbase in zip(blocks_to_download, coinbase_amount_list):
-                    if coinbase:
-                        block_coinbase_map[hash] = coinbase
+                    block_coinbase_map[hash] = coinbase
                 block_hash_list = block_hash_list[BLOCK_BATCH_SIZE:]
 
             branch = block_chain[0].header.branch
@@ -967,6 +965,20 @@ class SlaveServer:
         )
         check(resp.error_code == 0)
         self.artificial_tx_config = resp.artificial_tx_config
+
+    async def send_minor_block_header_list_to_master(
+        self,
+        minor_block_header_list,
+        coinbase_amount_map_list,
+    ):
+        request = AddMinorBlockHeaderListRequest(
+            minor_block_header_list,
+            coinbase_amount_map_list
+        )
+        _, resp, _ = await self.master.write_rpc_request(
+            ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST, request
+        )
+        check(resp.error_code == 0)
 
     def __get_branch_to_add_xshard_tx_list_request(
         self, block_hash, xshard_tx_list, prev_root_height

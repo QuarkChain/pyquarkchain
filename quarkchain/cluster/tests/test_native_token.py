@@ -35,7 +35,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.GENESIS_TOKEN = config.GENESIS_TOKEN  # type: str
         self.genesis_token = config.genesis_token  # type: int
 
-    def getAfterTaxReward(self, value: int) -> int:
+    def get_after_tax_reward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
 
     def test_native_token_transfer(self):
@@ -76,7 +76,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(state.get_token_balance(acc2.recipient, QETH), 12345)
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 12345)
@@ -210,12 +210,12 @@ class TestNativeTokenShardState(unittest.TestCase):
         # tx fee
         self.assertEqual(
             state.get_token_balance(acc3.recipient, QETH),
-            self.getAfterTaxReward(opcodes.GTXCOST),
+            self.get_after_tax_reward(opcodes.GTXCOST),
         )
         # miner coinbase
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(self.shard_coinbase),
+            self.get_after_tax_reward(self.shard_coinbase),
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 12345)
@@ -299,7 +299,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
     def test_xshard_native_token_received(self):
@@ -395,7 +395,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -471,12 +471,12 @@ class TestNativeTokenShardState(unittest.TestCase):
         # block coinbase for mining is still in genesis_token
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(self.shard_coinbase),
+            self.get_after_tax_reward(self.shard_coinbase),
         )
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_token_balance(acc3.recipient, QETH),
-            self.getAfterTaxReward(opcodes.GTXCOST),
+            self.get_after_tax_reward(opcodes.GTXCOST),
         )
 
     def test_xshard_native_token_gas_received(self):
@@ -566,11 +566,11 @@ class TestNativeTokenShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(self.shard_coinbase),
+            self.get_after_tax_reward(self.shard_coinbase),
         )
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, QETH),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2),
+            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2),
         )
 
         # X-shard gas used
@@ -636,7 +636,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(CREATION_GAS + self.shard_coinbase),
+            self.get_after_tax_reward(CREATION_GAS + self.shard_coinbase),
         )
         tx_list, _ = state.db.get_transactions_by_address(acc1)
         self.assertEqual(tx_list[0].value, 0)

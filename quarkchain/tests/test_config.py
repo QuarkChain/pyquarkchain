@@ -44,7 +44,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "SKIP_MINOR_DIFFICULTY_CHECK": false,
     "GENESIS_TOKEN": "QKC",
     "ROOT": {
-        "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 60,
+        "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 22500,
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
             "TARGET_BLOCK_TIME": 60,
@@ -176,6 +176,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "REWARD_TAX_RATE": 0.5,
     "BLOCK_REWARD_DECAY_FACTOR": 0.5,
     "ENABLE_TX_TIMESTAMP": null,
+    "TX_WHITELIST_SENDERS": [],
     "ENABLE_EVM_TIMESTAMP": null
 }"""
         print(config.to_json())

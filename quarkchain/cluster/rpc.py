@@ -615,6 +615,32 @@ class AddMinorBlockHeaderResponse(Serializable):
         self.artificial_tx_config = artificial_tx_config
 
 
+class AddMinorBlockHeaderListRequest(Serializable):
+    """ Notify master about a list of successfully added minor block.
+    Mostly used for minor block sync triggered by root block sync
+    """
+    FIELDS = [
+        ("minor_block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
+        ("coinbase_amount_map_list", PrependedSizeListSerializer(4, TokenBalanceMap)),
+    ]
+
+    def __init__(
+        self,
+        minor_block_header_list,
+        coinbase_amount_map_list
+    ):
+        self.minor_block_header_list = minor_block_header_list
+        self.coinbase_amount_map_list = coinbase_amount_map_list
+
+
+class AddMinorBlockHeaderListResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+    ]
+
+    def __init__(self, error_code):
+        self.error_code = error_code
+
 # slave -> slave
 
 
@@ -878,6 +904,8 @@ class ClusterOp:
     GET_WORK_RESPONSE = 56 + CLUSTER_OP_BASE
     SUBMIT_WORK_REQUEST = 57 + CLUSTER_OP_BASE
     SUBMIT_WORK_RESPONSE = 58 + CLUSTER_OP_BASE
+    ADD_MINOR_BLOCK_HEADER_LIST_REQUEST = 59 + CLUSTER_OP_BASE
+    ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE = 60 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -938,4 +966,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_WORK_RESPONSE: GetWorkResponse,
     ClusterOp.SUBMIT_WORK_REQUEST: SubmitWorkRequest,
     ClusterOp.SUBMIT_WORK_RESPONSE: SubmitWorkResponse,
+    ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST: AddMinorBlockHeaderListRequest,
+    ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE: AddMinorBlockHeaderListResponse,
 }

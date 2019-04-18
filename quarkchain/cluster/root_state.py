@@ -16,6 +16,7 @@ from quarkchain.core import (
     calculate_merkle_root,
     TokenBalanceMap,
 )
+from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import Logger, check, time_ms
@@ -121,9 +122,9 @@ class RootDb:
         return RootBlock.deserialize(raw_block)
 
     def get_root_block_header_by_hash(self, h, consistency_check=True):
-        header = self.r_header_pool.get(h, None)
+        header = self.r_header_pool.get(h)
         if not header and not consistency_check:
-            block = self.get_root_block_by_hash(h, False)
+            block = self.get_root_block_by_hash(h, consistency_check=False)
             if block:
                 header = block.header
         return header
@@ -190,11 +191,26 @@ class RootDb:
         if key not in self.db:
             return None
         block_hash = self.db.get(key)
-        return self.get_root_block_by_hash(block_hash, False)
+        return self.get_root_block_by_hash(block_hash, consistency_check=False)
+
+    def get_root_block_header_by_height(self, height):
+        key = b"ri_%d" % height
+        if key not in self.db:
+            return None
+        block_hash = self.db.get(key)
+        return self.get_root_block_header_by_hash(block_hash, consistency_check=False)
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
-        return h in self.m_hash_dict.keys()
+        if h in self.m_hash_dict:
+            return True
+
+        tokens = self.db.get(b"mheader_" + h)
+        if tokens is None:
+            return False
+
+        self.m_hash_dict[h] = TokenBalanceMap.deserialize(tokens).balance_map
+        return True
 
     def put_minor_block_coinbase(self, m_hash: bytes, coinbase_tokens: dict):
         tokens = TokenBalanceMap(coinbase_tokens)
@@ -202,6 +218,9 @@ class RootDb:
         self.m_hash_dict[m_hash] = coinbase_tokens
 
     def get_minor_block_coinbase_tokens(self, h: bytes):
+        if not self.contain_minor_block_by_hash(h):
+            raise KeyError()
+
         return self.m_hash_dict[h]
 
     # ------------------------- Common operations -----------------------------------------
@@ -342,6 +361,12 @@ class RootState:
         if prev_block_header.height + 1 != height:
             raise ValueError("incorrect block height")
 
+        if (
+            block_header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
+        ):
+            raise ValueError("block too far into future")
+
         if block_header.create_time <= prev_block_header.create_time:
             raise ValueError(
                 "incorrect create time tip time {}, new block time {}".format(
@@ -373,6 +398,9 @@ class RootState:
             ):
                 adjusted_diff = Guardian.adjust_difficulty(diff, block_header.height)
 
+        if block_header.difficulty + prev_block_header.total_difficulty != block_header.total_difficulty:
+            raise ValueError("incorrect total difficulty")
+
         # Check PoW if applicable
         consensus_type = self.env.quark_chain_config.ROOT.CONSENSUS_TYPE
         validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
@@ -385,11 +413,16 @@ class RootState:
 
         header = longer_block_header
         for i in range(longer_block_header.height - shorter_block_header.height):
-            header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
+            header = self.db.get_root_block_header_by_hash(
+                header.hash_prev_block, consistency_check=False
+            )
         return header == shorter_block_header
 
     def validate_block(self, block, block_hash=None):
         """Raise on valiadtion errors """
+        if block.header.version != 0:
+            raise ValueError("incorrect root block version")
+
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
@@ -448,7 +481,9 @@ class RootState:
                 )
             if not self.__is_same_chain(
                 self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
+                self.db.get_root_block_header_by_hash(
+                    m_header.hash_prev_root_block, consistency_check=False
+                ),
             ):
                 raise ValueError(
                     "minor block's prev root block must be in the same chain"
@@ -569,23 +604,3 @@ class RootState:
             self.__rewrite_block_index_to(block)
             return True
         return False
-
-    # -------------------------------- Root block db related operations ------------------------------
-    def get_root_block_by_hash(self, h):
-        return self.db.get_root_block_by_hash(h)
-
-    def contain_root_block_by_hash(self, h):
-        return self.db.contain_root_block_by_hash(h)
-
-    def get_root_block_header_by_hash(self, h):
-        return self.db.get_root_block_header_by_hash(h)
-
-    def get_root_block_by_height(self, height: Optional[int]):
-        tip = self.tip  # type: RootBlockHeader
-        return self.db.get_root_block_by_height(
-            tip.height if height is None else height
-        )
-
-    # --------------------------------- Minor block db related operations ----------------------------
-    def is_minor_block_validated(self, h):
-        return self.db.contain_minor_block_by_hash(h)

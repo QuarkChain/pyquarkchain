@@ -29,6 +29,7 @@ from quarkchain.core import (
     calculate_merkle_root,
     mk_receipt_sha,
 )
+from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import apply_transaction, validate_transaction
@@ -451,6 +452,16 @@ class ShardState:
         if evm_tx.is_cross_shard and evm_tx.startgas > xshard_gas_limit:
             raise RuntimeError("xshard evm tx exceeds xshard gas limit")
 
+        # check if TX is disabled
+        if (
+            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+            and evm_state.timestamp < self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+        ):
+            if evm_tx.sender not in self.env.quark_chain_config.tx_whitelist_senders:
+                raise RuntimeError(
+                    "unwhitelisted senders not allowed before tx is enabled"
+                )
+
         # Check if EVM is disabled
         if (
             self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
@@ -564,6 +575,9 @@ class ShardState:
     ):
         """ Validate a block before running evm transactions
         """
+        if block.header.version != 0:
+            raise ValueError("incorrect minor block version")
+
         height = block.header.height
         if height < 1:
             raise ValueError("unexpected height")
@@ -586,6 +600,12 @@ class ShardState:
 
         if block.header.branch != self.branch:
             raise ValueError("branch mismatch")
+
+        if (
+            block.header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
+        ):
+            raise ValueError("block too far into future")
 
         if block.header.create_time <= prev_header.create_time:
             raise ValueError(
@@ -629,14 +649,6 @@ class ShardState:
                 % (xshard_gas_limit, block.meta.evm_xshard_gas_limit)
             )
 
-        if (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
-            and self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-            > block.header.create_time
-            and len(block.tx_list) != 0
-        ):
-            raise ValueError("tx_list should be empty before tx is enabled")
-
         # Make sure merkle tree is valid
         merkle_hash = calculate_merkle_root(block.tx_list)
         if merkle_hash != block.meta.hash_merkle_root:
@@ -647,12 +659,7 @@ class ShardState:
             raise ValueError("coinbase output address must be in the shard")
 
         # Check difficulty
-        if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
-            diff = self.diff_calc.calculate_diff_with_parent(
-                prev_header, block.header.create_time
-            )
-            if diff != block.header.difficulty:
-                raise ValueError("incorrect difficulty")
+        self.validate_diff_match_prev(block.header, prev_header)
 
         # Check whether the root header is in the root chain
         root_block_header = self.db.get_root_block_header_by_hash(
@@ -687,6 +694,14 @@ class ShardState:
 
         # Check PoW / PoSW
         self.validate_minor_block_seal(block)
+
+    def validate_diff_match_prev(self, curr_header, prev_header):
+        if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
+            diff = self.diff_calc.calculate_diff_with_parent(
+                prev_header, curr_header.create_time
+            )
+            if diff != curr_header.difficulty:
+                raise ValueError("incorrect difficulty")
 
     def run_block(
         self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
@@ -801,11 +816,16 @@ class ShardState:
         self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
     def add_block(
-        self, block, skip_if_too_old=True, gas_limit=None, xshard_gas_limit=None
+        self,
+        block,
+        skip_if_too_old=True,
+        gas_limit=None,
+        xshard_gas_limit=None,
+        force=False,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
-        Returns None if block is already added.
+        Returns None if block is already added (if force is False).
         Returns a list of CrossShardTransactionDeposit from block.
         Additionally, returns a map of reward token balances for this block
         Raises on any error.
@@ -832,7 +852,7 @@ class ShardState:
                 )
 
         block_hash = block.header.get_hash()
-        if self.db.contain_minor_block_by_hash(block_hash):
+        if not force and self.db.contain_minor_block_by_hash(block_hash):
             return None, None
 
         evm_tx_included = []
@@ -1127,6 +1147,18 @@ class ShardState:
 
             tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
+            # check if TX is disabled
+            if (
+                self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
+                and block.header.create_time
+                < self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
+            ):
+                if (
+                    evm_tx.sender
+                    not in self.env.quark_chain_config.tx_whitelist_senders
+                ):
+                    continue
+
             # Check if EMV is disabled
             if (
                 self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
@@ -1194,11 +1226,7 @@ class ShardState:
         if evm_state.gas_used < xshard_gas_limit:
             evm_state.gas_limit -= xshard_gas_limit - evm_state.gas_used
 
-        if include_tx and (
-            self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is None
-            or block.header.create_time
-            >= self.env.quark_chain_config.ENABLE_TX_TIMESTAMP
-        ):
+        if include_tx:
             self.__add_transactions_to_block(block, evm_state)
 
         # Pay miner
@@ -1254,6 +1282,9 @@ class ShardState:
             root_block.header.height
             > self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
         )
+        if root_block.header.version != 0:
+            raise ValueError("incorrect root block version")
+
         if not self.db.contain_root_block_by_hash(root_block.header.hash_prev_block):
             raise ValueError("cannot find previous root block in pool")
 
@@ -1625,6 +1656,7 @@ class ShardState:
         return price
 
     def validate_minor_block_seal(self, block: MinorBlock):
+        """A more complete validation on PoSW."""
         consensus_type = self.env.quark_chain_config.shards[
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
@@ -1722,3 +1754,9 @@ class ShardState:
             length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
         coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)
+
+    def is_committed_by_hash(self, h):
+        return self.db.is_minor_block_committed_by_hash(h)
+
+    def commit_by_hash(self, h):
+        self.db.commit_minor_block_by_hash(h)

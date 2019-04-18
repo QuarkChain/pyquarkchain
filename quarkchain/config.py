@@ -224,7 +224,9 @@ class ShardConfig(ChainConfig):
 class RootConfig(BaseConfig):
     # To ignore super old blocks from peers
     # This means the network will fork permanently after a long partition
-    MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 60
+    # Use Ethereum's number, which is
+    # - 30000 * 3 blocks = 90000 * 15 / 3600 = 375 hours = 375 * 3600 / 60 = 22500
+    MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 22500
 
     CONSENSUS_TYPE = ConsensusType.NONE  # type: ConsensusType
     # Only set when CONSENSUS_TYPE is not NONE
@@ -300,6 +302,7 @@ class QuarkChainConfig(BaseConfig):
 
     BLOCK_REWARD_DECAY_FACTOR = 0.5
     ENABLE_TX_TIMESTAMP = None
+    TX_WHITELIST_SENDERS = []
     ENABLE_EVM_TIMESTAMP = None
 
     def __init__(self):
@@ -333,6 +336,8 @@ class QuarkChainConfig(BaseConfig):
 
         self._genesis_token = None  # genesis token id
         self._allowed_token_ids = None  # set of allowed token ids based on config
+
+        self._tx_whitelist_senders = None
 
     def init_and_validate(self):
         self._chain_id_to_shard_size = dict()
@@ -531,6 +536,14 @@ class QuarkChainConfig(BaseConfig):
     @property
     def allowed_gas_token_ids(self):
         return self.allowed_token_ids
+
+    @property
+    def tx_whitelist_senders(self):
+        if self._tx_whitelist_senders is None:
+            self._tx_whitelist_senders = set(
+                bytes.fromhex(s) for s in self.TX_WHITELIST_SENDERS
+            )
+        return self._tx_whitelist_senders
 
 
 def get_default_evm_config():

@@ -7,6 +7,7 @@ from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
     create_contract_creation_transaction,
+    contract_creation_tx,
 )
 from quarkchain.config import ConsensusType
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
@@ -42,8 +43,9 @@ class TestShardState(unittest.TestCase):
         assert config.REWARD_TAX_RATE == 0.5
         self.tax_rate = config.reward_tax_rate  # type: Fraction
         self.genesis_token = config.genesis_token  # type: int
+        self.genesis_token_str = config.GENESIS_TOKEN  # type: str
 
-    def getAfterTaxReward(self, value: int) -> int:
+    def get_after_tax_reward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
 
     def test_shard_state_simple(self):
@@ -86,6 +88,25 @@ class TestShardState(unittest.TestCase):
         # and thus it reverted all the way back to genesis
         self.assertEqual(state.header_tip, new_genesis_block.header)
         self.assertEqual(new_genesis_block, state.db.get_minor_block_by_height(0))
+
+    def test_blocks_with_incorrect_version(self):
+        env = get_test_env()
+        state = create_default_shard_state(env=env)
+        root_block = state.root_tip.create_block_to_append()
+        root_block.header.version = 1
+        with self.assertRaisesRegexp(ValueError, "incorrect root block version"):
+            state.add_root_block(root_block.finalize())
+
+        root_block.header.version = 0
+        state.add_root_block(root_block.finalize())
+
+        shard_block = state.create_block_to_mine()
+        shard_block.header.version = 1
+        with self.assertRaisesRegexp(ValueError, "incorrect minor block version"):
+            state.finalize_and_add_block(shard_block)
+
+        shard_block.header.version = 0
+        state.finalize_and_add_block(shard_block)
 
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
@@ -234,7 +255,7 @@ class TestShardState(unittest.TestCase):
         # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -312,7 +333,7 @@ class TestShardState(unittest.TestCase):
         )
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check receipts
@@ -473,7 +494,7 @@ class TestShardState(unittest.TestCase):
         )
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
         # Check Account has full_shard_key
@@ -529,7 +550,7 @@ class TestShardState(unittest.TestCase):
         # 2 block rewards: 3 tx, 2 block rewards
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
+            self.get_after_tax_reward(opcodes.GTXCOST * 3 + self.shard_coinbase * 2),
         )
 
         # Check receipts
@@ -727,7 +748,7 @@ class TestShardState(unittest.TestCase):
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXCOST + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
     def test_xshard_tx_insufficient_gas(self):
@@ -835,7 +856,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -889,7 +910,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(self.shard_coinbase),
+            self.get_after_tax_reward(self.shard_coinbase),
         )
 
         # No xshard tx is processed on the receiving side due to non-neighbor
@@ -1045,7 +1066,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(
+            self.get_after_tax_reward(
                 opcodes.GTXXSHARDCOST * (2 + 3) + self.shard_coinbase
             ),
         )
@@ -1156,7 +1177,7 @@ class TestShardState(unittest.TestCase):
         # Half collected by root
         self.assertEqual(
             state0.get_token_balance(acc3.recipient, self.genesis_token),
-            self.getAfterTaxReward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
+            self.get_after_tax_reward(opcodes.GTXXSHARDCOST * 2 + self.shard_coinbase),
         )
 
         # X-shard gas used
@@ -2185,9 +2206,13 @@ class TestShardState(unittest.TestCase):
         )
 
     def test_enable_tx_timestamp(self):
+        # whitelist acc1, make tx to acc2
+        # but do not whitelist acc2 and tx fails
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
+        id2 = Identity.create_random_identity()
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -2201,7 +2226,7 @@ class TestShardState(unittest.TestCase):
             key=id1.get_key(),
             from_address=acc1,
             to_address=acc2,
-            value=12345,
+            value=5000000,
             gas=50000,
         )
         self.assertTrue(state.add_tx(tx))
@@ -2210,13 +2235,31 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(b1.tx_list), 1)
 
         env.quark_chain_config.ENABLE_TX_TIMESTAMP = b1.header.create_time + 100
+        env.quark_chain_config.TX_WHITELIST_SENDERS = [acc1.recipient.hex()]
         b2 = state.create_block_to_mine()
-        self.assertEqual(len(b2.tx_list), 0)
+        self.assertEqual(len(b2.tx_list), 1)
+        state.finalize_and_add_block(b2)
+
+        tx2 = create_transfer_transaction(
+            shard_state=state,
+            key=id2.get_key(),
+            from_address=acc2,
+            to_address=acc3,
+            value=12345,
+            gas=50000,
+        )
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = None
+        self.assertTrue(state.add_tx(tx2))
+        b3 = state.create_block_to_mine()
+        self.assertEqual(len(b3.tx_list), 1)
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = b1.header.create_time + 100
+        b4 = state.create_block_to_mine()
+        self.assertEqual(len(b4.tx_list), 0)
 
         with self.assertRaisesRegexp(
-            ValueError, "tx_list should be empty before tx is enabled"
+            RuntimeError, "unwhitelisted senders not allowed before tx is enabled"
         ):
-            state.finalize_and_add_block(b1)
+            state.finalize_and_add_block(b3)
 
     def test_enable_evm_timestamp_with_contract_create(self):
         id1 = Identity.create_random_identity()
@@ -2281,3 +2324,70 @@ class TestShardState(unittest.TestCase):
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
+
+    def test_failed_transaction_gas(self):
+        """in-shard revert contract transaction validating the failed transaction gas used
+        """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={self.genesis_token_str: 200 * 10 ** 18},
+        )
+        state = create_default_shard_state(env=env)
+        # Create failed contract with revert operation
+        contract_creation_with_revert_bytecode = (
+            "6080604052348015600f57600080fd5b50600080fdfe"
+        )
+        """
+        pragma solidity ^0.5.1;
+        contract RevertContract {
+            constructor() public {
+                revert();
+            }
+        }
+        """
+        # This transaction cost is calculated by remix, which is different than the opcodes.GTXCOST due to revert.
+        FAILED_TRANSACTION_COST = 54416
+        tx = contract_creation_tx(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_full_shard_key=acc1.full_shard_key,
+            bytecode=contract_creation_with_revert_bytecode,
+            gas_token_id=self.genesis_token,
+            transfer_token_id=self.genesis_token,
+        )
+        # Should succeed
+        self.assertTrue(state.add_tx(tx))
+        b1 = state.create_block_to_mine(address=acc2)
+        self.assertEqual(len(b1.tx_list), 1)
+
+        state.finalize_and_add_block(b1)
+        self.assertEqual(state.header_tip, b1.header)
+
+        # Check receipts and make sure the transaction is failed
+        self.assertEqual(len(state.evm_state.receipts), 1)
+        self.assertEqual(state.evm_state.receipts[0].state_root, b"")
+        self.assertEqual(state.evm_state.receipts[0].gas_used, FAILED_TRANSACTION_COST)
+
+        # Make sure the FAILED_TRANSACTION_COST is consumed by the sender
+        self.assertEqual(
+            state.get_token_balance(id1.recipient, self.genesis_token),
+            200 * 10 ** 18 - FAILED_TRANSACTION_COST,
+        )
+        # Make sure the accurate gas fee is obtained by the miner
+        self.assertEqual(
+            state.get_token_balance(acc2.recipient, self.genesis_token),
+            self.get_after_tax_reward(FAILED_TRANSACTION_COST + self.shard_coinbase),
+        )
+        self.assertEqual(
+            b1.header.coinbase_amount_map.balance_map,
+            {
+                env.quark_chain_config.genesis_token: self.get_after_tax_reward(
+                    FAILED_TRANSACTION_COST + self.shard_coinbase
+                )
+            },
+        )
