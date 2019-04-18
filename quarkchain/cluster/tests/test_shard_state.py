@@ -1674,6 +1674,50 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(state0.db.get_minor_block_by_height(2), b3)
         self.assertEqual(state0.db.get_minor_block_by_height(3), b4)
 
+    def test_shard_reorg_by_adding_root_block(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+
+        env0 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+
+        genesis = state0.header_tip
+        # Add one block and include it in the root block
+        b0 = state0.get_tip().create_block_to_append(address=acc1)
+        b1 = state0.get_tip().create_block_to_append(address=acc2)
+
+        root_block0 = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(genesis)
+            .add_minor_block_header(b0.header)
+            .finalize()
+        )
+        root_block1 = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(genesis)
+            .add_minor_block_header(b1.header)
+            .finalize()
+        )
+
+        state0.finalize_and_add_block(b0)
+        state0.add_root_block(root_block0)
+        self.assertEqual(state0.header_tip, b0.header)
+
+        state0.finalize_and_add_block(b1)
+        self.assertEqual(state0.header_tip, b0.header)
+
+        # Add another root block with higher TD
+        root_block1.header.total_difficulty += root_block1.header.difficulty
+        root_block1.header.difficulty *= 2
+
+        self.assertTrue(state0.add_root_block(root_block1))
+        self.assertEqual(state0.header_tip, b1.header)
+        self.assertEqual(state0.meta_tip, b1.meta)
+        self.assertEqual(state0.root_tip, root_block1.header)
+        self.assertEqual(state0.evm_state.trie.root_hash, b1.meta.hash_evm_state_root)
+
     def test_shard_state_add_root_block_too_many_minor_blocks(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
