@@ -683,6 +683,20 @@ class MasterServer:
             guardian_private_key=self.env.quark_chain_config.guardian_private_key,
         )
 
+    async def __rebroadcast_committing_root_block(self):
+        committing_block_hash = self.root_state.get_committing_block_hash()
+        if committing_block_hash:
+            r_block = self.root_state.db.get_root_block_by_hash(
+                committing_block_hash, consistency_check=False
+            )
+            future_list = self.broadcast_rpc(
+                op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
+                req=AddRootBlockRequest(r_block, False),
+            )
+            result_list = await asyncio.gather(*future_list)
+            check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+            self.root_state.clear_committing_hash()
+
     def get_artificial_tx_config(self):
         return self.artificial_tx_config
 
@@ -816,6 +830,7 @@ class MasterServer:
             return
         await self.__setup_slave_to_slave_connections()
         await self.__init_shards()
+        await self.__rebroadcast_committing_root_block()
 
         self.cluster_active_future.set_result(None)
 
@@ -1017,19 +1032,16 @@ class MasterServer:
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
-        block_hash = r_block.header.get_hash()
-        committed = self.root_state.is_committed_by_hash(block_hash)
-        if committed:
-            return
-
         self.root_state.validate_block(r_block)  # throw exception if failed
-        update_tip = False
         try:
             update_tip = self.root_state.add_block(r_block)
-            success = True
         except ValueError:
             Logger.log_exception()
-            success = False
+            return
+
+        # root block is written to db but not broadcasted to slaves
+        # use write-ahead log so if crashed the root block can be re-broadcasted
+        self.root_state.write_committing_hash(r_block.header.get_hash())
 
         try:
             if update_tip and self.network is not None:
@@ -1038,14 +1050,12 @@ class MasterServer:
         except Exception:
             pass
 
-        if success:
-            future_list = self.broadcast_rpc(
-                op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
-                req=AddRootBlockRequest(r_block, False),
-            )
-            result_list = await asyncio.gather(*future_list)
-            check(all([resp.error_code == 0 for _, resp, _ in result_list]))
-            self.root_state.commit_by_hash(block_hash)
+        future_list = self.broadcast_rpc(
+            op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
+        )
+        result_list = await asyncio.gather(*future_list)
+        check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+        self.root_state.clear_committing_hash()
 
     async def add_raw_minor_block(self, branch, block_data):
         if branch.value not in self.branch_to_slaves:

@@ -73,11 +73,6 @@ class RootDb:
         # while shards might not have seen the block of tipHash
         r_hash = r_block.header.hash_prev_block
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-        # look back until find a committed root block
-        while not self.is_root_block_committed_by_hash(r_hash):
-            r_hash = r_block.header.hash_prev_block
-            r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-
         self.tip_header = r_block.header  # type: RootBlockHeader
 
         while len(self.r_header_pool) < self.max_num_blocks_to_recover:
@@ -129,8 +124,6 @@ class RootDb:
     def get_root_block_header_by_hash(self, h, consistency_check=True):
         header = self.r_header_pool.get(h)
         if not header and not consistency_check:
-            if not self.is_root_block_committed_by_hash(h):
-                return None
             block = self.get_root_block_by_hash(h, consistency_check=False)
             if block:
                 header = block.header
@@ -233,11 +226,14 @@ class RootDb:
 
         return self.m_hash_dict[h]
 
-    def is_root_block_committed_by_hash(self, h) -> bool:
-        return (b"commit_" + h) in self.db
+    def write_committing_hash(self, h: bytes):
+        self.put(b"rb_committing", h)
 
-    def commit_root_block_by_hash(self, h):
-        self.put(b"commit_" + h, b"")
+    def clear_committing_hash(self):
+        self.remove(b"rb_committing")
+
+    def get_committing_block_hash(self):
+        return self.get(b"rb_committing")
 
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
@@ -245,6 +241,9 @@ class RootDb:
 
     def get(self, key, default=None):
         return self.db.get(key, default)
+
+    def remove(self, key):
+        return self.db.remove(key)
 
     def __getitem__(self, key):
         return self[key]
@@ -631,8 +630,11 @@ class RootState:
             return True
         return False
 
-    def is_committed_by_hash(self, block_hash) -> bool:
-        return self.db.is_root_block_committed_by_hash(block_hash)
+    def write_committing_hash(self, h):
+        self.db.write_committing_hash(h)
 
-    def commit_by_hash(self, h):
-        self.db.commit_root_block_by_hash(h)
+    def clear_committing_hash(self):
+        self.db.clear_committing_hash()
+
+    def get_committing_block_hash(self):
+        return self.db.get_committing_block_hash()
