@@ -1543,7 +1543,7 @@ class ShardState:
                             success=False,
                             gas_token_id=tx.gas_token_id,
                             transfer_token_id=tx.transfer_token_id,
-                            is_coibase=False,
+                            is_from_root_chain=False,
                         )
                     )
             return tx_list, b""
