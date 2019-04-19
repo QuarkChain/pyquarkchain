@@ -123,6 +123,11 @@ class Node:
     def __hash__(self) -> int:
         return hash(self.pubkey)
 
+    def to_uri(self):
+        return "enode://{}@{}:{}".format(
+            self.pubkey.to_hex(), self.address.ip, self.address.tcp_port
+        )
+
 
 @total_ordering
 class KBucket(Sized):
