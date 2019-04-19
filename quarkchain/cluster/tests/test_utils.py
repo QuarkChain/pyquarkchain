@@ -369,8 +369,11 @@ def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
 
     for cluster in cluster_list:
         for slave in cluster.slave_list:
-            slave.shutdown()
+            slave.master.close()
             loop.run_until_complete(slave.get_shutdown_future())
+
+        for slave in cluster.master.slave_pool:
+            slave.close()
 
         cluster.master.shutdown()
         loop.run_until_complete(cluster.master.get_shutdown_future())
