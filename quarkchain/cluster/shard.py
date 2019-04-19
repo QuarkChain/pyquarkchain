@@ -559,14 +559,14 @@ class Shard:
             # catch up immediately
             return
 
-        if block.header.get_hash() in self.state.new_block_pool:
+        if block.header.get_hash() in self.state.new_block_header_pool:
             return
         if self.state.db.contain_minor_block_by_hash(block.header.get_hash()):
             return
 
         prev_hash, prev_header = block.header.hash_prev_minor_block, None
-        if prev_hash in self.state.new_block_pool:
-            prev_header = self.state.new_block_pool[prev_hash].header
+        if prev_hash in self.state.new_block_header_pool:
+            prev_header = self.state.new_block_header_pool[prev_hash]
         else:
             prev_header = self.state.db.get_minor_block_header_by_hash(prev_hash)
         if prev_header is None:  # Missing prev
@@ -613,7 +613,7 @@ class Shard:
             )
             raise e
 
-        self.state.new_block_pool[block.header.get_hash()] = block
+        self.state.new_block_header_pool[block.header.get_hash()] = block.header
 
         Logger.info(
             "[{}/{}] got new block with height {}".format(
@@ -670,8 +670,8 @@ class Shard:
 
         # only remove from pool if the block successfully added to state,
         # this may cache failed blocks but prevents them being broadcasted more than needed
-        # TODO add ttl to blocks in new_block_pool
-        self.state.new_block_pool.pop(block_hash, None)
+        # TODO add ttl to blocks in new_block_header_pool
+        self.state.new_block_header_pool.pop(block_hash, None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
             if old_tip != self.state.header_tip:
