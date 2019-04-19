@@ -52,6 +52,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkRequest,
     SubmitWorkResponse,
     AddMinorBlockHeaderListResponse,
+    RootBlockSychronizerStats,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -92,7 +93,7 @@ class SyncTask:
     including root chain and shards with the peer up to the height of the header.
     """
 
-    def __init__(self, header, peer):
+    def __init__(self, header, peer, stats, root_block_header_list_limit):
         self.header = header
         self.peer = peer
         self.master_server = peer.master_server
@@ -100,6 +101,9 @@ class SyncTask:
         self.max_staleness = (
             self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
         )
+        self.stats = stats
+        self.root_block_header_list_limit = root_block_header_list_limit
+        check(root_block_header_list_limit >= 3)
 
     async def sync(self):
         try:
@@ -119,6 +123,8 @@ class SyncTask:
             )
         )
 
+        self.stats.headers_downloaded += len(resp.block_header_list)
+
         if resp.root_tip.total_difficulty < self.header.total_difficulty:
             raise RuntimeError("Bad peer sending root block tip with lower TD")
 
@@ -137,7 +143,9 @@ class SyncTask:
         end = min(self.root_state.tip.height, self.header.height)
 
         while end >= start:
-            span = (end - start) // ROOT_BLOCK_HEADER_LIST_LIMIT + 1
+            print("start end", start, end)
+            self.stats.ancestor_lookup_requests += 1
+            span = (end - start) // self.root_block_header_list_limit + 1
             resp = await self.__download_block_header_and_check(start, span - 1, len(range(start, end + 1, span)))
 
             if len(resp.block_header_list) == 0:
@@ -172,23 +180,27 @@ class SyncTask:
                 break
 
         # No ancestor is found.  Note that it is possible caused by remote root chain org.
+        self.stats.ancestor_not_found_count += 1
         return None
 
     async def __run_sync(self):
         """raise on any error so that sync() will close peer connection"""
+        if self.header.total_difficulty <= self.root_state.tip.total_difficulty:
+            return
+
         if self.__has_block_hash(self.header.get_hash()):
             return
 
         ancestor = await self.__find_ancestor()
         if ancestor is None:
-            raise RuntimeError("Cannot find common ancestor with max fork lengh {}".format(
+            raise RuntimeError("Cannot find common ancestor with max fork length {}".format(
                 self.max_staleness)
             )
 
         while self.header.height > ancestor.height:
             limit = min(
                 self.header.height - ancestor.height,
-                self.root_state.root_config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+                self.root_block_header_list_limit
             )
             resp = await self.__download_block_header_and_check(ancestor.height + 1, 0, limit)
 
@@ -235,6 +247,7 @@ class SyncTask:
             CommandOp.GET_ROOT_BLOCK_LIST_REQUEST,
             GetRootBlockListRequest(block_hash_list),
         )
+        self.stats.blocks_downloaded += len(resp.root_block_list)
         return resp.root_block_list
 
     async def __add_block(self, root_block):
@@ -246,6 +259,7 @@ class SyncTask:
         start = time.time()
         await self.__sync_minor_blocks(root_block.minor_block_header_list)
         await self.master_server.add_root_block(root_block)
+        self.stats.blocks_added += 1
         elapse = time.time() - start
         Logger.info(
             "[R] syncing root block {} {} took {:.2f} seconds".format(
@@ -304,6 +318,8 @@ class Synchronizer:
         self.tasks = dict()
         self.running = False
         self.running_task = None
+        self.stats = RootBlockSychronizerStats()
+        self.root_block_header_list_limit = ROOT_BLOCK_HEADER_LIST_LIMIT
 
     def add_task(self, header, peer):
         self.tasks[peer] = header
@@ -338,7 +354,7 @@ class Synchronizer:
     def _pop_best_task(self):
         """ pop and return the task with heightest root """
         check(len(self.tasks) > 0)
-        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].height)
+        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].total_difficulty)
         del self.tasks[peer]
         return header, peer
 
@@ -347,7 +363,7 @@ class Synchronizer:
         while len(self.tasks) > 0:
             self.running_task = self._pop_best_task()
             header, peer = self.running_task
-            task = SyncTask(header, peer)
+            task = SyncTask(header, peer, self.stats, self.root_block_header_list_limit)
             Logger.info(
                 "[R] start sync task {} {}".format(
                     header.height, header.get_hash().hex()
