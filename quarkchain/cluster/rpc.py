@@ -286,7 +286,7 @@ class TransactionDetail(Serializable):
         ("success", boolean),
         ("gas_token_id", uint64),
         ("transfer_token_id", uint64),
-        ("is_coinbase", boolean),
+        ("is_from_root_chain", boolean),
     ]
 
     def __init__(
@@ -300,7 +300,7 @@ class TransactionDetail(Serializable):
         success,
         gas_token_id,
         transfer_token_id,
-        is_coinbase,
+        is_from_root_chain,
     ):
         self.tx_hash = tx_hash
         self.from_address = from_address
@@ -311,7 +311,7 @@ class TransactionDetail(Serializable):
         self.success = success
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
-        self.is_coinbase = is_coinbase
+        self.is_from_root_chain = is_from_root_chain
 
 
 class GetTransactionListByAddressResponse(Serializable):

@@ -132,7 +132,7 @@ class TransactionHistoryMixin:
                         True,
                         tx.gas_token_id,
                         tx.transfer_token_id,
-                        is_coinbase=tx.is_coinbase,
+                        is_from_root_chain=tx.is_from_root_chain,
                     )
                 )
             else:
@@ -153,7 +153,7 @@ class TransactionHistoryMixin:
                         receipt.success == b"\x01",
                         evm_tx.gas_token_id,
                         evm_tx.transfer_token_id,
-                        is_coinbase=False,
+                        is_from_root_chain=False,
                     )
                 )
             next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(

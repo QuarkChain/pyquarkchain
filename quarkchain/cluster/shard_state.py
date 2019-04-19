@@ -115,7 +115,7 @@ class XshardTxCursor:
                     gas_price=0,
                     gas_token_id=self.shard_state.genesis_token_id,
                     transfer_token_id=self.shard_state.genesis_token_id,
-                    is_coinbase=True,
+                    is_from_root_chain=True,
                 )
 
             return None
