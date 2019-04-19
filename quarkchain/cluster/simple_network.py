@@ -242,6 +242,10 @@ class Peer(P2PConnection):
         # does nothing
         pass
 
+    async def handle_new_root_block(self, op, cmd, rpc_id):
+        # does nothing at the moment
+        pass
+
     # ----------------------- RPC handlers ---------------------------------
 
     async def handle_get_root_block_header_list_request(self, request):
@@ -338,6 +342,7 @@ OP_NONRPC_MAP = {
     CommandOp.NEW_TRANSACTION_LIST: Peer.handle_new_transaction_list,
     CommandOp.PING: Peer.handle_ping,
     CommandOp.PONG: Peer.handle_pong,
+    CommandOp.NEW_ROOT_BLOCK: Peer.handle_new_root_block,
 }
 
 # For RPC request commands

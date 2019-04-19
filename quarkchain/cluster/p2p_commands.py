@@ -243,6 +243,13 @@ class NewBlockMinorCommand(Serializable):
         self.block = block
 
 
+class NewRootBlockCommand(Serializable):
+    FIELDS = [("block", RootBlock)]
+
+    def __init__(self, block):
+        self.block = block
+
+
 class PingPongCommand(Serializable):
     """
     with 32B message which is undefined at the moment
@@ -273,6 +280,7 @@ class CommandOp:
     PONG = 15
     GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 16
     GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 17
+    NEW_ROOT_BLOCK = 18
 
 
 OP_SERIALIZER_MAP = {
@@ -294,4 +302,5 @@ OP_SERIALIZER_MAP = {
     CommandOp.PONG: PingPongCommand,
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetRootBlockHeaderListWithSkipRequest,
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetRootBlockHeaderListResponse,
+    CommandOp.NEW_ROOT_BLOCK: NewRootBlockCommand,
 }
