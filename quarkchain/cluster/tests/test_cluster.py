@@ -3,7 +3,13 @@ from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
 )
-from quarkchain.core import Address, Branch, Identity, TokenBalanceMap, XshardTxCursorInfo
+from quarkchain.core import (
+    Address,
+    Branch,
+    Identity,
+    TokenBalanceMap,
+    XshardTxCursorInfo,
+)
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
 from quarkchain.cluster.p2p_commands import (
@@ -66,7 +72,7 @@ class TestCluster(unittest.TestCase):
                 root0.header.coinbase_amount_map.balance_map[
                     master.env.quark_chain_config.genesis_token
                 ],
-                master.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+                master.env.quark_chain_config.ROOT.COINBASE_AMOUNT,
             )
             call_async(master.add_root_block(root0))
 
@@ -77,8 +83,7 @@ class TestCluster(unittest.TestCase):
             # shard 0 block should have correct root block and cursor info
             shard_state = clusters[0].get_shard(id1).state
             self.assertEqual(
-                shard_state.header_tip.hash_prev_root_block,
-                root0.header.get_hash()
+                shard_state.header_tip.hash_prev_root_block, root0.header.get_hash()
             )
             self.assertEqual(
                 shard_state.get_tip().meta.xshard_tx_cursor_info,
@@ -86,10 +91,9 @@ class TestCluster(unittest.TestCase):
             )
             self.assertEqual(
                 shard_state.get_token_balance(
-                    acc1.recipient,
-                    shard_state.env.quark_chain_config.genesis_token
+                    acc1.recipient, shard_state.env.quark_chain_config.genesis_token
                 ),
-                1000000,        # from create_test_clusters in genesis alloc
+                1000000,  # from create_test_clusters in genesis alloc
             )
 
             # Add root block with height 2, which will automatically create genesis block for shard 1
@@ -102,12 +106,9 @@ class TestCluster(unittest.TestCase):
                 master.env.quark_chain_config.ROOT.COINBASE_AMOUNT
                 + root1.minor_block_header_list[0].coinbase_amount_map.balance_map[
                     master.env.quark_chain_config.genesis_token
-                ]
+                ],
             )
-            self.assertEqual(
-                root1.minor_block_header_list[0],
-                shard_state.header_tip
-            )
+            self.assertEqual(root1.minor_block_header_list[0], shard_state.header_tip)
             call_async(master.add_root_block(root1))
 
             self.assertIsNotNone(clusters[0].get_shard(id1))
@@ -123,20 +124,21 @@ class TestCluster(unittest.TestCase):
             call_async(clusters[0].get_shard(id1).add_block(mblock))
             self.assertEqual(
                 shard_state.get_token_balance(
-                    acc1.recipient,
-                    shard_state.env.quark_chain_config.genesis_token
+                    acc1.recipient, shard_state.env.quark_chain_config.genesis_token
                 ),
                 root1.header.coinbase_amount_map.balance_map[
                     shard_state.env.quark_chain_config.genesis_token
-                ] + root0.header.coinbase_amount_map.balance_map[
+                ]
+                + root0.header.coinbase_amount_map.balance_map[
                     shard_state.env.quark_chain_config.genesis_token
-                ] + 1000000         # from create_test_clusters in genesis alloc
+                ]
+                + 1000000,  # from create_test_clusters in genesis alloc
             )
             self.assertEqual(
                 mblock.header.coinbase_amount_map.balance_map[
                     shard_state.env.quark_chain_config.genesis_token
                 ],
-                shard_state.shard_config.COINBASE_AMOUNT // 2
+                shard_state.shard_config.COINBASE_AMOUNT // 2,
             )
 
             # Add root block with height 3, which will include
@@ -706,7 +708,7 @@ class TestCluster(unittest.TestCase):
                 )
             )
 
-    def test_new_block_pool(self):
+    def test_new_block_header_pool(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
@@ -727,7 +729,9 @@ class TestCluster(unittest.TestCase):
             with self.assertRaises(ValueError):
                 call_async(shard.handle_new_block(b2))
             # Also the block should not exist in new block pool
-            self.assertTrue(b2.header.get_hash() not in shard.state.new_block_pool)
+            self.assertTrue(
+                b2.header.get_hash() not in shard.state.new_block_header_pool
+            )
 
     def test_get_root_block_headers_with_skip(self):
         """ Test the broadcast is only done to the neighbors """
@@ -761,11 +765,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=1,
-                        skip=1,
-                        limit=3,
-                        direction=Direction.TIP,
-                    )
+                        height=1, skip=1, limit=3, direction=Direction.TIP
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 3)
@@ -781,7 +782,7 @@ class TestCluster(unittest.TestCase):
                         skip=1,
                         limit=3,
                         direction=Direction.TIP,
-                    )
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 3)
@@ -794,11 +795,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=2,
-                        skip=2,
-                        limit=4,
-                        direction=Direction.TIP,
-                    )
+                        height=2, skip=2, limit=4, direction=Direction.TIP
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 3)
@@ -814,7 +812,7 @@ class TestCluster(unittest.TestCase):
                         skip=2,
                         limit=4,
                         direction=Direction.TIP,
-                    )
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 3)
@@ -827,11 +825,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=6,
-                        skip=0,
-                        limit=100,
-                        direction=Direction.TIP,
-                    )
+                        height=6, skip=0, limit=100, direction=Direction.TIP
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 5)
@@ -849,7 +844,7 @@ class TestCluster(unittest.TestCase):
                         skip=0,
                         limit=100,
                         direction=Direction.TIP,
-                    )
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 5)
@@ -864,11 +859,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=2,
-                        skip=2,
-                        limit=4,
-                        direction=Direction.GENESIS,
-                    )
+                        height=2, skip=2, limit=4, direction=Direction.GENESIS
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 1)
@@ -881,7 +873,7 @@ class TestCluster(unittest.TestCase):
                         skip=2,
                         limit=4,
                         direction=Direction.GENESIS,
-                    )
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 1)
@@ -892,11 +884,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=11,
-                        skip=2,
-                        limit=4,
-                        direction=Direction.GENESIS,
-                    )
+                        height=11, skip=2, limit=4, direction=Direction.GENESIS
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 0)
@@ -905,11 +894,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_hash(
-                        hash=bytes(32),
-                        skip=2,
-                        limit=4,
-                        direction=Direction.GENESIS,
-                    )
+                        hash=bytes(32), skip=2, limit=4, direction=Direction.GENESIS
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 0)
@@ -919,11 +905,8 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                        height=8,
-                        skip=1,
-                        limit=5,
-                        direction=Direction.GENESIS,
-                    )
+                        height=8, skip=1, limit=5, direction=Direction.GENESIS
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 5)
@@ -941,7 +924,7 @@ class TestCluster(unittest.TestCase):
                         skip=1,
                         limit=5,
                         direction=Direction.GENESIS,
-                    )
+                    ),
                 )
             )
             self.assertEqual(len(resp.block_header_list), 5)

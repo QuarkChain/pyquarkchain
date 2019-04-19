@@ -250,7 +250,7 @@ class ShardState:
         )
 
         # new blocks that passed POW validation and should be made available to whole network
-        self.new_block_pool = dict()
+        self.new_block_header_pool = dict()
         # header hash -> (height, [coinbase address]) during previous blocks (ascending)
         self.coinbase_addr_cache = dict()  # type: Dict[bytes, Tuple[int, Deque[bytes]]]
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
