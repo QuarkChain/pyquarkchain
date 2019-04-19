@@ -1,4 +1,5 @@
 import enum
+import subprocess
 import sys
 from typing import cast, Dict
 
@@ -75,7 +76,9 @@ class Pong(Command):
 
 
 def construct_quark_chain_client_identifier() -> str:
-    __version__ = 2.0
+    __version__ = (
+        subprocess.check_output("git describe --tags", shell=True).decode().strip()
+    )
     """
     Constructs the client identifier string
 
