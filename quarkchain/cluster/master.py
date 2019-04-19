@@ -282,8 +282,7 @@ class SyncTask:
             if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
                     "minor block {} from {} is still unavailable in master after root block sync".format(
-                        m_header.get_hash().hex(),
-                        m_header.branch.to_str(),
+                        m_header.get_hash().hex(), m_header.branch.to_str()
                     )
                 )
 
@@ -594,14 +593,16 @@ class SlaveConnection(ClusterConnection):
 
     async def handle_add_minor_block_header_list_request(self, req):
         check(len(req.minor_block_header_list) == len(req.coinbase_amount_map_list))
-        for minor_block_header, coinbase_amount_map in zip(req.minor_block_header_list, req.coinbase_amount_map_list):
+        for minor_block_header, coinbase_amount_map in zip(
+            req.minor_block_header_list, req.coinbase_amount_map_list
+        ):
             self.master_server.root_state.add_validated_minor_block_hash(
                 minor_block_header.get_hash(), coinbase_amount_map.balance_map
             )
-            Logger.info("adding {} mblock to db".format(minor_block_header.get_hash().hex()))
-        return AddMinorBlockHeaderListResponse(
-            error_code=0,
-        )
+            Logger.info(
+                "adding {} mblock to db".format(minor_block_header.get_hash().hex())
+            )
+        return AddMinorBlockHeaderListResponse(error_code=0)
 
 
 OP_RPC_MAP = {
@@ -626,7 +627,7 @@ class MasterServer:
     def __init__(self, env, root_state, name="master"):
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.root_state = root_state
+        self.root_state = root_state  # type: RootState
         self.network = None  # will be set by network constructor
         self.cluster_config = env.cluster_config
 
@@ -1016,6 +1017,11 @@ class MasterServer:
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
+        block_hash = r_block.header.get_hash()
+        committed = self.root_state.is_committed_by_hash(block_hash)
+        if committed:
+            return
+
         self.root_state.validate_block(r_block)  # throw exception if failed
         update_tip = False
         try:
@@ -1039,6 +1045,7 @@ class MasterServer:
             )
             result_list = await asyncio.gather(*future_list)
             check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+            self.root_state.commit_by_hash(block_hash)
 
     async def add_raw_minor_block(self, branch, block_data):
         if branch.value not in self.branch_to_slaves:
