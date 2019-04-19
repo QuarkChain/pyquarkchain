@@ -567,7 +567,7 @@ class SlaveConnection(ClusterConnection):
         header_hash: bytes,
         nonce: int,
         mixhash: bytes,
-        signature: bytes = bytes(65),
+        signature: Optional[bytes] = None,
     ) -> bool:
         request = SubmitWorkRequest(branch, header_hash, nonce, mixhash, signature)
         _, resp, _ = await self.write_rpc_request(
@@ -1366,7 +1366,7 @@ class MasterServer:
         header_hash: bytes,
         nonce: int,
         mixhash: bytes,
-        signature: bytes = bytes(65),
+        signature: Optional[bytes] = None,
     ) -> bool:
         if not branch:  # submit root chain work
             return await self.root_miner.submit_work(

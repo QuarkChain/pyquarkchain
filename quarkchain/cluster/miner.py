@@ -284,7 +284,7 @@ class Miner:
         header_hash: bytes,
         nonce: int,
         mixhash: bytes,
-        signature: Optional[bytes] = bytes(65),
+        signature: Optional[bytes] = None,
     ) -> bool:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
@@ -300,7 +300,7 @@ class Miner:
             header.sign_with_private_key(self.guardian_private_key)
 
         # remote sign as a guardian
-        if isinstance(block, RootBlock) and signature != bytes(65):
+        if isinstance(block, RootBlock) and signature != None:
             header.signature = signature
 
         try:
