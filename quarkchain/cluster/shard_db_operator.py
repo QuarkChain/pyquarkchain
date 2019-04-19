@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 
 from quarkchain.cluster.rpc import TransactionDetail
 from quarkchain.core import (
@@ -8,6 +8,7 @@ from quarkchain.core import (
     CrossShardTransactionList,
     Branch,
     Address,
+    CrossShardTransactionDeposit,
 )
 from quarkchain.utils import check, Logger
 
@@ -69,10 +70,8 @@ class TransactionHistoryMixin:
     def __update_transaction_history_index_from_block(self, minor_block, func):
         x_shard_receive_tx_list = self.__get_confirmed_cross_shard_transaction_deposit_list(
             minor_block.header.get_hash()
-        )
+        )  # type: List[CrossShardTransactionDeposit]
         for i, tx in enumerate(x_shard_receive_tx_list):
-            if tx.tx_hash == bytes(32):  # coinbase reward for root block miner
-                continue
             key = self.__encode_address_transaction_key(
                 tx.to_address, minor_block.header.height, i, True
             )
@@ -121,7 +120,7 @@ class TransactionHistoryMixin:
                 )
                 tx = x_shard_receive_tx_list[
                     index
-                ]  # tx is CrossShardTransactionDeposit
+                ]  # type: CrossShardTransactionDeposit
                 tx_list.append(
                     TransactionDetail(
                         tx.tx_hash,
@@ -133,6 +132,7 @@ class TransactionHistoryMixin:
                         True,
                         tx.gas_token_id,
                         tx.transfer_token_id,
+                        is_from_root_chain=tx.is_from_root_chain,
                     )
                 )
             else:
@@ -153,6 +153,7 @@ class TransactionHistoryMixin:
                         receipt.success == b"\x01",
                         evm_tx.gas_token_id,
                         evm_tx.transfer_token_id,
+                        is_from_root_chain=False,
                     )
                 )
             next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(

@@ -286,6 +286,7 @@ class TransactionDetail(Serializable):
         ("success", boolean),
         ("gas_token_id", uint64),
         ("transfer_token_id", uint64),
+        ("is_from_root_chain", boolean),
     ]
 
     def __init__(
@@ -299,6 +300,7 @@ class TransactionDetail(Serializable):
         success,
         gas_token_id,
         transfer_token_id,
+        is_from_root_chain,
     ):
         self.tx_hash = tx_hash
         self.from_address = from_address
@@ -309,6 +311,7 @@ class TransactionDetail(Serializable):
         self.success = success
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
+        self.is_from_root_chain = is_from_root_chain
 
 
 class GetTransactionListByAddressResponse(Serializable):
@@ -619,27 +622,23 @@ class AddMinorBlockHeaderListRequest(Serializable):
     """ Notify master about a list of successfully added minor block.
     Mostly used for minor block sync triggered by root block sync
     """
+
     FIELDS = [
         ("minor_block_header_list", PrependedSizeListSerializer(4, MinorBlockHeader)),
         ("coinbase_amount_map_list", PrependedSizeListSerializer(4, TokenBalanceMap)),
     ]
 
-    def __init__(
-        self,
-        minor_block_header_list,
-        coinbase_amount_map_list
-    ):
+    def __init__(self, minor_block_header_list, coinbase_amount_map_list):
         self.minor_block_header_list = minor_block_header_list
         self.coinbase_amount_map_list = coinbase_amount_map_list
 
 
 class AddMinorBlockHeaderListResponse(Serializable):
-    FIELDS = [
-        ("error_code", uint32),
-    ]
+    FIELDS = [("error_code", uint32)]
 
     def __init__(self, error_code):
         self.error_code = error_code
+
 
 # slave -> slave
 

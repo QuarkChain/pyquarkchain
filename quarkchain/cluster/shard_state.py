@@ -107,13 +107,15 @@ class XshardTxCursor:
 
                 # Perform x-shard from root chain coinbase
                 return CrossShardTransactionDeposit(
+                    # Use root block hash as identifier.
                     tx_hash=self.rblock.header.get_hash(),
-                    from_address=self.rblock.header.coinbase_address,
+                    from_address=Address.create_empty_account(0),
                     to_address=self.rblock.header.coinbase_address,
                     value=coinbase_amount,
                     gas_price=0,
                     gas_token_id=self.shard_state.genesis_token_id,
                     transfer_token_id=self.shard_state.genesis_token_id,
+                    is_from_root_chain=True,
                 )
 
             return None
@@ -1273,7 +1275,9 @@ class ShardState:
     def __update_tip(self, block, evm_state=None):
         self.__rewrite_block_index_to(block)
         if evm_state is None:
-            evm_state = self.__create_evm_state(block.meta.hash_evm_state_root, block.header.get_hash())
+            evm_state = self.__create_evm_state(
+                block.meta.hash_evm_state_root, block.header.get_hash()
+            )
         self.evm_state = evm_state
         self.header_tip = block.header
         self.meta_tip = block.meta
@@ -1419,7 +1423,9 @@ class ShardState:
             )
 
         if self.header_tip != orig_header_tip:
-            self.__update_tip(self.db.get_minor_block_by_hash(self.header_tip.get_hash()))
+            self.__update_tip(
+                self.db.get_minor_block_by_hash(self.header_tip.get_hash())
+            )
             Logger.info(
                 "[{}] shard tip reset from {} to {} by root block {}".format(
                     self.branch.to_str(),
@@ -1537,6 +1543,7 @@ class ShardState:
                             success=False,
                             gas_token_id=tx.gas_token_id,
                             transfer_token_id=tx.transfer_token_id,
+                            is_from_root_chain=False,
                         )
                     )
             return tx_list, b""
