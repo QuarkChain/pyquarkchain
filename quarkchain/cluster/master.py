@@ -689,6 +689,10 @@ class MasterServer:
             r_block = self.root_state.db.get_root_block_by_hash(
                 committing_block_hash, consistency_check=False
             )
+            # missing actual block, may have crashed before writing the block
+            if not r_block:
+                self.root_state.clear_committing_hash()
+                return
             future_list = self.broadcast_rpc(
                 op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
                 req=AddRootBlockRequest(r_block, False),
@@ -1033,15 +1037,15 @@ class MasterServer:
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
         self.root_state.validate_block(r_block)  # throw exception if failed
+
+        # use write-ahead log so if crashed the root block can be re-broadcasted
+        self.root_state.write_committing_hash(r_block.header.get_hash())
+
         try:
             update_tip = self.root_state.add_block(r_block)
         except ValueError:
             Logger.log_exception()
             return
-
-        # root block is written to db but not broadcasted to slaves
-        # use write-ahead log so if crashed the root block can be re-broadcasted
-        self.root_state.write_committing_hash(r_block.header.get_hash())
 
         try:
             if update_tip and self.network is not None:
