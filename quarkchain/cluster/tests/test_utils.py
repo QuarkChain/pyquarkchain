@@ -277,6 +277,7 @@ def create_test_clusters(
     remote_mining=False,
     small_coinbase=False,
     loadtest_accounts=None,
+    connect=True,               # connect the bootstrap node by default
 ):
     # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
@@ -344,7 +345,7 @@ def create_test_clusters(
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, master_server, loop)
         network.start_server()
-        if i != 0:
+        if connect and i != 0:
             peer = call_async(network.connect("127.0.0.1", bootstrap_port))
         else:
             peer = None
@@ -393,6 +394,7 @@ class ClusterContext(ContextDecorator):
         remote_mining=False,
         small_coinbase=False,
         loadtest_accounts=None,
+        connect=True,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -403,6 +405,7 @@ class ClusterContext(ContextDecorator):
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
         self.loadtest_accounts = loadtest_accounts
+        self.connect = connect
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -418,6 +421,7 @@ class ClusterContext(ContextDecorator):
             remote_mining=self.remote_mining,
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
+            connect=self.connect,
         )
         return self.cluster_list
 

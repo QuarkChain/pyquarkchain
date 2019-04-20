@@ -14,6 +14,7 @@ from quarkchain.cluster.p2p_commands import (
     Direction,
     GetRootBlockHeaderListRequest,
     GetRootBlockListRequest,
+    GetRootBlockHeaderListWithSkipRequest,
 )
 from quarkchain.cluster.protocol import (
     ClusterMetadata,
@@ -51,6 +52,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkRequest,
     SubmitWorkResponse,
     AddMinorBlockHeaderListResponse,
+    RootBlockSychronizerStats,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -91,7 +93,7 @@ class SyncTask:
     including root chain and shards with the peer up to the height of the header.
     """
 
-    def __init__(self, header, peer):
+    def __init__(self, header, peer, stats, root_block_header_list_limit):
         self.header = header
         self.peer = peer
         self.master_server = peer.master_server
@@ -99,6 +101,9 @@ class SyncTask:
         self.max_staleness = (
             self.root_state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
         )
+        self.stats = stats
+        self.root_block_header_list_limit = root_block_header_list_limit
+        check(root_block_header_list_limit >= 3)
 
     async def sync(self):
         try:
@@ -107,118 +112,134 @@ class SyncTask:
             Logger.log_exception()
             self.peer.close_with_error(str(e))
 
+    async def __download_block_header_and_check(self, start, skip, limit):
+        _, resp, _ = await self.peer.write_rpc_request(
+            op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+            cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
+                height=start,
+                skip=skip,
+                limit=limit,
+                direction=Direction.TIP
+            )
+        )
+
+        self.stats.headers_downloaded += len(resp.block_header_list)
+
+        if resp.root_tip.total_difficulty < self.header.total_difficulty:
+            raise RuntimeError("Bad peer sending root block tip with lower TD")
+
+        # new limit should equal to limit, but in case that remote has chain reorg,
+        # the remote tip may has lower height and greater TD.
+        new_limit = min(limit, len(range(start, resp.root_tip.height + 1, skip + 1)))
+        if len(resp.block_header_list) != new_limit:
+            # Something bad happens
+            raise RuntimeError("Bad peer sending incorrect number of root block headers")
+
+        return resp
+
+    async def __find_ancestor(self):
+        # n-ary search
+        start = max(self.root_state.tip.height - self.max_staleness, 0)
+        end = min(self.root_state.tip.height, self.header.height)
+
+        while end >= start:
+            print("start end", start, end)
+            self.stats.ancestor_lookup_requests += 1
+            span = (end - start) // self.root_block_header_list_limit + 1
+            resp = await self.__download_block_header_and_check(start, span - 1, len(range(start, end + 1, span)))
+
+            if len(resp.block_header_list) == 0:
+                # Remote chain re-org, may schedule re-sync
+                raise RuntimeError("Remote chain reorg causing empty root block headers")
+
+            # Remote root block is reorg with new tip and new height (which may be lower than that of current)
+            # Setup end as the new height
+            if resp.root_tip != self.header:
+                self.header = resp.root_tip
+                end = min(resp.root_tip.height, end)
+
+            prevHeader = None
+            for header in reversed(resp.block_header_list):
+                # Check if header is correct
+                if header.height < start or header.height > end:
+                    raise RuntimeError("Bad peer returning root block height out of range")
+
+                if prevHeader is not None and header.height >= prevHeader.height:
+                    raise RuntimeError("Bad peer returning root block height must be ordered")
+                prevHeader = header
+
+                if not self.__has_block_hash(header.get_hash()):
+                    end = header.height - 1
+                    continue
+
+                if header.height == end:
+                    return header
+
+                start = header.height + 1
+                check(end > start)
+                break
+
+        # No ancestor is found.  Note that it is possible caused by remote root chain org.
+        self.stats.ancestor_not_found_count += 1
+        return None
+
     async def __run_sync(self):
         """raise on any error so that sync() will close peer connection"""
+        if self.header.total_difficulty <= self.root_state.tip.total_difficulty:
+            return
+
         if self.__has_block_hash(self.header.get_hash()):
             return
 
-        # descending height
-        block_header_chain = [self.header]
+        ancestor = await self.__find_ancestor()
+        if ancestor is None:
+            raise RuntimeError("Cannot find common ancestor with max fork length {}".format(
+                self.max_staleness)
+            )
 
-        while not self.__has_block_hash(block_header_chain[-1].hash_prev_block):
-            block_hash = block_header_chain[-1].hash_prev_block
-            height = block_header_chain[-1].height - 1
+        while self.header.height > ancestor.height:
+            limit = min(
+                self.header.height - ancestor.height,
+                self.root_block_header_list_limit
+            )
+            resp = await self.__download_block_header_and_check(ancestor.height + 1, 0, limit)
 
-            # abort if we have to download super old blocks
-            if self.root_state.tip.height - height > self.max_staleness:
-                Logger.warning(
-                    "[R] abort syncing due to forking at super old block {} << {}".format(
-                        height, self.root_state.tip.height
-                    )
-                )
+            block_header_chain = resp.block_header_list
+            if len(block_header_chain) == 0:
+                Logger.info("Remote chain reorg causing empty root block headers")
                 return
 
-            download_start_time = time_ms()
-            Logger.info(
-                "[R] downloading block header list from height {} with hash {}".format(
-                    height, block_hash.hex()
+            # Remote root block is reorg with new tip and new height (which may be lower than that of current)
+            if resp.root_tip != self.header:
+                self.header = resp.root_tip
+
+            if block_header_chain[0].hash_prev_block != ancestor.get_hash():
+                # TODO: Remote chain may reorg, may retry the sync
+                raise RuntimeError("Bad peer sending incorrect canonical headers")
+
+            while len(block_header_chain) > 0:
+                block_chain = await asyncio.wait_for(
+                    self.__download_blocks(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]),
+                    SYNC_TIMEOUT,
                 )
-            )
-            block_header_list = await asyncio.wait_for(
-                self.__download_block_headers(block_hash), SYNC_TIMEOUT
-            )
-            Logger.info(
-                "[R] downloaded block header list from height {} with hash {}, use {} ms".format(
-                    height, block_hash.hex(), time_ms() - download_start_time
+                Logger.info(
+                    "[R] downloaded {} blocks ({} - {}) from peer".format(
+                        len(block_chain),
+                        block_chain[0].header.height,
+                        block_chain[-1].header.height,
+                    )
                 )
-            )
-            self.__validate_block_headers(block_header_list)
-            for header in block_header_list:
-                if self.__has_block_hash(header.get_hash()):
-                    break
-                block_header_chain.append(header)
+                if len(block_chain) != len(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]):
+                    # TODO: tag bad peer
+                    raise RuntimeError("Bad peer missing blocks for headers they have")
 
-        block_header_chain.reverse()
-
-        Logger.info(
-            "[R] going to download {} blocks ({} - {})".format(
-                len(block_header_chain),
-                block_header_chain[0].height,
-                block_header_chain[-1].height,
-            )
-        )
-
-        while len(block_header_chain) > 0:
-            block_chain = await asyncio.wait_for(
-                self.__download_blocks(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]),
-                SYNC_TIMEOUT,
-            )
-            Logger.info(
-                "[R] downloaded {} blocks ({} - {}) from peer".format(
-                    len(block_chain),
-                    block_chain[0].header.height,
-                    block_chain[-1].header.height,
-                )
-            )
-            if len(block_chain) != len(block_header_chain[:ROOT_BLOCK_BATCH_SIZE]):
-                # TODO: tag bad peer
-                raise RuntimeError("Bad peer missing blocks for headers they have")
-
-            for block in block_chain:
-                await self.__add_block(block)
-                block_header_chain.pop(0)
+                for block in block_chain:
+                    await self.__add_block(block)
+                    ancestor = block_header_chain[0]
+                    block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
         return self.root_state.db.contain_root_block_by_hash(block_hash)
-
-    def __validate_block_headers(self, block_header_list):
-        """Raise on validation failure"""
-        # TODO: tag bad peer
-        consensus_type = self.root_state.env.quark_chain_config.ROOT.CONSENSUS_TYPE
-        for i in range(len(block_header_list) - 1):
-            header, prev = block_header_list[i : i + 2]
-            if header.height != prev.height + 1:
-                raise RuntimeError(
-                    "Bad peer sending root block headers with discontinuous height"
-                )
-            if header.hash_prev_block != prev.get_hash():
-                raise RuntimeError(
-                    "Bad peer sending root block headers with discontinuous hash_prev_block"
-                )
-
-            # check difficulty, potentially adjusted by guardian mechanism
-            adjusted_diff = None  # type: Optional[int]
-            if not self.root_state.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
-                # lower the difficulty for root block signed by guardian
-                if header.verify_signature(
-                    self.root_state.env.quark_chain_config.guardian_public_key
-                ):
-                    adjusted_diff = Guardian.adjust_difficulty(
-                        header.difficulty, header.height
-                    )
-            # check PoW if applicable
-            validate_seal(header, consensus_type, adjusted_diff=adjusted_diff)
-
-    async def __download_block_headers(self, block_hash):
-        request = GetRootBlockHeaderListRequest(
-            block_hash=block_hash,
-            limit=ROOT_BLOCK_HEADER_LIST_LIMIT,
-            direction=Direction.GENESIS,
-        )
-        op, resp, rpc_id = await self.peer.write_rpc_request(
-            CommandOp.GET_ROOT_BLOCK_HEADER_LIST_REQUEST, request
-        )
-        return resp.block_header_list
 
     async def __download_blocks(self, block_header_list):
         block_hash_list = [b.get_hash() for b in block_header_list]
@@ -226,6 +247,7 @@ class SyncTask:
             CommandOp.GET_ROOT_BLOCK_LIST_REQUEST,
             GetRootBlockListRequest(block_hash_list),
         )
+        self.stats.blocks_downloaded += len(resp.root_block_list)
         return resp.root_block_list
 
     async def __add_block(self, root_block):
@@ -237,6 +259,7 @@ class SyncTask:
         start = time.time()
         await self.__sync_minor_blocks(root_block.minor_block_header_list)
         await self.master_server.add_root_block(root_block)
+        self.stats.blocks_added += 1
         elapse = time.time() - start
         Logger.info(
             "[R] syncing root block {} {} took {:.2f} seconds".format(
@@ -295,6 +318,8 @@ class Synchronizer:
         self.tasks = dict()
         self.running = False
         self.running_task = None
+        self.stats = RootBlockSychronizerStats()
+        self.root_block_header_list_limit = ROOT_BLOCK_HEADER_LIST_LIMIT
 
     def add_task(self, header, peer):
         self.tasks[peer] = header
@@ -329,7 +354,7 @@ class Synchronizer:
     def _pop_best_task(self):
         """ pop and return the task with heightest root """
         check(len(self.tasks) > 0)
-        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].height)
+        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].total_difficulty)
         del self.tasks[peer]
         return header, peer
 
@@ -338,7 +363,7 @@ class Synchronizer:
         while len(self.tasks) > 0:
             self.running_task = self._pop_best_task()
             header, peer = self.running_task
-            task = SyncTask(header, peer)
+            task = SyncTask(header, peer, self.stats, self.root_block_header_list_limit)
             Logger.info(
                 "[R] start sync task {} {}".format(
                     header.height, header.get_hash().hex()

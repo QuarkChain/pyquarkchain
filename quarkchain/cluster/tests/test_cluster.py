@@ -933,3 +933,178 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(resp.block_header_list[2], root_block_header_list[4])
             self.assertEqual(resp.block_header_list[3], root_block_header_list[2])
             self.assertEqual(resp.block_header_list[4], root_block_header_list[0])
+
+    def test_get_root_block_header_sync_from_genesis(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master = clusters[0].master
+            root_block_header_list = [master.root_state.tip]
+            for i in range(10):
+                root_block = call_async(
+                    master.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master.add_root_block(root_block))
+                root_block_header_list.append(root_block.header)
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: clusters[1].master.root_state.tip == root_block_header_list[-1])
+            self.assertEqual(clusters[1].master.synchronizer.stats.blocks_downloaded, len(root_block_header_list) - 1)
+
+    def test_get_root_block_header_sync_from_height_3(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(10):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+
+            # Add 3 blocks to another cluster
+            master1 = clusters[1].master
+            for i in range(3):
+                call_async(master1.add_root_block(root_block_list[i]))
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[2].header)
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 3)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
+
+    def test_get_root_block_header_sync_with_fork(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(10):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+
+            # Add 2+3 blocks to another cluster: 2 are the same as cluster 0, and 3 are the fork
+            master1 = clusters[1].master
+            for i in range(2):
+                call_async(master1.add_root_block(root_block_list[i]))
+            for i in range(3):
+                root_block = call_async(
+                    master1.get_next_block_to_mine(
+                        acc1, branch_value=None
+                    )
+                )
+                call_async(master1.add_root_block(root_block))
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 2)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
+
+    def test_get_root_block_header_sync_with_staleness(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(10):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+
+            # Add 3 blocks to another cluster
+            master1 = clusters[1].master
+            for i in range(8):
+                root_block = call_async(
+                    master1.get_next_block_to_mine(
+                        acc1, branch_value=None
+                    )
+                )
+                call_async(master1.add_root_block(root_block))
+            master1.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 5
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block.header)
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.synchronizer.stats.ancestor_not_found_count == 1)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 0)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
+
+    def test_get_root_block_header_sync_with_multiple_lookup(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(12):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+
+            # Add 4+4 blocks to another cluster
+            master1 = clusters[1].master
+            for i in range(4):
+                call_async(master1.add_root_block(root_block_list[i]))
+            for i in range(4):
+                root_block = call_async(
+                    master1.get_next_block_to_mine(
+                        acc1, branch_value=None
+                    )
+                )
+                call_async(master1.add_root_block(root_block))
+            master1.synchronizer.root_block_header_list_limit = 4
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 8)
+            self.assertEqual(master1.synchronizer.stats.headers_downloaded, 5 + 8)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
