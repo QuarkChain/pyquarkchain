@@ -116,11 +116,8 @@ class SyncTask:
         _, resp, _ = await self.peer.write_rpc_request(
             op=CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
             cmd=GetRootBlockHeaderListWithSkipRequest.create_for_height(
-                height=start,
-                skip=skip,
-                limit=limit,
-                direction=Direction.TIP
-            )
+                height=start, skip=skip, limit=limit, direction=Direction.TIP
+            ),
         )
 
         self.stats.headers_downloaded += len(resp.block_header_list)
@@ -133,7 +130,9 @@ class SyncTask:
         new_limit = min(limit, len(range(start, resp.root_tip.height + 1, skip + 1)))
         if len(resp.block_header_list) != new_limit:
             # Something bad happens
-            raise RuntimeError("Bad peer sending incorrect number of root block headers")
+            raise RuntimeError(
+                "Bad peer sending incorrect number of root block headers"
+            )
 
         return resp
 
@@ -146,11 +145,15 @@ class SyncTask:
             print("start end", start, end)
             self.stats.ancestor_lookup_requests += 1
             span = (end - start) // self.root_block_header_list_limit + 1
-            resp = await self.__download_block_header_and_check(start, span - 1, len(range(start, end + 1, span)))
+            resp = await self.__download_block_header_and_check(
+                start, span - 1, len(range(start, end + 1, span))
+            )
 
             if len(resp.block_header_list) == 0:
                 # Remote chain re-org, may schedule re-sync
-                raise RuntimeError("Remote chain reorg causing empty root block headers")
+                raise RuntimeError(
+                    "Remote chain reorg causing empty root block headers"
+                )
 
             # Remote root block is reorg with new tip and new height (which may be lower than that of current)
             # Setup end as the new height
@@ -162,10 +165,14 @@ class SyncTask:
             for header in reversed(resp.block_header_list):
                 # Check if header is correct
                 if header.height < start or header.height > end:
-                    raise RuntimeError("Bad peer returning root block height out of range")
+                    raise RuntimeError(
+                        "Bad peer returning root block height out of range"
+                    )
 
                 if prevHeader is not None and header.height >= prevHeader.height:
-                    raise RuntimeError("Bad peer returning root block height must be ordered")
+                    raise RuntimeError(
+                        "Bad peer returning root block height must be ordered"
+                    )
                 prevHeader = header
 
                 if not self.__has_block_hash(header.get_hash()):
@@ -193,16 +200,19 @@ class SyncTask:
 
         ancestor = await self.__find_ancestor()
         if ancestor is None:
-            raise RuntimeError("Cannot find common ancestor with max fork length {}".format(
-                self.max_staleness)
+            raise RuntimeError(
+                "Cannot find common ancestor with max fork length {}".format(
+                    self.max_staleness
+                )
             )
 
         while self.header.height > ancestor.height:
             limit = min(
-                self.header.height - ancestor.height,
-                self.root_block_header_list_limit
+                self.header.height - ancestor.height, self.root_block_header_list_limit
             )
-            resp = await self.__download_block_header_and_check(ancestor.height + 1, 0, limit)
+            resp = await self.__download_block_header_and_check(
+                ancestor.height + 1, 0, limit
+            )
 
             block_header_chain = resp.block_header_list
             if len(block_header_chain) == 0:
@@ -305,8 +315,7 @@ class SyncTask:
             if not self.root_state.db.contain_minor_block_by_hash(m_header.get_hash()):
                 raise RuntimeError(
                     "minor block {} from {} is still unavailable in master after root block sync".format(
-                        m_header.get_hash().hex(),
-                        m_header.branch.to_str(),
+                        m_header.get_hash().hex(), m_header.branch.to_str()
                     )
                 )
 
@@ -354,7 +363,9 @@ class Synchronizer:
     def _pop_best_task(self):
         """ pop and return the task with heightest root """
         check(len(self.tasks) > 0)
-        peer, header = max(self.tasks.items(), key=lambda pair: pair[1].total_difficulty)
+        peer, header = max(
+            self.tasks.items(), key=lambda pair: pair[1].total_difficulty
+        )
         del self.tasks[peer]
         return header, peer
 
@@ -624,14 +635,16 @@ class SlaveConnection(ClusterConnection):
 
     async def handle_add_minor_block_header_list_request(self, req):
         check(len(req.minor_block_header_list) == len(req.coinbase_amount_map_list))
-        for minor_block_header, coinbase_amount_map in zip(req.minor_block_header_list, req.coinbase_amount_map_list):
+        for minor_block_header, coinbase_amount_map in zip(
+            req.minor_block_header_list, req.coinbase_amount_map_list
+        ):
             self.master_server.root_state.add_validated_minor_block_hash(
                 minor_block_header.get_hash(), coinbase_amount_map.balance_map
             )
-            Logger.info("adding {} mblock to db".format(minor_block_header.get_hash().hex()))
-        return AddMinorBlockHeaderListResponse(
-            error_code=0,
-        )
+            Logger.info(
+                "adding {} mblock to db".format(minor_block_header.get_hash().hex())
+            )
+        return AddMinorBlockHeaderListResponse(error_code=0)
 
 
 OP_RPC_MAP = {
@@ -656,7 +669,7 @@ class MasterServer:
     def __init__(self, env, root_state, name="master"):
         self.loop = asyncio.get_event_loop()
         self.env = env
-        self.root_state = root_state
+        self.root_state = root_state  # type: RootState
         self.network = None  # will be set by network constructor
         self.cluster_config = env.cluster_config
 
@@ -711,6 +724,24 @@ class MasterServer:
             remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
             guardian_private_key=self.env.quark_chain_config.guardian_private_key,
         )
+
+    async def __rebroadcast_committing_root_block(self):
+        committing_block_hash = self.root_state.get_committing_block_hash()
+        if committing_block_hash:
+            r_block = self.root_state.db.get_root_block_by_hash(
+                committing_block_hash, consistency_check=False
+            )
+            # missing actual block, may have crashed before writing the block
+            if not r_block:
+                self.root_state.clear_committing_hash()
+                return
+            future_list = self.broadcast_rpc(
+                op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
+                req=AddRootBlockRequest(r_block, False),
+            )
+            result_list = await asyncio.gather(*future_list)
+            check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+            self.root_state.clear_committing_hash()
 
     def get_artificial_tx_config(self):
         return self.artificial_tx_config
@@ -845,6 +876,7 @@ class MasterServer:
             return
         await self.__setup_slave_to_slave_connections()
         await self.__init_shards()
+        await self.__rebroadcast_committing_root_block()
 
         self.cluster_active_future.set_result(None)
 
@@ -1046,14 +1078,14 @@ class MasterServer:
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
-        self.root_state.validate_block(r_block)  # throw exception if failed
-        update_tip = False
+        # use write-ahead log so if crashed the root block can be re-broadcasted
+        self.root_state.write_committing_hash(r_block.header.get_hash())
+
         try:
             update_tip = self.root_state.add_block(r_block)
-            success = True
-        except ValueError:
+        except ValueError as e:
             Logger.log_exception()
-            success = False
+            raise e
 
         try:
             if update_tip and self.network is not None:
@@ -1062,13 +1094,12 @@ class MasterServer:
         except Exception:
             pass
 
-        if success:
-            future_list = self.broadcast_rpc(
-                op=ClusterOp.ADD_ROOT_BLOCK_REQUEST,
-                req=AddRootBlockRequest(r_block, False),
-            )
-            result_list = await asyncio.gather(*future_list)
-            check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+        future_list = self.broadcast_rpc(
+            op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
+        )
+        result_list = await asyncio.gather(*future_list)
+        check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+        self.root_state.clear_committing_hash()
 
     async def add_raw_minor_block(self, branch, block_data):
         if branch.value not in self.branch_to_slaves:

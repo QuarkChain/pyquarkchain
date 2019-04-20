@@ -22,3 +22,7 @@ ROOT_BLOCK_BATCH_SIZE = 100
 ROOT_BLOCK_HEADER_LIST_LIMIT = 500
 
 SYNC_TIMEOUT = 30
+
+BLOCK_UNCOMMITTED = 0  # The other slaves and the master may not have the block info
+BLOCK_COMMITTING = 1  # The block info is propagating to other slaves and the master
+BLOCK_COMMITTED = 2  # The other slaves and the master have received the block info

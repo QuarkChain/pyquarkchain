@@ -32,14 +32,13 @@ from quarkchain.constants import (
     MINOR_BLOCK_BATCH_SIZE,
     MINOR_BLOCK_HEADER_LIST_LIMIT,
     SYNC_TIMEOUT,
+    BLOCK_UNCOMMITTED,
+    BLOCK_COMMITTING,
+    BLOCK_COMMITTED,
 )
 from quarkchain.db import InMemoryDb, PersistentDb
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-
-BLOCK_UNCOMMITTED = 0  # The other slaves and the master may not have the block info
-BLOCK_COMMITTING = 1  # The block info is propagating to other slaves and the master
-BLOCK_COMMITTED = 2  # The other slaves and the master have received the block info
 
 
 class PeerShardConnection(VirtualConnection):

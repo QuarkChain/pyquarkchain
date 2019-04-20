@@ -226,12 +226,24 @@ class RootDb:
 
         return self.m_hash_dict[h]
 
+    def write_committing_hash(self, h: bytes):
+        self.put(b"rb_committing", h)
+
+    def clear_committing_hash(self):
+        self.remove(b"rb_committing")
+
+    def get_committing_block_hash(self):
+        return self.get(b"rb_committing")
+
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):
         self.db.put(key, value)
 
     def get(self, key, default=None):
         return self.db.get(key, default)
+
+    def remove(self, key):
+        return self.db.remove(key)
 
     def __getitem__(self, key):
         return self[key]
@@ -402,7 +414,10 @@ class RootState:
             ):
                 adjusted_diff = Guardian.adjust_difficulty(diff, block_header.height)
 
-        if block_header.difficulty + prev_block_header.total_difficulty != block_header.total_difficulty:
+        if (
+            block_header.difficulty + prev_block_header.total_difficulty
+            != block_header.total_difficulty
+        ):
             raise ValueError("incorrect total difficulty")
 
         # Check PoW if applicable
@@ -615,3 +630,12 @@ class RootState:
             self.__rewrite_block_index_to(old_tip, block)
             return True
         return False
+
+    def write_committing_hash(self, h):
+        self.db.write_committing_hash(h)
+
+    def clear_committing_hash(self):
+        self.db.clear_committing_hash()
+
+    def get_committing_block_hash(self):
+        return self.db.get_committing_block_hash()
