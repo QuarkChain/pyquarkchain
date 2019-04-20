@@ -116,7 +116,12 @@ class BaseServer(BaseService):
                 "Using experimental v5 (topic) discovery mechanism; topic: %s", topic
             )
             discovery_proto = DiscoveryByTopicProtocol(
-                topic, self.privkey, addr, self.bootstrap_nodes, self.cancel_token
+                topic,
+                self.privkey,
+                addr,
+                self.bootstrap_nodes,
+                self.network_id,
+                self.cancel_token,
             )
         else:
             discovery_proto = PreferredNodeDiscoveryProtocol(
@@ -124,6 +129,7 @@ class BaseServer(BaseService):
                 addr,
                 self.bootstrap_nodes,
                 self.preferred_nodes,
+                self.network_id,
                 self.cancel_token,
             )
         self.discovery = DiscoveryService(

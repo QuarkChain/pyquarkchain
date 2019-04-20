@@ -76,12 +76,11 @@ V5_HANDLER_TYPE = Callable[[kademlia.Node, Tuple[Any, ...], Hash32, bytes], None
 
 MAX_ENTRIES_PER_TOPIC = 50
 # UDP packet constants.
-V5_ID_STRING = b"qkc topic discovery"
-QKC_ID_STRING = b"qkc discovery"
+V5_ID_STRING_TEMPLATE = "qkc{} topic discovery"
+QKC_ID_STRING_TEMPLATE = "qkc{} discovery"
 MAC_SIZE = 256 // 8  # 32
 SIG_SIZE = 520 // 8  # 65
 HEAD_SIZE = MAC_SIZE + SIG_SIZE  # 97
-HEAD_SIZE_V5 = len(V5_ID_STRING) + SIG_SIZE  # 87
 EXPIRATION = 60  # let messages expire after N secondes
 PROTO_VERSION = 4
 PROTO_VERSION_V5 = 5
@@ -142,6 +141,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
                  privkey: datatypes.PrivateKey,
                  address: kademlia.Address,
                  bootstrap_nodes: Tuple[kademlia.Node, ...],
+                 network_id: int,
                  cancel_token: CancelToken) -> None:
         # this is a hack to keep the logging statements (quarkchain.utils.Logger only supports logging strings)
         Logger.check_logger_set()
@@ -158,7 +158,11 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         self.neighbours_callbacks = CallbackManager()
         self.topic_nodes_callbacks = CallbackManager()
         self.parity_pong_tokens = {} # : Dict[Hash32, Hash32]
+        self.network_id = network_id
         self.cancel_token = CancelToken('DiscoveryProtocol').chain(cancel_token)
+        self.QKC_ID_STRING = QKC_ID_STRING_TEMPLATE.format(self.network_id).encode()
+        self.V5_ID_STRING = V5_ID_STRING_TEMPLATE.format(self.network_id).encode()
+        self.HEAD_SIZE_V5 = len(self.V5_ID_STRING) + SIG_SIZE  # 87
 
     def update_routing_table(self, node: kademlia.Node) -> None:
         """Update the routing table entry for the given node."""
@@ -419,10 +423,10 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         address = kademlia.Address(ip_address, udp_port)
         # The prefix below is what geth uses to identify discv5 msgs.
         # https://github.com/ethereum/go-ethereum/blob/c4712bf96bc1bae4a5ad4600e9719e4a74bde7d5/p2p/discv5/udp.go#L149  # noqa: E501
-        if text_if_str(to_bytes, data).startswith(V5_ID_STRING):
+        if text_if_str(to_bytes, data).startswith(self.V5_ID_STRING):
             self.receive_v5(address, cast(bytes, data))
-        elif text_if_str(to_bytes, data).startswith(QKC_ID_STRING):
-            self.receive(address, cast(bytes, data)[len(QKC_ID_STRING):])
+        elif text_if_str(to_bytes, data).startswith(self.QKC_ID_STRING):
+            self.receive(address, cast(bytes, data)[len(self.QKC_ID_STRING):])
         else:
             pass  # do not proceed for other discovery packets
 
@@ -433,7 +437,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         self.transport.sendto(message, (node.address.ip, node.address.udp_port))
 
     def send_qkc(self, node: kademlia.Node, message: bytes) -> None:
-        self.send(node, QKC_ID_STRING + message)
+        self.send(node, self.QKC_ID_STRING + message)
 
     async def stop(self) -> None:
         self.logger.info('stopping discovery')
@@ -612,7 +616,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
 
     def send_v5(self, node: kademlia.Node, message: bytes) -> Hash32:
         msg_hash = keccak(message)
-        self.send(node, V5_ID_STRING + message)
+        self.send(node, self.V5_ID_STRING + message)
         return msg_hash
 
     def _get_handler_v5(self, cmd: DiscoveryCommand) -> V5_HANDLER_TYPE:
@@ -637,7 +641,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
 
     def receive_v5(self, address: kademlia.Address, message: bytes) -> None:
         try:
-            remote_pubkey, cmd_id, payload, message_hash = _unpack_v5(message)
+            remote_pubkey, cmd_id, payload, message_hash = _unpack_v5(message, self.V5_ID_STRING, self.HEAD_SIZE_V5)
         except DefectiveMessage as e:
             Logger.error_every_n("error unpacking message ({}) from {}: {}".format(message, address, e), 100)
             return
@@ -692,7 +696,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         topic_idx = big_endian_to_int(idx)
         self.logger.trace(
             '<<< topic_register from %s, topics: %s, idx: %d', node, topics, topic_idx)
-        _, _, pong_payload, _ = _unpack_v5(raw_pong)
+        _, _, pong_payload, _ = _unpack_v5(raw_pong, self.V5_ID_STRING, self.HEAD_SIZE_V5)
         _, _, _, _, ticket_serial, _ = pong_payload
         self.topic_table.use_ticket(node, big_endian_to_int(ticket_serial), topics[topic_idx])
 
@@ -860,8 +864,9 @@ class PreferredNodeDiscoveryProtocol(DiscoveryProtocol):
                  address: kademlia.Address,
                  bootstrap_nodes: Tuple[kademlia.Node, ...],
                  preferred_nodes: Sequence[kademlia.Node],
+                 network_id: int,
                  cancel_token: CancelToken) -> None:
-        super().__init__(privkey, address, bootstrap_nodes, cancel_token)
+        super().__init__(privkey, address, bootstrap_nodes, network_id, cancel_token)
 
         self.preferred_nodes = preferred_nodes
         self.logger.info('Preferred peers: %s', self.preferred_nodes)
@@ -922,8 +927,9 @@ class DiscoveryByTopicProtocol(DiscoveryProtocol):
                  privkey: datatypes.PrivateKey,
                  address: kademlia.Address,
                  bootstrap_nodes: Tuple[kademlia.Node, ...],
+                 network_id: int,
                  cancel_token: CancelToken) -> None:
-        super().__init__(privkey, address, bootstrap_nodes, cancel_token)
+        super().__init__(privkey, address, bootstrap_nodes, netwrok_id, cancel_token)
         self.topic = topic
 
     def get_nodes_to_connect(self, count: int) -> Iterator[kademlia.Node]:
@@ -1177,7 +1183,7 @@ def _pack_v5(cmd_id: int, payload: Tuple[Any, ...], privkey: datatypes.PrivateKe
     return signature.to_bytes() + encoded_data
 
 
-def _unpack_v5(message: bytes) -> Tuple[datatypes.PublicKey, int, Tuple[Any, ...], Hash32]:
+def _unpack_v5(message: bytes, V5_ID_STRING, HEAD_SIZE_V5) -> Tuple[datatypes.PublicKey, int, Tuple[Any, ...], Hash32]:
     """Unpack a discovery v5 UDP message received from a remote node.
 
     Returns the public key used to sign the message, the cmd ID, payload and msg hash.
@@ -1288,9 +1294,9 @@ def _test() -> None:
         # topic = b'LES2@41941023680923e0'  # LES2/ropsten
         topic = b'LES2@d4e56740f876aef8'  # LES2/mainnet
         discovery = DiscoveryByTopicProtocol(
-            topic, privkey, addr, bootstrap_nodes, cancel_token) # : DiscoveryProtocol
+            topic, privkey, addr, bootstrap_nodes, 1, cancel_token) # : DiscoveryProtocol
     else:
-        discovery = DiscoveryProtocol(privkey, addr, bootstrap_nodes, cancel_token)
+        discovery = DiscoveryProtocol(privkey, addr, bootstrap_nodes, 1, cancel_token)
 
     async def run() -> None:
         await loop.create_datagram_endpoint(lambda: discovery, local_addr=('0.0.0.0', listen_port))
