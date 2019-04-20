@@ -279,7 +279,13 @@ class Miner:
             copy.deepcopy(self.current_work),
         )
 
-    async def submit_work(self, header_hash: bytes, nonce: int, mixhash: bytes) -> bool:
+    async def submit_work(
+        self,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = None,
+    ) -> bool:
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -289,10 +295,13 @@ class Miner:
         block = copy.deepcopy(self.work_map[header_hash])
         header = block.header
         header.nonce, header.mixhash = nonce, mixhash
-
         # sign as a guardian
         if self.guardian_private_key and isinstance(block, RootBlock):
             header.sign_with_private_key(self.guardian_private_key)
+
+        # remote sign as a guardian
+        if isinstance(block, RootBlock) and signature != None:
+            header.signature = signature
 
         try:
             await self.add_block_async_func(block)

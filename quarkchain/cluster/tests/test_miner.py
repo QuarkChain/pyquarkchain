@@ -247,6 +247,52 @@ class TestMiner(unittest.TestCase):
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
 
+    def test_submit_work_with_remote_guardian(self):
+        now = 42
+        doublesha = ConsensusType.POW_DOUBLESHA256
+        block = RootBlock(
+            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
+        )
+        priv = ecies.generate_privkey()
+
+        async def create(retry=True):
+            return block
+
+        async def add(block_to_add):
+            h = block_to_add.header
+            diff = h.difficulty
+
+            if h.verify_signature(priv.public_key):
+                diff = Guardian.adjust_difficulty(diff, h.height)
+
+            validate_seal(block_to_add.header, doublesha, adjusted_diff=diff)
+
+        # just with the guardian public key
+        miner = self.miner_gen(doublesha, create, add, remote=True)
+
+        async def go():
+            for i in range(42, 100):
+                work, _ = await miner.get_work(now=now)
+                self.assertEqual(work.height, 0)
+
+                # remote guardian: diff 1000 -> 1, any number should work
+                # mimic the sign process of the remote guardian server
+                block.header.nonce = i
+                block.header.mixhash = sha3_256(b"")
+                block.header.sign_with_private_key(priv)
+                signature = block.header.signature
+
+                # reset the signature to the default value
+                block.header.signature = bytes(65)
+                # submit the signature through the submit work
+                res = await miner.submit_work(work.hash, i, sha3_256(b""), signature)
+                self.assertTrue(res)
+                res = await miner.submit_work(work.hash, i, sha3_256(b""), bytes(65))
+                self.assertFalse(res)
+
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(go())
+
     def test_validate_seal_with_adjusted_diff(self):
         diff = 1000
         block = RootBlock(

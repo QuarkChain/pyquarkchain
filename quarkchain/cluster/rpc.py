@@ -24,7 +24,16 @@ from quarkchain.core import (
     TokenBalanceMap,
     PrependedSizeMapSerializer,
 )
-from quarkchain.core import hash256, uint16, uint32, uint64, uint128, uint256, boolean
+from quarkchain.core import (
+    hash256,
+    uint16,
+    uint32,
+    uint64,
+    uint128,
+    uint256,
+    boolean,
+    signature65,
+)
 
 
 # RPCs to initialize a cluster
@@ -847,13 +856,22 @@ class SubmitWorkRequest(Serializable):
         ("header_hash", hash256),
         ("nonce", uint64),
         ("mixhash", hash256),
+        ("signature", Optional(signature65)),
     ]
 
-    def __init__(self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes):
+    def __init__(
+        self,
+        branch: Branch,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: bytes,
+    ):
         self.branch = branch
         self.header_hash = header_hash
         self.nonce = nonce
         self.mixhash = mixhash
+        self.signature = signature
 
 
 class SubmitWorkResponse(Serializable):

@@ -332,6 +332,7 @@ uint2048 = UintSerializer(256)
 hash256 = FixedSizeBytesSerializer(32)
 boolean = BooleanSerializer()
 biguint = BigUintSerializer()
+signature65 = FixedSizeBytesSerializer(65)
 
 
 def serialize_list(l: list, barray: bytearray, serializer=None) -> None:
@@ -918,18 +919,21 @@ class RootBlockHeader(Serializable):
         self.signature = signature
 
     def get_hash(self):
-        return sha3_256(self.serialize_without(["signature"]))
+        return sha3_256(self.serialize())
 
     def get_hash_for_mining(self):
         return sha3_256(self.serialize_without(["nonce", "mixhash", "signature"]))
 
     def sign_with_private_key(self, private_key: KeyAPI.PrivateKey):
-        self.signature = private_key.sign_msg_hash(self.get_hash()).to_bytes()
+        self.signature = private_key.sign_msg_hash(
+            self.get_hash_for_mining()
+        ).to_bytes()
 
     def verify_signature(self, public_key: KeyAPI.PublicKey):
         try:
             return public_key.verify_msg_hash(
-                self.get_hash(), KeyAPI.Signature(signature_bytes=self.signature)
+                self.get_hash_for_mining(),
+                KeyAPI.Signature(signature_bytes=self.signature),
             )
         except eth_keys.exceptions.BadSignature:
             return False

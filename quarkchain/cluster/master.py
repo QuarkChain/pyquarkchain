@@ -593,9 +593,14 @@ class SlaveConnection(ClusterConnection):
         )
 
     async def submit_work(
-        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
+        self,
+        branch: Branch,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = None,
     ) -> bool:
-        request = SubmitWorkRequest(branch, header_hash, nonce, mixhash)
+        request = SubmitWorkRequest(branch, header_hash, nonce, mixhash, signature)
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.SUBMIT_WORK_REQUEST, request
         )
@@ -1404,10 +1409,17 @@ class MasterServer:
         return await slave.get_work(branch)
 
     async def submit_work(
-        self, branch: Optional[Branch], header_hash: bytes, nonce: int, mixhash: bytes
+        self,
+        branch: Optional[Branch],
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = None,
     ) -> bool:
         if not branch:  # submit root chain work
-            return await self.root_miner.submit_work(header_hash, nonce, mixhash)
+            return await self.root_miner.submit_work(
+                header_hash, nonce, mixhash, signature
+            )
 
         if branch.value not in self.branch_to_slaves:
             return False
