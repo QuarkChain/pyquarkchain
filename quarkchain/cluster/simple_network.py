@@ -216,18 +216,18 @@ class Peer(P2PConnection):
         if len(cmd.minor_block_header_list) != 0:
             return self.close_with_error("minor block header list must be empty")
 
-        if cmd.root_block_header.height < self.best_root_block_header_observed.height:
+        if cmd.root_block_header.total_difficulty < self.best_root_block_header_observed.total_difficulty:
             return self.close_with_error(
-                "root block height is decreasing {} < {}".format(
-                    cmd.root_block_header.height,
-                    self.best_root_block_header_observed.height,
+                "root block TD is decreasing {} < {}".format(
+                    cmd.root_block_header.total_difficulty,
+                    self.best_root_block_header_observed.total_difficulty,
                 )
             )
-        if cmd.root_block_header.height == self.best_root_block_header_observed.height:
+        if cmd.root_block_header.total_difficulty == self.best_root_block_header_observed.total_difficulty:
             if cmd.root_block_header != self.best_root_block_header_observed:
                 return self.close_with_error(
-                    "root block header changed with same height {}".format(
-                        self.best_root_block_header_observed.height
+                    "root block header changed with same TD {}".format(
+                        self.best_root_block_header_observed.total_difficulty
                     )
                 )
 

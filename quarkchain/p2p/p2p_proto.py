@@ -1,4 +1,5 @@
 import enum
+import subprocess
 import sys
 from typing import cast, Dict
 
@@ -74,15 +75,20 @@ class Pong(Command):
     _cmd_id = 3
 
 
+__client_version__ = (
+    subprocess.check_output("git describe --tags", shell=True).decode().strip()
+)
+
+
 def construct_quark_chain_client_identifier() -> str:
-    __version__ = 2.0
+
     """
     Constructs the client identifier string
 
     e.g. 'QuarkChain/v1.2.3/darwin-amd64/python3.6.5'
     """
     return "pyquarkchain/{0}/{platform}/{imp.name}{v.major}.{v.minor}.{v.micro}".format(
-        __version__,
+        __client_version__,
         platform=sys.platform,
         v=sys.version_info,
         # mypy Doesn't recognize the `sys` module as having an `implementation` attribute.

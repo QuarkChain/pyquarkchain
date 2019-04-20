@@ -553,6 +553,30 @@ class ShardStats(Serializable):
         self.last_block_time = last_block_time
 
 
+class RootBlockSychronizerStats(Serializable):
+    FIELDS = [
+        ("headers_downloaded", uint64),
+        ("blocks_downloaded", uint64),
+        ("blocks_added", uint64),
+        ("ancestor_not_found_count", uint64),
+        ("ancestor_lookup_requests", uint64),
+    ]
+
+    def __init__(
+        self,
+        headers_downloaded=0,
+        blocks_downloaded=0,
+        blocks_added=0,
+        ancestor_not_found_count=0,
+        ancestor_lookup_requests=0,
+    ):
+        self.headers_downloaded = headers_downloaded
+        self.blocks_downloaded = blocks_downloaded
+        self.blocks_added = blocks_added
+        self.ancestor_not_found_count = ancestor_not_found_count
+        self.ancestor_lookup_requests = ancestor_lookup_requests
+
+
 class SyncMinorBlockListRequest(Serializable):
     FIELDS = [
         ("minor_block_hash_list", PrependedSizeListSerializer(4, hash256)),

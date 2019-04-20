@@ -10,7 +10,7 @@ from async_armor import armor
 from decorator import decorator
 from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
-from jsonrpcserver.exceptions import InvalidParams
+from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
 from quarkchain.core import (
@@ -26,6 +26,7 @@ from quarkchain.core import (
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
+from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode
 
 # defaults
@@ -1109,6 +1110,15 @@ class JSONRPCServer:
     @private_methods.add
     async def getJrpcCalls(self):
         return self.counters
+
+    @private_methods.add
+    async def getKadRoutingTable(self):
+        """ returns a list of nodes in the p2p discovery routing table, in the enode format
+        eg. "enode://PUBKEY@IP:PORT"
+        """
+        if not isinstance(self.master.network, P2PManager):
+            raise InvalidRequest("network is not P2P")
+        return [n.to_uri() for n in self.master.network.server.discovery.proto.routing]
 
     @staticmethod
     def _convert_eth_call_data(data, shard):
