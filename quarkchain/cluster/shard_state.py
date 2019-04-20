@@ -705,11 +705,7 @@ class ShardState:
             if diff != curr_header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-    def run_block(
-        self, block, evm_state=None, evm_tx_included=None, x_shard_receive_tx_list=None
-    ):
-        if evm_tx_included is None:
-            evm_tx_included = []
+    def run_block(self, block, evm_state=None, x_shard_receive_tx_list=None):
         if x_shard_receive_tx_list is None:
             x_shard_receive_tx_list = []
         if evm_state is None:
@@ -730,7 +726,6 @@ class ShardState:
                 )
                 evm_tx.set_quark_chain_config(self.env.quark_chain_config)
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
-                evm_tx_included.append(evm_tx)
             except Exception as e:
                 Logger.debug_exception()
                 Logger.debug(
@@ -857,16 +852,13 @@ class ShardState:
         if not force and self.db.contain_minor_block_by_hash(block_hash):
             return None, None
 
-        evm_tx_included = []
         x_shard_receive_tx_list = []
         # Throw exception if fail to run
         self.__validate_block(
             block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit
         )
         evm_state = self.run_block(
-            block,
-            evm_tx_included=evm_tx_included,
-            x_shard_receive_tx_list=x_shard_receive_tx_list,
+            block, x_shard_receive_tx_list=x_shard_receive_tx_list
         )
 
         # ------------------------ Validate ending result of the block --------------------
