@@ -287,6 +287,8 @@ class TestMiner(unittest.TestCase):
                 # submit the signature through the submit work
                 res = await miner.submit_work(work.hash, i, sha3_256(b""), signature)
                 self.assertTrue(res)
+                res = await miner.submit_work(work.hash, i, sha3_256(b""), bytes(65))
+                self.assertFalse(res)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())

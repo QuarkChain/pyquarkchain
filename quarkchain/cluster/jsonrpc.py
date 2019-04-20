@@ -134,12 +134,16 @@ def hash_decoder(hex_str):
         raise InvalidParams("Hashes must be 32 bytes long")
     return decoded
 
+
 def signature_decoder(hex_str):
     """Decode a block signature."""
+    if not hex_str:
+        return None
     decoded = data_decoder(hex_str)
     if len(decoded) != 65:
         raise InvalidParams("Signature must be 65 bytes long")
     return decoded
+
 
 def bool_decoder(data):
     if not isinstance(data, bool):
@@ -872,7 +876,9 @@ class JSONRPCServer:
     @decode_arg("nonce", quantity_decoder)
     @decode_arg("mixhash", hash_decoder)
     @decode_arg("signature", signature_decoder)
-    async def submitWork(self, full_shard_key, header_hash, nonce, mixhash, signature="0x" + bytes(65).hex()):
+    async def submitWork(
+        self, full_shard_key, header_hash, nonce, mixhash, signature=None
+    ):
         branch = None  # `None` means getting work from root chain
         if full_shard_key is not None:
             branch = Branch(
@@ -880,7 +886,9 @@ class JSONRPCServer:
                     full_shard_key
                 )
             )
-        return await self.master.submit_work(branch, header_hash, nonce, mixhash, signature)
+        return await self.master.submit_work(
+            branch, header_hash, nonce, mixhash, signature
+        )
 
     @public_methods.add
     @decode_arg("full_shard_key", shard_id_decoder)
