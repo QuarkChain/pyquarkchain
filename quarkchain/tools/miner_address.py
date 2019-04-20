@@ -8,6 +8,8 @@ from utils import underline, colorify
 from quarkchain.utils import sha3_256
 
 FILE = "../../testnet/2.5/cluster_config_template.json"
+if "config" in os.environ:
+    FILE = os.environ["config"]
 
 
 def gen_address():

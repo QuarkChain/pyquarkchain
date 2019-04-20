@@ -10,6 +10,8 @@ import json
 import os
 
 FILE = "../../testnet/2/cluster_config_template.json"
+if "config" in os.environ:
+    FILE = os.environ["config"]
 
 
 def main():
