@@ -1036,8 +1036,6 @@ class MasterServer:
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
-        self.root_state.validate_block(r_block)  # throw exception if failed
-
         # use write-ahead log so if crashed the root block can be re-broadcasted
         self.root_state.write_committing_hash(r_block.header.get_hash())
 
