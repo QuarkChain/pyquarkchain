@@ -391,7 +391,7 @@ class VMExt:
         self.reset_storage = state.reset_storage
         self.tx_origin = tx.sender if tx else b"\x00" * 20
         self.tx_gasprice = tx.gasprice if tx else 0
-        self.sender_disallow_list = state.sender_disallow_list
+        self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
 
 
@@ -420,7 +420,10 @@ def _apply_msg(ext, msg, code):
         )
 
     # early exit if msg.sender is disallowed
-    if msg.sender in ext.sender_disallow_list:
+    if (
+        msg.sender in ext.sender_disallow_map
+        and msg.value + ext.sender_disallow_map[msg.sender] > ext.get_balance(msg.sender)
+    ):
         log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
         return 0, 0, []
 

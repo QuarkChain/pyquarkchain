@@ -262,7 +262,7 @@ class State:
         self.changed = {}
         self.executing_on_head = executing_on_head
         self.qkc_config = qkc_config
-        self.sender_disallow_list = set()  # type: Set[bytes]
+        self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
 
     @property
@@ -659,7 +659,7 @@ class State:
         s.journal = copy.copy(self.journal)
         s.cache = {}
         s.qkc_config = self.qkc_config
-        s.sender_disallow_list = self.sender_disallow_list
+        s.sender_disallow_map = self.sender_disallow_map
         return s
 
 
