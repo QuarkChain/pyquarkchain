@@ -1122,15 +1122,15 @@ class TestCluster(unittest.TestCase):
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
             minor_block_header_list = [shard.state.header_tip]
+            branch = shard.state.header_tip.branch
             for i in range(10):
                 b = shard.state.create_block_to_mine()
                 call_async(master.add_raw_minor_block(b.header.branch, b.serialize()))
-                branch = b.header.branch
                 minor_block_header_list.append(b.header)
 
             self.assertEqual(minor_block_header_list[-1].height, 10)
 
-            peer = next(iter(next(iter(clusters[1].slave_list[0].shards.values())).peers.values()))
+            peer = next(iter(clusters[1].slave_list[0].shards[branch].peers.values()))
 
             # Test Case 1 ###################################################
             op, resp, rpc_id = call_async(
