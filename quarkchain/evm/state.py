@@ -108,6 +108,9 @@ class TokenBalances:
         if self.enum == b"\x00":
             l = []
             for k, v in self.balances.items():
+                # Don't serialize 0 balance
+                if v == 0:
+                    continue
                 l.append(TokenBalancePair(k, v))
             # sort by token id to make token balances serialization deterministic
             l.sort(key=lambda b: b.token_id)
