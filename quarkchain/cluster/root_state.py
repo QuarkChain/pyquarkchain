@@ -189,6 +189,12 @@ class RootDb:
                 shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = count
         return shard_recipient_cnt
 
+    def get_root_block_hash_by_height(self, height):
+        key = b"ri_%d" % height
+        if key not in self.db:
+            return None
+        return self.db.get(key)
+
     def get_root_block_by_height(self, height):
         key = b"ri_%d" % height
         if key not in self.db:
@@ -639,3 +645,6 @@ class RootState:
 
     def get_committing_block_hash(self):
         return self.db.get_committing_block_hash()
+
+    def get_genesis_block_hash(self):
+        return self.db.get_root_block_hash_by_height(0)
