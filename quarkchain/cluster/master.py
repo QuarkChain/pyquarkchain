@@ -202,13 +202,17 @@ class SyncTask:
         if self.__has_block_hash(self.header.get_hash()):
             return
 
-        ancestor = await self.__find_ancestor()
-        if ancestor is None:
-            raise RuntimeError(
-                "Cannot find common ancestor with max fork length {}".format(
-                    self.max_staleness
+        # Fast path
+        if self.header.hash_prev_block == self.root_state.tip.get_hash():
+            ancestor = self.root_state.tip
+        else:
+            ancestor = await self.__find_ancestor()
+            if ancestor is None:
+                raise RuntimeError(
+                    "Cannot find common ancestor with max fork length {}".format(
+                        self.max_staleness
+                    )
                 )
-            )
 
         while self.header.height > ancestor.height:
             limit = min(
