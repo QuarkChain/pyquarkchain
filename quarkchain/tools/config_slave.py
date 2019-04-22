@@ -10,6 +10,8 @@ import json
 import os
 
 FILE = "../../testnet/2/cluster_config_template.json"
+if "QKC_CONFIG" in os.environ:
+    FILE = os.environ["QKC_CONFIG"]
 
 
 def main():
