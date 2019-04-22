@@ -137,12 +137,16 @@ class SyncTask:
         return resp
 
     async def __find_ancestor(self):
+        # Fast path
+        if self.header.hash_prev_block == self.root_state.tip.get_hash():
+            return self.root_state.tip
+
         # n-ary search
         start = max(self.root_state.tip.height - self.max_staleness, 0)
         end = min(self.root_state.tip.height, self.header.height)
+        Logger.info("Finding root block ancestor from {} to {}...".format(start, end))
 
         while end >= start:
-            print("start end", start, end)
             self.stats.ancestor_lookup_requests += 1
             span = (end - start) // self.root_block_header_list_limit + 1
             resp = await self.__download_block_header_and_check(
@@ -272,7 +276,7 @@ class SyncTask:
         self.stats.blocks_added += 1
         elapse = time.time() - start
         Logger.info(
-            "[R] syncing root block {} {} took {:.2f} seconds".format(
+            "[R] synced root block {} {} took {:.2f} seconds".format(
                 root_block.header.height, root_block.header.get_hash().hex(), elapse
             )
         )
