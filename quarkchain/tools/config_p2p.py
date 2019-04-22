@@ -1,5 +1,6 @@
 """
     python config_p2p.py <64 character hex>
+
 will update PRIV_KEY field in P2P section.
 """
 import argparse
