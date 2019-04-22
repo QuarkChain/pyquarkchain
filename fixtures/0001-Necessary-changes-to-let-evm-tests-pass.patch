@@ -1,3 +1,13 @@
+diff --git a/quarkchain/config.py b/quarkchain/config.py
+index 8b6b1dc..46ebc4c 100644
+--- a/quarkchain/config.py
++++ b/quarkchain/config.py
+@@ -547,4 +547,4 @@ class QuarkChainConfig(BaseConfig):
+ 
+ 
+ def get_default_evm_config():
+-    return dict(quarkchain.evm.config.default_config)
++    return dict(quarkchain.evm.config.config_metropolis)
 diff --git a/quarkchain/evm/config.py b/quarkchain/evm/config.py
 index 7f2e403..8f8f232 100644
 --- a/quarkchain/evm/config.py
@@ -121,7 +131,7 @@ index 7f2e403..8f8f232 100644
 +config_metropolis["METROPOLIS_FORK_BLKNUM"] = 0
 +config_metropolis["CONSTANTINOPLE_FORK_BLKNUM"] = 2**99
 diff --git a/quarkchain/evm/messages.py b/quarkchain/evm/messages.py
-index 9749dea..673374f 100644
+index 8b54065..97e663a 100644
 --- a/quarkchain/evm/messages.py
 +++ b/quarkchain/evm/messages.py
 @@ -6,7 +6,7 @@ import rlp
@@ -357,15 +367,17 @@ index 9749dea..673374f 100644
          self.snapshot = state.snapshot
          self.revert = state.revert
          self.transfer_value = state.transfer_value
-@@ -392,7 +366,6 @@ class VMExt:
+@@ -391,8 +365,7 @@ class VMExt:
+         self.reset_storage = state.reset_storage
          self.tx_origin = tx.sender if tx else b"\x00" * 20
          self.tx_gasprice = tx.gasprice if tx else 0
-         self.sender_disallow_list = state.sender_disallow_list
+-        self.sender_disallow_map = state.sender_disallow_map
 -        self.default_state_token = state.shard_config.default_chain_token
++        self.sender_disallow_list = state.sender_disallow_list
  
  
  def apply_msg(ext, msg):
-@@ -415,20 +388,13 @@ def _apply_msg(ext, msg, code):
+@@ -415,23 +388,13 @@ def _apply_msg(ext, msg, code):
              pre_storage=ext.log_storage(msg.to),
              static=msg.static,
              depth=msg.depth,
@@ -374,7 +386,10 @@ index 9749dea..673374f 100644
          )
  
 -    # early exit if msg.sender is disallowed
--    if msg.sender in ext.sender_disallow_list:
+-    if (
+-        msg.sender in ext.sender_disallow_map
+-        and msg.value + ext.sender_disallow_map[msg.sender] > ext.get_balance(msg.sender)
+-    ):
 -        log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
 -        return 0, 0, []
 -
@@ -387,7 +402,7 @@ index 9749dea..673374f 100644
                  return 1, msg.gas, []
              ext.add_cross_shard_transaction_deposit(
                  quarkchain.core.CrossShardTransactionDeposit(
-@@ -439,17 +405,14 @@ def _apply_msg(ext, msg, code):
+@@ -442,17 +405,14 @@ def _apply_msg(ext, msg, code):
                      to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
                      value=msg.value,
                      gas_price=ext.tx_gasprice,
@@ -410,7 +425,7 @@ index 9749dea..673374f 100644
              )
              return 1, msg.gas, []
  
-@@ -457,10 +420,6 @@ def _apply_msg(ext, msg, code):
+@@ -460,10 +420,6 @@ def _apply_msg(ext, msg, code):
          # Cross shard contract call is not supported
          return 1, msg.gas, []
  
@@ -421,7 +436,7 @@ index 9749dea..673374f 100644
      # Main loop
      if msg.code_address in ext.specials:
          res, gas, dat = ext.specials[msg.code_address](ext, msg)
-@@ -485,9 +444,7 @@ def _apply_msg(ext, msg, code):
+@@ -488,9 +444,7 @@ def _apply_msg(ext, msg, code):
  
  
  def mk_contract_address(sender, full_shard_key, nonce):
@@ -432,7 +447,7 @@ index 9749dea..673374f 100644
  
  
  def create_contract(ext, msg):
-@@ -496,29 +453,27 @@ def create_contract(ext, msg):
+@@ -499,29 +453,27 @@ def create_contract(ext, msg):
      if msg.is_cross_shard:
          return 0, msg.gas, b""
  
@@ -469,7 +484,7 @@ index 9749dea..673374f 100644
          ext.set_nonce(msg.to, 0)
          ext.set_code(msg.to, b"")
          # ext.reset_storage(msg.to)
-@@ -528,7 +483,7 @@ def create_contract(ext, msg):
+@@ -531,7 +483,7 @@ def create_contract(ext, msg):
      msg.data = vm.CallData([], 0, 0)
      snapshot = ext.snapshot()
  
@@ -478,7 +493,7 @@ index 9749dea..673374f 100644
      res, gas, dat = _apply_msg(ext, msg, code)
  
      log_msg.debug(
-@@ -543,7 +498,9 @@ def create_contract(ext, msg):
+@@ -546,7 +498,9 @@ def create_contract(ext, msg):
              # ext.set_code(msg.to, b'')
              return 1, gas, msg.to
          gcost = len(dat) * opcodes.GCONTRACTBYTE
@@ -489,7 +504,7 @@ index 9749dea..673374f 100644
              gas -= gcost
          else:
              dat = []
-@@ -553,8 +510,9 @@ def create_contract(ext, msg):
+@@ -556,8 +510,9 @@ def create_contract(ext, msg):
                  want=gcost,
                  block_number=ext.block_number,
              )
@@ -718,7 +733,7 @@ index ac2406f..0f38d72 100644
 -
      proc_ripemd160(None, msg)
 diff --git a/quarkchain/evm/state.py b/quarkchain/evm/state.py
-index 6422f18..350e5c6 100644
+index d406c28..350e5c6 100644
 --- a/quarkchain/evm/state.py
 +++ b/quarkchain/evm/state.py
 @@ -4,7 +4,6 @@ from typing import Set
@@ -854,11 +869,13 @@ index 6422f18..350e5c6 100644
              "nonce": str(self.nonce),
              "code": "0x" + encode_hex(self.code),
              "storage": {
-@@ -263,7 +254,6 @@ class State:
+@@ -262,8 +253,7 @@ class State:
+         self.changed = {}
          self.executing_on_head = executing_on_head
          self.qkc_config = qkc_config
-         self.sender_disallow_list = set()  # type: Set[bytes]
+-        self.sender_disallow_map = dict()  # type: Dict[bytes, int]
 -        self.shard_config = ShardConfig(ChainConfig())
++        self.sender_disallow_list = set()  # type: Set[bytes]
  
      @property
      def db(self):
@@ -1080,6 +1097,15 @@ index 6422f18..350e5c6 100644
                  if "code" in data:
                      state.set_code(addr, parse_as_bin(data["code"]))
                  if "nonce" in data:
+@@ -659,7 +656,7 @@ class State:
+         s.journal = copy.copy(self.journal)
+         s.cache = {}
+         s.qkc_config = self.qkc_config
+-        s.sender_disallow_map = self.sender_disallow_map
++        s.sender_disallow_list = self.sender_disallow_list
+         return s
+ 
+ 
 diff --git a/quarkchain/evm/transactions.py b/quarkchain/evm/transactions.py
 index d6b9de5..9d6d8fb 100644
 --- a/quarkchain/evm/transactions.py
@@ -1133,10 +1159,21 @@ index d6b9de5..9d6d8fb 100644
  class UnsignedTransaction(rlp.Serializable):
      fields = [
 diff --git a/quarkchain/evm/vm.py b/quarkchain/evm/vm.py
-index 5727e19..3b8cbaa 100644
+index 0f36acc..3b8cbaa 100644
 --- a/quarkchain/evm/vm.py
 +++ b/quarkchain/evm/vm.py
-@@ -304,6 +304,9 @@ def vm_execute(ext, msg, code):
+@@ -275,6 +275,10 @@ def vm_trace(ext, msg, compustate, opcode, pushcache, tracer=log_vm_op):
+ # Main function
+ def vm_execute(ext, msg, code):
+ 
++    # early exit if msg.sender is disallowed
++    if msg.sender in ext.sender_disallow_list:
++        return vm_exception("SENDER NOT ALLOWED")
++
+     # precompute trace flag
+     # if we trace vm, we're in slow mode anyway
+     trace_vm = log_vm_op.is_active("trace")
+@@ -300,6 +304,9 @@ def vm_execute(ext, msg, code):
          if opcode not in opcodes.opcodes:
              return vm_exception("INVALID OP", opcode=opcode)
  
@@ -1146,7 +1183,7 @@ index 5727e19..3b8cbaa 100644
          op, in_args, out_args, fee = opcodes.opcodes[opcode]
  
          # Apply operation
-@@ -427,7 +430,8 @@ def vm_execute(ext, msg, code):
+@@ -423,7 +430,8 @@ def vm_execute(ext, msg, code):
                  # calc n bytes to represent exponent
                  nbytes = len(utils.encode_int(exponent))
                  expfee = nbytes * opcodes.GEXPONENTBYTE
@@ -1156,7 +1193,7 @@ index 5727e19..3b8cbaa 100644
                  if compustate.gas < expfee:
                      compustate.gas = 0
                      return vm_exception("OOG EXPONENT")
-@@ -487,8 +491,9 @@ def vm_execute(ext, msg, code):
+@@ -483,8 +491,9 @@ def vm_execute(ext, msg, code):
              elif op == "ADDRESS":
                  stk.append(utils.coerce_to_int(msg.to))
              elif op == "BALANCE":
@@ -1168,7 +1205,7 @@ index 5727e19..3b8cbaa 100644
                  addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                  stk.append(ext.get_balance(addr))
              elif op == "ORIGIN":
-@@ -537,13 +542,15 @@ def vm_execute(ext, msg, code):
+@@ -533,13 +542,15 @@ def vm_execute(ext, msg, code):
              elif op == "GASPRICE":
                  stk.append(ext.tx_gasprice)
              elif op == "EXTCODESIZE":
@@ -1188,7 +1225,7 @@ index 5727e19..3b8cbaa 100644
                  addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                  start, s2, size = stk.pop(), stk.pop(), stk.pop()
                  extcode = ext.get_code(addr) or b""
-@@ -560,7 +567,11 @@ def vm_execute(ext, msg, code):
+@@ -556,7 +567,11 @@ def vm_execute(ext, msg, code):
          # Block info
          elif opcode < 0x50:
              if op == "BLOCKHASH":
@@ -1201,7 +1238,7 @@ index 5727e19..3b8cbaa 100644
              elif op == "COINBASE":
                  stk.append(utils.big_endian_to_int(ext.block_coinbase))
              elif op == "TIMESTAMP":
-@@ -591,8 +602,9 @@ def vm_execute(ext, msg, code):
+@@ -587,8 +602,9 @@ def vm_execute(ext, msg, code):
                      return vm_exception("OOG EXTENDING MEMORY")
                  mem[s0] = s1 % 256
              elif op == "SLOAD":
@@ -1213,7 +1250,7 @@ index 5727e19..3b8cbaa 100644
                  stk.append(ext.get_storage_data(msg.to, stk.pop()))
              elif op == "SSTORE":
                  s0, s1 = stk.pop(), stk.pop()
-@@ -678,7 +690,8 @@ def vm_execute(ext, msg, code):
+@@ -674,7 +690,8 @@ def vm_execute(ext, msg, code):
              if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
                  cd = CallData(mem, mstart, msz)
                  ingas = compustate.gas
@@ -1223,7 +1260,7 @@ index 5727e19..3b8cbaa 100644
                  create_msg = Message(
                      msg.to,
                      b"",
-@@ -736,20 +749,31 @@ def vm_execute(ext, msg, code):
+@@ -732,20 +749,31 @@ def vm_execute(ext, msg, code):
              # Extra gas costs based on various factors
              extra_gas = 0
              # Creating a new account
@@ -1263,7 +1300,7 @@ index 5727e19..3b8cbaa 100644
              submsg_gas = gas + opcodes.GSTIPEND * (value > 0)
              # Verify that there is sufficient balance and depth
              if ext.get_balance(msg.to) < value or msg.depth >= MAX_DEPTH:
-@@ -773,7 +797,7 @@ def vm_execute(ext, msg, code):
+@@ -769,7 +797,7 @@ def vm_execute(ext, msg, code):
                          code_address=to,
                          static=msg.static,
                      )
@@ -1272,7 +1309,7 @@ index 5727e19..3b8cbaa 100644
                      call_msg = Message(
                          msg.sender,
                          msg.to,
-@@ -785,7 +809,7 @@ def vm_execute(ext, msg, code):
+@@ -781,7 +809,7 @@ def vm_execute(ext, msg, code):
                          transfers_value=False,
                          static=msg.static,
                      )
@@ -1281,7 +1318,7 @@ index 5727e19..3b8cbaa 100644
                      call_msg = Message(
                          msg.to,
                          to,
-@@ -830,6 +854,8 @@ def vm_execute(ext, msg, code):
+@@ -826,6 +854,8 @@ def vm_execute(ext, msg, code):
              return peaceful_exit("RETURN", compustate.gas, mem[s0 : s0 + s1])
          # Revert opcode (Metropolis)
          elif op == "REVERT":
@@ -1290,7 +1327,7 @@ index 5727e19..3b8cbaa 100644
              s0, s1 = stk.pop(), stk.pop()
              if not mem_extend(mem, compustate, op, s0, s1):
                  return vm_exception("OOG EXTENDING MEMORY")
-@@ -841,12 +867,15 @@ def vm_execute(ext, msg, code):
+@@ -837,12 +867,15 @@ def vm_execute(ext, msg, code):
              to = utils.encode_int(stk.pop())
              to = ((b"\x00" * (32 - len(to))) + to)[12:]
              xfer = ext.get_balance(msg.to)
@@ -1312,13 +1349,3 @@ index 5727e19..3b8cbaa 100644
              ext.set_balance(to, ext.get_balance(to) + xfer)
              ext.set_balance(msg.to, 0)
              ext.add_suicide(msg.to)
-diff --git a/quarkchain/config.py b/quarkchain/config.py
-index 52fcad5..dc0316b 100644
---- a/quarkchain/config.py
-+++ b/quarkchain/config.py
-@@ -534,4 +534,4 @@ class QuarkChainConfig(BaseConfig):
- 
- 
- def get_default_evm_config():
--    return dict(quarkchain.evm.config.default_config)
-+    return dict(quarkchain.evm.config.config_metropolis)

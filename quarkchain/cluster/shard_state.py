@@ -327,9 +327,10 @@ class ShardState:
             state.trie.root_hash = trie_root_hash
 
         if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
-            state.sender_disallow_list = self._get_posw_coinbase_blockcnt(
-                header_hash
-            ).keys()
+            disallow_map = dict()
+            for k, v in self._get_posw_coinbase_blockcnt(header_hash).items():
+                disallow_map[k] = v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+            state.sender_disallow_map = disallow_map
         return state
 
     def init_genesis_state(self, root_block):
@@ -937,8 +938,10 @@ class ShardState:
             tip_prev_root_header = prev_root_header
             # Safe to update PoSW blacklist here
             if self.shard_config.POSW_CONFIG.ENABLED:
-                disallow_list = self._get_posw_coinbase_blockcnt(block_hash).keys()
-                evm_state.sender_disallow_list = disallow_list
+                disallow_map = dict()
+                for k, v in self._get_posw_coinbase_blockcnt(block_hash).items():
+                    disallow_map[k] = v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+                evm_state.sender_disallow_map = disallow_map
 
             self.__update_tip(block, evm_state=evm_state)
 
@@ -1047,7 +1050,7 @@ class ShardState:
         return int_result.to_bytes(32, byteorder="big")
 
     def execute_tx(
-        self, tx: TypedTransaction, from_address, height: Optional[int] = None
+        self, tx: TypedTransaction, from_address=None, height: Optional[int] = None
     ) -> Optional[bytes]:
         """Execute the tx using a copy of state
         """
@@ -1671,12 +1674,12 @@ class ShardState:
         start_time = time.time()
         header = block.header
         diff = header.difficulty
-        coinbase_address = header.coinbase_address.recipient
+        coinbase_recipient = header.coinbase_address.recipient
         # Evaluate stakes before the to-be-added block
         evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
         config = self.shard_config.POSW_CONFIG
         stakes = evm_state.get_balance(
-            coinbase_address, self.env.quark_chain_config.genesis_token
+            coinbase_recipient, self.env.quark_chain_config.genesis_token
         )
         block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
         block_threshold = min(config.WINDOW_SIZE, block_threshold)
@@ -1686,7 +1689,7 @@ class ShardState:
         block_cnt = self._get_posw_coinbase_blockcnt(
             header.hash_prev_minor_block, length=config.WINDOW_SIZE - 1
         )
-        cnt = block_cnt.get(coinbase_address, 0)
+        cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
         # TODO: remove it if verified not time consuming
