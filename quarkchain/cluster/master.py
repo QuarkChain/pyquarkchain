@@ -140,9 +140,9 @@ class SyncTask:
         # n-ary search
         start = max(self.root_state.tip.height - self.max_staleness, 0)
         end = min(self.root_state.tip.height, self.header.height)
+        Logger.info("Finding root block ancestor from {} to {}...".format(start, end))
 
         while end >= start:
-            print("start end", start, end)
             self.stats.ancestor_lookup_requests += 1
             span = (end - start) // self.root_block_header_list_limit + 1
             resp = await self.__download_block_header_and_check(
@@ -198,13 +198,17 @@ class SyncTask:
         if self.__has_block_hash(self.header.get_hash()):
             return
 
-        ancestor = await self.__find_ancestor()
-        if ancestor is None:
-            raise RuntimeError(
-                "Cannot find common ancestor with max fork length {}".format(
-                    self.max_staleness
+        # Fast path
+        if self.header.hash_prev_block == self.root_state.tip.get_hash():
+            ancestor = self.root_state.tip
+        else:
+            ancestor = await self.__find_ancestor()
+            if ancestor is None:
+                raise RuntimeError(
+                    "Cannot find common ancestor with max fork length {}".format(
+                        self.max_staleness
+                    )
                 )
-            )
 
         while self.header.height > ancestor.height:
             limit = min(
@@ -272,7 +276,7 @@ class SyncTask:
         self.stats.blocks_added += 1
         elapse = time.time() - start
         Logger.info(
-            "[R] syncing root block {} {} took {:.2f} seconds".format(
+            "[R] synced root block {} {} took {:.2f} seconds".format(
                 root_block.header.height, root_block.header.get_hash().hex(), elapse
             )
         )
