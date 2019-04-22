@@ -2093,12 +2093,12 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(root_block.finalize())
 
         # Coinbase in genesis should be disallowed
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
-        self.assertTrue(bytes(20) in state.evm_state.sender_disallow_list)
+        self.assertEqual(len(state.evm_state.sender_disallow_map), 1)
+        self.assertTrue(bytes(20) in state.evm_state.sender_disallow_map)
 
         m = state.get_tip().create_block_to_append(address=acc1)
         state.finalize_and_add_block(m)
-        self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
+        self.assertEqual(len(state.evm_state.sender_disallow_map), 2)
         self.assertGreater(
             state.get_token_balance(acc1.recipient, self.genesis_token), 0
         )
@@ -2126,12 +2126,138 @@ class TestShardState(unittest.TestCase):
 
             if i == 0:
                 # Make sure the disallow rolling window now discards the first addr
-                self.assertEqual(len(state.evm_state.sender_disallow_list), 2)
-                self.assertTrue(bytes(20) not in state.evm_state.sender_disallow_list)
+                self.assertEqual(len(state.evm_state.sender_disallow_map), 2)
+                self.assertTrue(bytes(20) not in state.evm_state.sender_disallow_map)
             else:
                 # Disallow list should only have acc2
-                self.assertEqual(len(state.evm_state.sender_disallow_list), 1)
-                self.assertTrue(acc2.recipient in state.evm_state.sender_disallow_list)
+                self.assertEqual(len(state.evm_state.sender_disallow_map), 1)
+                self.assertTrue(acc2.recipient in state.evm_state.sender_disallow_map)
+
+    def test_posw_coinbase_send_under_limit(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        id2 = Identity.create_random_identity()
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
+        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
+        state.shard_config.COINBASE_AMOUNT = 8
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 2
+        state.shard_config.POSW_CONFIG.WINDOW_SIZE = 4
+
+        # Add a root block to have all the shards initialized, also include the genesis from
+        # another shard to allow x-shard tx TO that shard
+        root_block = state.root_tip.create_block_to_append()
+        root_block.add_minor_block_header(
+            create_default_shard_state(env=env, shard_id=1).header_tip
+        )
+        state.add_root_block(root_block.finalize())
+
+        # Coinbase in genesis should be disallowed
+        self.assertEqual(len(state.evm_state.sender_disallow_map), 1)
+        self.assertTrue(bytes(20) in state.evm_state.sender_disallow_map)
+
+        m = state.get_tip().create_block_to_append(address=acc1)
+        state.finalize_and_add_block(m)
+        self.assertEqual(len(state.evm_state.sender_disallow_map), 2)
+        self.assertEqual(
+            state.get_token_balance(acc1.recipient, self.genesis_token),
+            state.shard_config.COINBASE_AMOUNT // 2         # tax rate is 0.5
+        )
+
+        self.assertEqual(
+            state.evm_state.sender_disallow_map,
+            {
+                bytes(20): 2,
+                acc1.recipient: 2,
+            }
+        )
+
+        # Try to send money from that account
+        tx0 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address.create_empty_account(0),
+            value=1,
+            gas=21000,
+            gas_price=0,
+        )
+        res = state.execute_tx(tx0, acc1)
+        self.assertIsNotNone(res, "tx should succeed")
+
+        # Create a block including that tx, receipt should also report error
+        self.assertTrue(state.add_tx(tx0))
+        m = state.create_block_to_mine(address=acc2)
+        state.finalize_and_add_block(m)
+        self.assertEqual(
+            state.get_token_balance(acc1.recipient, self.genesis_token),
+            state.shard_config.COINBASE_AMOUNT // 2 - 1         # tax rate is 0.5
+        )
+        self.assertEqual(
+            state.evm_state.sender_disallow_map,
+            {
+                bytes(20): 2,
+                acc1.recipient: 2,
+                acc2.recipient: 2,
+            }
+        )
+
+        tx1 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address.create_empty_account(0),
+            value=2,
+            gas=21000,
+            gas_price=0,
+        )
+        res = state.execute_tx(tx1)
+        self.assertIsNone(res, "tx should fail")
+
+        # Create a block including that tx, receipt should also report error
+        self.assertTrue(state.add_tx(tx1))
+        m = state.create_block_to_mine(address=acc2)
+        state.finalize_and_add_block(m)
+        self.assertEqual(
+            state.get_token_balance(acc1.recipient, self.genesis_token),
+            state.shard_config.COINBASE_AMOUNT // 2 - 1         # tax rate is 0.5
+        )
+        self.assertEqual(
+            state.get_token_balance(acc2.recipient, self.genesis_token),
+            state.shard_config.COINBASE_AMOUNT          # tax rate is 0.5
+        )
+        self.assertEqual(
+            state.evm_state.sender_disallow_map,
+            {
+                bytes(20): 2,
+                acc1.recipient: 2,
+                acc2.recipient: 4,
+            }
+        )
+
+        tx2 = create_transfer_transaction(
+            shard_state=state,
+            key=id2.get_key(),
+            from_address=acc2,
+            to_address=Address.create_empty_account(0),
+            value=5,
+            gas=21000,
+            gas_price=0,
+        )
+        res = state.execute_tx(tx2)
+        self.assertIsNone(res, "tx should fail")
+
+        tx3 = create_transfer_transaction(
+            shard_state=state,
+            key=id2.get_key(),
+            from_address=acc2,
+            to_address=Address.create_empty_account(0),
+            value=4,
+            gas=21000,
+            gas_price=0,
+        )
+        res = state.execute_tx(tx3, acc2)
+        self.assertIsNotNone(res, "tx should succeed")
 
     def test_posw_validate_minor_block_seal(self):
         acc = Address(b"\x01" * 20, full_shard_key=0)
