@@ -69,6 +69,7 @@ class Peer(P2PConnection):
             peer_port=self.network.port,
             chain_mask_list=[],
             root_block_header=self.root_state.tip,
+            genesis_root_block_hash=self.root_state.get_genesis_block_hash(),
         )
         # Send hello request
         self.write_command(CommandOp.HELLO, cmd)
@@ -94,6 +95,9 @@ class Peer(P2PConnection):
 
         if cmd.network_id != self.env.quark_chain_config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
+
+        if cmd.genesis_root_block_hash != self.root_state.get_genesis_block_hash():
+            return self.close_with_error("genesis block mismatch")
 
         self.id = cmd.peer_id
         self.chain_mask_list = cmd.chain_mask_list
