@@ -168,6 +168,55 @@ class GetRootBlockHeaderListWithSkipRequest(Serializable):
         )
 
 
+class GetMinorBlockHeaderListWithSkipRequest(Serializable):
+    FIELDS = [
+        ("type", uint8),       # 0 block hash, 1 block height
+        ("data", hash256),
+        ("branch", Branch),
+        ("limit", uint32),
+        ("skip", uint32),
+        ("direction", uint8),  # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, type, data, branch, limit, skip, direction):
+        self.type = type
+        self.data = data
+        self.branch = branch
+        self.limit = limit
+        self.skip = skip
+        self.direction = direction
+
+    def get_height(self):
+        check(self.type == 1)
+        return int.from_bytes(self.data, byteorder="big")
+
+    def get_hash(self):
+        check(self.type == 0)
+        return self.data
+
+    @staticmethod
+    def create_for_height(height, branch, limit, skip, direction):
+        return GetMinorBlockHeaderListWithSkipRequest(
+            1,
+            height.to_bytes(32, byteorder="big"),
+            branch,
+            limit,
+            skip,
+            direction
+        )
+
+    @staticmethod
+    def create_for_hash(hash, branch, limit, skip, direction):
+        return GetMinorBlockHeaderListWithSkipRequest(
+            0,
+            hash,
+            branch,
+            limit,
+            skip,
+            direction
+        )
+
+
 class GetRootBlockListRequest(Serializable):
     """ RPC to get a root block list.  The RPC should be only fired by root chain
     """
@@ -283,6 +332,8 @@ class CommandOp:
     GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 16
     GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 17
     NEW_ROOT_BLOCK = 18
+    GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 19
+    GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 20
 
 
 OP_SERIALIZER_MAP = {
@@ -305,4 +356,6 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetRootBlockHeaderListWithSkipRequest,
     CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetRootBlockHeaderListResponse,
     CommandOp.NEW_ROOT_BLOCK: NewRootBlockCommand,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetMinorBlockHeaderListWithSkipRequest,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetMinorBlockHeaderListResponse,
 }
