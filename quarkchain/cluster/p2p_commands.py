@@ -26,6 +26,7 @@ class HelloCommand(Serializable):
             PrependedSizeListSerializer(4, uint32),
         ),  # TODO create shard mask object
         ("root_block_header", RootBlockHeader),
+        ("genesis_root_block_hash", hash256),
     ]
 
     def __init__(
@@ -37,6 +38,7 @@ class HelloCommand(Serializable):
         peer_port,
         chain_mask_list,
         root_block_header,
+        genesis_root_block_hash,
     ):
         fields = {k: v for k, v in locals().items() if k != "self"}
         super(type(self), self).__init__(**fields)
