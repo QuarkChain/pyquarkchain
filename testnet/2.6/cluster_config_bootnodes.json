@@ -404,6 +404,8 @@
   "P2P": {
     "NEW_MODULE": true,
     "MAX_PEERS": 0,
+    "BOOT_NODES": "$BOOT_NODES",
+    "PRIV_KEY": "$PRIV_KEY",
     "UPNP": true
   },
   "MONITORING": {
