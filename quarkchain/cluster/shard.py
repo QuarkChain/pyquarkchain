@@ -128,6 +128,44 @@ class PeerShardConnection(VirtualConnection):
             self.shard_state.root_tip, self.shard_state.header_tip, header_list
         )
 
+    async def handle_get_minor_block_header_list_with_skip_request(self, request):
+        if request.branch != self.shard_state.branch:
+            self.close_with_error("Wrong branch from peer")
+        if request.limit <= 0 or request.limit > 2 * MINOR_BLOCK_HEADER_LIST_LIMIT:
+            self.close_with_error("Bad limit")
+        if request.type != 0 and request.type != 1:
+            self.close_with_error("Bad type value")
+
+        if request.type == 1:
+            block_height = request.get_height()
+        else:
+            block_hash = request.get_hash()
+            block_header = self.shard_state.db.get_minor_block_header_by_hash(block_hash)
+            if block_header is None:
+                return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, [])
+
+            # Check if it is canonical chain
+            block_height = block_header.height
+            if self.shard_state.db.get_minor_block_header_by_height(block_height) != block_header:
+                return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, [])
+
+        header_list = []
+        while (
+            len(header_list) < request.limit
+            and block_height >= 0
+            and block_height <= self.shard_state.header_tip.height
+        ):
+            block_header = self.shard_state.db.get_minor_block_header_by_height(block_height)
+            if block_header is None:
+                break
+            header_list.append(block_header)
+            if request.direction == Direction.GENESIS:
+                block_height -= (request.skip + 1)
+            else:
+                block_height += (request.skip + 1)
+
+        return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, header_list)
+
     async def handle_get_minor_block_list_request(self, request):
         if len(request.minor_block_hash_list) > 2 * MINOR_BLOCK_BATCH_SIZE:
             self.close_with_error("Bad number of minor blocks requested")
@@ -225,6 +263,10 @@ OP_RPC_MAP = {
         CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE,
         PeerShardConnection.handle_get_minor_block_list_request,
     ),
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: (
+        CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE,
+        PeerShardConnection.handle_get_minor_block_header_list_with_skip_request,
+    )
 }
 
 

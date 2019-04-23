@@ -15,6 +15,7 @@ from quarkchain.utils import call_async, assert_true_with_timeout
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     GetRootBlockHeaderListWithSkipRequest,
+    GetMinorBlockHeaderListWithSkipRequest,
     Direction,
 )
 
@@ -1108,3 +1109,204 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 8)
             self.assertEqual(master1.synchronizer.stats.headers_downloaded, 5 + 8)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
+
+    def test_get_minor_block_headers_with_skip(self):
+        """ Test the broadcast is only done to the neighbors """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1) as clusters:
+            master = clusters[0].master
+            shard = next(iter(clusters[0].slave_list[0].shards.values()))
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            minor_block_header_list = [shard.state.header_tip]
+            branch = shard.state.header_tip.branch
+            for i in range(10):
+                b = shard.state.create_block_to_mine()
+                call_async(master.add_raw_minor_block(b.header.branch, b.serialize()))
+                minor_block_header_list.append(b.header)
+
+            self.assertEqual(minor_block_header_list[-1].height, 10)
+
+            peer = next(iter(clusters[1].slave_list[0].shards[branch].peers.values()))
+
+            # Test Case 1 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=1, branch=branch, skip=1, limit=3, direction=Direction.TIP
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 3)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[1])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[3])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[5])
+
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=minor_block_header_list[1].get_hash(),
+                        branch=branch,
+                        skip=1,
+                        limit=3,
+                        direction=Direction.TIP,
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 3)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[1])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[3])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[5])
+
+            # Test Case 2 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=2, branch=branch, skip=2, limit=4, direction=Direction.TIP
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 3)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[2])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[5])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[8])
+
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=minor_block_header_list[2].get_hash(),
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.TIP,
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 3)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[2])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[5])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[8])
+
+            # Test Case 3 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=6, branch=branch, skip=0, limit=100, direction=Direction.TIP
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 5)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[6])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[7])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[8])
+            self.assertEqual(resp.block_header_list[3], minor_block_header_list[9])
+            self.assertEqual(resp.block_header_list[4], minor_block_header_list[10])
+
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=minor_block_header_list[6].get_hash(),
+                        branch=branch,
+                        skip=0,
+                        limit=100,
+                        direction=Direction.TIP,
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 5)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[6])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[7])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[8])
+            self.assertEqual(resp.block_header_list[3], minor_block_header_list[9])
+            self.assertEqual(resp.block_header_list[4], minor_block_header_list[10])
+
+            # Test Case 4 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=2, branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 1)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[2])
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=minor_block_header_list[2].get_hash(),
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.GENESIS,
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 1)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[2])
+
+            # Test Case 5 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=11, branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 0)
+
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=bytes(32), branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 0)
+
+            # Test Case 6 ###################################################
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
+                        height=8, branch=branch, skip=1, limit=5, direction=Direction.GENESIS
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 5)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[8])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[6])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[4])
+            self.assertEqual(resp.block_header_list[3], minor_block_header_list[2])
+            self.assertEqual(resp.block_header_list[4], minor_block_header_list[0])
+
+            op, resp, rpc_id = call_async(
+                peer.write_rpc_request(
+                    op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
+                    cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
+                        hash=minor_block_header_list[8].get_hash(),
+                        branch=branch,
+                        skip=1,
+                        limit=5,
+                        direction=Direction.GENESIS,
+                    ),
+                )
+            )
+            self.assertEqual(len(resp.block_header_list), 5)
+            self.assertEqual(resp.block_header_list[0], minor_block_header_list[8])
+            self.assertEqual(resp.block_header_list[1], minor_block_header_list[6])
+            self.assertEqual(resp.block_header_list[2], minor_block_header_list[4])
+            self.assertEqual(resp.block_header_list[3], minor_block_header_list[2])
+            self.assertEqual(resp.block_header_list[4], minor_block_header_list[0])

@@ -137,6 +137,10 @@ class SyncTask:
         return resp
 
     async def __find_ancestor(self):
+        # Fast path
+        if self.header.hash_prev_block == self.root_state.tip.get_hash():
+            return self.root_state.tip
+
         # n-ary search
         start = max(self.root_state.tip.height - self.max_staleness, 0)
         end = min(self.root_state.tip.height, self.header.height)
