@@ -5,7 +5,7 @@
   "PRIVATE_JSON_RPC_PORT": 38491,
   "PRIVATE_JSON_RPC_HOST": "127.0.0.1",
   "ENABLE_TRANSACTION_HISTORY": false,
-  "DB_PATH_ROOT": "./qkc-data/mainnet",
+  "DB_PATH_ROOT": "./qkc-data/testnet26",
   "LOG_LEVEL": "info",
   "START_SIMULATED_MINING": false,
   "CLEAN": false,
