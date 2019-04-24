@@ -335,6 +335,9 @@ class Synchronizer:
         self.root_block_header_list_limit = ROOT_BLOCK_HEADER_LIST_LIMIT
 
     def add_task(self, header, peer):
+        if header.total_difficulty <= peer.root_state.tip.total_difficulty:
+            return
+
         self.tasks[peer] = header
         Logger.info(
             "[R] added {} {} to sync queue (running={})".format(
@@ -367,17 +370,33 @@ class Synchronizer:
     def _pop_best_task(self):
         """ pop and return the task with heightest root """
         check(len(self.tasks) > 0)
-        peer, header = max(
-            self.tasks.items(), key=lambda pair: pair[1].total_difficulty
-        )
-        del self.tasks[peer]
-        return header, peer
+        remove_list = []
+        best_peer = None
+        best_header = None
+        for peer, header in self.tasks.items():
+            if header.total_difficulty <= peer.root_state.tip.total_difficulty:
+                remove_list.append(peer)
+                continue
+
+            if best_header is None or header.total_difficulty > best_header.total_difficulty:
+                best_header = header
+                best_peer = peer
+
+        for peer in remove_list:
+            del self.tasks[peer]
+        if best_peer is not None:
+            del self.tasks[best_peer]
+
+        return best_header, best_peer
 
     async def __run(self):
         Logger.info("[R] synchronizer started!")
         while len(self.tasks) > 0:
             self.running_task = self._pop_best_task()
             header, peer = self.running_task
+            if header is None:
+                check(len(self.tasks) == 0)
+                break
             task = SyncTask(header, peer, self.stats, self.root_block_header_list_limit)
             Logger.info(
                 "[R] start sync task {} {}".format(
