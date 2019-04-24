@@ -765,6 +765,9 @@ class Shard:
             check(block.header.branch.get_full_shard_id() == self.full_shard_id)
 
             block_hash = block.header.get_hash()
+            # adding the block header one assuming the block will be validated.
+            coinbase_amount_list.append(block.header.coinbase_amount_map)
+
             commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
             if commit_status == BLOCK_COMMITTED:
                 # Skip processing the block if it is already committed
@@ -791,12 +794,9 @@ class Shard:
                 xshard_list, coinbase_amount_map = self.state.add_block(
                     block, skip_if_too_old=False, force=True
                 )
-                # coinbase_amount_map may be None if the block exists
-                # adding the block header one since the block is already validated.
-                coinbase_amount_list.append(block.header.coinbase_amount_map)
             except Exception as e:
                 Logger.error_exception()
-                return False, coinbase_amount_list
+                return False, None
 
             prev_root_height = self.state.db.get_root_block_header_by_hash(
                 block.header.hash_prev_root_block
