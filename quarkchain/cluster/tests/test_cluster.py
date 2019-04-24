@@ -1110,6 +1110,88 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(master1.synchronizer.stats.headers_downloaded, 5 + 8)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
 
+    def test_get_root_block_header_sync_with_start_equal_end(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(5):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+
+            # Add 3+1 blocks to another cluster
+            master1 = clusters[1].master
+            for i in range(3):
+                call_async(master1.add_root_block(root_block_list[i]))
+            for i in range(1):
+                root_block = call_async(
+                    master1.get_next_block_to_mine(
+                        acc1, branch_value=None
+                    )
+                )
+                call_async(master1.add_root_block(root_block))
+            master1.synchronizer.root_block_header_list_limit = 3
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 2)
+            self.assertEqual(master1.synchronizer.stats.headers_downloaded, 6)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
+
+    def test_get_root_block_header_sync_with_best_ancestor(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, connect=False) as clusters:
+            master0 = clusters[0].master
+            root_block_list = []
+            for i in range(5):
+                root_block = call_async(
+                    master0.get_next_block_to_mine(
+                        Address.create_empty_account(), branch_value=None
+                    )
+                )
+                call_async(master0.add_root_block(root_block))
+                root_block_list.append(root_block)
+            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+
+            # Add 2+2 blocks to another cluster
+            master1 = clusters[1].master
+            for i in range(2):
+                call_async(master1.add_root_block(root_block_list[i]))
+            for i in range(2):
+                root_block = call_async(
+                    master1.get_next_block_to_mine(
+                        acc1, branch_value=None
+                    )
+                )
+                call_async(master1.add_root_block(root_block))
+            master1.synchronizer.root_block_header_list_limit = 3
+
+            # Lookup will be [0, 2, 4], and then [3], where 3 cannot be found and thus 2 is the best.
+
+            # Connect and the synchronizer should automically download
+            call_async(clusters[1].network.connect(
+                "127.0.0.1",
+                clusters[0].network.env.cluster_config.P2P_PORT)
+            )
+            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 3)
+            self.assertEqual(master1.synchronizer.stats.headers_downloaded, 4 + 3)
+            self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
+
     def test_get_minor_block_headers_with_skip(self):
         """ Test the broadcast is only done to the neighbors """
         id1 = Identity.create_random_identity()
