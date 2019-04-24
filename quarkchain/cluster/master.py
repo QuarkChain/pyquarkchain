@@ -145,6 +145,7 @@ class SyncTask:
         start = max(self.root_state.tip.height - self.max_staleness, 0)
         end = min(self.root_state.tip.height, self.header.height)
         Logger.info("Finding root block ancestor from {} to {}...".format(start, end))
+        best_ancestor = None
 
         while end >= start:
             self.stats.ancestor_lookup_requests += 1
@@ -165,7 +166,7 @@ class SyncTask:
                 self.header = resp.root_tip
                 end = min(resp.root_tip.height, end)
 
-            prevHeader = None
+            prev_header = None
             for header in reversed(resp.block_header_list):
                 # Check if header is correct
                 if header.height < start or header.height > end:
@@ -173,11 +174,11 @@ class SyncTask:
                         "Bad peer returning root block height out of range"
                     )
 
-                if prevHeader is not None and header.height >= prevHeader.height:
+                if prev_header is not None and header.height >= prev_header.height:
                     raise RuntimeError(
                         "Bad peer returning root block height must be ordered"
                     )
-                prevHeader = header
+                prev_header = header
 
                 if not self.__has_block_hash(header.get_hash()):
                     end = header.height - 1
@@ -187,12 +188,13 @@ class SyncTask:
                     return header
 
                 start = header.height + 1
-                check(end > start)
+                best_ancestor = header
+                check(end >= start)
                 break
 
-        # No ancestor is found.  Note that it is possible caused by remote root chain org.
-        self.stats.ancestor_not_found_count += 1
-        return None
+        # Return best ancenstor.  If no ancestor is found, return None.
+        # Note that it is possible caused by remote root chain org.
+        return best_ancestor
 
     async def __run_sync(self):
         """raise on any error so that sync() will close peer connection"""
@@ -204,6 +206,7 @@ class SyncTask:
 
         ancestor = await self.__find_ancestor()
         if ancestor is None:
+            self.stats.ancestor_not_found_count += 1
             raise RuntimeError(
                 "Cannot find common ancestor with max fork length {}".format(
                     self.max_staleness
