@@ -166,7 +166,7 @@ class SyncTask:
                 self.header = resp.root_tip
                 end = min(resp.root_tip.height, end)
 
-            prevHeader = None
+            prev_header = None
             for header in reversed(resp.block_header_list):
                 # Check if header is correct
                 if header.height < start or header.height > end:
@@ -174,11 +174,11 @@ class SyncTask:
                         "Bad peer returning root block height out of range"
                     )
 
-                if prevHeader is not None and header.height >= prevHeader.height:
+                if prev_header is not None and header.height >= prev_header.height:
                     raise RuntimeError(
                         "Bad peer returning root block height must be ordered"
                     )
-                prevHeader = header
+                prev_header = header
 
                 if not self.__has_block_hash(header.get_hash()):
                     end = header.height - 1
