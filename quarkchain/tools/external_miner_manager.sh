@@ -30,12 +30,10 @@ done
 shift $((OPTIND -1))
 
 # TODO: following full shard key encoding only works for testnet2.4
-shards=(1 65537 131073 196609 262146 262147 327682 327683)
 shards_by_process=()
-i=0
-for shard in "${shards[@]}"; do
-	shards_by_process[$(( i % $process ))]+=" $shard"
-	i=$(( $i + 1 ))
+for chain_id in $(seq 0 7); do
+	shard=16#${chain_id}0001
+	shards_by_process[$(( chain_id % $process ))]+=" $(($shard))"
 done
 
 miner_py_path="$( cd "$(dirname "$0")" ; pwd -P )/external_miner.py"

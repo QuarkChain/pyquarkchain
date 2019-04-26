@@ -381,7 +381,10 @@ class Synchronizer:
                 remove_list.append(peer)
                 continue
 
-            if best_header is None or header.total_difficulty > best_header.total_difficulty:
+            if (
+                best_header is None
+                or header.total_difficulty > best_header.total_difficulty
+            ):
                 best_header = header
                 best_peer = peer
 
