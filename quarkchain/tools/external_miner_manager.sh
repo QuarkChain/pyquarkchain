@@ -32,7 +32,7 @@ shift $((OPTIND -1))
 # TODO: following full shard key encoding only works for testnet2.4
 shards_by_process=()
 for chain_id in $(seq 0 7); do
-    shard=16#${chain_id}0001
+	shard=16#${chain_id}0001
 	shards_by_process[$(( chain_id % $process ))]+=" $(($shard))"
 done
 
