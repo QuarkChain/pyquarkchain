@@ -35,7 +35,7 @@ WORKDIR /code
 
 # docker build --build-arg CACHEBUST=$(date +%s) .
 ARG CACHEBUST=1
-RUN git clone --branch testnet26_config https://github.com/QuarkChain/pyquarkchain.git
+RUN git clone --branch v2.6.0 https://github.com/QuarkChain/pyquarkchain.git
 
 # py dep
 RUN pypy3 -m pip install -r pyquarkchain/requirements.txt
