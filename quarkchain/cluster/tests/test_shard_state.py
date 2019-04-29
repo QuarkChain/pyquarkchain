@@ -2047,11 +2047,12 @@ class TestShardState(unittest.TestCase):
             Identity.create_random_identity(), full_shard_key=0
         )
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
+        posw_window_len = 2
         state = create_default_shard_state(env=env, shard_id=0)
 
         m = state.get_tip().create_block_to_append(address=acc)
         coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-            m.header.hash_prev_minor_block
+            m.header.hash_prev_minor_block, length=posw_window_len
         )
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m)
@@ -2062,7 +2063,7 @@ class TestShardState(unittest.TestCase):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
             coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.hash_prev_minor_block
+                m.header.hash_prev_minor_block, length=posw_window_len
             )
             self.assertEqual(len(coinbase_blockcnt), 2)
             # Count should all equal 1
@@ -2074,7 +2075,30 @@ class TestShardState(unittest.TestCase):
             prev_addr = random_acc.recipient
 
         # Cached should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 5)
+        self.assertEqual(len(state.coinbase_addr_cache), 1)
+        self.assertEqual(len(state.coinbase_addr_cache[2]), 5)
+
+    def test_posw_coinbase_address_count_by_diff_length(self):
+        acc = Address.create_from_identity(
+            Identity.create_random_identity(), full_shard_key=0
+        )
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
+        state = create_default_shard_state(env=env, shard_id=0)
+
+        for i in range(4):
+            random_acc = Address.create_random_account(full_shard_key=0)
+            m = state.get_tip().create_block_to_append(address=random_acc)
+            state.finalize_and_add_block(m)
+
+        sum_cnt = lambda d: sum(d.values())
+        for length in range(1, 5):
+            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
+                m.header.get_hash(), length
+            )
+            self.assertEqual(sum_cnt(coinbase_blockcnt), length)
+
+        # Make sure internal cache state is correct
+        self.assertEqual(len(state.coinbase_addr_cache), 4)
 
     def test_posw_coinbase_lockup(self):
         id1 = Identity.create_random_identity()
@@ -2161,15 +2185,11 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(state.evm_state.sender_disallow_map), 2)
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT // 2         # tax rate is 0.5
+            state.shard_config.COINBASE_AMOUNT // 2,  # tax rate is 0.5
         )
 
         self.assertEqual(
-            state.evm_state.sender_disallow_map,
-            {
-                bytes(20): 2,
-                acc1.recipient: 2,
-            }
+            state.evm_state.sender_disallow_map, {bytes(20): 2, acc1.recipient: 2}
         )
 
         # Try to send money from that account
@@ -2191,15 +2211,11 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(m)
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT // 2 - 1         # tax rate is 0.5
+            state.shard_config.COINBASE_AMOUNT // 2 - 1,  # tax rate is 0.5
         )
         self.assertEqual(
             state.evm_state.sender_disallow_map,
-            {
-                bytes(20): 2,
-                acc1.recipient: 2,
-                acc2.recipient: 2,
-            }
+            {bytes(20): 2, acc1.recipient: 2, acc2.recipient: 2},
         )
 
         tx1 = create_transfer_transaction(
@@ -2220,19 +2236,15 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(m)
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT // 2 - 1         # tax rate is 0.5
+            state.shard_config.COINBASE_AMOUNT // 2 - 1,  # tax rate is 0.5
         )
         self.assertEqual(
             state.get_token_balance(acc2.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT          # tax rate is 0.5
+            state.shard_config.COINBASE_AMOUNT,  # tax rate is 0.5
         )
         self.assertEqual(
             state.evm_state.sender_disallow_map,
-            {
-                bytes(20): 2,
-                acc1.recipient: 2,
-                acc2.recipient: 4,
-            }
+            {bytes(20): 2, acc1.recipient: 2, acc2.recipient: 4},
         )
 
         tx2 = create_transfer_transaction(

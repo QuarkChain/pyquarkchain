@@ -2,7 +2,7 @@ import asyncio
 import functools
 import json
 import time
-from collections import Counter, deque
+from collections import Counter, deque, defaultdict
 from fractions import Fraction
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -252,7 +252,9 @@ class ShardState:
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_header_pool = dict()
         # header hash -> (height, [coinbase address]) during previous blocks (ascending)
-        self.coinbase_addr_cache = dict()  # type: Dict[bytes, Tuple[int, Deque[bytes]]]
+        self.coinbase_addr_cache = defaultdict(
+            dict
+        )  # type: Dict[int, Dict[bytes, Tuple[int, Deque[bytes]]]]
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (
             1 - self.env.quark_chain_config.reward_tax_rate
@@ -328,8 +330,10 @@ class ShardState:
 
         if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
             disallow_map = dict()
-            for k, v in self._get_posw_coinbase_blockcnt(header_hash).items():
-                disallow_map[k] = v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+            length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
+            total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+            for k, v in self._get_posw_coinbase_blockcnt(header_hash, length).items():
+                disallow_map[k] = v * total_stakes
             state.sender_disallow_map = disallow_map
         return state
 
@@ -939,8 +943,11 @@ class ShardState:
             # Safe to update PoSW blacklist here
             if self.shard_config.POSW_CONFIG.ENABLED:
                 disallow_map = dict()
-                for k, v in self._get_posw_coinbase_blockcnt(block_hash).items():
-                    disallow_map[k] = v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+                length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
+                total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+                block_cnt = self._get_posw_coinbase_blockcnt(block_hash, length)
+                for k, v in block_cnt.items():
+                    disallow_map[k] = v * total_stakes
                 evm_state.sender_disallow_map = disallow_map
 
             self.__update_tip(block, evm_state=evm_state)
@@ -1719,8 +1726,9 @@ class ShardState:
         header = curr_block.header
         height = header.height
         prev_hash = header.hash_prev_minor_block
-        if prev_hash in self.coinbase_addr_cache:  # mem cache hit
-            _, addrs = self.coinbase_addr_cache[prev_hash]
+        cache = self.coinbase_addr_cache[length]
+        if prev_hash in cache:  # mem cache hit
+            _, addrs = cache[prev_hash]
             addrs = addrs.copy()
             if len(addrs) == length:
                 addrs.popleft()
@@ -1735,27 +1743,27 @@ class ShardState:
                     header.hash_prev_minor_block
                 )
                 check(header is not None, "mysteriously missing block")
-        self.coinbase_addr_cache[header_hash] = (height, addrs)
+        cache[header_hash] = (height, addrs)
         # in case cached too much, clean up
-        if len(self.coinbase_addr_cache) > 128:  # size around 640KB if window size 256
-            self.coinbase_addr_cache = {
+        if len(cache) > 128:  # size around 640KB if window size 256
+            self.coinbase_addr_cache[length] = {
                 k: (h, addrs)
-                for k, (h, addrs) in self.coinbase_addr_cache.items()
+                for k, (h, addrs) in cache.items()
                 if h > height - 16  # keep most recent ones
             }
+
+        check(len(addrs) <= length)
         return list(addrs)
 
     @functools.lru_cache(maxsize=16)
     def _get_posw_coinbase_blockcnt(
-        self, header_hash: bytes, length: int = None
+        self, header_hash: bytes, length: int
     ) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        if length is None:
-            length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
         coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)
 
