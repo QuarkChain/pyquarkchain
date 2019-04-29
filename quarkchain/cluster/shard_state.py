@@ -331,10 +331,9 @@ class ShardState:
         if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
             disallow_map = dict()
             length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
+            total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
             for k, v in self._get_posw_coinbase_blockcnt(header_hash, length).items():
-                disallow_map[k] = (
-                    v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-                )
+                disallow_map[k] = v * total_stakes
             state.sender_disallow_map = disallow_map
         return state
 
@@ -945,12 +944,10 @@ class ShardState:
             if self.shard_config.POSW_CONFIG.ENABLED:
                 disallow_map = dict()
                 length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
-                for k, v in self._get_posw_coinbase_blockcnt(
-                    block_hash, length
-                ).items():
-                    disallow_map[k] = (
-                        v * self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-                    )
+                total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+                block_cnt = self._get_posw_coinbase_blockcnt(block_hash, length)
+                for k, v in block_cnt.items():
+                    disallow_map[k] = v * total_stakes
                 evm_state.sender_disallow_map = disallow_map
 
             self.__update_tip(block, evm_state=evm_state)

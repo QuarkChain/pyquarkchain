@@ -2085,10 +2085,6 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        m = state.get_tip().create_block_to_append(address=acc)
-        state.finalize_and_add_block(m)
-
-        # Note PoSW window size is 2
         for i in range(4):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
