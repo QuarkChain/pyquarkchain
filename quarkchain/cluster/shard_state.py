@@ -935,16 +935,7 @@ class ShardState:
 
         if update_tip:
             tip_prev_root_header = prev_root_header
-            # Safe to update PoSW blacklist here
-            if self.shard_config.POSW_CONFIG.ENABLED:
-                disallow_map = dict()
-                length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
-                total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-                block_cnt = self._get_posw_coinbase_blockcnt(block_hash, length)
-                for k, v in block_cnt.items():
-                    disallow_map[k] = v * total_stakes
-                evm_state.sender_disallow_map = disallow_map
-
+            evm_state.sender_disallow_map = self._get_sender_disallow_map(block_hash)
             self.__update_tip(block, evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
@@ -1749,7 +1740,6 @@ class ShardState:
         check(len(addrs) <= length)
         return list(addrs)
 
-    @functools.lru_cache(maxsize=16)
     def _get_posw_coinbase_blockcnt(
         self, header_hash: bytes, length: int
     ) -> Dict[bytes, int]:
@@ -1763,12 +1753,14 @@ class ShardState:
 
     def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
         """Take an additional recipient parameter and add its block count."""
+        if not self.shard_config.POSW_CONFIG.ENABLED:
+            return {}
         length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
         total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
         blockcnt = self._get_posw_coinbase_blockcnt(header_hash, length)
         if recipient:
             blockcnt[recipient] += 1
-        return {k: v * total_stakes for k, v in blockcnt}
+        return {k: v * total_stakes for k, v in blockcnt.items()}
 
     def is_committed_by_hash(self, h):
         return self.db.is_minor_block_committed_by_hash(h)
