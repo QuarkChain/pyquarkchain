@@ -33,6 +33,7 @@ class GenesisManager:
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             total_difficulty=genesis.DIFFICULTY,
+            nonce=genesis.NONCE,
         )
         return RootBlock(header=header, minor_block_header_list=[])
 

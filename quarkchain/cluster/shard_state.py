@@ -305,8 +305,9 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
         self.confirmed_header_tip = confirmed_header_tip
+        sender_disallow_map = self._get_sender_disallow_map(header_tip_hash)
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, header_hash=header_tip_hash
+            self.meta_tip.hash_evm_state_root, sender_disallow_map
         )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(header_tip_hash)
@@ -318,7 +319,7 @@ class ShardState:
         )
 
     def __create_evm_state(
-        self, trie_root_hash: Optional[bytes], header_hash: Optional[bytes]
+        self, trie_root_hash: Optional[bytes], sender_disallow_map: Dict[bytes, int]
     ):
         """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
@@ -327,14 +328,7 @@ class ShardState:
         state.shard_config = self.shard_config
         if trie_root_hash:
             state.trie.root_hash = trie_root_hash
-
-        if self.shard_config.POSW_CONFIG.ENABLED and header_hash is not None:
-            disallow_map = dict()
-            length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
-            total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-            for k, v in self._get_posw_coinbase_blockcnt(header_hash, length).items():
-                disallow_map[k] = v * total_stakes
-            state.sender_disallow_map = disallow_map
+        state.sender_disallow_map = sender_disallow_map
         return state
 
     def init_genesis_state(self, root_block):
@@ -351,7 +345,7 @@ class ShardState:
         genesis_block, coinbase_amount_map = genesis_manager.create_minor_block(
             root_block,
             self.full_shard_id,
-            self.__create_evm_state(trie_root_hash=None, header_hash=None),
+            self.__create_evm_state(trie_root_hash=None, sender_disallow_map={}),
         )
 
         self.db.put_minor_block(genesis_block, [])
@@ -373,8 +367,7 @@ class ShardState:
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
         self.evm_state = self.__create_evm_state(
-            genesis_block.meta.hash_evm_state_root,
-            header_hash=genesis_block.header.get_hash(),
+            genesis_block.meta.hash_evm_state_root, sender_disallow_map={}
         )
 
         Logger.info(
@@ -535,12 +528,14 @@ class ShardState:
             return False
 
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
-        root_hash = self.db.get_minor_block_evm_root_hash_by_hash(
-            block.header.hash_prev_minor_block
+        prev_minor_hash = block.header.hash_prev_minor_block
+        root_hash = self.db.get_minor_block_evm_root_hash_by_hash(prev_minor_hash)
+        coinbase_recipient = block.header.coinbase_address.recipient
+        sender_disallow_map = self._get_sender_disallow_map(
+            prev_minor_hash, recipient=coinbase_recipient
         )
-        state = self.__create_evm_state(
-            root_hash, header_hash=block.header.hash_prev_minor_block
-        )
+
+        state = self.__create_evm_state(root_hash, sender_disallow_map)
         if ephemeral:
             state = state.ephemeral_clone()
         state.timestamp = block.header.create_time
@@ -551,7 +546,7 @@ class ShardState:
         ] = []  # TODO [x.hash for x in block.uncles]
         # TODO: Create a account with shard info if the account is not created
         # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
-        state.block_coinbase = block.header.coinbase_address.recipient
+        state.block_coinbase = coinbase_recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
         state.prev_headers = []  # TODO: state.add_block_header(block.header)
@@ -940,17 +935,8 @@ class ShardState:
 
         if update_tip:
             tip_prev_root_header = prev_root_header
-            # Safe to update PoSW blacklist here
-            if self.shard_config.POSW_CONFIG.ENABLED:
-                disallow_map = dict()
-                length = self.shard_config.POSW_CONFIG.WINDOW_SIZE
-                total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-                block_cnt = self._get_posw_coinbase_blockcnt(block_hash, length)
-                for k, v in block_cnt.items():
-                    disallow_map[k] = v * total_stakes
-                evm_state.sender_disallow_map = disallow_map
-
-            self.__update_tip(block, evm_state=evm_state)
+            evm_state.sender_disallow_map = self._get_sender_disallow_map(block_hash)
+            self.__update_tip(block, evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(
@@ -1274,12 +1260,8 @@ class ShardState:
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
 
-    def __update_tip(self, block, evm_state=None):
+    def __update_tip(self, block, evm_state):
         self.__rewrite_block_index_to(block)
-        if evm_state is None:
-            evm_state = self.__create_evm_state(
-                block.meta.hash_evm_state_root, block.header.get_hash()
-            )
         self.evm_state = evm_state
         self.header_tip = block.header
         self.meta_tip = block.meta
@@ -1425,9 +1407,13 @@ class ShardState:
             )
 
         if self.header_tip != orig_header_tip:
-            self.__update_tip(
-                self.db.get_minor_block_by_hash(self.header_tip.get_hash())
+            h = self.header_tip.get_hash()
+            b = self.db.get_minor_block_by_hash(h)
+            sender_disallow_map = self._get_sender_disallow_map(h)
+            evm_state = self.__create_evm_state(
+                b.meta.hash_evm_state_root, sender_disallow_map
             )
+            self.__update_tip(b, evm_state)
             Logger.info(
                 "[{}] shard tip reset from {} to {} by root block {}".format(
                     self.branch.to_str(),
@@ -1720,10 +1706,9 @@ class ShardState:
         self, header_hash: bytes, length: int
     ) -> List[bytes]:
         """Get coinbase addresses up until block of given hash within the window."""
-        curr_block = self.db.get_minor_block_by_hash(header_hash)
-        if not curr_block:
+        header = self.db.get_minor_block_header_by_hash(header_hash)
+        if not header:
             raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
-        header = curr_block.header
         height = header.height
         prev_hash = header.hash_prev_minor_block
         cache = self.coinbase_addr_cache[length]
@@ -1755,7 +1740,6 @@ class ShardState:
         check(len(addrs) <= length)
         return list(addrs)
 
-    @functools.lru_cache(maxsize=16)
     def _get_posw_coinbase_blockcnt(
         self, header_hash: bytes, length: int
     ) -> Dict[bytes, int]:
@@ -1766,6 +1750,17 @@ class ShardState:
         """
         coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
         return Counter(coinbase_addrs)
+
+    def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
+        """Take an additional recipient parameter and add its block count."""
+        if not self.shard_config.POSW_CONFIG.ENABLED:
+            return {}
+        length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
+        total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+        blockcnt = self._get_posw_coinbase_blockcnt(header_hash, length)
+        if recipient:
+            blockcnt[recipient] += 1
+        return {k: v * total_stakes for k, v in blockcnt.items()}
 
     def is_committed_by_hash(self, h):
         return self.db.is_minor_block_committed_by_hash(h)
