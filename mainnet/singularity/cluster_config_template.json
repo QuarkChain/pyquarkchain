@@ -166,7 +166,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 10000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 20000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -211,7 +211,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 20000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -256,7 +256,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 30000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 80000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -301,7 +301,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 160000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -346,7 +346,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 50000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 320000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -391,7 +391,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 10000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
@@ -436,7 +436,7 @@
           "ENABLED": true,
           "DIFF_DIVIDER": 20,
           "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 30000000000000000000000
+          "TOTAL_STAKE_PER_BLOCK": 160000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       }
