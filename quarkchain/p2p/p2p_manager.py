@@ -348,6 +348,7 @@ class QuarkServer(BaseServer):
             privkey=self.privkey,
             context=QuarkContext(),
             listen_port=self.port,
+            max_peers = self.max_peers,
             token=self.cancel_token,
             whitelist_nodes=whitelist_nodes,
         )
