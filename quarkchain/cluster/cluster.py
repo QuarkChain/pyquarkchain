@@ -49,10 +49,13 @@ async def run_slave(config_file, id):
 
 async def print_output(prefix, stream):
     while True:
-        line = await stream.readline()
-        if not line:
-            break
-        print("{}: {}".format(prefix, line.decode("ascii").strip()))
+        try:
+            line = await stream.readline()
+            if not line:
+                break
+            print("{}: {}".format(prefix, line.decode("ascii").strip()))
+        except Exception as e:
+            print("{}: reading line exception {}".format(prefix, e))
 
 
 class Cluster:
