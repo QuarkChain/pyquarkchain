@@ -406,7 +406,7 @@ class QuarkChainConfig(BaseConfig):
         for full_shard_id, config in self.shards.items():
             if config.GENESIS.ROOT_HEIGHT < root_height:
                 ids.append(full_shard_id)
-        return ids
+        return sorted(ids)
 
     @property
     def guardian_public_key(self) -> KeyAPI.PublicKey:
