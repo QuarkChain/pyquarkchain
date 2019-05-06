@@ -36,7 +36,7 @@ from quarkchain.p2p.nat import UPnPService
 from quarkchain.utils import Logger
 
 
-NO_SAME_IP = False
+NO_SAME_IP = True
 
 
 class BaseServer(BaseService):
