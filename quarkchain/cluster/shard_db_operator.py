@@ -219,11 +219,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         )
 
     # ------------------------- Root block db operations --------------------------------
-    def put_root_block(self, root_block, r_minor_header=None, root_block_hash=None):
+    def put_root_block(self, root_block, r_minor_header=None):
         """ r_minor_header: the minor header of the shard in the root block with largest height
         """
-        if root_block_hash is None:
-            root_block_hash = root_block.header.get_hash()
+        root_block_hash = root_block.header.get_hash()
 
         self.r_header_pool[root_block_hash] = root_block.header
         self.db.put(b"rblock_" + root_block_hash, root_block.serialize())

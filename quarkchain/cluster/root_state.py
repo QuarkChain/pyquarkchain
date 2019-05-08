@@ -93,12 +93,8 @@ class RootDb:
         return self.tip_header
 
     # ------------------------- Root block db operations --------------------------------
-    def put_root_block(
-        self, root_block, last_minor_block_header_list, root_block_hash=None
-    ):
-        if root_block_hash is None:
-            root_block_hash = root_block.header.get_hash()
-
+    def put_root_block(self, root_block, last_minor_block_header_list):
+        root_block_hash = root_block.header.get_hash()
         last_list = LastMinorBlockHeaderList(header_list=last_minor_block_header_list)
         self.db.put(b"rblock_" + root_block_hash, root_block.serialize())
         self.db.put(b"lastlist_" + root_block_hash, last_list.serialize())
@@ -322,9 +318,7 @@ class RootState:
         denominator = (
             self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
         )
-        coinbase_amount = (
-            self.root_config.COINBASE_AMOUNT * numerator // denominator
-        )
+        coinbase_amount = self.root_config.COINBASE_AMOUNT * numerator // denominator
         reward_tax_rate = self.env.quark_chain_config.reward_tax_rate
         # the ratio of minor block coinbase
         ratio = (1 - reward_tax_rate) / reward_tax_rate  # type: Fraction
@@ -367,7 +361,7 @@ class RootState:
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         return block.finalize(coinbase_tokens=coinbase_tokens, coinbase_address=address)
 
-    def validate_block_header(self, block_header: RootBlockHeader, block_hash=None):
+    def validate_block_header(self, block_header: RootBlockHeader):
         """ Validate the block header.
         """
         height = block_header.height
@@ -402,10 +396,6 @@ class RootState:
         ):
             raise ValueError("extra_data in block is too large")
 
-        header_hash = block_header.get_hash()
-        if block_hash is None:
-            block_hash = header_hash
-
         # Check difficulty, potentially adjusted by guardian mechanism
         adjusted_diff = None  # type: Optional[int]
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
@@ -430,7 +420,7 @@ class RootState:
         consensus_type = self.root_config.CONSENSUS_TYPE
         validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
 
-        return block_hash
+        return block_header.get_hash()
 
     def __is_same_chain(self, longer_block_header, shorter_block_header):
         if shorter_block_header.height > longer_block_header.height:
@@ -443,15 +433,15 @@ class RootState:
             )
         return header == shorter_block_header
 
-    def validate_block(self, block, block_hash=None):
-        """Raise on valiadtion errors """
+    def validate_block(self, block):
+        """Raise on validation errors """
         if block.header.version != 0:
             raise ValueError("incorrect root block version")
 
         if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
 
-        block_hash = self.validate_block_header(block.header, block_hash)
+        block_hash = self.validate_block_header(block.header)
 
         if (
             len(block.tracking_data)
@@ -588,7 +578,7 @@ class RootState:
             self.db.put_root_block_index(block)
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
-    def add_block(self, block, block_hash=None):
+    def add_block(self, block):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
@@ -596,13 +586,9 @@ class RootState:
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
         start_ms = time_ms()
-        block_hash, last_minor_block_header_list = self.validate_block(
-            block, block_hash
-        )
+        block_hash, last_minor_block_header_list = self.validate_block(block)
 
-        self.db.put_root_block(
-            block, last_minor_block_header_list, root_block_hash=block_hash
-        )
+        self.db.put_root_block(block, last_minor_block_header_list)
 
         tracking_data_str = block.tracking_data.decode("utf-8")
         if tracking_data_str != "":
