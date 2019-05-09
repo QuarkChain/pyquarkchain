@@ -281,6 +281,99 @@ class TestJSONRPC(unittest.TestCase):
             resp = send_request("getMinorBlockByHeight", ["0x0", "0x4", False])
             self.assertIsNone(resp)
 
+    def test_getRootblockConfirmationIdAndCount(self):
+        # TODO test root chain forks
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            self.assertEqual(
+                call_async(master.get_primary_account_data(acc1)).transaction_count, 0
+            )
+
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+
+            tx = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            block1 = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
+
+            tx_id = (
+                "0x"
+                + tx.get_hash().hex()
+                + acc1.full_shard_key.to_bytes(4, "big").hex()
+            )
+            resp = send_request("getTransactionById", [tx_id])
+            self.assertEqual(resp["hash"], "0x" + tx.get_hash().hex())
+            self.assertEqual(
+                resp["blockId"],
+                "0x"
+                + block1.header.get_hash().hex()
+                + block1.header.branch.get_full_shard_id()
+                .to_bytes(4, byteorder="big")
+                .hex(),
+            )
+            minor_hash = resp["blockId"]
+
+            # zero root block confirmation
+            resp_hash = send_request(
+                "getRootHashConfirmingMinorBlockById", [minor_hash]
+            )
+            self.assertIsNone(
+                resp_hash, "should return None for unconfirmed minor blocks"
+            )
+            resp_count = send_request(
+                "getTransactionConfirmedByNumberRootBlocks", [tx_id]
+            )
+            self.assertEqual(resp_count, "0x0")
+
+            # 1 root block confirmation
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+            resp_hash = send_request(
+                "getRootHashConfirmingMinorBlockById", [minor_hash]
+            )
+            self.assertIsNotNone(resp_hash, "confirmed by root block")
+            self.assertEqual(resp_hash, "0x" + block.header.get_hash().hex())
+            resp_count = send_request(
+                "getTransactionConfirmedByNumberRootBlocks", [tx_id]
+            )
+            self.assertEqual(resp_count, "0x1")
+
+            # 2 root block confirmation
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+            resp_hash = send_request(
+                "getRootHashConfirmingMinorBlockById", [minor_hash]
+            )
+            self.assertIsNotNone(resp_hash, "confirmed by root block")
+            self.assertNotEqual(resp_hash, "0x" + block.header.get_hash().hex())
+            resp_count = send_request(
+                "getTransactionConfirmedByNumberRootBlocks", [tx_id]
+            )
+            self.assertEqual(resp_count, "0x2")
+
     def test_getTransactionById(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)

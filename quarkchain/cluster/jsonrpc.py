@@ -913,6 +913,40 @@ class JSONRPCServer:
             quantity_encoder(ret.difficulty),
         ]
 
+    @public_methods.add
+    @decode_arg("block_id", data_decoder)
+    async def getRootHashConfirmingMinorBlockById(self, block_id):
+        retv = self.master.root_state.db.get_root_block_confirming_minor_block(block_id)
+        return data_encoder(retv) if retv else None
+
+    @public_methods.add
+    @decode_arg("tx_id", id_decoder)
+    async def getTransactionConfirmedByNumberRootBlocks(self, tx_id):
+        tx_hash, full_shard_key = tx_id
+        branch = Branch(
+            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                full_shard_key
+            )
+        )
+        minor_block, i = await self.master.get_transaction_by_hash(tx_hash, branch)
+        if not minor_block:
+            return None
+        if len(minor_block.tx_list) <= i:
+            return None
+        root_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
+            minor_block.header.get_hash()
+            + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
+        )
+        if root_hash is None:
+            return quantity_encoder(0)
+        root_header_tip = self.master.root_state.tip
+        root_header = self.master.root_state.db.get_root_block_header_by_hash(
+            root_hash, consistency_check=False
+        )
+        if not self.master.root_state.is_same_chain(root_header_tip, root_header):
+            return quantity_encoder(0)
+        return quantity_encoder(root_header_tip.height - root_header.height + 1)
+
     ######################## Ethereum JSON RPC ########################
 
     @public_methods.add

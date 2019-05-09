@@ -136,7 +136,8 @@ class RootDb:
         return h in self.r_header_pool
 
     def put_root_block_index(self, block):
-        self.db.put(b"ri_%d" % block.header.height, block.header.get_hash())
+        block_hash = block.header.get_hash()
+        self.db.put(b"ri_%d" % block.header.height, block_hash)
 
         if not self.count_minor_blocks:
             return
@@ -153,6 +154,8 @@ class RootDb:
             old_count = shard_recipient_cnt.get(full_shard_id, dict()).get(recipient, 0)
             new_count = old_count + 1
             shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = new_count
+            block_id = header.get_hash() + full_shard_id.to_bytes(4, byteorder="big")
+            self.db.put(b"m_r_" + block_id, block_hash)
 
         for full_shard_id, r_c in shard_recipient_cnt.items():
             data = bytearray()
@@ -164,6 +167,12 @@ class RootDb:
 
     def remove_root_block_index(self, height):
         self.db.remove(b"ri_%d" % height)
+
+    def get_root_block_confirming_minor_block(self, h):
+        r_header_hash = self.db.get(b"m_r_" + h, None)
+        if r_header_hash is None or r_header_hash == b"":
+            return None
+        return r_header_hash
 
     def get_block_count(self, root_height):
         """Returns a dict(full_shard_id, dict(miner_recipient, block_count))"""
@@ -422,7 +431,7 @@ class RootState:
 
         return block_header.get_hash()
 
-    def __is_same_chain(self, longer_block_header, shorter_block_header):
+    def is_same_chain(self, longer_block_header, shorter_block_header):
         if shorter_block_header.height > longer_block_header.height:
             return False
 
@@ -494,7 +503,7 @@ class RootState:
                         m_header.create_time, block.header.create_time
                     )
                 )
-            if not self.__is_same_chain(
+            if not self.is_same_chain(
                 self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
                 self.db.get_root_block_header_by_hash(
                     m_header.hash_prev_root_block, consistency_check=False
