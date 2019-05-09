@@ -993,7 +993,7 @@ class MasterServer:
     async def get_next_block_to_mine(
         self, address, branch_value: Optional[int]
     ) -> Optional[Union[RootBlock, MinorBlock]]:
-        """Return root block is branch value provided is None."""
+        """Return root block if branch value provided is None."""
         # Mining old blocks is useless
         if self.synchronizer.running:
             return None

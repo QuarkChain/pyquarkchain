@@ -158,7 +158,8 @@ class RootDb:
             old_count = shard_recipient_cnt.get(full_shard_id, dict()).get(recipient, 0)
             new_count = old_count + 1
             shard_recipient_cnt.setdefault(full_shard_id, dict())[recipient] = new_count
-            self.db.put(b"m_r_" + header.get_hash(), block_hash)
+            block_id = header.get_hash() + full_shard_id.to_bytes(4, byteorder="big")
+            self.db.put(b"m_r_" + block_id, block_hash)
 
         for full_shard_id, r_c in shard_recipient_cnt.items():
             data = bytearray()

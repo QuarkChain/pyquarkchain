@@ -916,7 +916,8 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("block_id", data_decoder)
     async def getRootHashConfirmingMinorBlockById(self, block_id):
-        return self.master.root_state.db.get_root_block_confirming_minor_block(block_id)
+        retv = self.master.root_state.db.get_root_block_confirming_minor_block(block_id)
+        return data_encoder(retv) if retv else None
 
     @public_methods.add
     @decode_arg("tx_id", id_decoder)
@@ -934,6 +935,7 @@ class JSONRPCServer:
             return None
         root_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
             minor_block.header.get_hash()
+            + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
         )
         if root_hash is None:
             return quantity_encoder(0)
