@@ -202,7 +202,7 @@ class RootDb:
 
     def get_root_block_by_height(self, height: Optional[int]):
         if height is None:
-            height = self.tip.height
+            height = self.tip_header.height
 
         key = b"ri_%d" % height
         if key not in self.db:
