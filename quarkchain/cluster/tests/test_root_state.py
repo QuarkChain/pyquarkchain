@@ -139,7 +139,7 @@ class TestRootState(unittest.TestCase):
         self.assertEqual(r_state.tip, root_block01.header)
 
         # Add shorter chain with higher difficulty
-        root_block10.header.total_difficulty += (root_block10.header.difficulty * 2)
+        root_block10.header.total_difficulty += root_block10.header.difficulty * 2
         root_block10.header.difficulty *= 3
         r_state.add_block(root_block10)
         self.assertEqual(r_state.tip, root_block10.header)
@@ -171,6 +171,7 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(r_state.add_block(root_block))
         self.assertIsNone(r_state.db.get_root_block_by_height(3))
         self.assertEqual(r_state.db.get_root_block_by_height(2), root_block)
+        self.assertEqual(r_state.get_root_block_by_height(None), root_block)
         tip_height = r_state.tip.height
         self.assertEqual(r_state.db.get_root_block_by_height(tip_height), root_block)
         self.assertEqual(
@@ -469,6 +470,7 @@ class TestRootState(unittest.TestCase):
         recovered_state = RootState(env=env)
         self.assertEqual(recovered_state.tip, root_block0.header)
         self.assertEqual(recovered_state.db.get_root_block_by_height(2), root_block0)
+        self.assertEqual(recovered_state.get_root_block_by_height(None), root_block0)
         tip_height = recovered_state.tip.height
         self.assertEqual(
             recovered_state.db.get_root_block_by_height(tip_height), root_block0
