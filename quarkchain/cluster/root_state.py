@@ -646,3 +646,9 @@ class RootState:
 
     def get_genesis_block_hash(self):
         return self.db.get_root_block_hash_by_height(0)
+
+    def get_root_block_by_height(self, height: Optional[int]):
+        tip = self.tip  # type: RootBlockHeader
+        return self.db.get_root_block_by_height(
+            tip.height if height is None else height
+        )
