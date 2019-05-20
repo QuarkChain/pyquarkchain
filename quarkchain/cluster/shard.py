@@ -140,14 +140,23 @@ class PeerShardConnection(VirtualConnection):
             block_height = request.get_height()
         else:
             block_hash = request.get_hash()
-            block_header = self.shard_state.db.get_minor_block_header_by_hash(block_hash)
+            block_header = self.shard_state.db.get_minor_block_header_by_hash(
+                block_hash
+            )
             if block_header is None:
-                return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, [])
+                return GetMinorBlockHeaderListResponse(
+                    self.shard_state.root_tip, self.shard_state.header_tip, []
+                )
 
             # Check if it is canonical chain
             block_height = block_header.height
-            if self.shard_state.db.get_minor_block_header_by_height(block_height) != block_header:
-                return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, [])
+            if (
+                self.shard_state.db.get_minor_block_header_by_height(block_height)
+                != block_header
+            ):
+                return GetMinorBlockHeaderListResponse(
+                    self.shard_state.root_tip, self.shard_state.header_tip, []
+                )
 
         header_list = []
         while (
@@ -155,16 +164,20 @@ class PeerShardConnection(VirtualConnection):
             and block_height >= 0
             and block_height <= self.shard_state.header_tip.height
         ):
-            block_header = self.shard_state.db.get_minor_block_header_by_height(block_height)
+            block_header = self.shard_state.db.get_minor_block_header_by_height(
+                block_height
+            )
             if block_header is None:
                 break
             header_list.append(block_header)
             if request.direction == Direction.GENESIS:
-                block_height -= (request.skip + 1)
+                block_height -= request.skip + 1
             else:
-                block_height += (request.skip + 1)
+                block_height += request.skip + 1
 
-        return GetMinorBlockHeaderListResponse(self.shard_state.root_tip, self.shard_state.header_tip, header_list)
+        return GetMinorBlockHeaderListResponse(
+            self.shard_state.root_tip, self.shard_state.header_tip, header_list
+        )
 
     async def handle_get_minor_block_list_request(self, request):
         if len(request.minor_block_hash_list) > 2 * MINOR_BLOCK_BATCH_SIZE:
@@ -266,7 +279,7 @@ OP_RPC_MAP = {
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: (
         CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE,
         PeerShardConnection.handle_get_minor_block_header_list_with_skip_request,
-    )
+    ),
 }
 
 
@@ -627,29 +640,12 @@ class Shard:
         ):
             return
 
-        # Doing full POSW check requires prev block has been added to the state, which could
-        # slow down block propagation.
-        # TODO: this is a copy of the code in SyncTask.__validate_block_headers
         try:
-            header = block.header
-            # Note that PoSW may lower diff, so checks here are necessary but not sufficient
-            # More checks happen during block addition
-            shard_config = self.env.quark_chain_config.shards[
-                header.branch.get_full_shard_id()
-            ]
-            consensus_type = shard_config.CONSENSUS_TYPE
-            diff = header.difficulty
-
-            # Check difficulty
-            self.state.validate_diff_match_prev(block.header, prev_header)
-
-            if shard_config.POSW_CONFIG.ENABLED:
-                diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-            validate_seal(header, consensus_type, adjusted_diff=diff)
+            self.state.validate_block(block)
         except Exception as e:
             Logger.warning(
                 "[{}] got bad block in handle_new_block: {}".format(
-                    header.branch.to_str(), str(e)
+                    block.header.branch.to_str(), str(e)
                 )
             )
             raise e

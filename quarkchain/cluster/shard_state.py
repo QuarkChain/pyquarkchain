@@ -572,9 +572,7 @@ class ShardState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def __validate_block(
-        self, block: MinorBlock, gas_limit=None, xshard_gas_limit=None
-    ):
+    def validate_block(self, block: MinorBlock, gas_limit=None, xshard_gas_limit=None):
         """ Validate a block before running evm transactions
         """
         if block.header.version != 0:
@@ -854,7 +852,7 @@ class ShardState:
 
         x_shard_receive_tx_list = []
         # Throw exception if fail to run
-        self.__validate_block(
+        self.validate_block(
             block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit
         )
         evm_state = self.run_block(
