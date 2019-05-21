@@ -91,7 +91,9 @@ class TransactionHistoryMixin:
             minor_block, lambda k, v: self.db.remove(k)
         )
 
-    def get_transactions_by_address(self, address, start=b"", limit=10):
+    def get_transactions_by_address(
+        self, address, transfer_token_id=0, start=b"", limit=10
+    ):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
@@ -121,41 +123,46 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                tx_list.append(
-                    TransactionDetail(
-                        tx.tx_hash,
-                        tx.from_address,
-                        tx.to_address,
-                        tx.value,
-                        height,
-                        m_block.header.create_time,
-                        True,
-                        tx.gas_token_id,
-                        tx.transfer_token_id,
-                        is_from_root_chain=tx.is_from_root_chain,
+                if transfer_token_id == 0 or tx.transfer_token_id == transfer_token_id:
+                    tx_list.append(
+                        TransactionDetail(
+                            tx.tx_hash,
+                            tx.from_address,
+                            tx.to_address,
+                            tx.value,
+                            height,
+                            m_block.header.create_time,
+                            True,
+                            tx.gas_token_id,
+                            tx.transfer_token_id,
+                            is_from_root_chain=tx.is_from_root_chain,
+                        )
                     )
-                )
             else:
                 m_block = self.get_minor_block_by_height(height)
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
-                tx_list.append(
-                    TransactionDetail(
-                        tx.get_hash(),
-                        Address(evm_tx.sender, evm_tx.from_full_shard_key),
-                        Address(evm_tx.to, evm_tx.to_full_shard_key)
-                        if evm_tx.to
-                        else None,
-                        evm_tx.value,
-                        height,
-                        m_block.header.create_time,
-                        receipt.success == b"\x01",
-                        evm_tx.gas_token_id,
-                        evm_tx.transfer_token_id,
-                        is_from_root_chain=False,
+                if (
+                    transfer_token_id == 0
+                    or evm_tx.transfer_token_id == transfer_token_id
+                ):
+                    tx_list.append(
+                        TransactionDetail(
+                            tx.get_hash(),
+                            Address(evm_tx.sender, evm_tx.from_full_shard_key),
+                            Address(evm_tx.to, evm_tx.to_full_shard_key)
+                            if evm_tx.to
+                            else None,
+                            evm_tx.value,
+                            height,
+                            m_block.header.create_time,
+                            receipt.success == b"\x01",
+                            evm_tx.gas_token_id,
+                            evm_tx.transfer_token_id,
+                            is_from_root_chain=False,
+                        )
                     )
-                )
             next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(
                 len(k), byteorder="big"
             )

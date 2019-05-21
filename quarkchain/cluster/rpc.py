@@ -274,12 +274,14 @@ class GetTransactionReceiptResponse(Serializable):
 class GetTransactionListByAddressRequest(Serializable):
     FIELDS = [
         ("address", Address),
+        ("transfer_token_id", uint64),
         ("start", PrependedSizeBytesSerializer(4)),
         ("limit", uint32),
     ]
 
-    def __init__(self, address, start, limit):
+    def __init__(self, address, transfer_token_id, start, limit):
         self.address = address
+        self.transfer_token_id = transfer_token_id
         self.start = start
         self.limit = limit
 

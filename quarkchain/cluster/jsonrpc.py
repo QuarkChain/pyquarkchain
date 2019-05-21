@@ -819,9 +819,12 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("address", address_decoder)
+    @decode_arg("transfer_token_id", quantity_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
-    async def getTransactionsByAddress(self, address, start="0x", limit="0xa"):
+    async def getTransactionsByAddress(
+        self, address, transfer_token_id="0x0", start="0x", limit="0xa"
+    ):
         """ "start" should be the "next" in the response for fetching next page.
             "start" can also be "0x" to fetch from the beginning (i.e., latest).
             "start" can be "0x00" to fetch the pending outgoing transactions.
@@ -829,7 +832,9 @@ class JSONRPCServer:
         address = Address.create_from(address)
         if limit > 20:
             limit = 20
-        result = await self.master.get_transactions_by_address(address, start, limit)
+        result = await self.master.get_transactions_by_address(
+            address, transfer_token_id, start, limit
+        )
         if not result:
             return None
         tx_list, next = result
