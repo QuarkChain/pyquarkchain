@@ -117,6 +117,7 @@ class P2PConfig(BaseConfig):
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
     PREFERRED_NODES = ""
+    DISCOVERY_ONLY = False
 
 
 class MonitoringConfig(BaseConfig):
@@ -153,7 +154,6 @@ class ClusterConfig(BaseConfig):
     P2P = None
 
     MONITORING = None
-    P2P_DISCOVERY_ONLY = False
 
     def __init__(self):
         self.QUARKCHAIN = QuarkChainConfig()

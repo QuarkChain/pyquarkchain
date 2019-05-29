@@ -90,7 +90,7 @@ class Cluster:
     async def run(self):
         await self.run_master()
         # p2p discovery mode will disable slaves
-        if not self.config.P2P_DISCOVERY_ONLY:
+        if not self.config.P2P.DISCOVERY_ONLY:
             await self.run_slaves()
 
         await asyncio.gather(

@@ -63,7 +63,7 @@ def main():
         p2p["PRIV_KEY"] = privkey or ""
         p2p["BOOT_NODES"] = args.bootnodes or ""
         if args.only_discovery:
-            parsed_config["P2P_DISCOVERY_ONLY"] = True
+            p2p["DISCOVERY_ONLY"] = True
             p2p["MAX_PEERS"] = 0
             p2p["BOOT_NODES"] = ""  # Overwrite.
         f.seek(0)

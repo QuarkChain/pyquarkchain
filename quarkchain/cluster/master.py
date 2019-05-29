@@ -1518,8 +1518,8 @@ def main():
     root_state = RootState(env)
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
-    start_master = not env.cluster_config.P2P_DISCOVERY_ONLY
-    jsonrpc_enabled = not env.cluster_config.P2P_DISCOVERY_ONLY
+    start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
+    jsonrpc_enabled = not env.cluster_config.P2P.DISCOVERY_ONLY
 
     master = MasterServer(env, root_state)
 
