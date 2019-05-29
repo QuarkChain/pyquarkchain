@@ -38,8 +38,11 @@ def validate_bootnodes(bootnodes_str):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--privkey", help="Private key for P2P config")
-    parser.add_argument("--bootnodes", help="List of bootnodes")
+    parser.add_argument("--privkey", type=str, help="Private key for P2P config")
+    parser.add_argument("--bootnodes", type=str, help="List of bootnodes")
+    parser.add_argument(
+        "--only_discovery", help="Only for p2p discovery", action="store_true"
+    )
     args = parser.parse_args()
 
     privkey = args.privkey
@@ -59,6 +62,10 @@ def main():
         p2p = parsed_config["P2P"]
         p2p["PRIV_KEY"] = privkey or ""
         p2p["BOOT_NODES"] = args.bootnodes or ""
+        if args.only_discovery:
+            parsed_config["P2P_DISCOVERY_ONLY"] = True
+            p2p["MAX_PEERS"] = 0
+            p2p["BOOT_NODES"] = ""  # Overwrite.
         f.seek(0)
         f.truncate()
         f.write(json.dumps(parsed_config, indent=4))
