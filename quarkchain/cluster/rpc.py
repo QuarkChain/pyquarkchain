@@ -274,7 +274,7 @@ class GetTransactionReceiptResponse(Serializable):
 class GetTransactionListByAddressRequest(Serializable):
     FIELDS = [
         ("address", Address),
-        ("transfer_token_id", uint64),
+        ("transfer_token_id", Optional(uint64)),
         ("start", PrependedSizeBytesSerializer(4)),
         ("limit", uint32),
     ]

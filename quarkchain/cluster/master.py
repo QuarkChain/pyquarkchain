@@ -570,7 +570,11 @@ class SlaveConnection(ClusterConnection):
         return resp.minor_block, resp.index, resp.receipt
 
     async def get_transactions_by_address(
-        self, address, transfer_token_id, start, limit
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
     ):
         request = GetTransactionListByAddressRequest(
             address, transfer_token_id, start, limit
@@ -1394,7 +1398,11 @@ class MasterServer:
         return await slave.get_transaction_receipt(tx_hash, branch)
 
     async def get_transactions_by_address(
-        self, address, transfer_token_id, start, limit
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
     ):
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             address.full_shard_key

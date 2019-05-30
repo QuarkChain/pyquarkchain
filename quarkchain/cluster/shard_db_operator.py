@@ -92,7 +92,11 @@ class TransactionHistoryMixin:
         )
 
     def get_transactions_by_address(
-        self, address, transfer_token_id=0, start=b"", limit=10
+        self,
+        address: Address,
+        transfer_token_id: Optional[int] = None,
+        start: bytes = b"",
+        limit: int = 10,
     ):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
@@ -123,7 +127,10 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if transfer_token_id == 0 or tx.transfer_token_id == transfer_token_id:
+                if (
+                    transfer_token_id is None
+                    or tx.transfer_token_id == transfer_token_id
+                ):
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -144,7 +151,7 @@ class TransactionHistoryMixin:
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
                 if (
-                    transfer_token_id == 0
+                    transfer_token_id is None
                     or evm_tx.transfer_token_id == transfer_token_id
                 ):
                     tx_list.append(
