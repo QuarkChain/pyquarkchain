@@ -483,9 +483,10 @@
   ],
   "P2P": {
     "NEW_MODULE": true,
-    "MAX_PEERS": 30,
+    "MAX_PEERS": 0,
     "PRIV_KEY": "",
-    "UPNP": true
+    "UPNP": true,
+    "DISCOVERY_ONLY": true
   },
   "MONITORING": {
     "NETWORK_NAME": "",

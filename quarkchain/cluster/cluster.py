@@ -59,7 +59,7 @@ async def print_output(prefix, stream):
 
 
 class Cluster:
-    def __init__(self, config, cluster_id=""):
+    def __init__(self, config: ClusterConfig, cluster_id=""):
         self.config = config
         self.procs = []
         self.shutdown_called = False
@@ -89,7 +89,9 @@ class Cluster:
 
     async def run(self):
         await self.run_master()
-        await self.run_slaves()
+        # p2p discovery mode will disable slaves
+        if not self.config.P2P.DISCOVERY_ONLY:
+            await self.run_slaves()
 
         await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]

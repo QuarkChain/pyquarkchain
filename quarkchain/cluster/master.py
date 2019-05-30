@@ -192,7 +192,7 @@ class SyncTask:
                 check(end >= start)
                 break
 
-        # Return best ancenstor.  If no ancestor is found, return None.
+        # Return best ancestor.  If no ancestor is found, return None.
         # Note that it is possible caused by remote root chain org.
         return best_ancestor
 
@@ -912,11 +912,14 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def do_loop(self):
+    def do_loop(self, callback):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
             pass
+        finally:
+            if callable(callback):
+                callback()
 
     def wait_until_cluster_active(self):
         # Wait until cluster is ready
@@ -1511,17 +1514,23 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     env = parse_args()
+    loop = asyncio.get_event_loop()
     root_state = RootState(env)
 
+    # p2p discovery mode will disable master-slave communication and JSONRPC
+    start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
+    jsonrpc_enabled = not env.cluster_config.P2P.DISCOVERY_ONLY
+
     master = MasterServer(env, root_state)
-    master.start()
-    master.wait_until_cluster_active()
 
-    # kick off simulated mining if enabled
-    if env.cluster_config.START_SIMULATED_MINING:
-        asyncio.ensure_future(master.start_mining())
+    # only start the cluster if not in discovery-only mode
+    if start_master:
+        master.start()
+        master.wait_until_cluster_active()
 
-    loop = asyncio.get_event_loop()
+        # kick off simulated mining if enabled
+        if env.cluster_config.START_SIMULATED_MINING:
+            asyncio.ensure_future(master.start_mining())
 
     if env.cluster_config.use_p2p():
         network = P2PManager(env, master, loop)
@@ -1529,13 +1538,16 @@ def main():
         network = SimpleNetwork(env, master, loop)
     network.start()
 
-    public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
-    private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+    done_callback = None
+    if jsonrpc_enabled:
+        public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
+        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+        done_callback = lambda: (
+            public_json_rpc_server.shutdown(),
+            private_json_rpc_server.shutdown(),
+        )
 
-    master.do_loop()
-
-    public_json_rpc_server.shutdown()
-    private_json_rpc_server.shutdown()
+    master.do_loop(done_callback)
 
     Logger.info("Master server is shutdown")
 

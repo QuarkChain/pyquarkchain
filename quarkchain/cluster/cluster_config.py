@@ -117,6 +117,7 @@ class P2PConfig(BaseConfig):
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
     PREFERRED_NODES = ""
+    DISCOVERY_ONLY = False
 
 
 class MonitoringConfig(BaseConfig):
@@ -243,9 +244,7 @@ class ClusterConfig(BaseConfig):
         )
         parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT, type=int)
         parser.add_argument(
-            "--json_rpc_port", 
-            default=ClusterConfig.JSON_RPC_PORT,
-            type=int,
+            "--json_rpc_port", default=ClusterConfig.JSON_RPC_PORT, type=int
         )
         parser.add_argument(
             "--json_rpc_private_port",
@@ -253,9 +252,7 @@ class ClusterConfig(BaseConfig):
             type=int,
         )
         parser.add_argument(
-            "--json_rpc_host",
-            default=ClusterConfig.JSON_RPC_HOST,
-            type=str,
+            "--json_rpc_host", default=ClusterConfig.JSON_RPC_HOST, type=str
         )
         parser.add_argument(
             "--json_rpc_private_host",
