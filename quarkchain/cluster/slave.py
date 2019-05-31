@@ -1221,7 +1221,13 @@ class SlaveServer:
             return None
         return shard.state.get_transaction_receipt(tx_hash)
 
-    def get_transaction_list_by_address(self, address, transfer_token_id, start, limit):
+    def get_transaction_list_by_address(
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
+    ):
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
