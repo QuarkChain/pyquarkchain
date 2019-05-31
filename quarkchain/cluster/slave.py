@@ -378,7 +378,7 @@ class MasterConnection(ClusterConnection):
 
     async def handle_get_transaction_list_by_address_request(self, req):
         result = self.slave_server.get_transaction_list_by_address(
-            req.address, req.start, req.limit
+            req.address, req.transfer_token_id, req.start, req.limit
         )
         if not result:
             return GetTransactionListByAddressResponse(
@@ -967,13 +967,10 @@ class SlaveServer:
         self.artificial_tx_config = resp.artificial_tx_config
 
     async def send_minor_block_header_list_to_master(
-        self,
-        minor_block_header_list,
-        coinbase_amount_map_list,
+        self, minor_block_header_list, coinbase_amount_map_list
     ):
         request = AddMinorBlockHeaderListRequest(
-            minor_block_header_list,
-            coinbase_amount_map_list
+            minor_block_header_list, coinbase_amount_map_list
         )
         _, resp, _ = await self.master.write_rpc_request(
             ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST, request
@@ -1224,7 +1221,13 @@ class SlaveServer:
             return None
         return shard.state.get_transaction_receipt(tx_hash)
 
-    def get_transaction_list_by_address(self, address, start, limit):
+    def get_transaction_list_by_address(
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
+    ):
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
@@ -1233,7 +1236,9 @@ class SlaveServer:
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.get_transaction_list_by_address(address, start, limit)
+        return shard.state.get_transaction_list_by_address(
+            address, transfer_token_id, start, limit
+        )
 
     def get_logs(
         self,

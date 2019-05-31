@@ -44,6 +44,12 @@ config.log_requests = False
 config.log_responses = False
 
 
+def optional_quantity_decoder(optional_hex_str):
+    if optional_hex_str is None:
+        return None
+    return quantity_decoder(optional_hex_str)
+
+
 def quantity_decoder(hex_str):
     """Decode `hexStr` representing a quantity."""
     # must start with "0x"
@@ -821,7 +827,10 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
-    async def getTransactionsByAddress(self, address, start="0x", limit="0xa"):
+    @decode_arg("transfer_token_id", optional_quantity_decoder)
+    async def getTransactionsByAddress(
+        self, address, start="0x", limit="0xa", transfer_token_id=None
+    ):
         """ "start" should be the "next" in the response for fetching next page.
             "start" can also be "0x" to fetch from the beginning (i.e., latest).
             "start" can be "0x00" to fetch the pending outgoing transactions.
@@ -829,7 +838,9 @@ class JSONRPCServer:
         address = Address.create_from(address)
         if limit > 20:
             limit = 20
-        result = await self.master.get_transactions_by_address(address, start, limit)
+        result = await self.master.get_transactions_by_address(
+            address, transfer_token_id, start, limit
+        )
         if not result:
             return None
         tx_list, next = result

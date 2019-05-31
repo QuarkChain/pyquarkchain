@@ -1507,7 +1507,13 @@ class ShardState:
             )
         return block, index, receipt
 
-    def get_transaction_list_by_address(self, address, start, limit):
+    def get_transaction_list_by_address(
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
+    ):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
@@ -1534,7 +1540,9 @@ class ShardState:
                     )
             return tx_list, b""
 
-        return self.db.get_transactions_by_address(address, start, limit)
+        return self.db.get_transactions_by_address(
+            address, transfer_token_id, start, limit
+        )
 
     def get_shard_stats(self) -> ShardStats:
         cutoff = self.header_tip.create_time - 60

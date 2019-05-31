@@ -569,8 +569,16 @@ class SlaveConnection(ClusterConnection):
             return None
         return resp.minor_block, resp.index, resp.receipt
 
-    async def get_transactions_by_address(self, address, start, limit):
-        request = GetTransactionListByAddressRequest(address, start, limit)
+    async def get_transactions_by_address(
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
+    ):
+        request = GetTransactionListByAddressRequest(
+            address, transfer_token_id, start, limit
+        )
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_TRANSACTION_LIST_BY_ADDRESS_REQUEST, request
         )
@@ -1392,12 +1400,20 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transaction_receipt(tx_hash, branch)
 
-    async def get_transactions_by_address(self, address, start, limit):
+    async def get_transactions_by_address(
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
+    ):
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             address.full_shard_key
         )
         slave = self.branch_to_slaves[full_shard_id][0]
-        return await slave.get_transactions_by_address(address, start, limit)
+        return await slave.get_transactions_by_address(
+            address, transfer_token_id, start, limit
+        )
 
     async def get_logs(
         self,
