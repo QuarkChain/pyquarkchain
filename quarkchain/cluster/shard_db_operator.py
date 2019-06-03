@@ -113,24 +113,26 @@ class TransactionHistoryMixin:
 
         tx_list = []
         for k, v in self.db.reversed_range_iter(start, end):
-            limit -= 1
-            if limit < 0:
+            if limit <= 0:
                 break
             height = int.from_bytes(k[5 + 24 : 5 + 24 + 4], "big")
             cross_shard = int(k[5 + 24 + 4]) == 0
             index = int.from_bytes(k[5 + 24 + 4 + 1 :], "big")
+            m_block = self.get_minor_block_by_height(height)
+            # skip if token ID specified and not match
+            should_skip = (
+                lambda tx: transfer_token_id is None
+                or tx.transfer_token_id == transfer_token_id
+            )
             if cross_shard:  # cross shard receive
-                m_block = self.get_minor_block_by_height(height)
                 x_shard_receive_tx_list = self.__get_confirmed_cross_shard_transaction_deposit_list(
                     m_block.header.get_hash()
                 )
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if (
-                    transfer_token_id is None
-                    or tx.transfer_token_id == transfer_token_id
-                ):
+                if should_skip(tx):
+                    limit -= 1
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -146,14 +148,11 @@ class TransactionHistoryMixin:
                         )
                     )
             else:
-                m_block = self.get_minor_block_by_height(height)
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
-                if (
-                    transfer_token_id is None
-                    or evm_tx.transfer_token_id == transfer_token_id
-                ):
+                if should_skip(evm_tx):
+                    limit -= 1
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
