@@ -113,7 +113,7 @@ class TransactionHistoryMixin:
 
         tx_list = []
         for k, v in self.db.reversed_range_iter(start, end):
-            if limit < 0:
+            if limit <= 0:
                 break
             height = int.from_bytes(k[5 + 24 : 5 + 24 + 4], "big")
             cross_shard = int(k[5 + 24 + 4]) == 0
