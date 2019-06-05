@@ -1521,7 +1521,10 @@ class ShardState:
             tx_list = []
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
-                if Address(tx.sender, tx.from_full_shard_key) == address:
+                if Address(tx.sender, tx.from_full_shard_key) == address and (
+                    transfer_token_id is None
+                    or tx.transfer_token_id == transfer_token_id
+                ):
                     tx_list.append(
                         TransactionDetail(
                             TypedTransaction(
