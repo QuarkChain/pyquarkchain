@@ -241,7 +241,10 @@ class SecurePeer(Peer):
         if cmd.network_id != self.env.quark_chain_config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
 
-        if cmd.genesis_root_block_hash != self.master_server.root_state.get_genesis_block_hash():
+        if (
+            cmd.genesis_root_block_hash
+            != self.master_server.root_state.get_genesis_block_hash()
+        ):
             return self.close_with_error("genesis block mismatch")
 
         self.id = cmd.peer_id
@@ -348,7 +351,7 @@ class QuarkServer(BaseServer):
             privkey=self.privkey,
             context=QuarkContext(),
             listen_port=self.port,
-            max_peers = self.max_peers,
+            max_peers=self.max_peers,
             token=self.cancel_token,
             whitelist_nodes=whitelist_nodes,
         )

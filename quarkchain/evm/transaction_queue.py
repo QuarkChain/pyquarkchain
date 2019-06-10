@@ -1,7 +1,10 @@
 import heapq
 
-heapq.heaptop = lambda x: x[0]
-PRIO_INFINITY = -2 ** 100
+from typing import Callable
+
+
+def heaptop(x):
+    return x[0]
 
 
 class OrderableTx(object):
@@ -23,32 +26,37 @@ class TransactionQueue(object):
     def __init__(self):
         self.counter = 0
         self.txs = []
+        # in case start gas is greater than required max gas
         self.aside = []
 
     def __len__(self):
         return len(self.txs)
 
-    def add_transaction(self, tx, force=False):
-        prio = PRIO_INFINITY if force else -tx.gasprice
+    def add_transaction(self, tx):
+        prio = -tx.gasprice
         heapq.heappush(self.txs, OrderableTx(prio, self.counter, tx))
         self.counter += 1
 
-    def pop_transaction(self, max_gas=9999999999, max_seek_depth=16, min_gasprice=0):
-        while len(self.aside) and max_gas >= heapq.heaptop(self.aside).prio:
-            item = heapq.heappop(self.aside)
-            item.prio = -item.tx.gasprice
-            heapq.heappush(self.txs, item)
-        for i in range(min(len(self.txs), max_seek_depth)):
-            item = heapq.heaptop(self.txs)
-            if item.tx.startgas > max_gas:
+    def pop_transaction(
+        self, req_nonce_getter: Callable[[bytes], int], max_gas=9999999999
+    ):
+        while len(self.aside):
+            top = heaptop(self.aside)
+            if top.prio > max_gas:
+                break  # not enough gas to process items in aside
+            heapq.heappop(self.aside)
+            top.prio = -top.tx.gasprice
+            heapq.heappush(self.txs, top)
+        for i in range(len(self.txs)):
+            item = heaptop(self.txs)
+            tx = item.tx
+            # target found
+            if tx.startgas <= max_gas and req_nonce_getter(tx.sender) == tx.nonce:
                 heapq.heappop(self.txs)
-                item.prio = item.tx.startgas
-                heapq.heappush(self.aside, item)
-            elif item.tx.gasprice >= min_gasprice or item.prio == PRIO_INFINITY:
-                heapq.heappop(self.txs)
-                return item.tx
-            else:
-                return None
+                return tx
+            heapq.heappop(self.txs)
+            item.prio = tx.startgas
+            heapq.heappush(self.aside, item)
         return None
 
     def peek(self, num=None):

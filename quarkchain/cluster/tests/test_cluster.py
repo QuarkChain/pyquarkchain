@@ -1,4 +1,11 @@
 import unittest
+
+from quarkchain.cluster.p2p_commands import (
+    CommandOp,
+    GetRootBlockHeaderListWithSkipRequest,
+    GetMinorBlockHeaderListWithSkipRequest,
+    Direction,
+)
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     ClusterContext,
@@ -12,12 +19,6 @@ from quarkchain.core import (
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout
-from quarkchain.cluster.p2p_commands import (
-    CommandOp,
-    GetRootBlockHeaderListWithSkipRequest,
-    GetMinorBlockHeaderListWithSkipRequest,
-    Direction,
-)
 
 
 def _tip_gen(shard_state):
@@ -224,13 +225,17 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(len(clusters[0].get_shard_state(0b11).tx_queue), 1)
 
             # check the tx is received by the other cluster
-            tx_queue = clusters[1].get_shard_state(0b10).tx_queue
+            state0 = clusters[1].get_shard_state(0b10)
+            tx_queue, expect_evm_tx1 = state0.tx_queue, tx1.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            self.assertEqual(tx_queue.pop_transaction(), tx1.tx.to_evm_tx())
+            actual_evm_tx = tx_queue.pop_transaction(state0.get_transaction_count)
+            self.assertEqual(actual_evm_tx, expect_evm_tx1)
 
-            tx_queue = clusters[1].get_shard_state(0b11).tx_queue
+            state1 = clusters[1].get_shard_state(0b11)
+            tx_queue, expect_evm_tx2 = state1.tx_queue, tx2.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            self.assertEqual(tx_queue.pop_transaction(), tx2.tx.to_evm_tx())
+            actual_evm_tx = tx_queue.pop_transaction(state1.get_transaction_count)
+            self.assertEqual(actual_evm_tx, expect_evm_tx2)
 
     def test_add_minor_block_request_list(self):
         id1 = Identity.create_random_identity()
@@ -953,12 +958,18 @@ class TestCluster(unittest.TestCase):
                 root_block_header_list.append(root_block.header)
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: clusters[1].master.root_state.tip == root_block_header_list[-1])
-            self.assertEqual(clusters[1].master.synchronizer.stats.blocks_downloaded, len(root_block_header_list) - 1)
+            assert_true_with_timeout(
+                lambda: clusters[1].master.root_state.tip == root_block_header_list[-1]
+            )
+            self.assertEqual(
+                clusters[1].master.synchronizer.stats.blocks_downloaded,
+                len(root_block_header_list) - 1,
+            )
 
     def test_get_root_block_header_sync_from_height_3(self):
         """ Test the broadcast is only done to the neighbors """
@@ -981,15 +992,22 @@ class TestCluster(unittest.TestCase):
             master1 = clusters[1].master
             for i in range(3):
                 call_async(master1.add_root_block(root_block_list[i]))
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[2].header)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[2].header
+            )
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
-            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 3)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[-1].header
+            )
+            self.assertEqual(
+                master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 3
+            )
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
 
     def test_get_root_block_header_sync_with_fork(self):
@@ -1015,19 +1033,22 @@ class TestCluster(unittest.TestCase):
                 call_async(master1.add_root_block(root_block_list[i]))
             for i in range(3):
                 root_block = call_async(
-                    master1.get_next_block_to_mine(
-                        acc1, branch_value=None
-                    )
+                    master1.get_next_block_to_mine(acc1, branch_value=None)
                 )
                 call_async(master1.add_root_block(root_block))
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
-            self.assertEqual(master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 2)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[-1].header
+            )
+            self.assertEqual(
+                master1.synchronizer.stats.blocks_downloaded, len(root_block_list) - 2
+            )
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
 
     def test_get_root_block_header_sync_with_staleness(self):
@@ -1046,26 +1067,31 @@ class TestCluster(unittest.TestCase):
                 )
                 call_async(master0.add_root_block(root_block))
                 root_block_list.append(root_block)
-            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master0.root_state.tip == root_block_list[-1].header
+            )
 
             # Add 3 blocks to another cluster
             master1 = clusters[1].master
             for i in range(8):
                 root_block = call_async(
-                    master1.get_next_block_to_mine(
-                        acc1, branch_value=None
-                    )
+                    master1.get_next_block_to_mine(acc1, branch_value=None)
                 )
                 call_async(master1.add_root_block(root_block))
             master1.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 5
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block.header)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block.header
+            )
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.synchronizer.stats.ancestor_not_found_count == 1)
+            assert_true_with_timeout(
+                lambda: master1.synchronizer.stats.ancestor_not_found_count == 1
+            )
             self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 0)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 1)
 
@@ -1085,7 +1111,9 @@ class TestCluster(unittest.TestCase):
                 )
                 call_async(master0.add_root_block(root_block))
                 root_block_list.append(root_block)
-            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master0.root_state.tip == root_block_list[-1].header
+            )
 
             # Add 4+4 blocks to another cluster
             master1 = clusters[1].master
@@ -1093,19 +1121,20 @@ class TestCluster(unittest.TestCase):
                 call_async(master1.add_root_block(root_block_list[i]))
             for i in range(4):
                 root_block = call_async(
-                    master1.get_next_block_to_mine(
-                        acc1, branch_value=None
-                    )
+                    master1.get_next_block_to_mine(acc1, branch_value=None)
                 )
                 call_async(master1.add_root_block(root_block))
             master1.synchronizer.root_block_header_list_limit = 4
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[-1].header
+            )
             self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 8)
             self.assertEqual(master1.synchronizer.stats.headers_downloaded, 5 + 8)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
@@ -1125,7 +1154,9 @@ class TestCluster(unittest.TestCase):
                 )
                 call_async(master0.add_root_block(root_block))
                 root_block_list.append(root_block)
-            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master0.root_state.tip == root_block_list[-1].header
+            )
 
             # Add 3+1 blocks to another cluster
             master1 = clusters[1].master
@@ -1133,19 +1164,20 @@ class TestCluster(unittest.TestCase):
                 call_async(master1.add_root_block(root_block_list[i]))
             for i in range(1):
                 root_block = call_async(
-                    master1.get_next_block_to_mine(
-                        acc1, branch_value=None
-                    )
+                    master1.get_next_block_to_mine(acc1, branch_value=None)
                 )
                 call_async(master1.add_root_block(root_block))
             master1.synchronizer.root_block_header_list_limit = 3
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[-1].header
+            )
             self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 2)
             self.assertEqual(master1.synchronizer.stats.headers_downloaded, 6)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
@@ -1165,7 +1197,9 @@ class TestCluster(unittest.TestCase):
                 )
                 call_async(master0.add_root_block(root_block))
                 root_block_list.append(root_block)
-            assert_true_with_timeout(lambda: master0.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master0.root_state.tip == root_block_list[-1].header
+            )
 
             # Add 2+2 blocks to another cluster
             master1 = clusters[1].master
@@ -1173,9 +1207,7 @@ class TestCluster(unittest.TestCase):
                 call_async(master1.add_root_block(root_block_list[i]))
             for i in range(2):
                 root_block = call_async(
-                    master1.get_next_block_to_mine(
-                        acc1, branch_value=None
-                    )
+                    master1.get_next_block_to_mine(acc1, branch_value=None)
                 )
                 call_async(master1.add_root_block(root_block))
             master1.synchronizer.root_block_header_list_limit = 3
@@ -1183,11 +1215,14 @@ class TestCluster(unittest.TestCase):
             # Lookup will be [0, 2, 4], and then [3], where 3 cannot be found and thus 2 is the best.
 
             # Connect and the synchronizer should automically download
-            call_async(clusters[1].network.connect(
-                "127.0.0.1",
-                clusters[0].network.env.cluster_config.P2P_PORT)
+            call_async(
+                clusters[1].network.connect(
+                    "127.0.0.1", clusters[0].network.env.cluster_config.P2P_PORT
+                )
             )
-            assert_true_with_timeout(lambda: master1.root_state.tip == root_block_list[-1].header)
+            assert_true_with_timeout(
+                lambda: master1.root_state.tip == root_block_list[-1].header
+            )
             self.assertEqual(master1.synchronizer.stats.blocks_downloaded, 3)
             self.assertEqual(master1.synchronizer.stats.headers_downloaded, 4 + 3)
             self.assertEqual(master1.synchronizer.stats.ancestor_lookup_requests, 2)
@@ -1219,7 +1254,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=1, branch=branch, skip=1, limit=3, direction=Direction.TIP
+                        height=1,
+                        branch=branch,
+                        skip=1,
+                        limit=3,
+                        direction=Direction.TIP,
                     ),
                 )
             )
@@ -1250,7 +1289,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=2, branch=branch, skip=2, limit=4, direction=Direction.TIP
+                        height=2,
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.TIP,
                     ),
                 )
             )
@@ -1281,7 +1324,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=6, branch=branch, skip=0, limit=100, direction=Direction.TIP
+                        height=6,
+                        branch=branch,
+                        skip=0,
+                        limit=100,
+                        direction=Direction.TIP,
                     ),
                 )
             )
@@ -1316,7 +1363,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=2, branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                        height=2,
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.GENESIS,
                     ),
                 )
             )
@@ -1342,7 +1393,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=11, branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                        height=11,
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.GENESIS,
                     ),
                 )
             )
@@ -1352,7 +1407,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_hash(
-                        hash=bytes(32), branch=branch, skip=2, limit=4, direction=Direction.GENESIS
+                        hash=bytes(32),
+                        branch=branch,
+                        skip=2,
+                        limit=4,
+                        direction=Direction.GENESIS,
                     ),
                 )
             )
@@ -1363,7 +1422,11 @@ class TestCluster(unittest.TestCase):
                 peer.write_rpc_request(
                     op=CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST,
                     cmd=GetMinorBlockHeaderListWithSkipRequest.create_for_height(
-                        height=8, branch=branch, skip=1, limit=5, direction=Direction.GENESIS
+                        height=8,
+                        branch=branch,
+                        skip=1,
+                        limit=5,
+                        direction=Direction.GENESIS,
                     ),
                 )
             )

@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import json
 import time
 from collections import Counter, deque, defaultdict
@@ -32,7 +31,11 @@ from quarkchain.core import (
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
-from quarkchain.evm.messages import apply_transaction, validate_transaction
+from quarkchain.evm.messages import (
+    apply_transaction,
+    null_address,
+    validate_transaction,
+)
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -40,6 +43,8 @@ from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+
+MAX_FUTURE_TX_NONCE = 64
 
 
 class GasPriceSuggestionOracle:
@@ -472,9 +477,14 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        # This will check signature, nonce, balance, gas limit
-        validate_transaction(evm_state, evm_tx)
+        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
+        req_nonce = (
+            0 if evm_tx.sender == null_address else evm_state.get_nonce(evm_tx.sender)
+        )
+        if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
+            return evm_tx
 
+        validate_transaction(evm_state, evm_tx)
         return evm_tx
 
     def get_gas_limit(self, gas_limit=None):
@@ -1124,7 +1134,8 @@ class ShardState:
 
         while evm_state.gas_used < evm_state.gas_limit:
             evm_tx = self.tx_queue.pop_transaction(
-                max_gas=evm_state.gas_limit - evm_state.gas_used
+                req_nonce_getter=evm_state.get_nonce,
+                max_gas=evm_state.gas_limit - evm_state.gas_used,
             )
             if evm_tx is None:  # tx_queue is exhausted
                 break
@@ -1145,7 +1156,7 @@ class ShardState:
                 ):
                     continue
 
-            # Check if EMV is disabled
+            # Check if EVM is disabled
             if (
                 self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
                 and block.header.create_time

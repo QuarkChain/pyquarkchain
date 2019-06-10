@@ -156,9 +156,10 @@ class TestJSONRPC(unittest.TestCase):
             response = send_request("sendTransaction", [request])
 
             self.assertEqual(response, "0x" + tx.get_hash().hex() + "00000000")
-            self.assertEqual(len(clusters[0].get_shard_state(2 | 0).tx_queue), 1)
+            state = clusters[0].get_shard_state(2 | 0)
+            self.assertEqual(len(state.tx_queue), 1)
             self.assertEqual(
-                clusters[0].get_shard_state(2 | 0).tx_queue.pop_transaction(), evm_tx
+                state.tx_queue.pop_transaction(state.get_transaction_count), evm_tx
             )
 
     def test_sendTransaction_with_bad_signature(self):

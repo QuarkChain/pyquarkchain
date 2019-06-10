@@ -44,8 +44,8 @@ class TestTransactionQueue(unittest.TestCase):
         for param in params:
             q.add_transaction(make_test_tx(s=param[0], g=param[1]))
         # Attempt pops from queue
-        for (maxgas, expected_s, expected_g) in operations:
-            tx = q.pop_transaction(max_gas=maxgas)
+        for (max_gas, expected_s, expected_g) in operations:
+            tx = q.pop_transaction(req_nonce_getter=lambda _: 0, max_gas=max_gas)
             if tx:
                 assert (tx.startgas, tx.gasprice) == (expected_s, expected_g)
             else:
@@ -88,8 +88,23 @@ class TestTransactionQueue(unittest.TestCase):
         expected_nonce_order = [i for i in range(count)]
         nonces = []
         for i in range(count):
-            tx = q.pop_transaction()
+            tx = q.pop_transaction(req_nonce_getter=lambda _: i)
             nonces.append(tx.nonce)
         # Since they have the same gasprice they should have the same priority and
         # thus be popped in the order they were inserted.
         assert nonces == expected_nonce_order
+
+    def test_future_tx_higher_nonce(self):
+        q = TransactionQueue()
+        q.add_transaction(make_test_tx(nonce=1))
+        # Fake current nonce to 0 and try fetching the future tx
+        nonce_getter_maker = lambda i: (lambda _: i)
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNone(res)
+        # Now add a current tx
+        q.add_transaction(make_test_tx(nonce=0))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNotNone(res)
+        # Now try fetching the future tx with updated nonce state
+        res = q.pop_transaction(nonce_getter_maker(1))
+        self.assertIsNotNone(res)
