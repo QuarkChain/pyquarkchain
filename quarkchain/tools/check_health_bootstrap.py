@@ -43,7 +43,7 @@ class Health_Check_Cluster(Cluster):
         #if not self.config.P2P.DISCOVERY_ONLY:
         #    await self.run_slaves()
 
-        await asyncio.sleep(20)
+        await asyncio.sleep(20 )
         checkRoutingTable(10)
         await self.shutdown()
 
