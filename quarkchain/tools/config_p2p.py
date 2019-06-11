@@ -11,7 +11,7 @@ import os
 import re
 import socket
 
-FILE = "../../testnet/2/cluster_config_template.json"
+FILE = "../../mainnet/singularity/cluster_config_template.json"
 if "QKC_CONFIG" in os.environ:
     FILE = os.environ["QKC_CONFIG"]
 
