@@ -100,7 +100,7 @@ class XshardTxCursor:
         if self.mblock_index == 0:
             # 0 is reserved for EOF
             check(self.xshard_deposit_index == 1 or self.xshard_deposit_index == 2)
-            # TODO: For single native token only
+            # TODO: for single native token only
             if self.xshard_deposit_index == 1:
                 coinbase_amount = 0
                 if self.shard_state.branch.is_in_branch(
@@ -554,7 +554,7 @@ class ShardState:
         state.recent_uncles[
             state.block_number
         ] = []  # TODO [x.hash for x in block.uncles]
-        # TODO: Create a account with shard info if the account is not created
+        # TODO: create a account with shard info if the account is not created
         # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = coinbase_recipient
         state.block_difficulty = block.header.difficulty
@@ -593,7 +593,7 @@ class ShardState:
             raise ValueError("unexpected height")
 
         if not self.db.contain_minor_block_by_hash(block.header.hash_prev_minor_block):
-            # TODO:  May put the block back to queue
+            # TODO:  may put the block back to queue
             raise ValueError(
                 "[{}] prev block not found, block height {} prev hash {}".format(
                     self.branch.to_str(),
@@ -1445,7 +1445,7 @@ class ShardState:
 
     def __run_one_xshard_tx(self, evm_state, xshard_deposit_tx):
         tx = xshard_deposit_tx
-        # TODO: Check if target address is a smart contract address or user address
+        # TODO: check if target address is a smart contract address or user address
         evm_state.delta_token_balance(
             tx.to_address.recipient, tx.transfer_token_id, tx.value
         )
@@ -1532,6 +1532,7 @@ class ShardState:
             tx_list = []
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
+                # TODO: could also show incoming pending tx
                 if Address(tx.sender, tx.from_full_shard_key) == address and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
