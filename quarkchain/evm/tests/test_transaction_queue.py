@@ -96,8 +96,8 @@ class TestTransactionQueue(unittest.TestCase):
 
     def test_future_tx_higher_nonce(self):
         q = TransactionQueue()
-        # Fake current nonce to 0 and try fetching the future tx
         nonce_getter_maker = lambda i: (lambda _: i)
+        # Expect nonce to be 0
         q.add_transaction(make_test_tx(nonce=1))
         res = q.pop_transaction(nonce_getter_maker(0))
         self.assertIsNone(res)
@@ -111,11 +111,11 @@ class TestTransactionQueue(unittest.TestCase):
 
     def test_multiple_future_tx(self):
         q = TransactionQueue()
-        # Fake current nonce to 0 and try fetching the future tx
         nonce_getter_maker = lambda i: (lambda _: i)
         # Future tx with increasing gas price
         for i in range(1, 6):
             q.add_transaction(make_test_tx(nonce=1, g=i))
+        # Expect nonce to be 0
         res = q.pop_transaction(nonce_getter_maker(0))
         self.assertIsNone(res)
         # Internal state: total tx size == 5

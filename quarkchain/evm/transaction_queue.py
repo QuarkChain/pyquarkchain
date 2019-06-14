@@ -7,7 +7,7 @@ def heaptop(x):
     return x[0]
 
 
-MAX_STALE_TX_NONCE = 64
+MAX_STALE_TX_NONCE = 32
 
 
 class OrderableTx(object):
