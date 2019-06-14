@@ -98,7 +98,6 @@ def main():
     cluster = HealthCheckCluster(config)
     bootstrap_nodes = config.P2P.BOOT_NODES.split(",")
     count = 0
-    numbers = len(bootstrap_nodes)
 
     while True:
         bash_command_revised_config = (
@@ -111,7 +110,7 @@ def main():
         print("Start Bootstrap With " + bootstrap_nodes[count])
         cluster.start_and_loop()
         time.sleep(100)
-        count = (count + 1) % numbers
+        count = (count + 1) % len(bootstrap_nodes)
 
 
 if __name__ == "__main__":
