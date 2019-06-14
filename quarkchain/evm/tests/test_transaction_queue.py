@@ -96,9 +96,9 @@ class TestTransactionQueue(unittest.TestCase):
 
     def test_future_tx_higher_nonce(self):
         q = TransactionQueue()
-        q.add_transaction(make_test_tx(nonce=1))
         # Fake current nonce to 0 and try fetching the future tx
         nonce_getter_maker = lambda i: (lambda _: i)
+        q.add_transaction(make_test_tx(nonce=1))
         res = q.pop_transaction(nonce_getter_maker(0))
         self.assertIsNone(res)
         # Now add a current tx
@@ -108,3 +108,29 @@ class TestTransactionQueue(unittest.TestCase):
         # Now try fetching the future tx with updated nonce state
         res = q.pop_transaction(nonce_getter_maker(1))
         self.assertIsNotNone(res)
+
+    def test_multiple_future_tx(self):
+        q = TransactionQueue()
+        # Fake current nonce to 0 and try fetching the future tx
+        nonce_getter_maker = lambda i: (lambda _: i)
+        # Future tx with increasing gas price
+        for i in range(1, 6):
+            q.add_transaction(make_test_tx(nonce=1, g=i))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNone(res)
+        # Internal state: total tx size == 5
+        self.assertEqual(len(q.txs) + len(q.aside), 5)
+        # Add first valid tx
+        q.add_transaction(make_test_tx(nonce=0))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNotNone(res)
+        # Now verify next tx
+        res = q.pop_transaction(nonce_getter_maker(1))
+        self.assertEqual(res.nonce, 1)
+        self.assertEqual(res.gasprice, 5)
+        # Verify internal state, still have remaining txs with nonce == 1
+        self.assertEqual(len(q.txs) + len(q.aside), 4)
+        # Stale tx will be cleaned up in the future
+        res = q.pop_transaction(nonce_getter_maker(100))
+        self.assertIsNone(res)
+        self.assertEqual(len(q.txs) + len(q.aside), 0)

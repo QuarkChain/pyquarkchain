@@ -7,6 +7,9 @@ def heaptop(x):
     return x[0]
 
 
+MAX_STALE_TX_NONCE = 64
+
+
 class OrderableTx(object):
     def __init__(self, prio, counter, tx):
         self.prio = prio
@@ -50,6 +53,10 @@ class TransactionQueue(object):
         for i in range(len(self.txs)):
             item = heaptop(self.txs)
             tx = item.tx
+            # discard old tx
+            if tx.nonce < req_nonce_getter(tx.sender) - MAX_STALE_TX_NONCE:
+                heapq.heappop(self.txs)
+                continue
             # target found
             if tx.startgas <= max_gas and req_nonce_getter(tx.sender) == tx.nonce:
                 heapq.heappop(self.txs)
