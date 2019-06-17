@@ -1,5 +1,4 @@
 import asyncio
-import functools
 import json
 import time
 from collections import Counter, deque, defaultdict
@@ -32,7 +31,11 @@ from quarkchain.core import (
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
-from quarkchain.evm.messages import apply_transaction, validate_transaction
+from quarkchain.evm.messages import (
+    apply_transaction,
+    null_address,
+    validate_transaction,
+)
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -40,6 +43,8 @@ from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+
+MAX_FUTURE_TX_NONCE = 64
 
 
 class GasPriceSuggestionOracle:
@@ -95,7 +100,7 @@ class XshardTxCursor:
         if self.mblock_index == 0:
             # 0 is reserved for EOF
             check(self.xshard_deposit_index == 1 or self.xshard_deposit_index == 2)
-            # TODO: For single native token only
+            # TODO: for single native token only
             if self.xshard_deposit_index == 1:
                 coinbase_amount = 0
                 if self.shard_state.branch.is_in_branch(
@@ -472,9 +477,14 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        # This will check signature, nonce, balance, gas limit
-        validate_transaction(evm_state, evm_tx)
+        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
+        req_nonce = (
+            0 if evm_tx.sender == null_address else evm_state.get_nonce(evm_tx.sender)
+        )
+        if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
+            return evm_tx
 
+        validate_transaction(evm_state, evm_tx)
         return evm_tx
 
     def get_gas_limit(self, gas_limit=None):
@@ -544,7 +554,7 @@ class ShardState:
         state.recent_uncles[
             state.block_number
         ] = []  # TODO [x.hash for x in block.uncles]
-        # TODO: Create a account with shard info if the account is not created
+        # TODO: create a account with shard info if the account is not created
         # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = coinbase_recipient
         state.block_difficulty = block.header.difficulty
@@ -583,7 +593,7 @@ class ShardState:
             raise ValueError("unexpected height")
 
         if not self.db.contain_minor_block_by_hash(block.header.hash_prev_minor_block):
-            # TODO:  May put the block back to queue
+            # TODO:  may put the block back to queue
             raise ValueError(
                 "[{}] prev block not found, block height {} prev hash {}".format(
                     self.branch.to_str(),
@@ -1124,7 +1134,8 @@ class ShardState:
 
         while evm_state.gas_used < evm_state.gas_limit:
             evm_tx = self.tx_queue.pop_transaction(
-                max_gas=evm_state.gas_limit - evm_state.gas_used
+                req_nonce_getter=evm_state.get_nonce,
+                max_gas=evm_state.gas_limit - evm_state.gas_used,
             )
             if evm_tx is None:  # tx_queue is exhausted
                 break
@@ -1145,7 +1156,7 @@ class ShardState:
                 ):
                     continue
 
-            # Check if EMV is disabled
+            # Check if EVM is disabled
             if (
                 self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
                 and block.header.create_time
@@ -1434,7 +1445,7 @@ class ShardState:
 
     def __run_one_xshard_tx(self, evm_state, xshard_deposit_tx):
         tx = xshard_deposit_tx
-        # TODO: Check if target address is a smart contract address or user address
+        # TODO: check if target address is a smart contract address or user address
         evm_state.delta_token_balance(
             tx.to_address.recipient, tx.transfer_token_id, tx.value
         )
@@ -1521,6 +1532,7 @@ class ShardState:
             tx_list = []
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
+                # TODO: could also show incoming pending tx
                 if Address(tx.sender, tx.from_full_shard_key) == address and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
