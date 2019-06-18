@@ -45,6 +45,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "GENESIS_TOKEN": "QKC",
     "ROOT": {
         "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 22500,
+        "MAX_ROOT_BLOCKS_IN_MEMORY": 256,
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
             "TARGET_BLOCK_TIME": 60,
@@ -99,7 +100,8 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
-            }
+            },
+            "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         },
         {
             "CHAIN_ID": 1,
@@ -134,7 +136,8 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
-            }
+            },
+            "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         },
         {
             "CHAIN_ID": 2,
@@ -169,7 +172,8 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
-            }
+            },
+            "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         }
     ],
     "SHARDS": null,
