@@ -481,9 +481,7 @@ class TestRootState(unittest.TestCase):
             recovered_state.db.get_root_block_by_hash(root_block00.header.get_hash())
         )
         self.assertEqual(
-            recovered_state.db.get_root_block_by_hash(
-                root_block00.header.get_hash(), consistency_check=False
-            ),
+            recovered_state.db.get_root_block_by_hash(root_block00.header.get_hash()),
             root_block00,
         )
 

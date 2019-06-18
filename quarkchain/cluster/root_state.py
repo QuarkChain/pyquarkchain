@@ -46,7 +46,7 @@ class RootDb:
         self.db = db
         self.quark_chain_config = quark_chain_config
         self.max_num_blocks_to_recover = (
-            quark_chain_config.ROOT.max_root_blocks_in_memory
+            quark_chain_config.ROOT.MAX_ROOT_BLOCKS_IN_MEMORY
         )
         self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
@@ -103,37 +103,29 @@ class RootDb:
     def update_tip_hash(self, block_hash):
         self.db.put(b"tipHash", block_hash)
 
-    def get_root_block_by_hash(self, h, consistency_check=True):
-        """
-        Consistency check being true means whatever in memory should already have enough
-        information (no missing root block, minor block etc). Skipping the check by reading
-        directly from database may have unwanted consequences.
-        """
-        if consistency_check and h not in self.r_header_pool:
-            return None
-
+    def get_root_block_by_hash(self, h):
         raw_block = self.db.get(b"rblock_" + h, None)
         if not raw_block:
             return None
-        return RootBlock.deserialize(raw_block)
+        block = RootBlock.deserialize(raw_block)
+        self.r_header_pool[h] = block.header
+        return block
 
-    def get_root_block_header_by_hash(self, h, consistency_check=True):
+    def get_root_block_header_by_hash(self, h):
         header = self.r_header_pool.get(h)
-        if not header and not consistency_check:
-            block = self.get_root_block_by_hash(h, consistency_check=False)
+        if not header:
+            block = self.get_root_block_by_hash(h)
             if block:
                 header = block.header
         return header
 
     def get_root_block_last_minor_block_header_list(self, h):
-        if h not in self.r_header_pool:
-            return None
         return LastMinorBlockHeaderList.deserialize(
             self.db.get(b"lastlist_" + h)
         ).header_list
 
     def contain_root_block_by_hash(self, h):
-        return h in self.r_header_pool
+        return h in self.r_header_pool or (b"rblock_" + h) in self.db
 
     def put_root_block_index(self, block):
         block_hash = block.header.get_hash()
@@ -208,14 +200,14 @@ class RootDb:
         if key not in self.db:
             return None
         block_hash = self.db.get(key)
-        return self.get_root_block_by_hash(block_hash, consistency_check=False)
+        return self.get_root_block_by_hash(block_hash)
 
     def get_root_block_header_by_height(self, height):
         key = b"ri_%d" % height
         if key not in self.db:
             return None
         block_hash = self.db.get(key)
-        return self.get_root_block_header_by_hash(block_hash, consistency_check=False)
+        return self.get_root_block_header_by_hash(block_hash)
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
@@ -286,14 +278,13 @@ class RootState:
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
 
-        persisted_tip = self.db.get_tip_header()
-        if persisted_tip:
-            self.tip = persisted_tip
+        self.tip = self.db.get_tip_header()  # type: RootBlockHeader
+        if self.tip:
             Logger.info(
                 "Recovered root state with tip height {}".format(self.tip.height)
             )
         else:
-            self.__create_genesis_block()
+            self.tip = self.__create_genesis_block()
             Logger.info("Created genesis root block")
 
     def __create_genesis_block(self):
@@ -301,7 +292,7 @@ class RootState:
         genesis_block = genesis_manager.create_root_block()
         self.db.put_root_block(genesis_block, [])
         self.db.put_root_block_index(genesis_block)
-        self.tip = genesis_block.header
+        return genesis_block.header
 
     def get_tip_block(self):
         return self.db.get_root_block_by_hash(self.tip.get_hash())
@@ -440,9 +431,7 @@ class RootState:
 
         header = longer_block_header
         for i in range(longer_block_header.height - shorter_block_header.height):
-            header = self.db.get_root_block_header_by_hash(
-                header.hash_prev_block, consistency_check=False
-            )
+            header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
     def validate_block(self, block):
@@ -508,9 +497,7 @@ class RootState:
                 )
             if not self.is_same_chain(
                 self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                self.db.get_root_block_header_by_hash(
-                    m_header.hash_prev_root_block, consistency_check=False
-                ),
+                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
             ):
                 raise ValueError(
                     "minor block's prev root block must be in the same chain"
@@ -597,6 +584,20 @@ class RootState:
         - the root block could only contain minor block header hashes as long as the shards fully validate the headers
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
+
+        if (
+            self.tip.height - block.header.height
+            > self.root_config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+        ):
+            Logger.info(
+                "[R] drop old block {} << {}".format(
+                    block.header.height, self.tip.height
+                )
+            )
+            raise ValueError(
+                "block is too old {} << {}".format(block.header.height, self.tip.height)
+            )
+
         start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(block)
 
