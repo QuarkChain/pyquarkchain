@@ -637,10 +637,10 @@ class JSONRPCServer:
         nonce = get_data_default("nonce", quantity_decoder, None)
 
         to_full_shard_key = get_data_default(
-            "toFullShardId", full_shard_key_decoder, None
+            "toFullShardKey", full_shard_key_decoder, None
         )
         from_full_shard_key = get_data_default(
-            "fromFullShardId", full_shard_key_decoder, None
+            "fromFullShardKey", full_shard_key_decoder, None
         )
         network_id = get_data_default(
             "networkId", quantity_decoder, self.master.env.quark_chain_config.NETWORK_ID
@@ -660,7 +660,7 @@ class JSONRPCServer:
         if not (v and r and s):
             raise InvalidParams("Missing v, r, s")
         if from_full_shard_key is None:
-            raise InvalidParams("Missing fromFullShardId")
+            raise InvalidParams("Missing fromFullShardKey")
 
         if to_full_shard_key is None:
             to_full_shard_key = from_full_shard_key
@@ -1124,7 +1124,7 @@ class JSONRPCServer:
         data = get_data_default("data", data_decoder, b"")
         # FIXME: can't support specifying full shard ID to 0. currently is regarded as not set
         from_full_shard_key = get_data_default(
-            "fromFullShardId", full_shard_key_decoder, 0
+            "fromFullShardKey", full_shard_key_decoder, 0
         )
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
