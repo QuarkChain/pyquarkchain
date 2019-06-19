@@ -148,8 +148,8 @@ class TestJSONRPC(unittest.TestCase):
                 r=quantity_encoder(evm_tx.r),
                 s=quantity_encoder(evm_tx.s),
                 nonce="0x0",
-                fromFullShardId="0x00000000",
-                toFullShardId="0x00000001",
+                fromFullShardKey="0x00000000",
+                toFullShardKey="0x00000001",
                 network_id=hex(slaves[0].env.quark_chain_config.NETWORK_ID),
             )
             tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
@@ -187,8 +187,8 @@ class TestJSONRPC(unittest.TestCase):
                 r="0x2",
                 s="0x3",
                 nonce="0x0",
-                fromFullShardId="0x00000000",
-                toFullShardId="0x00000001",
+                fromFullShardKey="0x00000000",
+                toFullShardKey="0x00000001",
             )
             self.assertIsNone(send_request("sendTransaction", [request]))
             self.assertEqual(len(clusters[0].get_shard_state(2 | 0).tx_queue), 0)
