@@ -50,8 +50,6 @@ class RootDb:
         )
         self.count_minor_blocks = count_minor_blocks
         # TODO: May store locally to save memory space (e.g., with LRU cache)
-        self.m_hash_dict = dict()
-        self.r_header_pool = dict()
         self.tip_header = None
 
         self.__recover_from_db()
@@ -75,20 +73,6 @@ class RootDb:
         r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
         self.tip_header = r_block.header  # type: RootBlockHeader
 
-        while len(self.r_header_pool) < self.max_num_blocks_to_recover:
-            self.r_header_pool[r_hash] = r_block.header
-            for m_header in r_block.minor_block_header_list:
-                mtokens = TokenBalanceMap.deserialize(
-                    self.db.get(b"mheader_" + m_header.get_hash())
-                ).balance_map
-                self.m_hash_dict[m_header.get_hash()] = mtokens
-
-            if r_block.header.height <= 0:
-                break
-
-            r_hash = r_block.header.hash_prev_block
-            r_block = RootBlock.deserialize(self.db.get(b"rblock_" + r_hash))
-
     def get_tip_header(self):
         return self.tip_header
 
@@ -98,26 +82,17 @@ class RootDb:
         last_list = LastMinorBlockHeaderList(header_list=last_minor_block_header_list)
         self.db.put(b"rblock_" + root_block_hash, root_block.serialize())
         self.db.put(b"lastlist_" + root_block_hash, last_list.serialize())
-        self.r_header_pool[root_block_hash] = root_block.header
 
     def update_tip_hash(self, block_hash):
         self.db.put(b"tipHash", block_hash)
 
     def get_root_block_by_hash(self, h):
         raw_block = self.db.get(b"rblock_" + h, None)
-        if not raw_block:
-            return None
-        block = RootBlock.deserialize(raw_block)
-        self.r_header_pool[h] = block.header
-        return block
+        return raw_block and RootBlock.deserialize(raw_block)
 
     def get_root_block_header_by_hash(self, h):
-        header = self.r_header_pool.get(h)
-        if not header:
-            block = self.get_root_block_by_hash(h)
-            if block:
-                header = block.header
-        return header
+        block = self.get_root_block_by_hash(h)
+        return block and block.header
 
     def get_root_block_last_minor_block_header_list(self, h):
         return LastMinorBlockHeaderList.deserialize(
@@ -125,7 +100,7 @@ class RootDb:
         ).header_list
 
     def contain_root_block_by_hash(self, h):
-        return h in self.r_header_pool or (b"rblock_" + h) in self.db
+        return (b"rblock_" + h) in self.db
 
     def put_root_block_index(self, block):
         block_hash = block.header.get_hash()
@@ -211,26 +186,19 @@ class RootDb:
 
     # ------------------------- Minor block db operations --------------------------------
     def contain_minor_block_by_hash(self, h):
-        if h in self.m_hash_dict:
-            return True
-
         tokens = self.db.get(b"mheader_" + h)
-        if tokens is None:
-            return False
-
-        self.m_hash_dict[h] = TokenBalanceMap.deserialize(tokens).balance_map
-        return True
+        return tokens is not None
 
     def put_minor_block_coinbase(self, m_hash: bytes, coinbase_tokens: dict):
         tokens = TokenBalanceMap(coinbase_tokens)
         self.db.put(b"mheader_" + m_hash, tokens.serialize())
-        self.m_hash_dict[m_hash] = coinbase_tokens
 
     def get_minor_block_coinbase_tokens(self, h: bytes):
-        if not self.contain_minor_block_by_hash(h):
+        tokens = self.db.get(b"mheader_" + h)
+        if tokens is None:
             raise KeyError()
 
-        return self.m_hash_dict[h]
+        return TokenBalanceMap.deserialize(tokens).balance_map
 
     def write_committing_hash(self, h: bytes):
         self.put(b"rb_committing", h)
