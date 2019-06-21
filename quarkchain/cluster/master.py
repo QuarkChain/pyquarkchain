@@ -1119,7 +1119,8 @@ class MasterServer:
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
         # use write-ahead log so if crashed the root block can be re-broadcasted
-        self.root_state.write_committing_hash(r_block.header.get_hash())
+        rb_hash = r_block.header.get_hash()
+        self.root_state.write_committing_hash(rb_hash)
 
         try:
             update_tip = self.root_state.add_block(r_block)
@@ -1138,7 +1139,13 @@ class MasterServer:
             op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
         )
         result_list = await asyncio.gather(*future_list)
-        check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+        try:
+            check(all([resp.error_code == 0 for _, resp, _ in result_list]))
+        except Exception as e:
+            # remove inserted root block to allow re-add
+            self.root_state.db.remove_root_block_by_hash(rb_hash)
+            raise e
+
         self.root_state.clear_committing_hash()
 
     async def add_raw_minor_block(self, branch, block_data):

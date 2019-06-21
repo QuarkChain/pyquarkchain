@@ -125,6 +125,9 @@ class RootDb:
                 header = block.header
         return header
 
+    def remove_root_block_by_hash(self, h):
+        self.db.remove(b"rblock_" + h)
+
     def get_root_block_last_minor_block_header_list(self, h):
         if h not in self.r_header_pool:
             return None
