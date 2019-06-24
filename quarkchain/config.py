@@ -138,6 +138,7 @@ class ChainConfig(BaseConfig):
     EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK = 3
 
     POSW_CONFIG = None  # type: POSWConfig
+    MAX_MINOR_BLOCKS_IN_MEMORY = 256 * 6
 
     def __init__(self):
         self.GENESIS = ShardGenesis()
@@ -216,10 +217,6 @@ class ShardConfig(ChainConfig):
             / self.CONSENSUS_CONFIG.TARGET_BLOCK_TIME
         )
 
-    @property
-    def max_minor_blocks_in_memory(self):
-        return self.max_stale_minor_block_height_diff * 2
-
 
 class RootConfig(BaseConfig):
     # To ignore super old blocks from peers
@@ -227,6 +224,8 @@ class RootConfig(BaseConfig):
     # Use Ethereum's number, which is
     # - 30000 * 3 blocks = 90000 * 15 / 3600 = 375 hours = 375 * 3600 / 60 = 22500
     MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF = 22500
+
+    MAX_ROOT_BLOCKS_IN_MEMORY = 256
 
     CONSENSUS_TYPE = ConsensusType.NONE  # type: ConsensusType
     # Only set when CONSENSUS_TYPE is not NONE
@@ -242,10 +241,6 @@ class RootConfig(BaseConfig):
 
     def __init__(self):
         self.GENESIS = RootGenesis()
-
-    @property
-    def max_root_blocks_in_memory(self):
-        return self.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF * 2
 
     def to_dict(self):
         ret = super().to_dict()

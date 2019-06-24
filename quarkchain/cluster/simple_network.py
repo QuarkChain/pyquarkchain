@@ -220,14 +220,20 @@ class Peer(P2PConnection):
         if len(cmd.minor_block_header_list) != 0:
             return self.close_with_error("minor block header list must be empty")
 
-        if cmd.root_block_header.total_difficulty < self.best_root_block_header_observed.total_difficulty:
+        if (
+            cmd.root_block_header.total_difficulty
+            < self.best_root_block_header_observed.total_difficulty
+        ):
             return self.close_with_error(
                 "root block TD is decreasing {} < {}".format(
                     cmd.root_block_header.total_difficulty,
                     self.best_root_block_header_observed.total_difficulty,
                 )
             )
-        if cmd.root_block_header.total_difficulty == self.best_root_block_header_observed.total_difficulty:
+        if (
+            cmd.root_block_header.total_difficulty
+            == self.best_root_block_header_observed.total_difficulty
+        ):
             if cmd.root_block_header != self.best_root_block_header_observed:
                 return self.close_with_error(
                     "root block header changed with same TD {}".format(
@@ -262,9 +268,7 @@ class Peer(P2PConnection):
         block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.root_state.db.get_root_block_header_by_hash(
-                block_hash, consistency_check=False
-            )
+            header = self.root_state.db.get_root_block_header_by_hash(block_hash)
             header_list.append(header)
             if header.height == 0:
                 break
@@ -274,7 +278,10 @@ class Peer(P2PConnection):
     async def handle_get_root_block_header_list_with_skip_request(self, request):
         if request.limit <= 0 or request.limit > 2 * ROOT_BLOCK_HEADER_LIST_LIMIT:
             self.close_with_error("Bad limit")
-        if request.direction != Direction.GENESIS and request.direction != Direction.TIP:
+        if (
+            request.direction != Direction.GENESIS
+            and request.direction != Direction.TIP
+        ):
             self.close_with_error("Bad direction")
         if request.type != 0 and request.type != 1:
             self.close_with_error("Bad type value")
@@ -283,15 +290,16 @@ class Peer(P2PConnection):
             block_height = request.get_height()
         else:
             block_hash = request.get_hash()
-            block_header = self.root_state.db.get_root_block_header_by_hash(
-                block_hash, consistency_check=False
-            )
+            block_header = self.root_state.db.get_root_block_header_by_hash(block_hash)
             if block_header is None:
                 return GetRootBlockHeaderListResponse(self.root_state.tip, [])
 
             # Check if it is canonical chain
             block_height = block_header.height
-            if self.root_state.db.get_root_block_header_by_height(block_height) != block_header:
+            if (
+                self.root_state.db.get_root_block_header_by_height(block_height)
+                != block_header
+            ):
                 return GetRootBlockHeaderListResponse(self.root_state.tip, [])
 
         header_list = []
@@ -300,14 +308,16 @@ class Peer(P2PConnection):
             and block_height >= 0
             and block_height <= self.root_state.tip.height
         ):
-            block_header = self.root_state.db.get_root_block_header_by_height(block_height)
+            block_header = self.root_state.db.get_root_block_header_by_height(
+                block_height
+            )
             if block_header is None:
                 break
             header_list.append(block_header)
             if request.direction == Direction.GENESIS:
-                block_height -= (request.skip + 1)
+                block_height -= request.skip + 1
             else:
-                block_height += (request.skip + 1)
+                block_height += request.skip + 1
 
         return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
 
@@ -316,9 +326,7 @@ class Peer(P2PConnection):
             self.close_with_error("Bad number of root block requested")
         r_block_list = []
         for h in request.root_block_hash_list:
-            r_block = self.root_state.db.get_root_block_by_hash(
-                h, consistency_check=False
-            )
+            r_block = self.root_state.db.get_root_block_by_hash(h)
             if r_block is None:
                 continue
             r_block_list.append(r_block)

@@ -702,9 +702,7 @@ class JSONRPCServer:
     @decode_arg("block_id", data_decoder)
     async def getRootBlockById(self, block_id):
         try:
-            block = self.master.root_state.db.get_root_block_by_hash(
-                block_id, consistency_check=False
-            )
+            block = self.master.root_state.db.get_root_block_by_hash(block_id)
             return root_block_encoder(block)
         except Exception:
             return None
@@ -951,9 +949,7 @@ class JSONRPCServer:
         if root_hash is None:
             return quantity_encoder(0)
         root_header_tip = self.master.root_state.tip
-        root_header = self.master.root_state.db.get_root_block_header_by_hash(
-            root_hash, consistency_check=False
-        )
+        root_header = self.master.root_state.db.get_root_block_header_by_hash(root_hash)
         if not self.master.root_state.is_same_chain(root_header_tip, root_header):
             return quantity_encoder(0)
         return quantity_encoder(root_header_tip.height - root_header.height + 1)

@@ -765,9 +765,7 @@ class MasterServer:
     async def __rebroadcast_committing_root_block(self):
         committing_block_hash = self.root_state.get_committing_block_hash()
         if committing_block_hash:
-            r_block = self.root_state.db.get_root_block_by_hash(
-                committing_block_hash, consistency_check=False
-            )
+            r_block = self.root_state.db.get_root_block_by_hash(committing_block_hash)
             # missing actual block, may have crashed before writing the block
             if not r_block:
                 self.root_state.clear_committing_hash()

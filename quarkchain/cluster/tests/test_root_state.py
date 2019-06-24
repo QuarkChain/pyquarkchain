@@ -476,17 +476,6 @@ class TestRootState(unittest.TestCase):
             recovered_state.db.get_root_block_by_height(tip_height), root_block0
         )
 
-        # fork is pruned from recovered state
-        self.assertIsNone(
-            recovered_state.db.get_root_block_by_hash(root_block00.header.get_hash())
-        )
-        self.assertEqual(
-            recovered_state.db.get_root_block_by_hash(
-                root_block00.header.get_hash(), consistency_check=False
-            ),
-            root_block00,
-        )
-
     def test_add_root_block_with_minor_block_with_wrong_root_block_hash(self):
         """ Test for the following case
                  +--+    +--+
