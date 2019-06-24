@@ -297,7 +297,6 @@ class ShardState:
         self.root_tip = root_block.header
         header_tip_hash = header_tip.get_hash()
 
-        self.db.recover_state(self.root_tip, self.header_tip)
         Logger.info(
             "[{}] Done recovery from db. shard tip {} {}, root tip {} {}".format(
                 self.branch.to_str(),
