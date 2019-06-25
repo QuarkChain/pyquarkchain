@@ -1,17 +1,16 @@
 FROM ubuntu:bionic
 
-MAINTAINER quarkchain
+LABEL maintainer="quarkchain"
 
 ### set up basic system packages
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y libpq-dev libxml2-dev libxslt1-dev nginx openssh-client openssh-server openssl rsyslog rsyslog-gnutls liblcms2-dev libwebp-dev python-tk libfreetype6-dev vim-nox imagemagick libffi-dev libgmp-dev build-essential libssl-dev software-properties-common pkg-config libtool python3-dev && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libpq-dev libxml2-dev libxslt1-dev nginx openssh-client openssh-server openssl rsyslog rsyslog-gnutls liblcms2-dev libwebp-dev python-tk libfreetype6-dev vim-nox imagemagick libffi-dev libgmp-dev build-essential libssl-dev software-properties-common pkg-config libtool python3-dev git-core jq screen curl && \
     apt-get clean
 
-# install git and misc dep
-RUN apt-get update && apt-get install -y git-core jq screen curl && apt-get clean
-
 # install rocksdb
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev librocksdb-dev
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y libsnappy-dev zlib1g-dev libbz2-dev libgflags-dev liblz4-dev libzstd-dev librocksdb-dev && \
+    apt-get clean
 
 # install python development tools, setuptools and pip
 WORKDIR /opt
@@ -27,7 +26,7 @@ RUN apt-get update && apt-get install -y locales
 RUN locale-gen en_US.UTF-8 && dpkg-reconfigure --frontend noninteractive locales
 ENV LC_ALL="en_US.UTF-8" LANG="en_US.UTF-8"
 
-EXPOSE 22 80 443 38291 38391 38491 8000 29000
+EXPOSE 22 80 443 38291 38391 38491 8000
 
 ### set up code
 RUN mkdir /code
