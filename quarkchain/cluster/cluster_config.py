@@ -186,7 +186,7 @@ class ClusterConfig(BaseConfig):
         for slave in self.SLAVE_LIST:
             if slave.ID == id:
                 return slave
-        raise RuntimeError("Slave id {} does not exist in cluster config".format(id))
+        raise RuntimeError("Slave id {0} does not exist in cluster config".format(id))
 
     @property
     def json_filepath(self):
