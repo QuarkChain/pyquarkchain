@@ -184,7 +184,8 @@ class TestQuarkChainConfig(unittest.TestCase):
     "TX_WHITELIST_SENDERS": [],
     "ENABLE_EVM_TIMESTAMP": null,
     "MIN_TX_POOL_GAS_PRICE": 1000000000,
-    "MIN_MINING_GAS_PRICE": 1000000000
+    "MIN_MINING_GAS_PRICE": 1000000000,
+    "XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT": 90000
 }
     """
         expected_json = expected_json.strip()

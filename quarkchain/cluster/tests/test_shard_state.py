@@ -11,7 +11,7 @@ from quarkchain.cluster.tests.test_utils import (
 )
 from quarkchain.config import ConsensusType
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
-from quarkchain.core import Identity, Address, TokenBalanceMap
+from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
@@ -862,6 +862,105 @@ class TestShardState(unittest.TestCase):
         # X-shard gas used
         evmState0 = state0.evm_state
         self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+
+    def test_xshard_tx_received_ddos_fix(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=16)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env0 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        env1 = get_test_env(
+            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
+        )
+        state0 = create_default_shard_state(env=env0, shard_id=0)
+        state1 = create_default_shard_state(env=env1, shard_id=16)
+
+        # Add a root block to allow later minor blocks referencing this root block to
+        # be broadcasted
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(state0.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+
+        # Add one block in shard 0
+        b0 = state0.create_block_to_mine()
+        state0.finalize_and_add_block(b0)
+
+        b1 = state1.get_tip().create_block_to_append()
+        b1.header.hash_prev_root_block = root_block.header.get_hash()
+        tx = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc2,
+            to_address=acc1,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            gas_price=0,
+        )
+        b1.add_tx(tx)
+
+        # Add a x-shard tx from remote peer
+        state0.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b1.header.get_hash(),
+            tx_list=CrossShardTransactionList(
+                tx_list=[
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx.get_hash(),
+                        from_address=acc2,
+                        to_address=acc1,
+                        value=888888,
+                        gas_price=0,
+                        gas_token_id=self.genesis_token,
+                        transfer_token_id=self.genesis_token,
+                    )
+                ]
+            ),
+        )
+
+        # Create a root block containing the block with the x-shard tx
+        root_block = (
+            state0.root_tip.create_block_to_append()
+            .add_minor_block_header(b0.header)
+            .add_minor_block_header(b1.header)
+            .finalize()
+        )
+        state0.add_root_block(root_block)
+
+        # Add b0 and make sure all x-shard tx's are added
+        b2 = state0.create_block_to_mine(address=acc3)
+        state0.finalize_and_add_block(b2)
+
+        self.assertEqual(
+            state0.get_token_balance(acc1.recipient, self.genesis_token),
+            10000000 + 888888,
+        )
+        # Half collected by root
+        self.assertEqual(
+            state0.get_token_balance(acc3.recipient, self.genesis_token),
+            self.get_after_tax_reward(self.shard_coinbase),
+        )
+
+        # X-shard gas used (to be fixed)
+        evmState0 = state0.evm_state
+        self.assertEqual(evmState0.xshard_receive_gas_used, 0)
+        self.assertEqual(b2.meta.evm_gas_used, 0)
+        self.assertEqual(b2.meta.evm_cross_shard_receive_gas_used, 0)
+
+        # # Apply the fix
+        b3 = MinorBlock.deserialize(b2.serialize())
+        state0.env.quark_chain_config.XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT = 0
+        state0.finalize_and_add_block(b3)
+        self.assertEqual(b3.meta.evm_gas_used, opcodes.GTXXSHARDCOST)
+        self.assertEqual(
+            b3.meta.evm_cross_shard_receive_gas_used, opcodes.GTXXSHARDCOST
+        )
 
     def test_xshard_tx_received_exclude_non_neighbor(self):
         id1 = Identity.create_random_identity()
