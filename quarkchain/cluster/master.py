@@ -918,7 +918,7 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def do_loop(self, callbacks: List[Callable[[], None]]):
+    def do_loop(self, callbacks: List[Callable]):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -1554,7 +1554,7 @@ def main():
         network = SimpleNetwork(env, master, loop)
     network.start()
 
-    callbacks = []
+    callbacks = [network.shutdown]
     if public_json_rpc_enabled:
         public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
