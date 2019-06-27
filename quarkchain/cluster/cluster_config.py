@@ -138,6 +138,8 @@ class ClusterConfig(BaseConfig):
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
     PRIVATE_JSON_RPC_HOST = "localhost"
+    ENABLE_PUBLIC_JSON_RPC = True
+    ENABLE_PRIVATE_JSON_RPC = False
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
@@ -258,6 +260,16 @@ class ClusterConfig(BaseConfig):
             "--json_rpc_private_host",
             default=ClusterConfig.PRIVATE_JSON_RPC_HOST,
             type=str,
+        )
+        parser.add_argument(
+            "--enable_public_json_rpc",
+            default=ClusterConfig.ENABLE_PUBLIC_JSON_RPC,
+            type=bool,
+        )
+        parser.add_argument(
+            "--enable_private_json_rpc",
+            default=ClusterConfig.ENABLE_PRIVATE_JSON_RPC,
+            type=bool,
         )
         parser.add_argument(
             "--enable_transaction_history",
