@@ -51,6 +51,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkResponse,
     AddMinorBlockHeaderListResponse,
     RootBlockSychronizerStats,
+    CheckMinorBlockRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -894,7 +895,7 @@ class MasterServer:
         rb = self.root_state.get_tip_block()
         Logger.info("Starting from root block height: {}".format(rb.header.height))
         while rb.header.height != 0:
-            if rb.header.height % 100 == 0:
+            if rb.header.height % 10 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
             prev_rb = self.root_state.db.get_root_block_by_hash(
                 rb.header.hash_prev_block
@@ -905,6 +906,40 @@ class MasterServer:
                         rb.header.height
                     )
                 )
+
+            if prev_rb.header.get_hash() != rb.header.hash_prev_block:
+                log_error_and_exit(
+                    "Root block height {} mismatches previous block hash".format(
+                        rb.header.height
+                    )
+                )
+
+            future_list = []
+            for mheader in rb.minor_block_header_list:
+                conn = self.get_slave_connection(mheader.branch)
+                request = CheckMinorBlockRequest(mheader)
+                future_list.append(
+                    conn.write_rpc_request(ClusterOp.CHECK_MINOR_BLOCK_REQUEST, request)
+                )
+
+            try:
+                self.root_state.add_block(rb, write_db=False, skip_if_too_old=False)
+            except Exception as e:
+                Logger.log_exception()
+                log_error_and_exit(
+                    "Failed to check root block height {}".format(rb.header.height)
+                )
+
+            response_list = await asyncio.gather(*future_list)
+            for idx, (_, resp, _) in enumerate(response_list):
+                if resp.error_code != 0:
+                    header = rb.minor_block_header_list[idx]
+                    log_error_and_exit(
+                        "Failed to check minor block branch {} height {}".format(
+                            header.branch.value, header.height
+                        )
+                    )
+
             rb = prev_rb
         Logger.info("Integrity check completed!")
         self.shutdown()
@@ -1581,11 +1616,15 @@ def main():
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.ensure_future(master.start_mining())
 
-    if env.cluster_config.use_p2p():
-        network = P2PManager(env, master, loop)
-    else:
-        network = SimpleNetwork(env, master, loop)
-    network.start()
+        if env.cluster_config.CHECK_DB:
+            asyncio.ensure_future(master.check_db())
+
+    if not env.cluster_config.CHECK_DB:
+        if env.cluster_config.use_p2p():
+            network = P2PManager(env, master, loop)
+        else:
+            network = SimpleNetwork(env, master, loop)
+        network.start()
 
     callbacks = [network.shutdown]
     if public_json_rpc_enabled:

@@ -443,6 +443,22 @@ class AddMinorBlockResponse(Serializable):
         self.error_code = error_code
 
 
+class CheckMinorBlockRequest(Serializable):
+    """For adding blocks mined through JRPC"""
+
+    FIELDS = [("minor_block_header", MinorBlockHeader)]
+
+    def __init__(self, minor_block_header):
+        self.minor_block_header = minor_block_header
+
+
+class CheckMinorBlockResponse(Serializable):
+    FIELDS = [("error_code", uint32)]
+
+    def __init__(self, error_code):
+        self.error_code = error_code
+
+
 class HeadersInfo(Serializable):
     FIELDS = [
         ("branch", Branch),
@@ -949,6 +965,8 @@ class ClusterOp:
     SUBMIT_WORK_RESPONSE = 58 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_HEADER_LIST_REQUEST = 59 + CLUSTER_OP_BASE
     ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE = 60 + CLUSTER_OP_BASE
+    CHECK_MINOR_BLOCK_REQUEST = 61 + CLUSTER_OP_BASE
+    CHECK_MINOR_BLOCK_RESPONSE = 62 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -1011,4 +1029,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.SUBMIT_WORK_RESPONSE: SubmitWorkResponse,
     ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_REQUEST: AddMinorBlockHeaderListRequest,
     ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE: AddMinorBlockHeaderListResponse,
+    ClusterOp.CHECK_MINOR_BLOCK_REQUEST: CheckMinorBlockRequest,
+    ClusterOp.CHECK_MINOR_BLOCK_RESPONSE: CheckMinorBlockResponse,
 }
