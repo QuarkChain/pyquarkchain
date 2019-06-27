@@ -52,7 +52,7 @@ class TransactionHistoryMixin:
         data = self.db.get(b"xr_" + minor_block_hash, None)
         if not data:
             return []
-        return CrossShardTransactionList.deserialize(data).tx_list
+        return CrossShardTransactionList.from_data(data).tx_list
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.tx.to_evm_tx()
@@ -454,7 +454,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         key = b"xShard_" + h
         if key not in self.db:
             return None
-        return CrossShardTransactionList.deserialize(self.db.get(key))
+        return CrossShardTransactionList.from_data(self.db.get(key))
 
     def contain_remote_minor_block_hash(self, h):
         key = b"xShard_" + h

@@ -1029,7 +1029,12 @@ class RootBlock(Serializable):
         )
 
 
-class CrossShardTransactionDeposit(Serializable):
+CROSS_SHARD_TRANSACTION_DEPOSIT_SIZE = (
+    Constant.HASH_LENGTH + Constant.ADDRESS_LENGTH * 2 + 32 * 2 + 8 * 2 + 1
+)
+
+
+class CrossShardTransactionDepositOld(Serializable):
     """ Destination of x-shard tx
     """
 
@@ -1065,11 +1070,102 @@ class CrossShardTransactionDeposit(Serializable):
         self.is_from_root_chain = is_from_root_chain
 
 
-class CrossShardTransactionList(Serializable):
-    FIELDS = [("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDeposit))]
+class CrossShardTransactionDeposit(Serializable):
+    """ Destination of x-shard tx
+    """
+
+    FIELDS = [
+        ("tx_hash", hash256),  # hash of quarkchain.core.Transaction
+        ("from_address", Address),
+        ("to_address", Address),
+        ("value", uint256),
+        ("gas_price", uint256),
+        ("gas_token_id", uint64),
+        ("transfer_token_id", uint64),
+        ("gas_remained", uint256),
+        ("message_data", PrependedSizeBytesSerializer(4)),
+        ("create_contract", boolean),
+        ("is_from_root_chain", boolean),
+    ]
+
+    def __init__(
+        self,
+        tx_hash,
+        from_address,
+        to_address,
+        value,
+        gas_price,
+        gas_token_id,
+        transfer_token_id,
+        gas_remained=0,
+        message_data=b"",
+        create_contract=False,
+        is_from_root_chain=False,
+    ):
+        self.tx_hash = tx_hash
+        self.from_address = from_address
+        self.to_address = to_address
+        self.value = value
+        self.gas_price = gas_price
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
+        self.gas_remained = gas_remained
+        self.message_data = message_data
+        self.create_contract = create_contract
+        self.is_from_root_chain = is_from_root_chain
+
+
+class CrossShardTransactionOldList(Serializable):
+    FIELDS = [
+        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDepositOld))
+    ]
 
     def __init__(self, tx_list):
         self.tx_list = tx_list
+
+
+class CrossShardTransactionList(Serializable):
+    FIELDS = [
+        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDeposit)),
+        ("version", uint32),
+    ]
+
+    def __init__(self, tx_list, version=0):
+        self.tx_list = tx_list
+        self.version = version
+
+    @staticmethod
+    def is_old_list(data):
+        bb = ByteBuffer(data)
+        size = bb.get_uint(4)
+        if size == 0:
+            return True
+        return (len(data) - 4) // size == CROSS_SHARD_TRANSACTION_DEPOSIT_SIZE
+
+    @staticmethod
+    def from_data(data):
+        if not CrossShardTransactionList.is_old_list(data):
+            return CrossShardTransactionList.deserialize(data)
+
+        old_list = CrossShardTransactionOldList.deserialize(data)
+        return CrossShardTransactionList(
+            [
+                CrossShardTransactionDeposit(
+                    tx_hash=tx.tx_hash,
+                    from_address=tx.from_address,
+                    to_address=tx.to_address,
+                    value=tx.value,
+                    gas_price=tx.gas_price,
+                    gas_token_id=tx.gas_token_id,
+                    transfer_token_id=tx.transfer_token_id,
+                    gas_remained=0,
+                    message_data=b"",
+                    create_contract=False,
+                    is_from_root_chain=tx.is_from_root_chain,
+                )
+                for tx in old_list.tx_list
+            ]
+        )
 
 
 class Log(Serializable):

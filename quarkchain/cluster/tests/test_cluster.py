@@ -600,6 +600,154 @@ class TestCluster(unittest.TestCase):
                 {genesis_token: 54321},
             )
 
+    def test_broadcast_cross_shard_transactions_with_extra_gas(self):
+        """ Test the cross shard transactions are broadcasted to the destination shards """
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=1)
+        acc4 = Address.create_random_account(full_shard_key=1)
+
+        with ClusterContext(1, acc1) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            genesis_token = (
+                clusters[0].get_shard_state(2 | 0).env.quark_chain_config.genesis_token
+            )
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc3,
+                value=54321,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST + 12345,
+                gas_price=1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx1))
+
+            b1 = clusters[0].get_shard_state(2 | 0).create_block_to_mine(address=acc2)
+            call_async(clusters[0].get_shard(2 | 0).add_block(b1))
+
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc1)
+                ).token_balances.balance_map,
+                {
+                    genesis_token: 1000000
+                    - 54321
+                    - (opcodes.GTXXSHARDCOST + opcodes.GTXCOST + 12345)
+                },
+            )
+
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc1.address_in_shard(1))
+                ).token_balances.balance_map,
+                {genesis_token: 1000000},
+            )
+
+            # b2 should include the withdraw of tx1
+            b2 = clusters[0].get_shard_state(2 | 1).create_block_to_mine(address=acc4)
+            call_async(clusters[0].get_shard(2 | 1).add_block(b2))
+
+            self.assert_balance(
+                master, [acc3, acc1.address_in_shard(1)], [54321, 1012345]
+            )
+
+    def test_broadcast_cross_shard_transactions_with_extra_gas_old(self):
+        """ Test the cross shard transactions are broadcasted to the destination shards """
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=1)
+        acc4 = Address.create_random_account(full_shard_key=1)
+
+        with ClusterContext(1, acc1) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            genesis_token = (
+                clusters[0].get_shard_state(2 | 0).env.quark_chain_config.genesis_token
+            )
+
+            # Disable EVM (including remote call)
+            clusters[0].get_shard(2 | 0).env.quark_chain_config.ENABLE_EVM_TIMESTAMP = (
+                2 ** 64
+            )
+            clusters[0].get_shard(2 | 1).env.quark_chain_config.ENABLE_EVM_TIMESTAMP = (
+                2 ** 64
+            )
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc3,
+                value=54321,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST + 12345,
+                gas_price=1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx1))
+
+            b1 = clusters[0].get_shard_state(2 | 0).create_block_to_mine(address=acc2)
+            call_async(clusters[0].get_shard(2 | 0).add_block(b1))
+
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc1)
+                ).token_balances.balance_map,
+                {
+                    genesis_token: 1000000
+                    - 54321
+                    - (opcodes.GTXXSHARDCOST + opcodes.GTXCOST)
+                },
+            )
+
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc1.address_in_shard(1))
+                ).token_balances.balance_map,
+                {genesis_token: 1000000},
+            )
+
+            # b2 should include the withdraw of tx1
+            b2 = clusters[0].get_shard_state(2 | 1).create_block_to_mine(address=acc4)
+            call_async(clusters[0].get_shard(2 | 1).add_block(b2))
+
+            self.assert_balance(
+                master, [acc3, acc1.address_in_shard(1)], [54321, 1000000]
+            )
+
     def test_broadcast_cross_shard_transactions_1x2(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
         id1 = Identity.create_random_identity()
