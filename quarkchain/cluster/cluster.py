@@ -31,8 +31,10 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         process.send_signal(sig)
 
 
-async def run_master(config_file):
+async def run_master(config_file, check_db):
     cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
+    if check_db:
+        cmd += " --check_db=true"
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
@@ -75,7 +77,7 @@ class Cluster:
         await self.shutdown()
 
     async def run_master(self):
-        master = await run_master(self.config.json_filepath)
+        master = await run_master(self.config.json_filepath, self.config.CHECK_DB)
         prefix = "{}MASTER".format(self.cluster_id)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))

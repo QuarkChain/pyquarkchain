@@ -885,6 +885,29 @@ class MasterServer:
             )
         )
 
+    async def check_db(self):
+        def log_error_and_exit(msg):
+            Logger.error(msg)
+            self.shutdown()
+            raise Exception("Integrity check failure!")
+
+        # Start with root db
+        rb = self.root_state.get_tip_block()
+        Logger.info("Starting from root block height: {}".format(rb.header.height))
+        while rb.header.height != 0:
+            if rb.header.height % 100 == 0:
+                Logger.info("Checking root block height: {}".format(rb.header.height))
+            nrb = self.root_state.db.get_root_block_by_hash(rb.header.hash_prev_block)
+            if nrb.header.height != rb.header.height - 1:
+                log_error_and_exit(
+                    "Root block height {} mismatches previous block".format(
+                        rb.header.height
+                    )
+                )
+            rb = nrb
+        Logger.info("Integrity check completed!")
+        self.shutdown()
+
     async def stop_mining(self):
         await self.__send_mining_config_to_slaves(False)
         self.root_miner.disable()
@@ -1533,7 +1556,9 @@ def main():
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
     start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
-    jsonrpc_enabled = not env.cluster_config.P2P.DISCOVERY_ONLY
+    jsonrpc_enabled = (
+        not env.cluster_config.P2P.DISCOVERY_ONLY and not env.cluster_config.CHECK_DB
+    )
 
     master = MasterServer(env, root_state)
 
@@ -1546,11 +1571,15 @@ def main():
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.ensure_future(master.start_mining())
 
-    if env.cluster_config.use_p2p():
-        network = P2PManager(env, master, loop)
-    else:
-        network = SimpleNetwork(env, master, loop)
-    network.start()
+        if env.cluster_config.CHECK_DB:
+            asyncio.ensure_future(master.check_db())
+
+    if not env.cluster_config.CHECK_DB:
+        if env.cluster_config.use_p2p():
+            network = P2PManager(env, master, loop)
+        else:
+            network = SimpleNetwork(env, master, loop)
+        network.start()
 
     done_callback = None
     if jsonrpc_enabled:

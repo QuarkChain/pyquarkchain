@@ -155,6 +155,8 @@ class ClusterConfig(BaseConfig):
 
     MONITORING = None
 
+    CHECK_DB = False
+
     def __init__(self):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
@@ -307,6 +309,12 @@ class ClusterConfig(BaseConfig):
             type=str,
             help="if empty, will be automatically generated; but note that it will be lost upon node reboot",
         )
+        parser.add_argument(
+            "--check_db",
+            default=False,
+            type=bool,
+            help="if true, will perform integrity check on db only",
+        )
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
@@ -387,6 +395,7 @@ class ClusterConfig(BaseConfig):
                 config.json_filepath = args.cluster_config
         else:
             config = __create_from_args_internal()
+        config.CHECK_DB = args.check_db
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
         update_genesis_alloc(config)
