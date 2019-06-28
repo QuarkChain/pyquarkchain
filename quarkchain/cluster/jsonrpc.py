@@ -44,7 +44,7 @@ JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
 config.log_requests = False
 config.log_responses = False
 
-EMPTY_TX_ID = "0x" + bytes(Constant.TX_HASH_HEX_LENGTH).hex()
+EMPTY_TX_ID = "0x" + "0" * Constant.TX_ID_HEX_LENGTH
 
 
 def optional_quantity_decoder(optional_hex_str):
