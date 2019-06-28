@@ -7,12 +7,10 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple
 
-from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
-    GetRootBlockHeaderListRequest,
     GetRootBlockListRequest,
     GetRootBlockHeaderListWithSkipRequest,
 )
@@ -65,7 +63,6 @@ from quarkchain.cluster.rpc import (
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig
-from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
     ChainMask,
@@ -77,9 +74,11 @@ from quarkchain.core import (
     MinorBlock,
 )
 from quarkchain.db import PersistentDb
+from quarkchain.env import DEFAULT_ENV
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.utils import Logger, check
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
@@ -1063,7 +1062,9 @@ class MasterServer:
 
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
-        evm_tx = tx.tx.to_evm_tx()
+        evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
+        if evm_tx.gasprice < self.env.quark_chain_config.TX_POOL_PRICE_THRESHOLD:
+            return False
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:

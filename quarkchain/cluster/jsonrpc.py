@@ -684,7 +684,7 @@ class JSONRPCServer:
         tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
-            return None
+            return "0x" + bytes(32 + 4).hex()
 
         return id_encoder(tx.get_hash(), from_full_shard_key)
 

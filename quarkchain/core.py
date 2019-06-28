@@ -5,7 +5,6 @@
 # implementation
 
 import argparse
-import copy
 import random
 import typing
 from typing import List, Dict
