@@ -5,7 +5,7 @@ import os
 import psutil
 import time
 from collections import deque
-from typing import Optional, List, Union, Dict, Tuple
+from typing import Optional, List, Union, Dict, Tuple, Callable
 
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -917,14 +917,15 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def do_loop(self, callback):
+    def do_loop(self, callbacks: List[Callable]):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
             pass
         finally:
-            if callable(callback):
-                callback()
+            for callback in callbacks:
+                if callable(callback):
+                    callback()
 
     def wait_until_cluster_active(self):
         # Wait until cluster is ready
@@ -1534,7 +1535,8 @@ def main():
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
     start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
-    jsonrpc_enabled = not env.cluster_config.P2P.DISCOVERY_ONLY
+    public_json_rpc_enabled = not env.cluster_config.ENABLE_PUBLIC_JSON_RPC
+    private_json_rpc_enabled = not env.cluster_config.ENABLE_PRIVATE_JSON_RPC
 
     master = MasterServer(env, root_state)
 
@@ -1553,16 +1555,16 @@ def main():
         network = SimpleNetwork(env, master, loop)
     network.start()
 
-    done_callback = None
-    if jsonrpc_enabled:
+    callbacks = [network.shutdown]
+    if public_json_rpc_enabled:
         public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
-        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
-        done_callback = lambda: (
-            public_json_rpc_server.shutdown(),
-            private_json_rpc_server.shutdown(),
-        )
+        callbacks.append(public_json_rpc_server.shutdown)
 
-    master.do_loop(done_callback)
+    if private_json_rpc_enabled:
+        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+        callbacks.append(private_json_rpc_server.shutdown)
+
+    master.do_loop(callbacks)
 
     Logger.info("Master server is shutdown")
 
