@@ -319,6 +319,12 @@ class ClusterConfig(BaseConfig):
             type=str,
             help="if empty, will be automatically generated; but note that it will be lost upon node reboot",
         )
+        parser.add_argument(
+            "--check_db",
+            default=False,
+            type=bool,
+            help="if true, will perform integrity check on db only",
+        )
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
