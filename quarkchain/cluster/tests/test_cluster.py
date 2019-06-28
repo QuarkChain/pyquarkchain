@@ -197,11 +197,22 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1)
 
-        with ClusterContext(2, acc1) as clusters:
+        with ClusterContext(2, acc1, should_set_gas_price_limit=True) as clusters:
             master = clusters[0].master
 
             root = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
             call_async(master.add_root_block(root))
+
+            # tx with gas price price lower than required (10 wei) should be rejected
+            tx0 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b10),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=0,
+                gas_price=9,
+            )
+            self.assertFalse(call_async(master.add_transaction(tx0)))
 
             tx1 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(0b10),
@@ -209,6 +220,7 @@ class TestCluster(unittest.TestCase):
                 from_address=acc1,
                 to_address=acc1,
                 value=12345,
+                gas_price=10,
             )
             self.assertTrue(call_async(master.add_transaction(tx1)))
             self.assertEqual(len(clusters[0].get_shard_state(0b10).tx_queue), 1)
@@ -220,6 +232,7 @@ class TestCluster(unittest.TestCase):
                 to_address=acc1,
                 value=12345,
                 gas=30000,
+                gas_price=10,
             )
             self.assertTrue(call_async(master.add_transaction(tx2)))
             self.assertEqual(len(clusters[0].get_shard_state(0b11).tx_queue), 1)
