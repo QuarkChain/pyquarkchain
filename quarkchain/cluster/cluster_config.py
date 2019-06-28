@@ -139,7 +139,7 @@ class ClusterConfig(BaseConfig):
     JSON_RPC_HOST = "localhost"
     PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
-    ENABLE_PRIVATE_JSON_RPC = False
+    ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
