@@ -7,7 +7,7 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple
 
-from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
+from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
@@ -1063,7 +1063,7 @@ class MasterServer:
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
         evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
-        if evm_tx.gasprice < self.env.quark_chain_config.TX_POOL_PRICE_THRESHOLD:
+        if evm_tx.gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
             return False
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)

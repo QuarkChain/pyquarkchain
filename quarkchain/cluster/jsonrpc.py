@@ -23,6 +23,7 @@ from quarkchain.core import (
     TokenBalanceMap,
     TransactionReceipt,
     TypedTransaction,
+    Constant,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
@@ -42,6 +43,8 @@ JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
 # Disable jsonrpcserver logging
 config.log_requests = False
 config.log_responses = False
+
+EMPTY_TX_ID = "0x" + bytes(Constant.TX_HASH_HEX_LENGTH).hex()
 
 
 def optional_quantity_decoder(optional_hex_str):
@@ -684,8 +687,7 @@ class JSONRPCServer:
         tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
-            return "0x" + bytes(32 + 4).hex()
-
+            return EMPTY_TX_ID
         return id_encoder(tx.get_hash(), from_full_shard_key)
 
     @public_methods.add
@@ -695,7 +697,7 @@ class JSONRPCServer:
         tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         success = await self.master.add_transaction(tx)
         if not success:
-            return "0x" + bytes(32 + 4).hex()
+            return EMPTY_TX_ID
         return id_encoder(tx.get_hash(), evm_tx.from_full_shard_key)
 
     @public_methods.add

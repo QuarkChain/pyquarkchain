@@ -1140,7 +1140,7 @@ class ShardState:
                 break
 
             # simply ignore tx with lower gas price than specified
-            if evm_tx.gasprice < self.env.quark_chain_config.MINE_TX_PRICE_THRESHOLD:
+            if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINE_GAS_PRICE:
                 continue
 
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)

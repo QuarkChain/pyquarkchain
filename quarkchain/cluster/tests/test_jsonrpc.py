@@ -7,7 +7,7 @@ import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.cluster.jsonrpc import JSONRPCServer, quantity_encoder
+from quarkchain.cluster.jsonrpc import EMPTY_TX_ID, JSONRPCServer, quantity_encoder
 from quarkchain.cluster.miner import DoubleSHA256, MiningWork
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -190,7 +190,7 @@ class TestJSONRPC(unittest.TestCase):
                 fromFullShardKey="0x00000000",
                 toFullShardKey="0x00000001",
             )
-            self.assertIsNone(send_request("sendTransaction", [request]))
+            self.assertEqual(send_request("sendTransaction", [request]), EMPTY_TX_ID)
             self.assertEqual(len(clusters[0].get_shard_state(2 | 0).tx_queue), 0)
 
     def test_sendTransaction_missing_from_full_shard_key(self):
