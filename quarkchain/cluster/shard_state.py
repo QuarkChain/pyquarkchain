@@ -1536,7 +1536,14 @@ class ShardState:
             for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
                 tx = orderable_tx.tx
                 # TODO: could also show incoming pending tx
-                if Address(tx.sender, tx.from_full_shard_key) == address and (
+                if not tx.sender == address.recipient:
+                    continue
+                same_shard = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    tx.from_full_shard_key
+                ) == self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                if same_shard and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
                 ):
