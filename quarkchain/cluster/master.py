@@ -1558,17 +1558,19 @@ def main():
     env = parse_args()
     loop = asyncio.get_event_loop()
     root_state = RootState(env)
+    master = MasterServer(env, root_state)
+
+    if env.arguments.check_db:
+        master.start()
+        master.wait_until_cluster_active()
+        asyncio.ensure_future(master.check_db())
+        master.do_loop([])
+        return
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
     start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
-    public_json_rpc_enabled = (
-        not env.cluster_config.ENABLE_PUBLIC_JSON_RPC and not env.arguments.check_db
-    )
-    private_json_rpc_enabled = (
-        not env.cluster_config.ENABLE_PRIVATE_JSON_RPC and not env.arguments.check_db
-    )
-
-    master = MasterServer(env, root_state)
+    public_json_rpc_enabled = not env.cluster_config.ENABLE_PUBLIC_JSON_RPC
+    private_json_rpc_enabled = not env.cluster_config.ENABLE_PRIVATE_JSON_RPC
 
     # only start the cluster if not in discovery-only mode
     if start_master:
@@ -1579,21 +1581,13 @@ def main():
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.ensure_future(master.start_mining())
 
-        if env.arguments.check_db:
-            asyncio.ensure_future(master.check_db())
+    if env.cluster_config.use_p2p():
+        network = P2PManager(env, master, loop)
+    else:
+        network = SimpleNetwork(env, master, loop)
+    network.start()
 
-    network = None
-    if not env.arguments.check_db:
-        if env.cluster_config.use_p2p():
-            network = P2PManager(env, master, loop)
-        else:
-            network = SimpleNetwork(env, master, loop)
-        network.start()
-
-    callbacks = []
-    if network is not None:
-        callbacks.append(network.shutdown)
-
+    callbacks = [network.shutdown]
     if public_json_rpc_enabled:
         public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
