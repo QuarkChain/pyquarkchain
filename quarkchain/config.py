@@ -302,6 +302,7 @@ class QuarkChainConfig(BaseConfig):
 
     MIN_TX_POOL_GAS_PRICE = 10 ** 9  # lowest gas price to accept, default 1 Gwei
     MIN_MINING_GAS_PRICE = 10 ** 9  # lowest gas price to pack tx for mining, 1 Gwei
+    XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT = 90000
 
     def __init__(self):
         self.loadtest_accounts = (
