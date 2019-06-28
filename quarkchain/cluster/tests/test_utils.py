@@ -47,6 +47,8 @@ def get_test_env(
     env.quark_chain_config.update(
         chain_size, shard_size, 10, 1, env.quark_chain_config.GENESIS_TOKEN
     )
+    env.quark_chain_config.MIN_TX_POOL_GAS_PRICE = 0
+    env.quark_chain_config.MIN_MINING_GAS_PRICE = 0
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
@@ -277,7 +279,8 @@ def create_test_clusters(
     remote_mining=False,
     small_coinbase=False,
     loadtest_accounts=None,
-    connect=True,               # connect the bootstrap node by default
+    connect=True,  # connect the bootstrap node by default
+    should_set_gas_price_limit=False,
 ):
     # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
@@ -303,6 +306,9 @@ def create_test_clusters(
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
         env.quark_chain_config.loadtest_accounts = loadtest_accounts or []
+        if should_set_gas_price_limit:
+            env.quark_chain_config.MIN_TX_POOL_GAS_PRICE = 10
+            env.quark_chain_config.MIN_MINING_GAS_PRICE = 10
 
         if small_coinbase:
             # prevent breaking previous tests after tweaking default rewards
@@ -395,6 +401,7 @@ class ClusterContext(ContextDecorator):
         small_coinbase=False,
         loadtest_accounts=None,
         connect=True,
+        should_set_gas_price_limit=False,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -406,6 +413,7 @@ class ClusterContext(ContextDecorator):
         self.small_coinbase = small_coinbase
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
+        self.should_set_gas_price_limit = should_set_gas_price_limit
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -422,6 +430,7 @@ class ClusterContext(ContextDecorator):
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
+            should_set_gas_price_limit=self.should_set_gas_price_limit,
         )
         return self.cluster_list
 

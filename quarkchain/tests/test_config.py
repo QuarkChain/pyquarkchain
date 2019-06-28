@@ -29,7 +29,8 @@ class TestQuarkChainConfig(unittest.TestCase):
             chain_config.CONSENSUS_CONFIG = POWConfig()
             config.CHAINS.append(chain_config)
 
-        expected_json = """{
+        expected_json = """
+{
     "CHAIN_SIZE": 3,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 3,
@@ -181,8 +182,12 @@ class TestQuarkChainConfig(unittest.TestCase):
     "BLOCK_REWARD_DECAY_FACTOR": 0.5,
     "ENABLE_TX_TIMESTAMP": null,
     "TX_WHITELIST_SENDERS": [],
-    "ENABLE_EVM_TIMESTAMP": null
-}"""
+    "ENABLE_EVM_TIMESTAMP": null,
+    "MIN_TX_POOL_GAS_PRICE": 1000000000,
+    "MIN_MINING_GAS_PRICE": 1000000000
+}
+    """
+        expected_json = expected_json.strip()
         print(config.to_json())
         self.assertEqual(config.to_json(), expected_json)
         deserialized_config = QuarkChainConfig.from_json(expected_json)

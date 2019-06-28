@@ -2616,3 +2616,51 @@ class TestShardState(unittest.TestCase):
                 )
             },
         )
+
+    def test_skip_under_priced_tx_to_block(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+
+        # Price threshold for packing into blocks is 10
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env.quark_chain_config.MIN_MINING_GAS_PRICE = 10
+
+        state = create_default_shard_state(env=env)
+
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+
+        # Under-priced
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=50000,
+            data=b"1234",
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine()
+        self.assertEqual(len(b1.tx_list), 0)
+        self.assertEqual(len(state.tx_queue), 0)
+
+        # Qualified
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=12345,
+            gas=50000,
+            data=b"1234",
+            gas_price=11,
+        )
+        self.assertTrue(state.add_tx(tx))
+
+        b1 = state.create_block_to_mine()
+        self.assertEqual(len(b1.tx_list), 1)
+        self.assertEqual(len(state.tx_queue), 1)

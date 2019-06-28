@@ -5,14 +5,12 @@ import os
 import psutil
 import time
 from collections import deque
-from typing import Optional, List, Union, Dict, Tuple
+from typing import Optional, List, Union, Dict, Tuple, Callable
 
-from quarkchain.cluster.guardian import Guardian
-from quarkchain.cluster.miner import Miner, MiningWork, validate_seal
+from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     Direction,
-    GetRootBlockHeaderListRequest,
     GetRootBlockListRequest,
     GetRootBlockHeaderListWithSkipRequest,
 )
@@ -65,7 +63,6 @@ from quarkchain.cluster.rpc import (
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig
-from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import (
     Branch,
     ChainMask,
@@ -77,9 +74,11 @@ from quarkchain.core import (
     MinorBlock,
 )
 from quarkchain.db import PersistentDb
+from quarkchain.env import DEFAULT_ENV
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.utils import Logger, check
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
@@ -897,14 +896,16 @@ class MasterServer:
         while rb.header.height != 0:
             if rb.header.height % 100 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
-            nrb = self.root_state.db.get_root_block_by_hash(rb.header.hash_prev_block)
-            if nrb.header.height != rb.header.height - 1:
+            prev_rb = self.root_state.db.get_root_block_by_hash(
+                rb.header.hash_prev_block
+            )
+            if prev_rb.header.height != rb.header.height - 1:
                 log_error_and_exit(
                     "Root block height {} mismatches previous block".format(
                         rb.header.height
                     )
                 )
-            rb = nrb
+            rb = prev_rb
         Logger.info("Integrity check completed!")
         self.shutdown()
 
@@ -941,14 +942,15 @@ class MasterServer:
     def start(self):
         self.loop.create_task(self.__init_cluster())
 
-    def do_loop(self, callback):
+    def do_loop(self, callbacks: List[Callable]):
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
             pass
         finally:
-            if callable(callback):
-                callback()
+            for callback in callbacks:
+                if callable(callback):
+                    callback()
 
     def wait_until_cluster_active(self):
         # Wait until cluster is ready
@@ -1086,7 +1088,9 @@ class MasterServer:
 
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
-        evm_tx = tx.tx.to_evm_tx()
+        evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
+        if evm_tx.gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
+            return False
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
@@ -1534,6 +1538,7 @@ def parse_args():
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
+    env.arguments = args
 
     # initialize database
     if not env.cluster_config.use_mem_db():
@@ -1556,8 +1561,11 @@ def main():
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
     start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
-    jsonrpc_enabled = (
-        not env.cluster_config.P2P.DISCOVERY_ONLY and not env.cluster_config.CHECK_DB
+    public_json_rpc_enabled = (
+        not env.cluster_config.ENABLE_PUBLIC_JSON_RPC and not env.arguments.check_db
+    )
+    private_json_rpc_enabled = (
+        not env.cluster_config.ENABLE_PRIVATE_JSON_RPC and not env.arguments.check_db
     )
 
     master = MasterServer(env, root_state)
@@ -1571,26 +1579,30 @@ def main():
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.ensure_future(master.start_mining())
 
-        if env.cluster_config.CHECK_DB:
+        if env.arguments.check_db:
             asyncio.ensure_future(master.check_db())
 
-    if not env.cluster_config.CHECK_DB:
+    network = None
+    if not env.arguments.check_db:
         if env.cluster_config.use_p2p():
             network = P2PManager(env, master, loop)
         else:
             network = SimpleNetwork(env, master, loop)
         network.start()
 
-    done_callback = None
-    if jsonrpc_enabled:
-        public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
-        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
-        done_callback = lambda: (
-            public_json_rpc_server.shutdown(),
-            private_json_rpc_server.shutdown(),
-        )
+    callbacks = []
+    if network is not None:
+        callbacks.append(network.shutdown)
 
-    master.do_loop(done_callback)
+    if public_json_rpc_enabled:
+        public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
+        callbacks.append(public_json_rpc_server.shutdown)
+
+    if private_json_rpc_enabled:
+        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+        callbacks.append(private_json_rpc_server.shutdown)
+
+    master.do_loop(callbacks)
 
     Logger.info("Master server is shutdown")
 

@@ -66,6 +66,7 @@ class Cluster:
         self.procs = []
         self.shutdown_called = False
         self.cluster_id = cluster_id
+        self.check_db_only = False
 
     async def wait_and_shutdown(self, prefix, proc):
         """ If one process terminates shutdown the entire cluster """
@@ -77,7 +78,7 @@ class Cluster:
         await self.shutdown()
 
     async def run_master(self):
-        master = await run_master(self.config.json_filepath, self.config.CHECK_DB)
+        master = await run_master(self.config.json_filepath, self.check_db_only)
         prefix = "{}MASTER".format(self.cluster_id)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
@@ -112,6 +113,10 @@ class Cluster:
             except Exception:
                 pass
 
+    def check_db(self):
+        self.check_db_only = True
+        self.start_and_loop()
+
 
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -125,7 +130,10 @@ def main():
 
     cluster = Cluster(config)
 
-    cluster.start_and_loop()
+    if args.check_db:
+        cluster.check_db()
+    else:
+        cluster.start_and_loop()
 
 
 if __name__ == "__main__":

@@ -5,7 +5,6 @@
 # implementation
 
 import argparse
-import copy
 import random
 import typing
 from typing import List, Dict
@@ -38,7 +37,7 @@ class Constant:
     ADDRESS_HEX_LENGTH = ADDRESS_LENGTH * 2
     SIGNATURE_LENGTH = 65
     SIGNATURE_HEX_LENGTH = SIGNATURE_LENGTH * 2
-    TX_HASH_HEX_LENGTH = 64
+    TX_ID_HEX_LENGTH = 72
     HASH_LENGTH = 32
 
 
