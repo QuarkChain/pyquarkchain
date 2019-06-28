@@ -948,8 +948,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used (to be fixed)
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, 0)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
         self.assertEqual(b2.meta.evm_gas_used, 0)
         self.assertEqual(b2.meta.evm_cross_shard_receive_gas_used, 0)
 
