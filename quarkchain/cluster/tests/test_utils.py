@@ -48,7 +48,7 @@ def get_test_env(
         chain_size, shard_size, 10, 1, env.quark_chain_config.GENESIS_TOKEN
     )
     env.quark_chain_config.MIN_TX_POOL_GAS_PRICE = 0
-    env.quark_chain_config.MIN_MINE_GAS_PRICE = 0
+    env.quark_chain_config.MIN_MINING_GAS_PRICE = 0
 
     if remote_mining:
         env.quark_chain_config.ROOT.CONSENSUS_CONFIG.REMOTE_MINE = True
@@ -308,7 +308,7 @@ def create_test_clusters(
         env.quark_chain_config.loadtest_accounts = loadtest_accounts or []
         if should_set_gas_price_limit:
             env.quark_chain_config.MIN_TX_POOL_GAS_PRICE = 10
-            env.quark_chain_config.MIN_MINE_GAS_PRICE = 10
+            env.quark_chain_config.MIN_MINING_GAS_PRICE = 10
 
         if small_coinbase:
             # prevent breaking previous tests after tweaking default rewards

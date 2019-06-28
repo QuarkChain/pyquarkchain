@@ -2624,7 +2624,7 @@ class TestShardState(unittest.TestCase):
 
         # Price threshold for packing into blocks is 10
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
-        env.quark_chain_config.MIN_MINE_GAS_PRICE = 10
+        env.quark_chain_config.MIN_MINING_GAS_PRICE = 10
 
         state = create_default_shard_state(env=env)
 
