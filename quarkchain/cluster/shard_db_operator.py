@@ -50,8 +50,10 @@ class TransactionHistoryMixin:
         func(key, b"")
         # "to" can be empty for smart contract deployment
         if evm_tx.to and self.branch.is_in_branch(evm_tx.to_full_shard_key):
-
-            addr = Address(evm_tx.to, evm_tx.to_full_shard_key)
+            evm_tx_to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                evm_tx.to_full_shard_key
+            )
+            addr = Address(evm_tx.to, evm_tx_to_full_shard_id)
             key = self.__encode_address_transaction_key(
                 addr, block_height, index, False
             )
@@ -137,11 +139,22 @@ class TransactionHistoryMixin:
                 ]  # type: CrossShardTransactionDeposit
                 if should_skip(tx):
                     limit -= 1
+                    evm_tx = tx.tx.to_evm_tx()
+                    from_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                        tx.from_address.full_shard_key
+                    )
+                    to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                        tx.to_address.full_shard_key
+                    )
+                    from_address = Address(
+                        tx.from_address.recipient, from_full_shard_id
+                    )
+                    to_address = Address(tx.to_address.recipient, to_full_shard_id)
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
-                            tx.from_address,
-                            tx.to_address,
+                            from_address,
+                            to_address,
                             tx.value,
                             height,
                             m_block.header.create_time,
@@ -155,13 +168,19 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
+                evm_tx_from_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    evm_tx.from_full_shard_key
+                )
+                evm_tx_to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    evm_tx.to_full_shard_key
+                )
                 if should_skip(evm_tx):
                     limit -= 1
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
-                            Address(evm_tx.sender, evm_tx.from_full_shard_key),
-                            Address(evm_tx.to, evm_tx.to_full_shard_key)
+                            Address(evm_tx.sender, evm_tx_from_full_shard_id),
+                            Address(evm_tx.to, evm_tx_to_full_shard_id)
                             if evm_tx.to
                             else None,
                             evm_tx.value,
