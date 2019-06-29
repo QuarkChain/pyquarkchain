@@ -553,7 +553,7 @@ class RootState:
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
 
-        if not skip_if_too_old and (
+        if skip_if_too_old and (
             self.tip.height - block.header.height
             > self.root_config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
         ):
