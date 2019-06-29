@@ -1451,15 +1451,22 @@ class ShardState:
         )
         return is_neighbor(self.branch, remote_branch, shard_size)
 
-    def __run_one_xshard_tx(self, evm_state, xshard_deposit_tx):
+    def __run_one_xshard_tx(
+        self, evm_state, xshard_deposit_tx, check_is_from_root_chain
+    ):
         tx = xshard_deposit_tx
         # TODO: check if target address is a smart contract address or user address
         evm_state.delta_token_balance(
             tx.to_address.recipient, tx.transfer_token_id, tx.value
         )
-        evm_state.gas_used = evm_state.gas_used + (
-            opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
-        )
+        if check_is_from_root_chain:
+            evm_state.gas_used = evm_state.gas_used + (
+                opcodes.GTXXSHARDCOST if not tx.is_from_root_chain else 0
+            )
+        else:
+            evm_state.gas_used = evm_state.gas_used + (
+                opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
+            )
         check(evm_state.gas_used <= evm_state.gas_limit)
 
         xshard_fee = (
@@ -1488,7 +1495,12 @@ class ShardState:
 
             tx_list.append(xshard_deposit_tx)
 
-            self.__run_one_xshard_tx(evm_state, xshard_deposit_tx)
+            self.__run_one_xshard_tx(
+                evm_state,
+                xshard_deposit_tx,
+                cursor.rblock.header.height
+                >= self.env.quark_chain_config.XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT,
+            )
 
             # Impose soft-limit of xshard gas limit
             if evm_state.gas_used >= mblock.meta.evm_xshard_gas_limit:

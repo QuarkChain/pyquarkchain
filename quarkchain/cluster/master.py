@@ -1604,8 +1604,6 @@ def main():
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
     start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
-    public_json_rpc_enabled = not env.cluster_config.ENABLE_PUBLIC_JSON_RPC
-    private_json_rpc_enabled = not env.cluster_config.ENABLE_PRIVATE_JSON_RPC
 
     # only start the cluster if not in discovery-only mode
     if start_master:
@@ -1627,11 +1625,11 @@ def main():
         network.start()
 
     callbacks = [network.shutdown]
-    if public_json_rpc_enabled:
+    if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
         public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
 
-    if private_json_rpc_enabled:
+    if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
         private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
 
