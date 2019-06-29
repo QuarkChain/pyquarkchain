@@ -1614,15 +1614,11 @@ def main():
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.ensure_future(master.start_mining())
 
-        if env.cluster_config.CHECK_DB:
-            asyncio.ensure_future(master.check_db())
-
-    if not env.cluster_config.CHECK_DB:
-        if env.cluster_config.use_p2p():
-            network = P2PManager(env, master, loop)
-        else:
-            network = SimpleNetwork(env, master, loop)
-        network.start()
+    if env.cluster_config.use_p2p():
+        network = P2PManager(env, master, loop)
+    else:
+        network = SimpleNetwork(env, master, loop)
+    network.start()
 
     callbacks = [network.shutdown]
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
