@@ -826,6 +826,7 @@ class ShardState:
         gas_limit=None,
         xshard_gas_limit=None,
         force=False,
+        write_db=True,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
@@ -916,7 +917,11 @@ class ShardState:
         if evm_state.bloom != block.header.bloom:
             raise ValueError("bloom mismatch")
 
-        self.db.put_minor_block(block, x_shard_receive_tx_list)
+        if write_db:
+            self.db.put_minor_block(block, x_shard_receive_tx_list)
+        else:
+            # Return immediately if it is not put into db
+            return evm_state.xshard_list, coinbase_amount_map
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
@@ -1446,15 +1451,22 @@ class ShardState:
         )
         return is_neighbor(self.branch, remote_branch, shard_size)
 
-    def __run_one_xshard_tx(self, evm_state, xshard_deposit_tx):
+    def __run_one_xshard_tx(
+        self, evm_state, xshard_deposit_tx, check_is_from_root_chain
+    ):
         tx = xshard_deposit_tx
         # TODO: check if target address is a smart contract address or user address
         evm_state.delta_token_balance(
             tx.to_address.recipient, tx.transfer_token_id, tx.value
         )
-        evm_state.gas_used = evm_state.gas_used + (
-            opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
-        )
+        if check_is_from_root_chain:
+            evm_state.gas_used = evm_state.gas_used + (
+                opcodes.GTXXSHARDCOST if not tx.is_from_root_chain else 0
+            )
+        else:
+            evm_state.gas_used = evm_state.gas_used + (
+                opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
+            )
         check(evm_state.gas_used <= evm_state.gas_limit)
 
         xshard_fee = (
@@ -1483,7 +1495,12 @@ class ShardState:
 
             tx_list.append(xshard_deposit_tx)
 
-            self.__run_one_xshard_tx(evm_state, xshard_deposit_tx)
+            self.__run_one_xshard_tx(
+                evm_state,
+                xshard_deposit_tx,
+                cursor.rblock.header.height
+                >= self.env.quark_chain_config.XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT,
+            )
 
             # Impose soft-limit of xshard gas limit
             if evm_state.gas_used >= mblock.meta.evm_xshard_gas_limit:

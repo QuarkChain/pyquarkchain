@@ -740,6 +740,14 @@ class Shard:
         del self.add_block_futures[block_hash]
         return True
 
+    def check_minor_block_by_header(self, header):
+        """ Raise exception of the block is invalid
+        """
+        block = self.state.get_block_by_hash(header.get_hash())
+        if block is None:
+            raise RuntimeError("block {} cannot be found".format(header.get_hash()))
+        self.state.add_block(block, force=True, write_db=False, skip_if_too_old=False)
+
     async def add_block_list_for_sync(self, block_list):
         """ Add blocks in batch to reduce RPCs. Will NOT broadcast to peers.
 

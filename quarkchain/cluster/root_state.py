@@ -545,7 +545,7 @@ class RootState:
             self.db.put_root_block_index(block)
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
-    def add_block(self, block):
+    def add_block(self, block, write_db=True, skip_if_too_old=True):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
@@ -553,7 +553,7 @@ class RootState:
         - the header (or hashes) are un-ordered as long as they contains valid sub-chains from previous root block
         """
 
-        if (
+        if skip_if_too_old and (
             self.tip.height - block.header.height
             > self.root_config.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
         ):
@@ -569,7 +569,8 @@ class RootState:
         start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(block)
 
-        self.db.put_root_block(block, last_minor_block_header_list)
+        if write_db:
+            self.db.put_root_block(block, last_minor_block_header_list)
 
         tracking_data_str = block.tracking_data.decode("utf-8")
         if tracking_data_str != "":

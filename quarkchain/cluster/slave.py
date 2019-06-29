@@ -32,6 +32,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkRequest,
     SubmitWorkResponse,
     AddMinorBlockHeaderListRequest,
+    CheckMinorBlockResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -258,6 +259,18 @@ class MasterConnection(ClusterConnection):
 
         success = await shard.add_block(block)
         return AddMinorBlockResponse(error_code=0 if success else errno.EFAULT)
+
+    async def handle_check_minor_block_request(self, req):
+        shard = self.shards.get(req.minor_block_header.branch, None)
+        if not shard:
+            return CheckMinorBlockResponse(error_code=errno.EBADMSG)
+
+        try:
+            shard.check_minor_block_by_header(req.minor_block_header)
+        except Exception as e:
+            return CheckMinorBlockResponse(error_code=errno.EBADMSG)
+
+        return CheckMinorBlockResponse(error_code=0)
 
     async def handle_get_unconfirmed_header_list_request(self, _req):
         headers_info_list = []
@@ -621,6 +634,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.SUBMIT_WORK_REQUEST: (
         ClusterOp.SUBMIT_WORK_RESPONSE,
         MasterConnection.handle_submit_work,
+    ),
+    ClusterOp.CHECK_MINOR_BLOCK_REQUEST: (
+        ClusterOp.CHECK_MINOR_BLOCK_RESPONSE,
+        MasterConnection.handle_check_minor_block_request,
     ),
 }
 
