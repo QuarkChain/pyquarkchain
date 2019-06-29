@@ -826,6 +826,7 @@ class ShardState:
         gas_limit=None,
         xshard_gas_limit=None,
         force=False,
+        write_db=True,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
@@ -916,7 +917,11 @@ class ShardState:
         if evm_state.bloom != block.header.bloom:
             raise ValueError("bloom mismatch")
 
-        self.db.put_minor_block(block, x_shard_receive_tx_list)
+        if write_db:
+            self.db.put_minor_block(block, x_shard_receive_tx_list)
+        else:
+            # Return immediately if it is not put into db
+            return evm_state.xshard_list, coinbase_amount_map
 
         # Update tip if a block is appended or a fork is longer (with the same ancestor confirmed by root block tip)
         # or they are equal length but the root height confirmed by the block is longer
