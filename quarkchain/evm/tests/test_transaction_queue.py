@@ -18,6 +18,10 @@ def make_test_tx(s=100000, g=50, data=b"", nonce=0):
 
 
 class TestTransactionQueue(unittest.TestCase):
+    @staticmethod
+    def _gasprices(q: TransactionQueue):
+        return [i.tx.gasprice for i in q.txs]
+
     def test(self):
         q = TransactionQueue()
         # (startgas, gasprice) pairs
@@ -50,7 +54,6 @@ class TestTransactionQueue(unittest.TestCase):
                 assert (tx.startgas, tx.gasprice) == (expected_s, expected_g)
             else:
                 assert expected_s is expected_g is None
-        print("Test successful")
 
     def test_diff(self):
         tx1 = make_test_tx(data=b"foo")
@@ -134,3 +137,29 @@ class TestTransactionQueue(unittest.TestCase):
         res = q.pop_transaction(nonce_getter_maker(100))
         self.assertIsNone(res)
         self.assertEqual(len(q), 0)
+
+    def test_discard_underpriced_tx(self):
+        q = TransactionQueue(limit=6)
+        # (startgas, gasprice) pairs
+        params = [
+            (100000, 81),
+            (50000, 74),
+            (40000, 65),
+            (60000, 39),
+            (30000, 50),
+            (30000, 80),
+        ]
+        # Add transactions to queue
+        for param in params:
+            q.add_transaction(make_test_tx(s=param[0], g=param[1]))
+
+        prices = self._gasprices(q)
+        self.assertListEqual(prices, [81, 80, 74, 65, 50, 39])
+
+        # Add a lower priced tx is a no-op
+        q.add_transaction(make_test_tx(s=100000, g=38))
+        self.assertListEqual(self._gasprices(q), prices)
+
+        # Add a higher priced tx, should be placed inside the queue
+        q.add_transaction(make_test_tx(s=100000, g=70))
+        self.assertListEqual(self._gasprices(q), [81, 80, 74, 70, 65, 50])

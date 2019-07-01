@@ -1,6 +1,4 @@
 import bisect
-import heapq
-import queue
 from functools import total_ordering
 
 from typing import Callable
