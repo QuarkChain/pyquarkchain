@@ -43,6 +43,7 @@ from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+from cachetools import LRUCache
 
 MAX_FUTURE_TX_NONCE = 64
 
@@ -258,7 +259,7 @@ class ShardState:
         self.new_block_header_pool = dict()
         # header hash -> (height, [coinbase address]) during previous blocks (ascending)
         self.coinbase_addr_cache = defaultdict(
-            dict
+            lambda: LRUCache(maxsize=128)
         )  # type: Dict[int, Dict[bytes, Tuple[int, Deque[bytes]]]]
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (
@@ -1770,14 +1771,6 @@ class ShardState:
                 )
                 check(header is not None, "mysteriously missing block")
         cache[header_hash] = (height, addrs)
-        # in case cached too much, clean up
-        if len(cache) > 128:  # size around 640KB if window size 256
-            self.coinbase_addr_cache[length] = {
-                k: (h, addrs)
-                for k, (h, addrs) in cache.items()
-                if h > height - 16  # keep most recent ones
-            }
-
         check(len(addrs) <= length)
         return list(addrs)
 
