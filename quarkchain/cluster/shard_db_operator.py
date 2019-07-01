@@ -11,6 +11,7 @@ from quarkchain.core import (
     CrossShardTransactionDeposit,
 )
 from quarkchain.utils import check, Logger
+from cachetools import LRUCache
 
 
 class TransactionHistoryMixin:
@@ -208,6 +209,8 @@ class ShardDbOperator(TransactionHistoryMixin):
 
         # height -> set(minor block hash) for counting wasted blocks
         self.height_to_minor_block_hashes = dict()
+        self.rblock_cache = LRUCache(maxsize=256)
+        self.mblock_cache = LRUCache(maxsize=1024)
 
     # ------------------------- Root block db operations --------------------------------
     def put_root_block(self, root_block, r_minor_header=None):
@@ -220,10 +223,13 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.db.put(b"r_last_m" + root_block_hash, r_minor_header_hash)
 
     def get_root_block_by_hash(self, h):
-        raw_block = self.db.get(b"rblock_" + h, None)
-        if not raw_block:
-            return None
-        block = RootBlock.deserialize(raw_block)
+        key = b"rblock_" + h
+        if key in self.rblock_cache:
+            return self.rblock_cache[key]
+        raw_block = self.db.get(key, None)
+        block = raw_block and RootBlock.deserialize(raw_block)
+        if block is not None:
+            self.rblock_cache[key] = block
         return block
 
     def get_root_block_header_by_hash(self, h):
@@ -299,8 +305,14 @@ class ShardDbOperator(TransactionHistoryMixin):
         return block and block.meta
 
     def get_minor_block_by_hash(self, h: bytes) -> Optional[MinorBlock]:
-        data = self.db.get(b"mblock_" + h, None)
-        return MinorBlock.deserialize(data) if data else None
+        key = b"mblock_" + h
+        if key in self.mblock_cache:
+            return self.mblock_cache[key]
+        raw_block = self.db.get(key, None)
+        block = raw_block and MinorBlock.deserialize(raw_block)
+        if block is not None:
+            self.mblock_cache[key] = block
+        return block
 
     def contain_minor_block_by_hash(self, h):
         return (b"mblock_" + h) in self.db

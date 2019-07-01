@@ -21,6 +21,7 @@ from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.evm.trie import BLANK_ROOT
+from cachetools import LRUCache
 
 
 class LastMinorBlockHeaderList(Serializable):
@@ -53,6 +54,7 @@ class RootDb:
         self.tip_header = None
 
         self.__recover_from_db()
+        self.rblock_cache = LRUCache(maxsize=128)
 
     def __recover_from_db(self):
         """ Recover the best chain from local database.
@@ -87,8 +89,14 @@ class RootDb:
         self.db.put(b"tipHash", block_hash)
 
     def get_root_block_by_hash(self, h):
-        raw_block = self.db.get(b"rblock_" + h, None)
-        return raw_block and RootBlock.deserialize(raw_block)
+        key = b"rblock_" + h
+        if key in self.rblock_cache:
+            return self.rblock_cache[key]
+        raw_block = self.db.get(key, None)
+        block = raw_block and RootBlock.deserialize(raw_block)
+        if block is not None:
+            self.rblock_cache[key] = block
+        return block
 
     def get_root_block_header_by_hash(self, h):
         block = self.get_root_block_by_hash(h)
@@ -332,12 +340,15 @@ class RootState:
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         return block.finalize(coinbase_tokens=coinbase_tokens, coinbase_address=address)
 
-    def validate_block_header(self, block_header: RootBlockHeader):
+    def __validate_block_header(self, block_header: RootBlockHeader):
         """ Validate the block header.
         """
         height = block_header.height
         if height < 1:
             raise ValueError("unexpected height")
+
+        if block_header.version != 0:
+            raise ValueError("incorrect root block version")
 
         if not self.db.contain_root_block_by_hash(block_header.hash_prev_block):
             raise ValueError("previous hash block mismatch")
@@ -404,13 +415,8 @@ class RootState:
 
     def validate_block(self, block):
         """Raise on validation errors """
-        if block.header.version != 0:
-            raise ValueError("incorrect root block version")
 
-        if not self.db.contain_root_block_by_hash(block.header.hash_prev_block):
-            raise ValueError("previous hash block mismatch")
-
-        block_hash = self.validate_block_header(block.header)
+        block_hash = self.__validate_block_header(block.header)
 
         if (
             len(block.tracking_data)
