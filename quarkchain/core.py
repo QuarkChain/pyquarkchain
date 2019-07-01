@@ -821,8 +821,17 @@ class MinorBlock(Serializable):
             logs,
         )
 
-    def get_block_prices(self) -> List[int]:
-        return [typed_tx.tx.to_evm_tx().gasprice for typed_tx in self.tx_list]
+    # def get_block_prices(self) -> List[int]:
+    #     return [typed_tx.tx.to_evm_tx().gasprice for typed_tx in self.tx_list]
+    def get_block_prices(self) -> Dict[int, List[int]]:
+        prices = {}
+        for typed_tx in self.tx_list:
+            gas_token_id = typed_tx.tx.to_evm_tx().gas_token_id
+            if gas_token_id not in prices:
+                prices[gas_token_id] = []
+            prices[gas_token_id].append(typed_tx.tx.to_evm_tx().gasprice)
+
+        return prices
 
     def create_block_to_append(
         self,

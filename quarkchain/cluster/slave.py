@@ -507,7 +507,7 @@ class MasterConnection(ClusterConnection):
         return GetCodeResponse(error_code=int(fail), result=res or b"")
 
     async def handle_gas_price(self, req: GasPriceRequest) -> GasPriceResponse:
-        res = self.slave_server.gas_price(req.branch)
+        res = self.slave_server.gas_price(req.branch, req.token_id)
         fail = res is None
         return GasPriceResponse(error_code=int(fail), result=res or 0)
 
@@ -1305,11 +1305,11 @@ class SlaveServer:
             return None
         return shard.state.get_code(address.recipient, block_height)
 
-    def gas_price(self, branch: Branch) -> Optional[int]:
+    def gas_price(self, branch: Branch, token_id: int) -> Optional[int]:
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.gas_price()
+        return shard.state.gas_price(token_id)
 
     async def get_work(self, branch: Branch) -> Optional[MiningWork]:
         if branch not in self.shards:

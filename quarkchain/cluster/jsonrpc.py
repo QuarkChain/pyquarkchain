@@ -871,8 +871,9 @@ class JSONRPCServer:
         return self.counters
 
     @public_methods.add
-    async def gasPrice(self, full_shard_key: int):
+    async def gasPrice(self, full_shard_key: str, token_id: str):
         full_shard_key = shard_id_decoder(full_shard_key)
+        token_id = quantity_decoder(token_id)
         if full_shard_key is None:
             return None
         branch = Branch(
@@ -880,7 +881,7 @@ class JSONRPCServer:
                 full_shard_key
             )
         )
-        ret = await self.master.gas_price(branch)
+        ret = await self.master.gas_price(branch, token_id)
         if ret is None:
             return None
         return quantity_encoder(ret)
@@ -964,7 +965,7 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_gasPrice(self, shard):
-        return await self.gasPrice(shard)
+        return await self.gasPrice(shard, quantity_encoder(35760))
 
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)

@@ -894,7 +894,7 @@ class TestJSONRPC(unittest.TestCase):
                 if using_eth_endpoint:
                     resp = send_request("eth_gasPrice", ["0x0"])
                 else:
-                    resp = send_request("gasPrice", ["0x0"])
+                    resp = send_request("gasPrice", ["0x0", quantity_encoder(35760)])
 
                 self.assertEqual(resp, "0xc")
 

@@ -15,6 +15,7 @@ from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
+from quarkchain.utils import token_id_encode
 
 
 def create_default_shard_state(
@@ -111,7 +112,16 @@ class TestShardState(unittest.TestCase):
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
-        env = get_test_env(genesis_account=acc_list[0], genesis_minor_quarkash=10000000)
+        env = get_test_env(
+            genesis_account=acc_list[0],
+            genesis_minor_quarkash=100000000,
+            genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
+        )
+
+        env.quark_chain_config._allowed_token_ids = [
+            token_id_encode("QKC"),
+            token_id_encode("QI"),
+        ]
         state = create_default_shard_state(env=env)
 
         # Add a root block to have all the shards initialized
@@ -119,7 +129,7 @@ class TestShardState(unittest.TestCase):
         state.add_root_block(root_block)
 
         # 5 tx per block, make 3 blocks
-        for _ in range(3):
+        for nonce in range(3):
             for j in range(5):
                 state.add_tx(
                     create_transfer_transaction(
@@ -129,19 +139,42 @@ class TestShardState(unittest.TestCase):
                         to_address=random.choice(acc_list),
                         value=0,
                         gas_price=42 if j == 0 else 0,
+                        gas_token_id=35760,
+                        nonce=nonce * 2,
                     )
                 )
+
+                state.add_tx(
+                    create_transfer_transaction(
+                        shard_state=state,
+                        key=id_list[j].get_key(),
+                        from_address=acc_list[j],
+                        to_address=random.choice(acc_list),
+                        value=0,
+                        gas_price=43 if j == 0 else 0,
+                        gas_token_id=990,
+                        nonce=nonce * 2 + 1,
+                    )
+                )
+
             b = state.create_block_to_mine(address=acc_list[1])
             state.finalize_and_add_block(b)
 
         # for testing purposes, update percentile to take max gas price
         state.gas_price_suggestion_oracle.percentile = 100
-        gas_price = state.gas_price()
+        gas_price = state.gas_price(token_id=35760)
         self.assertEqual(gas_price, 42)
-        # results should be cached (same header). updating oracle shouldn't take effect
+
+        gas_price = state.gas_price(token_id=990)
+        self.assertEqual(gas_price, 43)
+        #
+        # # results should be cached (same header). updating oracle shouldn't take effect
         state.gas_price_suggestion_oracle.percentile = 50
-        gas_price = state.gas_price()
+        gas_price = state.gas_price(token_id=35760)
         self.assertEqual(gas_price, 42)
+
+        gas_price = state.gas_price(token_id=990)
+        self.assertEqual(gas_price, 43)
 
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
