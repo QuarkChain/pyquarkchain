@@ -119,7 +119,7 @@ class TestTransactionQueue(unittest.TestCase):
         res = q.pop_transaction(nonce_getter_maker(0))
         self.assertIsNone(res)
         # Internal state: total tx size == 5
-        self.assertEqual(len(q.txs) + len(q.aside), 5)
+        self.assertEqual(len(q), 5)
         # Add first valid tx
         q.add_transaction(make_test_tx(nonce=0))
         res = q.pop_transaction(nonce_getter_maker(0))
@@ -129,8 +129,8 @@ class TestTransactionQueue(unittest.TestCase):
         self.assertEqual(res.nonce, 1)
         self.assertEqual(res.gasprice, 5)
         # Verify internal state, still have remaining txs with nonce == 1
-        self.assertEqual(len(q.txs) + len(q.aside), 4)
+        self.assertEqual(len(q), 4)
         # Stale tx will be cleaned up in the future
         res = q.pop_transaction(nonce_getter_maker(100))
         self.assertIsNone(res)
-        self.assertEqual(len(q.txs) + len(q.aside), 0)
+        self.assertEqual(len(q), 0)

@@ -245,7 +245,9 @@ class ShardState:
         self.raw_db = db if db is not None else env.db
         self.branch = Branch(full_shard_id)
         self.db = ShardDbOperator(self.raw_db, self.env, self.branch)
-        self.tx_queue = TransactionQueue()  # queue of EvmTransaction
+        self.tx_queue = TransactionQueue(
+            env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
+        )
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
         self.header_tip = None  # MinorBlockHeader
@@ -476,13 +478,13 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         req_nonce = (
             0 if evm_tx.sender == null_address else evm_state.get_nonce(evm_tx.sender)
         )
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
             return evm_tx
 
+        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         validate_transaction(evm_state, evm_tx)
         return evm_tx
 
