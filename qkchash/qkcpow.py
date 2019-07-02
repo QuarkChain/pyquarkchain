@@ -27,12 +27,17 @@ def init_qkc_hash_native():
 QKC_HASH_NATIVE = init_qkc_hash_native()
 
 
+@lru_cache(maxsize=128)
+def make_cache_fast(entries, seed):
+    return make_cache(entries, seed)
+
+
 def get_mining_output(
     block_number: int, header_hash: bytes, nonce: bytes
 ) -> Dict[str, bytes]:
     seed = get_seed_from_block_number(block_number)
     if QKC_HASH_NATIVE is None:
-        current_cache = make_cache(CACHE_ENTRIES, seed)
+        current_cache = make_cache_fast(CACHE_ENTRIES, seed)[:]
         mining_output = qkchash(header_hash, nonce, current_cache)
     else:
         current_cache = QKC_HASH_NATIVE.make_cache(CACHE_ENTRIES, seed)

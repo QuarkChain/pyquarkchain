@@ -746,6 +746,8 @@ class Shard:
         block = self.state.get_block_by_hash(header.get_hash())
         if block is None:
             raise RuntimeError("block {} cannot be found".format(header.get_hash()))
+        if header.height == 0:
+            return
         self.state.add_block(block, force=True, write_db=False, skip_if_too_old=False)
 
     async def add_block_list_for_sync(self, block_list):

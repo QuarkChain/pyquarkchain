@@ -126,3 +126,6 @@ venv.bak/
 
 # Local config
 /cluster-config.json
+
+# macOS
+.DS_Store
