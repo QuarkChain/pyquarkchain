@@ -39,6 +39,7 @@ class TransactionQueue(object):
             self.txs.pop(-1)
         prio = -tx.gasprice
         ordered_tx = OrderableTx(prio, self.counter, tx)
+        # amortized O(n) cost, ~9x slower than heapq push, may need optimization if becoming a bottleneck
         bisect.insort(self.txs, ordered_tx)
         self.counter += 1
 
