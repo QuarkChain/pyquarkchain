@@ -52,6 +52,7 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderListResponse,
     RootBlockSychronizerStats,
     CheckMinorBlockRequest,
+    GetAllTransactionsRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -568,6 +569,15 @@ class SlaveConnection(ClusterConnection):
         if resp.error_code != 0:
             return None
         return resp.minor_block, resp.index, resp.receipt
+
+    async def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        request = GetAllTransactionsRequest(branch, start, limit)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_ALL_TRANSACTIONS_REQUEST, request
+        )
+        if resp.error_code != 0:
+            return None
+        return resp.tx_list, resp.next
 
     async def get_transactions_by_address(
         self,
@@ -1459,6 +1469,13 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transaction_receipt(tx_hash, branch)
+
+    async def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_all_transactions(branch, start, limit)
 
     async def get_transactions_by_address(
         self,

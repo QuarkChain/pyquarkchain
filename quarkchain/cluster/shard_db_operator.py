@@ -15,11 +15,22 @@ from cachetools import LRUCache
 
 
 class TransactionHistoryMixin:
-    def __encode_address_transaction_key(self, address, height, index, cross_shard):
+    @staticmethod
+    def __encode_address_transaction_key(address, height, index, cross_shard):
         cross_shard_byte = b"\x00" if cross_shard else b"\x01"
         return (
             b"addr_"
             + address.serialize()
+            + height.to_bytes(4, "big")
+            + cross_shard_byte
+            + index.to_bytes(4, "big")
+        )
+
+    @staticmethod
+    def __encode_alltx_key(height, index, cross_shard):
+        cross_shard_byte = b"\x00" if cross_shard else b"\x01"
+        return (
+            b"index_alltx_"
             + height.to_bytes(4, "big")
             + cross_shard_byte
             + index.to_bytes(4, "big")
@@ -43,6 +54,8 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.tx.to_evm_tx()
+        key = self.__encode_alltx_key(block_height, index, False)
+        func(key, b"")
         addr = Address(evm_tx.sender, evm_tx.from_full_shard_key)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
@@ -77,6 +90,8 @@ class TransactionHistoryMixin:
                 tx.to_address, minor_block.header.height, i, True
             )
             func(key, b"")
+            key = self.__encode_alltx_key(minor_block.header.height, i, True)
+            func(key, b"")
 
     def put_transaction_history_index_from_block(self, minor_block):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
@@ -92,13 +107,30 @@ class TransactionHistoryMixin:
             minor_block, lambda k, v: self.db.remove(k)
         )
 
+    def get_all_transactions(
+        self, start: bytes = b"", limit: int = 10
+    ) -> (List[TransactionDetail], bytes):
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        end = b"index_alltx_"
+        original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
+            len(end), byteorder="big"
+        )
+        if not start or start > original_start:
+            start = original_start
+        # decoding starts at byte 12 == len("index_alltx_")
+        return self.__get_transaction_details(
+            start, end, limit, decoding_byte_offset=12
+        )
+
     def get_transactions_by_address(
         self,
         address: Address,
         transfer_token_id: Optional[int] = None,
         start: bytes = b"",
         limit: int = 10,
-    ):
+    ) -> (List[TransactionDetail], bytes):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
@@ -107,18 +139,37 @@ class TransactionHistoryMixin:
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
-        next = end
         # reset start to the latest if start is not valid
         if not start or start > original_start:
             start = original_start
 
-        tx_list = []
-        for k, v in self.db.reversed_range_iter(start, end):
+        # decoding starts at byte 5 + 24 == len("addr_") + len(Address)
+        return self.__get_transaction_details(
+            start,
+            end,
+            limit,
+            decoding_byte_offset=5 + 24,
+            transfer_token_id=transfer_token_id,
+        )
+
+    def __get_transaction_details(
+        self,
+        start_key: bytes,
+        end_key: bytes,
+        limit: int,
+        decoding_byte_offset: int,
+        transfer_token_id: Optional[int] = None,
+    ) -> (List[TransactionDetail], bytes):
+        next_key, tx_list = end_key, []
+        for k, v in self.db.reversed_range_iter(start_key, end_key):
             if limit <= 0:
                 break
-            height = int.from_bytes(k[5 + 24 : 5 + 24 + 4], "big")
-            cross_shard = int(k[5 + 24 + 4]) == 0
-            index = int.from_bytes(k[5 + 24 + 4 + 1 :], "big")
+            # decoding_byte_offset = 5 + 24
+            height = int.from_bytes(
+                k[decoding_byte_offset : decoding_byte_offset + 4], "big"
+            )
+            cross_shard = int(k[decoding_byte_offset + 4]) == 0
+            index = int.from_bytes(k[decoding_byte_offset + 4 + 1 :], "big")
             m_block = self.get_minor_block_by_height(height)
             # skip if token ID specified and not match
             should_skip = (
@@ -170,11 +221,11 @@ class TransactionHistoryMixin:
                             is_from_root_chain=False,
                         )
                     )
-            next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(
+            next_key = (int.from_bytes(k, byteorder="big") - 1).to_bytes(
                 len(k), byteorder="big"
             )
 
-        return tx_list, next
+        return tx_list, next_key
 
 
 class ShardDbOperator(TransactionHistoryMixin):
