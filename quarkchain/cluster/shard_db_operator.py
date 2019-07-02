@@ -25,6 +25,11 @@ class TransactionHistoryMixin:
             + index.to_bytes(4, "big")
         )
 
+    def __normalize_full_shard_key(self, full_shard_key):
+        return self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            full_shard_key
+        )
+
     def put_confirmed_cross_shard_transaction_deposit_list(
         self, minor_block_hash, cross_shard_transaction_deposit_list
     ):
@@ -43,18 +48,16 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.tx.to_evm_tx()
-        from_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-            evm_tx.from_full_shard_key
+        addr = Address(
+            evm_tx.sender, self.__normalize_full_shard_key(evm_tx.from_full_shard_key)
         )
-        addr = Address(evm_tx.sender, from_full_shard_id)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
         # "to" can be empty for smart contract deployment
         if evm_tx.to and self.branch.is_in_branch(evm_tx.to_full_shard_key):
-            to_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                evm_tx.to_full_shard_key
+            addr = Address(
+                evm_tx.to, self.__normalize_full_shard_key(evm_tx.to_full_shard_key)
             )
-            addr = Address(evm_tx.to, to_full_shard_id)
             key = self.__encode_address_transaction_key(
                 addr, block_height, index, False
             )
@@ -109,10 +112,7 @@ class TransactionHistoryMixin:
             return [], b""
 
         address = Address(
-            address.recipient,
-            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                address.full_shard_key
-            ),
+            address.recipient, self.__normalize_full_shard_key(address.full_shard_key)
         )
         serialized_address = address.serialize()
         end = b"addr_" + serialized_address
