@@ -167,7 +167,6 @@ class TransactionHistoryMixin:
         for k, v in self.db.reversed_range_iter(start_key, end_key):
             if limit <= 0:
                 break
-            # decoding_byte_offset = 5 + 24
             height = int.from_bytes(
                 k[decoding_byte_offset : decoding_byte_offset + 4], "big"
             )
