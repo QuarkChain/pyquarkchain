@@ -108,6 +108,12 @@ class TransactionHistoryMixin:
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
+        address = Address(
+            address.recipient,
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            ),
+        )
         serialized_address = address.serialize()
         end = b"addr_" + serialized_address
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
