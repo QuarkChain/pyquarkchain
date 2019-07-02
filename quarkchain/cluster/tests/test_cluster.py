@@ -600,6 +600,151 @@ class TestCluster(unittest.TestCase):
                 {genesis_token: 54321},
             )
 
+    def test_broadcast_cross_shard_transactions_1x2(self):
+        """ Test the cross shard transactions are broadcasted to the destination shards """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc3 = Address.create_random_account(full_shard_key=2 << 16)
+        acc4 = Address.create_random_account(full_shard_key=3 << 16)
+
+        with ClusterContext(1, acc1, chain_size=8, shard_size=1) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            genesis_token = (
+                clusters[0].get_shard_state(1).env.quark_chain_config.genesis_token
+            )
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(1),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc3,
+                value=54321,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+            )
+            self.assertTrue(slaves[0].add_tx(tx1))
+            tx2 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(1),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc4,
+                value=1234,
+                gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+                nonce=tx1.tx.to_evm_tx().nonce + 1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx2))
+
+            b1 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            b2 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            b2.header.create_time += 1
+
+            call_async(clusters[0].get_shard(1).add_block(b1))
+
+            # expect chain 2 got the CrossShardTransactionList of b1
+            xshard_tx_list = (
+                clusters[0]
+                .get_shard_state((2 << 16) | 1)
+                .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
+            )
+            self.assertEqual(len(xshard_tx_list.tx_list), 1)
+            self.assertEqual(xshard_tx_list.tx_list[0].tx_hash, tx1.get_hash())
+            self.assertEqual(xshard_tx_list.tx_list[0].from_address, acc1)
+            self.assertEqual(xshard_tx_list.tx_list[0].to_address, acc3)
+            self.assertEqual(xshard_tx_list.tx_list[0].value, 54321)
+
+            # expect chain 3 got the CrossShardTransactionList of b1
+            xshard_tx_list = (
+                clusters[0]
+                .get_shard_state((3 << 16) | 1)
+                .db.get_minor_block_xshard_tx_list(b1.header.get_hash())
+            )
+            self.assertEqual(len(xshard_tx_list.tx_list), 1)
+            self.assertEqual(xshard_tx_list.tx_list[0].tx_hash, tx2.get_hash())
+            self.assertEqual(xshard_tx_list.tx_list[0].from_address, acc1)
+            self.assertEqual(xshard_tx_list.tx_list[0].to_address, acc4)
+            self.assertEqual(xshard_tx_list.tx_list[0].value, 1234)
+
+            call_async(clusters[0].get_shard(1 | 0).add_block(b2))
+            # b2 doesn't update tip
+            self.assertEqual(clusters[0].get_shard_state(1 | 0).header_tip, b1.header)
+
+            # expect chain 2 got the CrossShardTransactionList of b1
+            xshard_tx_list = (
+                clusters[0]
+                .get_shard_state((2 << 16) | 1)
+                .db.get_minor_block_xshard_tx_list(b2.header.get_hash())
+            )
+            self.assertEqual(len(xshard_tx_list.tx_list), 1)
+            self.assertEqual(xshard_tx_list.tx_list[0].tx_hash, tx1.get_hash())
+            self.assertEqual(xshard_tx_list.tx_list[0].from_address, acc1)
+            self.assertEqual(xshard_tx_list.tx_list[0].to_address, acc3)
+            self.assertEqual(xshard_tx_list.tx_list[0].value, 54321)
+
+            # expect chain 3 got the CrossShardTransactionList of b1
+            xshard_tx_list = (
+                clusters[0]
+                .get_shard_state((3 << 16) | 1)
+                .db.get_minor_block_xshard_tx_list(b2.header.get_hash())
+            )
+            self.assertEqual(len(xshard_tx_list.tx_list), 1)
+            self.assertEqual(xshard_tx_list.tx_list[0].tx_hash, tx2.get_hash())
+            self.assertEqual(xshard_tx_list.tx_list[0].from_address, acc1)
+            self.assertEqual(xshard_tx_list.tx_list[0].to_address, acc4)
+            self.assertEqual(xshard_tx_list.tx_list[0].value, 1234)
+
+            b3 = (
+                clusters[0]
+                .get_shard_state((2 << 16) | 1)
+                .create_block_to_mine(address=acc1.address_in_shard(2 << 16))
+            )
+            call_async(master.add_raw_minor_block(b3.header.branch, b3.serialize()))
+
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            # b4 should include the withdraw of tx1
+            b4 = (
+                clusters[0]
+                .get_shard_state((2 << 16) | 1)
+                .create_block_to_mine(address=acc1.address_in_shard(2 << 16))
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b4.header.branch, b4.serialize()))
+            )
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc3)
+                ).token_balances.balance_map,
+                {genesis_token: 54321},
+            )
+
+            # b5 should include the withdraw of tx2
+            b5 = (
+                clusters[0]
+                .get_shard_state((3 << 16) | 1)
+                .create_block_to_mine(address=acc1.address_in_shard(3 << 16))
+            )
+            self.assertTrue(
+                call_async(master.add_raw_minor_block(b5.header.branch, b5.serialize()))
+            )
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc4)
+                ).token_balances.balance_map,
+                {genesis_token: 1234},
+            )
+
     def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
         """ Test the broadcast is only done to the neighbors """
         id1 = Identity.create_random_identity()
