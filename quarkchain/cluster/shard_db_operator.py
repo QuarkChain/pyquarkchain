@@ -86,6 +86,9 @@ class TransactionHistoryMixin:
             minor_block.header.get_hash()
         )  # type: List[CrossShardTransactionDeposit]
         for i, tx in enumerate(x_shard_receive_tx_list):
+            # ignore dummy coinbase reward deposits
+            if tx.is_from_root_chain and tx.value == 0:
+                continue
             key = self.__encode_address_transaction_key(
                 tx.to_address, minor_block.header.height, i, True
             )
@@ -183,6 +186,9 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
+                # ignore dummy coinbase reward deposits
+                if tx.is_from_root_chain and tx.value == 0:
+                    continue
                 if should_skip(tx):
                     limit -= 1
                     tx_list.append(
