@@ -43,7 +43,7 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.tx.to_evm_tx()
-        evm_tx_from_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+        evm_tx_from_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             evm_tx.from_full_shard_key
         )
         addr = Address(evm_tx.sender, evm_tx_from_full_shard_id)
@@ -51,7 +51,7 @@ class TransactionHistoryMixin:
         func(key, b"")
         # "to" can be empty for smart contract deployment
         if evm_tx.to and self.branch.is_in_branch(evm_tx.to_full_shard_key):
-            evm_tx_to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            evm_tx_to_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 evm_tx.to_full_shard_key
             )
             addr = Address(evm_tx.to, evm_tx_to_full_shard_id)
@@ -141,10 +141,10 @@ class TransactionHistoryMixin:
                 if should_skip(tx):
                     limit -= 1
                     evm_tx = tx.tx.to_evm_tx()
-                    from_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    from_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                         tx.from_address.full_shard_key
                     )
-                    to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                    to_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                         tx.to_address.full_shard_key
                     )
                     from_address = Address(
@@ -169,10 +169,10 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
-                evm_tx_from_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                evm_tx_from_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                     evm_tx.from_full_shard_key
                 )
-                evm_tx_to_full_shard_id = evm_tx.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                evm_tx_to_full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                     evm_tx.to_full_shard_key
                 )
                 if should_skip(evm_tx):
