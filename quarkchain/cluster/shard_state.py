@@ -43,15 +43,14 @@ from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+from cachetools import LRUCache
 
 MAX_FUTURE_TX_NONCE = 64
 
 
 class GasPriceSuggestionOracle:
-    def __init__(self, last_head: bytes, check_blocks: int, percentile: int):
-        self.last_price = {}
-        self.last_head = last_head
-        self.last_token_id = None
+    def __init__(self, check_blocks: int, percentile: int):
+        self.last_price = defaultdict(lambda: LRUCache(maxsize=128))
         self.check_blocks = check_blocks
         self.percentile = percentile
 
@@ -250,7 +249,7 @@ class ShardState:
         self.header_tip = None  # MinorBlockHeader
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
-            last_head=b"", check_blocks=5, percentile=50
+            check_blocks=5, percentile=50
         )
 
         # new blocks that passed POW validation and should be made available to whole network
@@ -1669,11 +1668,8 @@ class ShardState:
 
     def gas_price(self, token_id: int) -> Optional[int]:
         curr_head = self.header_tip.get_hash()
-        if (
-            curr_head == self.gas_price_suggestion_oracle.last_head
-            and token_id in self.gas_price_suggestion_oracle.last_price
-        ):
-            return self.gas_price_suggestion_oracle.last_price[token_id]
+        if (curr_head, token_id) in self.gas_price_suggestion_oracle.last_price:
+            return self.gas_price_suggestion_oracle.last_price[(curr_head, token_id)]
         curr_height = self.header_tip.height
         start_height = curr_height - self.gas_price_suggestion_oracle.check_blocks + 1
         if start_height < 3:
@@ -1692,8 +1688,7 @@ class ShardState:
         price = prices[
             (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
         ]
-        self.gas_price_suggestion_oracle.last_price[token_id] = price
-        self.gas_price_suggestion_oracle.last_head = curr_head
+        self.gas_price_suggestion_oracle.last_price[(curr_head, token_id)] = price
         return price
 
     def validate_minor_block_seal(self, block: MinorBlock):

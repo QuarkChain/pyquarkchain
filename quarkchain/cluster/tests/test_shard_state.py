@@ -176,6 +176,10 @@ class TestShardState(unittest.TestCase):
         gas_price = state.gas_price(token_id=990)
         self.assertEqual(gas_price, 43)
 
+        # no tx with this token_id
+        gas_price = state.gas_price(token_id=1)
+        self.assertEqual(gas_price, None)
+
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)

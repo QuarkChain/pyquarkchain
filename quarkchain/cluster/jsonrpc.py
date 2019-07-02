@@ -28,7 +28,7 @@ from quarkchain.core import (
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
-from quarkchain.utils import Logger, token_id_decode
+from quarkchain.utils import Logger, token_id_decode, token_id_encode
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -965,7 +965,7 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_gasPrice(self, shard):
-        return await self.gasPrice(shard, quantity_encoder(35760))
+        return await self.gasPrice(shard, quantity_encoder(token_id_encode("QKC")))
 
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)

@@ -826,7 +826,7 @@ class GetCodeResponse(Serializable):
 
 
 class GasPriceRequest(Serializable):
-    FIELDS = [("branch", Branch), ("token_id", uint32)]
+    FIELDS = [("branch", Branch), ("token_id", uint64)]
 
     def __init__(self, branch: Branch, token_id: int):
         self.branch = branch
