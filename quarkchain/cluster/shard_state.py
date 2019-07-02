@@ -1680,9 +1680,13 @@ class ShardState:
             if not block:
                 Logger.error("Failed to get block {} to retrieve gas price".format(i))
                 continue
-            prices.extend(block.get_block_prices()[token_id])
-        if not prices:
-            return None
+            block_prices = block.get_block_prices()
+            if token_id not in block_prices:
+                Logger.error(
+                    "Token ID {} does not exist in transactions".format(token_id)
+                )
+                return None
+            prices.extend(block_prices[token_id])
 
         prices.sort()
         price = prices[

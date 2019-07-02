@@ -823,11 +823,13 @@ class MinorBlock(Serializable):
             logs,
         )
 
-    def get_block_prices(self) -> defaultdict(list):
-        prices = defaultdict(list)
+    def get_block_prices(self) -> Dict[int, list]:
+        prices = {}
         for typed_tx in self.tx_list:
-            evm_tx = typed_tx.tx.to_evm_tx()
-            prices[evm_tx.gas_token_id].append(evm_tx.gasprice)
+            typed_evm_tx = typed_tx.tx.to_evm_tx()
+            prices.setdefault(typed_evm_tx.gas_token_id, []).append(
+                typed_evm_tx.gasprice
+            )
 
         return prices
 
