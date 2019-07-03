@@ -25,17 +25,6 @@ class TransactionHistoryMixin:
             + index.to_bytes(4, "big")
         )
 
-    def normalize_address(self, address: Address):
-        return Address(
-            address.recipient,
-            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                address.full_shard_key
-            ),
-        )
-
-    def same_normalize_address(self, addr1: Address, addr2: Address) -> bool:
-        return self.normalize_address(addr1) == self.normalize_address(addr2)
-
     def put_confirmed_cross_shard_transaction_deposit_list(
         self, minor_block_hash, cross_shard_transaction_deposit_list
     ):
@@ -113,7 +102,6 @@ class TransactionHistoryMixin:
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
-        address = self.normalize_address(address)
         serialized_address = address.serialize()
         end = b"addr_" + serialized_address[:-2]
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
@@ -125,6 +113,7 @@ class TransactionHistoryMixin:
             start = original_start
 
         tx_list = []
+        tx_hashes = []
         for k, v in self.db.reversed_range_iter(start, end):
             if limit <= 0:
                 break
@@ -144,8 +133,11 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
+                if tx.tx_hash in tx_hashes:
+                    continue
                 if should_skip(tx):
                     limit -= 1
+                    tx_hashes.append(tx.tx_hash)
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -164,8 +156,11 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # tx is Transaction
                 evm_tx = tx.tx.to_evm_tx()
+                if tx.get_hash() in tx_hashes:
+                    continue
                 if should_skip(evm_tx):
                     limit -= 1
+                    tx_hashes.append(tx.get_hash())
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
