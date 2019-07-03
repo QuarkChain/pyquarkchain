@@ -203,9 +203,7 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if tx.tx_hash in tx_hashes:
-                    continue
-                if not skip_xshard(tx):
+                if tx.tx_hash not in tx_hashes and not skip_xshard(tx):
                     limit -= 1
                     tx_hashes.append(tx.tx_hash)
                     tx_list.append(
@@ -226,9 +224,7 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
-                if tx.get_hash() in tx_hashes:
-                    continue
-                if not skip_tx(evm_tx):
+                if tx.get_hash() not in tx_hashes and not skip_tx(evm_tx):
                     limit -= 1
                     tx_hashes.append(tx.get_hash())
                     tx_list.append(
