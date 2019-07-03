@@ -9,8 +9,10 @@ from quarkchain.core import (
     Branch,
     Address,
     CrossShardTransactionDeposit,
+    TypedTransaction,
 )
-from quarkchain.utils import check, Logger
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.utils import check
 from cachetools import LRUCache
 
 
@@ -93,8 +95,10 @@ class TransactionHistoryMixin:
                 tx.to_address, minor_block.header.height, i, True
             )
             func(key, b"")
-            key = self.__encode_alltx_key(minor_block.header.height, i, True)
-            func(key, b"")
+            # skip ALL coinbase reward deposits for all tx index
+            if not tx.is_from_root_chain:
+                key = self.__encode_alltx_key(minor_block.header.height, i, True)
+                func(key, b"")
 
     def put_transaction_history_index_from_block(self, minor_block):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
@@ -124,7 +128,7 @@ class TransactionHistoryMixin:
             start = original_start
         # decoding starts at byte 12 == len("index_alltx_")
         return self.__get_transaction_details(
-            start, end, limit, decoding_byte_offset=12
+            start, end, limit, decoding_byte_offset=12, skip_coinbase_rewards=True
         )
 
     def get_transactions_by_address(
@@ -161,9 +165,27 @@ class TransactionHistoryMixin:
         end_key: bytes,
         limit: int,
         decoding_byte_offset: int,
+        skip_coinbase_rewards: bool = False,
         transfer_token_id: Optional[int] = None,
     ) -> (List[TransactionDetail], bytes):
         next_key, tx_list = end_key, []
+
+        def skip_xshard(xshard_tx: CrossShardTransactionDeposit):
+            if xshard_tx.is_from_root_chain:
+                return (
+                    skip_coinbase_rewards or xshard_tx.value == 0
+                )  # value 0 if dummy deposit
+            return (
+                transfer_token_id is not None
+                and xshard_tx.transfer_token_id == transfer_token_id
+            )
+
+        def skip_tx(normal_tx: EvmTransaction):
+            return (
+                transfer_token_id is not None
+                and normal_tx.transfer_token_id == transfer_token_id
+            )
+
         for k, v in self.db.reversed_range_iter(start_key, end_key):
             if limit <= 0:
                 break
@@ -173,11 +195,6 @@ class TransactionHistoryMixin:
             cross_shard = int(k[decoding_byte_offset + 4]) == 0
             index = int.from_bytes(k[decoding_byte_offset + 4 + 1 :], "big")
             m_block = self.get_minor_block_by_height(height)
-            # skip if token ID specified and not match
-            should_skip = (
-                lambda tx: transfer_token_id is None
-                or tx.transfer_token_id == transfer_token_id
-            )
             if cross_shard:  # cross shard receive
                 x_shard_receive_tx_list = self.__get_confirmed_cross_shard_transaction_deposit_list(
                     m_block.header.get_hash()
@@ -188,7 +205,7 @@ class TransactionHistoryMixin:
                 # ignore dummy coinbase reward deposits
                 if tx.is_from_root_chain and tx.value == 0:
                     continue
-                if should_skip(tx):
+                if not skip_xshard(tx):
                     limit -= 1
                     tx_list.append(
                         TransactionDetail(
@@ -206,9 +223,9 @@ class TransactionHistoryMixin:
                     )
             else:
                 receipt = m_block.get_receipt(self.db, index)
-                tx = m_block.tx_list[index]  # tx is Transaction
+                tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
-                if should_skip(evm_tx):
+                if not skip_tx(evm_tx):
                     limit -= 1
                     tx_list.append(
                         TransactionDetail(
