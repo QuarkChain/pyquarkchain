@@ -860,8 +860,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
     def test_xshard_tx_received_ddos_fix(self):
         id1 = Identity.create_random_identity()
@@ -1280,8 +1280,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b2 and make sure all x-shard tx's are added
         b2 = state0.create_block_to_mine(
@@ -1293,6 +1293,9 @@ class TestShardState(unittest.TestCase):
             state0.get_token_balance(acc1.recipient, self.genesis_token),
             10000000 + 1000000 + 888888 + 111111,
         )
+        # X-shard gas used
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b3 and make sure no x-shard tx's are added
         b3 = state0.create_block_to_mine(
@@ -1304,6 +1307,8 @@ class TestShardState(unittest.TestCase):
             state0.get_token_balance(acc1.recipient, self.genesis_token),
             10000000 + 1000000 + 888888 + 111111,
         )
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
         b4 = state0.create_block_to_mine(
             address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST
@@ -1313,14 +1318,18 @@ class TestShardState(unittest.TestCase):
             b2.meta.xshard_tx_cursor_info, b3.meta.xshard_tx_cursor_info
         )
         self.assertEqual(b3.meta.xshard_tx_cursor_info, b4.meta.xshard_tx_cursor_info)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
         b5 = state0.create_block_to_mine(
             address=acc3,
             gas_limit=opcodes.GTXXSHARDCOST,
             xshard_gas_limit=2 * opcodes.GTXXSHARDCOST,
         )
-        with self.assertRaises(ValueError):
-            # xsahrd_gas_limit should be smaller than gas_limit
+        with self.assertRaisesRegexp(
+            ValueError, "xshard_gas_limit \\d+ should not exceed total gas_limit"
+        ):
+            # xshard_gas_limit should be smaller than gas_limit
             state0.finalize_and_add_block(
                 b5,
                 gas_limit=opcodes.GTXXSHARDCOST,
@@ -1330,7 +1339,9 @@ class TestShardState(unittest.TestCase):
         b6 = state0.create_block_to_mine(
             address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegexp(
+            ValueError, "incorrect xshard gas limit, expected \\d+, actual \\d+"
+        ):
             # xshard_gas_limit should be gas_limit // 2
             state0.finalize_and_add_block(b6)
 
@@ -1472,8 +1483,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b2 and make sure all x-shard tx's are added
         b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
