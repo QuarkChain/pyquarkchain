@@ -224,12 +224,13 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
-                if tx.get_hash() not in tx_hashes and not skip_tx(evm_tx):
+                tx_get_hash = tx.get_hash()
+                if tx_get_hash not in tx_hashes and not skip_tx(evm_tx):
                     limit -= 1
-                    tx_hashes.add(tx.get_hash())
+                    tx_hashes.add(tx_get_hash)
                     tx_list.append(
                         TransactionDetail(
-                            tx.get_hash(),
+                            tx_get_hash,
                             Address(evm_tx.sender, evm_tx.from_full_shard_key),
                             Address(evm_tx.to, evm_tx.to_full_shard_key)
                             if evm_tx.to
