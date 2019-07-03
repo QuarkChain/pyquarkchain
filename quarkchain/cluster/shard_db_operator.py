@@ -142,7 +142,7 @@ class TransactionHistoryMixin:
             return [], b""
 
         serialized_address = address.serialize()
-        end = b"addr_" + serialized_address[:-2]
+        end = b"index_addr_" + serialized_address[:-2]
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
@@ -203,7 +203,7 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if tx.tx_hash in tx_list:
+                if tx.tx_hash in tx_hashes:
                     continue
                 if not skip_xshard(tx):
                     limit -= 1
