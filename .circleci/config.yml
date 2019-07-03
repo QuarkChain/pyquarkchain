@@ -60,11 +60,6 @@ jobs:
           command: |
             if [[ $CIRCLE_NODE_INDEX = 0 ]]; then pypy3 -m pytest --timeout=30; fi
 
-      - run:
-          name: Run EVM Tests
-          command: |
-            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch && pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
-
       - store_artifacts:
           path: test-reports
           destination: test-reports
