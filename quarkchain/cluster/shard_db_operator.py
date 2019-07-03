@@ -202,9 +202,6 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                # ignore dummy coinbase reward deposits
-                if tx.is_from_root_chain and tx.value == 0:
-                    continue
                 if not skip_xshard(tx):
                     limit -= 1
                     tx_list.append(
