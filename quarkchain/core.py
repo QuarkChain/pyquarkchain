@@ -826,10 +826,8 @@ class MinorBlock(Serializable):
     def get_block_prices(self) -> Dict[int, list]:
         prices = {}
         for typed_tx in self.tx_list:
-            typed_evm_tx = typed_tx.tx.to_evm_tx()
-            prices.setdefault(typed_evm_tx.gas_token_id, []).append(
-                typed_evm_tx.gasprice
-            )
+            evm_tx = typed_tx.tx.to_evm_tx()
+            prices.setdefault(evm_tx.gas_token_id, []).append(evm_tx.gasprice)
 
         return prices
 

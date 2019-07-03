@@ -50,7 +50,7 @@ MAX_FUTURE_TX_NONCE = 64
 
 class GasPriceSuggestionOracle:
     def __init__(self, check_blocks: int, percentile: int):
-        self.last_price = defaultdict(lambda: LRUCache(maxsize=128))
+        self.cache = LRUCache(maxsize=128)
         self.check_blocks = check_blocks
         self.percentile = percentile
 
@@ -1670,8 +1670,8 @@ class ShardState:
 
     def gas_price(self, token_id: int) -> Optional[int]:
         curr_head = self.header_tip.get_hash()
-        if (curr_head, token_id) in self.gas_price_suggestion_oracle.last_price:
-            return self.gas_price_suggestion_oracle.last_price[(curr_head, token_id)]
+        if (curr_head, token_id) in self.gas_price_suggestion_oracle.cache:
+            return self.gas_price_suggestion_oracle.cache[(curr_head, token_id)]
         curr_height = self.header_tip.height
         start_height = curr_height - self.gas_price_suggestion_oracle.check_blocks + 1
         if start_height < 3:
@@ -1694,7 +1694,7 @@ class ShardState:
         price = prices[
             (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
         ]
-        self.gas_price_suggestion_oracle.last_price[(curr_head, token_id)] = price
+        self.gas_price_suggestion_oracle.cache[(curr_head, token_id)] = price
         return price
 
     def validate_minor_block_seal(self, block: MinorBlock):
