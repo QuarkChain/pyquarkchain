@@ -177,13 +177,13 @@ class TransactionHistoryMixin:
                 )  # value 0 if dummy deposit
             return (
                 transfer_token_id is not None
-                and xshard_tx.transfer_token_id == transfer_token_id
+                and xshard_tx.transfer_token_id != transfer_token_id
             )
 
         def skip_tx(normal_tx: EvmTransaction):
             return (
                 transfer_token_id is not None
-                and normal_tx.transfer_token_id == transfer_token_id
+                and normal_tx.transfer_token_id != transfer_token_id
             )
 
         for k, v in self.db.reversed_range_iter(start_key, end_key):
