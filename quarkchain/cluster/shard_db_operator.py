@@ -169,7 +169,7 @@ class TransactionHistoryMixin:
         transfer_token_id: Optional[int] = None,
     ) -> (List[TransactionDetail], bytes):
         next_key, tx_list = end_key, []
-        tx_hashes = []
+        tx_hashes = set()
 
         def skip_xshard(xshard_tx: CrossShardTransactionDeposit):
             if xshard_tx.is_from_root_chain:
@@ -205,7 +205,7 @@ class TransactionHistoryMixin:
                 ]  # type: CrossShardTransactionDeposit
                 if tx.tx_hash not in tx_hashes and not skip_xshard(tx):
                     limit -= 1
-                    tx_hashes.append(tx.tx_hash)
+                    tx_hashes.add(tx.tx_hash)
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -226,7 +226,7 @@ class TransactionHistoryMixin:
                 evm_tx = tx.tx.to_evm_tx()
                 if tx.get_hash() not in tx_hashes and not skip_tx(evm_tx):
                     limit -= 1
-                    tx_hashes.append(tx.get_hash())
+                    tx_hashes.add(tx.get_hash())
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
