@@ -288,6 +288,26 @@ def tx_encoder(block, i):
     }
 
 
+def tx_detail_encoder(tx):
+    """Encode a transaction detail object as JSON object. Used for indexing server."""
+    return {
+        "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_key),
+        "fromAddress": address_encoder(tx.from_address.serialize()),
+        "toAddress": address_encoder(tx.to_address.serialize())
+        if tx.to_address
+        else "0x",
+        "value": quantity_encoder(tx.value),
+        "transferTokenId": quantity_encoder(tx.transfer_token_id),
+        "transferTokenStr": token_id_decode(tx.transfer_token_id),
+        "gasTokenId": quantity_encoder(tx.gas_token_id),
+        "gasTokenStr": token_id_decode(tx.gas_token_id),
+        "blockHeight": quantity_encoder(tx.block_height),
+        "timestamp": quantity_encoder(tx.timestamp),
+        "success": tx.success,
+        "isFromRootChain": tx.is_from_root_chain,
+    }
+
+
 def loglist_encoder(loglist: List[Log]):
     """Encode a list of log"""
     result = []
@@ -824,6 +844,30 @@ class JSONRPCServer:
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
+    @decode_arg("full_shard_key", shard_id_decoder)
+    @decode_arg("start", data_decoder)
+    @decode_arg("limit", quantity_decoder)
+    async def getAllTransactions(self, full_shard_key, start="0x", limit="0xa"):
+        """ "start" should be the "next" in the response for fetching next page.
+            "start" can also be "0x" to fetch from the beginning (i.e., latest).
+        """
+        branch = Branch(
+            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                full_shard_key
+            )
+        )
+        if limit > 20:
+            limit = 20
+        result = await self.master.get_all_transactions(branch, start, limit)
+        if not result:
+            return None
+        tx_list, next = result
+        return {
+            "txList": [tx_detail_encoder(tx) for tx in tx_list],
+            "next": data_encoder(next),
+        }
+
+    @public_methods.add
     @decode_arg("address", address_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
@@ -844,34 +888,17 @@ class JSONRPCServer:
         if not result:
             return None
         tx_list, next = result
-        txs = []
-        for tx in tx_list:
-            txs.append(
-                {
-                    "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_key),
-                    "fromAddress": address_encoder(tx.from_address.serialize()),
-                    "toAddress": address_encoder(tx.to_address.serialize())
-                    if tx.to_address
-                    else "0x",
-                    "value": quantity_encoder(tx.value),
-                    "transferTokenId": quantity_encoder(tx.transfer_token_id),
-                    "transferTokenStr": token_id_decode(tx.transfer_token_id),
-                    "gasTokenId": quantity_encoder(tx.gas_token_id),
-                    "gasTokenStr": token_id_decode(tx.gas_token_id),
-                    "blockHeight": quantity_encoder(tx.block_height),
-                    "timestamp": quantity_encoder(tx.timestamp),
-                    "success": tx.success,
-                    "isFromRootChain": tx.is_from_root_chain,
-                }
-            )
-        return {"txList": txs, "next": data_encoder(next)}
+        return {
+            "txList": [tx_detail_encoder(tx) for tx in tx_list],
+            "next": data_encoder(next),
+        }
 
     @public_methods.add
     async def getJrpcCalls(self):
         return self.counters
 
     @public_methods.add
-    async def gasPrice(self, full_shard_key: int):
+    async def gasPrice(self, full_shard_key: str):
         full_shard_key = shard_id_decoder(full_shard_key)
         if full_shard_key is None:
             return None

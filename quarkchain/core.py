@@ -565,7 +565,7 @@ class TypedTransaction(Serializable):
         )
     ]
 
-    def __init__(self, tx):
+    def __init__(self, tx: SerializedEvmTransaction):
         self.tx = tx
 
     def get_hash(self):

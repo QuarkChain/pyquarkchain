@@ -43,6 +43,7 @@ from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
+from cachetools import LRUCache
 
 MAX_FUTURE_TX_NONCE = 64
 
@@ -245,7 +246,9 @@ class ShardState:
         self.raw_db = db if db is not None else env.db
         self.branch = Branch(full_shard_id)
         self.db = ShardDbOperator(self.raw_db, self.env, self.branch)
-        self.tx_queue = TransactionQueue()  # queue of EvmTransaction
+        self.tx_queue = TransactionQueue(
+            env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
+        )
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
         self.header_tip = None  # MinorBlockHeader
@@ -258,7 +261,7 @@ class ShardState:
         self.new_block_header_pool = dict()
         # header hash -> (height, [coinbase address]) during previous blocks (ascending)
         self.coinbase_addr_cache = defaultdict(
-            dict
+            lambda: LRUCache(maxsize=128)
         )  # type: Dict[int, Dict[bytes, Tuple[int, Deque[bytes]]]]
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (
@@ -476,13 +479,13 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         req_nonce = (
             0 if evm_tx.sender == null_address else evm_state.get_nonce(evm_tx.sender)
         )
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
             return evm_tx
 
+        # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         validate_transaction(evm_state, evm_tx)
         return evm_tx
 
@@ -1538,6 +1541,12 @@ class ShardState:
             )
         return block, index, receipt
 
+    def get_all_transactions(self, start: bytes, limit: int):
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        return self.db.get_all_transactions(start, limit)
+
     def get_transaction_list_by_address(
         self,
         address: Address,
@@ -1550,10 +1559,10 @@ class ShardState:
 
         if start == bytes(1):  # get pending tx
             tx_list = []
-            for orderable_tx in self.tx_queue.txs + self.tx_queue.aside:
+            for orderable_tx in self.tx_queue.txs:
                 tx = orderable_tx.tx
                 # TODO: could also show incoming pending tx
-                if self.db.same_normalize_address(tx.sender, address) and (
+                if tx.sender == address.recipient and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
                 ):
@@ -1770,14 +1779,6 @@ class ShardState:
                 )
                 check(header is not None, "mysteriously missing block")
         cache[header_hash] = (height, addrs)
-        # in case cached too much, clean up
-        if len(cache) > 128:  # size around 640KB if window size 256
-            self.coinbase_addr_cache[length] = {
-                k: (h, addrs)
-                for k, (h, addrs) in cache.items()
-                if h > height - 16  # keep most recent ones
-            }
-
         check(len(addrs) <= length)
         return list(addrs)
 

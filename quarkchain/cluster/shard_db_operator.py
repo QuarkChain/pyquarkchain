@@ -9,32 +9,34 @@ from quarkchain.core import (
     Branch,
     Address,
     CrossShardTransactionDeposit,
+    TypedTransaction,
 )
-from quarkchain.utils import check, Logger
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.utils import check
 from cachetools import LRUCache
 
 
 class TransactionHistoryMixin:
-    def __encode_address_transaction_key(self, address, height, index, cross_shard):
+    @staticmethod
+    def __encode_address_transaction_key(address, height, index, cross_shard):
         cross_shard_byte = b"\x00" if cross_shard else b"\x01"
         return (
-            b"addr_"
+            b"index_addr_"
             + address.serialize()
             + height.to_bytes(4, "big")
             + cross_shard_byte
             + index.to_bytes(4, "big")
         )
 
-    def normalize_address(self, address: Address):
-        return Address(
-            address.recipient,
-            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                address.full_shard_key
-            ),
+    @staticmethod
+    def __encode_alltx_key(height, index, cross_shard):
+        cross_shard_byte = b"\x00" if cross_shard else b"\x01"
+        return (
+            b"index_alltx_"
+            + height.to_bytes(4, "big")
+            + cross_shard_byte
+            + index.to_bytes(4, "big")
         )
-
-    def same_normalize_address(self, addr1: Address, addr2: Address) -> bool:
-        return self.normalize_address(addr1) == self.normalize_address(addr2)
 
     def put_confirmed_cross_shard_transaction_deposit_list(
         self, minor_block_hash, cross_shard_transaction_deposit_list
@@ -54,6 +56,8 @@ class TransactionHistoryMixin:
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
         evm_tx = tx.tx.to_evm_tx()
+        key = self.__encode_alltx_key(block_height, index, False)
+        func(key, b"")
         addr = Address(evm_tx.sender, evm_tx.from_full_shard_key)
         key = self.__encode_address_transaction_key(addr, block_height, index, False)
         func(key, b"")
@@ -84,10 +88,17 @@ class TransactionHistoryMixin:
             minor_block.header.get_hash()
         )  # type: List[CrossShardTransactionDeposit]
         for i, tx in enumerate(x_shard_receive_tx_list):
+            # ignore dummy coinbase reward deposits
+            if tx.is_from_root_chain and tx.value == 0:
+                continue
             key = self.__encode_address_transaction_key(
                 tx.to_address, minor_block.header.height, i, True
             )
             func(key, b"")
+            # skip ALL coinbase reward deposits for all tx index
+            if not tx.is_from_root_chain:
+                key = self.__encode_alltx_key(minor_block.header.height, i, True)
+                func(key, b"")
 
     def put_transaction_history_index_from_block(self, minor_block):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
@@ -103,40 +114,88 @@ class TransactionHistoryMixin:
             minor_block, lambda k, v: self.db.remove(k)
         )
 
+    def get_all_transactions(
+        self, start: bytes = b"", limit: int = 10
+    ) -> (List[TransactionDetail], bytes):
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        end = b"index_alltx_"
+        original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
+            len(end), byteorder="big"
+        )
+        if not start or start > original_start:
+            start = original_start
+        # decoding starts at byte 12 == len("index_alltx_")
+        return self.__get_transaction_details(
+            start, end, limit, decoding_byte_offset=12, skip_coinbase_rewards=True
+        )
+
     def get_transactions_by_address(
         self,
         address: Address,
         transfer_token_id: Optional[int] = None,
         start: bytes = b"",
         limit: int = 10,
-    ):
+    ) -> (List[TransactionDetail], bytes):
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
-        address = self.normalize_address(address)
         serialized_address = address.serialize()
         end = b"addr_" + serialized_address[:-2]
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
-        next = end
         # reset start to the latest if start is not valid
         if not start or start > original_start:
             start = original_start
 
-        tx_list = []
-        for k, v in self.db.reversed_range_iter(start, end):
+        # decoding starts at byte 11 + 24 == len("index_addr_") + len(Address)
+        return self.__get_transaction_details(
+            start,
+            end,
+            limit,
+            decoding_byte_offset=11 + 24,
+            transfer_token_id=transfer_token_id,
+        )
+
+    def __get_transaction_details(
+        self,
+        start_key: bytes,
+        end_key: bytes,
+        limit: int,
+        decoding_byte_offset: int,
+        skip_coinbase_rewards: bool = False,
+        transfer_token_id: Optional[int] = None,
+    ) -> (List[TransactionDetail], bytes):
+        next_key, tx_list = end_key, []
+        tx_hashes = []
+
+        def skip_xshard(xshard_tx: CrossShardTransactionDeposit):
+            if xshard_tx.is_from_root_chain:
+                return (
+                    skip_coinbase_rewards or xshard_tx.value == 0
+                )  # value 0 if dummy deposit
+            return (
+                transfer_token_id is not None
+                and xshard_tx.transfer_token_id != transfer_token_id
+            )
+
+        def skip_tx(normal_tx: EvmTransaction):
+            return (
+                transfer_token_id is not None
+                and normal_tx.transfer_token_id != transfer_token_id
+            )
+
+        for k, v in self.db.reversed_range_iter(start_key, end_key):
             if limit <= 0:
                 break
-            height = int.from_bytes(k[5 + 24 : 5 + 24 + 4], "big")
-            cross_shard = int(k[5 + 24 + 4]) == 0
-            index = int.from_bytes(k[5 + 24 + 4 + 1 :], "big")
-            m_block = self.get_minor_block_by_height(height)
-            # skip if token ID specified and not match
-            should_skip = (
-                lambda tx: transfer_token_id is None
-                or tx.transfer_token_id == transfer_token_id
+            height = int.from_bytes(
+                k[decoding_byte_offset : decoding_byte_offset + 4], "big"
             )
+            cross_shard = int(k[decoding_byte_offset + 4]) == 0
+            index = int.from_bytes(k[decoding_byte_offset + 4 + 1 :], "big")
+            m_block = self.get_minor_block_by_height(height)
             if cross_shard:  # cross shard receive
                 x_shard_receive_tx_list = self.__get_confirmed_cross_shard_transaction_deposit_list(
                     m_block.header.get_hash()
@@ -144,8 +203,11 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if should_skip(tx):
+                if tx.tx_hash in tx_list:
+                    continue
+                if not skip_xshard(tx):
                     limit -= 1
+                    tx_hashes.append(tx.tx_hash)
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -162,10 +224,13 @@ class TransactionHistoryMixin:
                     )
             else:
                 receipt = m_block.get_receipt(self.db, index)
-                tx = m_block.tx_list[index]  # tx is Transaction
+                tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
-                if should_skip(evm_tx):
+                if tx.get_hash() in tx_hashes:
+                    continue
+                if not skip_tx(evm_tx):
                     limit -= 1
+                    tx_hashes.append(tx.get_hash())
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
@@ -182,11 +247,11 @@ class TransactionHistoryMixin:
                             is_from_root_chain=False,
                         )
                     )
-            next = (int.from_bytes(k, byteorder="big") - 1).to_bytes(
+            next_key = (int.from_bytes(k, byteorder="big") - 1).to_bytes(
                 len(k), byteorder="big"
             )
 
-        return tx_list, next
+        return tx_list, next_key
 
 
 class ShardDbOperator(TransactionHistoryMixin):

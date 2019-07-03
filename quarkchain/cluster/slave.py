@@ -33,6 +33,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkResponse,
     AddMinorBlockHeaderListRequest,
     CheckMinorBlockResponse,
+    GetAllTransactionsResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -389,6 +390,16 @@ class MasterConnection(ClusterConnection):
             error_code=0, minor_block=minor_block, index=i, receipt=receipt
         )
 
+    async def handle_get_all_transaction_request(self, req):
+        result = self.slave_server.get_all_transactions(
+            req.branch, req.start, req.limit
+        )
+        if not result:
+            return GetAllTransactionsResponse(error_code=1, tx_list=[], next=b"")
+        return GetAllTransactionsResponse(
+            error_code=0, tx_list=result[0], next=result[1]
+        )
+
     async def handle_get_transaction_list_by_address_request(self, req):
         result = self.slave_server.get_transaction_list_by_address(
             req.address, req.transfer_token_id, req.start, req.limit
@@ -638,6 +649,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.CHECK_MINOR_BLOCK_REQUEST: (
         ClusterOp.CHECK_MINOR_BLOCK_RESPONSE,
         MasterConnection.handle_check_minor_block_request,
+    ),
+    ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: (
+        ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE,
+        MasterConnection.handle_get_all_transaction_request,
     ),
 }
 
@@ -1237,6 +1252,12 @@ class SlaveServer:
         if not shard:
             return None
         return shard.state.get_transaction_receipt(tx_hash)
+
+    def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        shard = self.shards.get(branch, None)
+        if not shard:
+            return None
+        return shard.state.get_all_transactions(start, limit)
 
     def get_transaction_list_by_address(
         self,
