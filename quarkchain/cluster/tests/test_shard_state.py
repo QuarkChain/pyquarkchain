@@ -118,10 +118,9 @@ class TestShardState(unittest.TestCase):
             genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
         )
 
-        env.quark_chain_config._allowed_token_ids = [
-            token_id_encode("QKC"),
-            token_id_encode("QI"),
-        ]
+        qkc_token = token_id_encode("QKC")
+        qi_token = token_id_encode("QI")
+
         state = create_default_shard_state(env=env)
 
         # Add a root block to have all the shards initialized
@@ -139,7 +138,7 @@ class TestShardState(unittest.TestCase):
                         to_address=random.choice(acc_list),
                         value=0,
                         gas_price=42 if j == 0 else 0,
-                        gas_token_id=35760,
+                        gas_token_id=qkc_token,
                         nonce=nonce * 2,
                     )
                 )
@@ -152,7 +151,7 @@ class TestShardState(unittest.TestCase):
                         to_address=random.choice(acc_list),
                         value=0,
                         gas_price=43 if j == 0 else 0,
-                        gas_token_id=990,
+                        gas_token_id=qi_token,
                         nonce=nonce * 2 + 1,
                     )
                 )
@@ -162,18 +161,10 @@ class TestShardState(unittest.TestCase):
 
         # for testing purposes, update percentile to take max gas price
         state.gas_price_suggestion_oracle.percentile = 100
-        gas_price = state.gas_price(token_id=35760)
+        gas_price = state.gas_price(token_id=qkc_token)
         self.assertEqual(gas_price, 42)
 
-        gas_price = state.gas_price(token_id=990)
-        self.assertEqual(gas_price, 43)
-        #
-        # # results should be cached (same header). updating oracle shouldn't take effect
-        state.gas_price_suggestion_oracle.percentile = 50
-        gas_price = state.gas_price(token_id=35760)
-        self.assertEqual(gas_price, 42)
-
-        gas_price = state.gas_price(token_id=990)
+        gas_price = state.gas_price(token_id=qi_token)
         self.assertEqual(gas_price, 43)
 
         # no tx with this token_id
