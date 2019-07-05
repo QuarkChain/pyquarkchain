@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 import aiohttp_cors
 import rlp
@@ -871,18 +871,19 @@ class JSONRPCServer:
         return self.counters
 
     @public_methods.add
-    async def gasPrice(
-        self, full_shard_key: str, token_id: int = token_id_encode("QKC")
-    ):
+    async def gasPrice(self, full_shard_key: str, token_id: Optional[str] = None):
         full_shard_key = shard_id_decoder(full_shard_key)
         if full_shard_key is None:
             return None
+        parsed_token_id = (
+            quantity_decoder(token_id) if token_id else token_id_encode("QKC")
+        )
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
             )
         )
-        ret = await self.master.gas_price(branch, quantity_decoder(token_id))
+        ret = await self.master.gas_price(branch, parsed_token_id)
         if ret is None:
             return None
         return quantity_encoder(ret)

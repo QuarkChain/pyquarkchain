@@ -25,7 +25,6 @@ from quarkchain.utils import (
     masks_have_overlap,
 )
 
-from collections import defaultdict
 
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
