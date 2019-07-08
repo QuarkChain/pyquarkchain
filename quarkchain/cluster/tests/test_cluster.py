@@ -1402,6 +1402,114 @@ class TestCluster(unittest.TestCase):
             )
             self.assertEqual(receipt.success, b"\x01")
 
+    def test_cross_shard_contract_create(self):
+        """ Test the cross shard transactions are broadcasted to the destination shards """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1 << 16)
+
+        storage_key = int(
+            sha3_256(
+                bytes.fromhex(acc2.recipient.hex().zfill(64) + "1".zfill(64))
+            ).hex(),
+            16,
+        )
+
+        with ClusterContext(
+            1, acc1, chain_size=8, shard_size=1, mblock_coinbase_amount=1000000
+        ) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            clusters[0].get_shard(
+                (1 << 16) + 1
+            ).env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
+
+            # Add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx1 = create_contract_with_storage2_transaction(
+                shard_state=clusters[0].get_shard_state((1 << 16) | 1),
+                key=id1.get_key(),
+                from_address=acc2,
+                to_full_shard_key=acc1.full_shard_key,
+            )
+            self.assertTrue(slaves[1].add_tx(tx1))
+
+            b1 = (
+                clusters[0]
+                .get_shard_state((1 << 16) + 1)
+                .create_block_to_mine(address=acc2)
+            )
+            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b1))
+
+            _, _, receipt = call_async(
+                master.get_transaction_receipt(tx1.get_hash(), b1.header.branch)
+            )
+            self.assertEqual(receipt.success, b"\x01")
+
+            # should include b1
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            b2 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            call_async(clusters[0].get_shard(1).add_block(b2))
+
+            # contract should be created
+            _, _, receipt = call_async(
+                master.get_transaction_receipt(tx1.get_hash(), b2.header.branch)
+            )
+            self.assertEqual(receipt.success, b"\x01")
+            contract_address = receipt.contract_address
+            result = call_async(
+                master.get_storage_at(contract_address, storage_key, b2.header.height)
+            )
+            self.assertEqual(
+                result,
+                bytes.fromhex(
+                    "0000000000000000000000000000000000000000000000000000000000000000"
+                ),
+            )
+
+            # call the contract with enough gas
+            tx2 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(1),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=contract_address,
+                value=0,
+                gas=opcodes.GTXCOST + 700000,
+                gas_price=1,
+                data=bytes.fromhex("c2e171d7"),
+            )
+            self.assertTrue(slaves[0].add_tx(tx2))
+
+            b3 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            call_async(clusters[0].get_shard(1).add_block(b3))
+
+            _, _, receipt = call_async(
+                master.get_transaction_receipt(tx2.get_hash(), b3.header.branch)
+            )
+            self.assertEqual(receipt.success, b"\x01")
+            result = call_async(
+                master.get_storage_at(contract_address, storage_key, b3.header.height)
+            )
+            self.assertEqual(
+                result,
+                bytes.fromhex(
+                    "000000000000000000000000000000000000000000000000000000000000162e"
+                ),
+            )
+
     def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
         """ Test the broadcast is only done to the neighbors """
         id1 = Identity.create_random_identity()
