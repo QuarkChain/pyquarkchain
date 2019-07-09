@@ -257,8 +257,12 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     contract_address = b""
     if tx.is_cross_shard:
-        # TODO: support x-shard tx creation
-        if tx.to == b"":
+        if transfer_failure_by_posw_balance_check(ext, message):
+            result = 0
+            gas_remained = 0
+            data = []
+        elif tx.to == b"":
+            # TODO: support x-shard tx creation
             result = 0
             gas_remained = message.gas
             data = []
@@ -424,6 +428,14 @@ def apply_msg(ext, msg):
     return _apply_msg(ext, msg, ext.get_code(msg.code_address))
 
 
+def transfer_failure_by_posw_balance_check(ext, msg):
+    return msg.sender in ext.sender_disallow_map and msg.value + ext.sender_disallow_map[
+        msg.sender
+    ] > ext.get_balance(
+        msg.sender
+    )
+
+
 def _apply_msg(ext, msg, code):
     trace_msg = log_msg.is_active("trace")
     if trace_msg:
@@ -445,9 +457,7 @@ def _apply_msg(ext, msg, code):
         )
 
     # early exit if msg.sender is disallowed
-    if msg.sender in ext.sender_disallow_map and msg.value + ext.sender_disallow_map[
-        msg.sender
-    ] > ext.get_balance(msg.sender):
+    if transfer_failure_by_posw_balance_check(ext, msg):
         log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
         return 0, 0, []
 
