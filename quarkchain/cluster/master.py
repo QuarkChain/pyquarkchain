@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import cProfile
 
 import psutil
 import time
@@ -988,6 +989,10 @@ class MasterServer:
         self.loop.create_task(self.__init_cluster())
 
     def do_loop(self, callbacks: List[Callable]):
+        if self.env.arguments.enable_profiler:
+            profile = cProfile.Profile()
+            profile.enable()
+
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -996,6 +1001,10 @@ class MasterServer:
             for callback in callbacks:
                 if callable(callback):
                     callback()
+
+        if self.env.arguments.enable_profiler:
+            profile.disable()
+            profile.print_stats("time")
 
     def wait_until_cluster_active(self):
         # Wait until cluster is ready
@@ -1586,6 +1595,7 @@ class MasterServer:
 def parse_args():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
+    parser.add_argument("--enable_profiler", default=False, type=bool)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
