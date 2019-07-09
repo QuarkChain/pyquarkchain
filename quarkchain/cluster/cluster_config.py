@@ -210,7 +210,7 @@ class ClusterConfig(BaseConfig):
             if key_path[0] != "QKC":
                 continue
 
-            Logger.info("Applying env {0}: {1}".format(k, v))
+            print("Applying env {0}: {1}".format(k, v))
 
             config = self
             for i in range(1, len(key_path) - 1):
@@ -222,6 +222,8 @@ class ClusterConfig(BaseConfig):
                 if not isinstance(config, BaseConfig):
                     raise ValueError("Cannot apply env {}: config not found".format(k))
 
+            if not hasattr(config, key_path[-1]):
+                raise ValueError("Cannot apply env {}: key not found".format(k))
             setattr(config, key_path[-1], eval(v))
 
     @classmethod
