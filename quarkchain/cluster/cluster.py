@@ -31,12 +31,9 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         process.send_signal(sig)
 
 
-async def run_master(config_file, check_db, profile):
+async def run_master(config_file, extra_cmd):
     cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
-    if check_db:
-        cmd += " --check_db=true"
-    if profile:
-        cmd += " --enable_profiler=true"
+    cmd += extra_cmd
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
@@ -83,11 +80,14 @@ class Cluster:
         await self.shutdown()
 
     async def run_master(self):
-        master = await run_master(
-            self.config.json_filepath,
-            self.check_db_only,
-            "MASTER" in self.args.profile.split(","),
-        )
+        extra_cmd = ""
+        if self.check_db_only:
+            extra_cmd += " --check_db=true --check_db_rblock_from={0} --check_db_rblock_to={1}".format(
+                self.args.check_db_rblock_from, self.args.check_db_rblock_to
+            )
+        if "MASTER" in self.args.profile.split(","):
+            extra_cmd += " --enable_profiler=true"
+        master = await run_master(self.config.json_filepath, extra_cmd)
         prefix = "{}MASTER".format(self.cluster_id)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
@@ -136,6 +136,8 @@ def main():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
     parser.add_argument("--profile", default="", type=str)
+    parser.add_argument("--check_db_rblock_from", default=-1, type=int)
+    parser.add_argument("--check_db_rblock_to", default=0, type=int)
     args = parser.parse_args()
 
     config = ClusterConfig.create_from_args(args)
