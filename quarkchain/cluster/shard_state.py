@@ -703,7 +703,8 @@ class ShardState:
             raise ValueError("prev root blocks are not on the same chain")
 
         # Check PoW / PoSW
-        self.validate_minor_block_seal(block)
+        if not self.env.quark_chain_config.DISABLE_POW_CHECK:
+            self.validate_minor_block_seal(block)
 
     def validate_diff_match_prev(self, curr_header, prev_header):
         if not self.env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK:
