@@ -260,9 +260,7 @@ class ShardState:
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_header_pool = dict()
         # header hash -> (height, [coinbase address]) during previous blocks (ascending)
-        self.coinbase_addr_cache = defaultdict(
-            lambda: LRUCache(maxsize=128)
-        )  # type: Dict[int, Dict[bytes, Tuple[int, Deque[bytes]]]]
+        self.coinbase_addr_cache = LRUCache(maxsize=128)
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (
             1 - self.env.quark_chain_config.reward_tax_rate
@@ -1729,9 +1727,7 @@ class ShardState:
         # The func is inclusive, so need to fetch block counts until prev block
         # Also only fetch prev window_size - 1 block counts because the
         # new window should count the current block
-        block_cnt = self._get_posw_coinbase_blockcnt(
-            header.hash_prev_minor_block, length=config.WINDOW_SIZE - 1
-        )
+        block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
@@ -1752,16 +1748,15 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
-    def __get_coinbase_addresses_until_block(
-        self, header_hash: bytes, length: int
-    ) -> List[bytes]:
+    def __get_coinbase_addresses_until_block(self, header_hash: bytes) -> List[bytes]:
         """Get coinbase addresses up until block of given hash within the window."""
         header = self.db.get_minor_block_header_by_hash(header_hash)
+        length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
         if not header:
             raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
         height = header.height
         prev_hash = header.hash_prev_minor_block
-        cache = self.coinbase_addr_cache[length]
+        cache = self.coinbase_addr_cache
         if prev_hash in cache:  # mem cache hit
             _, addrs = cache[prev_hash]
             addrs = addrs.copy()
@@ -1782,24 +1777,21 @@ class ShardState:
         check(len(addrs) <= length)
         return list(addrs)
 
-    def _get_posw_coinbase_blockcnt(
-        self, header_hash: bytes, length: int
-    ) -> Dict[bytes, int]:
+    def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash, length)
+        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash)
         return Counter(coinbase_addrs)
 
     def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
         """Take an additional recipient parameter and add its block count."""
         if not self.shard_config.POSW_CONFIG.ENABLED:
             return {}
-        length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
         total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-        blockcnt = self._get_posw_coinbase_blockcnt(header_hash, length)
+        blockcnt = self._get_posw_coinbase_blockcnt(header_hash)
         if recipient:
             blockcnt[recipient] += 1
         return {k: v * total_stakes for k, v in blockcnt.items()}
