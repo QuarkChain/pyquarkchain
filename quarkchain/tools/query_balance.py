@@ -18,6 +18,12 @@ def parse_args():
     parser.add_argument(
         "--all_shards", type=bool, default=False, help="query balances in all shards"
     )
+    parser.add_argument("--recipient", type=int, help="query a specific recipient")
+    parser.add_argument(
+        "--minor_block_height",
+        type=int,
+        help="query balance at specific minor block height",
+    )
     ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
@@ -77,6 +83,24 @@ def print_all_shard_balances(env, rb):
     print("Total balance in network: %d" % total)
 
 
+def print_recipient_balance(env, rb, args):
+    recipient = args.recipient
+    shard = Shard(env, args.full_shard_id, None)
+    state = shard.state
+    state.init_from_root_block(rb)
+
+    if args.minor_block_height:
+        balance = state.get_balances(recipient, args.minor_block_height)
+    else:
+        balance = state.get_balances(recipient)
+
+    if balance:
+        print("Recipient: %d，balance: %d", (recipient, balance))
+        return balance
+    else:
+        print("Recipient not found.")
+
+
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -88,7 +112,9 @@ def main():
 
     if args.all_shards:
         print_all_shard_balances(env, rb)
-    else:
+    elif args.recipient:
+        print_recipient_balance(env, rb, args)
+    elif args.full_shard_id:
         print_shard_balance(env, rb, args.full_shard_id)
 
 
