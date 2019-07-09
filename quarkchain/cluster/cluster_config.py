@@ -204,6 +204,26 @@ class ClusterConfig(BaseConfig):
     def use_mem_db(self):
         return not self.DB_PATH_ROOT
 
+    def apply_env(self):
+        for k, v in os.environ.items():
+            key_path = k.split("__")
+            if key_path[0] != "QKC":
+                continue
+
+            Logger.info("Applying env {0}: {1}".format(k, v))
+
+            config = self
+            for i in range(1, len(key_path) - 1):
+                name = key_path[i]
+                if not hasattr(config, name):
+                    raise ValueError("Cannot apply env {}: key not found".format(k))
+
+                config = getattr(config, name)
+                if not isinstance(config, BaseConfig):
+                    raise ValueError("Cannot apply env {}: config not found".format(k))
+
+            setattr(config, key_path[-1], eval(v))
+
     @classmethod
     def attach_arguments(cls, parser):
         parser.add_argument("--cluster_config", default="", type=str)
@@ -405,6 +425,7 @@ class ClusterConfig(BaseConfig):
                 config.json_filepath = args.cluster_config
         else:
             config = __create_from_args_internal()
+        config.apply_env()
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
         update_genesis_alloc(config)
