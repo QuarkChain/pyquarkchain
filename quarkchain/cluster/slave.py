@@ -270,6 +270,7 @@ class MasterConnection(ClusterConnection):
         try:
             shard.check_minor_block_by_header(req.minor_block_header)
         except Exception as e:
+            Logger.error_exception()
             return CheckMinorBlockResponse(error_code=errno.EBADMSG)
 
         return CheckMinorBlockResponse(error_code=0)
