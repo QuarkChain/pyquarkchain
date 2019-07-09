@@ -1562,7 +1562,7 @@ class ShardState:
             for orderable_tx in self.tx_queue.txs:
                 tx = orderable_tx.tx
                 # TODO: could also show incoming pending tx
-                if Address(tx.sender, tx.from_full_shard_key) == address and (
+                if (tx.sender == address.recipient or tx.to == address.recipient) and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
                 ):
