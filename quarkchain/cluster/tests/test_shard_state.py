@@ -26,6 +26,7 @@ def create_default_shard_state(
     if posw_override:
         posw_config = env.quark_chain_config.shards[full_shard_id].POSW_CONFIG
         posw_config.ENABLED = True
+        posw_config.WINDOW_SIZE = 3
     if no_coinbase:
         env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT = 0
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
@@ -2157,23 +2158,22 @@ class TestShardState(unittest.TestCase):
             Identity.create_random_identity(), full_shard_key=0
         )
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        posw_window_len = 2
-        state = create_default_shard_state(env=env, shard_id=0)
+        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
         m = state.get_tip().create_block_to_append(address=acc)
         coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-            m.header.hash_prev_minor_block, length=posw_window_len
+            m.header.hash_prev_minor_block
         )
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m)
 
-        # Note PoSW window size is 2
+        # Note PoSW window size is 2, configured in `create_default_shard_state`
         prev_addr = None
         for i in range(4):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
             coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.hash_prev_minor_block, length=posw_window_len
+                m.header.hash_prev_minor_block
             )
             self.assertEqual(len(coinbase_blockcnt), 2)
             # Count should all equal 1
@@ -2185,30 +2185,7 @@ class TestShardState(unittest.TestCase):
             prev_addr = random_acc.recipient
 
         # Cached should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 1)
-        self.assertEqual(len(state.coinbase_addr_cache[2]), 5)
-
-    def test_posw_coinbase_address_count_by_diff_length(self):
-        acc = Address.create_from_identity(
-            Identity.create_random_identity(), full_shard_key=0
-        )
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        state = create_default_shard_state(env=env, shard_id=0)
-
-        for i in range(4):
-            random_acc = Address.create_random_account(full_shard_key=0)
-            m = state.get_tip().create_block_to_append(address=random_acc)
-            state.finalize_and_add_block(m)
-
-        sum_cnt = lambda d: sum(d.values())
-        for length in range(1, 5):
-            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.get_hash(), length
-            )
-            self.assertEqual(sum_cnt(coinbase_blockcnt), length)
-
-        # Make sure internal cache state is correct
-        self.assertEqual(len(state.coinbase_addr_cache), 4)
+        self.assertEqual(len(state.coinbase_addr_cache), 6)
 
     def test_posw_coinbase_send_under_limit(self):
         id1 = Identity.create_random_identity()
