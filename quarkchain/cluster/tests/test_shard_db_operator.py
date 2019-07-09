@@ -16,7 +16,6 @@ from quarkchain.core import (
 )
 from quarkchain.db import InMemoryDb
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
 
 
@@ -50,7 +49,7 @@ class TestShardDbOperator(unittest.TestCase):
 
     def test_get_transaction_by_address(self):
         id1 = Identity.create_random_identity()
-        acc0 = Address.create_random_account(full_shard_key=0)
+        miner_addr = Address.create_random_account(full_shard_key=0)
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=100)
         acc3 = Address.create_random_account(full_shard_key=0)
@@ -68,30 +67,11 @@ class TestShardDbOperator(unittest.TestCase):
             from_address=acc1,
             to_address=acc2,
             value=12345,
-            gas=50000,
         )
-
-        state.evm_state.gas_used = state.evm_state.gas_limit
         self.assertTrue(state.add_tx(tx1))
-
-        block1, i = state.get_transaction_by_hash(tx1.get_hash())
-        self.assertEqual(block1.tx_list[0], tx1)
-        self.assertEqual(block1.header.create_time, 0)
-        self.assertEqual(i, 0)
-
-        b1 = state.create_block_to_mine(address=acc0, gas_limit=49999)
-        self.assertEqual(len(b1.tx_list), 0)
-
-        b1 = state.create_block_to_mine(address=acc0)
-        self.assertEqual(len(b1.tx_list), 1)
-
-        # Should succeed
+        b1 = state.create_block_to_mine(address=miner_addr)
         state.finalize_and_add_block(b1)
         self.assertEqual(state.header_tip, b1.header)
-        # self.assertEqual(
-        #     state.get_token_balance(id1.recipient, self.genesis_token),
-        #     10000000 - opcodes.GTXCOST - 12345,
-        # )     --> FAILED
 
         tx2 = create_transfer_transaction(
             shard_state=state,
@@ -99,44 +79,18 @@ class TestShardDbOperator(unittest.TestCase):
             from_address=acc1,
             to_address=acc3,
             value=54321,
-            gas=50000,
         )
-
         self.assertTrue(state.add_tx(tx2))
-
-        block2, j = state.get_transaction_by_hash(tx2.get_hash())
-        self.assertEqual(block2.tx_list[0], tx2)
-        self.assertEqual(block2.header.create_time, 0)
-        self.assertEqual(j, 0)
-
-        b2 = state.create_block_to_mine(address=acc0, gas_limit=49999)
-        self.assertEqual(len(b2.tx_list), 0)
-
-        b2 = state.create_block_to_mine(address=acc0)
-        self.assertEqual(len(b2.tx_list), 1)
-
-        # Should succeed
+        b2 = state.create_block_to_mine(address=miner_addr)
         state.finalize_and_add_block(b2)
         self.assertEqual(state.header_tip, b2.header)
-        # self.assertEqual(
-        #     state.get_token_balance(id1.recipient, self.genesis_token),
-        #     10000000 - opcodes.GTXCOST - 12345,
-        # )
 
-        self.assertEqual(
-            state.db.get_transactions_by_address(acc1),
-            state.db.get_transactions_by_address(acc2),
-        )
-        self.assertNotEqual(
-            state.db.get_transactions_by_address(acc1),
-            state.db.get_transactions_by_address(acc3),
-        )
-
-        tx_list, _ = state.db.get_transactions_by_address(acc1)
-        self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[1].value, 54321)
-        tx_list, _ = state.db.get_transactions_by_address(acc2)
-        self.assertEqual(tx_list[0].value, 12345)
-        self.assertEqual(tx_list[1].value, 54321)
-        tx_list, _ = state.db.get_transactions_by_address(acc3)
-        self.assertEqual(tx_list[0].value, 54321)
+        # acc1 and acc2 should have the same transaction history
+        # while acc3 is different
+        tx_list1, _ = state.db.get_transactions_by_address(acc1)
+        self.assertListEqual([t.value for t in tx_list1], [12345, 54321])
+        tx_list2, _ = state.db.get_transactions_by_address(acc2)
+        self.assertListEqual(tx_list2, tx_list1)
+        tx_list3, _ = state.db.get_transactions_by_address(acc3)
+        self.assertEqual(tx_list3[0].value, 54321)
+        self.assertNotEqual(tx_list3, tx_list1)
