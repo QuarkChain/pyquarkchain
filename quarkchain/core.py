@@ -783,7 +783,7 @@ class MinorBlock(Serializable):
             evm_state.receipts, evm_state.db
         )
         self.header.hash_meta = self.meta.get_hash()
-        self.header.bloom = evm_state.bloom
+        self.header.bloom = evm_state.get_bloom()
         return self
 
     def add_tx(self, tx):

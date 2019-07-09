@@ -142,7 +142,7 @@ class TransactionHistoryMixin:
             return [], b""
 
         serialized_address = address.serialize()
-        end = b"index_addr_" + serialized_address
+        end = b"index_addr_" + serialized_address[:-2]
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
@@ -169,6 +169,7 @@ class TransactionHistoryMixin:
         transfer_token_id: Optional[int] = None,
     ) -> (List[TransactionDetail], bytes):
         next_key, tx_list = end_key, []
+        tx_hashes = set()
 
         def skip_xshard(xshard_tx: CrossShardTransactionDeposit):
             if xshard_tx.is_from_root_chain:
@@ -202,8 +203,9 @@ class TransactionHistoryMixin:
                 tx = x_shard_receive_tx_list[
                     index
                 ]  # type: CrossShardTransactionDeposit
-                if not skip_xshard(tx):
+                if tx.tx_hash not in tx_hashes and not skip_xshard(tx):
                     limit -= 1
+                    tx_hashes.add(tx.tx_hash)
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
@@ -222,11 +224,13 @@ class TransactionHistoryMixin:
                 receipt = m_block.get_receipt(self.db, index)
                 tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
-                if not skip_tx(evm_tx):
+                tx_hash = tx.get_hash()
+                if tx_hash not in tx_hashes and not skip_tx(evm_tx):
                     limit -= 1
+                    tx_hashes.add(tx_hash)
                     tx_list.append(
                         TransactionDetail(
-                            tx.get_hash(),
+                            tx_hash,
                             Address(evm_tx.sender, evm_tx.from_full_shard_key),
                             Address(evm_tx.to, evm_tx.to_full_shard_key)
                             if evm_tx.to
