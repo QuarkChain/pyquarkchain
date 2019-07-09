@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import errno
 import os
+import cProfile
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -1364,11 +1365,13 @@ def parse_args():
     ClusterConfig.attach_arguments(parser)
     # Unique Id identifying the node in the cluster
     parser.add_argument("--node_id", default="", type=str)
+    parser.add_argument("--enable_profiler", default=False, type=bool)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
     env.slave_config = env.cluster_config.get_slave_config(args.node_id)
+    env.arguments = args
 
     return env
 
@@ -1377,9 +1380,15 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     env = parse_args()
 
+    if env.arguments.enable_profiler:
+        profile = cProfile.Profile()
+        profile.enable()
     slave_server = SlaveServer(env)
     slave_server.start()
     slave_server.do_loop()
+    if env.arguments.enable_profiler:
+        profile.disable()
+        profile.print_stats("time")
 
     Logger.info("Slave server is shutdown")
 

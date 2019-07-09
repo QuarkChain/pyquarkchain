@@ -31,19 +31,23 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
         process.send_signal(sig)
 
 
-async def run_master(config_file, check_db):
+async def run_master(config_file, check_db, profile):
     cmd = "{} -u master.py --cluster_config={}".format(PYTHON, config_file)
     if check_db:
         cmd += " --check_db=true"
+    if profile:
+        cmd += " --enable_profiler=true"
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
 
 
-async def run_slave(config_file, id):
+async def run_slave(config_file, id, profile):
     cmd = "{} -u slave.py --cluster_config={} --node_id={}".format(
         PYTHON, config_file, id
     )
+    if profile:
+        cmd += " --enable_profiler=true"
     return await asyncio.create_subprocess_exec(
         *cmd.split(" "), stdout=subprocess.PIPE, stderr=subprocess.STDOUT
     )
@@ -61,12 +65,13 @@ async def print_output(prefix, stream):
 
 
 class Cluster:
-    def __init__(self, config: ClusterConfig, cluster_id=""):
+    def __init__(self, config: ClusterConfig, cluster_id="", args=None):
         self.config = config
         self.procs = []
         self.shutdown_called = False
         self.cluster_id = cluster_id
         self.check_db_only = False
+        self.args = args
 
     async def wait_and_shutdown(self, prefix, proc):
         """ If one process terminates shutdown the entire cluster """
@@ -78,14 +83,22 @@ class Cluster:
         await self.shutdown()
 
     async def run_master(self):
-        master = await run_master(self.config.json_filepath, self.check_db_only)
+        master = await run_master(
+            self.config.json_filepath,
+            self.check_db_only,
+            "MASTER" in self.args.profile.split(","),
+        )
         prefix = "{}MASTER".format(self.cluster_id)
         asyncio.ensure_future(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
 
     async def run_slaves(self):
         for slave in self.config.SLAVE_LIST:
-            s = await run_slave(self.config.json_filepath, slave.ID)
+            s = await run_slave(
+                self.config.json_filepath,
+                slave.ID,
+                slave.ID in self.args.profile.split(","),
+            )
             prefix = "{}SLAVE_{}".format(self.cluster_id, slave.ID)
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
@@ -122,13 +135,14 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
+    parser.add_argument("--profile", default="", type=str)
     args = parser.parse_args()
 
     config = ClusterConfig.create_from_args(args)
     print("Cluster config file: {}".format(config.json_filepath))
     print(config.to_json())
 
-    cluster = Cluster(config)
+    cluster = Cluster(config, args=args)
 
     if args.check_db:
         cluster.check_db()
