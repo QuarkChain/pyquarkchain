@@ -915,7 +915,7 @@ class ShardState:
         ):
             raise ValueError("coinbase reward incorrect")
 
-        if evm_state.bloom != block.header.bloom:
+        if evm_state.get_bloom() != block.header.bloom:
             raise ValueError("bloom mismatch")
 
         if write_db:
