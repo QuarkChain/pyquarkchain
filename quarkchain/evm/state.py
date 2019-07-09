@@ -45,7 +45,6 @@ def snapshot_form(val):
 
 
 STATE_DEFAULTS = {
-    "txindex": 0,
     "gas_used": 0,
     "xshard_receive_gas_used": 0,
     "gas_limit": 3141592,
@@ -56,7 +55,6 @@ STATE_DEFAULTS = {
     "timestamp": 0,
     "logs": [],
     "receipts": [],
-    "bloom": 0,
     "suicides": [],
     "recent_uncles": {},
     "prev_headers": [],
@@ -275,6 +273,12 @@ class State:
     @property
     def config(self):
         return self.env.config
+
+    def get_bloom(self):
+        bloom = 0
+        for r in self.receipts:
+            bloom |= r.bloom
+        return bloom
 
     def get_block_hash(self, n):
         if self.block_number < n or n > 256 or n < 0:

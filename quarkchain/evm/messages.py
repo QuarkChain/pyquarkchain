@@ -363,8 +363,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
     state.logs = []
     state.add_receipt(r)
-    state.set_param("bloom", state.bloom | r.bloom)
-    state.set_param("txindex", state.txindex + 1)
 
     return success, output
 
