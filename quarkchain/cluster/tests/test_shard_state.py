@@ -2167,7 +2167,7 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m)
 
-        # Note PoSW window size is 2, configured in `create_default_shard_state`
+        # Note PoSW window size is 3, configured in `create_default_shard_state`
         prev_addr = None
         for i in range(4):
             random_acc = Address.create_random_account(full_shard_key=0)
