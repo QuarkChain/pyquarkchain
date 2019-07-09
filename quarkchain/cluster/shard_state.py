@@ -1538,6 +1538,12 @@ class ShardState:
             )
         return block, index, receipt
 
+    def get_all_transactions(self, start: bytes, limit: int):
+        if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
+            return [], b""
+
+        return self.db.get_all_transactions(start, limit)
+
     def get_transaction_list_by_address(
         self,
         address: Address,
@@ -1553,7 +1559,7 @@ class ShardState:
             for orderable_tx in self.tx_queue.txs:
                 tx = orderable_tx.tx
                 # TODO: could also show incoming pending tx
-                if Address(tx.sender, tx.from_full_shard_key) == address and (
+                if (tx.sender == address.recipient or tx.to == address.recipient) and (
                     transfer_token_id is None
                     or tx.transfer_token_id == transfer_token_id
                 ):

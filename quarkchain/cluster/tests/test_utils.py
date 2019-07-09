@@ -281,6 +281,7 @@ def create_test_clusters(
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
     should_set_gas_price_limit=False,
+    mblock_coinbase_amount=None,
 ):
     # so we can have lower minimum diff
     easy_diff_calc = EthDifficultyCalculator(
@@ -315,6 +316,9 @@ def create_test_clusters(
             env.quark_chain_config.ROOT.COINBASE_AMOUNT = 5
             for c in env.quark_chain_config.shards.values():
                 c.COINBASE_AMOUNT = 5
+        if mblock_coinbase_amount is not None:
+            for c in env.quark_chain_config.shards.values():
+                c.COINBASE_AMOUNT = mblock_coinbase_amount
 
         env.cluster_config.SLAVE_LIST = []
         check(is_p2(num_slaves))
@@ -402,6 +406,7 @@ class ClusterContext(ContextDecorator):
         loadtest_accounts=None,
         connect=True,
         should_set_gas_price_limit=False,
+        mblock_coinbase_amount=None,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -414,6 +419,7 @@ class ClusterContext(ContextDecorator):
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
         self.should_set_gas_price_limit = should_set_gas_price_limit
+        self.mblock_coinbase_amount = mblock_coinbase_amount
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -431,6 +437,7 @@ class ClusterContext(ContextDecorator):
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
+            mblock_coinbase_amount=self.mblock_coinbase_amount,
         )
         return self.cluster_list
 
