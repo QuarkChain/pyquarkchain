@@ -16,7 +16,10 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--full_shard_id", type=int, help="full shard id to operate")
     parser.add_argument(
-        "--all_shards", type=bool, default=False, help="query balances in all shards"
+        "--all_shards",
+        action="store_true",
+        default=False,
+        help="query balances in all shards",
     )
     parser.add_argument("--recipient", type=int, help="query a specific recipient")
     parser.add_argument(
@@ -67,20 +70,30 @@ def print_shard_balance(env, rb, full_shard_id):
     return total, state.header_tip.height
 
 
-def print_all_shard_balances(env, rb):
+def print_all_shard_balances(env, rb, args):
     total = 0
-    balance_list = []
-    for full_shard_id in env.quark_chain_config.shards:
-        balance_list.append(print_shard_balance(env, rb, full_shard_id))
-        total += balance_list[-1][0]
-    print("Summary:")
-    print("Root block height: %d" % rb.header.height)
-    for idx, full_shard_id in enumerate(env.quark_chain_config.shards):
-        print(
-            "Shard id: %d, height: %d, balance: %d"
-            % (full_shard_id, balance_list[idx][1], balance_list[idx][0])
-        )
-    print("Total balance in network: %d" % total)
+
+    if args.recipient:
+        for full_shard_id in env.quark_chain_config.shards:
+            shard = Shard(env, full_shard_id, None)
+            state = shard.state
+            state.init_from_root_block(rb)
+            total += sum(state.get_balances(args.recipient).values())
+        print("\nTotal balance of recipient %d: %d" % (args.recipient, total))
+
+    else:
+        balance_list = []
+        for full_shard_id in env.quark_chain_config.shards:
+            balance_list.append(print_shard_balance(env, rb, full_shard_id))
+            total += balance_list[-1][0]
+        print("Summary:")
+        print("Root block height: %d" % rb.header.height)
+        for idx, full_shard_id in enumerate(env.quark_chain_config.shards):
+            print(
+                "Shard id: %d, height: %d, balance: %d"
+                % (full_shard_id, balance_list[idx][1], balance_list[idx][0])
+            )
+        print("\nTotal balance in network: %d" % total)
 
 
 def print_recipient_balance(env, rb, args):
@@ -96,13 +109,26 @@ def print_recipient_balance(env, rb, args):
 
     if balance:
         print("Recipient: %d，balance: %d", (recipient, balance))
-        return balance
     else:
         print("Recipient not found.")
 
 
+def print_balance_by_block_height(env, rb, minor_block_height):
+    for full_shard_id in env.quark_chain_config.shards:
+        balance, height = print_shard_balance(env, rb, full_shard_id)
+        if height == minor_block_height:
+            print("-" * 30)
+            print(
+                "Total balance in shard %d at height %d: %d"
+                % (full_shard_id, minor_block_height, balance)
+            )
+            return balance
+    print("-" * 30)
+    print("Invalid height")
+
+
 def main():
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../cluster"))
 
     env, args = parse_args()
 
@@ -111,11 +137,13 @@ def main():
     print("Root block height: %d" % rb.header.height)
 
     if args.all_shards:
-        print_all_shard_balances(env, rb)
+        print_all_shard_balances(env, rb, args)
     elif args.recipient:
         print_recipient_balance(env, rb, args)
     elif args.full_shard_id:
         print_shard_balance(env, rb, args.full_shard_id)
+    elif args.minor_block_height:
+        print_balance_by_block_height(env, rb, args.minor_block_height)
 
 
 if __name__ == "__main__":
