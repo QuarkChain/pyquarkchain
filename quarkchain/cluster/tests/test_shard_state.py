@@ -115,11 +115,16 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(
             genesis_account=acc_list[0],
             genesis_minor_quarkash=100000000,
-            genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
+            genesis_minor_token_balances={
+                "QKC": 100000000,
+                "QI": 100000000,
+                "BTC": 100000000,
+            },
         )
 
         qkc_token = token_id_encode("QKC")
         qi_token = token_id_encode("QI")
+        btc_token = token_id_encode("BTC")
 
         state = create_default_shard_state(env=env)
 
@@ -127,21 +132,16 @@ class TestShardState(unittest.TestCase):
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
 
-        # 5 tx per block, make 3 blocks
-        for nonce in range(3):
+        # 5 tx per block, make 7 blocks
+        for nonce in range(7):
             for j in range(5):
-                state.add_tx(
-                    create_transfer_transaction(
-                        shard_state=state,
-                        key=id_list[j].get_key(),
-                        from_address=acc_list[j],
-                        to_address=random.choice(acc_list),
-                        value=0,
-                        gas_price=42 if j == 0 else 0,
-                        gas_token_id=qkc_token,
-                        nonce=nonce * 2,
-                    )
-                )
+
+                if nonce == 2 and j == 0:
+                    gas_price = 100
+                elif nonce != 2 and j == 0:
+                    gas_price = 42
+                else:
+                    gas_price = 0
 
                 state.add_tx(
                     create_transfer_transaction(
@@ -150,7 +150,27 @@ class TestShardState(unittest.TestCase):
                         from_address=acc_list[j],
                         to_address=random.choice(acc_list),
                         value=0,
-                        gas_price=43 if j == 0 else 0,
+                        gas_price=gas_price,
+                        gas_token_id=qkc_token,
+                        nonce=nonce * 2,
+                    )
+                )
+
+                if nonce == 1 and j == 0:
+                    gas_price = 101
+                elif nonce != 1 and j == 0:
+                    gas_price = 43
+                else:
+                    gas_price = 0
+
+                state.add_tx(
+                    create_transfer_transaction(
+                        shard_state=state,
+                        key=id_list[j].get_key(),
+                        from_address=acc_list[j],
+                        to_address=random.choice(acc_list),
+                        value=0,
+                        gas_price=gas_price,
                         gas_token_id=qi_token,
                         nonce=nonce * 2 + 1,
                     )
@@ -161,13 +181,20 @@ class TestShardState(unittest.TestCase):
 
         # for testing purposes, update percentile to take max gas price
         state.gas_price_suggestion_oracle.percentile = 100
-        gas_price = state.gas_price(token_id=qkc_token)
-        self.assertEqual(gas_price, 42)
 
+        # txs in block 3-7 are included
+        gas_price = state.gas_price(token_id=qkc_token)
+        self.assertEqual(gas_price, 100)
+
+        # tx with token_id = QI and gas_price = 101 is included in block 2
         gas_price = state.gas_price(token_id=qi_token)
         self.assertEqual(gas_price, 43)
 
-        # no tx with this token_id
+        # allowed token id, but no tx with this token id in the latest 5 block, set to default minimum gas price
+        gas_price = state.gas_price(token_id=btc_token)
+        self.assertEqual(gas_price, 0)
+
+        # malicious token id
         gas_price = state.gas_price(token_id=1)
         self.assertIsNone(gas_price)
 

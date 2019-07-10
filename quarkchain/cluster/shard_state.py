@@ -1681,15 +1681,19 @@ class ShardState:
             block = self.db.get_minor_block_by_height(i)
             if not block:
                 Logger.error("Failed to get block {} to retrieve gas price".format(i))
-                continue
+                return
             block_prices = block.get_block_prices()
-            if token_id not in block_prices:
-                Logger.error(
-                    "Token ID {} does not exist in transactions".format(token_id)
-                )
-                return None
-            prices.extend(block_prices[token_id])
+            if token_id in block_prices:
+                prices.extend(block_prices[token_id])
 
+        if not prices:
+            if token_id in self.env.quark_chain_config._allowed_token_ids:
+                return self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE
+            else:
+                Logger.error("Malicious token id {} ".format(token_id))
+                return
+
+        # print(prices)
         prices.sort()
         price = prices[
             (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
