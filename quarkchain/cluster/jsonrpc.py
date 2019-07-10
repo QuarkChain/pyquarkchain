@@ -974,17 +974,22 @@ class JSONRPCServer:
             return None
         if len(minor_block.tx_list) <= i:
             return None
-        root_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
+        confirming_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
             minor_block.header.get_hash()
             + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
         )
-        if root_hash is None:
+        if confirming_hash is None:
             return quantity_encoder(0)
-        root_header_tip = self.master.root_state.tip
-        root_header = self.master.root_state.db.get_root_block_header_by_hash(root_hash)
-        if not self.master.root_state.is_same_chain(root_header_tip, root_header):
+        confirming_header = self.master.root_state.db.get_root_block_header_by_hash(
+            confirming_hash
+        )
+        canonical_hash = self.master.root_state.db.get_root_block_hash_by_height(
+            confirming_header.height
+        )
+        if canonical_hash != confirming_hash:
             return quantity_encoder(0)
-        return quantity_encoder(root_header_tip.height - root_header.height + 1)
+        tip = self.master.root_state.tip
+        return quantity_encoder(tip.height - confirming_header.height + 1)
 
     ######################## Ethereum JSON RPC ########################
 
