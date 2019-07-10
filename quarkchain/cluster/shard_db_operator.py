@@ -261,7 +261,8 @@ class ShardDbOperator(TransactionHistoryMixin):
         # height -> set(minor block hash) for counting wasted blocks
         self.height_to_minor_block_hashes = dict()
         self.rblock_cache = LRUCache(maxsize=256)
-        self.mblock_cache = LRUCache(maxsize=1024)
+        self.mblock_cache = LRUCache(maxsize=4096)
+        self.mblock_header_cache = LRUCache(maxsize=10240)
 
     # ------------------------- Root block db operations --------------------------------
     def put_root_block(self, root_block, r_minor_header=None):
@@ -344,7 +345,11 @@ class ShardDbOperator(TransactionHistoryMixin):
         return int.from_bytes(count_bytes, "big")
 
     def get_minor_block_header_by_hash(self, h) -> Optional[MinorBlockHeader]:
+        if h in self.mblock_header_cache:
+            return self.mblock_header_cache[h]
         block = self.get_minor_block_by_hash(h)
+        if block is not None:
+            self.mblock_header_cache[h] = block.header
         return block and block.header
 
     def get_minor_block_evm_root_hash_by_hash(self, h):
