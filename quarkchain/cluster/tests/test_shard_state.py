@@ -2352,6 +2352,7 @@ class TestShardState(unittest.TestCase):
     def test_posw_coinbase_send_above_locked(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1 << 16)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
         state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
         state.shard_config.COINBASE_AMOUNT = 10
@@ -2389,13 +2390,27 @@ class TestShardState(unittest.TestCase):
             gas=21000,
             gas_price=0,
         )
-        state.tx_queue.add_transaction(tx0.tx.to_evm_tx())
+        self.assertTrue(state.add_tx(tx0))
+        tx1 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=2,
+            gas=30000,
+            gas_price=0,
+            nonce=tx0.tx.to_evm_tx().nonce + 1,
+        )
+        self.assertTrue(state.add_tx(tx1))
 
         m = state.create_block_to_mine(address=acc1)
+        self.assertEqual(len(m.tx_list), 2)
         state.finalize_and_add_block(m)
 
-        r = state.get_transaction_receipt(tx0.get_hash())
-        self.assertEqual(r[2].success, b"")  # Failure
+        r0 = state.get_transaction_receipt(tx0.get_hash())
+        self.assertEqual(r0[2].success, b"")  # Failure
+        r1 = state.get_transaction_receipt(tx1.get_hash())
+        self.assertEqual(r1[2].success, b"")  # Failure
 
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
