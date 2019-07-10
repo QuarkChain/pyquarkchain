@@ -21,9 +21,12 @@ def parse_args():
         default=False,
         help="query balances in all shards",
     )
-    parser.add_argument("--recipient", type=int, help="query a specific recipient")
+    parser.add_argument(
+        "--recipient", default=None, type=int, help="query a specific recipient"
+    )
     parser.add_argument(
         "--minor_block_height",
+        default=None,
         type=int,
         help="query balance at specific minor block height",
     )
@@ -108,7 +111,7 @@ def print_recipient_balance(env, rb, args):
         balance = state.get_balances(recipient)
 
     if balance:
-        print("Recipient: %d，balance: %d", (recipient, balance))
+        print("Recipient: %d，balance: %d" % (recipient, balance))
     else:
         print("Recipient not found.")
 
