@@ -54,7 +54,7 @@ class RootDb:
         self.tip_header = None
 
         self.__recover_from_db()
-        self.rblock_cache = LRUCache(maxsize=128)
+        self.rblock_cache = LRUCache(maxsize=1024)
 
     def __recover_from_db(self):
         """ Recover the best chain from local database.

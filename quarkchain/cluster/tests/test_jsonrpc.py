@@ -25,7 +25,7 @@ from quarkchain.core import (
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.utils import call_async, sha3_256
+from quarkchain.utils import call_async, sha3_256, token_id_encode
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -894,7 +894,9 @@ class TestJSONRPC(unittest.TestCase):
                 if using_eth_endpoint:
                     resp = send_request("eth_gasPrice", ["0x0"])
                 else:
-                    resp = send_request("gasPrice", ["0x0"])
+                    resp = send_request(
+                        "gasPrice", ["0x0", quantity_encoder(token_id_encode("QKC"))]
+                    )
 
                 self.assertEqual(resp, "0xc")
 
