@@ -1455,7 +1455,6 @@ class ShardState:
         return is_neighbor(self.branch, remote_branch, shard_size)
 
     def __run_one_xshard_tx(self, evm_state, deposit, check_is_from_root_chain):
-        # TODO: check if target address is a smart contract address or user address
         gas_used_start = 0
         if check_is_from_root_chain:
             gas_used_start = (
@@ -1464,7 +1463,37 @@ class ShardState:
         else:
             gas_used_start = opcodes.GTXXSHARDCOST if deposit.gas_price != 0 else 0
 
-        apply_xshard_desposit(evm_state, deposit, gas_used_start)
+        if (
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+            and evm_state.timestamp <= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+        ):
+            tx = deposit
+            # FIXME: full_shard_key is not set
+            evm_state.delta_token_balance(
+                tx.to_address.recipient, tx.transfer_token_id, tx.value
+            )
+            if check_is_from_root_chain:
+                evm_state.gas_used = evm_state.gas_used + (
+                    opcodes.GTXXSHARDCOST if not tx.is_from_root_chain else 0
+                )
+            else:
+                evm_state.gas_used = evm_state.gas_used + (
+                    opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
+                )
+            check(evm_state.gas_used <= evm_state.gas_limit)
+
+            xshard_fee = (
+                opcodes.GTXXSHARDCOST
+                * tx.gas_price
+                * self.local_fee_rate.numerator
+                // self.local_fee_rate.denominator
+            )
+            add_dict(evm_state.block_fee_tokens, {tx.gas_token_id: xshard_fee})
+            evm_state.delta_token_balance(
+                evm_state.block_coinbase, tx.gas_token_id, xshard_fee
+            )
+        else:
+            apply_xshard_desposit(evm_state, deposit, gas_used_start)
         check(evm_state.gas_used <= evm_state.gas_limit)
 
     def __run_cross_shard_tx_with_cursor(self, evm_state, mblock):
