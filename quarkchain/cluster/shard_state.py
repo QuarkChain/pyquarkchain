@@ -48,11 +48,8 @@ MAX_FUTURE_TX_NONCE = 64
 
 
 class GasPriceSuggestionOracle:
-    def __init__(
-        self, last_price: int, last_head: bytes, check_blocks: int, percentile: int
-    ):
-        self.last_price = last_price
-        self.last_head = last_head
+    def __init__(self, check_blocks: int, percentile: int):
+        self.cache = LRUCache(maxsize=128)
         self.check_blocks = check_blocks
         self.percentile = percentile
 
@@ -251,7 +248,7 @@ class ShardState:
         self.header_tip = None  # MinorBlockHeader
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
-            last_price=0, last_head=b"", check_blocks=5, percentile=50
+            check_blocks=5, percentile=50
         )
 
         # new blocks that passed POW validation and should be made available to whole network
@@ -1668,10 +1665,13 @@ class ShardState:
             return None
         return hi
 
-    def gas_price(self) -> Optional[int]:
+    def gas_price(self, token_id: int) -> Optional[int]:
+        if token_id not in self.env.quark_chain_config.allowed_token_ids:
+            Logger.error("Unrecognized token id {} ".format(token_id))
+            return
         curr_head = self.header_tip.get_hash()
-        if curr_head == self.gas_price_suggestion_oracle.last_head:
-            return self.gas_price_suggestion_oracle.last_price
+        if (curr_head, token_id) in self.gas_price_suggestion_oracle.cache:
+            return self.gas_price_suggestion_oracle.cache[(curr_head, token_id)]
         curr_height = self.header_tip.height
         start_height = curr_height - self.gas_price_suggestion_oracle.check_blocks + 1
         if start_height < 3:
@@ -1681,16 +1681,19 @@ class ShardState:
             block = self.db.get_minor_block_by_height(i)
             if not block:
                 Logger.error("Failed to get block {} to retrieve gas price".format(i))
-                continue
-            prices.extend(block.get_block_prices())
+                return
+            block_prices = block.get_block_prices()
+            if token_id in block_prices:
+                prices.extend(block_prices[token_id])
+
         if not prices:
-            return None
+            return self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE
+
         prices.sort()
         price = prices[
             (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
         ]
-        self.gas_price_suggestion_oracle.last_price = price
-        self.gas_price_suggestion_oracle.last_head = curr_head
+        self.gas_price_suggestion_oracle.cache[(curr_head, token_id)] = price
         return price
 
     def validate_minor_block_seal(self, block: MinorBlock):

@@ -1,7 +1,7 @@
 import asyncio
 import inspect
 import json
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Optional
 
 import aiohttp_cors
 import rlp
@@ -28,7 +28,7 @@ from quarkchain.core import (
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
-from quarkchain.utils import Logger, token_id_decode
+from quarkchain.utils import Logger, token_id_decode, token_id_encode
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -285,6 +285,26 @@ def tx_encoder(block, i):
         "r": quantity_encoder(evm_tx.r),
         "s": quantity_encoder(evm_tx.s),
         "v": quantity_encoder(evm_tx.v),
+    }
+
+
+def tx_detail_encoder(tx):
+    """Encode a transaction detail object as JSON object. Used for indexing server."""
+    return {
+        "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_key),
+        "fromAddress": address_encoder(tx.from_address.serialize()),
+        "toAddress": address_encoder(tx.to_address.serialize())
+        if tx.to_address
+        else "0x",
+        "value": quantity_encoder(tx.value),
+        "transferTokenId": quantity_encoder(tx.transfer_token_id),
+        "transferTokenStr": token_id_decode(tx.transfer_token_id),
+        "gasTokenId": quantity_encoder(tx.gas_token_id),
+        "gasTokenStr": token_id_decode(tx.gas_token_id),
+        "blockHeight": quantity_encoder(tx.block_height),
+        "timestamp": quantity_encoder(tx.timestamp),
+        "success": tx.success,
+        "isFromRootChain": tx.is_from_root_chain,
     }
 
 
@@ -824,6 +844,30 @@ class JSONRPCServer:
         return data_encoder(res) if res is not None else None
 
     @public_methods.add
+    @decode_arg("full_shard_key", shard_id_decoder)
+    @decode_arg("start", data_decoder)
+    @decode_arg("limit", quantity_decoder)
+    async def getAllTransactions(self, full_shard_key, start="0x", limit="0xa"):
+        """ "start" should be the "next" in the response for fetching next page.
+            "start" can also be "0x" to fetch from the beginning (i.e., latest).
+        """
+        branch = Branch(
+            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                full_shard_key
+            )
+        )
+        if limit > 20:
+            limit = 20
+        result = await self.master.get_all_transactions(branch, start, limit)
+        if not result:
+            return None
+        tx_list, next = result
+        return {
+            "txList": [tx_detail_encoder(tx) for tx in tx_list],
+            "next": data_encoder(next),
+        }
+
+    @public_methods.add
     @decode_arg("address", address_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
@@ -844,43 +888,29 @@ class JSONRPCServer:
         if not result:
             return None
         tx_list, next = result
-        txs = []
-        for tx in tx_list:
-            txs.append(
-                {
-                    "txId": id_encoder(tx.tx_hash, tx.from_address.full_shard_key),
-                    "fromAddress": address_encoder(tx.from_address.serialize()),
-                    "toAddress": address_encoder(tx.to_address.serialize())
-                    if tx.to_address
-                    else "0x",
-                    "value": quantity_encoder(tx.value),
-                    "transferTokenId": quantity_encoder(tx.transfer_token_id),
-                    "transferTokenStr": token_id_decode(tx.transfer_token_id),
-                    "gasTokenId": quantity_encoder(tx.gas_token_id),
-                    "gasTokenStr": token_id_decode(tx.gas_token_id),
-                    "blockHeight": quantity_encoder(tx.block_height),
-                    "timestamp": quantity_encoder(tx.timestamp),
-                    "success": tx.success,
-                    "isFromRootChain": tx.is_from_root_chain,
-                }
-            )
-        return {"txList": txs, "next": data_encoder(next)}
+        return {
+            "txList": [tx_detail_encoder(tx) for tx in tx_list],
+            "next": data_encoder(next),
+        }
 
     @public_methods.add
     async def getJrpcCalls(self):
         return self.counters
 
     @public_methods.add
-    async def gasPrice(self, full_shard_key: int):
+    async def gasPrice(self, full_shard_key: str, token_id: Optional[str] = None):
         full_shard_key = shard_id_decoder(full_shard_key)
         if full_shard_key is None:
             return None
+        parsed_token_id = (
+            quantity_decoder(token_id) if token_id else token_id_encode("QKC")
+        )
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
             )
         )
-        ret = await self.master.gas_price(branch)
+        ret = await self.master.gas_price(branch, parsed_token_id)
         if ret is None:
             return None
         return quantity_encoder(ret)
@@ -964,7 +994,7 @@ class JSONRPCServer:
 
     @public_methods.add
     async def eth_gasPrice(self, shard):
-        return await self.gasPrice(shard)
+        return await self.gasPrice(shard, quantity_encoder(token_id_encode("QKC")))
 
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)
