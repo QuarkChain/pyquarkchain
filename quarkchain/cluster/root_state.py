@@ -399,8 +399,9 @@ class RootState:
             raise ValueError("incorrect total difficulty")
 
         # Check PoW if applicable
-        consensus_type = self.root_config.CONSENSUS_TYPE
-        validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
+        if not self.env.quark_chain_config.DISABLE_POW_CHECK:
+            consensus_type = self.root_config.CONSENSUS_TYPE
+            validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
 
         return block_header.get_hash()
 

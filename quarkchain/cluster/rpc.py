@@ -29,7 +29,6 @@ from quarkchain.core import (
     uint16,
     uint32,
     uint64,
-    uint128,
     uint256,
     boolean,
     signature65,
@@ -326,6 +325,32 @@ class TransactionDetail(Serializable):
 
 
 class GetTransactionListByAddressResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+        ("tx_list", PrependedSizeListSerializer(4, TransactionDetail)),
+        ("next", PrependedSizeBytesSerializer(4)),
+    ]
+
+    def __init__(self, error_code, tx_list, next):
+        self.error_code = error_code
+        self.tx_list = tx_list
+        self.next = next
+
+
+class GetAllTransactionsRequest(Serializable):
+    FIELDS = [
+        ("branch", Branch),
+        ("start", PrependedSizeBytesSerializer(4)),
+        ("limit", uint32),
+    ]
+
+    def __init__(self, branch, start, limit):
+        self.branch = branch
+        self.start = start
+        self.limit = limit
+
+
+class GetAllTransactionsResponse(Serializable):
     FIELDS = [
         ("error_code", uint32),
         ("tx_list", PrependedSizeListSerializer(4, TransactionDetail)),
@@ -968,6 +993,8 @@ class ClusterOp:
     ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE = 60 + CLUSTER_OP_BASE
     CHECK_MINOR_BLOCK_REQUEST = 61 + CLUSTER_OP_BASE
     CHECK_MINOR_BLOCK_RESPONSE = 62 + CLUSTER_OP_BASE
+    GET_ALL_TRANSACTIONS_REQUEST = 63 + CLUSTER_OP_BASE
+    GET_ALL_TRANSACTIONS_RESPONSE = 64 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -1032,4 +1059,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.ADD_MINOR_BLOCK_HEADER_LIST_RESPONSE: AddMinorBlockHeaderListResponse,
     ClusterOp.CHECK_MINOR_BLOCK_REQUEST: CheckMinorBlockRequest,
     ClusterOp.CHECK_MINOR_BLOCK_RESPONSE: CheckMinorBlockResponse,
+    ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: GetAllTransactionsRequest,
+    ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE: GetAllTransactionsResponse,
 }

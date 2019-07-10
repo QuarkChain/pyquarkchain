@@ -27,6 +27,7 @@ def create_default_shard_state(
     if posw_override:
         posw_config = env.quark_chain_config.shards[full_shard_id].POSW_CONFIG
         posw_config.ENABLED = True
+        posw_config.WINDOW_SIZE = 3
     if no_coinbase:
         env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT = 0
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
@@ -915,8 +916,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
     def test_xshard_tx_received_ddos_fix(self):
         id1 = Identity.create_random_identity()
@@ -1335,8 +1336,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b2 and make sure all x-shard tx's are added
         b2 = state0.create_block_to_mine(
@@ -1348,6 +1349,9 @@ class TestShardState(unittest.TestCase):
             state0.get_token_balance(acc1.recipient, self.genesis_token),
             10000000 + 1000000 + 888888 + 111111,
         )
+        # X-shard gas used
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b3 and make sure no x-shard tx's are added
         b3 = state0.create_block_to_mine(
@@ -1359,6 +1363,8 @@ class TestShardState(unittest.TestCase):
             state0.get_token_balance(acc1.recipient, self.genesis_token),
             10000000 + 1000000 + 888888 + 111111,
         )
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
         b4 = state0.create_block_to_mine(
             address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST
@@ -1368,14 +1374,18 @@ class TestShardState(unittest.TestCase):
             b2.meta.xshard_tx_cursor_info, b3.meta.xshard_tx_cursor_info
         )
         self.assertEqual(b3.meta.xshard_tx_cursor_info, b4.meta.xshard_tx_cursor_info)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, 0)
 
         b5 = state0.create_block_to_mine(
             address=acc3,
             gas_limit=opcodes.GTXXSHARDCOST,
             xshard_gas_limit=2 * opcodes.GTXXSHARDCOST,
         )
-        with self.assertRaises(ValueError):
-            # xsahrd_gas_limit should be smaller than gas_limit
+        with self.assertRaisesRegexp(
+            ValueError, "xshard_gas_limit \\d+ should not exceed total gas_limit"
+        ):
+            # xshard_gas_limit should be smaller than gas_limit
             state0.finalize_and_add_block(
                 b5,
                 gas_limit=opcodes.GTXXSHARDCOST,
@@ -1385,7 +1395,9 @@ class TestShardState(unittest.TestCase):
         b6 = state0.create_block_to_mine(
             address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegexp(
+            ValueError, "incorrect xshard gas limit, expected \\d+, actual \\d+"
+        ):
             # xshard_gas_limit should be gas_limit // 2
             state0.finalize_and_add_block(b6)
 
@@ -1527,8 +1539,8 @@ class TestShardState(unittest.TestCase):
         )
 
         # X-shard gas used
-        evmState0 = state0.evm_state
-        self.assertEqual(evmState0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
+        evm_state0 = state0.evm_state
+        self.assertEqual(evm_state0.xshard_receive_gas_used, opcodes.GTXXSHARDCOST)
 
         # Add b2 and make sure all x-shard tx's are added
         b2 = state0.create_block_to_mine(xshard_gas_limit=opcodes.GTXXSHARDCOST)
@@ -2201,23 +2213,22 @@ class TestShardState(unittest.TestCase):
             Identity.create_random_identity(), full_shard_key=0
         )
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        posw_window_len = 2
-        state = create_default_shard_state(env=env, shard_id=0)
+        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
         m = state.get_tip().create_block_to_append(address=acc)
         coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-            m.header.hash_prev_minor_block, length=posw_window_len
+            m.header.hash_prev_minor_block
         )
         self.assertEqual(len(coinbase_blockcnt), 1)  # Genesis
         state.finalize_and_add_block(m)
 
-        # Note PoSW window size is 2
+        # Note PoSW window size is 3, configured in `create_default_shard_state`
         prev_addr = None
         for i in range(4):
             random_acc = Address.create_random_account(full_shard_key=0)
             m = state.get_tip().create_block_to_append(address=random_acc)
             coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.hash_prev_minor_block, length=posw_window_len
+                m.header.hash_prev_minor_block
             )
             self.assertEqual(len(coinbase_blockcnt), 2)
             # Count should all equal 1
@@ -2228,31 +2239,8 @@ class TestShardState(unittest.TestCase):
             state.finalize_and_add_block(m)
             prev_addr = random_acc.recipient
 
-        # Cached should have certain items
-        self.assertEqual(len(state.coinbase_addr_cache), 1)
-        self.assertEqual(len(state.coinbase_addr_cache[2]), 5)
-
-    def test_posw_coinbase_address_count_by_diff_length(self):
-        acc = Address.create_from_identity(
-            Identity.create_random_identity(), full_shard_key=0
-        )
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=0)
-        state = create_default_shard_state(env=env, shard_id=0)
-
-        for i in range(4):
-            random_acc = Address.create_random_account(full_shard_key=0)
-            m = state.get_tip().create_block_to_append(address=random_acc)
-            state.finalize_and_add_block(m)
-
-        sum_cnt = lambda d: sum(d.values())
-        for length in range(1, 5):
-            coinbase_blockcnt = state._get_posw_coinbase_blockcnt(
-                m.header.get_hash(), length
-            )
-            self.assertEqual(sum_cnt(coinbase_blockcnt), length)
-
-        # Make sure internal cache state is correct
-        self.assertEqual(len(state.coinbase_addr_cache), 4)
+        # Cached should have certain items (>= 5)
+        self.assertGreaterEqual(len(state.coinbase_addr_cache), 5)
 
     def test_posw_coinbase_send_under_limit(self):
         id1 = Identity.create_random_identity()

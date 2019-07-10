@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import errno
 import os
+import cProfile
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -33,6 +34,7 @@ from quarkchain.cluster.rpc import (
     SubmitWorkResponse,
     AddMinorBlockHeaderListRequest,
     CheckMinorBlockResponse,
+    GetAllTransactionsResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -268,6 +270,7 @@ class MasterConnection(ClusterConnection):
         try:
             shard.check_minor_block_by_header(req.minor_block_header)
         except Exception as e:
+            Logger.error_exception()
             return CheckMinorBlockResponse(error_code=errno.EBADMSG)
 
         return CheckMinorBlockResponse(error_code=0)
@@ -387,6 +390,16 @@ class MasterConnection(ClusterConnection):
         minor_block, i, receipt = resp
         return GetTransactionReceiptResponse(
             error_code=0, minor_block=minor_block, index=i, receipt=receipt
+        )
+
+    async def handle_get_all_transaction_request(self, req):
+        result = self.slave_server.get_all_transactions(
+            req.branch, req.start, req.limit
+        )
+        if not result:
+            return GetAllTransactionsResponse(error_code=1, tx_list=[], next=b"")
+        return GetAllTransactionsResponse(
+            error_code=0, tx_list=result[0], next=result[1]
         )
 
     async def handle_get_transaction_list_by_address_request(self, req):
@@ -638,6 +651,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.CHECK_MINOR_BLOCK_REQUEST: (
         ClusterOp.CHECK_MINOR_BLOCK_RESPONSE,
         MasterConnection.handle_check_minor_block_request,
+    ),
+    ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: (
+        ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE,
+        MasterConnection.handle_get_all_transaction_request,
     ),
 }
 
@@ -1238,6 +1255,12 @@ class SlaveServer:
             return None
         return shard.state.get_transaction_receipt(tx_hash)
 
+    def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        shard = self.shards.get(branch, None)
+        if not shard:
+            return None
+        return shard.state.get_all_transactions(start, limit)
+
     def get_transaction_list_by_address(
         self,
         address: Address,
@@ -1343,11 +1366,13 @@ def parse_args():
     ClusterConfig.attach_arguments(parser)
     # Unique Id identifying the node in the cluster
     parser.add_argument("--node_id", default="", type=str)
+    parser.add_argument("--enable_profiler", default=False, type=bool)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig.create_from_args(args)
     env.slave_config = env.cluster_config.get_slave_config(args.node_id)
+    env.arguments = args
 
     return env
 
@@ -1356,9 +1381,15 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     env = parse_args()
 
+    if env.arguments.enable_profiler:
+        profile = cProfile.Profile()
+        profile.enable()
     slave_server = SlaveServer(env)
     slave_server.start()
     slave_server.do_loop()
+    if env.arguments.enable_profiler:
+        profile.disable()
+        profile.print_stats("time")
 
     Logger.info("Slave server is shutdown")
 

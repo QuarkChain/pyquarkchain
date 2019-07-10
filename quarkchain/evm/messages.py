@@ -256,7 +256,34 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     ext = VMExt(state, tx)
 
     contract_address = b""
-    if tx.to != b"":
+    if tx.is_cross_shard:
+        # TODO: support x-shard tx creation
+        if tx.to == b"":
+            result = 0
+            gas_remained = message.gas
+            data = []
+        else:
+            state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+            result = 1  # success
+            # TODO: gas_remained should be calcualted in target shard
+            gas_remained = tx.startgas - intrinsic_gas
+            data = []
+            ext.add_cross_shard_transaction_deposit(
+                quarkchain.core.CrossShardTransactionDeposit(
+                    tx_hash=message.tx_hash,
+                    from_address=quarkchain.core.Address(
+                        message.sender, message.from_full_shard_key
+                    ),
+                    to_address=quarkchain.core.Address(
+                        message.to, message.to_full_shard_key
+                    ),
+                    value=message.value,
+                    gas_price=ext.tx_gasprice,
+                    gas_token_id=message.gas_token_id,
+                    transfer_token_id=message.transfer_token_id,
+                )
+            )
+    elif tx.to != b"":
         result, gas_remained, data = apply_msg(ext, message)
     else:  # CREATE
         result, gas_remained, data = create_contract(ext, message)
@@ -336,8 +363,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
     state.logs = []
     state.add_receipt(r)
-    state.set_param("bloom", state.bloom | r.bloom)
-    state.set_param("txindex", state.txindex + 1)
 
     return success, output
 
@@ -420,45 +445,23 @@ def _apply_msg(ext, msg, code):
         )
 
     # early exit if msg.sender is disallowed
-    if (
-        msg.sender in ext.sender_disallow_map
-        and msg.value + ext.sender_disallow_map[msg.sender] > ext.get_balance(msg.sender)
-    ):
+    if msg.sender in ext.sender_disallow_map and msg.value + ext.sender_disallow_map[
+        msg.sender
+    ] > ext.get_balance(msg.sender):
         log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
         return 0, 0, []
 
     # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:
-        if msg.is_cross_shard:
-            if not ext.deduct_value(msg.sender, msg.transfer_token_id, msg.value):
-                return 1, msg.gas, []
-            ext.add_cross_shard_transaction_deposit(
-                quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=msg.tx_hash,
-                    from_address=quarkchain.core.Address(
-                        msg.sender, msg.from_full_shard_key
-                    ),
-                    to_address=quarkchain.core.Address(msg.to, msg.to_full_shard_key),
-                    value=msg.value,
-                    gas_price=ext.tx_gasprice,
-                    gas_token_id=msg.gas_token_id,
-                    transfer_token_id=msg.transfer_token_id,
-                )
-            )
-        elif not ext.transfer_value(
-            msg.sender, msg.to, msg.transfer_token_id, msg.value
-        ):
+        if not ext.transfer_value(msg.sender, msg.to, msg.transfer_token_id, msg.value):
             log_msg.debug(
                 "MSG TRANSFER FAILED",
                 have=ext.get_balance(msg.sender, token_id=msg.transfer_token_id),
                 want=msg.value,
             )
+            # TODO: Why return success if the transfer failed?
             return 1, msg.gas, []
-
-    if msg.is_cross_shard:
-        # Cross shard contract call is not supported
-        return 1, msg.gas, []
 
     if msg.transfer_token_id != ext.default_state_token:
         # TODODLL calling smart contract with non QKC transfer_token_id is not supported

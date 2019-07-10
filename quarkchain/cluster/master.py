@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import os
+import cProfile
 
 import psutil
 import time
@@ -52,6 +53,7 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderListResponse,
     RootBlockSychronizerStats,
     CheckMinorBlockRequest,
+    GetAllTransactionsRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -569,6 +571,15 @@ class SlaveConnection(ClusterConnection):
             return None
         return resp.minor_block, resp.index, resp.receipt
 
+    async def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        request = GetAllTransactionsRequest(branch, start, limit)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_ALL_TRANSACTIONS_REQUEST, request
+        )
+        if resp.error_code != 0:
+            return None
+        return resp.tx_list, resp.next
+
     async def get_transactions_by_address(
         self,
         address: Address,
@@ -893,8 +904,12 @@ class MasterServer:
 
         # Start with root db
         rb = self.root_state.get_tip_block()
+        check_db_rblock_from = self.env.arguments.check_db_rblock_from
+        check_db_rblock_to = self.env.arguments.check_db_rblock_to
+        if check_db_rblock_from >= 0 and check_db_rblock_from < rb.header.height:
+            rb = self.root_state.get_root_block_by_height(check_db_rblock_from)
         Logger.info("Starting from root block height: {}".format(rb.header.height))
-        while rb.header.height != 0:
+        while rb.header.height >= max(check_db_rblock_to, 1):
             if rb.header.height % 10 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
             prev_rb = self.root_state.db.get_root_block_by_hash(
@@ -978,6 +993,10 @@ class MasterServer:
         self.loop.create_task(self.__init_cluster())
 
     def do_loop(self, callbacks: List[Callable]):
+        if self.env.arguments.enable_profiler:
+            profile = cProfile.Profile()
+            profile.enable()
+
         try:
             self.loop.run_until_complete(self.shutdown_future)
         except KeyboardInterrupt:
@@ -986,6 +1005,10 @@ class MasterServer:
             for callback in callbacks:
                 if callable(callback):
                     callback()
+
+        if self.env.arguments.enable_profiler:
+            profile.disable()
+            profile.print_stats("time")
 
     def wait_until_cluster_active(self):
         # Wait until cluster is ready
@@ -1460,6 +1483,13 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.get_transaction_receipt(tx_hash, branch)
 
+    async def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        return await slave.get_all_transactions(branch, start, limit)
+
     async def get_transactions_by_address(
         self,
         address: Address,
@@ -1569,6 +1599,9 @@ class MasterServer:
 def parse_args():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
+    parser.add_argument("--enable_profiler", default=False, type=bool)
+    parser.add_argument("--check_db_rblock_from", default=-1, type=int)
+    parser.add_argument("--check_db_rblock_to", default=0, type=int)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()

@@ -566,7 +566,7 @@ class TypedTransaction(Serializable):
         )
     ]
 
-    def __init__(self, tx):
+    def __init__(self, tx: SerializedEvmTransaction):
         self.tx = tx
 
     def get_hash(self):
@@ -784,7 +784,7 @@ class MinorBlock(Serializable):
             evm_state.receipts, evm_state.db
         )
         self.header.hash_meta = self.meta.get_hash()
-        self.header.bloom = evm_state.bloom
+        self.header.bloom = evm_state.get_bloom()
         return self
 
     def add_tx(self, tx):
