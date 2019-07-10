@@ -25,6 +25,7 @@ from quarkchain.utils import (
     masks_have_overlap,
 )
 
+
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
 
@@ -821,8 +822,13 @@ class MinorBlock(Serializable):
             logs,
         )
 
-    def get_block_prices(self) -> List[int]:
-        return [typed_tx.tx.to_evm_tx().gasprice for typed_tx in self.tx_list]
+    def get_block_prices(self) -> Dict[int, list]:
+        prices = {}
+        for typed_tx in self.tx_list:
+            evm_tx = typed_tx.tx.to_evm_tx()
+            prices.setdefault(evm_tx.gas_token_id, []).append(evm_tx.gasprice)
+
+        return prices
 
     def create_block_to_append(
         self,
