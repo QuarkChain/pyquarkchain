@@ -256,7 +256,6 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.env = env
         self.db = db
         self.branch = branch
-        self.r_header_pool = dict()
 
         # height -> set(minor block hash) for counting wasted blocks
         self.height_to_minor_block_hashes = dict()
@@ -350,7 +349,8 @@ class ShardDbOperator(TransactionHistoryMixin):
         block = self.get_minor_block_by_hash(h)
         if block is not None:
             self.mblock_header_cache[h] = block.header
-        return block and block.header
+            return block.header
+        return None
 
     def get_minor_block_evm_root_hash_by_hash(self, h):
         meta = self.get_minor_block_meta_by_hash(h)
