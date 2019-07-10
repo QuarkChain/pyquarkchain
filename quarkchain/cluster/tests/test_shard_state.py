@@ -127,51 +127,42 @@ class TestShardState(unittest.TestCase):
         qi_token = token_id_encode("QI")
         btc_token = token_id_encode("BTC")
 
+        qkc_prices = [42, 42, 100, 42, 41]
+        qi_prices = [43, 101, 43, 41, 40]
+
         state = create_default_shard_state(env=env)
 
         # Add a root block to have all the shards initialized
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
 
-        # 5 tx per block, make 7 blocks
-        for nonce in range(7):
-            for j in range(5):
-
-                if nonce == 2 and j == 0:
-                    gas_price = 100
-                elif nonce != 2 and j == 0:
-                    gas_price = 42
-                else:
-                    gas_price = 0
-
+        # 5 tx per block, make 5 blocks
+        for nonce in range(5):  # block
+            for acc_index in range(5):
+                qkc_price, qi_price = (
+                    (qkc_prices[nonce], qi_prices[nonce]) if acc_index == 0 else (0, 0)
+                )
                 state.add_tx(
                     create_transfer_transaction(
                         shard_state=state,
-                        key=id_list[j].get_key(),
-                        from_address=acc_list[j],
+                        key=id_list[acc_index].get_key(),
+                        from_address=acc_list[acc_index],
                         to_address=random.choice(acc_list),
                         value=0,
-                        gas_price=gas_price,
+                        gas_price=qkc_price,
                         gas_token_id=qkc_token,
                         nonce=nonce * 2,
                     )
                 )
 
-                if nonce == 1 and j == 0:
-                    gas_price = 101
-                elif nonce != 1 and j == 0:
-                    gas_price = 43
-                else:
-                    gas_price = 0
-
                 state.add_tx(
                     create_transfer_transaction(
                         shard_state=state,
-                        key=id_list[j].get_key(),
-                        from_address=acc_list[j],
+                        key=id_list[acc_index].get_key(),
+                        from_address=acc_list[acc_index],
                         to_address=random.choice(acc_list),
                         value=0,
-                        gas_price=gas_price,
+                        gas_price=qi_price,
                         gas_token_id=qi_token,
                         nonce=nonce * 2 + 1,
                     )
@@ -180,10 +171,9 @@ class TestShardState(unittest.TestCase):
             b = state.create_block_to_mine(address=acc_list[1])
             state.finalize_and_add_block(b)
 
+        # txs in block 3-5 are included
         # for testing purposes, update percentile to take max gas price
         state.gas_price_suggestion_oracle.percentile = 100
-
-        # txs in block 3-7 are included
         gas_price = state.gas_price(token_id=qkc_token)
         self.assertEqual(gas_price, 100)
 
@@ -191,11 +181,19 @@ class TestShardState(unittest.TestCase):
         gas_price = state.gas_price(token_id=qi_token)
         self.assertEqual(gas_price, 43)
 
-        # allowed token id, but no tx with this token id in the latest 5 block, set to default minimum gas price
+        # clear the cache, update percentile to take the second largest gas price
+        state.gas_price_suggestion_oracle.cache.clear()
+        state.gas_price_suggestion_oracle.percentile = 95
+        gas_price = state.gas_price(token_id=qkc_token)
+        self.assertEqual(gas_price, 42)
+        gas_price = state.gas_price(token_id=qi_token)
+        self.assertEqual(gas_price, 41)
+
+        # allowed token id, but no tx with this token id in the latest blocks, set to default minimum gas price
         gas_price = state.gas_price(token_id=btc_token)
         self.assertEqual(gas_price, 0)
 
-        # malicious token id
+        # unrecognized token id
         gas_price = state.gas_price(token_id=1)
         self.assertIsNone(gas_price)
 

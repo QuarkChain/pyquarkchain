@@ -1674,6 +1674,9 @@ class ShardState:
         return hi
 
     def gas_price(self, token_id: int) -> Optional[int]:
+        if token_id not in self.env.quark_chain_config.allowed_token_ids:
+            Logger.error("Unrecognized token id {} ".format(token_id))
+            return
         curr_head = self.header_tip.get_hash()
         if (curr_head, token_id) in self.gas_price_suggestion_oracle.cache:
             return self.gas_price_suggestion_oracle.cache[(curr_head, token_id)]
@@ -1692,13 +1695,8 @@ class ShardState:
                 prices.extend(block_prices[token_id])
 
         if not prices:
-            if token_id in self.env.quark_chain_config._allowed_token_ids:
-                return self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE
-            else:
-                Logger.error("Malicious token id {} ".format(token_id))
-                return
+            return self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE
 
-        # print(prices)
         prices.sort()
         price = prices[
             (len(prices) - 1) * self.gas_price_suggestion_oracle.percentile // 100
