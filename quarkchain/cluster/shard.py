@@ -640,6 +640,15 @@ class Shard:
         ):
             return
 
+        # There is a race that the root block may not be processed at the moment.
+        # Ignore it if its root block is not found.
+        # Otherwise, validate_block() will fail and we will disconnect the peer.
+        if (
+            self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
+            is None
+        ):
+            return
+
         try:
             self.state.validate_block(block)
         except Exception as e:

@@ -1441,6 +1441,9 @@ class ShardState:
 
         return True
 
+    def get_root_block_header_by_hash(self, h):
+        return self.db.get_root_block_header_by_hash(h)
+
     def _is_neighbor(self, remote_branch: Branch, root_height=None):
         root_height = self.root_tip.height if root_height is None else root_height
         shard_size = len(
