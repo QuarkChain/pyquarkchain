@@ -1472,18 +1472,11 @@ class ShardState:
             evm_state.delta_token_balance(
                 tx.to_address.recipient, tx.transfer_token_id, tx.value
             )
-            if check_is_from_root_chain:
-                evm_state.gas_used = evm_state.gas_used + (
-                    opcodes.GTXXSHARDCOST if not tx.is_from_root_chain else 0
-                )
-            else:
-                evm_state.gas_used = evm_state.gas_used + (
-                    opcodes.GTXXSHARDCOST if tx.gas_price != 0 else 0
-                )
+            evm_state.gas_used = evm_state.gas_used + gas_used_start
             check(evm_state.gas_used <= evm_state.gas_limit)
 
             xshard_fee = (
-                opcodes.GTXXSHARDCOST
+                gas_used_start
                 * tx.gas_price
                 * self.local_fee_rate.numerator
                 // self.local_fee_rate.denominator
