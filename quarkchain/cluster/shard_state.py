@@ -1465,7 +1465,7 @@ class ShardState:
 
         if (
             self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
-            and evm_state.timestamp <= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+            and evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
         ):
             tx = deposit
             # FIXME: full_shard_key is not set
@@ -1473,10 +1473,9 @@ class ShardState:
                 tx.to_address.recipient, tx.transfer_token_id, tx.value
             )
             evm_state.gas_used = evm_state.gas_used + gas_used_start
-            check(evm_state.gas_used <= evm_state.gas_limit)
 
             xshard_fee = (
-                gas_used_start
+                opcodes.GTXXSHARDCOST
                 * tx.gas_price
                 * self.local_fee_rate.numerator
                 // self.local_fee_rate.denominator
