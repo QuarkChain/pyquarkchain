@@ -82,8 +82,10 @@ class Cluster:
     async def run_master(self):
         extra_cmd = ""
         if self.check_db_only:
-            extra_cmd += " --check_db=true --check_db_rblock_from={0} --check_db_rblock_to={1}".format(
-                self.args.check_db_rblock_from, self.args.check_db_rblock_to
+            extra_cmd += " --check_db=true --check_db_rblock_from={0} --check_db_rblock_to={1} --check_db_rblock_batch={2}".format(
+                self.args.check_db_rblock_from,
+                self.args.check_db_rblock_to,
+                self.args.check_db_rblock_batch,
             )
         if "MASTER" in self.args.profile.split(","):
             extra_cmd += " --enable_profiler=true"
@@ -138,6 +140,7 @@ def main():
     parser.add_argument("--profile", default="", type=str)
     parser.add_argument("--check_db_rblock_from", default=-1, type=int)
     parser.add_argument("--check_db_rblock_to", default=0, type=int)
+    parser.add_argument("--check_db_rblock_batch", default=1, type=int)
     args = parser.parse_args()
 
     config = ClusterConfig.create_from_args(args)
