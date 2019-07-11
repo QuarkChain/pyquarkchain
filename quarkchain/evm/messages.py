@@ -371,6 +371,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         remote_gas_reserved = 0
         if transfer_failure_by_posw_balance_check(ext, message):
             success = 0
+            # Currently, burn all gas
+            local_gas_used = tx.startgas
         elif tx.to == b"":
             # TODO: support x-shard tx creation
             success = 0

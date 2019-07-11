@@ -1029,12 +1029,12 @@ class RootBlock(Serializable):
         )
 
 
-CROSS_SHARD_TRANSACTION_DEPOSIT_SIZE = (
+CROSS_SHARD_TRANSACTION_DEPOSIT_DEPRECATED_SIZE = (
     Constant.HASH_LENGTH + Constant.ADDRESS_LENGTH * 2 + 32 * 2 + 8 * 2 + 1
 )
 
 
-class CrossShardTransactionDepositOld(Serializable):
+class CrossShardTransactionDepositDeprecated(Serializable):
     """ Destination of x-shard tx
     """
 
@@ -1115,9 +1115,12 @@ class CrossShardTransactionDeposit(Serializable):
         self.is_from_root_chain = is_from_root_chain
 
 
-class CrossShardTransactionOldList(Serializable):
+class CrossShardTransactionDeprecatedList(Serializable):
     FIELDS = [
-        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDepositOld))
+        (
+            "tx_list",
+            PrependedSizeListSerializer(4, CrossShardTransactionDepositDeprecated),
+        )
     ]
 
     def __init__(self, tx_list):
@@ -1140,14 +1143,14 @@ class CrossShardTransactionList(Serializable):
         size = bb.get_uint(4)
         if size == 0:
             return True
-        return (len(data) - 4) // size == CROSS_SHARD_TRANSACTION_DEPOSIT_SIZE
+        return (len(data) - 4) == CROSS_SHARD_TRANSACTION_DEPOSIT_DEPRECATED_SIZE * size
 
     @staticmethod
     def from_data(data):
         if not CrossShardTransactionList.is_old_list(data):
             return CrossShardTransactionList.deserialize(data)
 
-        old_list = CrossShardTransactionOldList.deserialize(data)
+        old_list = CrossShardTransactionDeprecatedList.deserialize(data)
         return CrossShardTransactionList(
             [
                 CrossShardTransactionDeposit(
