@@ -1202,21 +1202,24 @@ class TestCluster(unittest.TestCase):
                 + 500000,  # post-tax mblock coinbase
             )
 
-    def test_cross_shard_transaction_call(self):
+    def test_cross_shard_contract_call(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
         id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1 << 16)
+        acc3 = Address.create_from_identity(id2, full_shard_key=0)
+        acc4 = Address.create_from_identity(id2, full_shard_key=1 << 16)
 
         storage_key = int(
             sha3_256(
-                bytes.fromhex(acc2.recipient.hex().zfill(64) + "1".zfill(64))
+                bytes.fromhex(acc4.recipient.hex().zfill(64) + "1".zfill(64))
             ).hex(),
             16,
         )
 
         with ClusterContext(
-            1, acc1, chain_size=8, shard_size=1, mblock_coinbase_amount=1000000
+            1, acc1, chain_size=8, shard_size=1, mblock_coinbase_amount=10000000
         ) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
@@ -1233,14 +1236,15 @@ class TestCluster(unittest.TestCase):
             )
             call_async(master.add_root_block(root_block))
 
-            tx1 = create_contract_with_storage2_transaction(
+            tx0 = create_contract_with_storage2_transaction(
                 shard_state=clusters[0].get_shard_state((1 << 16) | 1),
                 key=id1.get_key(),
                 from_address=acc2,
                 to_full_shard_key=acc2.full_shard_key,
             )
-            self.assertTrue(slaves[1].add_tx(tx1))
-
+            self.assertTrue(slaves[1].add_tx(tx0))
+            b0 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            call_async(clusters[0].get_shard(1).add_block(b0))
             b1 = (
                 clusters[0]
                 .get_shard_state((1 << 16) + 1)
@@ -1248,8 +1252,27 @@ class TestCluster(unittest.TestCase):
             )
             call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b1))
 
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(1),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc3,
+                value=1500000,
+                gas=opcodes.GTXCOST,
+            )
+            self.assertTrue(slaves[0].add_tx(tx1))
+
+            b00 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
+            call_async(clusters[0].get_shard(1).add_block(b00))
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc3)
+                ).token_balances.balance_map,
+                {genesis_token: 1500000},
+            )
+
             _, _, receipt = call_async(
-                master.get_transaction_receipt(tx1.get_hash(), b1.header.branch)
+                master.get_transaction_receipt(tx0.get_hash(), b1.header.branch)
             )
             self.assertEqual(receipt.success, b"\x01")
             contract_address = receipt.contract_address
@@ -1274,8 +1297,8 @@ class TestCluster(unittest.TestCase):
             # call the contract with insufficient gas
             tx2 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(1),
-                key=id1.get_key(),
-                from_address=acc1,
+                key=id2.get_key(),
+                from_address=acc3,
                 to_address=contract_address,
                 value=0,
                 gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST + 500,
@@ -1283,7 +1306,6 @@ class TestCluster(unittest.TestCase):
                 data=bytes.fromhex("c2e171d7"),
             )
             self.assertTrue(slaves[0].add_tx(tx2))
-
             b2 = clusters[0].get_shard_state(1).create_block_to_mine(address=acc1)
             call_async(clusters[0].get_shard(1).add_block(b2))
 
@@ -1294,6 +1316,12 @@ class TestCluster(unittest.TestCase):
                 )
             )
             call_async(master.add_root_block(root_block))
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc4)
+                ).token_balances.balance_map,
+                {},
+            )
 
             # The contract should be called
             b3 = (
@@ -1311,13 +1339,19 @@ class TestCluster(unittest.TestCase):
                     "0000000000000000000000000000000000000000000000000000000000000000"
                 ),
             )
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc4)
+                ).token_balances.balance_map,
+                {},
+            )
             # TODO: Check receipt
 
             # call the contract with enough gas
             tx3 = create_transfer_transaction(
                 shard_state=clusters[0].get_shard_state(1),
-                key=id1.get_key(),
-                from_address=acc1,
+                key=id2.get_key(),
+                from_address=acc3,
                 to_address=contract_address,
                 value=0,
                 gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST + 700000,
@@ -1344,17 +1378,20 @@ class TestCluster(unittest.TestCase):
                 .create_block_to_mine(address=acc2)
             )
             call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b5))
-            k = sha3_256(bytes.fromhex(acc1.recipient.hex().zfill(64) + "1".zfill(64)))
             result = call_async(
-                master.get_storage_at(
-                    contract_address, int(k.hex(), 16), b5.header.height
-                )
+                master.get_storage_at(contract_address, storage_key, b5.header.height)
             )
             self.assertEqual(
                 result,
                 bytes.fromhex(
                     "000000000000000000000000000000000000000000000000000000000000162e"
                 ),
+            )
+            self.assertEqual(
+                call_async(
+                    master.get_primary_account_data(acc4)
+                ).token_balances.balance_map,
+                {genesis_token: 679498},
             )
             # TODO: Check receipt
 
