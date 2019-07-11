@@ -1063,7 +1063,7 @@ class DiscoveryByTopicProtocol(DiscoveryProtocol):
         network_id: int,
         cancel_token: CancelToken,
     ) -> None:
-        super().__init__(privkey, address, bootstrap_nodes, netwrok_id, cancel_token)
+        super().__init__(privkey, address, bootstrap_nodes, network_id, cancel_token)
         self.topic = topic
 
     def get_nodes_to_connect(self, count: int) -> Iterator[kademlia.Node]:
