@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 import cProfile
+import time
 
 import psutil
 import time
@@ -902,6 +903,7 @@ class MasterServer:
             self.shutdown()
             raise Exception("Integrity check failure!")
 
+        start_time = time.monotonic()
         # Start with root db
         rb = self.root_state.get_tip_block()
         check_db_rblock_from = self.env.arguments.check_db_rblock_from
@@ -913,11 +915,13 @@ class MasterServer:
                 rb.header.height, self.env.arguments.check_db_rblock_batch
             )
         )
+        count = 0
         while rb.header.height >= max(check_db_rblock_to, 1):
-            if rb.header.height % 10 == 0:
+            if count % 100 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
             rb_list = []
             for i in range(self.env.arguments.check_db_rblock_batch):
+                count += 1
                 if rb.header.height < max(check_db_rblock_to, 1):
                     break
                 rb_list.append(rb)
@@ -973,7 +977,11 @@ class MasterServer:
                         )
                     )
 
-        Logger.info("Integrity check completed!")
+        Logger.info(
+            "Integrity check completed! Took {0:.4f}s".format(
+                time.monotonic() - start_time
+            )
+        )
         self.shutdown()
 
     async def stop_mining(self):
