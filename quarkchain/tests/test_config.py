@@ -186,7 +186,8 @@ class TestQuarkChainConfig(unittest.TestCase):
     "MIN_TX_POOL_GAS_PRICE": 1000000000,
     "MIN_MINING_GAS_PRICE": 1000000000,
     "XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT": 90000,
-    "DISABLE_POW_CHECK": false
+    "DISABLE_POW_CHECK": false,
+    "XSHARD_ADD_RECIEPT_TIMESTAMP": null
 }
     """
         expected_json = expected_json.strip()

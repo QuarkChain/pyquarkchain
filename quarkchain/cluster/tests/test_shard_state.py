@@ -2406,10 +2406,10 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1 << 16)
-        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=1000000)
         state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
         state.shard_config.COINBASE_AMOUNT = 10
-        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 2
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 500000
         state.shard_config.POSW_CONFIG.WINDOW_SIZE = 4
 
         # Add a root block to have all the shards initialized, also include the genesis from
@@ -2426,20 +2426,21 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(state.evm_state.sender_disallow_map), 2)
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT // 2,  # tax rate is 0.5
+            1000000 + state.shard_config.COINBASE_AMOUNT // 2,  # tax rate is 0.5
         )
 
         self.assertEqual(
-            state.evm_state.sender_disallow_map, {bytes(20): 2, acc1.recipient: 2}
+            state.evm_state.sender_disallow_map,
+            {bytes(20): 500000, acc1.recipient: 500000},
         )
 
-        # Try to send money from that account, the expected locked tokens are 4
+        # Try to send money from that account, the expected locked tokens are 2 * 500000
         tx0 = create_transfer_transaction(
             shard_state=state,
             key=id1.get_key(),
             from_address=acc1,
             to_address=Address.create_empty_account(0),
-            value=2,
+            value=100,
             gas=21000,
             gas_price=0,
         )
@@ -2451,7 +2452,7 @@ class TestShardState(unittest.TestCase):
             to_address=acc2,
             value=2,
             gas=30000,
-            gas_price=0,
+            gas_price=1,
             nonce=tx0.tx.to_evm_tx().nonce + 1,
         )
         self.assertTrue(state.add_tx(tx1))
@@ -2467,7 +2468,9 @@ class TestShardState(unittest.TestCase):
 
         self.assertEqual(
             state.get_token_balance(acc1.recipient, self.genesis_token),
-            state.shard_config.COINBASE_AMOUNT,  # tax rate is 0.5
+            1000000
+            + state.shard_config.COINBASE_AMOUNT
+            - 30000 // 2,  # tax rate is 0.5
         )
 
     def test_posw_validate_minor_block_seal(self):

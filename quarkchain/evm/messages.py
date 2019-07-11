@@ -196,14 +196,124 @@ def validate_transaction(state, tx):
     return True
 
 
-def apply_message(state, msg=None, **kwargs):
-    if msg is None:
-        msg = vm.Message(**kwargs)
+def apply_transaction_message(
+    state, message, ext, should_create_contract, gas_used_start, add_receipt=True
+):
+    local_fee_rate = (
+        1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
+    )
+
+    contract_address = b""
+
+    evm_gas_start = message.gas
+    if not should_create_contract:
+        result, gas_remained, data = apply_msg(ext, message)
+    else:  # CREATE
+        result, gas_remained, data = create_contract(ext, message)
+        contract_address = (
+            data if data else b""
+        )  # data could be [] when vm failed execution
+
+    assert gas_remained >= 0
+
+    log_tx.debug("TX APPLIED", result=result, gas_remained=gas_remained, data=data)
+
+    gas_used = evm_gas_start - gas_remained + gas_used_start
+
+    if not result:
+        log_tx.debug("TX FAILED", reason="out of gas", gas_remained=gas_remained)
+        output = b""
+        success = 0
+    # Transaction success
     else:
-        assert not kwargs
-    ext = VMExt(state, transactions.Transaction(0, 0, 21000, b"", 0, b""))
-    result, gas_remained, data = apply_msg(ext, msg)
-    return bytearray_to_bytestr(data) if result else None
+        log_tx.debug("TX SUCCESS", data=data)
+        state.refunds += len(set(state.suicides)) * opcodes.GSUICIDEREFUND
+        if state.refunds > 0:
+            log_tx.debug("Refunding", gas_refunded=min(state.refunds, gas_used // 2))
+            gas_remained += min(state.refunds, gas_used // 2)
+            gas_used -= min(state.refunds, gas_used // 2)
+            state.refunds = 0
+        if not should_create_contract:
+            output = bytearray_to_bytestr(data)
+        else:
+            output = data
+        success = 1
+
+    # sell remaining gas
+    state.delta_token_balance(
+        message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
+    )
+    fee = (
+        ext.tx_gasprice
+        * gas_used
+        * local_fee_rate.numerator
+        // local_fee_rate.denominator
+    )
+    state.delta_token_balance(state.block_coinbase, message.gas_token_id, fee)
+    add_dict(state.block_fee_tokens, {message.gas_token_id: fee})
+
+    state.gas_used += gas_used
+
+    # Clear suicides
+    suicides = state.suicides
+    state.suicides = []
+    for s in suicides:
+        state.set_balances(s, {})
+        state.del_account(s)
+
+    if add_receipt:
+        # Construct a receipt
+        r = mk_receipt(
+            state, success, state.logs, contract_address, state.full_shard_key
+        )
+        state.logs = []
+        state.add_receipt(r)
+
+    return success, output
+
+
+def apply_xshard_desposit(state, deposit, gas_used_start):
+    state.logs = []
+    state.suicides = []
+    state.refunds = 0
+    state.full_shard_key = deposit.to_address.full_shard_key
+
+    state.delta_token_balance(
+        deposit.from_address.recipient, deposit.transfer_token_id, deposit.value
+    )
+
+    message_data = vm.CallData(
+        [safe_ord(x) for x in deposit.message_data], 0, len(deposit.message_data)
+    )
+    message = vm.Message(
+        deposit.from_address.recipient,
+        deposit.to_address.recipient,
+        deposit.value,
+        deposit.gas_remained,
+        message_data,
+        code_address=deposit.to_address.recipient,
+        is_cross_shard=False,
+        from_full_shard_key=deposit.from_address.full_shard_key,
+        to_full_shard_key=deposit.to_address.full_shard_key,
+        tx_hash=deposit.tx_hash,
+        transfer_token_id=deposit.transfer_token_id,
+        gas_token_id=deposit.gas_token_id,
+    )
+
+    # MESSAGE
+    ext = VMExt(
+        state, sender=deposit.from_address.recipient, gas_price=deposit.gas_price
+    )
+
+    return apply_transaction_message(
+        state,
+        message,
+        ext,
+        should_create_contract=deposit.create_contract,
+        gas_used_start=gas_used_start,
+        add_receipt=state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP is not None
+        and state.timestamp >= state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP,
+    )
 
 
 def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
@@ -253,127 +363,78 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
 
     # MESSAGE
-    ext = VMExt(state, tx)
+    ext = VMExt(state, tx.sender, tx.gasprice)
 
     contract_address = b""
     if tx.is_cross_shard:
+        local_gas_used = intrinsic_gas
+        remote_gas_reserved = 0
         if transfer_failure_by_posw_balance_check(ext, message):
-            result = 0
-            gas_remained = 0
-            data = []
+            success = 0
+            # Currently, burn all gas
+            local_gas_used = tx.startgas
         elif tx.to == b"":
             # TODO: support x-shard tx creation
-            result = 0
-            gas_remained = message.gas
-            data = []
+            success = 0
         else:
             state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            result = 1  # success
-            # TODO: gas_remained should be calcualted in target shard
-            gas_remained = tx.startgas - intrinsic_gas
-            data = []
+            if (
+                state.qkc_config.ENABLE_EVM_TIMESTAMP is None
+                or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
+            ):
+                remote_gas_reserved = tx.startgas - intrinsic_gas
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=message.tx_hash,
+                    tx_hash=tx_wrapper_hash,
                     from_address=quarkchain.core.Address(
-                        message.sender, message.from_full_shard_key
+                        tx.sender, tx.from_full_shard_key
                     ),
-                    to_address=quarkchain.core.Address(
-                        message.to, message.to_full_shard_key
-                    ),
-                    value=message.value,
-                    gas_price=ext.tx_gasprice,
-                    gas_token_id=message.gas_token_id,
-                    transfer_token_id=message.transfer_token_id,
+                    to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
+                    value=tx.value,
+                    gas_price=tx.gasprice,
+                    gas_token_id=tx.gas_token_id,
+                    transfer_token_id=tx.transfer_token_id,
+                    message_data=tx.data,
+                    create_contract=False,
+                    gas_remained=remote_gas_reserved,
                 )
             )
-    elif tx.to != b"":
-        result, gas_remained, data = apply_msg(ext, message)
-    else:  # CREATE
-        result, gas_remained, data = create_contract(ext, message)
-        contract_address = (
-            data if data else b""
-        )  # data could be [] when vm failed execution
+            success = 1
+        gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
 
-    assert gas_remained >= 0
-
-    log_tx.debug("TX APPLIED", result=result, gas_remained=gas_remained, data=data)
-
-    gas_used = tx.startgas - gas_remained
-
-    # pay CORRECT tx fee (after tax) to coinbase so that each step of state is accurate
-    # Transaction failed
-    if not result:
-        log_tx.debug(
-            "TX FAILED",
-            reason="out of gas",
-            startgas=tx.startgas,
-            gas_remained=gas_remained,
-        )
+        # Refund
         state.delta_token_balance(
-            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+            message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
         )
+
+        # if x-shard, reserve part of the gas for the target shard miner for fee
         fee = (
             tx.gasprice
-            * gas_used
+            * (local_gas_used - (opcodes.GTXXSHARDCOST if success else 0))
             * local_fee_rate.numerator
             // local_fee_rate.denominator
         )
         state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        add_dict(state.block_fee_tokens, {tx.gas_token_id: fee})
-        output = b""
-        success = 0
-    # Transaction success
-    else:
-        log_tx.debug("TX SUCCESS", data=data)
-        state.refunds += len(set(state.suicides)) * opcodes.GSUICIDEREFUND
-        if state.refunds > 0:
-            log_tx.debug("Refunding", gas_refunded=min(state.refunds, gas_used // 2))
-            gas_remained += min(state.refunds, gas_used // 2)
-            gas_used -= min(state.refunds, gas_used // 2)
-            state.refunds = 0
-        # sell remaining gas
-        state.delta_token_balance(
-            tx.sender, tx.gas_token_id, tx.gasprice * gas_remained
+        add_dict(state.block_fee_tokens, {message.gas_token_id: fee})
+
+        output = []
+
+        state.gas_used += local_gas_used
+
+        # Construct a receipt
+        r = mk_receipt(
+            state, success, state.logs, contract_address, state.full_shard_key
         )
-        # if x-shard, reserve part of the gas for the target shard miner
-        fee = (
-            tx.gasprice
-            * (gas_used - (opcodes.GTXXSHARDCOST if tx.is_cross_shard else 0))
-            * local_fee_rate.numerator
-            // local_fee_rate.denominator
-        )
-        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        add_dict(state.block_fee_tokens, {tx.gas_token_id: fee})
-        if tx.to:
-            output = bytearray_to_bytestr(data)
-        else:
-            output = data
-        success = 1
+        state.logs = []
+        state.add_receipt(r)
+        return success, output
 
-        # TODO: check if the destination address is correct, and consume xshard gas of the state
-        # the xshard gas and fee is consumed by destination shard block
-
-    state.gas_used += gas_used
-
-    # Clear suicides
-    suicides = state.suicides
-    state.suicides = []
-    for s in suicides:
-        state.set_balances(s, {})
-        state.del_account(s)
-
-    # Construct a receipt
-    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
-    state.logs = []
-    state.add_receipt(r)
-
-    return success, output
+    return apply_transaction_message(state, message, ext, tx.to == b"", intrinsic_gas)
 
 
 # VM interface
 class VMExt:
-    def __init__(self, state, tx):
+    def __init__(self, state, sender, gas_price):
         self.specials = {k: v for k, v in default_specials.items()}
         for k, v in state.config["CUSTOM_SPECIALS"]:
             self.specials[k] = v
@@ -418,8 +479,8 @@ class VMExt:
             deposit
         )
         self.reset_storage = state.reset_storage
-        self.tx_origin = tx.sender if tx else b"\x00" * 20
-        self.tx_gasprice = tx.gasprice if tx else 0
+        self.tx_origin = sender
+        self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
 
