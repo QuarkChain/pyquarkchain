@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 import cProfile
+import time
 
 import psutil
 import time
@@ -902,61 +903,85 @@ class MasterServer:
             self.shutdown()
             raise Exception("Integrity check failure!")
 
+        start_time = time.monotonic()
         # Start with root db
         rb = self.root_state.get_tip_block()
         check_db_rblock_from = self.env.arguments.check_db_rblock_from
         check_db_rblock_to = self.env.arguments.check_db_rblock_to
         if check_db_rblock_from >= 0 and check_db_rblock_from < rb.header.height:
             rb = self.root_state.get_root_block_by_height(check_db_rblock_from)
-        Logger.info("Starting from root block height: {}".format(rb.header.height))
-        while rb.header.height >= max(check_db_rblock_to, 1):
-            if rb.header.height % 10 == 0:
-                Logger.info("Checking root block height: {}".format(rb.header.height))
-            prev_rb = self.root_state.db.get_root_block_by_hash(
-                rb.header.hash_prev_block
+        Logger.info(
+            "Starting from root block height: {0}, batch size: {1}".format(
+                rb.header.height, self.env.arguments.check_db_rblock_batch
             )
-            if prev_rb.header.height != rb.header.height - 1:
-                log_error_and_exit(
-                    "Root block height {} mismatches previous block".format(
-                        rb.header.height
-                    )
+        )
+        count = 0
+        while rb.header.height >= max(check_db_rblock_to, 1):
+            if count % 100 == 0:
+                Logger.info("Checking root block height: {}".format(rb.header.height))
+            rb_list = []
+            for i in range(self.env.arguments.check_db_rblock_batch):
+                count += 1
+                if rb.header.height < max(check_db_rblock_to, 1):
+                    break
+                rb_list.append(rb)
+                prev_rb = self.root_state.db.get_root_block_by_hash(
+                    rb.header.hash_prev_block
                 )
+                if prev_rb.header.height != rb.header.height - 1:
+                    log_error_and_exit(
+                        "Root block height {} mismatches previous block".format(
+                            rb.header.height
+                        )
+                    )
 
-            if prev_rb.header.get_hash() != rb.header.hash_prev_block:
-                log_error_and_exit(
-                    "Root block height {} mismatches previous block hash".format(
-                        rb.header.height
+                if prev_rb.header.get_hash() != rb.header.hash_prev_block:
+                    log_error_and_exit(
+                        "Root block height {} mismatches previous block hash".format(
+                            rb.header.height
+                        )
                     )
-                )
+                rb = prev_rb
 
             future_list = []
-            for mheader in rb.minor_block_header_list:
-                conn = self.get_slave_connection(mheader.branch)
-                request = CheckMinorBlockRequest(mheader)
-                future_list.append(
-                    conn.write_rpc_request(ClusterOp.CHECK_MINOR_BLOCK_REQUEST, request)
-                )
+            header_list = []
+            for crb in rb_list:
+                header_list.extend(crb.minor_block_header_list)
+                for mheader in crb.minor_block_header_list:
+                    conn = self.get_slave_connection(mheader.branch)
+                    request = CheckMinorBlockRequest(mheader)
+                    future_list.append(
+                        conn.write_rpc_request(
+                            ClusterOp.CHECK_MINOR_BLOCK_REQUEST, request
+                        )
+                    )
 
-            try:
-                self.root_state.add_block(rb, write_db=False, skip_if_too_old=False)
-            except Exception as e:
-                Logger.log_exception()
-                log_error_and_exit(
-                    "Failed to check root block height {}".format(rb.header.height)
-                )
+            for crb in rb_list:
+                try:
+                    self.root_state.add_block(
+                        crb, write_db=False, skip_if_too_old=False
+                    )
+                except Exception as e:
+                    Logger.log_exception()
+                    log_error_and_exit(
+                        "Failed to check root block height {}".format(crb.header.height)
+                    )
 
             response_list = await asyncio.gather(*future_list)
             for idx, (_, resp, _) in enumerate(response_list):
                 if resp.error_code != 0:
-                    header = rb.minor_block_header_list[idx]
+                    header = header_list[idx]
                     log_error_and_exit(
                         "Failed to check minor block branch {} height {}".format(
                             header.branch.value, header.height
                         )
                     )
 
-            rb = prev_rb
-        Logger.info("Integrity check completed!")
+        Logger.info(
+            "Integrity check completed! Took {0:.4f}s".format(
+                time.monotonic() - start_time
+            )
+        )
         self.shutdown()
 
     async def stop_mining(self):
@@ -1602,6 +1627,7 @@ def parse_args():
     parser.add_argument("--enable_profiler", default=False, type=bool)
     parser.add_argument("--check_db_rblock_from", default=-1, type=int)
     parser.add_argument("--check_db_rblock_to", default=0, type=int)
+    parser.add_argument("--check_db_rblock_batch", default=10, type=int)
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
