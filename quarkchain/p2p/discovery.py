@@ -8,7 +8,6 @@ More information at https://github.com/ethereum/devp2p/blob/master/rlpx.md#node-
 import asyncio
 import collections
 import contextlib
-import pickle
 import random
 import socket
 import time

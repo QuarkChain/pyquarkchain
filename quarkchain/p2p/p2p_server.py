@@ -1,6 +1,7 @@
 import asyncio
 import os
 import pickle
+import platform
 
 from abc import abstractmethod
 from typing import Sequence, Tuple, Optional
@@ -137,11 +138,17 @@ class BaseServer(BaseService):
             )
         routing_table_path = self.crawling_routing_table_path
         if routing_table_path is not None:
+            assert (
+                platform.python_implementation() == "PyPy"
+            ), "pytho3.6 on linux doesn't support pickling module objects"
             self.discovery = CrawlingService(
                 discovery_proto, self.port, token=self.cancel_token
             )
             # hack: replace routing table
-            if os.path.exists(routing_table_path):
+            if (
+                os.path.exists(routing_table_path)
+                and os.path.getsize(routing_table_path) > 0
+            ):
                 with open(routing_table_path, "rb") as f:
                     discovery_proto.routing = pickle.load(f)
                     discovery_proto.routing.this_node = discovery_proto.this_node
