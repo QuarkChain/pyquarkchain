@@ -234,6 +234,10 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         if node not in self.routing or node == self.this_node:
             return
 
+        # Register callback
+        if self.pong_callbacks.locked(node):
+            return
+
         v5 = self.use_v5
         token = self.send_ping_v5(node, []) if v5 else self.send_ping_v4(node)
         try:
