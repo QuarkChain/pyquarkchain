@@ -141,8 +141,9 @@ class TransactionHistoryMixin:
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
-        serialized_address = address.serialize()
-        end = b"index_addr_" + serialized_address[:-2]
+        # only recipient addr needed to match
+        # full_shard_key can be ignored since no TX on other shards is stored here
+        end = b"index_addr_" + address.recipient
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
