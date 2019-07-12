@@ -78,9 +78,6 @@ class UPnPService(BaseService):
             except Exception:
                 self.logger.exception("Failed to setup NAT portmap")
 
-    async def _cleanup(self) -> None:
-        pass
-
     async def add_nat_portmap(self) -> str:
         """
         Set up the port mapping

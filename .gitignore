@@ -127,3 +127,6 @@ venv.bak/
 
 # macOS
 .DS_Store
+
+# python pickle
+.pickle

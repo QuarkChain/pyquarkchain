@@ -1636,7 +1636,11 @@ def main():
         return
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
-    start_master = not env.cluster_config.P2P.DISCOVERY_ONLY
+    p2p_config = env.cluster_config.P2P
+    start_master = (
+        not p2p_config.DISCOVERY_ONLY
+        and not p2p_config.CRAWLING_ROUTING_TABLE_FILE_PATH
+    )
 
     # only start the cluster if not in discovery-only mode
     if start_master:

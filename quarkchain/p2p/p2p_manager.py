@@ -402,6 +402,7 @@ class P2PManager(AbstractNetwork):
             max_peers=env.cluster_config.P2P.MAX_PEERS,
             upnp=env.cluster_config.P2P.UPNP,
             allow_dial_in_ratio=env.cluster_config.P2P.ALLOW_DIAL_IN_RATIO,
+            crawling_routing_table_path=env.cluster_config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH,
         )
 
         QuarkPeer.env = env
@@ -439,4 +440,4 @@ class P2PManager(AbstractNetwork):
         for peer_id, peer in self.active_peer_pool.items():
             peer.close()
         self.loop.run_until_complete(self.server.cancel())
-        self.loop.run_until_complete(self.server.cleanup())
+        # self.loop.run_until_complete(self.server.cleanup())

@@ -4,6 +4,8 @@
   "JSON_RPC_HOST": "127.0.0.1",
   "PRIVATE_JSON_RPC_PORT": 38491,
   "PRIVATE_JSON_RPC_HOST": "127.0.0.1",
+  "ENABLE_PRIVATE_JSON_RPC": true,
+  "ENABLE_PUBLIC_JSON_RPC": false,
   "ENABLE_TRANSACTION_HISTORY": false,
   "DB_PATH_ROOT": "./qkc-data/mainnet",
   "LOG_LEVEL": "info",
