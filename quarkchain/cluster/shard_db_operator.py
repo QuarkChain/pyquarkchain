@@ -142,7 +142,7 @@ class TransactionHistoryMixin:
             return [], b""
 
         # only recipient addr needed to match
-        # chain id can be ignored since no TX on other chains is stored here
+        # full_shard_key can be ignored since no TX on other shards is stored here
         end = b"index_addr_" + address.recipient
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
