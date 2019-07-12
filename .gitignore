@@ -129,4 +129,4 @@ venv.bak/
 .DS_Store
 
 # python pickle
-.pickle
+*.pickle

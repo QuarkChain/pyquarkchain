@@ -440,4 +440,3 @@ class P2PManager(AbstractNetwork):
         for peer_id, peer in self.active_peer_pool.items():
             peer.close()
         self.loop.run_until_complete(self.server.cancel())
-        # self.loop.run_until_complete(self.server.cleanup())
