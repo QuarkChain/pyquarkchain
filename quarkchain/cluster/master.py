@@ -915,6 +915,12 @@ class MasterServer:
                 rb.header.height, self.env.arguments.check_db_rblock_batch
             )
         )
+        if self.root_state.db.get_root_block_by_hash(rb.header.get_hash()) != rb:
+            log_error_and_exit(
+                "Root block height {} mismatches local root block by hash".format(
+                    rb.header.height
+                )
+            )
         count = 0
         while rb.header.height >= max(check_db_rblock_to, 1):
             if count % 100 == 0:
@@ -925,16 +931,10 @@ class MasterServer:
                 if rb.header.height < max(check_db_rblock_to, 1):
                     break
                 rb_list.append(rb)
+                # Make sure the rblock matches the db one
                 prev_rb = self.root_state.db.get_root_block_by_hash(
                     rb.header.hash_prev_block
                 )
-                if prev_rb.header.height != rb.header.height - 1:
-                    log_error_and_exit(
-                        "Root block height {} mismatches previous block".format(
-                            rb.header.height
-                        )
-                    )
-
                 if prev_rb.header.get_hash() != rb.header.hash_prev_block:
                     log_error_and_exit(
                         "Root block height {} mismatches previous block hash".format(
@@ -942,6 +942,12 @@ class MasterServer:
                         )
                     )
                 rb = prev_rb
+                if self.root_state.get_root_block_by_height(rb.header.height) != rb:
+                    log_error_and_exit(
+                        "Root block height {} mismatches canonical chain".format(
+                            rb.header.height
+                        )
+                    )
 
             future_list = []
             header_list = []
