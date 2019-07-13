@@ -919,9 +919,6 @@ class TestCluster(unittest.TestCase):
         ) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
-            genesis_token = (
-                clusters[0].get_shard_state(1).env.quark_chain_config.genesis_token
-            )
 
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
@@ -1223,6 +1220,10 @@ class TestCluster(unittest.TestCase):
         ) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
+            # Enable xshard receipt
+            clusters[0].get_shard(
+                (1 << 16) + 1
+            ).env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
             genesis_token = (
                 clusters[0].get_shard_state(1).env.quark_chain_config.genesis_token
             )
@@ -1345,7 +1346,10 @@ class TestCluster(unittest.TestCase):
                 ).token_balances.balance_map,
                 {},
             )
-            # TODO: Check receipt
+            _, _, receipt = call_async(
+                master.get_transaction_receipt(tx2.get_hash(), b3.header.branch)
+            )
+            self.assertEqual(receipt.success, b"")
 
             # call the contract with enough gas
             tx3 = create_transfer_transaction(
@@ -1393,7 +1397,10 @@ class TestCluster(unittest.TestCase):
                 ).token_balances.balance_map,
                 {genesis_token: 679498},
             )
-            # TODO: Check receipt
+            _, _, receipt = call_async(
+                master.get_transaction_receipt(tx3.get_hash(), b3.header.branch)
+            )
+            self.assertEqual(receipt.success, b"\x01")
 
     def test_broadcast_cross_shard_transactions_to_neighbor_only(self):
         """ Test the broadcast is only done to the neighbors """
