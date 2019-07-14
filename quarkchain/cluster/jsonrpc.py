@@ -1205,6 +1205,13 @@ class JSONRPCServer:
         return self.counters
 
     @private_methods.add
+    async def getKadRoutingTableSize(self):
+        """Returns number of nodes in the p2p discovery routing table"""
+        if not isinstance(self.master.network, P2PManager):
+            raise InvalidRequest("network is not P2P")
+        return len(self.master.network.server.discovery.proto.routing)
+
+    @private_methods.add
     async def getKadRoutingTable(self):
         """ returns a list of nodes in the p2p discovery routing table, in the enode format
         eg. "enode://PUBKEY@IP:PORT"

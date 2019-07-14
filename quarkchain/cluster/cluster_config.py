@@ -118,6 +118,7 @@ class P2PConfig(BaseConfig):
     ALLOW_DIAL_IN_RATIO = 1.0
     PREFERRED_NODES = ""
     DISCOVERY_ONLY = False
+    CRAWLING_ROUTING_TABLE_FILE_PATH = None
 
 
 class MonitoringConfig(BaseConfig):

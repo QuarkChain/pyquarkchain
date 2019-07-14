@@ -1,8 +1,10 @@
 import asyncio
 import os
+import pickle
+import platform
 
 from abc import abstractmethod
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Optional
 
 from eth_keys import datatypes
 from eth_utils import big_endian_to_int
@@ -17,9 +19,9 @@ from quarkchain.p2p.constants import (
 )
 from quarkchain.p2p.discovery import (
     DiscoveryByTopicProtocol,
-    DiscoveryProtocol,
     DiscoveryService,
     PreferredNodeDiscoveryProtocol,
+    CrawlingService,
 )
 from quarkchain.p2p.exceptions import (
     DecryptionError,
@@ -30,7 +32,7 @@ from quarkchain.p2p.exceptions import (
 from quarkchain.p2p.p2p_proto import DisconnectReason
 from quarkchain.p2p.peer import BasePeer, PeerConnection
 from quarkchain.p2p.service import BaseService
-from quarkchain.p2p.kademlia import Address, Node
+from quarkchain.p2p.kademlia import Address, Node, RoutingTable
 from quarkchain.p2p.nat import UPnPService
 
 from quarkchain.utils import Logger
@@ -57,6 +59,7 @@ class BaseServer(BaseService):
         token: CancelToken = None,
         upnp: bool = False,
         allow_dial_in_ratio: float = 1.0,
+        crawling_routing_table_path: Optional[str] = None,
     ) -> None:
         super().__init__(token)
         self.privkey = privkey
@@ -71,6 +74,7 @@ class BaseServer(BaseService):
             self.upnp_service = UPnPService(port, token=self.cancel_token)
         self.allow_dial_in_ratio = allow_dial_in_ratio
         self.peer_pool = self._make_peer_pool()
+        self.crawling_routing_table_path = crawling_routing_table_path
 
         if not bootstrap_nodes:
             self.logger.warning("Running with no bootstrap nodes")
@@ -132,10 +136,36 @@ class BaseServer(BaseService):
                 self.network_id,
                 self.cancel_token,
             )
-        self.discovery = DiscoveryService(
-            discovery_proto, self.peer_pool, self.port, token=self.cancel_token
-        )
-        self.run_daemon(self.peer_pool)
+        routing_table_path = self.crawling_routing_table_path
+        if routing_table_path is not None:
+            assert (
+                platform.python_implementation() == "PyPy"
+            ), "pytho3.6 on linux doesn't support pickling module objects"
+            self.discovery = CrawlingService(
+                discovery_proto, self.port, token=self.cancel_token
+            )
+            # hack: replace routing table
+            if (
+                os.path.exists(routing_table_path)
+                and os.path.getsize(routing_table_path) > 0
+            ):
+                with open(routing_table_path, "rb") as f:
+                    discovery_proto.routing = pickle.load(f)
+                    discovery_proto.routing.this_node = discovery_proto.this_node
+                    assert isinstance(discovery_proto.routing, RoutingTable)
+
+            def persist_routing_table(_):
+                with open(routing_table_path, "wb") as f:
+                    pickle.dump(discovery_proto.routing, f)
+
+            self.discovery.add_finished_callback(persist_routing_table)
+            # no need to run peer pool as daemon
+        else:
+            self.discovery = DiscoveryService(
+                discovery_proto, self.peer_pool, self.port, token=self.cancel_token
+            )
+            self.run_daemon(self.peer_pool)
+
         self.run_daemon(self.discovery)
         if self.upnp_service:
             # UPNP service is still experimental and not essential, so we don't use run_daemon() for

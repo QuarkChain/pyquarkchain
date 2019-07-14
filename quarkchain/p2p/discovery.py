@@ -8,34 +8,16 @@ More information at https://github.com/ethereum/devp2p/blob/master/rlpx.md#node-
 import asyncio
 import collections
 import contextlib
-import logging
 import random
 import socket
 import time
-from typing import (
-    Any,
-    Callable,
-    cast,
-    Dict,
-    Hashable,
-    Iterable,
-    Iterator,
-    List,
-    Sequence,
-    Set,
-    Text,
-    Tuple,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
-
-import toolz
 
 import rlp
-
+import toolz
+from eth_hash.auto import keccak
+from eth_keys import datatypes
+from eth_keys import keys
 from eth_typing import Hash32
-
 from eth_utils import (
     encode_hex,
     remove_0x_prefix,
@@ -46,24 +28,33 @@ from eth_utils import (
     int_to_big_endian,
     big_endian_to_int,
 )
+from typing import (
+    Any,
+    Callable,
+    cast,
+    Hashable,
+    Iterable,
+    Iterator,
+    List,
+    Sequence,
+    Text,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    Union,
+    Optional,
+)
 
-from eth_keys import keys
-from eth_keys import datatypes
-
-from eth_hash.auto import keccak
-
+from quarkchain.p2p import kademlia
+from quarkchain.p2p import protocol
 from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
-
 from quarkchain.p2p.exceptions import (
     AlreadyWaitingDiscoveryResponse,
     NoEligibleNodes,
     UnableToGetDiscV5Ticket,
 )
-from quarkchain.p2p import kademlia
-from quarkchain.p2p import protocol
 from quarkchain.p2p.peer import BasePeerPool
 from quarkchain.p2p.service import BaseService
-
 from quarkchain.utils import Logger
 
 if TYPE_CHECKING:
@@ -1107,7 +1098,7 @@ class DiscoveryService(BaseService):
     def __init__(
         self,
         proto: DiscoveryProtocol,
-        peer_pool: BasePeerPool,
+        peer_pool: Optional[BasePeerPool],
         port: int,
         token: CancelToken = None,
     ) -> None:
@@ -1186,6 +1177,23 @@ class DiscoveryService(BaseService):
 
     async def _cleanup(self) -> None:
         await self.proto.stop()
+
+
+class CrawlingService(DiscoveryService):
+
+    _lookup_interval = 10  # 10 sec
+
+    def __init__(
+        self, proto: DiscoveryProtocol, port: int, token: CancelToken = None
+    ) -> None:
+        super().__init__(proto, None, port, token)
+
+    async def _run(self) -> None:
+        await self._start_udp_listener()
+        self.run_task(self.proto.bootstrap())
+        while self.is_operational:
+            await self.maybe_lookup_random_node()
+            await self.sleep(self._lookup_interval)
 
 
 class NodeTicketInfo:
