@@ -1151,7 +1151,7 @@ class DiscoveryService(BaseService):
         cnt = 0
         while self.is_operational:
             # only start with considerable size
-            if len(self.proto.routing) > 50:
+            if len(self.proto.routing) > 10:
                 await self.proto.prune()
             await self.sleep(1)
             cnt += 1
