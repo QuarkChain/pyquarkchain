@@ -220,6 +220,34 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
         self.update_routing_table(node)
         return True
 
+    async def prune(self, node: Optional[kademlia.Node] = None):
+        """Remove a node from routing table if not active."""
+        if not node:
+            node = next(self.routing.get_random_nodes(1))
+        if node not in self.routing or node == self.this_node:
+            return
+
+        # Register callback
+        if self.pong_callbacks.locked(node):
+            return
+
+        v5 = self.use_v5
+        token = self.send_ping_v5(node, []) if v5 else self.send_ping_v4(node)
+        try:
+            if v5:
+                got_pong, _, _ = await self.wait_pong_v5(node, token)
+            else:
+                got_pong = await self.wait_pong_v4(node, token)
+        except AlreadyWaitingDiscoveryResponse:
+            self.logger.debug("pruning already waiting for pong")
+            return
+
+        if not got_pong:
+            self.logger.debug("pruning node %s", node)
+            self.routing.remove_node(node)
+        else:
+            self.logger.debug("pruning exit, node %s is active", node)
+
     async def wait_ping(self, remote: kademlia.Node) -> bool:
         """Wait for a ping from the given remote.
 
@@ -1112,9 +1140,28 @@ class DiscoveryService(BaseService):
         await self._start_udp_listener()
         connect_loop_sleep = 2
         self.run_task(self.proto.bootstrap())
+        # bootstrap nodes will spawn a background task for pruning nodes
+        if not self.proto.bootstrap_nodes:
+            self.run_daemon_task(self._prune())
         while self.is_operational:
             await self.maybe_connect_to_more_peers()
             await self.sleep(connect_loop_sleep)
+
+    async def _prune(self) -> None:
+        cnt = 0
+        while self.is_operational:
+            # only start with considerable size
+            if len(self.proto.routing) > 10:
+                await self.proto.prune()
+            await self.sleep(1)
+            cnt += 1
+            if cnt >= 60:
+                cnt = 0
+                self.logger.info(
+                    "Finished pruning: routing table size={}".format(
+                        len(self.proto.routing)
+                    )
+                )
 
     async def _start_udp_listener(self) -> None:
         loop = asyncio.get_event_loop()
@@ -1191,6 +1238,8 @@ class CrawlingService(DiscoveryService):
     async def _run(self) -> None:
         await self._start_udp_listener()
         self.run_task(self.proto.bootstrap())
+        # crawling nodes will spawn a background task for pruning nodes
+        self.run_daemon_task(self._prune())
         while self.is_operational:
             await self.maybe_lookup_random_node()
             await self.sleep(self._lookup_interval)
