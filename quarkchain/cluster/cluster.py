@@ -1,8 +1,8 @@
 import argparse
 import asyncio
+import logging
 import os
 import platform
-import signal
 from asyncio import subprocess
 
 import psutil
@@ -13,7 +13,7 @@ from quarkchain.cluster.cluster_config import ClusterConfig
 PYTHON = "pypy3" if platform.python_implementation() == "PyPy" else "python3"
 
 
-def kill_child_processes(parent_pid, sig=signal.SIGTERM):
+def kill_child_processes(parent_pid):
     """ Kill all the subprocesses recursively """
     try:
         parent = psutil.Process(parent_pid)
@@ -28,7 +28,7 @@ def kill_child_processes(parent_pid, sig=signal.SIGTERM):
             print("SIGTERM >>> " + " ".join(process.cmdline()[1:]))
         except Exception:
             pass
-        process.send_signal(sig)
+        process.wait()
 
 
 async def run_master(config_file, extra_cmd):
@@ -82,8 +82,10 @@ class Cluster:
     async def run_master(self):
         extra_cmd = ""
         if self.check_db_only:
-            extra_cmd += " --check_db=true --check_db_rblock_from={0} --check_db_rblock_to={1}".format(
-                self.args.check_db_rblock_from, self.args.check_db_rblock_to
+            extra_cmd += " --check_db=true --check_db_rblock_from={0} --check_db_rblock_to={1} --check_db_rblock_batch={2}".format(
+                self.args.check_db_rblock_from,
+                self.args.check_db_rblock_to,
+                self.args.check_db_rblock_batch,
             )
         if "MASTER" in self.args.profile.split(","):
             extra_cmd += " --enable_profiler=true"
@@ -105,8 +107,11 @@ class Cluster:
 
     async def run(self):
         await self.run_master()
-        # p2p discovery mode will disable slaves
-        if not self.config.P2P.DISCOVERY_ONLY:
+        # p2p discovery / crawling mode will disable slaves
+        if not (
+            self.config.P2P.DISCOVERY_ONLY
+            or self.config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH
+        ):
             await self.run_slaves()
 
         await asyncio.gather(
@@ -132,12 +137,14 @@ class Cluster:
 
 
 def main():
+    logging.getLogger("asyncio").setLevel(logging.ERROR)
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
     parser.add_argument("--profile", default="", type=str)
     parser.add_argument("--check_db_rblock_from", default=-1, type=int)
     parser.add_argument("--check_db_rblock_to", default=0, type=int)
+    parser.add_argument("--check_db_rblock_batch", default=1, type=int)
     args = parser.parse_args()
 
     config = ClusterConfig.create_from_args(args)

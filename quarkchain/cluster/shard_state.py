@@ -879,7 +879,8 @@ class ShardState:
                 % (block.meta.hash_evm_state_root.hex(), evm_state.trie.root_hash.hex())
             )
 
-        receipt_root = mk_receipt_sha(evm_state.receipts, evm_state.db)
+        receipts = evm_state.receipts[:] + evm_state.xshard_deposit_receipts[:]
+        receipt_root = mk_receipt_sha(receipts, evm_state.db)
         if block.meta.hash_evm_receipt_root != receipt_root:
             raise ValueError(
                 "receipt root mismatch: header {} computed {}".format(

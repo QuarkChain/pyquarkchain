@@ -781,7 +781,7 @@ class MinorBlock(Serializable):
         self.header.coinbase_amount_map = coinbase_amount_map
         self.finalize_merkle_root()
         self.meta.hash_evm_receipt_root = mk_receipt_sha(
-            evm_state.receipts, evm_state.db
+            evm_state.receipts[:] + evm_state.xshard_deposit_receipts[:], evm_state.db
         )
         self.header.hash_meta = self.meta.get_hash()
         self.header.bloom = evm_state.get_bloom()

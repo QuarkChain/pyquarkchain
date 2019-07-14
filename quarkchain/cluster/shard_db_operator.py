@@ -10,10 +10,20 @@ from quarkchain.core import (
     Address,
     CrossShardTransactionDeposit,
     TypedTransaction,
+    Serializable,
+    PrependedSizeListSerializer,
+    hash256,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import check
 from cachetools import LRUCache
+
+
+class HashList(Serializable):
+    FIELDS = [("hlist", PrependedSizeListSerializer(4, hash256))]
+
+    def __init__(self, hlist):
+        self.hlist = hlist
 
 
 class TransactionHistoryMixin:
@@ -141,8 +151,9 @@ class TransactionHistoryMixin:
         if not self.env.cluster_config.ENABLE_TRANSACTION_HISTORY:
             return [], b""
 
-        serialized_address = address.serialize()
-        end = b"index_addr_" + serialized_address[:-2]
+        # only recipient addr needed to match
+        # full_shard_key can be ignored since no TX on other shards is stored here
+        end = b"index_addr_" + address.recipient
         original_start = (int.from_bytes(end, byteorder="big") + 1).to_bytes(
             len(end), byteorder="big"
         )
@@ -330,6 +341,10 @@ class ShardDbOperator(TransactionHistoryMixin):
             m_block_hash, x_shard_receive_tx_list
         )
 
+        self.__put_xshard_deposit_hash_list(
+            m_block_hash, HashList([d.tx_hash for d in x_shard_receive_tx_list])
+        )
+
     def put_total_tx_count(self, m_block):
         prev_count = 0
         if m_block.header.height > 2:
@@ -404,19 +419,21 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.put(b"commit_" + h, b"")
 
     # ------------------------- Transaction db operations --------------------------------
-    def put_transaction_index(self, tx, block_height, index):
-        tx_hash = tx.get_hash()
+    def __put_txindex(self, tx_hash, block_height, index):
         self.db.put(
             b"txindex_" + tx_hash,
             block_height.to_bytes(4, "big") + index.to_bytes(4, "big"),
         )
 
+    def put_transaction_index(self, tx, block_height, index):
+        self.__put_txindex(tx.get_hash(), block_height, index)
         self.put_transaction_history_index(tx, block_height, index)
 
-    def remove_transaction_index(self, tx, block_height, index):
-        tx_hash = tx.get_hash()
+    def __remove_txindex(self, tx_hash, block_height, index):
         self.db.remove(b"txindex_" + tx_hash)
 
+    def remove_transaction_index(self, tx, block_height, index):
+        self.__remove_txindex(tx.get_hash(), block_height, index)
         self.remove_transaction_history_index(tx, block_height, index)
 
     def contain_transaction_hash(self, tx_hash):
@@ -438,11 +455,31 @@ class ShardDbOperator(TransactionHistoryMixin):
         for i, tx in enumerate(minor_block.tx_list):
             self.put_transaction_index(tx, minor_block.header.height, i)
 
+        deposit_hlist = self.__get_xshard_deposit_hash_list(
+            minor_block.header.get_hash()
+        )
+        # Old version of db may not have the hash list
+        if deposit_hlist is not None:
+            for i, h in enumerate(deposit_hlist.hlist):
+                self.__put_txindex(
+                    h, minor_block.header.height, i + len(minor_block.tx_list)
+                )
+
         self.put_transaction_history_index_from_block(minor_block)
 
     def remove_transaction_index_from_block(self, minor_block):
         for i, tx in enumerate(minor_block.tx_list):
             self.remove_transaction_index(tx, minor_block.header.height, i)
+
+        deposit_hlist = self.__get_xshard_deposit_hash_list(
+            minor_block.header.get_hash()
+        )
+        # Old version of db may not have the hash list
+        if deposit_hlist is not None:
+            for i, h in enumerate(deposit_hlist.hlist):
+                self.__remove_txindex(
+                    h, minor_block.header.height, i + len(minor_block.tx_list)
+                )
 
         self.remove_transaction_history_index_from_block(minor_block)
 
@@ -459,6 +496,15 @@ class ShardDbOperator(TransactionHistoryMixin):
     def contain_remote_minor_block_hash(self, h):
         key = b"xShard_" + h
         return key in self.db
+
+    def __put_xshard_deposit_hash_list(self, h, hlist: HashList):
+        self.db.put(b"xd_" + h, hlist.serialize())
+
+    def __get_xshard_deposit_hash_list(self, h) -> HashList:
+        data = self.db.get(b"xd_" + h)
+        if data is None:
+            return None
+        return HashList.deserialize(data)
 
     # ------------------------- Common operations -----------------------------------------
     def put(self, key, value):

@@ -55,6 +55,7 @@ STATE_DEFAULTS = {
     "timestamp": 0,
     "logs": [],
     "receipts": [],
+    "xshard_deposit_receipts": [],
     "suicides": [],
     "recent_uncles": {},
     "prev_headers": [],
@@ -278,6 +279,8 @@ class State:
         bloom = 0
         for r in self.receipts:
             bloom |= r.bloom
+        for r in self.xshard_deposit_receipts:
+            bloom |= r.bloom
         return bloom
 
     def get_block_hash(self, n):
@@ -444,6 +447,10 @@ class State:
     def add_receipt(self, receipt):
         self.receipts.append(receipt)
         self.journal.append(lambda: self.receipts.pop())
+
+    def add_xshard_deposit_receipt(self, receipt):
+        self.xshard_deposit_receipts.append(receipt)
+        self.journal.append(lambda: self.xshard_deposit_receipts.pop())
 
     def add_refund(self, value):
         preval = self.refunds

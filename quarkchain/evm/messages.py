@@ -197,7 +197,7 @@ def validate_transaction(state, tx):
 
 
 def apply_transaction_message(
-    state, message, ext, should_create_contract, gas_used_start, add_receipt=True
+    state, message, ext, should_create_contract, gas_used_start, is_cross_shard=False
 ):
     local_fee_rate = (
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
@@ -261,12 +261,16 @@ def apply_transaction_message(
         state.set_balances(s, {})
         state.del_account(s)
 
-    if add_receipt:
-        # Construct a receipt
-        r = mk_receipt(
-            state, success, state.logs, contract_address, state.full_shard_key
-        )
-        state.logs = []
+    # Construct a receipt
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
+    state.logs = []
+    if is_cross_shard:
+        if (
+            state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP is not None
+            and state.timestamp >= state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP
+        ):
+            state.add_xshard_deposit_receipt(r)
+    else:
         state.add_receipt(r)
 
     return success, output
@@ -311,8 +315,7 @@ def apply_xshard_desposit(state, deposit, gas_used_start):
         ext,
         should_create_contract=deposit.create_contract,
         gas_used_start=gas_used_start,
-        add_receipt=state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP is not None
-        and state.timestamp >= state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP,
+        is_cross_shard=True,
     )
 
 

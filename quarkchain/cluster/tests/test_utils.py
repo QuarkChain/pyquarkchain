@@ -155,6 +155,18 @@ contract Storage {
 }
 """
 CONTRACT_WITH_STORAGE = "6080604052348015600f57600080fd5b506104d260008190555061162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002081905550603580606c6000396000f3006080604052600080fd00a165627a7a72305820a6ef942c101f06333ac35072a8ff40332c71d0e11cd0e6d86de8cae7b42696550029"
+"""
+pragma solidity ^0.5.1;
+
+contract Storage {
+    uint pos0;
+    mapping(address => uint) pos1;
+    function Save() public {
+        pos1[msg.sender] = 5678;
+    }
+}
+"""
+CONTRACT_WITH_STORAGE2 = "6080604052348015600f57600080fd5b5060c68061001e6000396000f3fe6080604052600436106039576000357c010000000000000000000000000000000000000000000000000000000090048063c2e171d714603e575b600080fd5b348015604957600080fd5b5060506052565b005b61162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000208190555056fea165627a7a72305820fe440b2cadff2d38365becb4339baa8c7b29ce933a2ad1b43f49feea0e1f7a7e0029"
 
 
 def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode):
@@ -202,6 +214,14 @@ def create_contract_with_storage_transaction(
 ):
     return _contract_tx_gen(
         shard_state, key, from_address, to_full_shard_key, CONTRACT_WITH_STORAGE
+    )
+
+
+def create_contract_with_storage2_transaction(
+    shard_state, key, from_address, to_full_shard_key
+):
+    return _contract_tx_gen(
+        shard_state, key, from_address, to_full_shard_key, CONTRACT_WITH_STORAGE2
     )
 
 
