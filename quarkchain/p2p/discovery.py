@@ -1238,6 +1238,8 @@ class CrawlingService(DiscoveryService):
     async def _run(self) -> None:
         await self._start_udp_listener()
         self.run_task(self.proto.bootstrap())
+        # crawling nodes will spawn a background task for pruning nodes
+        self.run_daemon_task(self._prune())
         while self.is_operational:
             await self.maybe_lookup_random_node()
             await self.sleep(self._lookup_interval)
