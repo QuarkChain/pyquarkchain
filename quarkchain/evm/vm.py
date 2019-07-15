@@ -423,7 +423,6 @@ def vm_execute(ext, msg, code):
                 # calc n bytes to represent exponent
                 nbytes = len(utils.encode_int(exponent))
                 expfee = nbytes * opcodes.GEXPONENTBYTE
-                expfee += opcodes.EXP_SUPPLEMENTAL_GAS * nbytes
                 if compustate.gas < expfee:
                     compustate.gas = 0
                     return vm_exception("OOG EXPONENT")
@@ -483,8 +482,6 @@ def vm_execute(ext, msg, code):
             elif op == "ADDRESS":
                 stk.append(utils.coerce_to_int(msg.to))
             elif op == "BALANCE":
-                if not eat_gas(compustate, opcodes.BALANCE_SUPPLEMENTAL_GAS):
-                    return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 stk.append(ext.get_balance(addr))
             elif op == "ORIGIN":
@@ -533,13 +530,9 @@ def vm_execute(ext, msg, code):
             elif op == "GASPRICE":
                 stk.append(ext.tx_gasprice)
             elif op == "EXTCODESIZE":
-                if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
-                    return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 stk.append(len(ext.get_code(addr) or b""))
             elif op == "EXTCODECOPY":
-                if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
-                    return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 start, s2, size = stk.pop(), stk.pop(), stk.pop()
                 extcode = ext.get_code(addr) or b""
@@ -587,8 +580,6 @@ def vm_execute(ext, msg, code):
                     return vm_exception("OOG EXTENDING MEMORY")
                 mem[s0] = s1 % 256
             elif op == "SLOAD":
-                if not eat_gas(compustate, opcodes.SLOAD_SUPPLEMENTAL_GAS):
-                    return vm_exception("OUT OF GAS")
                 stk.append(ext.get_storage_data(msg.to, stk.pop()))
             elif op == "SSTORE":
                 s0, s1 = stk.pop(), stk.pop()
@@ -737,8 +728,6 @@ def vm_execute(ext, msg, code):
             # Value transfer
             if value > 0:
                 extra_gas += opcodes.GCALLVALUETRANSFER
-            # Cost increased from 40 to 700 in Tangerine Whistle
-            extra_gas += opcodes.CALL_SUPPLEMENTAL_GAS
             # Compute child gas limit
             if compustate.gas < extra_gas:
                 return vm_exception("OUT OF GAS", needed=extra_gas)
@@ -838,8 +827,7 @@ def vm_execute(ext, msg, code):
             to = ((b"\x00" * (32 - len(to))) + to)[12:]
             xfer = ext.get_balance(msg.to)
             extra_gas = (
-                opcodes.SUICIDE_SUPPLEMENTAL_GAS
-                + (not ext.account_exists(to)) * (xfer > 0) * opcodes.GCALLNEWACCOUNT
+                (not ext.account_exists(to)) * (xfer > 0) * opcodes.GCALLNEWACCOUNT
             )
             if not eat_gas(compustate, extra_gas):
                 return vm_exception("OUT OF GAS")
