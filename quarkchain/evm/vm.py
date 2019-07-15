@@ -382,7 +382,7 @@ def vm_execute(ext, msg, code):
             # Move 1 byte forward for 0x60, up to 32 bytes for 0x7f
             compustate.pc += opcode - 0x5F
         # Arithmetic
-        elif opcode < 0x10:
+        elif opcode <= 0x1d:
             if op == "STOP":
                 return peaceful_exit("STOP", compustate.gas, [])
             elif op == "ADD":
@@ -439,6 +439,19 @@ def vm_execute(ext, msg, code):
                         stk.append(s1 & ((1 << testbit) - 1))
                 else:
                     stk.append(s1)
+            elif op == "SHL":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else (s1 << s0) & TT256M1)
+            elif op == "SHR":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else (s1 >> s0) & TT256M1)
+            elif op == "SAR":
+                s0, s1 = stk.pop(), utils.to_signed(stk.pop())
+                if s0 >= 256:
+                    ret = 0 if s1 >= 0 else (-1 & TT256M1)
+                else:
+                    ret = (s1 << s0) & TT256M1
+                stk.append(ret)
         # Comparisons
         elif opcode < 0x20:
             if op == "LT":
