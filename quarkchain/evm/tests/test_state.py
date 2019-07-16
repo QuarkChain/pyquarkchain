@@ -1,5 +1,10 @@
+import argparse
 import json
 import sys
+from fractions import Fraction
+
+from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.tests import new_statetest_utils, testutils
 
 from quarkchain.evm.slogging import get_logger, configure_logging
@@ -55,23 +60,26 @@ def pytest_generate_tests(metafunc):
 
 def main():
     global fixtures, filename, tests, testname, testdata
-    if len(sys.argv) == 1:
-        # read fixture from stdin
-        fixtures = {"stdin": json.load(sys.stdin)}
-    else:
-        # load fixtures from specified file or dir
-        try:
-            fixtures = testutils.get_tests_from_file_or_dir(sys.argv[1])
-        except BaseException:
-            fixtures = {"stdin": json.loads(sys.argv[1])}
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("fixtures", type=str, help="fixture file path to run tests")
+    args = parser.parse_args()
+
+    qkc_env = DEFAULT_ENV.copy()
+    # disable root chain tax
+    qkc_env.quark_chain_config.REWARD_TAX_RATE = Fraction(0)
+
+    # load fixtures from specified file or dir
+    fixtures = testutils.get_tests_from_file_or_dir(args.fixtures)
     for filename, tests in list(fixtures.items()):
         for testname, testdata in list(tests.items()):
-            if len(sys.argv) < 3 or testname == sys.argv[2]:
-                if exclude_func(filename, None, None):
-                    print("Skipping: %s %s" % (filename, testname))
-                    continue
-                print("Testing: %s %s" % (filename, testname))
-                checker(testdata)
+            if exclude_func(filename, None, None):
+                print("Skipping: %s %s" % (filename, testname))
+                continue
+            print("Testing: %s %s" % (filename, testname))
+            # hack qkc env into the test
+            testdata["qkc"] = qkc_env
+            checker(testdata)
 
 
 if __name__ == "__main__":

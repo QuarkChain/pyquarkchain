@@ -17,6 +17,7 @@ from quarkchain.evm.messages import apply_transaction
 import copy
 import os
 from quarkchain.db import InMemoryDb
+from quarkchain.utils import token_id_encode
 
 config_string = ":info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug"
 
@@ -45,13 +46,7 @@ basic_env = {
 }
 
 
-configs = {
-    # "Frontier": config_frontier,
-    # "Homestead": config_homestead,
-    # "EIP150": config_tangerine,
-    # "EIP158": config_spurious,
-    "Byzantium": get_default_evm_config()
-}
+configs = {"Byzantium": get_default_evm_config()}
 
 # Makes a diff between a prev and post state
 
@@ -66,7 +61,7 @@ def mk_state_diff(prev, post):
             o[k] = ["+", post[k]]
         elif prev[k] != post[k]:
             ok = {}
-            for key in ("nonce", "balance", "code"):
+            for key in ("nonce", "token_balances", "code"):
                 if prev[k][key] != post[k][key]:
                     ok[key] = [prev[k][key], "->", post[k][key]]
             if prev[k]["storage"] != post[k]["storage"]:
@@ -90,7 +85,7 @@ def mk_state_diff(prev, post):
 # Compute a single unit of a state test
 
 
-def compute_state_test_unit(state, txdata, indices, konfig):
+def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
     state.env.config = konfig
     s = state.snapshot()
     try:
@@ -102,7 +97,11 @@ def compute_state_test_unit(state, txdata, indices, konfig):
             to=decode_hex(remove_0x_head(txdata["to"])),
             value=parse_int_or_hex(txdata["value"][indices["value"]] or b"0"),
             data=decode_hex(remove_0x_head(txdata["data"][indices["data"]])),
+            transfer_token_id=token_id_encode("QKC"),
+            gas_token_id=token_id_encode("QKC"),
+            is_testing=True,
         )
+        tx.set_quark_chain_config(qkc_env.quark_chain_config)
         if "secretKey" in txdata:
             tx.sign(decode_hex(remove_0x_head(txdata["secretKey"])))
         else:
@@ -111,7 +110,7 @@ def compute_state_test_unit(state, txdata, indices, konfig):
             tx._in_mutable_context = False
         # Run it
         prev = state.to_dict()
-        success, output = apply_transaction(state, tx)
+        success, output = apply_transaction(state, tx, tx_wrapper_hash=bytes(32))
         print("Applied tx")
     except InvalidTransaction as e:
         print("Exception: %r" % e)
@@ -130,7 +129,7 @@ def compute_state_test_unit(state, txdata, indices, konfig):
 
 
 # Initialize the state for state tests
-def init_state(env, pre):
+def init_state(env, pre, qkc_env=None):
     # Setup env
     db = InMemoryDb()
     stateEnv = Env(config=konfig)
@@ -151,6 +150,8 @@ def init_state(env, pre):
         block_difficulty=parse_int_or_hex(env["currentDifficulty"]),
         gas_limit=parse_int_or_hex(env["currentGasLimit"]),
         timestamp=parse_int_or_hex(env["currentTimestamp"]),
+        qkc_config=qkc_env.quark_chain_config,
+        is_testing=True,
     )
 
     # Fill up pre
@@ -184,13 +185,17 @@ def verify_state_test(test):
     print("Verifying state test")
     if "env" not in test:
         raise EnvNotFoundException("Env not found")
-    _state = init_state(test["env"], test["pre"])
+    _state = init_state(test["env"], test["pre"], qkc_env=test["qkc"])
     for config_name, results in test["post"].items():
         # Old protocol versions may not be supported
         if config_name not in configs:
             continue
         print("Testing for %s" % config_name)
         for result in results:
+            # DEBUG
+            if result["indexes"] != {"data": 125, "gas": 0, "value": 0}:
+                continue
+            # DEBUG END
             data = test["transaction"]["data"][result["indexes"]["data"]]
             if len(data) > 2000:
                 data = "data<%d>" % (len(data) // 2 - 1)
@@ -210,7 +215,11 @@ def verify_state_test(test):
                 )
             )
             computed = compute_state_test_unit(
-                _state, test["transaction"], result["indexes"], configs[config_name]
+                _state,
+                test["transaction"],
+                result["indexes"],
+                configs[config_name],
+                qkc_env=test["qkc"],
             )
             if computed["hash"][-64:] != result["hash"][-64:]:
                 for k in computed["diff"]:

@@ -322,7 +322,9 @@ class State:
         if rlpdata != trie.BLANK_NODE:
             if self.is_testing:
                 o = rlp.decode(rlpdata, _MockAccount)
-                token_balances = TokenBalances(b"", self.db)
+                raw_token_balances = TokenBalances(b"", self.db)
+                raw_token_balances.balances = {token_id_encode("QKC"): o.balance}
+                token_balances = raw_token_balances.serialize()
                 full_shard_key = self.full_shard_key
             else:
                 o = rlp.decode(rlpdata, _Account)
@@ -541,7 +543,7 @@ class State:
                     if self.is_testing:
                         _acct = _MockAccount(
                             acct.nonce,
-                            acct.token_balances.get(token_id_encode("QKC"), 0),
+                            acct.token_balances.balance(token_id_encode("QKC")),
                             acct.storage,
                             acct.code_hash,
                         )

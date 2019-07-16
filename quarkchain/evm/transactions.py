@@ -94,8 +94,10 @@ class Transaction(rlp.Serializable):
         to_full_shard_key=0,
         network_id=1,
         version=0,
+        is_testing=False,
     ):
         self.quark_chain_config = None
+        self.is_testing = is_testing
 
         to = utils.normalize_address(to, allow_blank=True)
 
