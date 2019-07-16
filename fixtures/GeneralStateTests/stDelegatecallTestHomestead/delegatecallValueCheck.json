@@ -2,8 +2,10 @@
     "delegatecallValueCheck" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stDelegatecallTestHomestead/delegatecallValueCheckFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stDelegatecallTestHomestead/delegatecallValueCheckFiller.json",
+            "sourceHash" : "be8281833106399c07b6e250f7d4bf3ad789b7d4858459900db087c6f6b8fd46"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x14122ff01c9fbf8e582d0f8e8b334179bc3cbb23eaa4b8a110fd68f1b837c2da",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0x14122ff01c9fbf8e582d0f8e8b334179bc3cbb23eaa4b8a110fd68f1b837c2da",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x2e53a8d0a33187907d3212bcf073019c5fd52c265eb1dacc1bdafd0523319fa3",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -106,7 +86,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

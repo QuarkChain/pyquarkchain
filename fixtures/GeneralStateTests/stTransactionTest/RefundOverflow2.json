@@ -2,8 +2,10 @@
     "RefundOverflow2" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stTransactionTest/RefundOverflow2Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stTransactionTest/RefundOverflow2Filler.json",
+            "sourceHash" : "481f19e0b6802f389983d724c36953ce525e0ea507f0a19c7c996a6a27d11719"
         },
         "env" : {
             "currentCoinbase" : "0xb94f5374fce5edbc8e2a8697c15331677e6ebf0b",
@@ -36,9 +38,20 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x50e4efc6066e4158974b1cd159d914e8eda2978d3395f0027146f4a6bb014924",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "EIP150" : [
+                {
+                    "hash" : "0xff27e25dbbb130bb17a9f84043c1cb0f5db791da0f1dbc4989c1ef2a8bfb578f",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -60,7 +73,7 @@
             ],
             "Frontier" : [
                 {
-                    "hash" : "0x50e4efc6066e4158974b1cd159d914e8eda2978d3395f0027146f4a6bb014924",
+                    "hash" : "0xff27e25dbbb130bb17a9f84043c1cb0f5db791da0f1dbc4989c1ef2a8bfb578f",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -71,7 +84,7 @@
             ],
             "Homestead" : [
                 {
-                    "hash" : "0x50e4efc6066e4158974b1cd159d914e8eda2978d3395f0027146f4a6bb014924",
+                    "hash" : "0xff27e25dbbb130bb17a9f84043c1cb0f5db791da0f1dbc4989c1ef2a8bfb578f",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -92,7 +105,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x066666666666667a"

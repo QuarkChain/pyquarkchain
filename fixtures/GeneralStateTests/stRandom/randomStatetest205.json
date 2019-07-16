@@ -2,8 +2,10 @@
     "randomStatetest205" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stRandom/randomStatetest205Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stRandom/randomStatetest205Filler.json",
+            "sourceHash" : "c11819fa623f20b72eaabd1ed63696fab44ab939a7485897ace183cdf4777b29"
         },
         "env" : {
             "currentCoinbase" : "0x945304eb96065b2a98b57a48a06ae28d285a71b5",
@@ -36,7 +38,7 @@
                     "logs" : "0x446f5637e65204a90dd78af07fba60063dfa0df17daaa95ffb2fd551dbebc7aa"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xb5fac9b1e98bf61ea3e2941b164af8616942180daee8e54dbbbd4717107b2c2e",
                     "indexes" : {
@@ -45,28 +47,6 @@
                         "value" : 0
                     },
                     "logs" : "0x446f5637e65204a90dd78af07fba60063dfa0df17daaa95ffb2fd551dbebc7aa"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xb5fac9b1e98bf61ea3e2941b164af8616942180daee8e54dbbbd4717107b2c2e",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x446f5637e65204a90dd78af07fba60063dfa0df17daaa95ffb2fd551dbebc7aa"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x000743567a98a4c6c0d76bf44d693c0ad22d944ad46c578bd97e450e71da755b",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0xa6dbef43ba7e345f930e329c4d21c4c4236e7a4b5a8cd285a332fe54d25f8dfc"
                 }
             ],
             "Homestead" : [

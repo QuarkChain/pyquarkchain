@@ -2,8 +2,10 @@
     "callcallcallcode_001_SuicideMiddle" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stCallDelegateCodesHomestead/callcallcallcode_001_SuicideMiddleFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stCallDelegateCodesHomestead/callcallcallcode_001_SuicideMiddleFiller.json",
+            "sourceHash" : "d7fdcb8379ceafe45123a46a7d5a49efb90e2e7f9d0837812ea8acaab7aa73c5"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xd9620bfd8663f199f897de8e5ea7554639c40fb564940dfc8f0b2aa7a2a8a0e8",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xd9620bfd8663f199f897de8e5ea7554639c40fb564940dfc8f0b2aa7a2a8a0e8",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x23f8f86852e3e4a2e279acb10d051dda77dcf6af0c37ce21c97d73ece5af9951",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -98,7 +78,7 @@
             },
             "0x1000000000000000000000000000000000000002" : {
                 "balance" : "0x02540be400",
-                "code" : "0x731000000000000000000000000000000000000000ff",
+                "code" : "0x731000000000000000000000000000000000000000ff604060006040600073100000000000000000000000000000000000000361c350f4600255",
                 "nonce" : "0x00",
                 "storage" : {
                 }
@@ -120,7 +100,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

@@ -2,8 +2,10 @@
     "multiOwnedChangeRequirementTo0" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stWalletTest/multiOwnedChangeRequirementTo0Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stWalletTest/multiOwnedChangeRequirementTo0Filler.json",
+            "sourceHash" : "5f61dfa1a1882f86eb6e75e469393b2db25f7bbb8ddc72623ebde4b15dea3cf0"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -27,7 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0x5708c053b70f81b7197a90d1094c79693e8dffe395d9f14d75a67bfb5408a267",
+                    "hash" : "0x2cf1e129a04aa05f2a4c0a5a51b6d63eb64b6392e3c0e792fe457188e8e24821",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -36,42 +38,9 @@
                     "logs" : "0x488326ba113f96847160c22f24caecb014f8dfeade3cad4f2cf74eab82197cc3"
                 }
             ],
-            "EIP150" : [
-                {
-                    "hash" : "0x1c1c1b9de665348f9df4250e5805e8d6bbee0eb689e973b8c451a1bd1882dee2",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x488326ba113f96847160c22f24caecb014f8dfeade3cad4f2cf74eab82197cc3"
-                }
-            ],
-            "EIP158" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x5708c053b70f81b7197a90d1094c79693e8dffe395d9f14d75a67bfb5408a267",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x488326ba113f96847160c22f24caecb014f8dfeade3cad4f2cf74eab82197cc3"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x00819cf5a27d02c97ea9e06d6add41f90e30bed280b6f62a0faf242c3ea41823",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x488326ba113f96847160c22f24caecb014f8dfeade3cad4f2cf74eab82197cc3"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0x00819cf5a27d02c97ea9e06d6add41f90e30bed280b6f62a0faf242c3ea41823",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,

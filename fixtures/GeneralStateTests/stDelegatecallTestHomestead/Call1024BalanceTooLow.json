@@ -2,8 +2,10 @@
     "Call1024BalanceTooLow" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stDelegatecallTestHomestead/Call1024BalanceTooLowFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stDelegatecallTestHomestead/Call1024BalanceTooLowFiller.json",
+            "sourceHash" : "f431a9d1348483851c960147d2c157f3b126e9b2396ec2c1657db9f6a48cb974"
         },
         "env" : {
             "currentCoinbase" : "0xb94f5374fce5edbc8e2a8697c15331677e6ebf0b",
@@ -27,7 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0xf89e6292c4be9ae00ea7c7a3f200fdda6343f26e11220bd7270e0060c2dd52f8",
+                    "hash" : "0x2fcef16e5214cdd31cfed11a9841f79f6c159ee4fe0e9db07499888b7166813b",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xf89e6292c4be9ae00ea7c7a3f200fdda6343f26e11220bd7270e0060c2dd52f8",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xf89e6292c4be9ae00ea7c7a3f200fdda6343f26e11220bd7270e0060c2dd52f8",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0xc42e890ccb4c38119ff0d6d688719dec416fcfac6c8e689e0c3c9c959745d597",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -106,7 +86,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x10000000d788"
