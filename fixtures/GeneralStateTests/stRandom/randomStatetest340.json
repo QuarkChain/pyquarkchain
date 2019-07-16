@@ -2,8 +2,10 @@
     "randomStatetest340" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stRandom/randomStatetest340Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stRandom/randomStatetest340Filler.json",
+            "sourceHash" : "de1a9512841763fe19e8f68ab0b500279a1c85cdb135b48cff1c07fec85d8aa0"
         },
         "env" : {
             "currentCoinbase" : "0x945304eb96065b2a98b57a48a06ae28d285a71b5",
@@ -27,40 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0x56574351ad61caec1e1807367985ae0bea6c55716655a5ab9001f42c43adc3be",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP150" : [
-                {
-                    "hash" : "0x56574351ad61caec1e1807367985ae0bea6c55716655a5ab9001f42c43adc3be",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0x56574351ad61caec1e1807367985ae0bea6c55716655a5ab9001f42c43adc3be",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x86465463ac9e7721217b38c4dd8be6860943d3c52dc56325e5d9f05422ced540",
+                    "hash" : "0x083eb1fdf3370b04a385af48af067f14096457c224be489c3a9538b5a7d327e6",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
