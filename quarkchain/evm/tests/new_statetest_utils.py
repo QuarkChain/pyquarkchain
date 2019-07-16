@@ -192,10 +192,6 @@ def verify_state_test(test):
             continue
         print("Testing for %s" % config_name)
         for result in results:
-            # DEBUG
-            if result["indexes"] != {"data": 125, "gas": 0, "value": 0}:
-                continue
-            # DEBUG END
             data = test["transaction"]["data"][result["indexes"]["data"]]
             if len(data) > 2000:
                 data = "data<%d>" % (len(data) // 2 - 1)
