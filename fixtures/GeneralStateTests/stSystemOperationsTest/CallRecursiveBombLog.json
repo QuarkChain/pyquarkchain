@@ -2,8 +2,10 @@
     "CallRecursiveBombLog" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stSystemOperationsTest/CallRecursiveBombLogFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stSystemOperationsTest/CallRecursiveBombLogFiller.json",
+            "sourceHash" : "0d8c037118021f7de9ee6ce313704777d5945083c4bbbf34d0d04fa3d92bf1a0"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -27,16 +29,16 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0x376d0956c6353512c7f5aa80a2016b6989bb797cb1b7e78639d0793ff3ce719e",
+                    "hash" : "0x49eeed2c6a27c7f578f6eca13f3317d6da636fd58d6859ad48b3077ebbc31782",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
                         "value" : 0
                     },
-                    "logs" : "0xc4e71afda308f12d2fbf72e341c99f37fa46e6e325ee38424d3485f6be9a5018"
+                    "logs" : "0x43d79ab004c3541673e10050c56b918160630c517310d653a101413c607fc4a5"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x376d0956c6353512c7f5aa80a2016b6989bb797cb1b7e78639d0793ff3ce719e",
                     "indexes" : {
@@ -47,7 +49,7 @@
                     "logs" : "0xc4e71afda308f12d2fbf72e341c99f37fa46e6e325ee38424d3485f6be9a5018"
                 }
             ],
-            "EIP158" : [
+            "EIP150" : [
                 {
                     "hash" : "0x376d0956c6353512c7f5aa80a2016b6989bb797cb1b7e78639d0793ff3ce719e",
                     "indexes" : {
@@ -106,7 +108,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x02540be400"

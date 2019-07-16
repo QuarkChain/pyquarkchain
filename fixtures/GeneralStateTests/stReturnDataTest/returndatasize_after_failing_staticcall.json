@@ -2,8 +2,10 @@
     "returndatasize_after_failing_staticcall" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.e7ee91d0.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stReturnDataTest/returndatasize_after_failing_staticcallFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stReturnDataTest/returndatasize_after_failing_staticcallFiller.json",
+            "sourceHash" : "448241946c36c31fb6b284f5cf321cbef778f05512d39eea2a14d120e6845df5"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -36,9 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
-                    "hash" : "0xa5c645c0ddc7292ae3619e2fd980c4625b78b7a9c0c75030322ee1257b485edd",
+                    "hash" : "0xc080d95adad4f2f6b53df0b9c0b40d93b076bc81dbe675cc9bab68ccf6c3db33",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -107,7 +109,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x0a00000000"

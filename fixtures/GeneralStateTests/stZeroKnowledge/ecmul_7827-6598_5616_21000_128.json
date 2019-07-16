@@ -2,9 +2,10 @@
     "ecmul_7827-6598_5616_21000_128" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.d8dda2e0.Linux.g++",
-            "lllcversion" : "Version: 0.4.12-develop.2017.6.9+commit.598e289a.mod.Linux.g++",
-            "source" : "src/GeneralStateTestsFiller/stZeroKnowledge/ecmul_7827-6598_5616_21000_128Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stZeroKnowledge/ecmul_7827-6598_5616_21000_128Filler.json",
+            "sourceHash" : "9c4fd29a1c94a6711dfb7ed49c6a31a7f6d2b95032e9a0cd45ec6cad329d766b"
         },
         "env" : {
             "currentCoinbase" : "0x3535353535353535353535353535353535353535",
@@ -53,7 +54,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "Constantinople" : [
                 {
                     "hash" : "0xf090706a8973ede411159f91278d73c3093807cb8e26cea68e3691761bff7a02",
                     "indexes" : {
@@ -64,7 +65,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 1,
@@ -73,7 +74,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 2,
@@ -82,7 +83,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 3,
@@ -91,7 +92,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP158" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xf090706a8973ede411159f91278d73c3093807cb8e26cea68e3691761bff7a02",
                     "indexes" : {
@@ -102,7 +103,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 1,
@@ -111,7 +112,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 2,
@@ -120,83 +121,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0x7d849c818510b77a6bbf95bce0c99c2b569edf6d68ae04829113f02242d0173f",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 3,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0xf090706a8973ede411159f91278d73c3093807cb8e26cea68e3691761bff7a02",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0x866c59155854dafe182537197323da12ec6e05e1414c4b743d1de2d5d3a8bfbe",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 1,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0xc18aa70c8fc6c88e1352100b0129eaf4dfd9cf0892a10ebbe1e5f77cf34c4867",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 2,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0x4f7f1fc25cdbfd2edad095af7694e2250f0d9c0941d73a3379329a6d70c1c113",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 3,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0xf090706a8973ede411159f91278d73c3093807cb8e26cea68e3691761bff7a02",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0x866c59155854dafe182537197323da12ec6e05e1414c4b743d1de2d5d3a8bfbe",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 1,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0xc18aa70c8fc6c88e1352100b0129eaf4dfd9cf0892a10ebbe1e5f77cf34c4867",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 2,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0x4f7f1fc25cdbfd2edad095af7694e2250f0d9c0941d73a3379329a6d70c1c113",
+                    "hash" : "0xd58319c882cdbf1468c88ca86147fd649c62d056d2bcac70de6f4d9c5bb6ae45",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 3,

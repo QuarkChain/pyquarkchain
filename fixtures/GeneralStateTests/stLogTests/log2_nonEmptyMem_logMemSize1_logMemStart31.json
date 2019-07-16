@@ -2,8 +2,10 @@
     "log2_nonEmptyMem_logMemSize1_logMemStart31" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stLogTests/log2_nonEmptyMem_logMemSize1_logMemStart31Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stLogTests/log2_nonEmptyMem_logMemSize1_logMemStart31Filler.json",
+            "sourceHash" : "652bbd471fbafc141b2341361fd87ac2f1cf40832b4239ffeaed22823557571e"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -26,6 +28,17 @@
                 }
             ],
             "Constantinople" : [
+                {
+                    "hash" : "0x6d2aaf2d52f1a7762da37bbe2b2f181045bdc9839e8feba7c5b8aa019f57afc9",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x4409136ea4b71b7651f1c9c65efd0455ec856c93ce6295a1677ae7c3791e3c48"
+                }
+            ],
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x6d2aaf2d52f1a7762da37bbe2b2f181045bdc9839e8feba7c5b8aa019f57afc9",
                     "indexes" : {
@@ -106,7 +119,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x033450"

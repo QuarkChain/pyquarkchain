@@ -2,8 +2,10 @@
     "randomStatetest184" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stRandom/randomStatetest184Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stRandom/randomStatetest184Filler.json",
+            "sourceHash" : "5ef380727f780ec97775b3f11ce54a3d4043afff65d19df31252e457f6856394"
         },
         "env" : {
             "currentCoinbase" : "0x6d6e40885310545835a5b582dbc23ef026404bda",
@@ -36,29 +38,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
-                {
-                    "hash" : "0xf95be1e4c7788641348454fd9ff7b21956f61a979e8d7f8e55cec444c5931e8c",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xf95be1e4c7788641348454fd9ff7b21956f61a979e8d7f8e55cec444c5931e8c",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xf95be1e4c7788641348454fd9ff7b21956f61a979e8d7f8e55cec444c5931e8c",
                     "indexes" : {
@@ -71,7 +51,7 @@
             ],
             "Homestead" : [
                 {
-                    "hash" : "0xf95be1e4c7788641348454fd9ff7b21956f61a979e8d7f8e55cec444c5931e8c",
+                    "hash" : "0xeaf41ca90b95589f28853c7679b1207a73d7cf360d939cef2dcc467a8ea17d36",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,

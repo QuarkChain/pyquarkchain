@@ -2,8 +2,10 @@
     "log4_Caller" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stLogTests/log4_CallerFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stLogTests/log4_CallerFiller.json",
+            "sourceHash" : "f4ce1ecab26dc61f5cc488a14921eacd7d60a506ca25e2df2bf89be7c64cb3ab"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -26,6 +28,17 @@
                 }
             ],
             "Constantinople" : [
+                {
+                    "hash" : "0x046aa4968a8cfb27016bbf96813794e68a16320ad9a328fa677237eaf6877e10",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x2cf7b2496aabc54bf8cd922e79ea32647e308b0920022088832fc42af2046a48"
+                }
+            ],
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x046aa4968a8cfb27016bbf96813794e68a16320ad9a328fa677237eaf6877e10",
                     "indexes" : {
@@ -106,7 +119,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x033450"
