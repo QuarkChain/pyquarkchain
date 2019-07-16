@@ -76,12 +76,10 @@ opcodes = {
     0xF3: ["RETURN", 2, 0, 0],
     0xF4: ["DELEGATECALL", 6, 1, 700],
     0xF5: ["CALLBLACKBOX", 7, 1, 40],
-    0xFA: ["STATICCALL", 6, 1, 40],
+    0xFA: ["STATICCALL", 6, 1, 700],
     0xFD: ["REVERT", 2, 0, 0],
     0xFF: ["SUICIDE", 1, 0, 5000],
 }
-
-opcodesMetropolis = {0x3D, 0x3E, 0xFA, 0xFD}
 
 for i in range(1, 33):
     opcodes[0x5F + i] = ["PUSH" + str(i), 0, 1, 3]
