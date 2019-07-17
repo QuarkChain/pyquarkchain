@@ -33,7 +33,6 @@ from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.evm.messages import (
     apply_transaction,
-    null_address,
     validate_transaction,
     apply_xshard_desposit,
 )
@@ -475,9 +474,7 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        req_nonce = (
-            0 if evm_tx.sender == null_address else evm_state.get_nonce(evm_tx.sender)
-        )
+        req_nonce = evm_state.get_nonce(evm_tx.sender)
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
             return evm_tx
 
