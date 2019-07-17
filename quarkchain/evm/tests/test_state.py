@@ -51,6 +51,12 @@ def exclude_func(filename, _, __):
         or "static_CallEcrecover80.json" in filename
         or "CallEcrecover80.json" in filename
         or "CALLCODEEcrecover80.json" in filename
+        # The test considers a "synthetic" scenario (the state described there can't
+        # be arrived at using regular consensus rules).
+        # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418775512
+        # The result is in conflict with the yellow-paper:
+        # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418800369
+        or "RevertInCreateInInit.json" in filename
     )
 
 
