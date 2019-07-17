@@ -46,6 +46,7 @@ opcodes = {
     0x3C: ["EXTCODECOPY", 4, 0, 700],
     0x3D: ["RETURNDATASIZE", 0, 1, 2],
     0x3E: ["RETURNDATACOPY", 3, 0, 3],
+    0x3F: ["EXTCODEHASH", 1, 1, 400],
     0x40: ["BLOCKHASH", 1, 1, 20],
     0x41: ["COINBASE", 0, 1, 2],
     0x42: ["TIMESTAMP", 0, 1, 2],
