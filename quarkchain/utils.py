@@ -40,8 +40,8 @@ def is_p2(v):
 
 
 def p2_roundup(v):
-    ''' Roundup to nearest P2, v must be non-negative integer
-    '''
+    """ Roundup to nearest P2, v must be non-negative integer
+    """
     return 2 ** (v - 1).bit_length()
 
 
@@ -397,7 +397,7 @@ def get_colored_initial_for_level(level: int):
         logging.DEBUG: "\033[1;33mD",
         logging.NOTSET: "?",
     }
-    return mapping[level]
+    return mapping.get(level, mapping[logging.DEBUG])
 
 
 def get_end_color_for_level(level: int):
@@ -409,7 +409,7 @@ def get_end_color_for_level(level: int):
         logging.DEBUG: "\033[1;0m",
         logging.NOTSET: "?",
     }
-    return mapping[level]
+    return mapping.get(level, mapping[logging.DEBUG])
 
 
 def get_qkc_log_prefix(record: logging.LogRecord):
@@ -450,7 +450,7 @@ def time_ms():
 SHARD_KEY_MAX = (256 ** 4) - 1
 
 TOKEN_BASE = 36
-TOKEN_ID_MAX = 4873763662273663091    # ZZZZZZZZZZZZ
+TOKEN_ID_MAX = 4873763662273663091  # ZZZZZZZZZZZZ
 TOKEN_MAX = "ZZZZZZZZZZZZ"
 
 

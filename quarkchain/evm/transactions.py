@@ -21,7 +21,6 @@ from quarkchain.evm.solidity_abi_utils import tx_to_typed_data, typed_signature_
 # in the yellow paper it is specified that s should be smaller than
 # secpk1n (eq.205)
 secpk1n = 115792089237316195423570985008687907852837564279074904382605163141518161494337
-null_address = b"\xff" * 20
 
 
 class Transaction(rlp.Serializable):
@@ -94,8 +93,10 @@ class Transaction(rlp.Serializable):
         to_full_shard_key=0,
         network_id=1,
         version=0,
+        is_testing=False,
     ):
         self.quark_chain_config = None
+        self.is_testing = is_testing
 
         to = utils.normalize_address(to, allow_blank=True)
 
@@ -133,21 +134,15 @@ class Transaction(rlp.Serializable):
     @property
     def sender(self):
         if not self._sender:
-            # Determine sender
-            if self.r == 0 and self.s == 0:
-                self._sender = null_address
-            else:
-                if self.r >= secpk1n or self.s >= secpk1n or self.r == 0 or self.s == 0:
-                    raise InvalidTransaction("Invalid signature values!")
-                if self.version == 0:
-                    pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
-                if self.version == 1:
-                    pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
-                if pub == b"\x00" * 64:
-                    raise InvalidTransaction(
-                        "Invalid signature (zero privkey cannot sign)"
-                    )
-                self._sender = sha3_256(pub)[-20:]
+            if self.r >= secpk1n or self.s >= secpk1n or self.r == 0 or self.s == 0:
+                raise InvalidTransaction("Invalid signature values!")
+            if self.version == 0:
+                pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
+            if self.version == 1:
+                pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
+            if pub == b"\x00" * 64:
+                raise InvalidTransaction("Invalid signature (zero privkey cannot sign)")
+            self._sender = sha3_256(pub)[-20:]
         return self._sender
 
     @sender.setter

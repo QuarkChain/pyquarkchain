@@ -1,10 +1,10 @@
 # Modified based on pyethereum under MIT license
-from typing import Set
-
+import copy
 import rlp
 from rlp.sedes.lists import CountableList
 from rlp.sedes import binary
 from quarkchain.config import ChainConfig, ShardConfig
+from quarkchain.db import Db, OverlayDb
 from quarkchain.evm.utils import (
     hash32,
     trie_root,
@@ -24,9 +24,8 @@ from quarkchain.evm import trie
 from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
-from quarkchain.db import Db, OverlayDb
 from quarkchain.evm.common import FakeHeader
-import copy
+from quarkchain.utils import token_id_encode
 
 
 BLANK_HASH = utils.sha3(b"")
@@ -74,6 +73,17 @@ class _Account(rlp.Serializable):
         ("code_hash", hash32),
         ("full_shard_key", BigEndianInt(4)),
         ("optional", binary),
+    ]
+
+
+class _MockAccount(rlp.Serializable):
+    """Used in EVM tests, compatible with existing ledger model in Ethereum."""
+
+    fields = [
+        ("nonce", big_endian_int),
+        ("balance", big_endian_int),
+        ("storage", trie_root),
+        ("code_hash", hash32),
     ]
 
 
@@ -248,6 +258,7 @@ class State:
         qkc_config=None,
         executing_on_head=False,
         db=None,
+        use_mock_evm_account=False,
         **kwargs
     ):
         if db is None:
@@ -266,6 +277,7 @@ class State:
         self.qkc_config = qkc_config
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
+        self.use_mock_evm_account = use_mock_evm_account
 
     @property
     def db(self):
@@ -308,13 +320,22 @@ class State:
         else:
             rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
-            o = rlp.decode(rlpdata, _Account)
+            if self.use_mock_evm_account:
+                o = rlp.decode(rlpdata, _MockAccount)
+                raw_token_balances = TokenBalances(b"", self.db)
+                raw_token_balances.balances = {token_id_encode("QKC"): o.balance}
+                token_balances = raw_token_balances.serialize()
+                full_shard_key = self.full_shard_key
+            else:
+                o = rlp.decode(rlpdata, _Account)
+                token_balances = o.token_balances
+                full_shard_key = o.full_shard_key
             o = Account(
                 nonce=o.nonce,
-                token_balances=o.token_balances,
+                token_balances=token_balances,
                 storage=o.storage,
                 code_hash=o.code_hash,
-                full_shard_key=o.full_shard_key,
+                full_shard_key=full_shard_key,
                 env=self.env,
                 address=address,
                 db=self.db,
@@ -519,14 +540,23 @@ class State:
                 self.deletes.extend(acct.storage_trie.deletes)
                 self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
-                    _acct = _Account(
-                        acct.nonce,
-                        acct.token_balances.serialize(),
-                        acct.storage,
-                        acct.code_hash,
-                        acct.full_shard_key,
-                        b"",
-                    )
+                    if self.use_mock_evm_account:
+                        assert len(acct.token_balances.balances) <= 1, "QKC only"
+                        _acct = _MockAccount(
+                            acct.nonce,
+                            acct.token_balances.balance(token_id_encode("QKC")),
+                            acct.storage,
+                            acct.code_hash,
+                        )
+                    else:
+                        _acct = _Account(
+                            acct.nonce,
+                            acct.token_balances.serialize(),
+                            acct.storage,
+                            acct.code_hash,
+                            acct.full_shard_key,
+                            b"",
+                        )
                     self.trie.update(addr, rlp.encode(_acct))
                     if self.executing_on_head:
                         self.db.put(b"address:" + addr, rlp.encode(_acct))

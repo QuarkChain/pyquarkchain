@@ -625,7 +625,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(len(state.evm_state.receipts), 1)
         self.assertEqual(state.evm_state.receipts[0].state_root, b"\x01")
         self.assertEqual(state.evm_state.receipts[0].gas_used, CREATION_GAS)
-        contract_address = mk_contract_address(acc1.recipient, acc1.full_shard_key, 0)
+        contract_address = mk_contract_address(acc1.recipient, 0, acc1.full_shard_key)
         self.assertEqual(contract_address, state.evm_state.receipts[0].contract_address)
         self.assertEqual(
             acc1.full_shard_key, state.evm_state.receipts[0].contract_full_shard_key

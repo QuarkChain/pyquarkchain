@@ -14,6 +14,9 @@ def make_test_tx(s=100000, g=50, data=b"", nonce=0):
         to=b"\x35" * 20,
         gas_token_id=0,
         transfer_token_id=0,
+        r=1,
+        s=1,
+        v=28,
     )
 
 

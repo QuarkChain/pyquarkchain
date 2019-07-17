@@ -674,6 +674,8 @@ def vm_execute(ext, msg, code):
                     cd,
                     msg.depth + 1,
                     to_full_shard_key=msg.from_full_shard_key,
+                    transfer_token_id=msg.transfer_token_id,
+                    gas_token_id=msg.gas_token_id,
                 )
                 o, gas, data = ext.create(create_msg)
                 if o:
@@ -757,6 +759,8 @@ def vm_execute(ext, msg, code):
                         msg.depth + 1,
                         code_address=to,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
                 elif op == "DELEGATECALL":
                     call_msg = Message(
@@ -769,6 +773,8 @@ def vm_execute(ext, msg, code):
                         code_address=to,
                         transfers_value=False,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
                 elif op == "STATICCALL":
                     call_msg = Message(
@@ -780,9 +786,9 @@ def vm_execute(ext, msg, code):
                         msg.depth + 1,
                         code_address=to,
                         static=True,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
-                elif op in ("DELEGATECALL", "STATICCALL"):
-                    return vm_exception("OPCODE %s INACTIVE" % op)
                 elif op == "CALLCODE":
                     call_msg = Message(
                         msg.to,
@@ -793,6 +799,8 @@ def vm_execute(ext, msg, code):
                         msg.depth + 1,
                         code_address=to,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
                 else:
                     raise Exception("Lolwut")
@@ -842,12 +850,8 @@ def vm_execute(ext, msg, code):
             )
             return peaceful_exit("SUICIDED", compustate.gas, [])
 
-        if trace_vm:
-            vm_trace(ext, msg, compustate, opcode, pushcache)
-
     if trace_vm:
         compustate.reset_prev()
-        vm_trace(ext, msg, compustate, 0, None)
     return peaceful_exit("CODE OUT OF RANGE", compustate.gas, [])
 
 
