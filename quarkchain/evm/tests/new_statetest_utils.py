@@ -46,8 +46,13 @@ basic_env = {
 }
 
 
-# TODO: Constantinople!
-configs = {"Byzantium": get_default_evm_config()}
+evm_config = get_default_evm_config()
+# Fork -> specific test filter
+# TODO: remaining Constantinople tests
+configs = {
+    "Byzantium": lambda test_folder: test_folder not in ["stShift"],
+    "ConstantinopleFix": lambda test_folder: test_folder in ["stShift"],
+}
 
 # Makes a diff between a prev and post state
 
@@ -171,15 +176,11 @@ def init_state(env, pre, qkc_env=None):
             )
 
     state.commit(allow_empties=True)
-    # state.commit()
     return state
 
 
 class EnvNotFoundException(Exception):
     pass
-
-
-# Verify a state test
 
 
 def verify_state_test(test):
@@ -190,6 +191,11 @@ def verify_state_test(test):
     for config_name, results in test["post"].items():
         # Old protocol versions may not be supported
         if config_name not in configs:
+            continue
+        filtered = configs[config_name]
+        # Filter based on file path, e.g. "'src/GeneralStateTestsFiller/stRandom/random123.json'"
+        test_folder = test["_info"]["source"].split("/")[-2]
+        if not filtered(test_folder):
             continue
         print("Testing for %s" % config_name)
         for result in results:
@@ -215,7 +221,7 @@ def verify_state_test(test):
                 _state,
                 test["transaction"],
                 result["indexes"],
-                configs[config_name],
+                evm_config,
                 qkc_env=test["qkc"],
             )
             if computed["hash"][-64:] != result["hash"][-64:]:

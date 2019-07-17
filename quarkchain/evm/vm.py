@@ -468,6 +468,19 @@ def vm_execute(ext, msg, code):
                     stk.append(0)
                 else:
                     stk.append((s1 // 256 ** (31 - s0)) % 256)
+            elif op == "SHL":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else (s1 << s0) & TT256M1)
+            elif op == "SHR":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else s1 >> s0)
+            elif op == "SAR":
+                s0, s1 = stk.pop(), utils.to_signed(stk.pop())
+                if s0 >= 256:
+                    ret = 0 if s1 >= 0 else TT256M1
+                else:
+                    ret = (s1 >> s0) & TT256M1
+                stk.append(ret)
         # SHA3 and environment info
         elif opcode < 0x40:
             if op == "SHA3":

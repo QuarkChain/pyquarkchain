@@ -40,6 +40,8 @@ def exclude_func(filename, _, __):
         # The result is in conflict with the yellow-paper:
         # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418800369
         or "RevertInCreateInInit.json" in filename
+        # TODO: should be fixed after all valid opcodes in Constantinople are in
+        or "badOpcodes.json" in filename
     )
 
 
