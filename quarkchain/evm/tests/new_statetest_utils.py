@@ -46,6 +46,7 @@ basic_env = {
 }
 
 
+# TODO: Constantinople!
 configs = {"Byzantium": get_default_evm_config()}
 
 # Makes a diff between a prev and post state
@@ -115,10 +116,10 @@ def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
     except InvalidTransaction as e:
         print("Exception: %r" % e)
         success, output = False, b""
-    # state.set_code('0x3e180b1862f9d158abb5e519a6d8605540c23682', b'')
+    # touch coinbase, make behavior consistent with go-ethereum
+    state.delta_token_balance(state.block_coinbase, token_id_encode("QKC"), 0)
     state.commit()
     post = state.to_dict()
-    # print('pozt', post)
     output_decl = {
         "hash": "0x" + encode_hex(state.trie.root_hash),
         "indexes": indices,
@@ -151,7 +152,7 @@ def init_state(env, pre, qkc_env=None):
         gas_limit=parse_int_or_hex(env["currentGasLimit"]),
         timestamp=parse_int_or_hex(env["currentTimestamp"]),
         qkc_config=qkc_env.quark_chain_config,
-        is_testing=True,
+        use_mock_evm_account=True,
     )
 
     # Fill up pre

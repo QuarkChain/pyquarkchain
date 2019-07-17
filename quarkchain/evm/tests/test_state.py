@@ -1,9 +1,7 @@
 import argparse
-import json
 import sys
 from fractions import Fraction
 
-from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.tests import new_statetest_utils, testutils
 
@@ -32,25 +30,10 @@ def exclude_func(filename, _, __):
     return (
         "stQuadraticComplexityTest" in filename
         or "stMemoryStressTest" in filename  # Takes too long
+        or "static_Call50000_sha256.json" in filename  # Too long
         or "MLOAD_Bounds.json" in filename  # We run out of memory
-        or  # We run out of memory
-        # we know how to pass: force address 3 to get deleted. TODO confer
-        # with c++ best path foward.
-        "failed_tx_xcf416c53" in filename
-        or
-        # we know how to pass: delete contract's code. Looks like c++
-        # issue.
-        "RevertDepthCreateAddressCollision.json" in filename
-        or "pairingTest.json" in filename
-        or "createJS_ExampleContract" in filename  # definitely a c++ issue
-        or  # definitely a c++ issue
-        # Existing failed tests in pyeth test (commit 69f55e86081)
-        "static_CallEcrecoverR_prefixed0.json" in filename
-        or "CallEcrecoverR_prefixed0.json" in filename
-        or "CALLCODEEcrecoverR_prefixed0.json" in filename
-        or "static_CallEcrecover80.json" in filename
-        or "CallEcrecover80.json" in filename
-        or "CALLCODEEcrecover80.json" in filename
+        # we know how to pass: force address 3 to get deleted. TODO confirm.
+        or "failed_tx_xcf416c53" in filename
         # The test considers a "synthetic" scenario (the state described there can't
         # be arrived at using regular consensus rules).
         # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418775512

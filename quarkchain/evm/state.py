@@ -258,7 +258,7 @@ class State:
         qkc_config=None,
         executing_on_head=False,
         db=None,
-        is_testing=False,
+        use_mock_evm_account=False,
         **kwargs
     ):
         if db is None:
@@ -277,7 +277,7 @@ class State:
         self.qkc_config = qkc_config
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
-        self.is_testing = is_testing
+        self.use_mock_evm_account = use_mock_evm_account
 
     @property
     def db(self):
@@ -320,7 +320,7 @@ class State:
         else:
             rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
-            if self.is_testing:
+            if self.use_mock_evm_account:
                 o = rlp.decode(rlpdata, _MockAccount)
                 raw_token_balances = TokenBalances(b"", self.db)
                 raw_token_balances.balances = {token_id_encode("QKC"): o.balance}
@@ -540,7 +540,8 @@ class State:
                 self.deletes.extend(acct.storage_trie.deletes)
                 self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
-                    if self.is_testing:
+                    if self.use_mock_evm_account:
+                        assert len(acct.token_balances.balances) <= 1, "QKC only"
                         _acct = _MockAccount(
                             acct.nonce,
                             acct.token_balances.balance(token_id_encode("QKC")),
