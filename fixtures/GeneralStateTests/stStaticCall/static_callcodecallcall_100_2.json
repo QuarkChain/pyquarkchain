@@ -2,8 +2,10 @@
     "static_callcodecallcall_100_2" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stStaticCall/static_callcodecallcall_100_2Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stStaticCall/static_callcodecallcall_100_2Filler.json",
+            "sourceHash" : "14a88cb2a13e76dacaca795a2e297967e286a65d7ba6dd35537b57b979a3e723"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -54,9 +56,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
-                    "hash" : "0x7d27ae5179addae420f8848bf939d89218cf768eece86e0d7b914027e02e4ffe",
+                    "hash" : "0xbd13070b0612e42bd01a5e31294f621ab8658413d58dba4e5bed87b40b2aa179",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -65,67 +67,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "hash" : "0xb6a4fe6026a17a81c53d8f2d3ed8ee914cbaa78f282631f5b76b7d3be26adc38",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 1
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0x7d27ae5179addae420f8848bf939d89218cf768eece86e0d7b914027e02e4ffe",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0xb6a4fe6026a17a81c53d8f2d3ed8ee914cbaa78f282631f5b76b7d3be26adc38",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 1
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x78d9ec15bf63501294f6754e1c9165bf7c2dcad9415b23d74d1d2900f3cdedf7",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0xcf204b2d5d6c368c2d727515a8838ae3ed4fb407d8a87d92ef6208fa48915aea",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 1
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0x78d9ec15bf63501294f6754e1c9165bf7c2dcad9415b23d74d1d2900f3cdedf7",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "hash" : "0xcf204b2d5d6c368c2d727515a8838ae3ed4fb407d8a87d92ef6208fa48915aea",
+                    "hash" : "0x1b9fd1a49cdf2ee3e9f27bf2c112ec869734f94f216bc0cb2088fb9ed693de73",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -174,7 +116,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

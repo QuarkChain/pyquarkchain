@@ -2,8 +2,10 @@
     "randomStatetest199" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stRandom/randomStatetest199Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stRandom/randomStatetest199Filler.json",
+            "sourceHash" : "3c803d554b329a85cf24ed4919c686f83584d2693f80f5df78d0f2192c41f481"
         },
         "env" : {
             "currentCoinbase" : "0x945304eb96065b2a98b57a48a06ae28d285a71b5",
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xd73e20f1c303010e95ac9d12955aec0834ac33e32c5f75cbcdc98ba212e95780",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xd73e20f1c303010e95ac9d12955aec0834ac33e32c5f75cbcdc98ba212e95780",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0xe628eb2b662c23233d1a758f5d45b889e9718294f7f6021abd3a85cc8b21fdcc",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,

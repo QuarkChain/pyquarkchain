@@ -22,16 +22,15 @@ def proc_ecrecover(ext, msg):
     message_hash = b"".join(map(ascii_chr, message_hash_bytes))
 
     # TODO: This conversion isn't really necessary.
-    # TODO: Invesitage if the check below is really needed.
+    # TODO: Investigate if the check below is really needed.
     v = msg.data.extract32(32)
     r = msg.data.extract32(64)
     s = msg.data.extract32(96)
 
     if r >= secp256k1n or s >= secp256k1n or v < 27 or v > 28:
         return 1, msg.gas - opcodes.GECRECOVER, []
-    try:
-        pub = utils.ecrecover_to_pub(message_hash, v, r, s)
-    except Exception as e:
+    pub = utils.ecrecover_to_pub(message_hash, v, r, s)
+    if pub == b"\x00" * 64:
         return 1, msg.gas - gas_cost, []
     o = [0] * 12 + [safe_ord(x) for x in utils.sha3(pub)[-20:]]
     return 1, msg.gas - gas_cost, o

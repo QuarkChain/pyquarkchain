@@ -2,8 +2,10 @@
     "randomStatetest135" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stRandom/randomStatetest135Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stRandom/randomStatetest135Filler.json",
+            "sourceHash" : "587fbb0d0a15863521c4b89a798f65a53800f092117ea9f55b295a5d3d323e72"
         },
         "env" : {
             "currentCoinbase" : "0x945304eb96065b2a98b57a48a06ae28d285a71b5",
@@ -36,29 +38,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
-                {
-                    "hash" : "0xfdfe1d801240a43ff8708f16b426826801ecb0a34ee05d3b6b93937cf359b2b4",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xfdfe1d801240a43ff8708f16b426826801ecb0a34ee05d3b6b93937cf359b2b4",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xfdfe1d801240a43ff8708f16b426826801ecb0a34ee05d3b6b93937cf359b2b4",
                     "indexes" : {

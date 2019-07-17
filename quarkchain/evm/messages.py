@@ -28,8 +28,6 @@ from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
 
 
-null_address = b"\xff" * 20
-
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
 log_msg = get_logger("eth.pb.msg")
@@ -123,7 +121,7 @@ def validate_transaction(state, tx):
 
     # (2) the transaction nonce is valid (equivalent to the
     #     sender account's current nonce);
-    req_nonce = 0 if tx.sender == null_address else state.get_nonce(tx.sender)
+    req_nonce = state.get_nonce(tx.sender)
     if req_nonce != tx.nonce:
         raise InvalidNonce(rp(tx, "nonce", tx.nonce, req_nonce))
 
@@ -188,10 +186,6 @@ def validate_transaction(state, tx):
         raise BlockGasLimitReached(
             rp(tx, "gaslimit", state.gas_used + tx.startgas, state.gas_limit)
         )
-
-    # EIP86-specific restrictions
-    if tx.sender == null_address and (tx.value != 0 or tx.gasprice != 0):
-        raise InvalidTransaction("EIP86 transactions must have 0 value and gasprice")
 
     return True
 
@@ -334,8 +328,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     log_tx.debug("TX NEW", txdict=tx.to_dict())
 
     # start transacting #################
-    if tx.sender != null_address:
-        state.increment_nonce(tx.sender)
+    state.increment_nonce(tx.sender)
 
     # part of fees should go to root chain miners
     local_fee_rate = (
@@ -358,8 +351,8 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         message_data,
         code_address=tx.to,
         is_cross_shard=tx.is_cross_shard,
-        from_full_shard_key=tx.from_full_shard_key,
-        to_full_shard_key=tx.to_full_shard_key,
+        from_full_shard_key=tx.from_full_shard_key if not tx.is_testing else None,
+        to_full_shard_key=tx.to_full_shard_key if not tx.is_testing else None,
         tx_hash=tx_wrapper_hash,
         transfer_token_id=tx.transfer_token_id,
         gas_token_id=tx.gas_token_id,
@@ -564,10 +557,12 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
-def mk_contract_address(sender, full_shard_key, nonce):
-    return utils.sha3(
-        rlp.encode([utils.normalize_address(sender), full_shard_key, nonce])
-    )[12:]
+def mk_contract_address(sender, nonce, full_shard_key):
+    if full_shard_key is not None:
+        to_encode = [utils.normalize_address(sender), full_shard_key, nonce]
+    else:
+        to_encode = [utils.normalize_address(sender), nonce]
+    return utils.sha3(rlp.encode(to_encode))[12:]
 
 
 def create_contract(ext, msg):
@@ -585,12 +580,8 @@ def create_contract(ext, msg):
     if ext.tx_origin != msg.sender:
         ext.increment_nonce(msg.sender)
 
-    if msg.sender == null_address:
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, 0)
-        # msg.to = sha3(msg.sender + code)[12:]
-    else:
-        nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-        msg.to = mk_contract_address(msg.sender, msg.to_full_shard_key, nonce)
+    nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
+    msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
 
     if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")

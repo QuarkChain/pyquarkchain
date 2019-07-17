@@ -2,8 +2,10 @@
     "static_callcallcodecall_010_SuicideMiddle2" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stStaticCall/static_callcallcodecall_010_SuicideMiddle2Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stStaticCall/static_callcallcodecall_010_SuicideMiddle2Filler.json",
+            "sourceHash" : "70c252a31040ba68b2a9e290b2f7fe8bd95370cfc26769a593729c0134df1e7d"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -16,7 +18,7 @@
         "post" : {
             "Byzantium" : [
                 {
-                    "hash" : "0xf07644cc5749fdb124dc06126a62b44551ed28eda44d5eb3cc75549a1891ecfb",
+                    "hash" : "0xd630812d6c8bb60b399ed3fc51abcdd5bc3441965f405c5a39098a08c466564c",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -27,7 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0xf07644cc5749fdb124dc06126a62b44551ed28eda44d5eb3cc75549a1891ecfb",
+                    "hash" : "0xd630812d6c8bb60b399ed3fc51abcdd5bc3441965f405c5a39098a08c466564c",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -36,42 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
-                    "hash" : "0xf673e75a7903269b3f0930f908dc792c4c34c0602746d8b7f4d34f0ad32358ce",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xf673e75a7903269b3f0930f908dc792c4c34c0602746d8b7f4d34f0ad32358ce",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0xf673e75a7903269b3f0930f908dc792c4c34c0602746d8b7f4d34f0ad32358ce",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0xf673e75a7903269b3f0930f908dc792c4c34c0602746d8b7f4d34f0ad32358ce",
+                    "hash" : "0xd630812d6c8bb60b399ed3fc51abcdd5bc3441965f405c5a39098a08c466564c",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -98,7 +67,7 @@
             },
             "0x1000000000000000000000000000000000000002" : {
                 "balance" : "0x02540be400",
-                "code" : "0x731000000000000000000000000000000000000000ff",
+                "code" : "0x731000000000000000000000000000000000000000ff604060006040600073100000000000000000000000000000000000000361c350fa",
                 "nonce" : "0x00",
                 "storage" : {
                 }
@@ -120,7 +89,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

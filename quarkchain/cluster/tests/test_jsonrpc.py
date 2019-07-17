@@ -620,7 +620,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertEqual(resp["cumulativeGasUsed"], "0x213eb")
 
                 contract_address = mk_contract_address(
-                    acc1.recipient, to_full_shard_key, 0
+                    acc1.recipient, 0, to_full_shard_key
                 )
                 self.assertEqual(
                     resp["contractAddress"],
@@ -715,7 +715,7 @@ class TestJSONRPC(unittest.TestCase):
 
                 # filter by contract address
                 contract_addr = mk_contract_address(
-                    acc1.recipient, acc1.full_shard_key, 0
+                    acc1.recipient, 0, acc1.full_shard_key
                 )
                 filter_obj = {
                     "address": "0x"

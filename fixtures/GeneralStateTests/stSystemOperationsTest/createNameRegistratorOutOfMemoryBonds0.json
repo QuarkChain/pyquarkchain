@@ -2,8 +2,10 @@
     "createNameRegistratorOutOfMemoryBonds0" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stSystemOperationsTest/createNameRegistratorOutOfMemoryBonds0Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stSystemOperationsTest/createNameRegistratorOutOfMemoryBonds0Filler.json",
+            "sourceHash" : "0ffb53a6cf7c5727866dd680208fa1018053da56c25000b231be0a2fbb9062c7"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -26,6 +28,17 @@
                 }
             ],
             "Constantinople" : [
+                {
+                    "hash" : "0x2516c1bbc89361b6de0cf1a0dd37c29eb1fb5443e6b61d30995c582b1f382ba7",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x2516c1bbc89361b6de0cf1a0dd37c29eb1fb5443e6b61d30995c582b1f382ba7",
                     "indexes" : {
@@ -99,7 +112,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x0493e0"

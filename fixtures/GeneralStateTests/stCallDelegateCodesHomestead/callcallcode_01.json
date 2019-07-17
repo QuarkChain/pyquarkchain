@@ -2,8 +2,10 @@
     "callcallcode_01" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stCallDelegateCodesHomestead/callcallcode_01Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stCallDelegateCodesHomestead/callcallcode_01Filler.json",
+            "sourceHash" : "d02075732b0ff136d5ffb9a41976d2318155a68f09ada4039de1e1b3780c126d"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xa819526ad66ad27126ecd20211deb2601c3991b8e71f024fe082e51e0160b817",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0xa819526ad66ad27126ecd20211deb2601c3991b8e71f024fe082e51e0160b817",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0xa1a1911a4eb684586df9ee38788a160da83fd60a17486bbc0f89de47c887b685",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -113,7 +93,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

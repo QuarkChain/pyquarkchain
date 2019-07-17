@@ -46,13 +46,8 @@ basic_env = {
 }
 
 
-configs = {
-    # "Frontier": config_frontier,
-    # "Homestead": config_homestead,
-    # "EIP150": config_tangerine,
-    # "EIP158": config_spurious,
-    "Byzantium": get_default_evm_config()
-}
+# TODO: Constantinople!
+configs = {"Byzantium": get_default_evm_config()}
 
 # Makes a diff between a prev and post state
 
@@ -105,6 +100,7 @@ def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
             data=decode_hex(remove_0x_head(txdata["data"][indices["data"]])),
             transfer_token_id=token_id_encode("QKC"),
             gas_token_id=token_id_encode("QKC"),
+            is_testing=True,
         )
         tx.set_quark_chain_config(qkc_env.quark_chain_config)
         if "secretKey" in txdata:
@@ -120,10 +116,10 @@ def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
     except InvalidTransaction as e:
         print("Exception: %r" % e)
         success, output = False, b""
-    # state.set_code('0x3e180b1862f9d158abb5e519a6d8605540c23682', b'')
+    # touch coinbase, make behavior consistent with go-ethereum
+    state.delta_token_balance(state.block_coinbase, token_id_encode("QKC"), 0)
     state.commit()
     post = state.to_dict()
-    # print('pozt', post)
     output_decl = {
         "hash": "0x" + encode_hex(state.trie.root_hash),
         "indexes": indices,
@@ -156,6 +152,7 @@ def init_state(env, pre, qkc_env=None):
         gas_limit=parse_int_or_hex(env["currentGasLimit"]),
         timestamp=parse_int_or_hex(env["currentTimestamp"]),
         qkc_config=qkc_env.quark_chain_config,
+        use_mock_evm_account=True,
     )
 
     # Fill up pre
@@ -221,17 +218,15 @@ def verify_state_test(test):
                 configs[config_name],
                 qkc_env=test["qkc"],
             )
-            # FIXME: have to skip hash comparison
-            """
             if computed["hash"][-64:] != result["hash"][-64:]:
                 for k in computed["diff"]:
                     print(k, computed["diff"][k])
                 raise Exception(
-                    "Hash mismatch, computed: %s, supplied: %s" %
-                    (computed["hash"], result["hash"]))
+                    "Hash mismatch, computed: %s, supplied: %s"
+                    % (computed["hash"], result["hash"])
+                )
             else:
                 for k in computed["diff"]:
                     print(k, computed["diff"][k])
                 print("Hash matched!: %s" % computed["hash"])
-            """
     return True

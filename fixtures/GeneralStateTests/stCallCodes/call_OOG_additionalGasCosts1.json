@@ -2,8 +2,10 @@
     "call_OOG_additionalGasCosts1" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stCallCodes/call_OOG_additionalGasCosts1Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stCallCodes/call_OOG_additionalGasCosts1Filler.json",
+            "sourceHash" : "a0579aa51aad9d40daf56feb2321485b70fe24497a399bb2cb013aa05ce5f1e5"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -26,6 +28,17 @@
                 }
             ],
             "Constantinople" : [
+                {
+                    "hash" : "0x8e5bd1989eadfd5129c7f0ae2ba9be8c347a8d109a000c333443a582eafcc58d",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x8e5bd1989eadfd5129c7f0ae2ba9be8c347a8d109a000c333443a582eafcc58d",
                     "indexes" : {
@@ -99,7 +112,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x7530"

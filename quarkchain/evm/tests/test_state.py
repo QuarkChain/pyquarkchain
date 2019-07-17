@@ -1,8 +1,7 @@
 import argparse
-import json
 import sys
+from fractions import Fraction
 
-from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.tests import new_statetest_utils, testutils
 
@@ -31,25 +30,16 @@ def exclude_func(filename, _, __):
     return (
         "stQuadraticComplexityTest" in filename
         or "stMemoryStressTest" in filename  # Takes too long
+        or "static_Call50000_sha256.json" in filename  # Too long
         or "MLOAD_Bounds.json" in filename  # We run out of memory
-        or  # We run out of memory
-        # we know how to pass: force address 3 to get deleted. TODO confer
-        # with c++ best path foward.
-        "failed_tx_xcf416c53" in filename
-        or
-        # we know how to pass: delete contract's code. Looks like c++
-        # issue.
-        "RevertDepthCreateAddressCollision.json" in filename
-        or "pairingTest.json" in filename
-        or "createJS_ExampleContract" in filename  # definitely a c++ issue
-        or  # definitely a c++ issue
-        # Existing failed tests in pyeth test (commit 69f55e86081)
-        "static_CallEcrecoverR_prefixed0.json" in filename
-        or "CallEcrecoverR_prefixed0.json" in filename
-        or "CALLCODEEcrecoverR_prefixed0.json" in filename
-        or "static_CallEcrecover80.json" in filename
-        or "CallEcrecover80.json" in filename
-        or "CALLCODEEcrecover80.json" in filename
+        # we know how to pass: force address 3 to get deleted. TODO confirm.
+        or "failed_tx_xcf416c53" in filename
+        # The test considers a "synthetic" scenario (the state described there can't
+        # be arrived at using regular consensus rules).
+        # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418775512
+        # The result is in conflict with the yellow-paper:
+        # * https://github.com/ethereum/py-evm/pull/1224#issuecomment-418800369
+        or "RevertInCreateInInit.json" in filename
     )
 
 
@@ -62,17 +52,14 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("fixtures", type=str, help="fixture file path to run tests")
-    ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
     qkc_env = DEFAULT_ENV.copy()
-    qkc_env.cluster_config = ClusterConfig.create_from_args(args)
+    # disable root chain tax
+    qkc_env.quark_chain_config.REWARD_TAX_RATE = Fraction(0)
 
     # load fixtures from specified file or dir
-    try:
-        fixtures = testutils.get_tests_from_file_or_dir(args.fixtures)
-    except BaseException:
-        fixtures = {"stdin": json.loads(sys.argv[1])}
+    fixtures = testutils.get_tests_from_file_or_dir(args.fixtures)
     for filename, tests in list(fixtures.items()):
         for testname, testdata in list(tests.items()):
             if exclude_func(filename, None, None):
