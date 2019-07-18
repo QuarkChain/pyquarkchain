@@ -42,6 +42,19 @@ def exclude_func(filename, _, __):
         or "RevertInCreateInInit.json" in filename
         # TODO: should be fixed after all valid opcodes in Constantinople are in
         or "badOpcodes.json" in filename
+        # TODO: following have CREATE2. should pass after we have it ready
+        or "extCodeHashCreatedAndDeletedAccountCall.json" in filename
+        or "extCodeHashDeletedAccount3.json" in filename
+        or "extCodeHashInInitCode.json" in filename
+        or "extCodeHashDeletedAccount4.json" in filename
+        or "extCodeHashCreatedAndDeletedAccountRecheckInOuterCall.json" in filename
+        or "extCodeHashCreatedAndDeletedAccountStaticCall.json" in filename
+        or "extCodeHashCreatedAndDeletedAccount.json" in filename
+        or "codeCopyZero.json" in filename
+        or "extCodeHashNewAccount.json" in filename
+        or "extCodeHashSelfInInit.json" in filename
+        or "extCodeHashSubcallOOG.json" in filename
+        or "dynamicAccountOverwriteEmpty.json" in filename
     )
 
 

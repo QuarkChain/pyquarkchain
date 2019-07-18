@@ -559,6 +559,14 @@ def vm_execute(ext, msg, code):
                         mem[start + i] = safe_ord(extcode[s2 + i])
                     else:
                         mem[start + i] = 0
+            elif op == "EXTCODEHASH":
+                addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
+                if not ext.account_exists(addr):
+                    stk.append(0)
+                else:
+                    extcode = ext.get_code(addr) or b""
+                    assert utils.is_string(extcode)
+                    stk.append(utils.big_endian_to_int(utils.sha3(extcode)))
         # Block info
         elif opcode < 0x50:
             if op == "BLOCKHASH":
