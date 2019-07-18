@@ -51,8 +51,9 @@ evm_config = get_default_evm_config()
 # TODO: remaining Constantinople tests
 tests_for_new_evm = ["stShift", "stExtCodeHash"]
 configs = {
-    "Byzantium": lambda test_folder: test_folder not in tests_for_new_evm,
-    "ConstantinopleFix": lambda test_folder: test_folder in tests_for_new_evm,
+    # "Byzantium": lambda test_folder: test_folder not in tests_for_new_evm,
+    "ConstantinopleFix": lambda test_folder: test_folder
+    in tests_for_new_evm
 }
 
 # Makes a diff between a prev and post state

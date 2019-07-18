@@ -26,7 +26,7 @@ from quarkchain.evm.exceptions import (
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
-
+from typing import Optional
 
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
@@ -463,7 +463,7 @@ class VMExt:
         self.block_difficulty = state.block_difficulty
         self.block_gas_limit = state.gas_limit
         self.log = lambda addr, topics, data: state.add_log(Log(addr, topics, data))
-        self.create = lambda msg: create_contract(self, msg)
+        self.create = lambda msg, salt: create_contract(self, msg, salt)
         self.msg = lambda msg: _apply_msg(self, msg, self.get_code(msg.code_address))
         self.account_exists = state.account_exists
         self.blockhash_store = 0x20
@@ -557,15 +557,23 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
-def mk_contract_address(sender, nonce, full_shard_key):
+def mk_contract_address(
+    sender,
+    nonce,
+    full_shard_key,
+    salt: Optional[bytes] = None,
+    init_code_hash: Optional[bytes] = None,
+):
     if full_shard_key is not None:
         to_encode = [utils.normalize_address(sender), full_shard_key, nonce]
     else:
         to_encode = [utils.normalize_address(sender), nonce]
+    if salt is not None:
+        return utils.sha3(b"\xff" + rlp.encode(to_encode) + salt + init_code_hash)[12:]
     return utils.sha3(rlp.encode(to_encode))[12:]
 
 
-def create_contract(ext, msg):
+def create_contract(ext, msg, salt: Optional[bytes] = None):
     log_msg.debug("CONTRACT CREATION")
 
     if msg.is_cross_shard:
@@ -581,7 +589,9 @@ def create_contract(ext, msg):
         ext.increment_nonce(msg.sender)
 
     nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-    msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
+    msg.to = mk_contract_address(
+        msg.sender, nonce, msg.to_full_shard_key, salt, utils.sha3(code)
+    )
 
     if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
