@@ -49,7 +49,7 @@ basic_env = {
 evm_config = get_default_evm_config()
 # Fork -> specific test filter
 # TODO: remaining Constantinople tests
-tests_for_new_evm = ["stShift", "stExtCodeHash"]
+tests_for_new_evm = ["stShift", "stExtCodeHash", "stCreate2"]
 configs = {
     # "Byzantium": lambda test_folder: test_folder not in tests_for_new_evm,
     "ConstantinopleFix": lambda test_folder: test_folder

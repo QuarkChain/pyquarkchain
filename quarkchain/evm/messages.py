@@ -564,12 +564,14 @@ def mk_contract_address(
     salt: Optional[bytes] = None,
     init_code_hash: Optional[bytes] = None,
 ):
+    if salt is not None:
+        return utils.sha3(
+            b"\xff" + utils.normalize_address(sender) + salt + init_code_hash
+        )[12:]
     if full_shard_key is not None:
         to_encode = [utils.normalize_address(sender), full_shard_key, nonce]
     else:
         to_encode = [utils.normalize_address(sender), nonce]
-    if salt is not None:
-        return utils.sha3(b"\xff" + rlp.encode(to_encode) + salt + init_code_hash)[12:]
     return utils.sha3(rlp.encode(to_encode))[12:]
 
 
@@ -589,9 +591,12 @@ def create_contract(ext, msg, salt: Optional[bytes] = None):
         ext.increment_nonce(msg.sender)
 
     nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-    msg.to = mk_contract_address(
-        msg.sender, nonce, msg.to_full_shard_key, salt, utils.sha3(code)
-    )
+    if salt is not None:
+        msg.to = mk_contract_address(
+            msg.sender, nonce, msg.to_full_shard_key, salt, utils.sha3(code)
+        )
+    else:
+        msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
 
     if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
