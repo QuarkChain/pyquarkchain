@@ -81,7 +81,6 @@ class Message(object):
         is_create=False,
         transfers_value=True,
         static=False,
-        is_cross_shard=False,
         from_full_shard_key=None,
         to_full_shard_key=None,
         tx_hash=None,
@@ -103,7 +102,6 @@ class Message(object):
         self.is_create = is_create
         self.transfers_value = transfers_value
         self.static = static
-        self.is_cross_shard = is_cross_shard
         self.from_full_shard_key = from_full_shard_key
         self.to_full_shard_key = to_full_shard_key
         self.tx_hash = (
@@ -733,7 +731,7 @@ def vm_execute(ext, msg, code):
                     gas_token_id=msg.gas_token_id,
                 )
                 o, gas, data = ext.create(
-                    create_msg, salt.to_bytes(32, byteorder="big")
+                    create_msg, b"", salt.to_bytes(32, byteorder="big")
                 )
                 if o:
                     stk.append(utils.coerce_to_int(data))
