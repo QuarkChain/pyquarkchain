@@ -5,7 +5,6 @@ from quarkchain.evm import utils
 from quarkchain.evm.exceptions import InvalidTransaction
 from quarkchain.evm.utils import TT256, ecsign, ecrecover_to_pub, normalize_key
 from quarkchain.evm.utils import encode_hex
-from quarkchain.evm.messages import mk_contract_address
 from rlp.sedes import big_endian_int, binary, BigEndianInt
 from quarkchain.rlp.utils import str_to_bytes, ascii_chr
 
@@ -194,12 +193,6 @@ class Transaction(rlp.Serializable):
             + opcodes.GTXDATANONZERO * num_non_zero_bytes
             + (opcodes.GTXXSHARDCOST if self.is_cross_shard else 0)
         )
-
-    @property
-    def creates(self):
-        "returns the address of a contract created by this tx"
-        if self.to in (b"", "\0" * 20):
-            return mk_contract_address(self.sender, self.nonce, self.to_full_shard_key)
 
     def set_quark_chain_config(self, quark_chain_config):
         self.quark_chain_config = quark_chain_config
