@@ -641,7 +641,7 @@ def create_contract(
         ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
-        # ext.reset_storage(msg.to)
+        ext.reset_storage(msg.to)
 
     msg.is_create = True
     # assert not ext.get_code(msg.to)
@@ -649,6 +649,7 @@ def create_contract(
     snapshot = ext.snapshot()
 
     ext.set_nonce(msg.to, 1)
+    ext.reset_storage(msg.to)
     res, gas, dat = _apply_msg(ext, msg, code)
 
     log_msg.debug(

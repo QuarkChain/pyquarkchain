@@ -697,7 +697,7 @@ def vm_execute(ext, msg, code):
                     transfer_token_id=msg.transfer_token_id,
                     gas_token_id=msg.gas_token_id,
                 )
-                o, gas, data = ext.create(create_msg)
+                o, gas, data = ext.create(create_msg, None)
                 if o:
                     stk.append(utils.coerce_to_int(data))
                     compustate.last_returned = bytearray(b"")
@@ -710,12 +710,12 @@ def vm_execute(ext, msg, code):
                 compustate.last_returned = bytearray(b"")
         elif op == "CREATE2":
             value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
+            compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
             if not mem_extend(mem, compustate, op, mstart, msz):
                 return vm_exception("OOG EXTENDING MEMORY")
             if msg.static:
                 return vm_exception("Cannot CREATE inside a static context")
             if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
-                compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
                 cd = CallData(mem, mstart, msz)
                 ingas = compustate.gas
                 ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
