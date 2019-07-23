@@ -22,11 +22,9 @@ from quarkchain.evm.exceptions import (
     UnsignedTransaction,
     BlockGasLimitReached,
     InsufficientBalance,
-    InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
-
 
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
@@ -492,7 +490,9 @@ class VMExt:
         self.block_difficulty = state.block_difficulty
         self.block_gas_limit = state.gas_limit
         self.log = lambda addr, topics, data: state.add_log(Log(addr, topics, data))
-        self.create = lambda msg: create_contract(self, msg)
+        self.create = lambda msg, salt: create_contract(
+            self, msg, contract_recipient=b"", salt=salt
+        )
         self.msg = lambda msg: _apply_msg(self, msg, self.get_code(msg.code_address))
         self.account_exists = state.account_exists
         self.blockhash_store = 0x20
@@ -590,11 +590,18 @@ def mk_contract_address(sender, nonce, full_shard_key):
     if full_shard_key is not None:
         to_encode = [utils.normalize_address(sender), full_shard_key, nonce]
     else:
+        # only happens for backward-compatible EVM tests
         to_encode = [utils.normalize_address(sender), nonce]
     return utils.sha3(rlp.encode(to_encode))[12:]
 
 
-def create_contract(ext, msg, contract_receipient=b""):
+def mk_contract_address2(sender, salt: bytes, init_code_hash: bytes):
+    return utils.sha3(
+        b"\xff" + utils.normalize_address(sender) + salt + init_code_hash
+    )[12:]
+
+
+def create_contract(ext, msg, contract_recipient=b"", salt=None):
     log_msg.debug("CONTRACT CREATION")
 
     if msg.transfer_token_id != ext.default_state_token:
@@ -606,8 +613,12 @@ def create_contract(ext, msg, contract_receipient=b""):
     if ext.tx_origin != msg.sender:
         ext.increment_nonce(msg.sender)
 
-    if contract_receipient != b"":
-        msg.to = contract_receipient
+    if contract_recipient != b"":
+        # apply xshard deposit, where contract address has already been specified
+        msg.to = contract_recipient
+    elif salt is not None:
+        # create2
+        msg.to = mk_contract_address2(msg.sender, salt, utils.sha3(code))
     else:
         nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
         msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
@@ -621,7 +632,7 @@ def create_contract(ext, msg, contract_receipient=b""):
         ext.set_balances(msg.to, b)
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
-        # ext.reset_storage(msg.to)
+        ext.reset_storage(msg.to)
 
     msg.is_create = True
     # assert not ext.get_code(msg.to)
@@ -629,6 +640,7 @@ def create_contract(ext, msg, contract_receipient=b""):
     snapshot = ext.snapshot()
 
     ext.set_nonce(msg.to, 1)
+    ext.reset_storage(msg.to)
     res, gas, dat = _apply_msg(ext, msg, code)
 
     log_msg.debug(

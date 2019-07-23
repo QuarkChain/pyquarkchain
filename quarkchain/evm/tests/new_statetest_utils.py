@@ -47,13 +47,7 @@ basic_env = {
 
 
 evm_config = get_default_evm_config()
-# Fork -> specific test filter
-# TODO: remaining Constantinople tests
-tests_for_new_evm = ["stShift", "stExtCodeHash"]
-configs = {
-    "Byzantium": lambda test_folder: test_folder not in tests_for_new_evm,
-    "ConstantinopleFix": lambda test_folder: test_folder in tests_for_new_evm,
-}
+network_to_test = {"ConstantinopleFix"}
 
 # Makes a diff between a prev and post state
 
@@ -191,12 +185,7 @@ def verify_state_test(test):
     _state = init_state(test["env"], test["pre"], qkc_env=test["qkc"])
     for config_name, results in test["post"].items():
         # Old protocol versions may not be supported
-        if config_name not in configs:
-            continue
-        filtered = configs[config_name]
-        # Filter based on file path, e.g. "'src/GeneralStateTestsFiller/stRandom/random123.json'"
-        test_folder = test["_info"]["source"].split("/")[-2]
-        if not filtered(test_folder):
+        if config_name not in network_to_test:
             continue
         print("Testing for %s" % config_name)
         for result in results:
