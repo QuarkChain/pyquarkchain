@@ -208,7 +208,9 @@ def apply_transaction_message(
         result, gas_remained, data = apply_msg(ext, message)
         contract_address = b""
     else:  # CREATE
-        result, gas_remained, data = create_contract(ext, message, contract_address)
+        result, gas_remained, data = create_contract(
+            ext, message, contract_address, None
+        )
         contract_address = (
             data if data else b""
         )  # data could be [] when vm failed execution
@@ -606,9 +608,7 @@ def mk_contract_address(
     return utils.sha3(rlp.encode(to_encode))[12:]
 
 
-def create_contract(
-    ext, msg, contract_recipient: Optional[bytes] = b"", salt: Optional[bytes] = None
-):
+def create_contract(ext, msg, contract_recipient, salt):
     log_msg.debug("CONTRACT CREATION")
 
     if msg.transfer_token_id != ext.default_state_token:

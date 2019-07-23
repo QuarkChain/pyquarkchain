@@ -697,7 +697,7 @@ def vm_execute(ext, msg, code):
                     transfer_token_id=msg.transfer_token_id,
                     gas_token_id=msg.gas_token_id,
                 )
-                o, gas, data = ext.create(create_msg, None)
+                o, gas, data = ext.create(create_msg, b"", None)
                 if o:
                     stk.append(utils.coerce_to_int(data))
                     compustate.last_returned = bytearray(b"")
