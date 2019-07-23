@@ -226,6 +226,13 @@ def proc_ecpairing(ext, msg):
     return 1, msg.gas - gascost, [0] * 31 + [1 if result else 0]
 
 
+def proc_current_mnt_id(ext, msg):
+    print("current_mnt_id proc", msg.gas)
+    if msg.gas < 3:
+        return 0, 0, []
+    return 1, msg.gas - 3, msg.transfer_token_id
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -237,6 +244,7 @@ specials = {
         b"0000000000000000000000000000000000000006": proc_ecadd,
         b"0000000000000000000000000000000000000007": proc_ecmul,
         b"0000000000000000000000000000000000000008": proc_ecpairing,
+        b"0000000000000000000000000000000000000009": proc_current_mnt_id,
     }.items()
 }
 
