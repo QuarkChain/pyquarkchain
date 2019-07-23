@@ -1,6 +1,8 @@
 # Modified based on pyethereum under MIT license
 import sys
 import copy
+from functools import lru_cache
+from math import ceil
 from typing import Optional, Tuple
 
 from quarkchain.rlp.utils import encode_hex, ascii_chr
@@ -8,8 +10,6 @@ from quarkchain.evm import utils
 from quarkchain.evm import opcodes
 from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import to_string, bytearray_to_bytestr, safe_ord
-from functools import lru_cache
-from math import ceil
 
 # ###### dev hack flags ###############
 

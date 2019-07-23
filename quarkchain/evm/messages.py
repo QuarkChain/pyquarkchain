@@ -22,11 +22,9 @@ from quarkchain.evm.exceptions import (
     UnsignedTransaction,
     BlockGasLimitReached,
     InsufficientBalance,
-    InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
-from typing import Optional
 
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
