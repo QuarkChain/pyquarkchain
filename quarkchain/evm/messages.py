@@ -208,9 +208,7 @@ def apply_transaction_message(
         result, gas_remained, data = apply_msg(ext, message)
         contract_address = b""
     else:  # CREATE
-        result, gas_remained, data = create_contract(
-            ext, message, contract_address, None
-        )
+        result, gas_remained, data = create_contract(ext, message, contract_address)
         contract_address = (
             data if data else b""
         )  # data could be [] when vm failed execution
@@ -494,8 +492,8 @@ class VMExt:
         self.block_difficulty = state.block_difficulty
         self.block_gas_limit = state.gas_limit
         self.log = lambda addr, topics, data: state.add_log(Log(addr, topics, data))
-        self.create = lambda msg, contract_recipient, salt: create_contract(
-            self, msg, contract_recipient, salt
+        self.create = lambda msg, salt: create_contract(
+            self, msg, contract_recipient=b"", salt=salt
         )
         self.msg = lambda msg: _apply_msg(self, msg, self.get_code(msg.code_address))
         self.account_exists = state.account_exists
@@ -590,25 +588,22 @@ def _apply_msg(ext, msg, code):
     return res, gas, dat
 
 
-def mk_contract_address(
-    sender,
-    nonce,
-    full_shard_key,
-    salt: Optional[bytes] = None,
-    init_code_hash: Optional[bytes] = None,
-):
-    if salt is not None:
-        return utils.sha3(
-            b"\xff" + utils.normalize_address(sender) + salt + init_code_hash
-        )[12:]
+def mk_contract_address(sender, nonce, full_shard_key):
     if full_shard_key is not None:
         to_encode = [utils.normalize_address(sender), full_shard_key, nonce]
     else:
+        # only happens for backward-compatible EVM tests
         to_encode = [utils.normalize_address(sender), nonce]
     return utils.sha3(rlp.encode(to_encode))[12:]
 
 
-def create_contract(ext, msg, contract_recipient, salt):
+def mk_contract_address2(sender, salt: bytes, init_code_hash: bytes):
+    return utils.sha3(
+        b"\xff" + utils.normalize_address(sender) + salt + init_code_hash
+    )[12:]
+
+
+def create_contract(ext, msg, contract_recipient=b"", salt=None):
     log_msg.debug("CONTRACT CREATION")
 
     if msg.transfer_token_id != ext.default_state_token:
@@ -620,17 +615,15 @@ def create_contract(ext, msg, contract_recipient, salt):
     if ext.tx_origin != msg.sender:
         ext.increment_nonce(msg.sender)
 
-    nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-    if salt is not None:
-        msg.to = mk_contract_address(
-            msg.sender, nonce, msg.to_full_shard_key, salt, utils.sha3(code)
-        )
+    if contract_recipient != b"":
+        # apply xshard deposit, where contract address has already been specified
+        msg.to = contract_recipient
+    elif salt is not None:
+        # create2
+        msg.to = mk_contract_address2(msg.sender, salt, utils.sha3(code))
     else:
-        if contract_recipient != b"":
-            msg.to = contract_recipient
-        else:
-            nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
-            msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
+        nonce = utils.encode_int(ext.get_nonce(msg.sender) - 1)
+        msg.to = mk_contract_address(msg.sender, nonce, msg.to_full_shard_key)
 
     if ext.get_nonce(msg.to) or len(ext.get_code(msg.to)):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")

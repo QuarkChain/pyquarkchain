@@ -1,6 +1,8 @@
 # Modified based on pyethereum under MIT license
 import sys
 import copy
+from typing import Optional, Tuple
+
 from quarkchain.rlp.utils import encode_hex, ascii_chr
 from quarkchain.evm import utils
 from quarkchain.evm import opcodes
@@ -674,75 +676,51 @@ def vm_execute(ext, msg, code):
             log_log.trace(
                 "LOG", to=msg.to, topics=topics, data=list(map(utils.safe_ord, data))
             )
-            # print('LOG', msg.to, topics, list(map(ord, data)))
         # Create a new contract
-        elif op == "CREATE":
-            value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
-            if not mem_extend(mem, compustate, op, mstart, msz):
-                return vm_exception("OOG EXTENDING MEMORY")
-            if msg.static:
-                return vm_exception("Cannot CREATE inside a static context")
-            if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
-                cd = CallData(mem, mstart, msz)
-                ingas = compustate.gas
-                ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
-                create_msg = Message(
-                    msg.to,
-                    b"",
-                    value,
-                    ingas,
-                    cd,
-                    msg.depth + 1,
-                    to_full_shard_key=msg.from_full_shard_key,
-                    transfer_token_id=msg.transfer_token_id,
-                    gas_token_id=msg.gas_token_id,
-                )
-                o, gas, data = ext.create(create_msg, b"", None)
-                if o:
-                    stk.append(utils.coerce_to_int(data))
-                    compustate.last_returned = bytearray(b"")
+        elif op in ("CREATE", "CREATE2"):
+            salt = None
+            if op == "CREATE":
+                value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
+            else:  # CREATE2
+                value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
+                salt = salt.to_bytes(32, byteorder="big")
+                compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
+
+            def _process_create() -> Optional[Tuple]:
+                if not mem_extend(mem, compustate, op, mstart, msz):
+                    return vm_exception("OOG EXTENDING MEMORY")
+                if msg.static:
+                    return vm_exception("Cannot CREATE inside a static context")
+                if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
+                    cd = CallData(mem, mstart, msz)
+                    ingas = compustate.gas
+                    ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
+                    create_msg = Message(
+                        msg.to,
+                        b"",
+                        value,
+                        ingas,
+                        cd,
+                        msg.depth + 1,
+                        to_full_shard_key=msg.from_full_shard_key,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
+                    )
+                    o, gas, data = ext.create(create_msg, salt)
+                    if o:
+                        stk.append(utils.coerce_to_int(data))
+                        compustate.last_returned = bytearray(b"")
+                    else:
+                        stk.append(0)
+                        compustate.last_returned = bytearray(data)
+                    compustate.gas = compustate.gas - ingas + gas
                 else:
                     stk.append(0)
-                    compustate.last_returned = bytearray(data)
-                compustate.gas = compustate.gas - ingas + gas
-            else:
-                stk.append(0)
-                compustate.last_returned = bytearray(b"")
-        elif op == "CREATE2":
-            value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
-            compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
-            if not mem_extend(mem, compustate, op, mstart, msz):
-                return vm_exception("OOG EXTENDING MEMORY")
-            if msg.static:
-                return vm_exception("Cannot CREATE inside a static context")
-            if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
-                cd = CallData(mem, mstart, msz)
-                ingas = compustate.gas
-                ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
-                create_msg = Message(
-                    msg.to,
-                    b"",
-                    value,
-                    ingas,
-                    cd,
-                    msg.depth + 1,
-                    to_full_shard_key=msg.from_full_shard_key,
-                    transfer_token_id=msg.transfer_token_id,
-                    gas_token_id=msg.gas_token_id,
-                )
-                o, gas, data = ext.create(
-                    create_msg, b"", salt.to_bytes(32, byteorder="big")
-                )
-                if o:
-                    stk.append(utils.coerce_to_int(data))
                     compustate.last_returned = bytearray(b"")
-                else:
-                    stk.append(0)
-                    compustate.last_returned = bytearray(data)
-                compustate.gas = compustate.gas - ingas + gas
-            else:
-                stk.append(0)
-                compustate.last_returned = bytearray(b"")
+
+            exception_tuple = _process_create()
+            if exception_tuple:
+                return exception_tuple
         # Calls
         elif op in ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"):
             # Pull arguments from the stack
