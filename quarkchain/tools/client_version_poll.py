@@ -5,7 +5,12 @@ from typing import Any, cast, Dict
 
 from quarkchain.p2p import auth
 from quarkchain.p2p import ecies
-from quarkchain.p2p.exceptions import HandshakeFailure, HandshakeDisconnectedFailure
+from quarkchain.p2p.exceptions import (
+    HandshakeFailure,
+    HandshakeDisconnectedFailure,
+    UnreachablePeer,
+    MalformedMessage,
+)
 from quarkchain.p2p.kademlia import Node
 from quarkchain.p2p.p2p_manager import QuarkServer
 from quarkchain.p2p.p2p_proto import Disconnect, DisconnectReason, Hello
