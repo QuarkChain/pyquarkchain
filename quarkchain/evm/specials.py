@@ -261,7 +261,7 @@ specials = {
         b"0000000000000000000000000000000000000006": proc_ecadd,
         b"0000000000000000000000000000000000000007": proc_ecmul,
         b"0000000000000000000000000000000000000008": proc_ecpairing,
-        b"fffffffffffffffffffffffffffffffffffffff1": proc_transfer_mnt,
+        b"000000000000000000000000000000514b430002": proc_transfer_mnt,
     }.items()
 }
 
