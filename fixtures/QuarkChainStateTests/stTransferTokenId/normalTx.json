@@ -18,7 +18,7 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
-                    "hash" : "0x2cd20ec2855fe5e1ac878edf74eb3746aedf86998461a653c9ea609dc2bca97b",
+                    "hash" : "0x3cd20ec2855fe5e1ac878edf74eb3746aedf86998461a653c9ea609dc2bca97b",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,

@@ -168,7 +168,6 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
     for address, h in list(pre.items()):
         assert len(address) in (40, 42)
         address = decode_hex(remove_0x_head(address))
-        # assert set(h.keys()) == {"code", "nonce", "balance", "storage"}
         state.set_nonce(address, parse_int_or_hex(h["nonce"]))
         if is_qkc_state and "balances" in h:
             # In QuarkChain state tests, can either specify balance map or single balance
