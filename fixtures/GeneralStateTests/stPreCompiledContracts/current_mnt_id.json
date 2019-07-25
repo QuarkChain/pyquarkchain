@@ -1,0 +1,85 @@
+{
+    "CallPrecompile" : {
+        "_info" : {
+            "comment" : "",
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stPreCompiledContracts/current_mnt_id.json",
+            "sourceHash" : "0x92eba2beaec7f1b13a0c7c8bce026910de7a7684291feaab759b5514b21a20a5"
+        },
+        "env" : {
+            "currentCoinbase" : "0xb94f5374fce5edbc8e2a8697c15331677e6ebf0b",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0xf5f5e100",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "Byzantium" : [
+                {
+                    "hash" : "0x747f9427a630a8d22d0c87090f6990be5c25ff9ff56ff24103ac5f58366f60d8",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "Constantinople" : [
+                {
+                    "hash" : "0x747f9427a630a8d22d0c87090f6990be5c25ff9ff56ff24103ac5f58366f60d8",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "ConstantinopleFix" : [
+                {
+                    "hash" : "0xf8232d5f8b482819d90da6ce7a352a78e6a47b3d131b9fb4ce12f38a2f9dc60c",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "balance" : "0xffff75300",
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x0c2e77121daf0270d26bf0a7e9ab0faa8bf739ef" : {
+                "balance" : "0x6000",
+                "code" : "0x608060405260043610610046576000357c01000000000000000000000000000000000000000000000000000000009004806317d70f7c1461004b578063287c497714610076575b600080fd5b34801561005757600080fd5b5061006061008d565b6040518082815260200191505060405180910390f35b34801561008257600080fd5b5061008b610093565b005b60005481565b61009b6100d3565b6100a36100f5565b602081604084600064514b4300016064f1508060006001811015156100c457fe5b60200201516000819055505050565b6040805190810160405280600290602082028038833980820191505090505090565b60206040519081016040528060019060208202803883398082019150509050509056fea165627a7a7230582013840712290c603cb22a277ffd8940b0a620018df8e4928822672fcd7a0d66430029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "data" : [
+                "0x287c4977"
+            ],
+            "gasLimit" : [
+                "0x2dc6c0"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0x0c2e77121daf0270d26bf0a7e9ab0faa8bf739ef",
+            "value" : [
+                "0x00"
+            ]
+        }
+    }
+}

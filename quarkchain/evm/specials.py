@@ -230,7 +230,7 @@ def proc_current_mnt_id(ext, msg):
     print("current_mnt_id proc", msg.gas)
     if msg.gas < 3:
         return 0, 0, []
-    return 1, msg.gas - 3, msg.transfer_token_id
+    return 1, msg.gas - 3, encode_int32(msg.transfer_token_id)
 
 
 specials = {
@@ -244,7 +244,7 @@ specials = {
         b"0000000000000000000000000000000000000006": proc_ecadd,
         b"0000000000000000000000000000000000000007": proc_ecmul,
         b"0000000000000000000000000000000000000008": proc_ecpairing,
-        b"0000000000000000000000000000000000000009": proc_current_mnt_id,
+        b"000000000000000000000000000000514b430001": proc_current_mnt_id,
     }.items()
 }
 
