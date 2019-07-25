@@ -229,17 +229,20 @@ def proc_ecpairing(ext, msg):
 # 3 inputs: (address, token ID and value)
 def proc_transfer_mnt(ext, msg):
     print("transfer_mnt proc", msg.gas)
-    gascost = 3  # to be discussed
-    if msg.gas < gascost:
+    # Data must be exactly 96 bytes
+    if msg.data.size != 96:
+        return 0, 0, []
+    gas_cost = 3  # to be discussed
+    if msg.gas < gas_cost:
         return 0, 0, []
     to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
     value = msg.data.extract32(64)
     new_msg = vm.Message(
-        msg.to,
+        msg.sender,
         to,
         value,
-        msg.gas - gascost,
+        msg.gas - gas_cost,
         b"",
         msg.depth + 1,
         code_address=to,
