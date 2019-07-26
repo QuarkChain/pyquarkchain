@@ -37,11 +37,6 @@ CREATE_CONTRACT_ADDRESS = b""
 # DEV OPTIONS
 SKIP_MEDSTATES = False
 
-# pre-compile contract address
-PROC_CURRENT_MNT_ID = (
-    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
-)
-
 
 def rp(tx, what, actual, target):
     return "%r: %r actual:%r target:%r" % (tx, what, actual, target)
@@ -577,8 +572,6 @@ def _apply_msg(ext, msg, code):
 
     # Main loop
     if msg.code_address in ext.specials:
-        if msg.code_address == PROC_CURRENT_MNT_ID:
-            ext.token_id_queried = True
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
     else:
         res, gas, dat = vm.vm_execute(ext, msg, code)

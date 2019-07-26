@@ -228,6 +228,7 @@ def proc_ecpairing(ext, msg):
 
 def proc_current_mnt_id(ext, msg):
     print("current_mnt_id proc", msg.gas)
+    ext.token_id_queried = True
     if msg.gas < 3:
         return 0, 0, []
     return 1, msg.gas - 3, encode_int32(msg.transfer_token_id)

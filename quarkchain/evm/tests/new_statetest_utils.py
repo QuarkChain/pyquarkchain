@@ -162,6 +162,7 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
         gas_limit=parse_int_or_hex(env["currentGasLimit"]),
         timestamp=parse_int_or_hex(env["currentTimestamp"]),
         qkc_config=qkc_env.quark_chain_config,
+        # If testing QuarkChain states, should not use mock account
         use_mock_evm_account=not is_qkc_state,
     )
 
