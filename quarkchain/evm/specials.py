@@ -1,5 +1,5 @@
 # -*- coding: utf8 -*-
-from py_ecc.secp256k1 import privtopub, ecdsa_raw_recover, N as secp256k1n
+from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 from quarkchain.rlp.utils import ascii_chr
 
@@ -11,7 +11,6 @@ ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
 
 
 def proc_ecrecover(ext, msg):
-    # print('ecrecover proc', msg.gas)
     OP_GAS = opcodes.GECRECOVER
     gas_cost = OP_GAS
     if msg.gas < gas_cost:
@@ -37,7 +36,6 @@ def proc_ecrecover(ext, msg):
 
 
 def proc_sha256(ext, msg):
-    # print('sha256 proc', msg.gas)
     OP_GAS = (
         opcodes.GSHA256BASE + (utils.ceil32(msg.data.size) // 32) * opcodes.GSHA256WORD
     )
@@ -50,7 +48,6 @@ def proc_sha256(ext, msg):
 
 
 def proc_ripemd160(ext, msg):
-    # print('ripemd160 proc', msg.gas)
     OP_GAS = (
         opcodes.GRIPEMD160BASE
         + (utils.ceil32(msg.data.size) // 32) * opcodes.GRIPEMD160WORD
@@ -64,7 +61,6 @@ def proc_ripemd160(ext, msg):
 
 
 def proc_identity(ext, msg):
-    # print('identity proc', msg.gas)
     OP_GAS = opcodes.GIDENTITYBASE + opcodes.GIDENTITYWORD * (
         utils.ceil32(msg.data.size) // 32
     )
@@ -86,7 +82,6 @@ def mult_complexity(x):
 
 
 def proc_modexp(ext, msg):
-    print("modexp proc", msg.gas)
     baselen = msg.data.extract32(0)
     explen = msg.data.extract32(32)
     modlen = msg.data.extract32(64)
@@ -99,7 +94,6 @@ def proc_modexp(ext, msg):
     gas_cost = (
         mult_complexity(max(modlen, baselen)) * max(adjusted_explen, 1)
     ) // opcodes.GMODEXPQUADDIVISOR
-    print(baselen, explen, modlen, "expected gas cost", gas_cost)
     if msg.gas < gas_cost:
         return 0, 0, []
     if baselen == 0:
@@ -145,7 +139,6 @@ def proc_ecadd(ext, msg):
     import py_ecc.optimized_bn128 as bn128
 
     FQ = bn128.FQ
-    print("ecadd proc:", msg.gas)
     if msg.gas < opcodes.GECADD:
         return 0, 0, []
     x1 = msg.data.extract32(0)
@@ -168,7 +161,6 @@ def proc_ecmul(ext, msg):
     import py_ecc.optimized_bn128 as bn128
 
     FQ = bn128.FQ
-    print("ecmul proc", msg.gas)
     if msg.gas < opcodes.GECMUL:
         return 0, 0, []
     x = msg.data.extract32(0)
@@ -189,7 +181,6 @@ def proc_ecpairing(ext, msg):
     import py_ecc.optimized_bn128 as bn128
 
     FQ = bn128.FQ
-    print("pairing proc", msg.gas)
     # Data must be an exact multiple of 192 byte
     if msg.data.size % 192:
         return 0, 0, []
@@ -227,10 +218,10 @@ def proc_ecpairing(ext, msg):
 
 
 def proc_current_mnt_id(ext, msg):
-    print("current_mnt_id proc", msg.gas)
-    if msg.gas < 3:
+    gascost = 3
+    if msg.gas < gascost:
         return 0, 0, []
-    return 1, msg.gas - 3, encode_int32(msg.transfer_token_id)
+    return 1, msg.gas - gascost, encode_int32(msg.transfer_token_id)
 
 
 specials = {
