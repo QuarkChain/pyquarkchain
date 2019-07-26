@@ -559,10 +559,6 @@ def _apply_msg(ext, msg, code):
             # TODO: Why return success if the transfer failed?
             return 1, msg.gas, []
 
-    if msg.transfer_token_id != ext.default_state_token:
-        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
-        return 1, msg.gas, []
-
     # Main loop
     if msg.code_address in ext.specials:
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
