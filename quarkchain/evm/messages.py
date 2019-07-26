@@ -230,7 +230,6 @@ def apply_transaction_message(
             reason="transfer token ID non-default AND token ID not queried",
             transfer_token_id=message.transfer_token_id,
         )
-        # return 0, b""
         output = b""
         success = 0
     elif not result:
