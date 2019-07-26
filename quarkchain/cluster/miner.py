@@ -300,7 +300,7 @@ class Miner:
             header.sign_with_private_key(self.guardian_private_key)
 
         # remote sign as a guardian
-        if isinstance(block, RootBlock) and signature != None:
+        if isinstance(block, RootBlock) and signature is not None:
             header.signature = signature
 
         try:

@@ -65,6 +65,11 @@ jobs:
           command: |
             if [[ $CIRCLE_NODE_INDEX = 1 ]]; then pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
 
+      - run:
+          name: Run QuarkChain-specific EVM Tests
+          command: |
+            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then pypy3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
+
       - store_artifacts:
           path: test-reports
           destination: test-reports

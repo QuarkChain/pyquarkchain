@@ -112,7 +112,6 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
 
 
 def validate_transaction(state, tx):
-
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
@@ -197,6 +196,7 @@ def apply_transaction_message(
     is_cross_shard=False,
     contract_address=b"",
 ):
+
     local_fee_rate = (
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
     )
@@ -269,6 +269,15 @@ def apply_transaction_message(
             state.add_xshard_deposit_receipt(r)
     else:
         state.add_receipt(r)
+
+    if (
+        message.transfer_token_id != ext.default_state_token
+    ) and not ext.cur_token_id_called:
+        log_tx.debug(
+            "Message transfer token id is not default and did not query token id",
+            transfer_token_id=message.transfer_token_id,
+        )
+        return 0, b""
 
     return success, output
 
@@ -508,6 +517,7 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
+        self.cur_token_id_called = state.cur_token_id_called
 
 
 def apply_msg(ext, msg):
@@ -557,14 +567,15 @@ def _apply_msg(ext, msg, code):
                 want=msg.value,
             )
             # TODO: Why return success if the transfer failed?
-            return 1, msg.gas, []
-
-    if msg.transfer_token_id != ext.default_state_token:
-        # TODODLL calling smart contract with non QKC transfer_token_id is not supported
-        return 1, msg.gas, []
+            return 0, msg.gas, []
 
     # Main loop
     if msg.code_address in ext.specials:
+        if (
+            msg.code_address
+            == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
+        ):
+            ext.cur_token_id_called = True
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
     else:
         res, gas, dat = vm.vm_execute(ext, msg, code)
