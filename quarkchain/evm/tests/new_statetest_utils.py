@@ -166,7 +166,6 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
     for address, h in list(pre.items()):
         assert len(address) in (40, 42)
         address = decode_hex(remove_0x_head(address))
-        # assert set(h.keys()) == set(["code", "nonce", "balance", "storage"])
         state.set_nonce(address, parse_int_or_hex(h["nonce"]))
         if is_qkc_state and "balances" in h:
             # In QuarkChain state tests, can either specify balance map or single balance
@@ -185,6 +184,10 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
                 big_endian_to_int(decode_hex(k[2:])),
                 big_endian_to_int(decode_hex(v[2:])),
             )
+    if seen_token_ids:
+        state.qkc_config._allowed_token_ids = seen_token_ids
+
+    # Update allowed token IDs
     if seen_token_ids:
         state.qkc_config._allowed_token_ids = seen_token_ids
 
