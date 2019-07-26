@@ -106,6 +106,7 @@ def compute_state_test_unit(state, txdata, indices, konfig, is_qkc_state, qkc_en
             data=decode_hex(remove_0x_head(txdata["data"][indices["data"]])),
             gas_token_id=token_id_encode("QKC"),
             transfer_token_id=transfer_token_id,
+            # Should not set testing flag if testing QuarkChain state
             is_testing=not is_qkc_state,
         )
         tx.set_quark_chain_config(qkc_env.quark_chain_config)
@@ -118,7 +119,10 @@ def compute_state_test_unit(state, txdata, indices, konfig, is_qkc_state, qkc_en
         # Run it
         prev = state.to_dict()
         success, output = apply_transaction(state, tx, tx_wrapper_hash=bytes(32))
-        print("Applied tx")
+        if success == 1:
+            print("Applied tx")
+        else:
+            print("Failed to apply tx")
     except InvalidTransaction as e:
         print("Exception: %r" % e)
         success, output = False, b""
@@ -184,8 +188,6 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
                 big_endian_to_int(decode_hex(k[2:])),
                 big_endian_to_int(decode_hex(v[2:])),
             )
-    if seen_token_ids:
-        state.qkc_config._allowed_token_ids = seen_token_ids
 
     # Update allowed token IDs
     if seen_token_ids:
@@ -210,7 +212,6 @@ def verify_state_test(test):
             continue
         print("Testing for %s" % config_name)
         for result in results:
-            print(result)
             data = test["transaction"]["data"][result["indexes"]["data"]]
             if len(data) > 2000:
                 data = "data<%d>" % (len(data) // 2 - 1)

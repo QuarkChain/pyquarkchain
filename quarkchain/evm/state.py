@@ -278,7 +278,7 @@ class State:
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
         self.use_mock_evm_account = use_mock_evm_account
-        self.cur_token_id_called = False
+        self.token_id_queried = False
 
     @property
     def db(self):

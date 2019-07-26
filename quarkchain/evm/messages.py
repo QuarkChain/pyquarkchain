@@ -37,6 +37,11 @@ CREATE_CONTRACT_ADDRESS = b""
 # DEV OPTIONS
 SKIP_MEDSTATES = False
 
+# pre-compile contract address
+PROC_CURRENT_MNT_ID = (
+    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
+)
+
 
 def rp(tx, what, actual, target):
     return "%r: %r actual:%r target:%r" % (tx, what, actual, target)
@@ -217,7 +222,18 @@ def apply_transaction_message(
 
     gas_used = evm_gas_start - gas_remained + gas_used_start
 
-    if not result:
+    if (
+        message.transfer_token_id != ext.default_state_token
+    ) and not ext.token_id_queried:
+        log_tx.debug(
+            "TX FAILED",
+            reason="transfer token ID non-default AND token ID not queried",
+            transfer_token_id=message.transfer_token_id,
+        )
+        # return 0, b""
+        output = b""
+        success = 0
+    elif not result:
         log_tx.debug("TX FAILED", reason="out of gas", gas_remained=gas_remained)
         output = b""
         success = 0
@@ -269,15 +285,6 @@ def apply_transaction_message(
             state.add_xshard_deposit_receipt(r)
     else:
         state.add_receipt(r)
-
-    if (
-        message.transfer_token_id != ext.default_state_token
-    ) and not ext.cur_token_id_called:
-        log_tx.debug(
-            "Message transfer token id is not default and did not query token id",
-            transfer_token_id=message.transfer_token_id,
-        )
-        return 0, b""
 
     return success, output
 
@@ -517,7 +524,7 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
-        self.cur_token_id_called = state.cur_token_id_called
+        self.token_id_queried = state.token_id_queried
 
 
 def apply_msg(ext, msg):
@@ -567,15 +574,12 @@ def _apply_msg(ext, msg, code):
                 want=msg.value,
             )
             # TODO: Why return success if the transfer failed?
-            return 0, msg.gas, []
+            return 1, msg.gas, []
 
     # Main loop
     if msg.code_address in ext.specials:
-        if (
-            msg.code_address
-            == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
-        ):
-            ext.cur_token_id_called = True
+        if msg.code_address == PROC_CURRENT_MNT_ID:
+            ext.token_id_queried = True
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
     else:
         res, gas, dat = vm.vm_execute(ext, msg, code)

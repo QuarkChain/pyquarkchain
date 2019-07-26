@@ -2,8 +2,8 @@
     "CallPrecompile" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
-            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "filledwith" : "",
+            "lllcversion" : "",
             "source" : "",
             "sourceHash" : ""
         },
@@ -18,6 +18,7 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that queries its token id",
                     "hash" : "0x35d2ba3fb97dfebd28c376860e9bb0bb6231deed43318cf2cc53667c0eb484db",
                     "indexes" : {
                         "data" : 0,
@@ -28,6 +29,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that does not query its token id",
                     "hash" : "0x82203068f3d4ea4b0549f6aa5421228aafb8685bace998efc97bbfb908e21256",
                     "indexes" : {
                         "data" : 1,
@@ -38,6 +40,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
+                    "_comment": "This creates a tx with default token id that queries its token id",
                     "hash" : "0xa704fc7f1095fcb8aeaf80b2bcea3683c88c130884e7508549fdce8717f5a485",
                     "indexes" : {
                         "data" : 0,
@@ -48,6 +51,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
+                    "_comment": "This creates a tx with default token id that does not queries its token id",
                     "hash" : "0xa9a6ae2ec20a8a1207ca332ef074bc78fba7cc7eadb11c17130a4e1f4426528a",
                     "indexes" : {
                         "data" : 1,
@@ -61,6 +65,7 @@
         },
         "pre" : {
             "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
                 "balances" : {
                     "0x8bb0": "0x0de0b6b3a7640000",
                     "0x1234": "0x0de0b6b3a7640000"
@@ -71,6 +76,7 @@
                 }
             },
             "0x0c2e77121daf0270d26bf0a7e9ab0faa8bf739ef" : {
+                "_comment": "This is a contract with a function to call the precompiled contract PROC_CURRENT_MNT_ID",
                 "balance" : "0x00",
                 "code" : "608060405260043610603e5763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166336091dff81146043575b600080fd5b605f60048036036020811015605757600080fd5b503515156095565b6040518082602080838360005b838110156082578181015183820152602001606c565b5050505090500191505060405180910390f35b609b60c8565b811560be5760026040826000808064514b430001600019f1151560bc575060015b505b6001600055919050565b602060405190810160405280600190602082028038833950919291505056fea165627a7a72305820879435732afe1698d54a1957988b9e5a9f2da0a1eea0646c312bd3befbd5fd1a0029",
                 "nonce" : "0x00",
@@ -79,6 +85,7 @@
             }
         },
         "transaction" : {
+            "_comment": "In the data field, the first one for that the function is called (i.e. transfer token id is queried), second otherwise",
             "data" : [
                 "0x36091dff0000000000000000000000000000000000000000000000000000000000000001",
                 "0x36091dff0000000000000000000000000000000000000000000000000000000000000000"
