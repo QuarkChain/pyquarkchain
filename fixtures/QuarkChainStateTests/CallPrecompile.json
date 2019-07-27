@@ -1,7 +1,7 @@
 {
     "CallPrecompile" : {
         "_info" : {
-            "comment" : "",
+            "comment" : "pragma solidity ^0.5.0;\n\ncontract CallPrecompiled {\n    \n    uint256 x;\n    \n\tfunction test (bool flag) public payable returns(uint256[1] memory id){\n\t    if (flag) {\n\t \t    assembly {\n\t \t        let x := 2\n\t  \t        if iszero(call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)) {\n\t      \t        x := 1\n\t   \t        }\n\t\t    }\n\t    }\n\t\tx = 1;\n\t}\n\t\n}",
             "filledwith" : "",
             "lllcversion" : "",
             "source" : "",
