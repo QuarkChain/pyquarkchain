@@ -589,6 +589,15 @@ def _apply_msg(ext, msg, code):
     if res == 0:
         log_msg.debug("REVERTING")
         ext.revert(snapshot)
+    if (
+        msg.depth == 0
+        and code
+        and msg.transfer_token_id != ext.default_state_token
+        and not ext.token_id_queried
+    ):
+        log_msg.debug("REVERTING")
+        ext.revert(snapshot)
+        return 0, 0, []
 
     return res, gas, dat
 

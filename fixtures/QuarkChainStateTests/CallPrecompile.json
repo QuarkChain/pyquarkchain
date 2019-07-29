@@ -1,7 +1,7 @@
 {
     "CallPrecompile" : {
         "_info" : {
-            "comment" : "pragma solidity ^0.5.0;\n\ncontract CallPrecompiled {\n    \n    uint256 x;\n    \n\tfunction test (bool flag) public payable returns(uint256[1] memory id){\n\t    if (flag) {\n\t \t    assembly {\n\t \t        let x := 2\n\t  \t        if iszero(call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)) {\n\t      \t        x := 1\n\t   \t        }\n\t\t    }\n\t    }\n\t\tx = 1;\n\t}\n\t\n}",
+            "comment": "pragma solidity ^0.5.0;\n\ncontract CallPrecompiled {\n\n    uint256 x = 0;\n\n\tfunction test (bool flag) public returns(uint256[1] memory id){\n\t    if (flag) {\n\t \t    assembly {\n\t \t        let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n\t\t    }\n\t    }\n\t\tx = 1;\n\t}\n\n}",
             "filledwith" : "",
             "lllcversion" : "",
             "source" : "",
@@ -19,7 +19,7 @@
             "ConstantinopleFix" : [
                 {
                     "_comment": "This creates a tx with transfer token id 0x1234 that queries its token id",
-                    "hash" : "0x35d2ba3fb97dfebd28c376860e9bb0bb6231deed43318cf2cc53667c0eb484db",
+                    "hash" : "0x4c695fa76ff695ad46547de96c56599384fef690c134e9cf43877fd6d5a0bd2e",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -30,7 +30,7 @@
                 },
                 {
                     "_comment": "This creates a tx with transfer token id 0x1234 that does not query its token id",
-                    "hash" : "0x82203068f3d4ea4b0549f6aa5421228aafb8685bace998efc97bbfb908e21256",
+                    "hash" : "0xeef831438546171bcfc5dec932beba0f53718eadc13a0e5f7f8bfa345c0e2215",
                     "indexes" : {
                         "data" : 1,
                         "gas" : 0,
@@ -41,7 +41,7 @@
                 },
                 {
                     "_comment": "This creates a tx with default token id that queries its token id",
-                    "hash" : "0xa704fc7f1095fcb8aeaf80b2bcea3683c88c130884e7508549fdce8717f5a485",
+                    "hash" : "0x4c695fa76ff695ad46547de96c56599384fef690c134e9cf43877fd6d5a0bd2e",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -52,7 +52,7 @@
                 },
                 {
                     "_comment": "This creates a tx with default token id that does not queries its token id",
-                    "hash" : "0xa9a6ae2ec20a8a1207ca332ef074bc78fba7cc7eadb11c17130a4e1f4426528a",
+                    "hash" : "0xba8bc2ba8163ace5c6e7896975ededf9f16bb27cdfdb9b733a53d781949a814a",
                     "indexes" : {
                         "data" : 1,
                         "gas" : 0,
@@ -75,10 +75,10 @@
                 "storage" : {
                 }
             },
-            "0x0c2e77121daf0270d26bf0a7e9ab0faa8bf739ef" : {
+            "0x9876e235a87f520c827317a8987c9e1fde804485" : {
                 "_comment": "This is a contract with a function to call the precompiled contract PROC_CURRENT_MNT_ID",
                 "balance" : "0x00",
-                "code" : "608060405260043610603e5763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166336091dff81146043575b600080fd5b605f60048036036020811015605757600080fd5b503515156095565b6040518082602080838360005b838110156082578181015183820152602001606c565b5050505090500191505060405180910390f35b609b60c8565b811560be5760026040826000808064514b430001600019f1151560bc575060015b505b6001600055919050565b602060405190810160405280600190602082028038833950919291505056fea165627a7a72305820879435732afe1698d54a1957988b9e5a9f2da0a1eea0646c312bd3befbd5fd1a0029",
+                "code" : "608060405260043610603e5763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166336091dff81146043575b600080fd5b348015604e57600080fd5b50606b60048036036020811015606357600080fd5b5035151560a1565b6040518082602080838360005b83811015608e5781810151838201526020016078565b5050505090500191505060405180910390f35b60a760c9565b811560bf576040816000808064514b430001600019f1505b6001600055919050565b602060405190810160405280600190602082028038833950919291505056fea165627a7a72305820362f5daa06066850a325444037e83fb5a8a6039e6504804a1a0a2691e8ea2ff00029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
@@ -100,9 +100,9 @@
             "gasPrice" : "0x01",
             "nonce" : "0x00",
             "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
-            "to" : "0x0c2e77121daf0270d26bf0a7e9ab0faa8bf739ef",
+            "to" : "0x9876e235a87f520c827317a8987c9e1fde804485",
             "value" : [
-                "0x01"
+                "0x00"
             ]
         }
     }
