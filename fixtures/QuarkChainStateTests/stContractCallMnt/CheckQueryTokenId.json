@@ -1,5 +1,5 @@
 {
-    "CallPrecompile" : {
+    "CheckQueryTokenId" : {
         "_info" : {
             "comment": "pragma solidity ^0.5.0;\n\ncontract CallPrecompiled {\n\n    uint256 x = 0;\n\n\tfunction test (bool flag) public returns(uint256[1] memory id){\n\t    if (flag) {\n\t \t    assembly {\n\t \t        let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n\t\t    }\n\t    }\n\t\tx = 1;\n\t}\n\n}",
             "filledwith" : "",
@@ -30,7 +30,7 @@
                 },
                 {
                     "_comment": "This creates a tx with transfer token id 0x1234 that does not query its token id",
-                    "hash" : "0xeef831438546171bcfc5dec932beba0f53718eadc13a0e5f7f8bfa345c0e2215",
+                    "hash" : "0x201c7a903ae3266732e6edb03c0d5a17e7ece0624cbfbf21060406036217a56f",
                     "indexes" : {
                         "data" : 1,
                         "gas" : 0,

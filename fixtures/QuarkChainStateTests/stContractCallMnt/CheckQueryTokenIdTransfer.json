@@ -1,5 +1,5 @@
 {
-    "transfer" : {
+    "CheckQueryTokenIdTransfer" : {
         "_info" : {
             "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Callee {\n  function() external payable {\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n  }\n}\n\ncontract Caller {\n  uint256 private state = 0;\n\n  function call(Callee c) public payable {\n    address(c).transfer(msg.value);\n    state = 1;\n  }\n}",
             "filledwith" : "",
@@ -71,6 +71,7 @@
             }
         },
         "transaction" : {
+            "_comment": "In the data field, the caller calls its call() function at the callee's address",
             "data" : [
                 "0xf55332ab0000000000000000000000001526613135cbe54ee257c11dd17254328a774f4a"
             ],

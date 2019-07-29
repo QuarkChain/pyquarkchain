@@ -1,5 +1,5 @@
 {
-    "transfer" : {
+    "CheckQueryTokenIdDelegateCall" : {
         "_info" : {
             "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Callee {\n  uint256 public state = 0;\n  function f() public {\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n    state = 1;\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n\n  function call(Callee c) public payable {\n    (bool success,) = address(c).delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
             "filledwith" : "",
@@ -54,7 +54,7 @@
                 }
             },
             "0x92839d69320d8117b26219b5dfd355d2a748b821" : {
-                "_comment": "This is the caller",
+                "_comment": "This is the caller contract's address",
                 "balance" : "0x00",
                 "code" : "60806040526004361061004b5763ffffffff7c0100000000000000000000000000000000000000000000000000000000600035041663c19d93fb8114610050578063f55332ab14610077575b600080fd5b34801561005c57600080fd5b506100656100ac565b60408051918252519081900360200190f35b6100aa6004803603602081101561008d57600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166100b2565b005b60005481565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f26121ff0000000000000000000000000000000000000000000000000000000001781529151815160009373ffffffffffffffffffffffffffffffffffffffff86169392918291908083835b6020831061014f5780518252601f199092019160209182019101610130565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146101af576040519150601f19603f3d011682016040523d82523d6000602084013e6101b4565b606091505b505090508015156101c457600080fd5b505056fea165627a7a723058201919c0049124125dcab7400d35e452201daa7f3eb004454982d3e505d63ef4890029",
                 "nonce" : "0x00",
@@ -62,7 +62,7 @@
                 }
             },
             "0x83be1f6e44a79014e1776835ce46acd00f035843" : {
-                "_comment": "This is the callee",
+                "_comment": "This is the callee contract's address",
                 "balance" : "0x00",
                 "code" : "60806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166326121ff08114604d578063c19d93fb146061575b600080fd5b348015605857600080fd5b50605f6085565b005b348015606c57600080fd5b50607360a5565b60408051918252519081900360200190f35b608b60ab565b6040816000808064514b430001600019f150506001600055565b60005481565b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058200cc0e2e29ea0eb8beb9637768524932b0baec074286e914003858e12c046f6c30029",
                 "nonce" : "0x00",
@@ -71,6 +71,7 @@
             }
         },
         "transaction" : {
+            "_comment": "In the data field, the caller calls its call() function at the callee's address",
             "data" : [
                 "0xf55332ab00000000000000000000000083be1f6e44a79014e1776835ce46acd00f035843"
             ],

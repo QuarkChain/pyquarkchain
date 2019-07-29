@@ -217,18 +217,12 @@ def apply_transaction_message(
 
     gas_used = evm_gas_start - gas_remained + gas_used_start
 
-    if (
-        message.transfer_token_id != ext.default_state_token
-    ) and not ext.token_id_queried:
+    if not result:
         log_tx.debug(
             "TX FAILED",
-            reason="transfer token ID non-default AND token ID not queried",
-            transfer_token_id=message.transfer_token_id,
+            reason="out of gas or un-queried non-default transfer token",
+            gas_remained=gas_remained,
         )
-        output = b""
-        success = 0
-    elif not result:
-        log_tx.debug("TX FAILED", reason="out of gas", gas_remained=gas_remained)
         output = b""
         success = 0
     # Transaction success
@@ -597,7 +591,7 @@ def _apply_msg(ext, msg, code):
     ):
         log_msg.debug("REVERTING")
         ext.revert(snapshot)
-        return 0, 0, []
+        return 0, gas, []
 
     return res, gas, dat
 
