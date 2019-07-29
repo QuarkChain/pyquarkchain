@@ -1,0 +1,93 @@
+{
+    "transfer" : {
+        "_info" : {
+            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Callee {\n  uint256 public state = 0;\n  function f() public {\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n    state = 1;\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n\n  function call(Callee c) public payable {\n    (bool success,) = address(c).delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
+            "filledwith" : "",
+            "lllcversion" : "",
+            "source" : "",
+            "sourceHash" : ""
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "_comment": "This creates a delegate call tx with default transfer token",
+                    "hash" : "0x7f611a3f21b0a2022860bda8de60e3e847866a4cda6eb9c3f1e1d1deabf0ed79",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token",
+                    "hash" : "0x7f611a3f21b0a2022860bda8de60e3e847866a4cda6eb9c3f1e1d1deabf0ed79",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
+                "balances" : {
+                    "0x8bb0": "0x0de0b6b3a7640000",
+                    "0x1234": "0x0de0b6b3a7640000"
+                },
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x92839d69320d8117b26219b5dfd355d2a748b821" : {
+                "_comment": "This is the caller",
+                "balance" : "0x00",
+                "code" : "60806040526004361061004b5763ffffffff7c0100000000000000000000000000000000000000000000000000000000600035041663c19d93fb8114610050578063f55332ab14610077575b600080fd5b34801561005c57600080fd5b506100656100ac565b60408051918252519081900360200190f35b6100aa6004803603602081101561008d57600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166100b2565b005b60005481565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f26121ff0000000000000000000000000000000000000000000000000000000001781529151815160009373ffffffffffffffffffffffffffffffffffffffff86169392918291908083835b6020831061014f5780518252601f199092019160209182019101610130565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146101af576040519150601f19603f3d011682016040523d82523d6000602084013e6101b4565b606091505b505090508015156101c457600080fd5b505056fea165627a7a723058201919c0049124125dcab7400d35e452201daa7f3eb004454982d3e505d63ef4890029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x83be1f6e44a79014e1776835ce46acd00f035843" : {
+                "_comment": "This is the callee",
+                "balance" : "0x00",
+                "code" : "60806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166326121ff08114604d578063c19d93fb146061575b600080fd5b348015605857600080fd5b50605f6085565b005b348015606c57600080fd5b50607360a5565b60408051918252519081900360200190f35b608b60ab565b6040816000808064514b430001600019f150506001600055565b60005481565b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058200cc0e2e29ea0eb8beb9637768524932b0baec074286e914003858e12c046f6c30029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "data" : [
+                "0xf55332ab00000000000000000000000083be1f6e44a79014e1776835ce46acd00f035843"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "transferTokenId": [
+                "0x8bb0",
+                "0x1234"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0x92839d69320d8117b26219b5dfd355d2a748b821",
+            "value" : [
+                "0x00"
+            ]
+        }
+    }
+}

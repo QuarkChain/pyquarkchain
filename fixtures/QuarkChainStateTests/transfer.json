@@ -1,0 +1,93 @@
+{
+    "transfer" : {
+        "_info" : {
+            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Callee {\n  function() external payable {\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n  }\n}\n\ncontract Caller {\n  uint256 private state = 0;\n\n  function call(Callee c) public payable {\n    address(c).transfer(msg.value);\n    state = 1;\n  }\n}",
+            "filledwith" : "",
+            "lllcversion" : "",
+            "source" : "",
+            "sourceHash" : ""
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "_comment": "This creates a transfer tx with default transfer token",
+                    "hash" : "0xf33ad9715d32e3f258b2b802b95de13258294740918d02bb1a5025932705e9ab",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a transfer tx with non-default transfer token",
+                    "hash" : "0xf33ad9715d32e3f258b2b802b95de13258294740918d02bb1a5025932705e9ab",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
+                "balances" : {
+                    "0x8bb0": "0x0de0b6b3a7640000",
+                    "0x1234": "0x0de0b6b3a7640000"
+                },
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0xa113b22d40dc1d5d086003c27a556e597f614e8b" : {
+                "_comment": "This is the caller contract's address",
+                "balance" : "0x00",
+                "code" : "608060405260043610603e5763ffffffff7c0100000000000000000000000000000000000000000000000000000000600035041663f55332ab81146043575b600080fd5b607360048036036020811015605757600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166075565b005b60405173ffffffffffffffffffffffffffffffffffffffff8216903480156108fc02916000818181858888f1935050505015801560b6573d6000803e3d6000fd5b5050600160005556fea165627a7a72305820be7ff3d6a5ab80511977092600ddcbbef6c13f4c59feb3fc8f2c557843bd15570029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x1526613135cbe54ee257c11dd17254328a774f4a": {
+                "_comment": "This is the callee contract's address",
+                "balance" : "0x00",
+                "code" : "6080604052600a601f565b6040816000808064514b430001600019f15050005b602060405190810160405280600190602082028038833950919291505056fea165627a7a72305820bb29cba528fb6b4dfd6cf29283aa06ada17a0dbfb38a533fa8f144b44138cfc80029",
+                "nonce" : "0x00",
+                "storage" : {
+                }                
+            }
+        },
+        "transaction" : {
+            "data" : [
+                "0xf55332ab0000000000000000000000001526613135cbe54ee257c11dd17254328a774f4a"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "transferTokenId": [
+                "0x8bb0",
+                "0x1234"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0xa113b22d40dc1d5d086003c27a556e597f614e8b",
+            "value" : [
+                "0x00"
+            ]
+        }
+    }
+}
