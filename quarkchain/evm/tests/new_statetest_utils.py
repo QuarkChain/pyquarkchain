@@ -47,13 +47,7 @@ basic_env = {
 
 
 evm_config = get_default_evm_config()
-# Fork -> specific test filter
-# TODO: remaining Constantinople tests
-tests_for_new_evm = ["stShift", "stExtCodeHash"]
-configs = {
-    "Byzantium": lambda test_folder: test_folder not in tests_for_new_evm,
-    "ConstantinopleFix": lambda test_folder: test_folder in tests_for_new_evm,
-}
+network_to_test = {"ConstantinopleFix"}
 
 # Makes a diff between a prev and post state
 
@@ -92,9 +86,15 @@ def mk_state_diff(prev, post):
 # Compute a single unit of a state test
 
 
-def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
+def compute_state_test_unit(state, txdata, indices, konfig, is_qkc_state, qkc_env=None):
     state.env.config = konfig
     s = state.snapshot()
+    if "transferTokenId" in txdata:
+        transfer_token_id = parse_int_or_hex(
+            txdata["transferTokenId"][indices["transferTokenId"]]
+        )
+    else:
+        transfer_token_id = token_id_encode("QKC")
     try:
         # Create the transaction
         tx = transactions.Transaction(
@@ -104,9 +104,10 @@ def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
             to=decode_hex(remove_0x_head(txdata["to"])),
             value=parse_int_or_hex(txdata["value"][indices["value"]] or b"0"),
             data=decode_hex(remove_0x_head(txdata["data"][indices["data"]])),
-            transfer_token_id=token_id_encode("QKC"),
             gas_token_id=token_id_encode("QKC"),
-            is_testing=True,
+            transfer_token_id=transfer_token_id,
+            # Should not set testing flag if testing QuarkChain state
+            is_testing=not is_qkc_state,
         )
         tx.set_quark_chain_config(qkc_env.quark_chain_config)
         if "secretKey" in txdata:
@@ -136,13 +137,13 @@ def compute_state_test_unit(state, txdata, indices, konfig, qkc_env=None):
 
 
 # Initialize the state for state tests
-def init_state(env, pre, qkc_env=None):
+def init_state(env, pre, is_qkc_state, qkc_env=None):
     # Setup env
     db = InMemoryDb()
-    stateEnv = Env(config=konfig)
-    stateEnv.db = db
+    state_env = Env(config=konfig)
+    state_env.db = db
     state = State(
-        env=stateEnv,
+        env=state_env,
         block_prevhash=decode_hex(remove_0x_head(env["previousHash"])),
         prev_headers=[
             mk_fake_header(i)
@@ -158,16 +159,26 @@ def init_state(env, pre, qkc_env=None):
         gas_limit=parse_int_or_hex(env["currentGasLimit"]),
         timestamp=parse_int_or_hex(env["currentTimestamp"]),
         qkc_config=qkc_env.quark_chain_config,
-        use_mock_evm_account=True,
+        # If testing QuarkChain states, should not use mock account
+        use_mock_evm_account=not is_qkc_state,
     )
 
+    seen_token_ids = set()
     # Fill up pre
     for address, h in list(pre.items()):
         assert len(address) in (40, 42)
         address = decode_hex(remove_0x_head(address))
-        assert set(h.keys()) == set(["code", "nonce", "balance", "storage"])
         state.set_nonce(address, parse_int_or_hex(h["nonce"]))
-        state.set_balance(address, parse_int_or_hex(h["balance"]))
+        if is_qkc_state and "balances" in h:
+            # In QuarkChain state tests, can either specify balance map or single balance
+            for token_id, balance in h["balances"].items():
+                parsed_token_id = parse_int_or_hex(token_id)
+                state.set_token_balance(
+                    address, parsed_token_id, parse_int_or_hex(balance)
+                )
+                seen_token_ids.add(parsed_token_id)
+        else:
+            state.set_balance(address, parse_int_or_hex(h["balance"]))
         state.set_code(address, decode_hex(remove_0x_head(h["code"])))
         for k, v in h["storage"].items():
             state.set_storage_data(
@@ -175,6 +186,10 @@ def init_state(env, pre, qkc_env=None):
                 big_endian_to_int(decode_hex(k[2:])),
                 big_endian_to_int(decode_hex(v[2:])),
             )
+
+    # Update allowed token IDs
+    if seen_token_ids:
+        state.qkc_config._allowed_token_ids = seen_token_ids
 
     state.commit(allow_empties=True)
     return state
@@ -188,15 +203,10 @@ def verify_state_test(test):
     print("Verifying state test")
     if "env" not in test:
         raise EnvNotFoundException("Env not found")
-    _state = init_state(test["env"], test["pre"], qkc_env=test["qkc"])
+    _state = init_state(test["env"], test["pre"], test["qkcstate"], qkc_env=test["qkc"])
     for config_name, results in test["post"].items():
         # Old protocol versions may not be supported
-        if config_name not in configs:
-            continue
-        filtered = configs[config_name]
-        # Filter based on file path, e.g. "'src/GeneralStateTestsFiller/stRandom/random123.json'"
-        test_folder = test["_info"]["source"].split("/")[-2]
-        if not filtered(test_folder):
+        if config_name not in network_to_test:
             continue
         print("Testing for %s" % config_name)
         for result in results:
@@ -223,6 +233,7 @@ def verify_state_test(test):
                 test["transaction"],
                 result["indexes"],
                 evm_config,
+                test["qkcstate"],
                 qkc_env=test["qkc"],
             )
             if computed["hash"][-64:] != result["hash"][-64:]:

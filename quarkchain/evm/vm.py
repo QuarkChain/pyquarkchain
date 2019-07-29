@@ -1,12 +1,14 @@
 # Modified based on pyethereum under MIT license
 import sys
 import copy
+from functools import lru_cache
+from math import ceil
+
 from quarkchain.rlp.utils import encode_hex, ascii_chr
 from quarkchain.evm import utils
 from quarkchain.evm import opcodes
 from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import to_string, bytearray_to_bytestr, safe_ord
-from functools import lru_cache
 
 # ###### dev hack flags ###############
 
@@ -80,7 +82,6 @@ class Message(object):
         is_create=False,
         transfers_value=True,
         static=False,
-        is_cross_shard=False,
         from_full_shard_key=None,
         to_full_shard_key=None,
         tx_hash=None,
@@ -102,7 +103,6 @@ class Message(object):
         self.is_create = is_create
         self.transfers_value = transfers_value
         self.static = static
-        self.is_cross_shard = is_cross_shard
         self.from_full_shard_key = from_full_shard_key
         self.to_full_shard_key = to_full_shard_key
         self.tx_hash = (
@@ -675,10 +675,16 @@ def vm_execute(ext, msg, code):
             log_log.trace(
                 "LOG", to=msg.to, topics=topics, data=list(map(utils.safe_ord, data))
             )
-            # print('LOG', msg.to, topics, list(map(ord, data)))
         # Create a new contract
-        elif op == "CREATE":
-            value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
+        elif op in ("CREATE", "CREATE2"):
+            salt = None
+            if op == "CREATE":
+                value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
+            else:  # CREATE2
+                value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
+                salt = salt.to_bytes(32, byteorder="big")
+                compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
+
             if not mem_extend(mem, compustate, op, mstart, msz):
                 return vm_exception("OOG EXTENDING MEMORY")
             if msg.static:
@@ -698,7 +704,7 @@ def vm_execute(ext, msg, code):
                     transfer_token_id=msg.transfer_token_id,
                     gas_token_id=msg.gas_token_id,
                 )
-                o, gas, data = ext.create(create_msg)
+                o, gas, data = ext.create(create_msg, salt)
                 if o:
                     stk.append(utils.coerce_to_int(data))
                     compustate.last_returned = bytearray(b"")

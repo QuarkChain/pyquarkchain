@@ -629,7 +629,7 @@ class TestJSONRPC(unittest.TestCase):
                     + to_full_shard_key.to_bytes(4, "big").hex(),
                 )
 
-    def test_getTransactionReceipt_on_contract_creation_failure(self):
+    def test_getTransactionReceipt_on_xshard_contract_creation(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
@@ -665,7 +665,7 @@ class TestJSONRPC(unittest.TestCase):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000002"])
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
-                self.assertEqual(resp["status"], "0x0")
+                self.assertEqual(resp["status"], "0x1")
                 self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
                 self.assertIsNone(resp["contractAddress"])
 

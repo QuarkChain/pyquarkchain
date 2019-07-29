@@ -463,7 +463,7 @@ def token_char_encode(char: str) -> int:
 
 
 def token_char_decode(id: int) -> str:
-    check(id < TOKEN_BASE and id >= 0, "invalid char")
+    check(TOKEN_BASE > id >= 0, "invalid char")
     if id < 10:
         return chr(ord("0") + id)
     return chr(ord("A") + id - 10)
@@ -487,7 +487,7 @@ def token_id_decode(id: int) -> str:
     """
     decode native token name from uint64
     """
-    check(id >= 0 and id <= TOKEN_ID_MAX, "id too big or negative")
+    check(0 <= id <= TOKEN_ID_MAX, "id too big or negative")
     name = token_char_decode(id % TOKEN_BASE)
     id = id // TOKEN_BASE - 1
     while id >= 0:
