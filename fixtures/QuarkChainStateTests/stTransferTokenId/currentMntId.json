@@ -22,7 +22,18 @@
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
-                        "value" : 0
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "hash" : "0xda6ca173be9420e5dd4dc163fe259d7c0dcf06ea3a0da0427f8b422bce036975",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 1
                     },
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
@@ -50,6 +61,10 @@
             ],
             "gasLimit" : [
                 "0x2dc6c0"
+            ],
+            "transferTokenId": [
+                "0x8bb0",
+                "0x1234"
             ],
             "gasPrice" : "0x01",
             "nonce" : "0x00",
