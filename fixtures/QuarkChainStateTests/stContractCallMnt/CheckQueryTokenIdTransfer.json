@@ -18,8 +18,8 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
-                    "_comment": "This creates a transfer tx with default transfer token",
-                    "hash" : "0xf33ad9715d32e3f258b2b802b95de13258294740918d02bb1a5025932705e9ab",
+                    "_comment": "This creates a transfer tx with default transfer token and transfer value 0",
+                    "hash" : "0x240d63c04e52f16a35164a89498504f8764cc10a53bcbd007036549ff1536bd9",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -29,12 +29,34 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a transfer tx with non-default transfer token",
-                    "hash" : "0xf33ad9715d32e3f258b2b802b95de13258294740918d02bb1a5025932705e9ab",
+                    "_comment": "This creates a transfer tx with default transfer token and transfer value 1",
+                    "hash" : "0x8bc683837e6dc3a105ce0a35f224109dc9bf6c5477f24a06a32d7e9beb7e1a1f",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 0",
+                    "hash" : "0x240d63c04e52f16a35164a89498504f8764cc10a53bcbd007036549ff1536bd9",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
                         "value" : 0,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1",
+                    "hash" : "0x6f3feb151df3c7a7ea8906ce6edca766587bca2116da03ef0baf09d12613a3ef",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
                         "transferTokenId": 1
                     },
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
@@ -54,8 +76,8 @@
                 }
             },
             "0xa113b22d40dc1d5d086003c27a556e597f614e8b" : {
-                "_comment": "This is the caller contract's address",
-                "balance" : "0x00",
+                "_comment": "This is the caller contract's address, need to have some balance in order to transfer to the callee",
+                "balance" : "0x05",
                 "code" : "608060405260043610603e5763ffffffff7c0100000000000000000000000000000000000000000000000000000000600035041663f55332ab81146043575b600080fd5b607360048036036020811015605757600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166075565b005b60405173ffffffffffffffffffffffffffffffffffffffff8216903480156108fc02916000818181858888f1935050505015801560b6573d6000803e3d6000fd5b5050600160005556fea165627a7a72305820be7ff3d6a5ab80511977092600ddcbbef6c13f4c59feb3fc8f2c557843bd15570029",
                 "nonce" : "0x00",
                 "storage" : {
@@ -87,7 +109,8 @@
             "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
             "to" : "0xa113b22d40dc1d5d086003c27a556e597f614e8b",
             "value" : [
-                "0x00"
+                "0x00",
+                "0x01"
             ]
         }
     }

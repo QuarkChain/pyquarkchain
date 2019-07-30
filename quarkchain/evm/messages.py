@@ -220,7 +220,7 @@ def apply_transaction_message(
     if not result:
         log_tx.debug(
             "TX FAILED",
-            reason="out of gas or un-queried non-default transfer token",
+            reason="out of gas or transfer value is 0 and transfer token is non-default and un-queried",
             gas_remained=gas_remained,
         )
         output = b""
@@ -565,6 +565,7 @@ def _apply_msg(ext, msg, code):
             return 1, msg.gas, []
 
     # Main loop
+    # print(msg.code_address.hex())
     if msg.code_address in ext.specials:
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
     else:
@@ -580,18 +581,18 @@ def _apply_msg(ext, msg, code):
             post_storage=ext.log_storage(msg.to),
         )
 
+    if (
+        res == 1
+        and code != b""
+        and msg.transfer_token_id != ext.default_state_token
+        and not ext.token_id_queried
+        and msg.value != 0
+    ):
+        res = 0
+
     if res == 0:
         log_msg.debug("REVERTING")
         ext.revert(snapshot)
-    if (
-        msg.depth == 0
-        and code
-        and msg.transfer_token_id != ext.default_state_token
-        and not ext.token_id_queried
-    ):
-        log_msg.debug("REVERTING")
-        ext.revert(snapshot)
-        return 0, gas, []
 
     return res, gas, dat
 
