@@ -484,7 +484,7 @@ class ShardState:
 
     def get_gas_limit(self, gas_limit=None):
         if gas_limit is None:
-            gas_limit = self.env.quark_chain_config.gas_limit
+            gas_limit = self.env.quark_chain_config.gas_limit(self.full_shard_id)
         return gas_limit
 
     def get_xshard_gas_limit(self, gas_limit=None, xshard_gas_limit=None):
