@@ -3,7 +3,7 @@ from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 from quarkchain.rlp.utils import ascii_chr
 
-from quarkchain.evm import utils, opcodes, vm, messages
+from quarkchain.evm import utils, opcodes, vm
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
 
 
@@ -226,12 +226,13 @@ def proc_current_mnt_id(ext, msg):
 
 # 3 inputs: (address, token ID and value)
 def proc_transfer_mnt(ext, msg):
-    print("transfer_mnt proc", msg.gas)
+    from quarkchain.evm.messages import apply_msg
+
     # Data must be exactly 96 bytes
     if msg.data.size != 96:
         return 0, 0, []
-    gas_cost = 3  # to be discussed
-    if msg.gas < gas_cost:
+    gascost = 3
+    if msg.gas < gascost:
         return 0, 0, []
     to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
@@ -240,7 +241,7 @@ def proc_transfer_mnt(ext, msg):
         msg.sender,
         to,
         value,
-        msg.gas - gas_cost,
+        msg.gas - gascost,
         b"",
         msg.depth + 1,
         code_address=to,
@@ -248,7 +249,7 @@ def proc_transfer_mnt(ext, msg):
         transfer_token_id=mnt,
         gas_token_id=msg.gas_token_id,
     )
-    return messages.apply_msg(ext, new_msg)
+    return apply_msg(ext, new_msg)
 
 
 specials = {

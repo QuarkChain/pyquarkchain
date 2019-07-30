@@ -1,7 +1,7 @@
 {
-    "transferMnt" : {
+    "contractTransferMnt" : {
         "_info" : {
-            "comment" : "",
+            "comment" : "deployed contract: https://gist.github.com/hanyunxu/5f0af6e57032672ff4fee7aa3b98713b",
             "filledwith" : "byhand",
             "lllcversion" : "byhand",
             "source" : "NA",
@@ -59,6 +59,17 @@
             }
         },
         "transaction" : {
+            "comment" : {
+                "uint256 addr": {
+                    "_hex": "0x4756385628376458273654826348562834652876"
+                },
+                "uint256 token_id": {
+                    "_hex": "0x1234"
+                },
+                "uint256 value": {
+                    "_hex": "0x02"
+                }
+            },
             "data" : [
                 "0x90b49027000000000000000000000000475638562837645827365482634856283465287600000000000000000000000000000000000000000000000000000000000012340000000000000000000000000000000000000000000000000000000000000002"
             ],
