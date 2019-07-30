@@ -378,9 +378,8 @@ class QuarkChainConfig(BaseConfig):
         assert ret.denominator <= 100
         return ret
 
-    @property
-    def gas_limit(self):
-        return ShardGenesis.GAS_LIMIT
+    def gas_limit(self, full_shard_id: int) -> int:
+        return self.shards[full_shard_id].GENESIS.GAS_LIMIT
 
     def get_full_shard_id_by_full_shard_key(self, full_shard_key: int) -> int:
         chain_id = full_shard_key >> 16
