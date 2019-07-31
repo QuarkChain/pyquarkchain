@@ -1,0 +1,71 @@
+{
+    "delegateCallCreate" : {
+        "_info" : {
+            "comment" : "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Dummy {}\n\ncontract Callee {\n    \n  function f() public {\n      new Dummy();\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n\n  function call(Callee c) public payable {\n    (bool success,) = address(c).delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
+            "filledwith" : "byhand",
+            "lllcversion" : "byhand",
+            "source" : "NA",
+            "sourceHash" : "NA"
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x20000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "hash" : "0x3916f8c6010acf75900382c0ae8d498997e439efd9f75cb5e7e94572c4593d40",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    }
+                }
+            ]
+        },
+        "pre" : {
+            "0x5e72914535f202659083db3a02c984188fa26e9f": {
+                "_comment": "Delegate callee contract, which creates a dummy contract",
+                "balance" : "0x00",
+                "code": "0x60806040526004361061003b576000357c01000000000000000000000000000000000000000000000000000000009004806326121ff014610040575b600080fd5b34801561004c57600080fd5b50610055610057565b005b61005f61007f565b604051809103906000f08015801561007b573d6000803e3d6000fd5b5050565b60405160528061008f8339019056fe6080604052348015600f57600080fd5b50603580601d6000396000f3fe6080604052600080fdfea165627a7a7230582085c52cf4aa284d1ffe0328854f646b46eb5372d58b7a7f3513f24349e19f81e60029a165627a7a7230582019572517ef47c465e14efff34fb7f624d611977fcf8e8603b00f5ff11a096f060029",
+                "nonce" : "0x01",
+                "storage" : {
+                }
+            },
+            "0x095e7baea6a6c7c4c2dfeb977efac326af552d87" : {
+                "_comment": "Caller contract, makes delegate call on callee contract",
+                "balance" : "0x00",
+                "code" : "0x608060405260043610610046576000357c010000000000000000000000000000000000000000000000000000000090048063c19d93fb1461004b578063f55332ab14610076575b600080fd5b34801561005757600080fd5b506100606100ba565b6040518082815260200191505060405180910390f35b6100b86004803603602081101561008c57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506100c0565b005b60005481565b60008173ffffffffffffffffffffffffffffffffffffffff166040516024016040516020818303038152906040527f26121ff0000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff83818316178352505050506040518082805190602001908083835b602083101515610191578051825260208201915060208101905060208303925061016c565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146101f1576040519150601f19603f3d011682016040523d82523d6000602084013e6101f6565b606091505b5050905080151561020657600080fd5b505056fea165627a7a7230582029775ea1c180d6488ee1de8cfa727d730480cd71128a7a0f450127765982371f0029",
+                "nonce" : "0x01",
+                "storage" : {
+                }
+            },
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "balance" : "0x0de0b6b3a7640000",
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "data" : [
+                "0xf55332ab0000000000000000000000005e72914535f202659083db3a02c984188fa26e9f"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0x095e7baea6a6c7c4c2dfeb977efac326af552d87",
+            "value" : [
+                "0x0"
+            ]
+        }
+    }
+}
