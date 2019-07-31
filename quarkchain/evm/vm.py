@@ -700,7 +700,8 @@ def vm_execute(ext, msg, code):
                     ingas,
                     cd,
                     msg.depth + 1,
-                    to_full_shard_key=msg.from_full_shard_key,
+                    # Used for calculating contract address
+                    to_full_shard_key=msg.to_full_shard_key,
                     transfer_token_id=msg.transfer_token_id,
                     gas_token_id=msg.gas_token_id,
                 )
@@ -784,6 +785,8 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=msg.static,
                         transfer_token_id=msg.transfer_token_id,
@@ -797,6 +800,8 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         transfers_value=False,
                         static=msg.static,
@@ -811,6 +816,8 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=True,
                         transfer_token_id=msg.transfer_token_id,
@@ -824,6 +831,8 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=msg.static,
                         transfer_token_id=msg.transfer_token_id,
