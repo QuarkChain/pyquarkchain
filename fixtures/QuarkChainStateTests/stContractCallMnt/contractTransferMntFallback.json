@@ -1,5 +1,5 @@
 {
-    "contractTransferMnt" : {
+    "contractTransferMntFallback" : {
         "_info" : {
             "comment" : "deployed contract: https://gist.github.com/hanyunxu/04e6ac180faedf98a88fd354c9d4253a",
             "filledwith" : "byhand",
@@ -77,8 +77,7 @@
                 "0x2dc6c0"
             ],
             "transferTokenId": [
-                "0x8bb0",
-                "0x1234"
+                "0x8bb0"
             ],
             "gasPrice" : "0x01",
             "nonce" : "0x00",

@@ -1,7 +1,7 @@
 {
     "currentMntId" : {
         "_info" : {
-            "comment" : "pragma solidity >=0.4.22 <0.6.0;\ncontract MultiNativeToken {\n    uint256 private tokenId;\n    \n    function get_cur_token_id() public returns (uint256[1] memory out) {\n        uint256[2] memory x;\n        assembly {\n            let y := call(100, 0x514b430001, 0, x, 0x40, out, 0x20)\n            switch y case 0 {\n                revert(0, 0)\n            }\n        }\n        tokenId = out[0];\n    }\n}",
+            "comment" : "deployed contract: https://gist.github.com/hanyunxu/2288b72872721a4901d6bf7768c5fb88",
             "filledwith" : "byhand",
             "lllcversion" : "byhand",
             "source" : "NA",
