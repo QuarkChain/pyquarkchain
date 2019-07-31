@@ -3,7 +3,7 @@ from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 from quarkchain.rlp.utils import ascii_chr
 
-from quarkchain.evm import utils, opcodes
+from quarkchain.evm import utils, opcodes, vm
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
 
 
@@ -224,6 +224,34 @@ def proc_current_mnt_id(ext, msg):
     return 1, msg.gas - gascost, encode_int32(msg.transfer_token_id)
 
 
+# 3 inputs: (address, token ID and value)
+def proc_transfer_mnt(ext, msg):
+    from quarkchain.evm.messages import apply_msg
+
+    # Data must be exactly 96 bytes
+    if msg.data.size != 96:
+        return 0, 0, []
+    gascost = 3
+    if msg.gas < gascost:
+        return 0, 0, []
+    to = utils.int_to_addr(msg.data.extract32(0))
+    mnt = msg.data.extract32(32)
+    value = msg.data.extract32(64)
+    new_msg = vm.Message(
+        msg.sender,
+        to,
+        value,
+        msg.gas - gascost,
+        b"",
+        msg.depth + 1,
+        code_address=to,
+        static=msg.static,
+        transfer_token_id=mnt,
+        gas_token_id=msg.gas_token_id,
+    )
+    return apply_msg(ext, new_msg)
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -236,6 +264,7 @@ specials = {
         b"0000000000000000000000000000000000000007": proc_ecmul,
         b"0000000000000000000000000000000000000008": proc_ecpairing,
         b"000000000000000000000000000000514b430001": proc_current_mnt_id,
+        b"000000000000000000000000000000514b430002": proc_transfer_mnt,
     }.items()
 }
 
