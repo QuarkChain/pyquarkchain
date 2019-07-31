@@ -347,7 +347,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
     def put_total_tx_count(self, m_block):
         prev_count = 0
-        if m_block.header.height > 2:
+        if m_block.header.height > 1:
             prev_count = self.get_total_tx_count(m_block.header.hash_prev_minor_block)
         count = prev_count + len(m_block.tx_list)
         self.db.put(b"tx_count_" + m_block.header.get_hash(), count.to_bytes(4, "big"))
