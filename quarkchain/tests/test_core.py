@@ -53,7 +53,7 @@ class TestDataSize(unittest.TestCase):
 
 class TestTxSize(unittest.TestCase):
     def test_tx_size(self):
-        id1 = Identity.create_random_identity()
+        id1 = Identity.create_from_key(b"0" * 32)
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         evm_tx = EvmTransaction(

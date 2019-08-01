@@ -1,4 +1,5 @@
 import asyncio
+import random
 from contextlib import ContextDecorator
 
 from quarkchain.cluster.cluster_config import (
@@ -279,13 +280,13 @@ class Cluster:
 
 # server.close() does not release the port sometimes even after server.wait_closed() is awaited.
 # we have to use unique ports for each test as a workaround.
-PORT_START = 38000
+PORT_START = 50000
 
 
 def get_next_port():
     global PORT_START
     port = PORT_START
-    PORT_START += 1
+    PORT_START += random.randint(1, 10)
     return port
 
 
