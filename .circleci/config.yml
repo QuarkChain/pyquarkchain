@@ -9,7 +9,7 @@ jobs:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
     parallelism: 2
 
-    working_directory: /code
+    working_directory: /code/pyquarkchain
 
     steps:
       - checkout
