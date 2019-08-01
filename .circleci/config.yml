@@ -38,7 +38,7 @@ jobs:
       - run:
           name: Run py.test tests only on integration test
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=60; fi
+            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=90; fi
 
       - run:
           name: Run EVM tests
