@@ -103,7 +103,7 @@ workflows:
           filters:
             branches:
               only:
-                - master
+                - fix-nightly
     jobs:
       - build
       - check-db:
