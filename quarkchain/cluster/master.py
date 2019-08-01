@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import os
 import cProfile
+import sys
 import time
 
 import psutil
@@ -901,7 +902,7 @@ class MasterServer:
         def log_error_and_exit(msg):
             Logger.error(msg)
             self.shutdown()
-            raise Exception("Integrity check failure!")
+            sys.exit(1)
 
         start_time = time.monotonic()
         # Start with root db

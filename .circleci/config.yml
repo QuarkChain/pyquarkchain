@@ -7,8 +7,6 @@ jobs:
   build:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 3
-
     working_directory: /code/pyquarkchain
 
     steps:
@@ -28,6 +26,19 @@ jobs:
           paths:
             - /usr/local
           key: pyquarkchain-dep-{{ checksum "requirements.txt" }}
+
+  test:
+    docker:
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    parallelism: 3
+    working_directory: /code/pyquarkchain
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
       # Run tests!
       - run:
@@ -50,6 +61,50 @@ jobs:
           command: |
             if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
 
-      - store_artifacts:
-          path: test-reports
-          destination: test-reports
+  check-db:
+    docker:
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    working_directory: /code/pyquarkchain
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - pyquarkchain-dep-{{ checksum "requirements.txt" }}
+
+      - run:
+          name: Download DB snapshot
+          command: |
+            cd ..
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
+            tar xvfz data.tar.gz
+            rm data.tar.gz
+
+      - run:
+          name: Check DB
+          command: |
+            QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+  nightly:
+    triggers:
+      - schedule:
+          cron: "25 * * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - build
+      - check-db:
+          requires:
+            - build

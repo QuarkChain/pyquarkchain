@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import platform
+import sys
 from asyncio import subprocess
 
 import psutil
@@ -72,12 +73,14 @@ class Cluster:
 
     async def wait_and_shutdown(self, prefix, proc):
         """ If one process terminates shutdown the entire cluster """
-        await proc.wait()
+        status = await proc.wait()
         if self.shutdown_called:
-            return
+            # ignore subsequent return code, only the first one matters
+            return None
 
         print("{} is dead. Shutting down the cluster...".format(prefix))
         await self.shutdown()
+        return status
 
     async def run_master(self):
         extra_cmd = ""
@@ -114,9 +117,15 @@ class Cluster:
         ):
             await self.run_slaves()
 
-        await asyncio.gather(
+        status_list = await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
         )
+        ret_code = (
+            1
+            if any(status != 0 and status is not None for status in status_list)
+            else 0
+        )
+        sys.exit(ret_code)
 
     async def shutdown(self):
         self.shutdown_called = True
