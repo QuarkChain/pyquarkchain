@@ -1,7 +1,7 @@
 {
     "CheckQueryTokenIdDelegateCall" : {
         "_info" : {
-            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract TokenQueriedCallee {\n  uint256 public state = 0;\n  function f() public payable{\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n    state = 1;\n  }\n}\n\ncontract TokenNotQueriedCallee {\n  uint256 public state = 0;\n  function f() external payable {\n    state = 1;\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n  \n  function call1(address payable addr) public payable {\n    uint256 tmp;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, tmp, 0x40)\n    }\n    (bool success,) = addr.delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n\n  function call2(address payable addr) public payable {\n    (bool success,) = addr.delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
+            "comment": "contract: https://gist.github.com/czy1234/51ba5de34da1f07ad0d72b38ad8ad2b3",
             "filledwith" : "",
             "lllcversion" : "",
             "source" : "",
@@ -18,7 +18,7 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call1()",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token Queried callee",
                     "hash" : "0xba6388b4300455cdc478fe251c3c52b31c5a652c6862da0e968e876760c9eb78",
                     "indexes" : {
                         "data" : 0,
@@ -29,7 +29,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call2()",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token NOT Queried callee",
                     "hash" : "0xd3a4d5d3d35d22547dc45d4278fe9f4811237431c76766c12e0bac5013c3a115",
                     "indexes" : {
                         "data" : 1,
@@ -40,7 +40,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call3()",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token Queried callee",
                     "hash" : "0xc76faa6367618b85bb490a06bb41586473f992e2a19ff77c7e1bb2a93a29fd64",
                     "indexes" : {
                         "data" : 2,
@@ -51,7 +51,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call4()",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token NOT Queried callee",
                     "hash" : "0xe7dbcb26515d633d4628102fb1c48a85fa020e7307d45076df536ae8e0e5ecd9",
                     "indexes" : {
                         "data" : 3,

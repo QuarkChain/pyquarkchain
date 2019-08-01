@@ -1,7 +1,7 @@
 {
     "CheckQueryTokenIdTransfer" : {
         "_info" : {
-            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract TokenQueriedCallee {\n  function() external payable {\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n  }\n}\n\ncontract TokenNotQueriedCallee {\n  function() external payable {\n  }\n}\n\ncontract Caller {\n  uint256 private state = 0;\n\n  function call1(address payable addr) public payable {\n    uint256 tmp;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, tmp, 0x40)\n    }\n    addr.transfer(msg.value);\n    state = 1;\n  }\n\n  function call2(address payable addr) public payable {\n    addr.transfer(msg.value);\n    state = 1;\n  }\n  \n}",
+            "comment": "contract: https://gist.github.com/czy1234/76be430c6a275b0540b35ee810f7d7cf",
             "filledwith" : "",
             "lllcversion" : "",
             "source" : "",
@@ -18,7 +18,7 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
-                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1 that calls call1()",
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token Queried callee",
                     "hash" : "0x835f6ee269a1e234831112a4944f78e2d864872b16d3818fc7e6d5a29feef19a",
                     "indexes" : {
                         "data" : 0,
@@ -29,7 +29,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1 that calls call2()",
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token NOT Queried callee",
                     "hash" : "0x847f45f017137d4f858ce1bd8bc2eddef9b20b68d5efe665299fd235d04b131a",
                     "indexes" : {
                         "data" : 1,
@@ -40,7 +40,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1 that calls call3()",
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token Queried callee",
                     "hash" : "0xe8560e548376c1cba54e2344bfbecd8c555fde99d7fda5888577064ebffa67ed",
                     "indexes" : {
                         "data" : 2,
@@ -51,7 +51,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1 that calls call4()",
+                    "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token NOT Queried callee",
                     "hash" : "0xdf158afd74ea8d2460c0b2b0268fdef06575c9bfbe9beaffe048d90a29c52153",
                     "indexes" : {
                         "data" : 3,
@@ -84,7 +84,7 @@
                 }
             },
             "0x375eae23b65feb1833072328647902f1fe9afa61" : {
-                "_comment": "This is the Token Queried Callee contract's address, need to have some balance in order to transfer to the callee",
+                "_comment": "This is the Token Queried Callee contract's address",
                 "balance" : "0x05",
                 "code" : "6080604052600a601f565b6040816000808064514b430001600019f15050005b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058202a1d67ee3ffb5a930a75128d4cd6370968b1a7b5111ce86c6084ad20ed57e03d0029",
                 "nonce" : "0x00",
@@ -92,7 +92,7 @@
                 }
             },
             "0x9fe1c58215407d67719ba680360940056e5eceb7" : {
-                "_comment": "This is the Token Not Queried Callee contract's address, need to have some balance in order to transfer to the callee",
+                "_comment": "This is the Token Not Queried Callee contract's address",
                 "balance" : "0x05",
                 "code" : "608060405200fea165627a7a723058205a1266c831e5eff3a50b557f32a67cb3d76f8fb7f80efea392056e8aede628b40029",
                 "nonce" : "0x00",
