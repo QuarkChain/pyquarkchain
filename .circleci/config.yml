@@ -78,7 +78,7 @@ jobs:
           name: Download DB snapshot
           command: |
             cd ..
-            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
             tar xvfz data.tar.gz
             rm data.tar.gz
 
@@ -98,11 +98,11 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "10 * * * *"
+          cron: "20 * * * *"
           filters:
             branches:
               only:
-                - nightly-build
+                - master
     jobs:
       - build
       - check-db:

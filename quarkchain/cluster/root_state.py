@@ -421,7 +421,7 @@ class RootState:
 
         if (
             len(block.tracking_data)
-            < self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
+            > self.env.quark_chain_config.BLOCK_EXTRA_DATA_SIZE_LIMIT
         ):
             raise ValueError("tracking_data in block is too large")
 
