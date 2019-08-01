@@ -7,7 +7,7 @@ jobs:
   build:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 2
+    parallelism: 3
 
     working_directory: /code/pyquarkchain
 
@@ -31,19 +31,24 @@ jobs:
 
       # Run tests!
       - run:
-          name: Run py.test Tests
+          name: Run py.test tests excluding integration test
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then python3 -m pytest --timeout=30; fi
+            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py --timeout=30; fi
 
       - run:
-          name: Run EVM Tests
+          name: Run py.test tests only on integration test
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
+            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=60; fi
 
       - run:
-          name: Run QuarkChain-specific EVM Tests
+          name: Run EVM tests
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
+            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
+
+      - run:
+          name: Run QuarkChain-specific EVM tests
+          command: |
+            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
 
       - store_artifacts:
           path: test-reports
