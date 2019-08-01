@@ -1,5 +1,7 @@
 import argparse
 import os
+from pprint import pprint
+
 from quarkchain.cluster.cluster_config import ClusterConfig
 
 from quarkchain.cluster.root_state import RootState
@@ -22,7 +24,7 @@ def parse_args():
         help="query balances in all shards",
     )
     parser.add_argument(
-        "--recipient", default=None, type=int, help="query a specific recipient"
+        "--recipient", default=None, type=str, help="query a specific recipient"
     )
     parser.add_argument(
         "--minor_block_height",
@@ -100,7 +102,8 @@ def print_all_shard_balances(env, rb, args):
 
 
 def print_recipient_balance(env, rb, args):
-    recipient = args.recipient
+    assert args.recipient.startswith("0x")
+    recipient = bytes.fromhex(args.recipient[2:])
     shard = Shard(env, args.full_shard_id, None)
     state = shard.state
     state.init_from_root_block(rb)
@@ -110,10 +113,8 @@ def print_recipient_balance(env, rb, args):
     else:
         balance = state.get_balances(recipient)
 
-    if balance:
-        print("Recipient: %d，balance: %d" % (recipient, balance))
-    else:
-        print("Recipient not found.")
+    print("Recipient: %s\nBalances: " % args.recipient, end="", flush=True)
+    pprint(balance)
 
 
 def print_balance_by_block_height(env, rb, minor_block_height):
