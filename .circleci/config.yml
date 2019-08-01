@@ -79,7 +79,8 @@ jobs:
           command: |
             curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
             tar xvfz data.tar.gz
-            mv data quarkchain/cluster/qkc-data
+            mkdir -p quarkchain/cluster/qkc-data
+            mv data quarkchain/cluster/qkc-data/mainnet
             rm data.tar.gz
           no_output_timeout: 1h
 
@@ -99,7 +100,7 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "10 * * * *"
+          cron: "35 * * * *"
           filters:
             branches:
               only:
