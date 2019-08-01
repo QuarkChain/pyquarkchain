@@ -512,7 +512,6 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
-        self.token_id_queried = state.token_id_queried
 
 
 def apply_msg(ext, msg):
@@ -565,7 +564,6 @@ def _apply_msg(ext, msg, code):
             return 1, msg.gas, []
 
     # Main loop
-    # print(msg.code_address.hex())
     if msg.code_address in ext.specials:
         res, gas, dat = ext.specials[msg.code_address](ext, msg)
     else:
@@ -585,7 +583,7 @@ def _apply_msg(ext, msg, code):
         res == 1
         and code != b""
         and msg.transfer_token_id != ext.default_state_token
-        and not ext.token_id_queried
+        and not msg.token_id_queried
         and msg.value != 0
     ):
         res = 0

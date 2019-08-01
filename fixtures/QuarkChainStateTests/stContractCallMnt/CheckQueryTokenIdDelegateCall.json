@@ -1,7 +1,7 @@
 {
     "CheckQueryTokenIdDelegateCall" : {
         "_info" : {
-            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract Callee {\n  uint256 public state = 0;\n  function f() public payable{\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n    state = 1;\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n\n  function call(Callee c) public payable {\n    (bool success,) = address(c).delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
+            "comment": "pragma solidity >=0.5.0 <0.7.0;\n\ncontract TokenQueriedCallee {\n  uint256 public state = 0;\n  function f() public payable{\n    uint256[1] memory id;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n    }\n    state = 1;\n  }\n}\n\ncontract TokenNotQueriedCallee {\n  uint256 public state = 0;\n  function f() external payable {\n    state = 1;\n  }\n}\n\ncontract Caller {\n  uint256 public state = 0;\n  \n  function call1(address payable addr) public payable {\n    uint256 tmp;\n    assembly {\n      let _ := call(not(0), 0x514b430001, 0, 0, 0x00, tmp, 0x40)\n    }\n    (bool success,) = addr.delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n\n  function call2(address payable addr) public payable {\n    (bool success,) = addr.delegatecall(abi.encodeWithSignature(\"f()\"));\n    require(success);\n  }\n}",
             "filledwith" : "",
             "lllcversion" : "",
             "source" : "",
@@ -18,43 +18,43 @@
         "post" : {
             "ConstantinopleFix" : [
                 {
-                    "_comment": "This creates a delegate call tx with default transfer token and transfer value 0",
-                    "hash" : "0xa1741e55a6634e6d69e31a3651c087689d72383cbfebbf379b3b51daea7dc2c6",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0,
-                        "transferTokenId": 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "_comment": "This creates a delegate call tx with default transfer token and transfer value 1",
-                    "hash" : "0xf91a211513039df4b9fc1951c178959fc3d7fce419d0800ed79ba63cc1a0553f",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call1()",
+                    "hash" : "0xba6388b4300455cdc478fe251c3c52b31c5a652c6862da0e968e876760c9eb78",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
                         "value" : 1,
-                        "transferTokenId": 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                },
-                {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 0",
-                    "hash" : "0xa1741e55a6634e6d69e31a3651c087689d72383cbfebbf379b3b51daea7dc2c6",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0,
                         "transferTokenId": 1
                     },
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 },
                 {
-                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1",
-                    "hash" : "0xae1b7affb52c3fae66a7d69d616e221ce3714aae3af6a48448c64967db7bcaca",
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call2()",
+                    "hash" : "0xd3a4d5d3d35d22547dc45d4278fe9f4811237431c76766c12e0bac5013c3a115",
                     "indexes" : {
-                        "data" : 0,
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call3()",
+                    "hash" : "0xc76faa6367618b85bb490a06bb41586473f992e2a19ff77c7e1bb2a93a29fd64",
+                    "indexes" : {
+                        "data" : 2,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1 that calls call4()",
+                    "hash" : "0xe7dbcb26515d633d4628102fb1c48a85fa020e7307d45076df536ae8e0e5ecd9",
+                    "indexes" : {
+                        "data" : 3,
                         "gas" : 0,
                         "value" : 1,
                         "transferTokenId": 1
@@ -75,27 +75,38 @@
                 "storage" : {
                 }
             },
-            "0x92839d69320d8117b26219b5dfd355d2a748b821" : {
-                "_comment": "This is the caller contract's address",
-                "balance" : "0x00",
-                "code" : "60806040526004361061004b5763ffffffff7c0100000000000000000000000000000000000000000000000000000000600035041663c19d93fb8114610050578063f55332ab14610077575b600080fd5b34801561005c57600080fd5b506100656100ac565b60408051918252519081900360200190f35b6100aa6004803603602081101561008d57600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166100b2565b005b60005481565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f26121ff0000000000000000000000000000000000000000000000000000000001781529151815160009373ffffffffffffffffffffffffffffffffffffffff86169392918291908083835b6020831061014f5780518252601f199092019160209182019101610130565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146101af576040519150601f19603f3d011682016040523d82523d6000602084013e6101b4565b606091505b505090508015156101c457600080fd5b505056fea165627a7a723058204c11ebf01961e9b34fbab458d72367782185e84d3f58931c9851316381e3ee580029",
+            "0x87b77f033b2d0347833ae375acaea991133e8ea3" : {
+                "_comment": "This is the Caller contract's address, need to have some balance in order to transfer to the callee",
+                "balance" : "0x0F",
+                "code" : "6080604052600436106100565763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416634720c207811461005b578063c19d93fb14610090578063f1b9b841146100b7575b600080fd5b61008e6004803603602081101561007157600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166100ea565b005b34801561009c57600080fd5b506100a5610200565b60408051918252519081900360200190f35b61008e600480360360208110156100cd57600080fd5b503573ffffffffffffffffffffffffffffffffffffffff16610206565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f26121ff0000000000000000000000000000000000000000000000000000000001781529151815160009373ffffffffffffffffffffffffffffffffffffffff86169392918291908083835b602083106101875780518252601f199092019160209182019101610168565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146101e7576040519150601f19603f3d011682016040523d82523d6000602084013e6101ec565b606091505b505090508015156101fc57600080fd5b5050565b60005481565b600060408180808064514b430001600019f15060408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f26121ff0000000000000000000000000000000000000000000000000000000001781529151815160009373ffffffffffffffffffffffffffffffffffffffff87169392918291908083835b602083106102b65780518252601f199092019160209182019101610297565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d8060008114610316576040519150601f19603f3d011682016040523d82523d6000602084013e61031b565b606091505b5050905080151561032b57600080fd5b50505056fea165627a7a723058201c808fbf1e1392d1cc4f70a12d8e11d954e3338f014ed3d05efd91f6dd1564460029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
             },
-            "0x83be1f6e44a79014e1776835ce46acd00f035843" : {
-                "_comment": "This is the callee contract's address",
-                "balance" : "0x00",
-                "code" : "60806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166326121ff08114604d578063c19d93fb146055575b600080fd5b60536079565b005b348015606057600080fd5b5060676099565b60408051918252519081900360200190f35b607f609f565b6040816000808064514b430001600019f150506001600055565b60005481565b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058205d89a920f00f8b226cafbd2c34c48caea9f710097761abf7d6ebd3c80ca84b7c0029",
+            "0x6e93aa93b8ad072f6dc16385f1c6de0721d716b9" : {
+                "_comment": "This is the Token Queried Callee contract's address",
+                "balance" : "0x08",
+                "code" : "60806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166326121ff08114604d578063c19d93fb146055575b600080fd5b60536079565b005b348015606057600080fd5b5060676099565b60408051918252519081900360200190f35b607f609f565b6040816000808064514b430001600019f150506001600055565b60005481565b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058200822d68284c1869194b265fefefd2a110fd3c514c6bf3196f1a482a3426a5d400029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0xcd021ffd464dc40614c4dd7e7826b3d91a21ab12" : {
+                "_comment": "This is the Token Not Queried Callee contract's address",
+                "balance" : "0x08",
+                "code" : "60806040526004361060485763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166326121ff08114604d578063c19d93fb146055575b600080fd5b60536079565b005b348015606057600080fd5b5060676080565b60408051918252519081900360200190f35b6001600055565b6000548156fea165627a7a723058200d3ef1e648a3bcd59de7858e9aa5945cc0a076e6401e66a39348a251b75059690029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
             }
         },
         "transaction" : {
-            "_comment": "In the data field, the caller calls its call() function at the callee's address",
+            "_comment": "The data field: 1)call1() at token queried callee, 2)call1() at token not queried callee, 3)call2() at token queried callee, 4)call2() at token not queried callee",
             "data" : [
-                "0xf55332ab00000000000000000000000083be1f6e44a79014e1776835ce46acd00f035843"
+                "0xf1b9b8410000000000000000000000006e93aa93b8ad072f6dc16385f1c6de0721d716b9",
+                "0xf1b9b841000000000000000000000000cd021ffd464dc40614c4dd7e7826b3d91a21ab12",
+                "0x4720c2070000000000000000000000006e93aa93b8ad072f6dc16385f1c6de0721d716b9",
+                "0x4720c207000000000000000000000000cd021ffd464dc40614c4dd7e7826b3d91a21ab12"
             ],
             "gasLimit" : [
                 "0x061a80"
@@ -107,7 +118,7 @@
             "gasPrice" : "0x01",
             "nonce" : "0x00",
             "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
-            "to" : "0x92839d69320d8117b26219b5dfd355d2a748b821",
+            "to" : "0x87b77f033b2d0347833ae375acaea991133e8ea3",
             "value" : [
                 "0x00",
                 "0x01"
