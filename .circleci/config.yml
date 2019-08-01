@@ -68,6 +68,8 @@ jobs:
     working_directory: /code/pyquarkchain
 
     steps:
+      - checkout
+
       - restore_cache:
           keys:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
