@@ -237,12 +237,13 @@ def proc_transfer_mnt(ext, msg):
     to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
     value = msg.data.extract32(64)
+    data = msg.data.extract_all(96)
     new_msg = vm.Message(
         msg.sender,
         to,
         value,
         msg.gas - gascost,
-        b"",
+        data,
         msg.depth + 1,
         code_address=to,
         static=msg.static,

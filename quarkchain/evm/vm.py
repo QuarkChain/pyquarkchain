@@ -45,9 +45,11 @@ class CallData(object):
         self.rlimit = self.offset + self.size
 
     # Convert calldata to bytes
-    def extract_all(self):
-        d = self.data[self.offset : self.offset + self.size]
-        d.extend(bytearray(self.size - len(d)))
+    def extract_all(self, start=0):
+        if start >= self.size:
+            return 0
+        d = self.data[self.offset + start : self.offset + self.size]
+        d.extend(bytearray(self.size - len(d) - start))
         return bytes(bytearray(d))
 
     # Extract 32 bytes as integer
