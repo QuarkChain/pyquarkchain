@@ -100,11 +100,11 @@ workflows:
   nightly:
     triggers:
       - schedule:
-          cron: "35 * * * *"
+          cron: "0 4 * * *"
           filters:
             branches:
               only:
-                - fix-nightly
+                - master
     jobs:
       - build
       - check-db:
