@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import platform
+import signal
 import sys
 from asyncio import subprocess
 
@@ -29,6 +30,7 @@ def kill_child_processes(parent_pid):
             print("SIGTERM >>> " + " ".join(process.cmdline()[1:]))
         except Exception:
             pass
+        process.send_signal(signal.SIGTERM)
         process.wait()
 
 
