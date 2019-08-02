@@ -19,7 +19,7 @@
             "ConstantinopleFix" : [
                 {
                     "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token Queried callee",
-                    "hash" : "0x835f6ee269a1e234831112a4944f78e2d864872b16d3818fc7e6d5a29feef19a",
+                    "hash" : "0x11337a03e4be7395946f9ea2239bad5cc24c59dbaa03b589b1f3606cad69daf1",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -30,7 +30,7 @@
                 },
                 {
                     "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token NOT Queried callee",
-                    "hash" : "0x847f45f017137d4f858ce1bd8bc2eddef9b20b68d5efe665299fd235d04b131a",
+                    "hash" : "0xbe3629ad4ed17d75039f188182ab97a658e77436a3b6e16c4d8c9627dd6c24f6",
                     "indexes" : {
                         "data" : 1,
                         "gas" : 0,
@@ -41,7 +41,7 @@
                 },
                 {
                     "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token Queried callee",
-                    "hash" : "0xe8560e548376c1cba54e2344bfbecd8c555fde99d7fda5888577064ebffa67ed",
+                    "hash" : "0x6432379977f941a8d95ffb4ca718192b197a713dff3abaf156c209307e362f68",
                     "indexes" : {
                         "data" : 2,
                         "gas" : 0,
@@ -52,7 +52,7 @@
                 },
                 {
                     "_comment": "This creates a transfer tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token NOT Queried callee",
-                    "hash" : "0xdf158afd74ea8d2460c0b2b0268fdef06575c9bfbe9beaffe048d90a29c52153",
+                    "hash" : "0x320eb1e564b39b592d68fc7b43970fd1d1494da62d3e2a7c5229bfed564c554b",
                     "indexes" : {
                         "data" : 3,
                         "gas" : 0,
@@ -75,26 +75,29 @@
                 "storage" : {
                 }
             },
-            "0xcab77b4b9bf9b92a53572091c5798c570051be8f" : {
+            "0xbccde45cea7596ebe64002357f1545664090c577" : {
                 "_comment": "This is the Caller contract's address, need to have some balance in order to transfer to the callee",
-                "balance" : "0x05",
-                "code" : "60806040526004361061004b5763ffffffff7c01000000000000000000000000000000000000000000000000000000006000350416634720c2078114610050578063f1b9b84114610085575b600080fd5b6100836004803603602081101561006657600080fd5b503573ffffffffffffffffffffffffffffffffffffffff166100b8565b005b6100836004803603602081101561009b57600080fd5b503573ffffffffffffffffffffffffffffffffffffffff16610103565b60405173ffffffffffffffffffffffffffffffffffffffff8216903480156108fc02916000818181858888f193505050501580156100fa573d6000803e3d6000fd5b50506001600055565b600060408180808064514b430001600019f15060405173ffffffffffffffffffffffffffffffffffffffff8316903480156108fc02916000818181858888f19350505050158015610158573d6000803e3d6000fd5b505060016000555056fea165627a7a723058201465d3759fec16044e90ed7f29647ce2247a671ea2fbf736fed58b3faf0dd3d50029",
+                "balances" : {
+                    "0x8bb0": "0x05",
+                    "0x1234": "0x05"
+                },
+                "code" : "60806040526004361061004c576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680634720c20714610051578063f1b9b84114610095575b600080fd5b6100936004803603602081101561006757600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff1690602001909291905050506100d9565b005b6100d7600480360360208110156100ab57600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061012b565b005b8073ffffffffffffffffffffffffffffffffffffffff166108fc349081150290604051600060405180830381858888f1935050505015801561011f573d6000803e3d6000fd5b50600160008190555050565b6000604081600080600064514b430001600019f1508173ffffffffffffffffffffffffffffffffffffffff166108fc349081150290604051600060405180830381858888f19350505050158015610186573d6000803e3d6000fd5b506001600081905550505056fea165627a7a7230582029b7b89a002aa885762e1c3a7ed548280ffa70dd7ce8c4d265cc73c411d71e890029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
             },
-            "0x375eae23b65feb1833072328647902f1fe9afa61" : {
+            "0xfe69c2b7864756e0e2d9a1233c3f4813746d12f1" : {
                 "_comment": "This is the Token Queried Callee contract's address",
-                "balance" : "0x05",
-                "code" : "6080604052600a601f565b6040816000808064514b430001600019f15050005b602060405190810160405280600190602082028038833950919291505056fea165627a7a723058202a1d67ee3ffb5a930a75128d4cd6370968b1a7b5111ce86c6084ad20ed57e03d0029",
+                "balance" : "0x00",
+                "code" : "6080604052600a6020565b604081600080600064514b430001600019f15050005b60206040519081016040528060019060208202803883398082019150509050509056fea165627a7a723058202d63b98c0773dba1c20cd65037297a0fa321f2966287feb0c6cf4750415a8abf0029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
             },
-            "0x9fe1c58215407d67719ba680360940056e5eceb7" : {
+            "0x36cc3c4fe09c5c7d7c7d920832f86d54ad9601ce" : {
                 "_comment": "This is the Token Not Queried Callee contract's address",
-                "balance" : "0x05",
-                "code" : "608060405200fea165627a7a723058205a1266c831e5eff3a50b557f32a67cb3d76f8fb7f80efea392056e8aede628b40029",
+                "balance" : "0x00",
+                "code" : "608060405200fea165627a7a7230582051845467f0bd507de6e54f8e22138cd4bf56231f2631af3bccf323642df159e20029",
                 "nonce" : "0x00",
                 "storage" : {
                 }
@@ -103,10 +106,10 @@
         "transaction" : {
             "_comment": "The data field: 1)call1() at token queried callee, 2)call1() at token not queried callee, 3)call2() at token queried callee, 4)call2() at token not queried callee",
             "data" : [
-                "0xf1b9b841000000000000000000000000375eae23b65feb1833072328647902f1fe9afa61",
-                "0xf1b9b8410000000000000000000000009fe1c58215407d67719ba680360940056e5eceb7",
-                "0x4720c207000000000000000000000000375eae23b65feb1833072328647902f1fe9afa61",
-                "0x4720c2070000000000000000000000009fe1c58215407d67719ba680360940056e5eceb7"
+                "0xf1b9b841000000000000000000000000fe69c2b7864756e0e2d9a1233c3f4813746d12f1",
+                "0xf1b9b84100000000000000000000000036cc3c4fe09c5c7d7c7d920832f86d54ad9601ce",
+                "0x4720c207000000000000000000000000fe69c2b7864756e0e2d9a1233c3f4813746d12f1",
+                "0x4720c20700000000000000000000000036cc3c4fe09c5c7d7c7d920832f86d54ad9601ce"
             ],
             "gasLimit" : [
                 "0x061a80"
@@ -118,7 +121,7 @@
             "gasPrice" : "0x01",
             "nonce" : "0x00",
             "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
-            "to" : "0xcab77b4b9bf9b92a53572091c5798c570051be8f",
+            "to" : "0xbccde45cea7596ebe64002357f1545664090c577",
             "value" : [
                 "0x00",
                 "0x01"
