@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from collections import Counter, deque, defaultdict
+from collections import Counter, deque
 from fractions import Fraction
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -1812,3 +1812,15 @@ class ShardState:
 
     def commit_by_hash(self, h):
         self.db.commit_minor_block_by_hash(h)
+
+    def get_minor_block_by_hash(
+        self, block_hash: bytes, need_extra_info: bool
+    ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
+        # TODO: implement extra info
+        return self.db.get_minor_block_by_hash(block_hash), None
+
+    def get_minor_block_by_height(
+        self, height: int, need_extra_info: bool
+    ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
+        # TODO: implement extra info
+        return self.db.get_minor_block_by_height(height), None

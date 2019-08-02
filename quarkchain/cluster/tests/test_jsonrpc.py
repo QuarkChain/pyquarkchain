@@ -249,13 +249,19 @@ class TestJSONRPC(unittest.TestCase):
             self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block1)))
 
             # By id
-            resp = send_request(
-                "getMinorBlockById",
-                ["0x" + block1.header.get_hash().hex() + "0" * 8, False],
-            )
-            self.assertEqual(
-                resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
-            )
+            for need_extra_info in [True, False]:
+                resp = send_request(
+                    "getMinorBlockById",
+                    [
+                        "0x" + block1.header.get_hash().hex() + "0" * 8,
+                        False,
+                        need_extra_info,
+                    ],
+                )
+                self.assertEqual(
+                    resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
+                )
+
             resp = send_request(
                 "getMinorBlockById",
                 ["0x" + block1.header.get_hash().hex() + "0" * 8, True],
@@ -268,10 +274,14 @@ class TestJSONRPC(unittest.TestCase):
             self.assertIsNone(resp)
 
             # By height
-            resp = send_request("getMinorBlockByHeight", ["0x0", "0x1", False])
-            self.assertEqual(
-                resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
-            )
+            for need_extra_info in [True, False]:
+                resp = send_request(
+                    "getMinorBlockByHeight", ["0x0", "0x1", False, need_extra_info]
+                )
+                self.assertEqual(
+                    resp["transactions"][0], "0x" + tx.get_hash().hex() + "00000002"
+                )
+
             resp = send_request("getMinorBlockByHeight", ["0x0", "0x1", True])
             self.assertEqual(
                 resp["transactions"][0]["hash"], "0x" + tx.get_hash().hex()

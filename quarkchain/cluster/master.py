@@ -537,8 +537,10 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_minor_block_by_hash(self, block_hash, branch):
-        request = GetMinorBlockRequest(branch, minor_block_hash=block_hash)
+    async def get_minor_block_by_hash(self, block_hash, branch, need_extra_info):
+        request = GetMinorBlockRequest(
+            branch, minor_block_hash=block_hash, need_extra_info=need_extra_info
+        )
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_MINOR_BLOCK_REQUEST, request
         )
@@ -546,8 +548,10 @@ class SlaveConnection(ClusterConnection):
             return None
         return resp.minor_block
 
-    async def get_minor_block_by_height(self, height, branch):
-        request = GetMinorBlockRequest(branch, height=height)
+    async def get_minor_block_by_height(self, height, branch, need_extra_info):
+        request = GetMinorBlockRequest(
+            branch, height=height, need_extra_info=need_extra_info
+        )
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_MINOR_BLOCK_REQUEST, request
         )
@@ -1478,14 +1482,16 @@ class MasterServer:
     def is_mining(self):
         return self.root_miner.is_enabled()
 
-    async def get_minor_block_by_hash(self, block_hash, branch):
+    async def get_minor_block_by_hash(self, block_hash, branch, need_extra_info):
         if branch.value not in self.branch_to_slaves:
             return None
 
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_minor_block_by_hash(block_hash, branch)
+        return await slave.get_minor_block_by_hash(block_hash, branch, need_extra_info)
 
-    async def get_minor_block_by_height(self, height: Optional[int], branch):
+    async def get_minor_block_by_height(
+        self, height: Optional[int], branch, need_extra_info
+    ):
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1496,7 +1502,7 @@ class MasterServer:
             if height is not None
             else self.branch_to_shard_stats[branch.value].height
         )
-        return await slave.get_minor_block_by_height(height, branch)
+        return await slave.get_minor_block_by_height(height, branch, need_extra_info)
 
     async def get_transaction_by_hash(self, tx_hash, branch):
         """ Returns (MinorBlock, i) where i is the index of the tx in the block tx_list """

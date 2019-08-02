@@ -35,6 +35,8 @@ from quarkchain.cluster.rpc import (
     AddMinorBlockHeaderListRequest,
     CheckMinorBlockResponse,
     GetAllTransactionsResponse,
+    GetMinorBlockRequest,
+    MinorBlockExtraInfo,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -353,19 +355,25 @@ class MasterConnection(ClusterConnection):
 
         return CreateClusterPeerConnectionResponse(error_code=0)
 
-    async def handle_get_minor_block_request(self, req):
+    async def handle_get_minor_block_request(self, req: GetMinorBlockRequest):
         if req.minor_block_hash != bytes(32):
-            block = self.slave_server.get_minor_block_by_hash(
-                req.minor_block_hash, req.branch
+            block, extra_info = self.slave_server.get_minor_block_by_hash(
+                req.minor_block_hash, req.branch, req.need_extra_info
             )
         else:
-            block = self.slave_server.get_minor_block_by_height(req.height, req.branch)
+            block, extra_info = self.slave_server.get_minor_block_by_height(
+                req.height, req.branch, req.need_extra_info
+            )
 
         if not block:
             empty_block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
             return GetMinorBlockResponse(error_code=1, minor_block=empty_block)
 
-        return GetMinorBlockResponse(error_code=0, minor_block=block)
+        return GetMinorBlockResponse(
+            error_code=0,
+            minor_block=block,
+            extra_info=extra_info and MinorBlockExtraInfo(**extra_info),
+        )
 
     async def handle_get_transaction_request(self, req):
         minor_block, i = self.slave_server.get_transaction_by_hash(
@@ -1229,17 +1237,21 @@ class SlaveServer:
             )
         return results
 
-    def get_minor_block_by_hash(self, block_hash, branch: Branch):
+    def get_minor_block_by_hash(
+        self, block_hash, branch: Branch, need_extra_info
+    ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.db.get_minor_block_by_hash(block_hash)
+        return shard.state.get_minor_block_by_hash(block_hash, need_extra_info)
 
-    def get_minor_block_by_height(self, height, branch):
+    def get_minor_block_by_height(
+        self, height, branch, need_extra_info
+    ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.db.get_minor_block_by_height(height)
+        return shard.state.get_minor_block_by_height(height, need_extra_info)
 
     def get_transaction_by_hash(self, tx_hash, branch):
         shard = self.shards.get(branch, None)
