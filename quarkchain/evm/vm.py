@@ -46,6 +46,8 @@ class CallData(object):
 
     # Convert calldata to bytes
     def extract_all(self, start=0):
+        if self.size == 0:
+            return b""
         if start >= self.size:
             return 0
         d = self.data[self.offset + start : self.offset + self.size]
