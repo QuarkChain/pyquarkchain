@@ -228,8 +228,8 @@ def proc_current_mnt_id(ext, msg):
 def proc_transfer_mnt(ext, msg):
     from quarkchain.evm.messages import apply_msg
 
-    # Data must be exactly 96 bytes
-    if msg.data.size != 96:
+    # Data must be >= 96 bytes
+    if msg.data.size < 96:
         return 0, 0, []
     gascost = 3
     if msg.gas < gascost:
@@ -237,12 +237,13 @@ def proc_transfer_mnt(ext, msg):
     to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
     value = msg.data.extract32(64)
+    data = msg.data.extract_all(96)
     new_msg = vm.Message(
         msg.sender,
         to,
         value,
         msg.gas - gascost,
-        b"",
+        data,
         msg.depth + 1,
         code_address=to,
         static=msg.static,
