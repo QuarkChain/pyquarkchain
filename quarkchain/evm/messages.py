@@ -112,7 +112,6 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
 
 
 def validate_transaction(state, tx):
-
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
@@ -197,6 +196,7 @@ def apply_transaction_message(
     is_cross_shard=False,
     contract_address=b"",
 ):
+
     local_fee_rate = (
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
     )
@@ -218,7 +218,11 @@ def apply_transaction_message(
     gas_used = evm_gas_start - gas_remained + gas_used_start
 
     if not result:
-        log_tx.debug("TX FAILED", reason="out of gas", gas_remained=gas_remained)
+        log_tx.debug(
+            "TX FAILED",
+            reason="out of gas or transfer value is 0 and transfer token is non-default and un-queried",
+            gas_remained=gas_remained,
+        )
         output = b""
         success = 0
     # Transaction success
@@ -574,6 +578,15 @@ def _apply_msg(ext, msg, code):
             data=dat if len(dat) < 2500 else ("data<%d>" % len(dat)),
             post_storage=ext.log_storage(msg.to),
         )
+
+    if (
+        res == 1
+        and code != b""
+        and msg.transfer_token_id != ext.default_state_token
+        and not msg.token_id_queried
+        and msg.value != 0
+    ):
+        res = 0
 
     if res == 0:
         log_msg.debug("REVERTING")

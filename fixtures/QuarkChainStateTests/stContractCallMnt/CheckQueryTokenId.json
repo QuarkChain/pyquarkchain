@@ -1,0 +1,154 @@
+{
+    "CheckQueryTokenId" : {
+        "_info" : {
+            "comment": "pragma solidity ^0.5.0;\n\ncontract CallPrecompiled {\n\n    uint256 x = 0;\n\n\tfunction test (bool flag) public payable returns(uint256[1] memory id){\n\t    if (flag) {\n\t \t    assembly {\n\t \t        let _ := call(not(0), 0x514b430001, 0, 0, 0x00, id, 0x40)\n\t\t    }\n\t    }\n\t\tx = 1;\n\t}\n\n}",
+            "filledwith" : "",
+            "lllcversion" : "",
+            "source" : "",
+            "sourceHash" : ""
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that queries its token id and transfer value 0",
+                    "hash" : "0xd4910b6fe26d7d53887b121bbb5a0a6e7d7ed808585a7ba43d12491467bf3fbf",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that does not query its token id and transfer value 0",
+                    "hash" : "0x9607a70a7d7102344ed9b258050605fbef12b6265734ca083c067a94a5479025",
+                    "indexes" : {
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that queries its token id and transfer value 1",
+                    "hash" : "0x9dac4e24bfed50f23564b018c7e38c960fb2a8f4d8fa3511c8f2e206202e547f",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with transfer token id 0x1234 that does not query its token id and transfer value 1",
+                    "hash" : "0x8fc627e41056a129cd6d4b406703f6456009b104d896afc90c916f8367739eee",
+                    "indexes" : {
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with default token id that queries its token id and transfer value 0",
+                    "hash" : "0xd4910b6fe26d7d53887b121bbb5a0a6e7d7ed808585a7ba43d12491467bf3fbf",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with default token id that does not queries its token id and transfer value 0",
+                    "hash" : "0x9607a70a7d7102344ed9b258050605fbef12b6265734ca083c067a94a5479025",
+                    "indexes" : {
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with default token id that queries its token id and transfer value 1",
+                    "hash" : "0x4acea4432b444a4107532a1a533d5def2f6422c67ff40befe20c2ffcfd45afd2",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with default token id that does not queries its token id and transfer value 1",
+                    "hash" : "0x8d6208489020ccacb9cf52f55474648c7310e58150562cad2388f44038dd23f7",
+                    "indexes" : {
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
+                "balances" : {
+                    "0x8bb0": "0x0de0b6b3a7640000",
+                    "0x1234": "0x0de0b6b3a7640000"
+                },
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x9876e235a87f520c827317a8987c9e1fde804485" : {
+                "_comment": "This is a contract with a function to call the precompiled contract PROC_CURRENT_MNT_ID",
+                "balance" : "0x00",
+                "code" : "608060405260043610603e5763ffffffff7c010000000000000000000000000000000000000000000000000000000060003504166336091dff81146043575b600080fd5b605f60048036036020811015605757600080fd5b503515156095565b6040518082602080838360005b838110156082578181015183820152602001606c565b5050505090500191505060405180910390f35b609b60bd565b811560b3576040816000808064514b430001600019f1505b6001600055919050565b602060405190810160405280600190602082028038833950919291505056fea165627a7a72305820f2c597ca86907639ead5eb0cfb328589c8d763dae0b2b6568ea21e596c85927a0029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "_comment": "In the data field, the first one for that the function is called (i.e. transfer token id is queried), second otherwise",
+            "data" : [
+                "0x36091dff0000000000000000000000000000000000000000000000000000000000000001",
+                "0x36091dff0000000000000000000000000000000000000000000000000000000000000000"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "transferTokenId": [
+                "0x8bb0",
+                "0x1234"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0x9876e235a87f520c827317a8987c9e1fde804485",
+            "value" : [
+                "0x00",
+                "0x01"
+            ]
+        }
+    }
+}

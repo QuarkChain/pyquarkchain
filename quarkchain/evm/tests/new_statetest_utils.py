@@ -119,7 +119,6 @@ def compute_state_test_unit(state, txdata, indices, konfig, is_qkc_state, qkc_en
         # Run it
         prev = state.to_dict()
         success, output = apply_transaction(state, tx, tx_wrapper_hash=bytes(32))
-        print("Applied tx")
     except InvalidTransaction as e:
         print("Exception: %r" % e)
         success, output = False, b""

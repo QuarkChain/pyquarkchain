@@ -30,7 +30,9 @@ TT256M1 = 2 ** 256 - 1
 TT255 = 2 ** 255
 
 MAX_DEPTH = 1024
-
+PROC_CURRENT_MNT_ID = (
+    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
+)
 
 # Wrapper to store call data. This is needed because it is possible to
 # call a contract N times with N bytes of data with a gas cost of O(N);
@@ -112,6 +114,7 @@ class Message(object):
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
+        self.token_id_queried = False
 
     def __repr__(self):
         return "<Message(to:%s...)>" % self.to[:8]
@@ -843,6 +846,8 @@ def vm_execute(ext, msg, code):
                 else:
                     raise Exception("Lolwut")
                 # Get result
+                if call_msg.to == PROC_CURRENT_MNT_ID:
+                    msg.token_id_queried = True
                 result, gas, data = ext.msg(call_msg)
                 if result == 0:
                     stk.append(0)

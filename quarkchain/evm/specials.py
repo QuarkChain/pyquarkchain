@@ -218,6 +218,7 @@ def proc_ecpairing(ext, msg):
 
 
 def proc_current_mnt_id(ext, msg):
+    msg.token_id_queried = True
     gascost = 3
     if msg.gas < gascost:
         return 0, 0, []
