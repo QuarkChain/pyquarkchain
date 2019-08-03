@@ -57,10 +57,10 @@ jobs:
             mkdir /tmp/evmtests
             cd fixtures/GeneralStateTests
             if [[ $CIRCLE_NODE_INDEX = 2 ]]; then \
-              # technique: https://unix.stackexchange.com/posts/53533/revisions
+              # technique: https://unix.stackexchange.com/a/53533
               find -name "*.json" | sed -n 'n;p' | xargs cp --parents -t /tmp/evmtests/ && \
               cd - && \
-              python3 quarkchain/evm/tests/test_state.py tmp/evmtests; \
+              python3 quarkchain/evm/tests/test_state.py /tmp/evmtests; \
             fi
 
       - run:
@@ -69,10 +69,10 @@ jobs:
             mkdir /tmp/evmtests
             cd fixtures/GeneralStateTests
             if [[ $CIRCLE_NODE_INDEX = 3 ]]; then \
-              # technique: https://unix.stackexchange.com/posts/53533/revisions
+              # technique: https://unix.stackexchange.com/a/53533
               find -name "*.json" | sed -n 'p;n' | xargs cp --parents -t /tmp/evmtests/ && \
               cd - && \
-              python3 quarkchain/evm/tests/test_state.py tmp/evmtests; \
+              python3 quarkchain/evm/tests/test_state.py /tmp/evmtests; \
             fi
 
       - run:
