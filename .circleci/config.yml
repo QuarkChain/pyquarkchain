@@ -30,7 +30,7 @@ jobs:
   test:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 3
+    parallelism: 4
     working_directory: /code/pyquarkchain
 
     steps:
@@ -52,9 +52,28 @@ jobs:
             if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=90; fi
 
       - run:
-          name: Run EVM tests
+          name: Run EVM tests - runner 1
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
+            mkdir /tmp/evmtests
+            cd fixtures/GeneralStateTests
+            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then \
+              # technique: https://unix.stackexchange.com/posts/53533/revisions
+              find -name "*.json" | sed -n 'n;p' | xargs cp --parents -t /tmp/evmtests/ && \
+              cd - && \
+              python3 quarkchain/evm/tests/test_state.py tmp/evmtests; \
+            fi
+
+      - run:
+          name: Run EVM tests - runner 2
+          command: |
+            mkdir /tmp/evmtests
+            cd fixtures/GeneralStateTests
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then \
+              # technique: https://unix.stackexchange.com/posts/53533/revisions
+              find -name "*.json" | sed -n 'p;n' | xargs cp --parents -t /tmp/evmtests/ && \
+              cd - && \
+              python3 quarkchain/evm/tests/test_state.py tmp/evmtests; \
+            fi
 
       - run:
           name: Run QuarkChain-specific EVM tests
