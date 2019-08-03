@@ -6,43 +6,16 @@ version: 2
 jobs:
   build:
     docker:
-      - image: qcdll/circleci-pypy3-rocksdb
-    parallelism: 2
-
-    working_directory: ~/repo
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    working_directory: /code/pyquarkchain
 
     steps:
       - checkout
 
-      # The librocksdb* that comes with the image does not work on circle ci :(
-      # Let's rebuild
-      - run:
-          name: Cleanup Prebuilt RocksDB
-          command: |
-            cd /opt/rocksdb
-            make clean
-            rm /usr/lib/librocksdb* /usr/local/lib/librocksdb*
-
-      # Build, install and cache librocksdb
-      - restore_cache:
-          keys:
-          - rocksdb-v1
-
-      - run:
-          name: Install RocksDB
-          command: |
-            cd /opt/rocksdb && DEBUG_LEVEL=0 make shared_lib install-shared
-            ln -fs /opt/rocksdb/librocksdb.so* /usr/lib/
-
-      - save_cache:
-          paths:
-            - /opt/rocksdb
-          key: rocksdb-v1
-
       # Download and cache python modules
       - restore_cache:
           keys:
-          - pip-v2-{{ checksum "requirements.txt" }}
+          - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
       - run:
           name: Install Project Dependencies
@@ -51,20 +24,102 @@ jobs:
 
       - save_cache:
           paths:
-            - /opt/pypy3-v6.0.0-linux64
-          key: pip-v2-{{ checksum "requirements.txt" }}
+            - /usr/local
+          key: pyquarkchain-dep-{{ checksum "requirements.txt" }}
+
+  test:
+    docker:
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    parallelism: 4
+    working_directory: /code/pyquarkchain
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
       # Run tests!
       - run:
-          name: Run unittest/py.test Tests
+          name: Run py.test tests excluding integration test
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then pypy3 -m pytest ; fi
+            if [[ $CIRCLE_NODE_INDEX = 0 ]]; then python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py --timeout=30; fi
 
       - run:
-          name: Run EVM Tests
+          name: Run py.test tests only on integration test
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then git apply fixtures/0001-Necessary-changes-to-let-evm-tests-pass.patch && pypy3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
+            if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=90; fi
 
-      - store_artifacts:
-          path: test-reports
-          destination: test-reports
+      - run:
+          name: Run EVM tests - runner 1
+          command: |
+            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then \
+              # technique: https://unix.stackexchange.com/a/53533
+              find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && \
+              python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null; \
+            fi
+
+      - run:
+          name: Run EVM tests - runner 2
+          command: |
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then \
+              # technique: https://unix.stackexchange.com/a/53533
+              find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && \
+              python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null; \
+            fi
+
+      - run:
+          name: Run QuarkChain-specific EVM tests
+          command: |
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
+
+  check-db:
+    docker:
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    working_directory: /code/pyquarkchain
+
+    steps:
+      - checkout
+
+      - restore_cache:
+          keys:
+          - pyquarkchain-dep-{{ checksum "requirements.txt" }}
+
+      - run:
+          name: Download DB snapshot
+          command: |
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
+            tar xvfz data.tar.gz
+            mkdir -p quarkchain/cluster/qkc-data
+            mv data quarkchain/cluster/qkc-data/mainnet
+            rm data.tar.gz
+          no_output_timeout: 1h
+
+      - run:
+          name: Check DB
+          command: |
+            QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 4 * * *"
+          filters:
+            branches:
+              only:
+                - master
+    jobs:
+      - build
+      - check-db:
+          requires:
+            - build

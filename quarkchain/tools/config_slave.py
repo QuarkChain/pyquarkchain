@@ -10,6 +10,8 @@ import json
 import os
 
 FILE = "../../testnet/2/cluster_config_template.json"
+if "QKC_CONFIG" in os.environ:
+    FILE = os.environ["QKC_CONFIG"]
 
 
 def main():
@@ -50,7 +52,7 @@ def main():
                 "HOST": host,
                 "PORT": int(port),
                 "ID": "S%d" % i,
-                "SHARD_MASK_LIST": [i | slave_num],
+                "CHAIN_MASK_LIST": [i | slave_num],
             }
             slave_servers.append(s)
             i += 1

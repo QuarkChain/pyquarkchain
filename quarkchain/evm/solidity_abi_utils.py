@@ -7,7 +7,7 @@ def int_to_bytes(n: int):
     """
     similar to hex(n), but align to bytes
     """
-    return n.to_bytes((n.bit_length() + 7) // 8, 'big')
+    return n.to_bytes((n.bit_length() + 7) // 8, "big")
 
 
 def tx_to_typed_data(raw_tx):
@@ -15,56 +15,54 @@ def tx_to_typed_data(raw_tx):
     see UnsignedTransaction, exludes ['v', 'r', 's', 'version']
     """
     return [
-      {
-        "type": "uint256",
-        "name": "nonce",
-        "value": "0x{}".format(int_to_bytes(raw_tx.nonce).hex())
-      },
-      {
-        "type": "uint256",
-        "name": "gasPrice",
-        "value": "0x{}".format(int_to_bytes(raw_tx.gasprice).hex())
-      },
-      {
-        "type": "uint256",
-        "name": "gasLimit",
-        "value": "0x{}".format(int_to_bytes(raw_tx.startgas).hex())
-      },
-      {
-        "type": "uint160",
-        "name": "to",
-        "value": "0x{}".format(raw_tx.to.hex())
-      },
-      {
-        "type": "uint256",
-        "name": "value",
-        "value": "0x{}".format(int_to_bytes(raw_tx.value).hex())
-      },
-      {
-        "type": "bytes",
-        "name": "data",
-        "value": "0x{}".format(raw_tx.data.hex())
-      },
-      {
-        "type": "uint32",
-        "name": "fromFullShardId",
-        "value": "0x{}".format(int_to_bytes(raw_tx.from_full_shard_id).hex())
-      },
-      {
-        "type": "uint32",
-        "name": "toFullShardId",
-        "value": "0x{}".format(int_to_bytes(raw_tx.to_full_shard_id).hex())
-      },
-      {
-        "type": "uint256",
-        "name": "networkId",
-        "value": "0x{}".format(int_to_bytes(raw_tx.network_id).hex())
-      },
-      {
-        "type": "string",
-        "name": "qkcDomain",
-        "value": "bottom-quark"
-      }
+        {
+            "type": "uint256",
+            "name": "nonce",
+            "value": "0x{}".format(int_to_bytes(raw_tx.nonce).hex()),
+        },
+        {
+            "type": "uint256",
+            "name": "gasPrice",
+            "value": "0x{}".format(int_to_bytes(raw_tx.gasprice).hex()),
+        },
+        {
+            "type": "uint256",
+            "name": "gasLimit",
+            "value": "0x{}".format(int_to_bytes(raw_tx.startgas).hex()),
+        },
+        {"type": "uint160", "name": "to", "value": "0x{}".format(raw_tx.to.hex())},
+        {
+            "type": "uint256",
+            "name": "value",
+            "value": "0x{}".format(int_to_bytes(raw_tx.value).hex()),
+        },
+        {"type": "bytes", "name": "data", "value": "0x{}".format(raw_tx.data.hex())},
+        {
+            "type": "uint256",
+            "name": "networkId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.network_id).hex()),
+        },
+        {
+            "type": "uint32",
+            "name": "fromFullShardKey",
+            "value": "0x{}".format(int_to_bytes(raw_tx.from_full_shard_key).hex()),
+        },
+        {
+            "type": "uint32",
+            "name": "toFullShardKey",
+            "value": "0x{}".format(int_to_bytes(raw_tx.to_full_shard_key).hex()),
+        },
+        {
+            "type": "uint64",
+            "name": "gasTokenId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.gas_token_id).hex()),
+        },
+        {
+            "type": "uint64",
+            "name": "transferTokenId",
+            "value": "0x{}".format(int_to_bytes(raw_tx.transfer_token_id).hex()),
+        },
+        {"type": "string", "name": "qkcDomain", "value": "bottom-quark"},
     ]
 
 
@@ -86,21 +84,21 @@ def solidity_pack(types: Iterable, values: Iterable):
         elif t in ("bool", "address"):
             raise ValueError("unsupported type for now")
         elif t.startswith("bytes"):
-            size = int(re.search(r'\d+', t).group())
+            size = int(re.search(r"\d+", t).group())
             if size < 1 or size > 32:
                 raise ValueError("unsupported byte size")
             value = bytes.fromhex(v[2:])
             if len(value) > size:
                 raise ValueError("data is larger than size")
-            retv += value.rjust(size, b'\x00')
+            retv += value.rjust(size, b"\x00")
         elif t.startswith("int") or t.startswith("uint"):
-            size = int(re.search(r'\d+', t).group())
+            size = int(re.search(r"\d+", t).group())
             if size % 8 != 0 or size < 8 or size > 256:
                 raise ValueError("unsupported int size")
             value = bytes.fromhex(v[2:])
             if len(value) > size // 8:
                 raise ValueError("data is larger than size")
-            retv += value.rjust(size // 8, b'\x00')
+            retv += value.rjust(size // 8, b"\x00")
         else:
             raise ValueError("Unsupported or invalid type: {}".format(t))
     return retv
@@ -116,11 +114,15 @@ def solidity_sha3(types: Iterable, values: Iterable):
 def typed_signature_hash(tx):
     schema = list(map(lambda x: "{} {}".format(x["type"], x["name"]), tx))
     types = list(map(lambda x: x["type"], tx))
-    data = list(map(lambda x: bytes.fromhex(x['value'][2:]) if x['type'] == "bytes" else x['value'], tx))
+    data = list(
+        map(
+            lambda x: bytes.fromhex(x["value"][2:])
+            if x["type"] == "bytes"
+            else x["value"],
+            tx,
+        )
+    )
     return solidity_sha3(
-        ['bytes32', 'bytes32'],
-        [
-            solidity_sha3(['string'] * len(tx), schema),
-            solidity_sha3(types, data)
-        ]
+        ["bytes32", "bytes32"],
+        [solidity_sha3(["string"] * len(tx), schema), solidity_sha3(types, data)],
     )

@@ -7,12 +7,13 @@ from quarkchain.core import (
     MinorBlockHeader,
     MinorBlock,
     Branch,
-    ShardInfo,
     RootBlockHeader,
     RootBlock,
+    TokenBalanceMap,
+    XshardTxCursorInfo,
 )
 from quarkchain.evm.state import State as EvmState
-from quarkchain.utils import sha3_256, check
+from quarkchain.utils import sha3_256, check, token_id_encode
 
 
 class GenesisManager:
@@ -27,45 +28,55 @@ class GenesisManager:
         header = RootBlockHeader(
             version=genesis.VERSION,
             height=genesis.HEIGHT,
-            shard_info=ShardInfo.create(genesis.SHARD_SIZE),
             hash_prev_block=bytes.fromhex(genesis.HASH_PREV_BLOCK),
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
+            total_difficulty=genesis.DIFFICULTY,
+            nonce=genesis.NONCE,
         )
         return RootBlock(header=header, minor_block_header_list=[])
 
     def create_minor_block(
-        self, root_block: RootBlock, shard_id: int, evm_state: EvmState
+        self, root_block: RootBlock, full_shard_id: int, evm_state: EvmState
     ) -> MinorBlock:
         """ Create genesis block for shard.
         Genesis block's hash_prev_root_block is set to the genesis root block.
         Genesis state will be committed to the given evm_state.
+        Based on ALLOC, genesis_token will be added to initial accounts.
         """
-        branch = Branch.create(self._qkc_config.SHARD_SIZE, shard_id)
-        shard_config = self._qkc_config.SHARD_LIST[shard_id]
+        branch = Branch(full_shard_id)
+        shard_config = self._qkc_config.shards[full_shard_id]
         genesis = shard_config.GENESIS
 
-        for address_hex, amount_in_wei in genesis.ALLOC.items():
+        for address_hex, alloc_amount in genesis.ALLOC.items():
             address = Address.create_from(bytes.fromhex(address_hex))
-            check(address.get_shard_id(self._qkc_config.SHARD_SIZE) == shard_id)
-            evm_state.full_shard_id = address.full_shard_id
-            evm_state.delta_balance(address.recipient, amount_in_wei)
+            check(
+                self._qkc_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                == full_shard_id
+            )
+            evm_state.full_shard_key = address.full_shard_key
+            for k, v in alloc_amount.items():
+                evm_state.delta_token_balance(address.recipient, token_id_encode(k), v)
 
         evm_state.commit()
 
         meta = MinorBlockMeta(
             hash_merkle_root=bytes.fromhex(genesis.HASH_MERKLE_ROOT),
             hash_evm_state_root=evm_state.trie.root_hash,
+            xshard_tx_cursor_info=XshardTxCursorInfo(root_block.header.height, 0, 0),
         )
 
         local_fee_rate = 1 - self._qkc_config.reward_tax_rate  # type: Fraction
-        coinbase_amount = (
-            shard_config.COINBASE_AMOUNT
+        coinbase_tokens = {
+            self._qkc_config.genesis_token: shard_config.COINBASE_AMOUNT
             * local_fee_rate.numerator
             // local_fee_rate.denominator
-        )
-        coinbase_address = Address.create_empty_account(shard_id)
+        }
+
+        coinbase_address = Address.create_empty_account(full_shard_id)
 
         header = MinorBlockHeader(
             version=genesis.VERSION,
@@ -75,10 +86,13 @@ class GenesisManager:
             hash_prev_root_block=root_block.header.get_hash(),
             evm_gas_limit=genesis.GAS_LIMIT,
             hash_meta=sha3_256(meta.serialize()),
-            coinbase_amount=coinbase_amount,
+            coinbase_amount_map=TokenBalanceMap(coinbase_tokens),
             coinbase_address=coinbase_address,
             create_time=genesis.TIMESTAMP,
             difficulty=genesis.DIFFICULTY,
             extra_data=bytes.fromhex(genesis.EXTRA_DATA),
         )
-        return MinorBlock(header=header, meta=meta, tx_list=[])
+        return (
+            MinorBlock(header=header, meta=meta, tx_list=[]),
+            TokenBalanceMap(coinbase_tokens),
+        )

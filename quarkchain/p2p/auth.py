@@ -22,7 +22,11 @@ from quarkchain.p2p.cancel_token.token import CancelToken
 from quarkchain.p2p import ecies
 from quarkchain.p2p import kademlia
 from quarkchain.p2p.constants import REPLY_TIMEOUT
-from quarkchain.p2p.exceptions import BadAckMessage, DecryptionError, HandshakeFailure
+from quarkchain.p2p.exceptions import (
+    BadAckMessage,
+    DecryptionError,
+    HandshakeDisconnectedFailure,
+)
 from quarkchain.p2p.utils import sxor
 
 from .constants import (
@@ -36,6 +40,8 @@ from .constants import (
     SIGNATURE_LEN,
     SUPPORTED_RLPX_VERSION,
 )
+
+opened_connections = {}
 
 
 async def handshake(
@@ -52,6 +58,7 @@ async def handshake(
     use_eip8 = False
     initiator = HandshakeInitiator(remote, privkey, use_eip8, token)
     reader, writer = await initiator.connect()
+    opened_connections[remote.__repr__()] = (reader, writer)
     aes_secret, mac_secret, egress_mac, ingress_mac = await _handshake(
         initiator, reader, writer, token
     )
@@ -81,7 +88,7 @@ async def _handshake(
     if reader.at_eof():
         # This is what happens when Parity nodes have blacklisted us
         # (https://github.com/ethereum/py-evm/issues/901).
-        raise HandshakeFailure(
+        raise HandshakeDisconnectedFailure(
             "%s disconnected before sending auth ack", repr(initiator.remote)
         )
 

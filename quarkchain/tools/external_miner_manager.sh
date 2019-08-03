@@ -29,23 +29,16 @@ while getopts ":c:p:t:h:" opt; do
 done
 shift $((OPTIND -1))
 
-shards=()
-shard_cnt=$(jq '.QUARKCHAIN.SHARD_LIST | length' < $config)
-end_shard=$(( $shard_cnt - 1))
-for i in $(seq 0 $end_shard); do
-	shards+=("$i")
-done
-
+# TODO: following full shard key encoding only works for testnet2.4
 shards_by_process=()
-i=0
-for shard in "${shards[@]}"; do
-	shards_by_process[$(( i % $process ))]+=" $shard"
-	i=$(( $i + 1 ))
+for chain_id in $(seq 0 7); do
+	shard=16#${chain_id}0001
+	shards_by_process[$(( chain_id % $process ))]+=" $(($shard))"
 done
 
 miner_py_path="$( cd "$(dirname "$0")" ; pwd -P )/external_miner.py"
 for shards_per_process in "${shards_by_process[@]}"; do
-	pypy3 $miner_py_path \
+	python3 $miner_py_path \
 		--host   $host \
 		--config $config \
 		--worker 1 \

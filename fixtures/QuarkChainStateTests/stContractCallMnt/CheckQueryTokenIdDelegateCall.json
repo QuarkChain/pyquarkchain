@@ -1,0 +1,131 @@
+{
+    "CheckQueryTokenIdDelegateCall" : {
+        "_info" : {
+            "comment": "contract: https://gist.github.com/czy1234/51ba5de34da1f07ad0d72b38ad8ad2b3",
+            "filledwith" : "",
+            "lllcversion" : "",
+            "source" : "",
+            "sourceHash" : ""
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token Queried callee",
+                    "hash" : "0x51be2236267d0789f13b4c254bb1bbd1d8c8700361e60e0db23d939859058598",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, queries its token id, and transfers to a Token NOT Queried callee",
+                    "hash" : "0x8f9edc74987ec6f66133fe6aaf0560413751286a3fb6599f4119848b841675ee",
+                    "indexes" : {
+                        "data" : 1,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token Queried callee",
+                    "hash" : "0xc599f237668706a32ad064779a1bd83a95845bcb116684d0fc744b33e4c54375",
+                    "indexes" : {
+                        "data" : 2,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a delegate call tx with non-default transfer token and transfer value 1, does not query its token id, and transfers to a Token NOT Queried callee",
+                    "hash" : "0x0e82403c5528f9f1c547958179866d033eb3a8aeeab3282a45f153df2c156f85",
+                    "indexes" : {
+                        "data" : 3,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 1
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
+                "balances" : {
+                    "0x8bb0": "0x0de0b6b3a7640000",
+                    "0x1234": "0x0de0b6b3a7640000"
+                },
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0xd04a9b31144d28e3a36c4ebcb99b9c79763f71f0" : {
+                "_comment": "This is the Caller contract's address, need to have some balance in order to transfer to the callee",
+                "balances" : {
+                    "0x8bb0": "0x0F",
+                    "0x1234": "0x0F"
+                },
+                "code" : "608060405260043610610057576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff1680634720c2071461005c578063c19d93fb146100a0578063f1b9b841146100cb575b600080fd5b61009e6004803603602081101561007257600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061010f565b005b3480156100ac57600080fd5b506100b5610259565b6040518082815260200191505060405180910390f35b61010d600480360360208110156100e157600080fd5b81019080803573ffffffffffffffffffffffffffffffffffffffff16906020019092919050505061025f565b005b60008173ffffffffffffffffffffffffffffffffffffffff166040516024016040516020818303038152906040527f26121ff0000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff83818316178352505050506040518082805190602001908083835b6020831015156101e057805182526020820191506020810190506020830392506101bb565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d8060008114610240576040519150601f19603f3d011682016040523d82523d6000602084013e610245565b606091505b5050905080151561025557600080fd5b5050565b60005481565b6000604081600080600064514b430001600019f15060008273ffffffffffffffffffffffffffffffffffffffff166040516024016040516020818303038152906040527f26121ff0000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff83818316178352505050506040518082805190602001908083835b6020831015156103455780518252602082019150602081019050602083039250610320565b6001836020036101000a038019825116818451168082178552505050505050905001915050600060405180830381855af49150503d80600081146103a5576040519150601f19603f3d011682016040523d82523d6000602084013e6103aa565b606091505b505090508015156103ba57600080fd5b50505056fea165627a7a72305820dba840604a237b64b827ac87754f0d88cc8f2d9af1146a1c96b35d788a6f222e0029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x9a53ff6bd2ad0f49f714ee0fdce2d3632cc51ee4" : {
+                "_comment": "This is the Token Queried Callee contract's address",
+                "balance" : "0x00",
+                "code" : "6080604052600436106049576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806326121ff014604e578063c19d93fb146056575b600080fd5b6054607e565b005b348015606157600080fd5b50606860a2565b6040518082815260200191505060405180910390f35b608460a8565b604081600080600064514b430001600019f150600160008190555050565b60005481565b60206040519081016040528060019060208202803883398082019150509050509056fea165627a7a72305820ad526371a70fb99c4f448ce34afc8a4315cee15fc20eb27dcd31ac8aab1b466d0029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0xb858b3e08ee444bb9681b5d005cd3b4224b3bbe5" : {
+                "_comment": "This is the Token Not Queried Callee contract's address",
+                "balance" : "0x00",
+                "code" : "6080604052600436106049576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff16806326121ff014604e578063c19d93fb146056575b600080fd5b6054607e565b005b348015606157600080fd5b5060686088565b6040518082815260200191505060405180910390f35b6001600081905550565b6000548156fea165627a7a723058209dfbe04c310565e6cd4d19702131fab57a3381b869eaf4f76c66766ebd6594500029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "_comment": "The data field: 1)call1() at token queried callee, 2)call1() at token not queried callee, 3)call2() at token queried callee, 4)call2() at token not queried callee",
+            "data" : [
+                "0xf1b9b8410000000000000000000000009a53ff6bd2ad0f49f714ee0fdce2d3632cc51ee4",
+                "0xf1b9b841000000000000000000000000b858b3e08ee444bb9681b5d005cd3b4224b3bbe5",
+                "0x4720c2070000000000000000000000009a53ff6bd2ad0f49f714ee0fdce2d3632cc51ee4",
+                "0x4720c207000000000000000000000000b858b3e08ee444bb9681b5d005cd3b4224b3bbe5"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "transferTokenId": [
+                "0x8bb0",
+                "0x1234"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0xd04a9b31144d28e3a36c4ebcb99b9c79763f71f0",
+            "value" : [
+                "0x00",
+                "0x01"
+            ]
+        }
+    }
+}

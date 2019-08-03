@@ -20,7 +20,7 @@ from quarkchain.p2p.exceptions import (
     PeerConnectionLost,
     HandshakeFailure,
 )
-from quarkchain.p2p.utils import sxor
+from quarkchain.p2p.utils import sxor, CLUSTER_PEER_ID_LEN, RESERVED_CLUSTER_PEER_ID
 
 
 class QuarkProtocol(Protocol):
@@ -203,7 +203,7 @@ class SecurePeer(Peer):
     master_server = None
 
     def __init__(self, quark_peer: QuarkPeer):
-        cluster_peer_id = quark_peer.remote.id % 2 ** 64
+        cluster_peer_id = quark_peer.remote.id % CLUSTER_PEER_ID_LEN
         super().__init__(
             env=self.env,
             reader=None,
@@ -217,8 +217,13 @@ class SecurePeer(Peer):
 
     async def start(self) -> str:
         """ Override Peer.start()
-        exchange hello command, establish cluster connections in master
+        exchange hello command, establish cluster connections in master;
+        executed during subprotocol handshake
         """
+        if self.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
+            return self.close_with_error(
+                "Remote is using reserved cluster peer id which is prohibited"
+            )
         self.send_hello()
 
         op, cmd, rpc_id = await self.read_command()
@@ -236,8 +241,14 @@ class SecurePeer(Peer):
         if cmd.network_id != self.env.quark_chain_config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
 
+        if (
+            cmd.genesis_root_block_hash
+            != self.master_server.root_state.get_genesis_block_hash()
+        ):
+            return self.close_with_error("genesis block mismatch")
+
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         # ip is from peer.remote, there may be 2 cases:
         #  1. dialed-out: ip is from discovery service;
         #  2. dialed-in: ip is from writer.get_extra_info("peername")
@@ -249,19 +260,13 @@ class SecurePeer(Peer):
             "Got HELLO from peer {} ({}:{})".format(self.quark_peer, self.ip, self.port)
         )
 
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
-
         self.best_root_block_header_observed = cmd.root_block_header
 
         await self.master_server.create_peer_cluster_connections(self.cluster_peer_id)
         Logger.info(
-            "Established virtual shard connections with peer {}".format(self.id.hex())
+            "Established virtual shard connections with {} cluster_peer_id={} id={}".format(
+                self.quark_peer, self.cluster_peer_id, self.id.hex()
+            )
         )
 
     def add_sync_task(self):
@@ -337,11 +342,18 @@ class QuarkServer(BaseServer):
     """
 
     def _make_peer_pool(self):
+        whitelist_nodes = []
+        if self.bootstrap_nodes:
+            whitelist_nodes.extend(self.bootstrap_nodes)
+        if self.preferred_nodes:
+            whitelist_nodes.extend(self.preferred_nodes)
         return QuarkPeerPool(
             privkey=self.privkey,
             context=QuarkContext(),
             listen_port=self.port,
+            max_peers=self.max_peers,
             token=self.cancel_token,
+            whitelist_nodes=whitelist_nodes,
         )
 
     def _make_syncer(self):
@@ -377,6 +389,9 @@ class P2PManager(AbstractNetwork):
         else:
             preferred_nodes = []
 
+        if len(str(env.quark_chain_config.NETWORK_ID)) > 3:
+            raise Exception("NETWORK_ID too long for discovery")
+
         self.server = QuarkServer(
             privkey=privkey,
             port=env.cluster_config.P2P_PORT,
@@ -387,6 +402,7 @@ class P2PManager(AbstractNetwork):
             max_peers=env.cluster_config.P2P.MAX_PEERS,
             upnp=env.cluster_config.P2P.UPNP,
             allow_dial_in_ratio=env.cluster_config.P2P.ALLOW_DIAL_IN_RATIO,
+            crawling_routing_table_path=env.cluster_config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH,
         )
 
         QuarkPeer.env = env
@@ -419,3 +435,8 @@ class P2PManager(AbstractNetwork):
         if quark_peer:
             return quark_peer.secure_peer
         return None
+
+    def shutdown(self):
+        for peer_id, peer in self.active_peer_pool.items():
+            peer.close()
+        self.loop.run_until_complete(self.server.cancel())

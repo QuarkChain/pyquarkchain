@@ -1,51 +1,66 @@
 import argparse
+import copy
 import json
 import os
 import socket
 import tempfile
-
 from typing import List
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
-from quarkchain.config import QuarkChainConfig, BaseConfig
-from quarkchain.core import Address
-from quarkchain.core import ShardMask
-from quarkchain.utils import is_p2, check, Logger
+from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
+from quarkchain.core import Address, ChainMask
+from quarkchain.utils import Logger, check, is_p2
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_alloc(cluser_config):
     """ Update ShardConfig.GENESIS.ALLOC """
-    ALLOC_FILE = "alloc.json"
+    ALLOC_FILE_TEMPLATE = "alloc/{}.json"
     LOADTEST_FILE = "loadtest.json"
 
     if not cluser_config.GENESIS_DIR:
         return
-    alloc_file = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE)
+    alloc_file_template = os.path.join(cluser_config.GENESIS_DIR, ALLOC_FILE_TEMPLATE)
     loadtest_file = os.path.join(cluser_config.GENESIS_DIR, LOADTEST_FILE)
 
     qkc_config = cluser_config.QUARKCHAIN
 
-    # each account in alloc_file is only funded on the shard it belongs to
-    try:
-        with open(alloc_file, "r") as f:
-            items = json.load(f)
-        for item in items:
-            address = Address.create_from(item["address"])
-            shard = address.get_shard_id(qkc_config.SHARD_SIZE)
-            qkc_config.SHARD_LIST[shard].GENESIS.ALLOC[item["address"]] = 1000000 * (
-                10 ** 18
-            )
+    allocation = {
+        qkc_config.GENESIS_TOKEN: 1000000 * (10 ** 18),
+        "QETC": 2 * (10 ** 8) * (10 ** 18),
+        "QFB": 3 * (10 ** 8) * (10 ** 18),
+        "QAAPL": 4 * (10 ** 8) * (10 ** 18),
+        "QTSLA": 5 * (10 ** 8) * (10 ** 18),
+    }
 
-        Logger.info(
-            "Imported {} accounts from genesis alloc at {}".format(
-                len(items), alloc_file
+    old_shards = copy.deepcopy(qkc_config.shards)
+    try:
+        for chain_id in range(qkc_config.CHAIN_SIZE):
+            alloc_file = alloc_file_template.format(chain_id)
+            with open(alloc_file, "r") as f:
+                items = json.load(f)
+            for item in items:
+                address = Address.create_from(item["address"])
+                full_shard_id = qkc_config.get_full_shard_id_by_full_shard_key(
+                    address.full_shard_key
+                )
+                qkc_config.shards[full_shard_id].GENESIS.ALLOC[
+                    item["address"]
+                ] = allocation
+
+            Logger.info(
+                "[{}] Imported {} genesis accounts into config from {}".format(
+                    chain_id, len(items), alloc_file
+                )
             )
-        )
     except Exception as e:
-        Logger.warning("Unable to load genesis alloc from {}: {}".format(alloc_file, e))
+        Logger.warning(
+            "Error importing genesis accounts from {}: {}".format(alloc_file, e)
+        )
+        qkc_config.shards = old_shards
+        Logger.warning("Cleared all partially imported genesis accounts!")
 
     # each account in loadtest file is funded on all the shards
     try:
@@ -55,10 +70,10 @@ def update_genesis_alloc(cluser_config):
 
         for item in items:
             address = Address.create_from(item["address"])
-            for i, shard in enumerate(qkc_config.SHARD_LIST):
-                shard.GENESIS.ALLOC[
-                    address.address_in_shard(i).serialize().hex()
-                ] = 1000 * (10 ** 18)
+            for full_shard_id, shard_config in qkc_config.shards.items():
+                shard_config.GENESIS.ALLOC[
+                    address.address_in_shard(full_shard_id).serialize().hex()
+                ] = allocation
 
         Logger.info(
             "Imported {} loadtest accounts from {}".format(len(items), loadtest_file)
@@ -75,17 +90,17 @@ class SlaveConfig(BaseConfig):
     HOST = DEFAULT_HOST
     PORT = 38392
     ID = ""
-    SHARD_MASK_LIST = None
+    CHAIN_MASK_LIST = None
 
     def to_dict(self):
         ret = super().to_dict()
-        ret["SHARD_MASK_LIST"] = [m.value for m in self.SHARD_MASK_LIST]
+        ret["CHAIN_MASK_LIST"] = [m.value for m in self.CHAIN_MASK_LIST]
         return ret
 
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
-        config.SHARD_MASK_LIST = [ShardMask(v) for v in config.SHARD_MASK_LIST]
+        config.CHAIN_MASK_LIST = [ChainMask(v) for v in config.CHAIN_MASK_LIST]
         return config
 
 
@@ -102,6 +117,8 @@ class P2PConfig(BaseConfig):
     UPNP = False
     ALLOW_DIAL_IN_RATIO = 1.0
     PREFERRED_NODES = ""
+    DISCOVERY_ONLY = False
+    CRAWLING_ROUTING_TABLE_FILE_PATH = None
 
 
 class MonitoringConfig(BaseConfig):
@@ -120,6 +137,10 @@ class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
+    JSON_RPC_HOST = "localhost"
+    PRIVATE_JSON_RPC_HOST = "localhost"
+    ENABLE_PUBLIC_JSON_RPC = True
+    ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
@@ -149,7 +170,7 @@ class ClusterConfig(BaseConfig):
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
         slave_config.ID = "S0"
-        slave_config.SHARD_MASK_LIST = [ShardMask(1)]
+        slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         self.SLAVE_LIST.append(slave_config)
 
         fd, self.json_filepath = tempfile.mkstemp()
@@ -160,7 +181,7 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.SHARD_MASK_LIST)
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
             )
         return results
 
@@ -168,7 +189,7 @@ class ClusterConfig(BaseConfig):
         for slave in self.SLAVE_LIST:
             if slave.ID == id:
                 return slave
-        raise RuntimeError("Slave id {} does not exist in cluster config".format(id))
+        raise RuntimeError("Slave id {0} does not exist in cluster config".format(id))
 
     @property
     def json_filepath(self):
@@ -183,6 +204,28 @@ class ClusterConfig(BaseConfig):
 
     def use_mem_db(self):
         return not self.DB_PATH_ROOT
+
+    def apply_env(self):
+        for k, v in os.environ.items():
+            key_path = k.split("__")
+            if key_path[0] != "QKC":
+                continue
+
+            print("Applying env {0}: {1}".format(k, v))
+
+            config = self
+            for i in range(1, len(key_path) - 1):
+                name = key_path[i]
+                if not hasattr(config, name):
+                    raise ValueError("Cannot apply env {}: key not found".format(k))
+
+                config = getattr(config, name)
+                if not isinstance(config, BaseConfig):
+                    raise ValueError("Cannot apply env {}: config not found".format(k))
+
+            if not hasattr(config, key_path[-1]):
+                raise ValueError("Cannot apply env {}: key not found".format(k))
+            setattr(config, key_path[-1], eval(v))
 
     @classmethod
     def attach_arguments(cls, parser):
@@ -202,12 +245,21 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--genesis_dir", default=default_genesis_dir, type=str)
 
         parser.add_argument(
-            "--num_shards", default=QuarkChainConfig.SHARD_SIZE, type=int
+            "--num_chains", default=QuarkChainConfig.CHAIN_SIZE, type=int
+        )
+        parser.add_argument(
+            "--num_shards_per_chain", default=ChainConfig.SHARD_SIZE, type=int
         )
         parser.add_argument("--root_block_interval_sec", default=10, type=int)
         parser.add_argument("--minor_block_interval_sec", default=3, type=int)
         parser.add_argument(
             "--network_id", default=QuarkChainConfig.NETWORK_ID, type=int
+        )
+        parser.add_argument(
+            "--default_token",
+            default=QuarkChainConfig.GENESIS_TOKEN,
+            type=str,
+            help="sets GENESIS_TOKEN and DEFAULT_CHAIN_TOKEN",
         )
 
         parser.add_argument("--num_slaves", default=4, type=int)
@@ -223,6 +275,24 @@ class ClusterConfig(BaseConfig):
             "--json_rpc_private_port",
             default=ClusterConfig.PRIVATE_JSON_RPC_PORT,
             type=int,
+        )
+        parser.add_argument(
+            "--json_rpc_host", default=ClusterConfig.JSON_RPC_HOST, type=str
+        )
+        parser.add_argument(
+            "--json_rpc_private_host",
+            default=ClusterConfig.PRIVATE_JSON_RPC_HOST,
+            type=str,
+        )
+        parser.add_argument(
+            "--enable_public_json_rpc",
+            default=ClusterConfig.ENABLE_PUBLIC_JSON_RPC,
+            type=bool,
+        )
+        parser.add_argument(
+            "--enable_private_json_rpc",
+            default=ClusterConfig.ENABLE_PRIVATE_JSON_RPC,
+            type=bool,
         )
         parser.add_argument(
             "--enable_transaction_history",
@@ -272,6 +342,12 @@ class ClusterConfig(BaseConfig):
             type=str,
             help="if empty, will be automatically generated; but note that it will be lost upon node reboot",
         )
+        parser.add_argument(
+            "--check_db",
+            default=False,
+            type=bool,
+            help="if true, will perform integrity check on db only",
+        )
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
@@ -281,7 +357,10 @@ class ClusterConfig(BaseConfig):
         """
 
         def __create_from_args_internal():
-            check(is_p2(args.num_shards), "--num_shards must be power of 2")
+            check(
+                is_p2(args.num_shards_per_chain),
+                "--num_shards_per_chain must be power of 2",
+            )
             check(is_p2(args.num_slaves), "--num_slaves must be power of 2")
 
             config = ClusterConfig()
@@ -291,15 +370,19 @@ class ClusterConfig(BaseConfig):
             config.P2P_PORT = args.p2p_port
             config.JSON_RPC_PORT = args.json_rpc_port
             config.PRIVATE_JSON_RPC_PORT = args.json_rpc_private_port
+            config.JSON_RPC_HOST = args.json_rpc_host
+            config.PRIVATE_JSON_RPC_HOST = args.json_rpc_private_host
 
             config.CLEAN = args.clean
             config.START_SIMULATED_MINING = args.start_simulated_mining
             config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
 
             config.QUARKCHAIN.update(
-                args.num_shards,
+                args.num_chains,
+                args.num_shards_per_chain,
                 args.root_block_interval_sec,
                 args.minor_block_interval_sec,
+                args.default_token,
             )
             config.QUARKCHAIN.NETWORK_ID = args.network_id
 
@@ -330,7 +413,7 @@ class ClusterConfig(BaseConfig):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
-                slave_config.SHARD_MASK_LIST = [ShardMask(i | args.num_slaves)]
+                slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
                 config.SLAVE_LIST.append(slave_config)
 
@@ -345,6 +428,7 @@ class ClusterConfig(BaseConfig):
                 config.json_filepath = args.cluster_config
         else:
             config = __create_from_args_internal()
+        config.apply_env()
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
         update_genesis_alloc(config)

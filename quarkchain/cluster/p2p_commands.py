@@ -1,8 +1,17 @@
 from enum import IntEnum
 
-from quarkchain.core import Branch, uint8, uint16, uint32, uint128, hash256, Transaction
+from quarkchain.core import (
+    Branch,
+    uint8,
+    uint16,
+    uint32,
+    uint128,
+    hash256,
+    TypedTransaction,
+)
 from quarkchain.core import RootBlockHeader, MinorBlockHeader, RootBlock, MinorBlock
 from quarkchain.core import Serializable, PrependedSizeListSerializer
+from quarkchain.utils import check
 
 
 class HelloCommand(Serializable):
@@ -13,10 +22,11 @@ class HelloCommand(Serializable):
         ("peer_ip", uint128),
         ("peer_port", uint16),
         (
-            "shard_mask_list",
+            "chain_mask_list",
             PrependedSizeListSerializer(4, uint32),
         ),  # TODO create shard mask object
         ("root_block_header", RootBlockHeader),
+        ("genesis_root_block_hash", hash256),
     ]
 
     def __init__(
@@ -26,8 +36,9 @@ class HelloCommand(Serializable):
         peer_id,
         peer_ip,
         peer_port,
-        shard_mask_list,
+        chain_mask_list,
         root_block_header,
+        genesis_root_block_hash,
     ):
         fields = {k: v for k, v in locals().items() if k != "self"}
         super(type(self), self).__init__(**fields)
@@ -74,7 +85,7 @@ class NewMinorBlockHeaderListCommand(Serializable):
 class NewTransactionListCommand(Serializable):
     """ Broadcast transactions """
 
-    FIELDS = [("transaction_list", PrependedSizeListSerializer(4, Transaction))]
+    FIELDS = [("transaction_list", PrependedSizeListSerializer(4, TypedTransaction))]
 
     def __init__(self, transaction_list=None):
         self.transaction_list = transaction_list if transaction_list is not None else []
@@ -110,6 +121,100 @@ class GetRootBlockHeaderListResponse(Serializable):
     def __init__(self, root_tip, block_header_list):
         self.root_tip = root_tip
         self.block_header_list = block_header_list
+
+
+class GetRootBlockHeaderListWithSkipRequest(Serializable):
+    FIELDS = [
+        ("type", uint8),       # 0 block hash, 1 block height
+        ("data", hash256),
+        ("limit", uint32),
+        ("skip", uint32),
+        ("direction", uint8),  # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, type, data, limit, skip, direction):
+        self.type = type
+        self.data = data
+        self.limit = limit
+        self.skip = skip
+        self.direction = direction
+
+    def get_height(self):
+        check(self.type == 1)
+        return int.from_bytes(self.data, byteorder="big")
+
+    def get_hash(self):
+        check(self.type == 0)
+        return self.data
+
+    @staticmethod
+    def create_for_height(height, limit, skip, direction):
+        return GetRootBlockHeaderListWithSkipRequest(
+            1,
+            height.to_bytes(32, byteorder="big"),
+            limit,
+            skip,
+            direction
+        )
+
+    @staticmethod
+    def create_for_hash(hash, limit, skip, direction):
+        return GetRootBlockHeaderListWithSkipRequest(
+            0,
+            hash,
+            limit,
+            skip,
+            direction
+        )
+
+
+class GetMinorBlockHeaderListWithSkipRequest(Serializable):
+    FIELDS = [
+        ("type", uint8),       # 0 block hash, 1 block height
+        ("data", hash256),
+        ("branch", Branch),
+        ("limit", uint32),
+        ("skip", uint32),
+        ("direction", uint8),  # 0 to genesis, 1 to tip
+    ]
+
+    def __init__(self, type, data, branch, limit, skip, direction):
+        self.type = type
+        self.data = data
+        self.branch = branch
+        self.limit = limit
+        self.skip = skip
+        self.direction = direction
+
+    def get_height(self):
+        check(self.type == 1)
+        return int.from_bytes(self.data, byteorder="big")
+
+    def get_hash(self):
+        check(self.type == 0)
+        return self.data
+
+    @staticmethod
+    def create_for_height(height, branch, limit, skip, direction):
+        return GetMinorBlockHeaderListWithSkipRequest(
+            1,
+            height.to_bytes(32, byteorder="big"),
+            branch,
+            limit,
+            skip,
+            direction
+        )
+
+    @staticmethod
+    def create_for_hash(hash, branch, limit, skip, direction):
+        return GetMinorBlockHeaderListWithSkipRequest(
+            0,
+            hash,
+            branch,
+            limit,
+            skip,
+            direction
+        )
 
 
 class GetRootBlockListRequest(Serializable):
@@ -189,11 +294,29 @@ class NewBlockMinorCommand(Serializable):
         self.block = block
 
 
+class NewRootBlockCommand(Serializable):
+    FIELDS = [("block", RootBlock)]
+
+    def __init__(self, block):
+        self.block = block
+
+
+class PingPongCommand(Serializable):
+    """
+    with 32B message which is undefined at the moment
+    """
+
+    FIELDS = [("message", hash256)]
+
+    def __init__(self, message):
+        self.message = message
+
+
 class CommandOp:
     HELLO = 0
     NEW_MINOR_BLOCK_HEADER_LIST = 1
     NEW_TRANSACTION_LIST = 2
-    GET_PEER_LIST_REQUEST = 3
+    GET_PEER_LIST_REQUEST = 3  # only handled by simple_network peers
     GET_PEER_LIST_RESPONSE = 4
     GET_ROOT_BLOCK_HEADER_LIST_REQUEST = 5
     GET_ROOT_BLOCK_HEADER_LIST_RESPONSE = 6
@@ -204,6 +327,13 @@ class CommandOp:
     GET_MINOR_BLOCK_HEADER_LIST_REQUEST = 11
     GET_MINOR_BLOCK_HEADER_LIST_RESPONSE = 12
     NEW_BLOCK_MINOR = 13
+    PING = 14
+    PONG = 15
+    GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 16
+    GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 17
+    NEW_ROOT_BLOCK = 18
+    GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST = 19
+    GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE = 20
 
 
 OP_SERIALIZER_MAP = {
@@ -221,4 +351,11 @@ OP_SERIALIZER_MAP = {
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_REQUEST: GetMinorBlockHeaderListRequest,
     CommandOp.GET_MINOR_BLOCK_HEADER_LIST_RESPONSE: GetMinorBlockHeaderListResponse,
     CommandOp.NEW_BLOCK_MINOR: NewBlockMinorCommand,
+    CommandOp.PING: PingPongCommand,
+    CommandOp.PONG: PingPongCommand,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetRootBlockHeaderListWithSkipRequest,
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetRootBlockHeaderListResponse,
+    CommandOp.NEW_ROOT_BLOCK: NewRootBlockCommand,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: GetMinorBlockHeaderListWithSkipRequest,
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE: GetMinorBlockHeaderListResponse,
 }

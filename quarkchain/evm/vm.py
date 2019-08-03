@@ -1,12 +1,14 @@
 # Modified based on pyethereum under MIT license
 import sys
 import copy
+from functools import lru_cache
+from math import ceil
+
 from quarkchain.rlp.utils import encode_hex, ascii_chr
 from quarkchain.evm import utils
 from quarkchain.evm import opcodes
 from quarkchain.evm.slogging import get_logger
 from quarkchain.evm.utils import to_string, bytearray_to_bytestr, safe_ord
-from functools import lru_cache
 
 # ###### dev hack flags ###############
 
@@ -28,7 +30,9 @@ TT256M1 = 2 ** 256 - 1
 TT255 = 2 ** 255
 
 MAX_DEPTH = 1024
-
+PROC_CURRENT_MNT_ID = (
+    b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
+)
 
 # Wrapper to store call data. This is needed because it is possible to
 # call a contract N times with N bytes of data with a gas cost of O(N);
@@ -43,9 +47,11 @@ class CallData(object):
         self.rlimit = self.offset + self.size
 
     # Convert calldata to bytes
-    def extract_all(self):
-        d = self.data[self.offset : self.offset + self.size]
-        d.extend(bytearray(self.size - len(d)))
+    def extract_all(self, start=0) -> bytes:
+        if start >= self.size:
+            return b""
+        d = self.data[self.offset + start : self.offset + self.size]
+        d.extend(bytearray(self.size - len(d) - start))
         return bytes(bytearray(d))
 
     # Extract 32 bytes as integer
@@ -80,10 +86,11 @@ class Message(object):
         is_create=False,
         transfers_value=True,
         static=False,
-        is_cross_shard=False,
-        from_full_shard_id=None,
-        to_full_shard_id=None,
+        from_full_shard_key=None,
+        to_full_shard_key=None,
         tx_hash=None,
+        gas_token_id=0,
+        transfer_token_id=0,
     ):
         self.sender = sender
         self.to = to
@@ -100,12 +107,14 @@ class Message(object):
         self.is_create = is_create
         self.transfers_value = transfers_value
         self.static = static
-        self.is_cross_shard = is_cross_shard
-        self.from_full_shard_id = from_full_shard_id
-        self.to_full_shard_id = to_full_shard_id
+        self.from_full_shard_key = from_full_shard_key
+        self.to_full_shard_key = to_full_shard_key
         self.tx_hash = (
             tx_hash
         )  # quarkchain.core.Transaction hash (NOT the evm Transaction hash)
+        self.gas_token_id = gas_token_id
+        self.transfer_token_id = transfer_token_id
+        self.token_id_queried = False
 
     def __repr__(self):
         return "<Message(to:%s...)>" % self.to[:8]
@@ -147,11 +156,11 @@ def preprocess_code(code):
     code = code + b"\x00" * 32
     while i < len(code) - 32:
         codebyte = safe_ord(code[i])
-        if codebyte == 0x5b:
+        if codebyte == 0x5B:
             o |= 1 << i
-        if 0x60 <= codebyte <= 0x7f:
-            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5e])
-            i += codebyte - 0x5e
+        if 0x60 <= codebyte <= 0x7F:
+            pushcache[i] = utils.big_endian_to_int(code[i + 1 : i + codebyte - 0x5E])
+            i += codebyte - 0x5E
         else:
             i += 1
     return o, pushcache
@@ -270,6 +279,7 @@ def vm_trace(ext, msg, compustate, opcode, pushcache, tracer=log_vm_op):
 
 # Main function
 def vm_execute(ext, msg, code):
+
     # precompute trace flag
     # if we trace vm, we're in slow mode anyway
     trace_vm = log_vm_op.is_active("trace")
@@ -294,9 +304,6 @@ def vm_execute(ext, msg, code):
         # Invalid operation
         if opcode not in opcodes.opcodes:
             return vm_exception("INVALID OP", opcode=opcode)
-
-        if opcode in opcodes.opcodesMetropolis and not ext.post_metropolis_hardfork():
-            return vm_exception("INVALID OP (not yet enabled)", opcode=opcode)
 
         op, in_args, out_args, fee = opcodes.opcodes[opcode]
 
@@ -375,10 +382,10 @@ def vm_execute(ext, msg, code):
 
         # Valid operations
         # Pushes first because they are very frequent
-        if 0x60 <= opcode <= 0x7f:
+        if 0x60 <= opcode <= 0x7F:
             stk.append(pushcache[compustate.pc - 1])
             # Move 1 byte forward for 0x60, up to 32 bytes for 0x7f
-            compustate.pc += opcode - 0x5f
+            compustate.pc += opcode - 0x5F
         # Arithmetic
         elif opcode < 0x10:
             if op == "STOP":
@@ -421,8 +428,6 @@ def vm_execute(ext, msg, code):
                 # calc n bytes to represent exponent
                 nbytes = len(utils.encode_int(exponent))
                 expfee = nbytes * opcodes.GEXPONENTBYTE
-                if ext.post_spurious_dragon_hardfork():
-                    expfee += opcodes.EXP_SUPPLEMENTAL_GAS * nbytes
                 if compustate.gas < expfee:
                     compustate.gas = 0
                     return vm_exception("OOG EXPONENT")
@@ -468,6 +473,19 @@ def vm_execute(ext, msg, code):
                     stk.append(0)
                 else:
                     stk.append((s1 // 256 ** (31 - s0)) % 256)
+            elif op == "SHL":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else (s1 << s0) & TT256M1)
+            elif op == "SHR":
+                s0, s1 = stk.pop(), stk.pop()
+                stk.append(0 if s0 >= 256 else s1 >> s0)
+            elif op == "SAR":
+                s0, s1 = stk.pop(), utils.to_signed(stk.pop())
+                if s0 >= 256:
+                    ret = 0 if s1 >= 0 else TT256M1
+                else:
+                    ret = (s1 >> s0) & TT256M1
+                stk.append(ret)
         # SHA3 and environment info
         elif opcode < 0x40:
             if op == "SHA3":
@@ -482,9 +500,6 @@ def vm_execute(ext, msg, code):
             elif op == "ADDRESS":
                 stk.append(utils.coerce_to_int(msg.to))
             elif op == "BALANCE":
-                if ext.post_anti_dos_hardfork():
-                    if not eat_gas(compustate, opcodes.BALANCE_SUPPLEMENTAL_GAS):
-                        return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 stk.append(ext.get_balance(addr))
             elif op == "ORIGIN":
@@ -533,15 +548,9 @@ def vm_execute(ext, msg, code):
             elif op == "GASPRICE":
                 stk.append(ext.tx_gasprice)
             elif op == "EXTCODESIZE":
-                if ext.post_anti_dos_hardfork():
-                    if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
-                        return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 stk.append(len(ext.get_code(addr) or b""))
             elif op == "EXTCODECOPY":
-                if ext.post_anti_dos_hardfork():
-                    if not eat_gas(compustate, opcodes.EXTCODELOAD_SUPPLEMENTAL_GAS):
-                        return vm_exception("OUT OF GAS")
                 addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
                 start, s2, size = stk.pop(), stk.pop(), stk.pop()
                 extcode = ext.get_code(addr) or b""
@@ -555,14 +564,18 @@ def vm_execute(ext, msg, code):
                         mem[start + i] = safe_ord(extcode[s2 + i])
                     else:
                         mem[start + i] = 0
+            elif op == "EXTCODEHASH":
+                addr = utils.coerce_addr_to_hex(stk.pop() % 2 ** 160)
+                if not ext.account_exists(addr):
+                    stk.append(0)
+                else:
+                    extcode = ext.get_code(addr) or b""
+                    assert utils.is_string(extcode)
+                    stk.append(utils.big_endian_to_int(utils.sha3(extcode)))
         # Block info
         elif opcode < 0x50:
             if op == "BLOCKHASH":
-                if ext.post_constantinople_hardfork() and False:
-                    bh_addr = ext.blockhash_store
-                    stk.append(ext.get_storage_data(bh_addr, stk.pop()))
-                else:
-                    stk.append(utils.big_endian_to_int(ext.block_hash(stk.pop())))
+                stk.append(utils.big_endian_to_int(ext.block_hash(stk.pop())))
             elif op == "COINBASE":
                 stk.append(utils.big_endian_to_int(ext.block_coinbase))
             elif op == "TIMESTAMP":
@@ -593,9 +606,6 @@ def vm_execute(ext, msg, code):
                     return vm_exception("OOG EXTENDING MEMORY")
                 mem[s0] = s1 % 256
             elif op == "SLOAD":
-                if ext.post_anti_dos_hardfork():
-                    if not eat_gas(compustate, opcodes.SLOAD_SUPPLEMENTAL_GAS):
-                        return vm_exception("OUT OF GAS")
                 stk.append(ext.get_storage_data(msg.to, stk.pop()))
             elif op == "SSTORE":
                 s0, s1 = stk.pop(), stk.pop()
@@ -636,12 +646,12 @@ def vm_execute(ext, msg, code):
         # DUPn (eg. DUP1: a b c -> a b c c, DUP3: a b c -> a b c a)
         elif op[:3] == "DUP":
             # 0x7f - opcode is a negative number, -1 for 0x80 ... -16 for 0x8f
-            stk.append(stk[0x7f - opcode])
+            stk.append(stk[0x7F - opcode])
         # SWAPn (eg. SWAP1: a b c d -> a b d c, SWAP3: a b c d -> d b c a)
         elif op[:4] == "SWAP":
             # 0x8e - opcode is a negative number, -2 for 0x90 ... -17 for 0x9f
-            temp = stk[0x8e - opcode]
-            stk[0x8e - opcode] = stk[-1]
+            temp = stk[0x8E - opcode]
+            stk[0x8E - opcode] = stk[-1]
             stk[-1] = temp
         # Logs (aka "events")
         elif op[:3] == "LOG":
@@ -670,10 +680,16 @@ def vm_execute(ext, msg, code):
             log_log.trace(
                 "LOG", to=msg.to, topics=topics, data=list(map(utils.safe_ord, data))
             )
-            # print('LOG', msg.to, topics, list(map(ord, data)))
         # Create a new contract
-        elif op == "CREATE":
-            value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
+        elif op in ("CREATE", "CREATE2"):
+            salt = None
+            if op == "CREATE":
+                value, mstart, msz = stk.pop(), stk.pop(), stk.pop()
+            else:  # CREATE2
+                value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
+                salt = salt.to_bytes(32, byteorder="big")
+                compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
+
             if not mem_extend(mem, compustate, op, mstart, msz):
                 return vm_exception("OOG EXTENDING MEMORY")
             if msg.static:
@@ -681,8 +697,7 @@ def vm_execute(ext, msg, code):
             if ext.get_balance(msg.to) >= value and msg.depth < MAX_DEPTH:
                 cd = CallData(mem, mstart, msz)
                 ingas = compustate.gas
-                if ext.post_anti_dos_hardfork():
-                    ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
+                ingas = all_but_1n(ingas, opcodes.CALL_CHILD_LIMIT_DENOM)
                 create_msg = Message(
                     msg.to,
                     b"",
@@ -690,9 +705,12 @@ def vm_execute(ext, msg, code):
                     ingas,
                     cd,
                     msg.depth + 1,
-                    to_full_shard_id=msg.from_full_shard_id,
+                    # Used for calculating contract address
+                    to_full_shard_key=msg.to_full_shard_key,
+                    transfer_token_id=msg.transfer_token_id,
+                    gas_token_id=msg.gas_token_id,
                 )
-                o, gas, data = ext.create(create_msg)
+                o, gas, data = ext.create(create_msg, salt)
                 if o:
                     stk.append(utils.coerce_to_int(data))
                     compustate.last_returned = bytearray(b"")
@@ -740,31 +758,18 @@ def vm_execute(ext, msg, code):
             # Extra gas costs based on various factors
             extra_gas = 0
             # Creating a new account
-            if (
-                op == "CALL"
-                and not ext.account_exists(to)
-                and (value > 0 or not ext.post_spurious_dragon_hardfork())
-            ):
+            if op == "CALL" and not ext.account_exists(to) and (value > 0):
                 extra_gas += opcodes.GCALLNEWACCOUNT
             # Value transfer
             if value > 0:
                 extra_gas += opcodes.GCALLVALUETRANSFER
-            # Cost increased from 40 to 700 in Tangerine Whistle
-            if ext.post_anti_dos_hardfork():
-                extra_gas += opcodes.CALL_SUPPLEMENTAL_GAS
             # Compute child gas limit
-            if ext.post_anti_dos_hardfork():
-                if compustate.gas < extra_gas:
-                    return vm_exception("OUT OF GAS", needed=extra_gas)
-                gas = min(
-                    gas,
-                    all_but_1n(
-                        compustate.gas - extra_gas, opcodes.CALL_CHILD_LIMIT_DENOM
-                    ),
-                )
-            else:
-                if compustate.gas < gas + extra_gas:
-                    return vm_exception("OUT OF GAS", needed=gas + extra_gas)
+            if compustate.gas < extra_gas:
+                return vm_exception("OUT OF GAS", needed=extra_gas)
+            gas = min(
+                gas,
+                all_but_1n(compustate.gas - extra_gas, opcodes.CALL_CHILD_LIMIT_DENOM),
+            )
             submsg_gas = gas + opcodes.GSTIPEND * (value > 0)
             # Verify that there is sufficient balance and depth
             if ext.get_balance(msg.to) < value or msg.depth >= MAX_DEPTH:
@@ -785,10 +790,14 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
-                elif ext.post_homestead_hardfork() and op == "DELEGATECALL":
+                elif op == "DELEGATECALL":
                     call_msg = Message(
                         msg.sender,
                         msg.to,
@@ -796,11 +805,15 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         transfers_value=False,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
-                elif ext.post_metropolis_hardfork() and op == "STATICCALL":
+                elif op == "STATICCALL":
                     call_msg = Message(
                         msg.to,
                         to,
@@ -808,11 +821,13 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=True,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
-                elif op in ("DELEGATECALL", "STATICCALL"):
-                    return vm_exception("OPCODE %s INACTIVE" % op)
                 elif op == "CALLCODE":
                     call_msg = Message(
                         msg.to,
@@ -821,12 +836,18 @@ def vm_execute(ext, msg, code):
                         submsg_gas,
                         cd,
                         msg.depth + 1,
+                        # Used for calculating contract address
+                        to_full_shard_key=msg.to_full_shard_key,
                         code_address=to,
                         static=msg.static,
+                        transfer_token_id=msg.transfer_token_id,
+                        gas_token_id=msg.gas_token_id,
                     )
                 else:
                     raise Exception("Lolwut")
                 # Get result
+                if call_msg.to == PROC_CURRENT_MNT_ID:
+                    msg.token_id_queried = True
                 result, gas, data = ext.msg(call_msg)
                 if result == 0:
                     stk.append(0)
@@ -845,8 +866,6 @@ def vm_execute(ext, msg, code):
             return peaceful_exit("RETURN", compustate.gas, mem[s0 : s0 + s1])
         # Revert opcode (Metropolis)
         elif op == "REVERT":
-            if not ext.post_metropolis_hardfork():
-                return vm_exception("Opcode not yet enabled")
             s0, s1 = stk.pop(), stk.pop()
             if not mem_extend(mem, compustate, op, s0, s1):
                 return vm_exception("OOG EXTENDING MEMORY")
@@ -858,15 +877,11 @@ def vm_execute(ext, msg, code):
             to = utils.encode_int(stk.pop())
             to = ((b"\x00" * (32 - len(to))) + to)[12:]
             xfer = ext.get_balance(msg.to)
-            if ext.post_anti_dos_hardfork():
-                extra_gas = (
-                    opcodes.SUICIDE_SUPPLEMENTAL_GAS
-                    + (not ext.account_exists(to))
-                    * (xfer > 0 or not ext.post_spurious_dragon_hardfork())
-                    * opcodes.GCALLNEWACCOUNT
-                )
-                if not eat_gas(compustate, extra_gas):
-                    return vm_exception("OUT OF GAS")
+            extra_gas = (
+                (not ext.account_exists(to)) * (xfer > 0) * opcodes.GCALLNEWACCOUNT
+            )
+            if not eat_gas(compustate, extra_gas):
+                return vm_exception("OUT OF GAS")
             ext.set_balance(to, ext.get_balance(to) + xfer)
             ext.set_balance(msg.to, 0)
             ext.add_suicide(msg.to)
@@ -878,12 +893,8 @@ def vm_execute(ext, msg, code):
             )
             return peaceful_exit("SUICIDED", compustate.gas, [])
 
-        if trace_vm:
-            vm_trace(ext, msg, compustate, opcode, pushcache)
-
     if trace_vm:
         compustate.reset_prev()
-        vm_trace(ext, msg, compustate, 0, None)
     return peaceful_exit("CODE OUT OF RANGE", compustate.gas, [])
 
 

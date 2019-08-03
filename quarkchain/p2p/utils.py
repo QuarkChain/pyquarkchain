@@ -3,6 +3,10 @@ from typing import Tuple
 
 import rlp
 
+CLUSTER_PEER_ID_LEN = 2 ** 64
+
+RESERVED_CLUSTER_PEER_ID = 0
+
 
 def sxor(s1: bytes, s2: bytes) -> bytes:
     if len(s1) != len(s2):

@@ -2,8 +2,10 @@
     "static_callcallcodecallcode_011_SuicideMiddle2" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stStaticCall/static_callcallcodecallcode_011_SuicideMiddle2Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stStaticCall/static_callcallcodecallcode_011_SuicideMiddle2Filler.json",
+            "sourceHash" : "c56cb94b9dcb18749881a12c67729cfaa136713c08fdc3a4cd33a6eefe4e8eb1"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -16,7 +18,7 @@
         "post" : {
             "Byzantium" : [
                 {
-                    "hash" : "0x5390e5b561f9b0603dec17d274e19b996d1ac37a789533458cb553b032b5bf33",
+                    "hash" : "0xb90ae7de50596d56f638240504791d9c4902bd4150b9d236e35712f14751cf8d",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -27,7 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0x5390e5b561f9b0603dec17d274e19b996d1ac37a789533458cb553b032b5bf33",
+                    "hash" : "0xb90ae7de50596d56f638240504791d9c4902bd4150b9d236e35712f14751cf8d",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -36,42 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
-                    "hash" : "0x9bfdf19cb71a48380c3c874c6acb8d2d44f1f91b865a5392b5b8daa85eadc66f",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "EIP158" : [
-                {
-                    "hash" : "0x9bfdf19cb71a48380c3c874c6acb8d2d44f1f91b865a5392b5b8daa85eadc66f",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x9bfdf19cb71a48380c3c874c6acb8d2d44f1f91b865a5392b5b8daa85eadc66f",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0x9bfdf19cb71a48380c3c874c6acb8d2d44f1f91b865a5392b5b8daa85eadc66f",
+                    "hash" : "0xb90ae7de50596d56f638240504791d9c4902bd4150b9d236e35712f14751cf8d",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -98,7 +67,7 @@
             },
             "0x1000000000000000000000000000000000000002" : {
                 "balance" : "0x02540be400",
-                "code" : "0x731000000000000000000000000000000000000000ff",
+                "code" : "0x731000000000000000000000000000000000000000ff6040600060406000600073100000000000000000000000000000000000000361c350f2506001600352",
                 "nonce" : "0x00",
                 "storage" : {
                 }
@@ -120,7 +89,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x2dc6c0"

@@ -949,7 +949,7 @@ if __name__ == "__main__":
     import sys
     from quarkchain.db import PersistentDb
 
-    _db = PersistentDb(path=sys.argv[2])
+    _db = PersistentDb(db_path=sys.argv[2])
 
     def encode_node(nd):
         if isinstance(nd, bytes):
@@ -965,3 +965,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == 'get':
             t = Trie(_db, bytes.fromhex(sys.argv[3]))
             print(t.get(bytes(sys.argv[4], "ascii")))
+        elif sys.argv[1] == 'delete':
+            t = Trie(_db, bytes.fromhex(sys.argv[3]))
+            t.delete(bytes(sys.argv[4], "ascii"))
+            print(encode_node(t.root_hash))

@@ -2,8 +2,10 @@
     "ABAcalls2" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stSystemOperationsTest/ABAcalls2Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stSystemOperationsTest/ABAcalls2Filler.json",
+            "sourceHash" : "332e62c7b1d14acd4d0cf3971933c4a574dde5ed776d878e27fc08806b541ac0"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -27,7 +29,7 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0xa963ff4f5827ec055e38eef98962c7bad2360f6ffa3b3946e55ce73933774509",
+                    "hash" : "0xd2d74711ef90e359d6d2cf144b8ffa6941d5a9a1b4d0889bc621fa0663b3489a",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -36,7 +38,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0xa963ff4f5827ec055e38eef98962c7bad2360f6ffa3b3946e55ce73933774509",
                     "indexes" : {
@@ -47,7 +49,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP158" : [
+            "EIP150" : [
                 {
                     "hash" : "0xa963ff4f5827ec055e38eef98962c7bad2360f6ffa3b3946e55ce73933774509",
                     "indexes" : {
@@ -106,7 +108,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x3b9aca00"

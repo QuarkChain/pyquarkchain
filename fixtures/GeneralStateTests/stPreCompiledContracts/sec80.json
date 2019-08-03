@@ -2,8 +2,10 @@
     "sec80" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.4e336c9e.Linux.g++",
-            "source" : "src/GeneralStateTestsFiller/stPreCompiledContracts/sec80Filler.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stPreCompiledContracts/sec80Filler.json",
+            "sourceHash" : "01f668c1145786e73948270ee8da45c8f6666876c6f3eea926971a4143b597ee"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -25,7 +27,7 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP150" : [
+            "Constantinople" : [
                 {
                     "hash" : "0x20caf0e4334c49b11ba73bde2d58db4133c4e5b45e517fb8a56ad0be7fb6b7b5",
                     "indexes" : {
@@ -36,31 +38,9 @@
                     "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
                 }
             ],
-            "EIP158" : [
+            "ConstantinopleFix" : [
                 {
                     "hash" : "0x20caf0e4334c49b11ba73bde2d58db4133c4e5b45e517fb8a56ad0be7fb6b7b5",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Frontier" : [
-                {
-                    "hash" : "0x561bf5ed8918949a2bdb15003334f0c487da57a350317346d02c92c9a4d32b88",
-                    "indexes" : {
-                        "data" : 0,
-                        "gas" : 0,
-                        "value" : 0
-                    },
-                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-                }
-            ],
-            "Homestead" : [
-                {
-                    "hash" : "0x561bf5ed8918949a2bdb15003334f0c487da57a350317346d02c92c9a4d32b88",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -88,7 +68,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x989680"

@@ -20,6 +20,11 @@ from quarkchain.cluster.p2p_commands import (
     GetRootBlockListResponse,
 )
 from quarkchain.cluster.protocol import P2PConnection, ROOT_SHARD_ID
+from quarkchain.constants import (
+    NEW_TRANSACTION_LIST_LIMIT,
+    ROOT_BLOCK_BATCH_SIZE,
+    ROOT_BLOCK_HEADER_LIST_LIMIT,
+)
 from quarkchain.core import random_bytes
 from quarkchain.protocol import ConnectionState
 from quarkchain.utils import Logger
@@ -37,7 +42,13 @@ class Peer(P2PConnection):
         if name is None:
             name = "{}_peer_{}".format(master_server.name, cluster_peer_id)
         super().__init__(
-            env, reader, writer, OP_SERIALIZER_MAP, OP_NONRPC_MAP, OP_RPC_MAP
+            env=env,
+            reader=reader,
+            writer=writer,
+            op_ser_map=OP_SERIALIZER_MAP,
+            op_non_rpc_map=OP_NONRPC_MAP,
+            op_rpc_map=OP_RPC_MAP,
+            command_size_limit=env.quark_chain_config.P2P_COMMAND_SIZE_LIMIT,
         )
         self.network = network
         self.master_server = master_server
@@ -45,7 +56,7 @@ class Peer(P2PConnection):
 
         # The following fields should be set once active
         self.id = None
-        self.shard_mask_list = None
+        self.chain_mask_list = None
         self.best_root_block_header_observed = None
         self.cluster_peer_id = cluster_peer_id
 
@@ -56,8 +67,9 @@ class Peer(P2PConnection):
             peer_id=self.network.self_id,
             peer_ip=int(self.network.ip),
             peer_port=self.network.port,
-            shard_mask_list=[],
+            chain_mask_list=[],
             root_block_header=self.root_state.tip,
+            genesis_root_block_hash=self.root_state.get_genesis_block_hash(),
         )
         # Send hello request
         self.write_command(CommandOp.HELLO, cmd)
@@ -72,9 +84,8 @@ class Peer(P2PConnection):
         """
         op, cmd, rpc_id = await self.read_command()
         if op is None:
-            assert self.state == ConnectionState.CLOSED
             Logger.info("Failed to read command, peer may have closed connection")
-            return "Failed to read command"
+            return super().close_with_error("Failed to read command")
 
         if op != CommandOp.HELLO:
             return self.close_with_error("Hello must be the first command")
@@ -85,24 +96,17 @@ class Peer(P2PConnection):
         if cmd.network_id != self.env.quark_chain_config.NETWORK_ID:
             return self.close_with_error("incompatible network id")
 
+        if cmd.genesis_root_block_hash != self.root_state.get_genesis_block_hash():
+            return self.close_with_error("genesis block mismatch")
+
         self.id = cmd.peer_id
-        self.shard_mask_list = cmd.shard_mask_list
+        self.chain_mask_list = cmd.chain_mask_list
         self.ip = ipaddress.ip_address(cmd.peer_ip)
         self.port = cmd.peer_port
 
         Logger.info(
             "Got HELLO from peer {} ({}:{})".format(self.id.hex(), self.ip, self.port)
         )
-
-        # Validate best root and minor blocks from peer
-        # TODO: validate hash and difficulty through a helper function
-        if (
-            cmd.root_block_header.shard_info.get_shard_size()
-            != self.env.quark_chain_config.SHARD_SIZE
-        ):
-            return self.close_with_error(
-                "Shard size from root block header does not match local"
-            )
 
         self.best_root_block_header_observed = cmd.root_block_header
 
@@ -174,9 +178,6 @@ class Peer(P2PConnection):
         )
         return super().close_with_error(error)
 
-    async def handle_error(self, op, cmd, rpc_id):
-        self.close_with_error("Unexpected op {}".format(op))
-
     async def handle_get_peer_list_request(self, request):
         resp = GetPeerListResponse()
         for peer_id, peer in self.network.active_peer_pool.items():
@@ -201,39 +202,64 @@ class Peer(P2PConnection):
 
         return self.master_server.get_slave_connection(metadata.branch)
 
-    # ----------------------- RPC handlers ---------------------------------
+    # ----------------------- Non-RPC handlers -----------------------------
 
-    async def handle_new_minor_block_header_list(self, op, cmd, rpc_id):
-        if len(cmd.minor_block_header_list) != 0:
-            return self.close_with_error("minor block header list must be empty")
-
-        if cmd.root_block_header.height < self.best_root_block_header_observed.height:
-            return self.close_with_error(
-                "root block height is decreasing {} < {}".format(
-                    cmd.root_block_header.height,
-                    self.best_root_block_header_observed.height,
-                )
-            )
-        if cmd.root_block_header.height == self.best_root_block_header_observed.height:
-            if cmd.root_block_header != self.best_root_block_header_observed:
-                return self.close_with_error(
-                    "root block header changed with same height {}".format(
-                        self.best_root_block_header_observed.height
-                    )
-                )
-
-        self.best_root_block_header_observed = cmd.root_block_header
-        self.master_server.handle_new_root_block_header(cmd.root_block_header, self)
+    async def handle_error(self, op, cmd, rpc_id):
+        self.close_with_error("Unexpected op {}".format(op))
 
     async def handle_new_transaction_list(self, op, cmd, rpc_id):
+        if len(cmd.transaction_list) > NEW_TRANSACTION_LIST_LIMIT:
+            self.close_with_error("Too many transactions in one command")
         for tx in cmd.transaction_list:
             Logger.debug(
                 "Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex())
             )
             await self.master_server.add_transaction(tx, self)
 
+    async def handle_new_minor_block_header_list(self, op, cmd, rpc_id):
+        if len(cmd.minor_block_header_list) != 0:
+            return self.close_with_error("minor block header list must be empty")
+
+        if (
+            cmd.root_block_header.total_difficulty
+            < self.best_root_block_header_observed.total_difficulty
+        ):
+            return self.close_with_error(
+                "root block TD is decreasing {} < {}".format(
+                    cmd.root_block_header.total_difficulty,
+                    self.best_root_block_header_observed.total_difficulty,
+                )
+            )
+        if (
+            cmd.root_block_header.total_difficulty
+            == self.best_root_block_header_observed.total_difficulty
+        ):
+            if cmd.root_block_header != self.best_root_block_header_observed:
+                return self.close_with_error(
+                    "root block header changed with same TD {}".format(
+                        self.best_root_block_header_observed.total_difficulty
+                    )
+                )
+
+        self.best_root_block_header_observed = cmd.root_block_header
+        self.master_server.handle_new_root_block_header(cmd.root_block_header, self)
+
+    async def handle_ping(self, op, cmd, rpc_id):
+        # does nothing
+        pass
+
+    async def handle_pong(self, op, cmd, rpc_id):
+        # does nothing
+        pass
+
+    async def handle_new_root_block(self, op, cmd, rpc_id):
+        # does nothing at the moment
+        pass
+
+    # ----------------------- RPC handlers ---------------------------------
+
     async def handle_get_root_block_header_list_request(self, request):
-        if request.limit <= 0:
+        if request.limit <= 0 or request.limit > 2 * ROOT_BLOCK_HEADER_LIST_LIMIT:
             self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
@@ -242,21 +268,65 @@ class Peer(P2PConnection):
         block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.root_state.db.get_root_block_header_by_hash(
-                block_hash, consistency_check=False
-            )
+            header = self.root_state.db.get_root_block_header_by_hash(block_hash)
             header_list.append(header)
             if header.height == 0:
                 break
             block_hash = header.hash_prev_block
         return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
 
+    async def handle_get_root_block_header_list_with_skip_request(self, request):
+        if request.limit <= 0 or request.limit > 2 * ROOT_BLOCK_HEADER_LIST_LIMIT:
+            self.close_with_error("Bad limit")
+        if (
+            request.direction != Direction.GENESIS
+            and request.direction != Direction.TIP
+        ):
+            self.close_with_error("Bad direction")
+        if request.type != 0 and request.type != 1:
+            self.close_with_error("Bad type value")
+
+        if request.type == 1:
+            block_height = request.get_height()
+        else:
+            block_hash = request.get_hash()
+            block_header = self.root_state.db.get_root_block_header_by_hash(block_hash)
+            if block_header is None:
+                return GetRootBlockHeaderListResponse(self.root_state.tip, [])
+
+            # Check if it is canonical chain
+            block_height = block_header.height
+            if (
+                self.root_state.db.get_root_block_header_by_height(block_height)
+                != block_header
+            ):
+                return GetRootBlockHeaderListResponse(self.root_state.tip, [])
+
+        header_list = []
+        while (
+            len(header_list) < request.limit
+            and block_height >= 0
+            and block_height <= self.root_state.tip.height
+        ):
+            block_header = self.root_state.db.get_root_block_header_by_height(
+                block_height
+            )
+            if block_header is None:
+                break
+            header_list.append(block_header)
+            if request.direction == Direction.GENESIS:
+                block_height -= request.skip + 1
+            else:
+                block_height += request.skip + 1
+
+        return GetRootBlockHeaderListResponse(self.root_state.tip, header_list)
+
     async def handle_get_root_block_list_request(self, request):
+        if len(request.root_block_hash_list) > 2 * ROOT_BLOCK_BATCH_SIZE:
+            self.close_with_error("Bad number of root block requested")
         r_block_list = []
         for h in request.root_block_hash_list:
-            r_block = self.root_state.db.get_root_block_by_hash(
-                h, consistency_check=False
-            )
+            r_block = self.root_state.db.get_root_block_by_hash(h)
             if r_block is None:
                 continue
             r_block_list.append(r_block)
@@ -282,6 +352,9 @@ OP_NONRPC_MAP = {
     CommandOp.HELLO: Peer.handle_error,
     CommandOp.NEW_MINOR_BLOCK_HEADER_LIST: Peer.handle_new_minor_block_header_list,
     CommandOp.NEW_TRANSACTION_LIST: Peer.handle_new_transaction_list,
+    CommandOp.PING: Peer.handle_ping,
+    CommandOp.PONG: Peer.handle_pong,
+    CommandOp.NEW_ROOT_BLOCK: Peer.handle_new_root_block,
 }
 
 # For RPC request commands
@@ -297,6 +370,10 @@ OP_RPC_MAP = {
     CommandOp.GET_ROOT_BLOCK_LIST_REQUEST: (
         CommandOp.GET_ROOT_BLOCK_LIST_RESPONSE,
         Peer.handle_get_root_block_list_request,
+    ),
+    CommandOp.GET_ROOT_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: (
+        CommandOp.GET_ROOT_BLOCK_HEADER_LIST_RESPONSE,
+        Peer.handle_get_root_block_header_list_with_skip_request,
     ),
 }
 

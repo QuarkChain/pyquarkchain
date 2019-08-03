@@ -1,47 +1,68 @@
 import unittest
 
-from quarkchain.evm.transactions import Transaction
+from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.transaction_queue import OrderableTx, TransactionQueue
 
 
-def make_test_tx(s=100000, g=50, data=b'', nonce=0):
-        return Transaction(nonce=nonce, startgas=s, gasprice=g,
-                           value=0, data=data, to=b'\x35' * 20)
+def make_test_tx(s=100000, g=50, data=b"", nonce=0):
+    return EvmTransaction(
+        nonce=nonce,
+        startgas=s,
+        gasprice=g,
+        value=0,
+        data=data,
+        to=b"\x35" * 20,
+        gas_token_id=0,
+        transfer_token_id=0,
+        r=1,
+        s=1,
+        v=28,
+    )
 
 
 class TestTransactionQueue(unittest.TestCase):
+    @staticmethod
+    def _gasprices(q: TransactionQueue):
+        return [i.tx.gasprice for i in q.txs]
 
     def test(self):
         q = TransactionQueue()
         # (startgas, gasprice) pairs
-        params = [(100000, 81), (50000, 74), (40000, 65),
-                  (60000, 39), (30000, 50), (30000, 50),
-                  (30000, 80)]
+        params = [
+            (100000, 81),
+            (50000, 74),
+            (40000, 65),
+            (60000, 39),
+            (30000, 50),
+            (30000, 50),
+            (30000, 80),
+        ]
         # (maxgas, expected_startgas, expected_gasprice) triplets
-        operations = [(999999, 100000, 81),
-                      (999999, 30000, 80),
-                      (30000, 30000, 50),
-                      (29000, None, None),
-                      (30000, 30000, 50),
-                      (30000, None, None),
-                      (999999, 50000, 74)]
+        operations = [
+            (999999, 100000, 81),
+            (999999, 30000, 80),
+            (30000, 30000, 50),
+            (29000, None, None),
+            (30000, 30000, 50),
+            (30000, None, None),
+            (999999, 50000, 74),
+        ]
         # Add transactions to queue
         for param in params:
             q.add_transaction(make_test_tx(s=param[0], g=param[1]))
         # Attempt pops from queue
-        for (maxgas, expected_s, expected_g) in operations:
-            tx = q.pop_transaction(max_gas=maxgas)
+        for (max_gas, expected_s, expected_g) in operations:
+            tx = q.pop_transaction(req_nonce_getter=lambda _: 0, max_gas=max_gas)
             if tx:
                 assert (tx.startgas, tx.gasprice) == (expected_s, expected_g)
             else:
                 assert expected_s is expected_g is None
-        print('Test successful')
 
     def test_diff(self):
-        tx1 = make_test_tx(data=b'foo')
-        tx2 = make_test_tx(data=b'bar')
-        tx3 = make_test_tx(data=b'baz')
-        tx4 = make_test_tx(data=b'foobar')
+        tx1 = make_test_tx(data=b"foo")
+        tx2 = make_test_tx(data=b"bar")
+        tx3 = make_test_tx(data=b"baz")
+        tx4 = make_test_tx(data=b"foobar")
         q1 = TransactionQueue()
         for tx in [tx1, tx2, tx3, tx4]:
             q1.add_transaction(tx)
@@ -73,8 +94,75 @@ class TestTransactionQueue(unittest.TestCase):
         expected_nonce_order = [i for i in range(count)]
         nonces = []
         for i in range(count):
-            tx = q.pop_transaction()
+            tx = q.pop_transaction(req_nonce_getter=lambda _: i)
             nonces.append(tx.nonce)
         # Since they have the same gasprice they should have the same priority and
         # thus be popped in the order they were inserted.
         assert nonces == expected_nonce_order
+
+    def test_future_tx_higher_nonce(self):
+        q = TransactionQueue()
+        nonce_getter_maker = lambda i: (lambda _: i)
+        # Expect nonce to be 0
+        q.add_transaction(make_test_tx(nonce=1))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNone(res)
+        # Now add a current tx
+        q.add_transaction(make_test_tx(nonce=0))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNotNone(res)
+        # Now try fetching the future tx with updated nonce state
+        res = q.pop_transaction(nonce_getter_maker(1))
+        self.assertIsNotNone(res)
+
+    def test_multiple_future_tx(self):
+        q = TransactionQueue()
+        nonce_getter_maker = lambda i: (lambda _: i)
+        # Future tx with increasing gas price
+        for i in range(1, 6):
+            q.add_transaction(make_test_tx(nonce=1, g=i))
+        # Expect nonce to be 0
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNone(res)
+        # Internal state: total tx size == 5
+        self.assertEqual(len(q), 5)
+        # Add first valid tx
+        q.add_transaction(make_test_tx(nonce=0))
+        res = q.pop_transaction(nonce_getter_maker(0))
+        self.assertIsNotNone(res)
+        # Now verify next tx
+        res = q.pop_transaction(nonce_getter_maker(1))
+        self.assertEqual(res.nonce, 1)
+        self.assertEqual(res.gasprice, 5)
+        # Verify internal state, still have remaining txs with nonce == 1
+        self.assertEqual(len(q), 4)
+        # Stale tx will be cleaned up in the future
+        res = q.pop_transaction(nonce_getter_maker(100))
+        self.assertIsNone(res)
+        self.assertEqual(len(q), 0)
+
+    def test_discard_underpriced_tx(self):
+        q = TransactionQueue(limit=6)
+        # (startgas, gasprice) pairs
+        params = [
+            (100000, 81),
+            (50000, 74),
+            (40000, 65),
+            (60000, 39),
+            (30000, 50),
+            (30000, 80),
+        ]
+        # Add transactions to queue
+        for param in params:
+            q.add_transaction(make_test_tx(s=param[0], g=param[1]))
+
+        prices = self._gasprices(q)
+        self.assertListEqual(prices, [81, 80, 74, 65, 50, 39])
+
+        # Add a lower priced tx is a no-op
+        q.add_transaction(make_test_tx(s=100000, g=38))
+        self.assertListEqual(self._gasprices(q), prices)
+
+        # Add a higher priced tx, should be placed inside the queue
+        q.add_transaction(make_test_tx(s=100000, g=70))
+        self.assertListEqual(self._gasprices(q), [81, 80, 74, 70, 65, 50])

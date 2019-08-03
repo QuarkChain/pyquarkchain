@@ -1,0 +1,88 @@
+{
+    "CheckContractCreationInsideContract" : {
+        "_info" : {
+            "comment": "contract: https://gist.github.com/czy1234/e9c2278aa129fcac65f1cb3e66f9e0ca",
+            "filledwith" : "",
+            "lllcversion" : "",
+            "source" : "",
+            "sourceHash" : ""
+        },
+        "env" : {
+            "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
+            "currentDifficulty" : "0x020000",
+            "currentGasLimit" : "0x0f4240",
+            "currentNumber" : "0x01",
+            "currentTimestamp" : "0x03e8",
+            "previousHash" : "0x5e20a0453cecd065ea59c37ac63e079ee08998b6045136a8ce6635c7912ec0b6"
+        },
+        "post" : {
+            "ConstantinopleFix" : [
+                {
+                    "_comment": "This creates a tx with non-default transfer token and transfer value 0, the tx creates a callee contract, and the callee does query its token",
+                    "hash" : "0xe5875ed244e254f0d8b40e96970ecc0df982f95697c57f6ae896126c1270c60d",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                },
+                {
+                    "_comment": "This creates a tx with non-default transfer token and transfer value 1, the tx creates a callee contract, and the callee does query its token",
+                    "hash" : "0xe5875ed244e254f0d8b40e96970ecc0df982f95697c57f6ae896126c1270c60d",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 1,
+                        "transferTokenId": 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ]
+        },
+        "pre" : {
+            "0xa94f5374fce5edbc8e2a8697c15331677e6ebf0b" : {
+                "_comment": "This is the sender contract's address",
+                "balances" : {
+                    "0x8bb0": "0x0de0b6b3a7640000",
+                    "0x1234": "0x0de0b6b3a7640000"
+                },
+                "code" : "",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            },
+            "0x66b0ef7dccbbd6a6c1730062574254af7308849b" : {
+                "_comment": "This is the caller contract's address",
+                "balances" : {
+                    "0x1234": "0x05"
+                },
+                "code" : "608060405260043610610041576000357c0100000000000000000000000000000000000000000000000000000000900463ffffffff168063e236188c14610046575b600080fd5b61004e610050565b005b6000604081600080600064514b430001600019f15061006d610096565b604051809103906000f080158015610089573d6000803e3d6000fd5b5050600160008190555050565b6040516087806100a68339019056fe6080604052600a6022565b604081600080600064514b430001600019f150506045565b602060405190810160405280600190602082028038833980820191505090505090565b60358060526000396000f3fe6080604052600080fdfea165627a7a72305820d3cbf628a91a3c5f29a3fadc90a7920cecae02fcc948cc566edcb18ca693b4dd0029a165627a7a723058208b2ce373248f65188efcb13c385c42e990cdb9d69ecd6c4c68f06d9d8587296e0029",
+                "nonce" : "0x00",
+                "storage" : {
+                }
+            }
+        },
+        "transaction" : {
+            "_comment": "data field: call1()",
+            "data" : [
+                "0xe236188c"
+            ],
+            "gasLimit" : [
+                "0x061a80"
+            ],
+            "transferTokenId": [
+                "0x1234"
+            ],
+            "gasPrice" : "0x01",
+            "nonce" : "0x00",
+            "secretKey" : "0x45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8",
+            "to" : "0x66b0ef7dccbbd6a6c1730062574254af7308849b",
+            "value" : [
+                "0x00",
+                "0x01"
+            ]
+        }
+    }
+}

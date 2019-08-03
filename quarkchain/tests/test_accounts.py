@@ -7,17 +7,16 @@ from quarkchain.accounts import Account
 from quarkchain.core import Address, Identity
 
 PRIVATE_KEY = "7a28b5ba57c53603b0b07b56bba752f7784bf506fa95edc395f5cf6c7514fe9d"
-ADDRESS = "008aeeda4d805471df9b2a5b0f38a0c3bcba786b00802ac3"
+ADDRESS = "008aeeda4d805471df9b2a5b0f38a0c3bcba786b0000002a"
 
 
 class TestAccount(unittest.TestCase):
-
     def test_create_account_with_key(self):
         account = Account.new(key=PRIVATE_KEY)
         assert account.privkey == PRIVATE_KEY
         assert account.address == ADDRESS
         # check integer version of full shard id matches
-        assert account.qkc_address.full_shard_id == int(ADDRESS[40:], 16)
+        assert account.qkc_address.full_shard_key == int(ADDRESS[40:], 16)
 
     def test_create_random_account(self):
         account = Account.new()

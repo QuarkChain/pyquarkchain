@@ -1,10 +1,14 @@
-import heapq
-heapq.heaptop = lambda x: x[0]
-PRIO_INFINITY = -2**100
+import bisect
+from functools import total_ordering
+
+from typing import Callable
 
 
+MAX_STALE_TX_NONCE = 32
+
+
+@total_ordering
 class OrderableTx(object):
-
     def __init__(self, prio, counter, tx):
         self.prio = prio
         self.counter = counter
@@ -19,38 +23,42 @@ class OrderableTx(object):
             return False
 
 
-class TransactionQueue():
-
-    def __init__(self):
+class TransactionQueue(object):
+    def __init__(self, limit: int = 10000):
         self.counter = 0
+        self.limit = limit
         self.txs = []
-        self.aside = []
 
     def __len__(self):
         return len(self.txs)
 
-    def add_transaction(self, tx, force=False):
-        prio = PRIO_INFINITY if force else -tx.gasprice
-        heapq.heappush(self.txs, OrderableTx(prio, self.counter, tx))
+    def add_transaction(self, tx):
+        if len(self.txs) >= self.limit:
+            if tx.gasprice < self.txs[-1].tx.gasprice:
+                return  # no-op
+            self.txs.pop(-1)
+        prio = -tx.gasprice
+        ordered_tx = OrderableTx(prio, self.counter, tx)
+        # amortized O(n) cost, ~9x slower than heapq push, may need optimization if becoming a bottleneck
+        bisect.insort(self.txs, ordered_tx)
         self.counter += 1
 
-    def pop_transaction(self, max_gas=9999999999,
-                        max_seek_depth=16, min_gasprice=0):
-        while len(self.aside) and max_gas >= heapq.heaptop(self.aside).prio:
-            item = heapq.heappop(self.aside)
-            item.prio = -item.tx.gasprice
-            heapq.heappush(self.txs, item)
-        for i in range(min(len(self.txs), max_seek_depth)):
-            item = heapq.heaptop(self.txs)
-            if item.tx.startgas > max_gas:
-                heapq.heappop(self.txs)
-                item.prio = item.tx.startgas
-                heapq.heappush(self.aside, item)
-            elif item.tx.gasprice >= min_gasprice or item.prio == PRIO_INFINITY:
-                heapq.heappop(self.txs)
-                return item.tx
-            else:
-                return None
+    def pop_transaction(
+        self, req_nonce_getter: Callable[[bytes], int], max_gas=9999999999
+    ):
+        i, found = 0, None
+        while i < len(self.txs):
+            item = self.txs[i]
+            tx = item.tx
+            # discard old tx
+            if tx.nonce < req_nonce_getter(tx.sender) - MAX_STALE_TX_NONCE:
+                self.txs.pop(i)
+                continue
+            # target found
+            if tx.startgas <= max_gas and req_nonce_getter(tx.sender) == tx.nonce:
+                self.txs.pop(i)
+                return tx
+            i += 1
         return None
 
     def peek(self, num=None):
@@ -62,10 +70,7 @@ class TransactionQueue():
     def diff(self, txs):
         remove_hashes = [tx.hash for tx in txs]
         keep_txs = [item for item in self.txs if item.tx.hash not in remove_hashes]
-        keep_aside = [item for item in self.aside if item.tx.hash not in remove_hashes]
-        q = TransactionQueue()
+        q = TransactionQueue(self.limit)
         q.txs = keep_txs
-        q.aside = keep_aside
-        heapq.heapify(q.txs)
-        heapq.heapify(q.aside)
+        q.counter = self.counter
         return q

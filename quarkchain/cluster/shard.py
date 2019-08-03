@@ -1,33 +1,44 @@
 import asyncio
 from collections import deque
+from typing import List
 
+from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.p2p_commands import (
-    CommandOp,
     OP_SERIALIZER_MAP,
-    NewMinorBlockHeaderListCommand,
+    CommandOp,
+    Direction,
+    GetMinorBlockHeaderListRequest,
+    GetMinorBlockHeaderListResponse,
     GetMinorBlockListRequest,
     GetMinorBlockListResponse,
-    GetMinorBlockHeaderListRequest,
-    Direction,
-    GetMinorBlockHeaderListResponse,
-    NewTransactionListCommand,
     NewBlockMinorCommand,
+    NewMinorBlockHeaderListCommand,
+    NewTransactionListCommand,
 )
-from quarkchain.cluster.miner import Miner, validate_seal
-from quarkchain.cluster.tx_generator import TransactionGenerator
-from quarkchain.cluster.protocol import VirtualConnection, ClusterMetadata
+from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
-from quarkchain.config import ShardConfig, ConsensusType
+from quarkchain.cluster.tx_generator import TransactionGenerator
+from quarkchain.config import ShardConfig
 from quarkchain.core import (
-    RootBlock,
-    MinorBlock,
-    MinorBlockHeader,
-    Branch,
-    Transaction,
     Address,
+    Branch,
+    MinorBlockHeader,
+    RootBlock,
+    TypedTransaction,
 )
-from quarkchain.utils import Logger, check, time_ms
+from quarkchain.constants import (
+    ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST,
+    NEW_TRANSACTION_LIST_LIMIT,
+    MINOR_BLOCK_BATCH_SIZE,
+    MINOR_BLOCK_HEADER_LIST_LIMIT,
+    SYNC_TIMEOUT,
+    BLOCK_UNCOMMITTED,
+    BLOCK_COMMITTING,
+    BLOCK_COMMITTED,
+)
 from quarkchain.db import InMemoryDb, PersistentDb
+from quarkchain.utils import Logger, check, time_ms
+from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 
 
 class PeerShardConnection(VirtualConnection):
@@ -47,6 +58,10 @@ class PeerShardConnection(VirtualConnection):
     def get_metadata_to_write(self, metadata):
         """ Override VirtualConnection.get_metadata_to_write()
         """
+        if self.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
+            self.close_with_error(
+                "PeerShardConnection: remote is using reserved cluster peer id which is prohibited"
+            )
         return ClusterMetadata(self.shard_state.branch, self.cluster_peer_id)
 
     def close_with_error(self, error):
@@ -64,8 +79,8 @@ class PeerShardConnection(VirtualConnection):
     def broadcast_new_tip(self):
         if self.best_root_block_header_observed:
             if (
-                self.shard_state.root_tip.height
-                < self.best_root_block_header_observed.height
+                self.shard_state.root_tip.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return
             if self.shard_state.root_tip == self.best_root_block_header_observed:
@@ -94,7 +109,7 @@ class PeerShardConnection(VirtualConnection):
     async def handle_get_minor_block_header_list_request(self, request):
         if request.branch != self.shard_state.branch:
             self.close_with_error("Wrong branch from peer")
-        if request.limit <= 0:
+        if request.limit <= 0 or request.limit > 2 * MINOR_BLOCK_HEADER_LIST_LIMIT:
             self.close_with_error("Bad limit")
         # TODO: support tip direction
         if request.direction != Direction.GENESIS:
@@ -103,9 +118,7 @@ class PeerShardConnection(VirtualConnection):
         block_hash = request.block_hash
         header_list = []
         for i in range(request.limit):
-            header = self.shard_state.db.get_minor_block_header_by_hash(
-                block_hash, consistency_check=False
-            )
+            header = self.shard_state.db.get_minor_block_header_by_hash(block_hash)
             header_list.append(header)
             if header.height == 0:
                 break
@@ -115,12 +128,63 @@ class PeerShardConnection(VirtualConnection):
             self.shard_state.root_tip, self.shard_state.header_tip, header_list
         )
 
+    async def handle_get_minor_block_header_list_with_skip_request(self, request):
+        if request.branch != self.shard_state.branch:
+            self.close_with_error("Wrong branch from peer")
+        if request.limit <= 0 or request.limit > 2 * MINOR_BLOCK_HEADER_LIST_LIMIT:
+            self.close_with_error("Bad limit")
+        if request.type != 0 and request.type != 1:
+            self.close_with_error("Bad type value")
+
+        if request.type == 1:
+            block_height = request.get_height()
+        else:
+            block_hash = request.get_hash()
+            block_header = self.shard_state.db.get_minor_block_header_by_hash(
+                block_hash
+            )
+            if block_header is None:
+                return GetMinorBlockHeaderListResponse(
+                    self.shard_state.root_tip, self.shard_state.header_tip, []
+                )
+
+            # Check if it is canonical chain
+            block_height = block_header.height
+            if (
+                self.shard_state.db.get_minor_block_header_by_height(block_height)
+                != block_header
+            ):
+                return GetMinorBlockHeaderListResponse(
+                    self.shard_state.root_tip, self.shard_state.header_tip, []
+                )
+
+        header_list = []
+        while (
+            len(header_list) < request.limit
+            and block_height >= 0
+            and block_height <= self.shard_state.header_tip.height
+        ):
+            block_header = self.shard_state.db.get_minor_block_header_by_height(
+                block_height
+            )
+            if block_header is None:
+                break
+            header_list.append(block_header)
+            if request.direction == Direction.GENESIS:
+                block_height -= request.skip + 1
+            else:
+                block_height += request.skip + 1
+
+        return GetMinorBlockHeaderListResponse(
+            self.shard_state.root_tip, self.shard_state.header_tip, header_list
+        )
+
     async def handle_get_minor_block_list_request(self, request):
+        if len(request.minor_block_hash_list) > 2 * MINOR_BLOCK_BATCH_SIZE:
+            self.close_with_error("Bad number of minor blocks requested")
         m_block_list = []
         for m_block_hash in request.minor_block_hash_list:
-            m_block = self.shard_state.db.get_minor_block_by_hash(
-                m_block_hash, consistency_check=False
-            )
+            m_block = self.shard_state.db.get_minor_block_by_hash(m_block_hash)
             if m_block is None:
                 continue
             # TODO: Check list size to make sure the resp is smaller than limit
@@ -145,23 +209,23 @@ class PeerShardConnection(VirtualConnection):
         if self.best_root_block_header_observed:
             # check root header is not decreasing
             if (
-                cmd.root_block_header.height
-                < self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                < self.best_root_block_header_observed.total_difficulty
             ):
                 return self.close_with_error(
-                    "best observed root header height is decreasing {} < {}".format(
-                        cmd.root_block_header.height,
-                        self.best_root_block_header_observed.height,
+                    "best observed root header total_difficulty is decreasing {} < {}".format(
+                        cmd.root_block_header.total_difficulty,
+                        self.best_root_block_header_observed.total_difficulty,
                     )
                 )
             if (
-                cmd.root_block_header.height
-                == self.best_root_block_header_observed.height
+                cmd.root_block_header.total_difficulty
+                == self.best_root_block_header_observed.total_difficulty
             ):
                 if cmd.root_block_header != self.best_root_block_header_observed:
                     return self.close_with_error(
-                        "best observed root header changed with same height {}".format(
-                            self.best_root_block_header_observed.height
+                        "best observed root header changed with same total_difficulty {}".format(
+                            self.best_root_block_header_observed.total_difficulty
                         )
                     )
 
@@ -181,14 +245,17 @@ class PeerShardConnection(VirtualConnection):
         if self.shard_state.header_tip.height >= m_header.height:
             return
 
-        Logger.info(
+        Logger.info_every_sec(
             "[{}] received new tip with height {}".format(
-                m_header.branch.get_shard_id(), m_header.height
-            )
+                m_header.branch.to_str(), m_header.height
+            ),
+            5,
         )
         self.shard.synchronizer.add_task(m_header, self)
 
     async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
+        if len(cmd.transaction_list) > NEW_TRANSACTION_LIST_LIMIT:
+            self.close_with_error("Too many transactions in one command")
         self.shard.add_tx_list(cmd.transaction_list, self)
 
 
@@ -209,9 +276,11 @@ OP_RPC_MAP = {
         CommandOp.GET_MINOR_BLOCK_LIST_RESPONSE,
         PeerShardConnection.handle_get_minor_block_list_request,
     ),
+    CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_REQUEST: (
+        CommandOp.GET_MINOR_BLOCK_HEADER_LIST_WITH_SKIP_RESPONSE,
+        PeerShardConnection.handle_get_minor_block_header_list_with_skip_request,
+    ),
 }
-
-TIMEOUT = 10
 
 
 class SyncTask:
@@ -222,11 +291,11 @@ class SyncTask:
     def __init__(self, header: MinorBlockHeader, shard_conn: PeerShardConnection):
         self.header = header
         self.shard_conn = shard_conn
-        self.shard_state = shard_conn.shard_state
+        self.shard_state = shard_conn.shard_state  # type: ShardState
         self.shard = shard_conn.shard
 
-        shard_id = self.header.branch.get_shard_id()
-        shard_config = self.shard_state.env.quark_chain_config.SHARD_LIST[shard_id]
+        full_shard_id = self.header.branch.get_full_shard_id()
+        shard_config = self.shard_state.env.quark_chain_config.shards[full_shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
     async def sync(self):
@@ -243,7 +312,6 @@ class SyncTask:
         # descending height
         block_header_chain = [self.header]
 
-        # TODO: Stop if too many headers to revert
         while not self.__has_block_hash(block_header_chain[-1].hash_prev_minor_block):
             block_hash = block_header_chain[-1].hash_prev_minor_block
             height = block_header_chain[-1].height - 1
@@ -251,7 +319,7 @@ class SyncTask:
             if self.shard_state.header_tip.height - height > self.max_staleness:
                 Logger.warning(
                     "[{}] abort syncing due to forking at very old block {} << {}".format(
-                        self.header.branch.get_shard_id(),
+                        self.header.branch.to_str(),
                         height,
                         self.shard_state.header_tip.height,
                     )
@@ -264,15 +332,15 @@ class SyncTask:
                 return
             Logger.info(
                 "[{}] downloading headers from {} {}".format(
-                    self.shard_state.branch.get_shard_id(), height, block_hash.hex()
+                    self.shard_state.branch.to_str(), height, block_hash.hex()
                 )
             )
             block_header_list = await asyncio.wait_for(
-                self.__download_block_headers(block_hash), TIMEOUT
+                self.__download_block_headers(block_hash), SYNC_TIMEOUT
             )
             Logger.info(
                 "[{}] downloaded {} headers from peer".format(
-                    self.shard_state.branch.get_shard_id(), len(block_header_list)
+                    self.shard_state.branch.to_str(), len(block_header_list)
                 )
             )
             if not self.__validate_block_headers(block_header_list):
@@ -289,14 +357,19 @@ class SyncTask:
         block_header_chain.reverse()
         while len(block_header_chain) > 0:
             block_chain = await asyncio.wait_for(
-                self.__download_blocks(block_header_chain[:100]), TIMEOUT
+                self.__download_blocks(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]),
+                SYNC_TIMEOUT,
             )
             Logger.info(
                 "[{}] downloaded {} blocks from peer".format(
-                    self.shard_state.branch.get_shard_id(), len(block_chain)
+                    self.shard_state.branch.to_str(), len(block_chain)
                 )
             )
-            check(len(block_chain) == len(block_header_chain[:100]))
+            if len(block_chain) != len(block_header_chain[:MINOR_BLOCK_BATCH_SIZE]):
+                # TODO: tag bad peer
+                return self.shard_conn.close_with_error(
+                    "Bad peer sending less than requested blocks"
+                )
 
             for block in block_chain:
                 # Stop if the block depends on an unknown root block
@@ -305,31 +378,44 @@ class SyncTask:
                     block.header.hash_prev_root_block
                 ):
                     return
-                await asyncio.wait_for(self.shard.add_block(block), TIMEOUT)
+                await self.shard.add_block(block)
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
         return self.shard_state.db.contain_minor_block_by_hash(block_hash)
 
-    def __validate_block_headers(self, block_header_list):
+    def __validate_block_headers(self, block_header_list: List[MinorBlockHeader]):
         for i in range(len(block_header_list) - 1):
-            header, prev = block_header_list[i : i + 2]
+            header, prev = block_header_list[i : i + 2]  # type: MinorBlockHeader
             if header.height != prev.height + 1:
                 return False
             if header.hash_prev_minor_block != prev.get_hash():
                 return False
-            shard_id = header.branch.get_shard_id()
-            consensus_type = self.shard.env.quark_chain_config.SHARD_LIST[
-                shard_id
-            ].CONSENSUS_TYPE
-            validate_seal(header, consensus_type)
+            try:
+                # Note that PoSW may lower diff, so checks here are necessary but not sufficient
+                # More checks happen during block addition
+                shard_config = self.shard.env.quark_chain_config.shards[
+                    header.branch.get_full_shard_id()
+                ]
+                consensus_type = shard_config.CONSENSUS_TYPE
+                diff = header.difficulty
+                if shard_config.POSW_CONFIG.ENABLED:
+                    diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
+                validate_seal(header, consensus_type, adjusted_diff=diff)
+            except Exception as e:
+                Logger.warning(
+                    "[{}] got block with bad seal in sync: {}".format(
+                        header.branch.to_str(), str(e)
+                    )
+                )
+                return False
         return True
 
     async def __download_block_headers(self, block_hash):
         request = GetMinorBlockHeaderListRequest(
             block_hash=block_hash,
             branch=self.shard_state.branch,
-            limit=100,
+            limit=MINOR_BLOCK_HEADER_LIST_LIMIT,
             direction=Direction.GENESIS,
         )
         op, resp, rpc_id = await self.shard_conn.write_rpc_request(
@@ -368,12 +454,12 @@ class Synchronizer:
 
 
 class Shard:
-    def __init__(self, env, shard_id, slave):
+    def __init__(self, env, full_shard_id, slave):
         self.env = env
-        self.shard_id = shard_id
+        self.full_shard_id = full_shard_id
         self.slave = slave
 
-        self.state = ShardState(env, shard_id, self.__init_shard_db())
+        self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
         self.loop = asyncio.get_event_loop()
         self.synchronizer = Synchronizer()
@@ -396,13 +482,13 @@ class Shard:
             return InMemoryDb()
 
         db_path = "{path}/shard-{shard_id}.db".format(
-            path=self.env.cluster_config.DB_PATH_ROOT, shard_id=self.shard_id
+            path=self.env.cluster_config.DB_PATH_ROOT, shard_id=self.full_shard_id
         )
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self):
         miner_address = Address.create_from(
-            self.env.quark_chain_config.SHARD_LIST[self.shard_id].COINBASE_ADDRESS
+            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_ADDRESS
         )
 
         async def __create_block(retry=True):
@@ -428,8 +514,8 @@ class Shard:
                 "target_block_time": self.slave.artificial_tx_config.target_minor_block_time
             }
 
-        shard_config = self.env.quark_chain_config.SHARD_LIST[
-            self.shard_id
+        shard_config = self.env.quark_chain_config.shards[
+            self.full_shard_id
         ]  # type: ShardConfig
         self.miner = Miner(
             shard_config.CONSENSUS_TYPE,
@@ -439,18 +525,35 @@ class Shard:
             remote=shard_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
-    def __get_shard_size(self):
-        return self.env.quark_chain_config.SHARD_SIZE
-
     @property
     def genesis_root_height(self):
-        return self.env.quark_chain_config.get_genesis_root_height(self.shard_id)
+        return self.env.quark_chain_config.get_genesis_root_height(self.full_shard_id)
 
     def add_peer(self, peer: PeerShardConnection):
         self.peers[peer.cluster_peer_id] = peer
+        Logger.info(
+            "[{}] connected to peer {}".format(
+                Branch(self.full_shard_id).to_str(), peer.cluster_peer_id
+            )
+        )
+
+    async def create_peer_shard_connections(self, cluster_peer_ids, master_conn):
+        conns = []
+        for cluster_peer_id in cluster_peer_ids:
+            peer_shard_conn = PeerShardConnection(
+                master_conn=master_conn,
+                cluster_peer_id=cluster_peer_id,
+                shard=self,
+                name="{}_vconn_{}".format(master_conn.name, cluster_peer_id),
+            )
+            asyncio.ensure_future(peer_shard_conn.active_and_loop_forever())
+            conns.append(peer_shard_conn)
+        await asyncio.gather(*[conn.active_future for conn in conns])
+        for conn in conns:
+            self.add_peer(conn)
 
     async def __init_genesis_state(self, root_block: RootBlock):
-        block = self.state.init_genesis_state(root_block)
+        block, coinbase_amount_map = self.state.init_genesis_state(root_block)
         xshard_list = []
         await self.slave.broadcast_xshard_tx_list(
             block, xshard_list, root_block.header.height
@@ -459,6 +562,7 @@ class Shard:
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
@@ -471,8 +575,6 @@ class Shard:
             await self.__init_genesis_state(root_block)
 
     async def add_root_block(self, root_block: RootBlock):
-        check(root_block.header.height >= self.genesis_root_height)
-
         if root_block.header.height > self.genesis_root_height:
             return self.state.add_root_block(root_block)
 
@@ -496,66 +598,126 @@ class Shard:
 
     async def handle_new_block(self, block):
         """
+        This is a fast path for block propagation. The block is broadcasted to peers before being added to local state.
         0. if local shard is syncing, doesn't make sense to add, skip
-        1. if block parent is not in local state/new block pool, discard
+        1. if block parent is not in local state/new block pool, discard (TODO: is this necessary?)
         2. if already in cache or in local state/new block pool, pass
         3. validate: check time, difficulty, POW
         4. add it to new minor block broadcast cache
         5. broadcast to all peers (minus peer that sent it, optional)
         6. add_block() to local state (then remove from cache)
-             also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
+           also, broadcast tip if tip is updated (so that peers can sync if they missed blocks, or are new)
         """
         if self.synchronizer.running:
-            # TODO optinal: queue the block if it came from broadcast to so that once sync is over, catch up immediately
+            # TODO optional: queue the block if it came from broadcast to so that once sync is over,
+            # catch up immediately
             return
 
-        if block.header.get_hash() in self.state.new_block_pool:
+        if block.header.get_hash() in self.state.new_block_header_pool:
             return
         if self.state.db.contain_minor_block_by_hash(block.header.get_hash()):
             return
 
-        if not self.state.db.contain_minor_block_by_hash(
-            block.header.hash_prev_minor_block
+        prev_hash, prev_header = block.header.hash_prev_minor_block, None
+        if prev_hash in self.state.new_block_header_pool:
+            prev_header = self.state.new_block_header_pool[prev_hash]
+        else:
+            prev_header = self.state.db.get_minor_block_header_by_hash(prev_hash)
+        if prev_header is None:  # Missing prev
+            return
+
+        # Sanity check on timestamp and block height
+        if (
+            block.header.create_time
+            > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_BROADCAST
         ):
-            if block.header.hash_prev_minor_block not in self.state.new_block_pool:
-                return
+            return
+        # Ignore old blocks
+        if (
+            self.state.header_tip
+            and self.state.header_tip.height - block.header.height
+            > self.state.shard_config.max_stale_minor_block_height_diff
+        ):
+            return
 
-        shard_id = block.header.branch.get_shard_id()
-        consensus_type = self.env.quark_chain_config.SHARD_LIST[shard_id].CONSENSUS_TYPE
+        # There is a race that the root block may not be processed at the moment.
+        # Ignore it if its root block is not found.
+        # Otherwise, validate_block() will fail and we will disconnect the peer.
+        if (
+            self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
+            is None
+        ):
+            return
+
         try:
-            validate_seal(block.header, consensus_type)
+            self.state.validate_block(block)
         except Exception as e:
-            Logger.warning("[{}] Got block with bad seal: {}".format(shard_id, str(e)))
-            return
+            Logger.warning(
+                "[{}] got bad block in handle_new_block: {}".format(
+                    block.header.branch.to_str(), str(e)
+                )
+            )
+            raise e
 
-        if block.header.create_time > time_ms() // 1000 + 30:
-            return
-
-        self.state.new_block_pool[block.header.get_hash()] = block
+        self.state.new_block_header_pool[block.header.get_hash()] = block.header
 
         Logger.info(
-            "[{}] got new block with height {}".format(
-                block.header.branch.get_shard_id(), block.header.height
+            "[{}/{}] got new block with height {}".format(
+                block.header.branch.get_chain_id(),
+                block.header.branch.get_shard_id(),
+                block.header.height,
             )
         )
         self.broadcast_new_block(block)
         await self.add_block(block)
 
+    def __get_block_commit_status_by_hash(self, block_hash):
+        # If the block is committed, it means
+        # - All neighbor shards/slaves receives x-shard tx list
+        # - The block header is sent to master
+        # then return immediately
+        if self.state.is_committed_by_hash(block_hash):
+            return BLOCK_COMMITTED, None
+
+        # Check if the block is being propagating to other slaves and the master
+        # Let's make sure all the shards and master got it before committing it
+        future = self.add_block_futures.get(block_hash)
+        if future is not None:
+            return BLOCK_COMMITTING, future
+
+        return BLOCK_UNCOMMITTED, None
+
     async def add_block(self, block):
         """ Returns true if block is successfully added. False on any error.
         called by 1. local miner (will not run if syncing) 2. SyncTask
         """
+
+        block_hash = block.header.get_hash()
+        commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
+        if commit_status == BLOCK_COMMITTED:
+            return True
+        elif commit_status == BLOCK_COMMITTING:
+            Logger.info(
+                "[{}] {} is being added ... waiting for it to finish".format(
+                    block.header.branch.to_str(), block.header.height
+                )
+            )
+            await future
+            return True
+
+        check(commit_status == BLOCK_UNCOMMITTED)
+        # Validate and add the block
         old_tip = self.state.header_tip
         try:
-            xshard_list = self.state.add_block(block)
+            xshard_list, coinbase_amount_map = self.state.add_block(block, force=True)
         except Exception as e:
             Logger.error_exception()
             return False
 
         # only remove from pool if the block successfully added to state,
-        #   this may cache failed blocks but prevents them being broadcasted more than needed
-        # TODO add ttl to blocks in new_block_pool
-        self.state.new_block_pool.pop(block.header.get_hash(), None)
+        # this may cache failed blocks but prevents them being broadcasted more than needed
+        # TODO add ttl to blocks in new_block_header_pool
+        self.state.new_block_header_pool.pop(block_hash, None)
         # block has been added to local state, broadcast tip so that peers can sync if needed
         try:
             if old_tip != self.state.header_tip:
@@ -563,85 +725,128 @@ class Shard:
         except Exception:
             Logger.warning_every_sec("broadcast tip failure", 1)
 
-        # block already existed in local shard state
-        # but might not have been propagated to other shards and master
-        # let's make sure all the shards and master got it before return
-        if xshard_list is None:
-            future = self.add_block_futures.get(block.header.get_hash(), None)
-            if future:
-                Logger.info(
-                    "[{}] {} is being added ... waiting for it to finish".format(
-                        block.header.branch.get_shard_id(), block.header.height
-                    )
-                )
-                await future
-            return True
+        # Add the block in future and wait
+        self.add_block_futures[block_hash] = self.loop.create_future()
 
-        self.add_block_futures[block.header.get_hash()] = self.loop.create_future()
-
-        prev_root_height = self.state.db.get_root_block_by_hash(
+        prev_root_height = self.state.db.get_root_block_header_by_hash(
             block.header.hash_prev_root_block
-        ).header.height
+        ).height
         await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
         await self.slave.send_minor_block_header_to_master(
             block.header,
             len(block.tx_list),
             len(xshard_list),
+            coinbase_amount_map,
             self.state.get_shard_stats(),
         )
 
-        self.add_block_futures[block.header.get_hash()].set_result(None)
-        del self.add_block_futures[block.header.get_hash()]
+        # Commit the block
+        self.state.commit_by_hash(block_hash)
+        Logger.debug("committed mblock {}".format(block_hash.hex()))
+
+        # Notify the rest
+        self.add_block_futures[block_hash].set_result(None)
+        del self.add_block_futures[block_hash]
         return True
+
+    def check_minor_block_by_header(self, header):
+        """ Raise exception of the block is invalid
+        """
+        block = self.state.get_block_by_hash(header.get_hash())
+        if block is None:
+            raise RuntimeError("block {} cannot be found".format(header.get_hash()))
+        if header.height == 0:
+            return
+        self.state.add_block(block, force=True, write_db=False, skip_if_too_old=False)
 
     async def add_block_list_for_sync(self, block_list):
         """ Add blocks in batch to reduce RPCs. Will NOT broadcast to peers.
 
         Returns true if blocks are successfully added. False on any error.
+        Additionally, returns list of coinbase_amount_map for each block
         This function only adds blocks to local and propagate xshard list to other shards.
         It does NOT notify master because the master should already have the minor header list,
         and will add them once this function returns successfully.
         """
+        coinbase_amount_list = []
         if not block_list:
-            return True
+            return True, coinbase_amount_list
 
         existing_add_block_futures = []
         block_hash_to_x_shard_list = dict()
+        uncommitted_block_header_list = []
+        uncommitted_coinbase_amount_map_list = []
         for block in block_list:
-            check(block.header.branch.get_shard_id() == self.shard_id)
+            check(block.header.branch.get_full_shard_id() == self.full_shard_id)
 
             block_hash = block.header.get_hash()
+            # adding the block header one assuming the block will be validated.
+            coinbase_amount_list.append(block.header.coinbase_amount_map)
+
+            commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
+            if commit_status == BLOCK_COMMITTED:
+                # Skip processing the block if it is already committed
+                Logger.warning(
+                    "minor block to sync {} is already committed".format(
+                        block_hash.hex()
+                    )
+                )
+                continue
+            elif commit_status == BLOCK_COMMITTING:
+                # Check if the block is being propagating to other slaves and the master
+                # Let's make sure all the shards and master got it before committing it
+                Logger.info(
+                    "[{}] {} is being added ... waiting for it to finish".format(
+                        block.header.branch.to_str(), block.header.height
+                    )
+                )
+                existing_add_block_futures.append(future)
+                continue
+
+            check(commit_status == BLOCK_UNCOMMITTED)
+            # Validate and add the block
             try:
-                xshard_list = self.state.add_block(block, skip_if_too_old=False)
+                xshard_list, coinbase_amount_map = self.state.add_block(
+                    block, skip_if_too_old=False, force=True
+                )
             except Exception as e:
                 Logger.error_exception()
-                return False
+                return False, None
 
-            # block already existed in local shard state
-            # but might not have been propagated to other shards and master
-            # let's make sure all the shards and master got it before return
-            if xshard_list is None:
-                future = self.add_block_futures.get(block_hash, None)
-                if future:
-                    existing_add_block_futures.append(future)
-            else:
-                prev_root_height = self.state.db.get_root_block_by_hash(
-                    block.header.hash_prev_root_block
-                ).header.height
-                block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
-                self.add_block_futures[block_hash] = self.loop.create_future()
+            prev_root_height = self.state.db.get_root_block_header_by_hash(
+                block.header.hash_prev_root_block
+            ).height
+            block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
+            self.add_block_futures[block_hash] = self.loop.create_future()
+            uncommitted_block_header_list.append(block.header)
+            uncommitted_coinbase_amount_map_list.append(
+                block.header.coinbase_amount_map
+            )
 
         await self.slave.batch_broadcast_xshard_tx_list(
             block_hash_to_x_shard_list, block_list[0].header.branch
         )
+        check(
+            len(uncommitted_coinbase_amount_map_list)
+            == len(uncommitted_block_header_list)
+        )
+        await self.slave.send_minor_block_header_list_to_master(
+            uncommitted_block_header_list, uncommitted_coinbase_amount_map_list
+        )
 
-        for block_hash in block_hash_to_x_shard_list.keys():
+        # Commit all blocks and notify all rest add block operations
+        for block_header in uncommitted_block_header_list:
+            block_hash = block_header.get_hash()
+            self.state.commit_by_hash(block_hash)
+            Logger.debug("committed mblock {}".format(block_hash.hex()))
+
             self.add_block_futures[block_hash].set_result(None)
             del self.add_block_futures[block_hash]
 
+        # Wait for the other add block operations
         await asyncio.gather(*existing_add_block_futures)
 
-        return True
+        return True, coinbase_amount_list
 
     def add_tx_list(self, tx_list, source_peer=None):
         if not tx_list:
@@ -654,5 +859,5 @@ class Shard:
             return
         self.broadcast_tx_list(valid_tx_list, source_peer)
 
-    def add_tx(self, tx: Transaction):
+    def add_tx(self, tx: TypedTransaction):
         return self.state.add_tx(tx)

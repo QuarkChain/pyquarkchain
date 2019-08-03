@@ -4,6 +4,7 @@ import hashlib
 import io
 import logging
 import os
+import re
 import sys
 import time
 import traceback
@@ -36,6 +37,12 @@ def masks_have_overlap(m1, m2):
 
 def is_p2(v):
     return (v & (v - 1)) == 0
+
+
+def p2_roundup(v):
+    """ Roundup to nearest P2, v must be non-negative integer
+    """
+    return 2 ** (v - 1).bit_length()
 
 
 def sha3_256(x):
@@ -390,7 +397,7 @@ def get_colored_initial_for_level(level: int):
         logging.DEBUG: "\033[1;33mD",
         logging.NOTSET: "?",
     }
-    return mapping[level]
+    return mapping.get(level, mapping[logging.DEBUG])
 
 
 def get_end_color_for_level(level: int):
@@ -402,7 +409,7 @@ def get_end_color_for_level(level: int):
         logging.DEBUG: "\033[1;0m",
         logging.NOTSET: "?",
     }
-    return mapping[level]
+    return mapping.get(level, mapping[logging.DEBUG])
 
 
 def get_qkc_log_prefix(record: logging.LogRecord):
@@ -438,6 +445,55 @@ def time_ms():
     the function here is a convenience; you shall use `time.time_ns() // 1e6` if using >=Python 3.7
     """
     return int(time.time() * 1e3)
+
+
+SHARD_KEY_MAX = (256 ** 4) - 1
+
+TOKEN_BASE = 36
+TOKEN_ID_MAX = 4873763662273663091  # ZZZZZZZZZZZZ
+TOKEN_MAX = "ZZZZZZZZZZZZ"
+
+
+def token_char_encode(char: str) -> int:
+    if ord(char) >= ord("A") and ord(char) <= ord("Z"):
+        return 10 + ord(char) - ord("A")
+    if ord(char) >= ord("0") and ord(char) <= ord("9"):
+        return ord(char) - ord("0")
+    raise AssertionError("unknown character {}".format(char))
+
+
+def token_char_decode(id: int) -> str:
+    check(TOKEN_BASE > id >= 0, "invalid char")
+    if id < 10:
+        return chr(ord("0") + id)
+    return chr(ord("A") + id - 10)
+
+
+def token_id_encode(name: str) -> int:
+    """
+    encode native token name to uint64
+    """
+    check(len(name) < 13, "name too long")
+    check(re.match(r"^[0-9A-Z]+$", name), "name can only contain 0-9, A-Z")
+    id = token_char_encode(name[-1])
+    base = TOKEN_BASE
+    for c in name[-2::-1]:
+        id += base * (token_char_encode(c) + 1)
+        base *= TOKEN_BASE
+    return id
+
+
+def token_id_decode(id: int) -> str:
+    """
+    decode native token name from uint64
+    """
+    check(0 <= id <= TOKEN_ID_MAX, "id too big or negative")
+    name = token_char_decode(id % TOKEN_BASE)
+    id = id // TOKEN_BASE - 1
+    while id >= 0:
+        name += token_char_decode(id % TOKEN_BASE)
+        id = id // TOKEN_BASE - 1
+    return name[::-1]
 
 
 def main():

@@ -1,8 +1,10 @@
 import asyncio
 import os
+import pickle
+import platform
 
 from abc import abstractmethod
-from typing import Sequence, Tuple
+from typing import Sequence, Tuple, Optional
 
 from eth_keys import datatypes
 from eth_utils import big_endian_to_int
@@ -17,25 +19,26 @@ from quarkchain.p2p.constants import (
 )
 from quarkchain.p2p.discovery import (
     DiscoveryByTopicProtocol,
-    DiscoveryProtocol,
     DiscoveryService,
     PreferredNodeDiscoveryProtocol,
+    CrawlingService,
 )
 from quarkchain.p2p.exceptions import (
     DecryptionError,
     HandshakeFailure,
     PeerConnectionLost,
+    HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.p2p_proto import DisconnectReason
 from quarkchain.p2p.peer import BasePeer, PeerConnection
 from quarkchain.p2p.service import BaseService
-from quarkchain.p2p.kademlia import Address, Node
+from quarkchain.p2p.kademlia import Address, Node, RoutingTable
 from quarkchain.p2p.nat import UPnPService
 
 from quarkchain.utils import Logger
 
 
-NO_SAME_IP = False
+NO_SAME_IP = True
 
 
 class BaseServer(BaseService):
@@ -56,6 +59,7 @@ class BaseServer(BaseService):
         token: CancelToken = None,
         upnp: bool = False,
         allow_dial_in_ratio: float = 1.0,
+        crawling_routing_table_path: Optional[str] = None,
     ) -> None:
         super().__init__(token)
         self.privkey = privkey
@@ -70,6 +74,7 @@ class BaseServer(BaseService):
             self.upnp_service = UPnPService(port, token=self.cancel_token)
         self.allow_dial_in_ratio = allow_dial_in_ratio
         self.peer_pool = self._make_peer_pool()
+        self.crawling_routing_table_path = crawling_routing_table_path
 
         if not bootstrap_nodes:
             self.logger.warning("Running with no bootstrap nodes")
@@ -115,7 +120,12 @@ class BaseServer(BaseService):
                 "Using experimental v5 (topic) discovery mechanism; topic: %s", topic
             )
             discovery_proto = DiscoveryByTopicProtocol(
-                topic, self.privkey, addr, self.bootstrap_nodes, self.cancel_token
+                topic,
+                self.privkey,
+                addr,
+                self.bootstrap_nodes,
+                self.network_id,
+                self.cancel_token,
             )
         else:
             discovery_proto = PreferredNodeDiscoveryProtocol(
@@ -123,12 +133,39 @@ class BaseServer(BaseService):
                 addr,
                 self.bootstrap_nodes,
                 self.preferred_nodes,
+                self.network_id,
                 self.cancel_token,
             )
-        self.discovery = DiscoveryService(
-            discovery_proto, self.peer_pool, self.port, token=self.cancel_token
-        )
-        self.run_daemon(self.peer_pool)
+        routing_table_path = self.crawling_routing_table_path
+        if routing_table_path is not None:
+            assert (
+                platform.python_implementation() == "PyPy"
+            ), "pytho3.6 on linux doesn't support pickling module objects"
+            self.discovery = CrawlingService(
+                discovery_proto, self.port, token=self.cancel_token
+            )
+            # hack: replace routing table
+            if (
+                os.path.exists(routing_table_path)
+                and os.path.getsize(routing_table_path) > 0
+            ):
+                with open(routing_table_path, "rb") as f:
+                    discovery_proto.routing = pickle.load(f)
+                    discovery_proto.routing.this_node = discovery_proto.this_node
+                    assert isinstance(discovery_proto.routing, RoutingTable)
+
+            def persist_routing_table(_):
+                with open(routing_table_path, "wb") as f:
+                    pickle.dump(discovery_proto.routing, f)
+
+            self.discovery.add_finished_callback(persist_routing_table)
+            # no need to run peer pool as daemon
+        else:
+            self.discovery = DiscoveryService(
+                discovery_proto, self.peer_pool, self.port, token=self.cancel_token
+            )
+            self.run_daemon(self.peer_pool)
+
         self.run_daemon(self.discovery)
         if self.upnp_service:
             # UPNP service is still experimental and not essential, so we don't use run_daemon() for
@@ -148,20 +185,37 @@ class BaseServer(BaseService):
     async def receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
+        ip, socket, *_ = writer.get_extra_info("peername")
+        remote_address = Address(ip, socket)
+        if self.peer_pool.chk_dialin_blacklist(remote_address):
+            Logger.info_every_n(
+                "{} has been blacklisted, refusing connection".format(remote_address),
+                100,
+            )
+            reader.feed_eof()
+            writer.close()
         expected_exceptions = (
             TimeoutError,
             PeerConnectionLost,
             HandshakeFailure,
             asyncio.IncompleteReadError,
+            HandshakeDisconnectedFailure,
         )
         try:
             await self._receive_handshake(reader, writer)
         except expected_exceptions as e:
             self.logger.debug("Could not complete handshake: %s", e)
+            Logger.error_every_n("Could not complete handshake: {}".format(e), 100)
+            reader.feed_eof()
+            writer.close()
         except OperationCancelled:
-            pass
+            self.logger.error("OperationCancelled")
+            reader.feed_eof()
+            writer.close()
         except Exception as e:
             self.logger.exception("Unexpected error handling handshake")
+            reader.feed_eof()
+            writer.close()
 
     async def _receive_handshake(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -169,7 +223,6 @@ class BaseServer(BaseService):
         msg = await self.wait(
             reader.read(ENCRYPTED_AUTH_MSG_LEN), timeout=REPLY_TIMEOUT
         )
-
         ip, socket, *_ = writer.get_extra_info("peername")
         remote_address = Address(ip, socket)
         self.logger.debug("Receiving handshake from %s", remote_address)

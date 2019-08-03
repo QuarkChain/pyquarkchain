@@ -34,12 +34,12 @@ from eth_utils import to_tuple
 from eth_hash.preimage import BasePreImage
 from eth_keys import datatypes
 
-from quarkchain.utils import Logger
+from quarkchain.utils import Logger, time_ms
 from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
 
 from quarkchain.p2p import auth
 from quarkchain.p2p import protocol
-from quarkchain.p2p.kademlia import Node
+from quarkchain.p2p.kademlia import Node, Address
 from quarkchain.p2p.exceptions import (
     BadAckMessage,
     DecryptionError,
@@ -51,9 +51,10 @@ from quarkchain.p2p.exceptions import (
     UnexpectedMessage,
     UnknownProtocolCommand,
     UnreachablePeer,
+    HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.service import BaseService
-from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since
+from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since, CLUSTER_PEER_ID_LEN
 from quarkchain.p2p.p2p_proto import (
     Disconnect,
     DisconnectReason,
@@ -69,6 +70,9 @@ from .constants import (
     DEFAULT_PEER_BOOT_TIMEOUT,
     HEADER_LEN,
     MAC_LEN,
+    DIALOUT_BLACKLIST_COOLDOWN_SEC,
+    DIALIN_BLACKLIST_COOLDOWN_SEC,
+    UNBLACKLIST_INTERVAL,
 )
 
 
@@ -278,7 +282,7 @@ class BasePeer(BaseService):
         if isinstance(cmd, Disconnect):
             msg = cast(Dict[str, Any], msg)
             # Peers sometimes send a disconnect msg before they send the sub-proto handshake.
-            raise HandshakeFailure(
+            raise HandshakeDisconnectedFailure(
                 "{} disconnected before completing sub-proto handshake: {}".format(
                     self, msg["reason_name"]
                 )
@@ -303,7 +307,7 @@ class BasePeer(BaseService):
         if isinstance(cmd, Disconnect):
             msg = cast(Dict[str, Any], msg)
             # Peers sometimes send a disconnect msg before they send the initial P2P handshake.
-            raise HandshakeFailure(
+            raise HandshakeDisconnectedFailure(
                 "{} disconnected before completing sub-proto handshake: {}".format(
                     self, msg["reason_name"]
                 )
@@ -345,9 +349,8 @@ class BasePeer(BaseService):
 
         If the streams have already been closed, do nothing.
         """
-        if self.reader.at_eof():
-            return
-        self.reader.feed_eof()
+        if not self.reader.at_eof():
+            self.reader.feed_eof()
         self.writer.close()
 
     @property
@@ -795,7 +798,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
 
     _report_interval = 60
     _peer_boot_timeout = DEFAULT_PEER_BOOT_TIMEOUT
-    _fill_pool_ratio = 0.65 # only proactively fill peer pool to _fill_pool_ratio*max_peers
+    _fill_pool_ratio = (
+        0.65
+    )  # only proactively fill peer pool to _fill_pool_ratio*max_peers
 
     def __init__(
         self,
@@ -805,6 +810,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         max_peers: int = DEFAULT_MAX_PEERS,
         token: CancelToken = None,
         event_bus=None,
+        whitelist_nodes=None,
     ) -> None:
         super().__init__(token)
 
@@ -821,6 +827,11 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             pass
         self.listen_port = listen_port
         self.dialedout_pubkeys = set()  # type: Set[datatypes.PublicKey]
+
+        self.whitelist_nodes = whitelist_nodes or []
+        # IP to unblacklist time, we blacklist by IP
+        self._dialout_blacklist = {}  # type: Dict[str, int]
+        self._dialin_blacklist = {}  # type: Dict[str, int]
 
     # async def handle_peer_count_requests(self) -> None:
     #     async def f() -> None:
@@ -892,6 +903,10 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             await peer.disconnect(DisconnectReason.timeout)
             return
         else:
+            if peer.remote.id % CLUSTER_PEER_ID_LEN in self.cluster_peer_map:
+                Logger.error("{} already in cluster peer id".format(peer.remote.id))
+                await peer.disconnect(DisconnectReason.already_connected)
+                return
             self._add_peer(peer, buffer.get_messages())
 
     def _add_peer(self, peer: BasePeer, msgs: Tuple[PeerMessage, ...]) -> None:
@@ -902,7 +917,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         """
         self.logger.info("Adding %s to pool", peer)
         self.connected_nodes[peer.remote] = peer
-        self.cluster_peer_map[peer.remote.id % 2 ** 64] = peer
+        self.cluster_peer_map[peer.remote.id % CLUSTER_PEER_ID_LEN] = peer
         peer.add_finished_callback(self._peer_finished)
         for subscriber in self._subscribers:
             subscriber.register_peer(peer)
@@ -914,6 +929,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         # FIXME: PeerPool should probably no longer be a BaseService, but for now we're keeping it
         # so in order to ensure we cancel all peers when we terminate.
         self.run_task(self._periodically_report_stats())
+        self.run_task(self._periodically_unblacklist())
         await self.cancel_token.wait()
 
     async def stop_all_peers(self) -> None:
@@ -929,6 +945,50 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
 
     async def _cleanup(self) -> None:
         await self.stop_all_peers()
+
+    def dialout_blacklist(self, remote_address: Address) -> None:
+        # never blacklist bootstap
+        for node in self.whitelist_nodes:
+            if node.address.ip == remote_address.ip:
+                return
+        self._dialout_blacklist[remote_address.ip] = time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
+
+    def chk_dialout_blacklist(self, remote_address: Address) -> bool:
+        if remote_address.ip not in self._dialout_blacklist:
+            return False
+        now = time_ms() // 1000
+        if now >= self._dialout_blacklist[remote_address.ip]:
+            del self._dialout_blacklist[remote_address.ip]
+            return False
+        return True
+
+    def dialin_blacklist(self, remote_address: Address) -> None:
+        # never blacklist bootstap
+        for node in self.whitelist_nodes:
+            if node.address.ip == remote_address.ip:
+                return
+        self._dialin_blacklist[remote_address.ip] = time_ms() // 1000 + DIALIN_BLACKLIST_COOLDOWN_SEC
+
+    def chk_dialin_blacklist(self, remote_address: Address) -> bool:
+        if remote_address.ip not in self._dialin_blacklist:
+            return False
+        now = time_ms() // 1000
+        if now >= self._dialin_blacklist[remote_address.ip]:
+            del self._dialin_blacklist[remote_address.ip]
+            return False
+        return True
+
+    async def _periodically_unblacklist(self) -> None:
+        while self.is_operational:
+            now = time_ms() // 1000
+            for blk in (self._dialout_blacklist,self._dialin_blacklist):
+                remove = []
+                for ip, t in blk.items():
+                    if now >= t:
+                        remove.append(ip)
+                for ip in remove:
+                    del blk[ip]
+            await self.sleep(UNBLACKLIST_INTERVAL)
 
     async def connect(self, remote: Node) -> BasePeer:
         """
@@ -946,11 +1006,22 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
+        if self.chk_dialout_blacklist(remote.address):
+            Logger.warning_every_n(
+                "failed to connect {} at least once, will not connect again; discovery should have removed it".format(
+                    remote.address
+                ),
+                100
+            )
+            return None
+        blacklistworthy_exceptions = (
+            HandshakeFailure,    # after secure handshake handshake, when negotiating p2p command, eg. parsing hello failed; no matching p2p capabilities
+            PeerConnectionLost,  # conn lost while reading
+            TimeoutError,        # eg. read timeout (raised by CancelToken)
+            UnreachablePeer,     # ConnectionRefusedError, OSError
+        )
         expected_exceptions = (
-            HandshakeFailure,
-            PeerConnectionLost,
-            TimeoutError,
-            UnreachablePeer,
+            HandshakeDisconnectedFailure,  # during secure handshake, disconnected before getting ack; or got Disconnect cmd for some known reason
         )
         try:
             self.logger.debug("Connecting to %s...", remote)
@@ -965,23 +1036,39 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         except BadAckMessage:
             # This is kept separate from the `expected_exceptions` to be sure that we aren't
             # silencing an error in our authentication code.
-            self.logger.error("Got bad auth ack from %r", remote)
+            Logger.error_every_n("Got bad auth ack from {}".format(remote), 100)
             # dump the full stacktrace in the debug logs
             self.logger.debug("Got bad auth ack from %r", remote, exc_info=True)
+            self.dialout_blacklist(remote.address)
         except MalformedMessage:
             # This is kept separate from the `expected_exceptions` to be sure that we aren't
             # silencing an error in how we decode messages during handshake.
-            self.logger.error("Got malformed response from %r during handshake", remote)
+            Logger.error_every_n("Got malformed response from {} during handshake".format(remote), 100)
             # dump the full stacktrace in the debug logs
             self.logger.debug("Got malformed response from %r", remote, exc_info=True)
-        except expected_exceptions as e:
+            self.dialout_blacklist(remote.address)
+        except blacklistworthy_exceptions as e:
             self.logger.debug(
                 "Could not complete handshake with %r: %s", remote, repr(e)
             )
+            Logger.error_every_n("Could not complete handshake with {}: {}".format(repr(remote), repr(e)), 100)
+            self.dialout_blacklist(remote.address)
+        except expected_exceptions as e:
+            self.logger.debug(
+                "Disconnected during handshake %r: %s", remote, repr(e)
+            )
+            Logger.error_every_n("Disconnected during handshake {}: {}".format(repr(remote), repr(e)), 100)
         except Exception:
             self.logger.exception(
                 "Unexpected error during auth/p2p handshake with %r", remote
             )
+            self.dialout_blacklist(remote.address)
+        if remote.__repr__() in auth.opened_connections:
+            reader, writer = auth.opened_connections[remote.__repr__()]
+            reader.feed_eof()
+            writer.close()
+            Logger.error_every_n("Closing connection to {}".format(remote.__repr__()), 100)
+            del auth.opened_connections[remote.__repr__()]
         return None
 
     @contextlib.contextmanager
@@ -1016,7 +1103,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if peer.remote in self.connected_nodes:
             self.logger.info("%s finished, removing from pool", peer)
             self.connected_nodes.pop(peer.remote)
-            self.cluster_peer_map.pop(peer.remote.id % 2 ** 64)
+            self.cluster_peer_map.pop(peer.remote.id % CLUSTER_PEER_ID_LEN)
         else:
             self.logger.warning(
                 "%s finished but was not found in connected_nodes (%s)",
@@ -1038,6 +1125,14 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                 "Connected peers: %d inbound, %d outbound",
                 inbound_peers,
                 (len(self.connected_nodes) - inbound_peers),
+            )
+            self.logger.info(
+                "Blacklisted peers: dialout count={}, examples=({}); dialin count={}, examples=({})".format(
+                    len(self._dialout_blacklist),
+                    list(self._dialout_blacklist.keys())[:10],
+                    len(self._dialin_blacklist),
+                    list(self._dialin_blacklist.keys())[:10],
+                )
             )
             subscribers = len(self._subscribers)
             if subscribers:

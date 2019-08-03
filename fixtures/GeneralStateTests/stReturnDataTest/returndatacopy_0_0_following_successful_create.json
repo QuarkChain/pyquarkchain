@@ -2,8 +2,10 @@
     "returndatacopy_0_0_following_successful_create" : {
         "_info" : {
             "comment" : "",
-            "filledwith" : "cpp-1.3.0+commit.b90fb307.Linux.g++",
-            "source" : "/src/GeneralStateTestsFiller/stReturnDataTest/returndatacopy_0_0_following_successful_createFiller.json"
+            "filledwith" : "testeth 1.6.0-alpha.0-11+commit.978e68d2",
+            "lllcversion" : "Version: 0.5.0-develop.2018.11.9+commit.9709dfe0.Linux.g++",
+            "source" : "src/GeneralStateTestsFiller/stReturnDataTest/returndatacopy_0_0_following_successful_createFiller.json",
+            "sourceHash" : "5d9d5728ff0bfc36b5e228354e2c9e72cd51c8202b2721e4d87de079548e16b5"
         },
         "env" : {
             "currentCoinbase" : "0x2adc25665018aa1fe0e6bc666dac8fc2697ff9ba",
@@ -16,7 +18,7 @@
         "post" : {
             "Byzantium" : [
                 {
-                    "hash" : "0xe5612a75f1f88badf3d4faf86108f59eb5c568d658cd7fb37f1fbf8fcf96f307",
+                    "hash" : "0x9b6bdf2fbf9d8b77d4389e9f0b60ec3f99b053b3d607ebbcc9126a8589d91f67",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -27,7 +29,18 @@
             ],
             "Constantinople" : [
                 {
-                    "hash" : "0xe5612a75f1f88badf3d4faf86108f59eb5c568d658cd7fb37f1fbf8fcf96f307",
+                    "hash" : "0x9b6bdf2fbf9d8b77d4389e9f0b60ec3f99b053b3d607ebbcc9126a8589d91f67",
+                    "indexes" : {
+                        "data" : 0,
+                        "gas" : 0,
+                        "value" : 0
+                    },
+                    "logs" : "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+                }
+            ],
+            "ConstantinopleFix" : [
+                {
+                    "hash" : "0x9b6bdf2fbf9d8b77d4389e9f0b60ec3f99b053b3d607ebbcc9126a8589d91f67",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -38,7 +51,7 @@
             ],
             "EIP150" : [
                 {
-                    "hash" : "0xe4cebf89f5dd511ecb89b3e97ce05d1225202ff5ce2b0b9d81c96892694ac020",
+                    "hash" : "0x63b590f60aee4fb1117f2480b0522e2dab345fa14454ca75b1646827bca8feea",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -49,7 +62,7 @@
             ],
             "EIP158" : [
                 {
-                    "hash" : "0xe4cebf89f5dd511ecb89b3e97ce05d1225202ff5ce2b0b9d81c96892694ac020",
+                    "hash" : "0x63b590f60aee4fb1117f2480b0522e2dab345fa14454ca75b1646827bca8feea",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -60,7 +73,7 @@
             ],
             "Frontier" : [
                 {
-                    "hash" : "0xe4cebf89f5dd511ecb89b3e97ce05d1225202ff5ce2b0b9d81c96892694ac020",
+                    "hash" : "0x63b590f60aee4fb1117f2480b0522e2dab345fa14454ca75b1646827bca8feea",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -71,7 +84,7 @@
             ],
             "Homestead" : [
                 {
-                    "hash" : "0xe4cebf89f5dd511ecb89b3e97ce05d1225202ff5ce2b0b9d81c96892694ac020",
+                    "hash" : "0x63b590f60aee4fb1117f2480b0522e2dab345fa14454ca75b1646827bca8feea",
                     "indexes" : {
                         "data" : 0,
                         "gas" : 0,
@@ -84,7 +97,7 @@
         "pre" : {
             "0x0f572e5295c57f15886f9b263e2f6d2d6c7b5ec6" : {
                 "balance" : "0x00",
-                "code" : "0x600580601b60003960006000f0506000600060003e6000600055006001600055",
+                "code" : "0x600680601c60003960006000f0506000600060003e600060005500fe600160005500",
                 "nonce" : "0x00",
                 "storage" : {
                     "0x00" : "0x01"
@@ -100,7 +113,7 @@
         },
         "transaction" : {
             "data" : [
-                ""
+                "0x"
             ],
             "gasLimit" : [
                 "0x0a00000000"
