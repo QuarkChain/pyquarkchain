@@ -40,6 +40,9 @@ jobs:
           keys:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
+      # Preparation!
+      - run: mkdir /tmp/evmtests
+
       # Run tests!
       - run:
           name: Run py.test tests excluding integration test
@@ -54,7 +57,6 @@ jobs:
       - run:
           name: Run EVM tests - runner 1
           command: |
-            mkdir /tmp/evmtests
             cd fixtures/GeneralStateTests
             if [[ $CIRCLE_NODE_INDEX = 2 ]]; then \
               # technique: https://unix.stackexchange.com/a/53533
@@ -66,7 +68,6 @@ jobs:
       - run:
           name: Run EVM tests - runner 2
           command: |
-            mkdir /tmp/evmtests
             cd fixtures/GeneralStateTests
             if [[ $CIRCLE_NODE_INDEX = 3 ]]; then \
               # technique: https://unix.stackexchange.com/a/53533
@@ -78,7 +79,7 @@ jobs:
       - run:
           name: Run QuarkChain-specific EVM tests
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
 
   check-db:
     docker:
