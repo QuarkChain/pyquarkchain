@@ -7,7 +7,7 @@ import ecdsa
 from utils import underline, colorify
 from quarkchain.utils import sha3_256
 
-FILE = "../../testnet/2.5/cluster_config_template.json"
+FILE = "../mainnet/singularity/cluster_config_template.json"
 if "QKC_CONFIG" in os.environ:
     FILE = os.environ["QKC_CONFIG"]
 
