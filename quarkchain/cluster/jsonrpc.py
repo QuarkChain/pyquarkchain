@@ -741,7 +741,10 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("block_id", id_decoder)
     @decode_arg("include_transactions", bool_decoder)
-    async def getMinorBlockById(self, block_id, include_transactions=False):
+    @decode_arg("need_extra_info", bool_decoder)
+    async def getMinorBlockById(
+        self, block_id, include_transactions=False, need_extra_info=True
+    ):
         block_hash, full_shard_key = block_id
         try:
             branch = Branch(
@@ -751,7 +754,9 @@ class JSONRPCServer:
             )
         except Exception:
             return None
-        block = await self.master.get_minor_block_by_hash(block_hash, branch)
+        block = await self.master.get_minor_block_by_hash(
+            block_hash, branch, need_extra_info
+        )
         if not block:
             return None
         return minor_block_encoder(block, include_transactions)
@@ -759,8 +764,13 @@ class JSONRPCServer:
     @public_methods.add
     @decode_arg("full_shard_key", quantity_decoder)
     @decode_arg("include_transactions", bool_decoder)
+    @decode_arg("need_extra_info", bool_decoder)
     async def getMinorBlockByHeight(
-        self, full_shard_key: int, height=None, include_transactions=False
+        self,
+        full_shard_key: int,
+        height=None,
+        include_transactions=False,
+        need_extra_info=True,
     ):
         if height is not None:
             height = quantity_decoder(height)
@@ -772,7 +782,9 @@ class JSONRPCServer:
             )
         except Exception:
             return None
-        block = await self.master.get_minor_block_by_height(height, branch)
+        block = await self.master.get_minor_block_by_height(
+            height, branch, need_extra_info
+        )
         if not block:
             return None
         return minor_block_encoder(block, include_transactions)
@@ -1026,7 +1038,9 @@ class JSONRPCServer:
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(0)
         )
-        block = await self.master.get_minor_block_by_height(block_height, branch)
+        block = await self.master.get_minor_block_by_height(
+            block_height, branch, need_extra_info=False
+        )
         if block is None:
             return None
         return block_transcoder(minor_block_encoder(block))

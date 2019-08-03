@@ -193,20 +193,49 @@ class DestroyClusterPeerConnectionCommand(Serializable):
 
 
 class GetMinorBlockRequest(Serializable):
-    FIELDS = [("branch", Branch), ("minor_block_hash", hash256), ("height", uint64)]
+    FIELDS = [
+        ("branch", Branch),
+        ("minor_block_hash", hash256),
+        ("height", uint64),
+        ("need_extra_info", boolean),
+    ]
 
-    def __init__(self, branch, minor_block_hash=None, height=0):
+    def __init__(self, branch, minor_block_hash=None, height=0, need_extra_info=False):
         self.branch = branch
         self.minor_block_hash = minor_block_hash if minor_block_hash else bytes(32)
         self.height = height
+        self.need_extra_info = need_extra_info
+
+
+class MinorBlockExtraInfo(Serializable):
+    FIELDS = [
+        ("effective_difficulty", biguint),
+        ("posw_mineable_blocks", uint16),
+        ("posw_mined_blocks", uint16),
+    ]
+
+    def __init__(
+        self,
+        effective_difficulty: int,
+        posw_mineable_blocks: int,
+        posw_mined_blocks: int,
+    ):
+        self.effective_difficulty = effective_difficulty
+        self.posw_mineable_blocks = posw_mineable_blocks
+        self.posw_mined_blocks = posw_mined_blocks
 
 
 class GetMinorBlockResponse(Serializable):
-    FIELDS = [("error_code", uint32), ("minor_block", MinorBlock)]
+    FIELDS = [
+        ("error_code", uint32),
+        ("minor_block", MinorBlock),
+        ("extra_info", Optional(MinorBlockExtraInfo)),
+    ]
 
-    def __init__(self, error_code, minor_block):
+    def __init__(self, error_code, minor_block, extra_info=None):
         self.error_code = error_code
         self.minor_block = minor_block
+        self.extra_info = extra_info
 
 
 class GetTransactionRequest(Serializable):
