@@ -69,6 +69,8 @@ def main():
             # hack qkc env into the test
             testdata["qkc"] = qkc_env
             testdata["qkcstate"] = "QuarkChainStateTests" in filename
+            testdata["testname"] = testname
+            testdata["filename"] = filename
             checker(testdata)
 
 

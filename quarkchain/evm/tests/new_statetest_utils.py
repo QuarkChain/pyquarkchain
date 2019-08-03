@@ -1,3 +1,5 @@
+import sys
+
 from quarkchain.evm.state import State
 from quarkchain.evm.common import FakeHeader
 from quarkchain.evm.utils import (
@@ -237,7 +239,8 @@ def verify_state_test(test):
             )
             if computed["hash"][-64:] != result["hash"][-64:]:
                 for k in computed["diff"]:
-                    print(k, computed["diff"][k])
+                    print(k, computed["diff"][k], file=sys.stderr)
+                print(test["filename"], test["testname"], file=sys.stderr)
                 raise Exception(
                     "Hash mismatch, computed: %s, supplied: %s"
                     % (computed["hash"], result["hash"])

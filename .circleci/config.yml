@@ -30,7 +30,7 @@ jobs:
   test:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 3
+    parallelism: 4
     working_directory: /code/pyquarkchain
 
     steps:
@@ -39,6 +39,9 @@ jobs:
       - restore_cache:
           keys:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
+
+      # Preparation!
+      - run: mkdir /tmp/evmtests
 
       # Run tests!
       - run:
@@ -52,14 +55,31 @@ jobs:
             if [[ $CIRCLE_NODE_INDEX = 1 ]]; then python3 -m pytest quarkchain/cluster/tests/test_cluster.py --timeout=90; fi
 
       - run:
-          name: Run EVM tests
+          name: Run EVM tests - runner 1
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/; fi
+            cd fixtures/GeneralStateTests
+            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then \
+              # technique: https://unix.stackexchange.com/a/53533
+              find -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/evmtests/ && \
+              cd - && \
+              python3 quarkchain/evm/tests/test_state.py /tmp/evmtests > /dev/null; \
+            fi
+
+      - run:
+          name: Run EVM tests - runner 2
+          command: |
+            cd fixtures/GeneralStateTests
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then \
+              # technique: https://unix.stackexchange.com/a/53533
+              find -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/evmtests/ && \
+              cd - && \
+              python3 quarkchain/evm/tests/test_state.py /tmp/evmtests > /dev/null; \
+            fi
 
       - run:
           name: Run QuarkChain-specific EVM tests
           command: |
-            if [[ $CIRCLE_NODE_INDEX = 2 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
+            if [[ $CIRCLE_NODE_INDEX = 3 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
 
   check-db:
     docker:
