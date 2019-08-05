@@ -252,6 +252,7 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
         d["effectiveDifficulty"] = quantity_encoder(extra_info.effective_difficulty)
         d["poswMineableBlocks"] = quantity_encoder(extra_info.posw_mineable_blocks)
         d["poswMinedBlocks"] = quantity_encoder(extra_info.posw_mined_blocks)
+        d["stakingApplied"] = extra_info.effective_difficulty < header.difficulty
     return d
 
 
