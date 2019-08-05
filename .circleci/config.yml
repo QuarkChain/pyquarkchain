@@ -98,7 +98,7 @@ jobs:
   check-db:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
+    parallelism: 4
     working_directory: /code/pyquarkchain
 
     steps:
@@ -119,13 +119,15 @@ jobs:
       - run:
           name: Move data
           command: |
-            mkdir -p quarkchain/cluster/qkc-data
-            mv /tmp/workspace/data quarkchain/cluster/qkc-data/mainnet
+            mkdir -p quarkchain/cluster/qkc-data/mainnet
+            mv /tmp/workspace/data/* quarkchain/cluster/qkc-data/mainnet/
 
       - run:
           name: Check DB
           command: |
-            QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100
+            lo=$(( R_HEIGHT / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
+            hi=$(( R_HEIGHT / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
+            QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
 
 workflows:
   version: 2
