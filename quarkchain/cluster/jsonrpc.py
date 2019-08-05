@@ -203,7 +203,7 @@ def root_block_encoder(block):
     return d
 
 
-def minor_block_encoder(block, include_transactions=False):
+def minor_block_encoder(block, include_transactions=False, extra_info=None):
     """Encode a block as JSON object.
 
     :param block: a :class:`ethereum.block.Block`
@@ -247,6 +247,10 @@ def minor_block_encoder(block, include_transactions=False):
             id_encoder(tx.get_hash(), block.header.branch.get_full_shard_id())
             for tx in block.tx_list
         ]
+    if extra_info:  # snake_case -> camelCase
+        d["effectiveDifficulty"] = extra_info["effective_difficulty"]
+        d["poswMineableBlocks"] = extra_info["posw_mineable_blocks"]
+        d["poswMinedBlocks"] = extra_info["posw_mined_blocks"]
     return d
 
 
@@ -754,12 +758,12 @@ class JSONRPCServer:
             )
         except Exception:
             return None
-        block = await self.master.get_minor_block_by_hash(
+        block, extra_info = await self.master.get_minor_block_by_hash(
             block_hash, branch, need_extra_info
         )
         if not block:
             return None
-        return minor_block_encoder(block, include_transactions)
+        return minor_block_encoder(block, include_transactions, extra_info)
 
     @public_methods.add
     @decode_arg("full_shard_key", quantity_decoder)
@@ -782,12 +786,12 @@ class JSONRPCServer:
             )
         except Exception:
             return None
-        block = await self.master.get_minor_block_by_height(
+        block, extra_info = await self.master.get_minor_block_by_height(
             height, branch, need_extra_info
         )
         if not block:
             return None
-        return minor_block_encoder(block, include_transactions)
+        return minor_block_encoder(block, include_transactions, extra_info)
 
     @public_methods.add
     @decode_arg("tx_id", id_decoder)
@@ -1038,7 +1042,7 @@ class JSONRPCServer:
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(0)
         )
-        block = await self.master.get_minor_block_by_height(
+        block, _ = await self.master.get_minor_block_by_height(
             block_height, branch, need_extra_info=False
         )
         if block is None:

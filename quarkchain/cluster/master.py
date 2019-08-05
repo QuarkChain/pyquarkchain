@@ -545,8 +545,8 @@ class SlaveConnection(ClusterConnection):
             ClusterOp.GET_MINOR_BLOCK_REQUEST, request
         )
         if resp.error_code != 0:
-            return None
-        return resp.minor_block
+            return None, None
+        return resp.minor_block, resp.extra_info
 
     async def get_minor_block_by_height(self, height, branch, need_extra_info):
         request = GetMinorBlockRequest(
@@ -556,8 +556,8 @@ class SlaveConnection(ClusterConnection):
             ClusterOp.GET_MINOR_BLOCK_REQUEST, request
         )
         if resp.error_code != 0:
-            return None
-        return resp.minor_block
+            return None, None
+        return resp.minor_block, resp.extra_info
 
     async def get_transaction_by_hash(self, tx_hash, branch):
         request = GetTransactionRequest(tx_hash, branch)
