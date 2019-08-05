@@ -2505,15 +2505,11 @@ class TestShardState(unittest.TestCase):
                 )
                 state.validate_minor_block_seal(m)
             state.finalize_and_add_block(m)
-            b1, extra1 = state.get_minor_block_by_hash(
-                m.header.get_hash(), need_extra_info=True
-            )
-            b2, extra2 = state.get_minor_block_by_height(
-                m.header.height, need_extra_info=True
-            )
+            b1, extra1 = state.get_minor_block_by_hash(m.header.get_hash(), True)
+            b2, extra2 = state.get_minor_block_by_height(m.header.height, True)
             self.assertTrue(m.header == b1.header == b2.header)
             self.assertDictEqual(extra1, extra2)
-            self.assertEqual(extra1["effective_difficulty"], 1)
+            self.assertEqual(extra1["effective_difficulty"], 1000 / 1000)
             self.assertEqual(extra1["posw_mineable_blocks"], 256)
             self.assertEqual(extra1["posw_mined_blocks"], i)
 
