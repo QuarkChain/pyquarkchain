@@ -248,10 +248,10 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
             id_encoder(tx.get_hash(), block.header.branch.get_full_shard_id())
             for tx in block.tx_list
         ]
-    if extra_info:  # camelCase
-        d["effectiveDifficulty"] = extra_info.effective_difficulty
-        d["poswMineableBlocks"] = extra_info.posw_mineable_blocks
-        d["poswMinedBlocks"] = extra_info.posw_mined_blocks
+    if extra_info:
+        d["effectiveDifficulty"] = quantity_encoder(extra_info.effective_difficulty)
+        d["poswMineableBlocks"] = quantity_encoder(extra_info.posw_mineable_blocks)
+        d["poswMinedBlocks"] = quantity_encoder(extra_info.posw_mined_blocks)
     return d
 
 
