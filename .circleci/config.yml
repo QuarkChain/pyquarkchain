@@ -74,6 +74,26 @@ jobs:
           command: |
             if [[ $CIRCLE_NODE_INDEX = 3 ]]; then python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/; fi
 
+  download-snapshot:
+    docker:
+      - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    working_directory: /tmp
+
+    steps:
+      - run: mkdir -p workspace
+      - run:
+          name: Download DB snapshot
+          command: |
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
+            tar xvfz data.tar.gz
+            rm data.tar.gz
+          no_output_timeout: 1h
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - data
+
   check-db:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
@@ -88,14 +108,18 @@ jobs:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
       - run:
-          name: Download DB snapshot
+          name: Calculate root chain tip height
           command: |
-            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
-            tar xvfz data.tar.gz
+            echo 'export R_HEIGHT=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")' >> $BASH_ENV
+
+      - attach_workspace:
+          at: /tmp/workspace
+
+      - run:
+          name: Move data
+          command: |
             mkdir -p quarkchain/cluster/qkc-data
-            mv data quarkchain/cluster/qkc-data/mainnet
-            rm data.tar.gz
-          no_output_timeout: 1h
+            mv /tmp/workspace/data quarkchain/cluster/qkc-data/mainnet
 
       - run:
           name: Check DB
@@ -111,15 +135,17 @@ workflows:
           requires:
             - build
   nightly:
-    triggers:
-      - schedule:
-          cron: "0 4 * * *"
-          filters:
-            branches:
-              only:
-                - master
+    # triggers:
+    #   - schedule:
+    #       cron: "0 * * * *"
+    #       filters:
+    #         branches:
+    #           only:
+    #             - parallel-check-db
     jobs:
       - build
+      - download-snapshot
       - check-db:
           requires:
             - build
+            - download-snapshot
