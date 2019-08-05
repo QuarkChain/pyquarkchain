@@ -56,6 +56,7 @@ from quarkchain.cluster.rpc import (
     RootBlockSychronizerStats,
     CheckMinorBlockRequest,
     GetAllTransactionsRequest,
+    MinorBlockExtraInfo,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -537,7 +538,9 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_minor_block_by_hash(self, block_hash, branch, need_extra_info):
+    async def get_minor_block_by_hash(
+        self, block_hash, branch, need_extra_info
+    ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
         request = GetMinorBlockRequest(
             branch, minor_block_hash=block_hash, need_extra_info=need_extra_info
         )
@@ -548,7 +551,9 @@ class SlaveConnection(ClusterConnection):
             return None, None
         return resp.minor_block, resp.extra_info
 
-    async def get_minor_block_by_height(self, height, branch, need_extra_info):
+    async def get_minor_block_by_height(
+        self, height, branch, need_extra_info
+    ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
         request = GetMinorBlockRequest(
             branch, height=height, need_extra_info=need_extra_info
         )

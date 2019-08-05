@@ -207,8 +207,9 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     """Encode a block as JSON object.
 
     :param block: a :class:`ethereum.block.Block`
-    :param include_transactions: if true transactions are included, otherwise
+    :param include_transactions: if true transaction details are included, otherwise
                                  only their hashes
+    :param extra_info: MinorBlockExtraInfo
     :returns: a json encodable dictionary
     """
     header = block.header
@@ -247,10 +248,10 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
             id_encoder(tx.get_hash(), block.header.branch.get_full_shard_id())
             for tx in block.tx_list
         ]
-    if extra_info:  # snake_case -> camelCase
-        d["effectiveDifficulty"] = extra_info["effective_difficulty"]
-        d["poswMineableBlocks"] = extra_info["posw_mineable_blocks"]
-        d["poswMinedBlocks"] = extra_info["posw_mined_blocks"]
+    if extra_info:  # camelCase
+        d["effectiveDifficulty"] = extra_info.effective_difficulty
+        d["poswMineableBlocks"] = extra_info.posw_mineable_blocks
+        d["poswMinedBlocks"] = extra_info.posw_mined_blocks
     return d
 
 
