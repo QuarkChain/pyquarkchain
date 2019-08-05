@@ -85,15 +85,15 @@ jobs:
       - run:
           name: Download DB snapshot
           command: |
-            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
             tar xvfz data.tar.gz
-            rm data.tar.gz
-            mv data workspace/
+            rm data.tar.gz && mv data workspace/
           no_output_timeout: 1h
-      - persist_to_workspace:
-          root: workspace
+      - save_cache:
           paths:
-            - data
+            - /tmp/workspace/data
+          key: snapshot
 
   check-db:
     docker:
@@ -113,8 +113,9 @@ jobs:
           command: |
             echo 'export R_HEIGHT=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")' >> $BASH_ENV
 
-      - attach_workspace:
-          at: /tmp/workspace
+      - restore_cache:
+          keys:
+          - snapshot
 
       - run:
           name: Move data
