@@ -120,8 +120,9 @@ jobs:
       - run:
           name: Move data
           command: |
-            mkdir -p quarkchain/cluster/qkc-data/mainnet
-            cp -r /tmp/workspace/data/* quarkchain/cluster/qkc-data/mainnet/
+            mkdir -p quarkchain/cluster/qkc-data
+            cd /tmp/workspace && mv data mainnet && cd -
+            mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
 
       - run:
           name: Check DB
