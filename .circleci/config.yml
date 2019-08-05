@@ -85,7 +85,7 @@ jobs:
       - run:
           name: Download DB snapshot
           command: |
-            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
+            curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST`.tar.gz --output data.tar.gz
             tar xvfz data.tar.gz
             rm data.tar.gz
             mv data workspace/
