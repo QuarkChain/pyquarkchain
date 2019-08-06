@@ -1753,7 +1753,8 @@ class ShardState:
         cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
-        return PoSWInfo(diff, block_threshold, cnt)
+        # mined blocks should include current one
+        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
