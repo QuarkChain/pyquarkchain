@@ -3,9 +3,7 @@ import os
 import sys
 from quarkchain.cluster.cluster_config import ClusterConfig
 
-from quarkchain.cluster.root_state import (
-    RootState
-)
+from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard import Shard
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.db import PersistentDb
@@ -85,7 +83,7 @@ def parse_args():
 
 
 def main():
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../cluster"))
 
     env, args = parse_args()
 
