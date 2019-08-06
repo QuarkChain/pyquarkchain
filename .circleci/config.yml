@@ -108,11 +108,6 @@ jobs:
           keys:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
-      - run:
-          name: Calculate root chain tip height
-          command: |
-            echo 'export R_HEIGHT=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")' >> $BASH_ENV
-
       - restore_cache:
           keys:
           - snapshot
@@ -127,8 +122,9 @@ jobs:
       - run:
           name: Check DB
           command: |
-            lo=$(( R_HEIGHT / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
-            hi=$(( R_HEIGHT / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
+            height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+            lo=$(( height / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
+            hi=$(( height / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
             echo "checking: $hi -> $lo"
             QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
 
