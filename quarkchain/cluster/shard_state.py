@@ -1737,6 +1737,8 @@ class ShardState:
 
     def _posw_info(self, block: MinorBlock) -> PoSWInfo:
         header = block.header
+        if header.height == 0:  # genesis
+            return PoSWInfo(header.difficulty, 0, 0)
         diff = header.difficulty
         coinbase_recipient = header.coinbase_address.recipient
         # evaluate stakes before the to-be-added block
