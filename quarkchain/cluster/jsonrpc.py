@@ -336,11 +336,17 @@ def loglist_encoder(loglist: List[Log]):
 
 
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
-    tx = block.tx_list[i]
-    evm_tx = tx.tx.to_evm_tx()
+    if i >= len(block.tx_list):
+        tx_id = "0x0"
+        tx_hash = "0x0"
+    else:
+        tx = block.tx_list[i]
+        evm_tx = tx.tx.to_evm_tx()
+        tx_id = id_encoder(tx.get_hash(), evm_tx.from_full_shard_key)
+        tx_hash = data_encoder(tx.get_hash())
     resp = {
-        "transactionId": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
-        "transactionHash": data_encoder(tx.get_hash()),
+        "transactionId": tx_id,
+        "transactionHash": tx_hash,
         "transactionIndex": quantity_encoder(i),
         "blockId": id_encoder(
             block.header.get_hash(), block.header.branch.get_full_shard_id()
@@ -357,6 +363,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
             else None
         ),
         "logs": loglist_encoder(receipt.logs),
+        "timestamp": quantity_encoder(block.header.create_time),
     }
 
     return resp
@@ -990,8 +997,8 @@ class JSONRPCServer:
         minor_block, i = await self.master.get_transaction_by_hash(tx_hash, branch)
         if not minor_block:
             return None
-        if len(minor_block.tx_list) <= i:
-            return None
+        # if len(minor_block.tx_list) <= i:
+        #     return None
         confirming_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
             minor_block.header.get_hash()
             + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
