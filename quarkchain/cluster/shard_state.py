@@ -3,7 +3,7 @@ import json
 import time
 from collections import Counter, deque
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, NamedTuple
 
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.miner import validate_seal
@@ -53,6 +53,16 @@ class GasPriceSuggestionOracle:
         self.cache = LRUCache(maxsize=128)
         self.check_blocks = check_blocks
         self.percentile = percentile
+
+
+PoSWInfo = NamedTuple(
+    "PoSWInfo",
+    [
+        ("effective_difficulty", int),
+        ("posw_mineable_blocks", int),
+        ("posw_mined_blocks", int),
+    ],
+)
 
 
 class XshardTxCursor:
@@ -1723,11 +1733,15 @@ class ShardState:
             validate_seal(block.header, consensus_type, adjusted_diff=diff)
 
     def posw_diff_adjust(self, block: MinorBlock) -> int:
-        start_time = time.time()
+        return self._posw_info(block).effective_difficulty
+
+    def _posw_info(self, block: MinorBlock) -> PoSWInfo:
         header = block.header
+        if header.height == 0:  # genesis
+            return PoSWInfo(header.difficulty, 0, 0)
         diff = header.difficulty
         coinbase_recipient = header.coinbase_address.recipient
-        # Evaluate stakes before the to-be-added block
+        # evaluate stakes before the to-be-added block
         evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
         config = self.shard_config.POSW_CONFIG
         stakes = evm_state.get_balance(
@@ -1735,17 +1749,11 @@ class ShardState:
         )
         block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
         block_threshold = min(config.WINDOW_SIZE, block_threshold)
-        # The func is inclusive, so need to fetch block counts until prev block
-        # Also only fetch prev window_size - 1 block counts because the
-        # new window should count the current block
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
-        # TODO: remove it if verified not time consuming
-        passed_ms = (time.time() - start_time) * 1000
-        Logger.debug("Adjust PoSW diff took %s milliseconds" % passed_ms)
-        return diff
+        return PoSWInfo(diff, block_threshold, cnt)
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
@@ -1816,11 +1824,21 @@ class ShardState:
     def get_minor_block_by_hash(
         self, block_hash: bytes, need_extra_info: bool
     ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
-        # TODO: implement extra info
-        return self.db.get_minor_block_by_hash(block_hash), None
+        block = self.db.get_minor_block_by_hash(block_hash)
+        if not block:
+            return None, None
+        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
+            # for now extra info is only posw-related
+            return block, None
+        return block, self._posw_info(block)._asdict()
 
     def get_minor_block_by_height(
         self, height: int, need_extra_info: bool
     ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
-        # TODO: implement extra info
-        return self.db.get_minor_block_by_height(height), None
+        block = self.db.get_minor_block_by_height(height)
+        if not block:
+            return None, None
+        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
+            # for now extra info is only posw-related
+            return block, None
+        return block, self._posw_info(block)._asdict()

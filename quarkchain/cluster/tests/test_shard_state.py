@@ -2498,13 +2498,20 @@ class TestShardState(unittest.TestCase):
 
         # Total stake * block PoSW is 256, so acc should pass the check no matter
         # how many blocks he mined before
-        for _ in range(4):
+        for i in range(4):
             for nonce in range(4):  # Try different nonce
                 m = state.get_tip().create_block_to_append(
                     address=acc, difficulty=1000, nonce=nonce
                 )
                 state.validate_minor_block_seal(m)
             state.finalize_and_add_block(m)
+            b1, extra1 = state.get_minor_block_by_hash(m.header.get_hash(), True)
+            b2, extra2 = state.get_minor_block_by_height(m.header.height, True)
+            self.assertTrue(m.header == b1.header == b2.header)
+            self.assertDictEqual(extra1, extra2)
+            self.assertEqual(extra1["effective_difficulty"], 1000 / 1000)
+            self.assertEqual(extra1["posw_mineable_blocks"], 256)
+            self.assertEqual(extra1["posw_mined_blocks"], i)
 
     def test_posw_window_edge_cases(self):
         acc = Address(b"\x01" * 20, full_shard_key=0)
