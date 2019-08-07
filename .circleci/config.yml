@@ -93,7 +93,7 @@ jobs:
       - save_cache:
           paths:
             - /tmp/workspace/data
-          key: snapshot
+          key: snapshot-{{ epoch }}
 
   check-db:
     docker:
@@ -110,7 +110,7 @@ jobs:
 
       - restore_cache:
           keys:
-          - snapshot
+          - snapshot-
 
       - run:
           name: Move data
