@@ -257,10 +257,13 @@ class Miner:
 
         if now is None:  # clock open for mock
             now = time.time()
-        tip = self.get_header_tip_func()
+        work_prev_hash = (
+            self.current_work.header.hash_prev_block if self.current_work else None
+        )
+        tip_hash = self.get_header_tip_func().get_hash()
         if (
             not self.current_work  # no cache
-            or self.current_work.header.height <= tip.height  # cache outdated
+            or work_prev_hash != tip_hash  # cache outdated
             or now - self.current_work.header.create_time > 5  # stale
         ):
             block = await self.create_block_async_func(retry=False)
@@ -303,8 +306,8 @@ class Miner:
         header = block.header
 
         # reject if tip updated
-        tip = self.get_header_tip_func()
-        if header.height <= tip.height:
+        tip_hash = self.get_header_tip_func().get_hash()
+        if header.hash_prev_block != tip_hash:
             del self.work_map[header_hash]
             return False
 

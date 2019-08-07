@@ -16,8 +16,7 @@ class TestMiner(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # a hack to make sure default block has higher height
-        dummy_tip = lambda: RootBlockHeader(height=-1)
+        dummy_tip = lambda: RootBlockHeader()
 
         def miner_gen(consensus, create_func, add_func, tip_func=dummy_tip, **kwargs):
             m = Miner(
@@ -152,7 +151,10 @@ class TestMiner(unittest.TestCase):
             nonlocal now, mock_tip
             return RootBlock(
                 RootBlockHeader(
-                    create_time=now, extra_data=b"{}", height=mock_tip.height + 1
+                    create_time=now,
+                    extra_data=b"{}",
+                    hash_prev_block=mock_tip.get_hash(),
+                    height=mock_tip.height + 1,
                 )
             )
 
@@ -172,7 +174,7 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
             self.assertEqual(work.hash, h)
-            # cache hit, and new block is higher than tip (by default)
+            # cache hit and new block is linked to tip (by default)
             now += 1
             work, _ = await miner.get_work(now=now)
             self.assertEqual(work.hash, h)
@@ -184,6 +186,9 @@ class TestMiner(unittest.TestCase):
             h = work.hash
             self.assertEqual(len(miner.work_map), 2)
             self.assertEqual(work.height, 44)
+            self.assertEqual(
+                miner.current_work.header.hash_prev_block, mock_tip.get_hash()
+            )
             # new work if interval passed
             now += 10
             work, _ = await miner.get_work(now=now)
@@ -211,6 +216,7 @@ class TestMiner(unittest.TestCase):
             nonlocal block, mock_tip
             ret = copy.deepcopy(block)
             ret.header.height = mock_tip.height + 1
+            ret.header.hash_prev_block = mock_tip.get_hash()
             return ret
 
         async def add(block_to_add):
@@ -260,7 +266,12 @@ class TestMiner(unittest.TestCase):
         now = 42
         doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
-            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
+            RootBlockHeader(
+                create_time=42,
+                extra_data=b"{}",
+                difficulty=1000,
+                hash_prev_block=RootBlockHeader().get_hash(),
+            )
         )
         priv = ecies.generate_privkey()
 
@@ -294,7 +305,12 @@ class TestMiner(unittest.TestCase):
         now = 42
         doublesha = ConsensusType.POW_DOUBLESHA256
         block = RootBlock(
-            RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=1000)
+            RootBlockHeader(
+                create_time=42,
+                extra_data=b"{}",
+                difficulty=1000,
+                hash_prev_block=RootBlockHeader().get_hash(),
+            )
         )
         priv = ecies.generate_privkey()
 
