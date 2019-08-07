@@ -997,8 +997,6 @@ class JSONRPCServer:
         minor_block, i = await self.master.get_transaction_by_hash(tx_hash, branch)
         if not minor_block:
             return None
-        # if len(minor_block.tx_list) <= i:
-        #     return None
         confirming_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
             minor_block.header.get_hash()
             + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
