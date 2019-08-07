@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import time
 import unittest
 from typing import Optional
@@ -15,9 +16,17 @@ class TestMiner(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        def miner_gen(consensus, create_func, add_func, **kwargs):
+        # a hack to make sure default block has higher height
+        dummy_tip = lambda: RootBlockHeader(height=-1)
+
+        def miner_gen(consensus, create_func, add_func, tip_func=dummy_tip, **kwargs):
             m = Miner(
-                consensus, create_func, add_func, self.get_mining_params, **kwargs
+                consensus,
+                create_func,
+                add_func,
+                self.get_mining_params,
+                tip_func,
+                **kwargs
             )
             m.enabled = True
             return m
@@ -136,34 +145,52 @@ class TestMiner(unittest.TestCase):
         loop.run_until_complete(go())
 
     def test_get_work(self):
-        now = 42
+        now, height = 42, 42
+        mock_tip = RootBlockHeader(height=height)
 
-        async def create(retry=True):
-            nonlocal now
-            return RootBlock(RootBlockHeader(create_time=now, extra_data=b"{}"))
+        async def create(**kwargs):
+            nonlocal now, mock_tip
+            return RootBlock(
+                RootBlockHeader(
+                    create_time=now, extra_data=b"{}", height=mock_tip.height + 1
+                )
+            )
+
+        def tip_getter():
+            nonlocal mock_tip
+            return mock_tip
 
         miner = self.miner_gen(
-            ConsensusType.POW_DOUBLESHA256, create, None, remote=True
+            ConsensusType.POW_DOUBLESHA256, create, None, tip_getter, remote=True
         )
 
         async def go():
-            nonlocal now
+            nonlocal now, mock_tip
             # no current work, will generate a new one
             work, _ = await miner.get_work(now=now)
             self.assertEqual(len(work), 3)
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
             self.assertEqual(work.hash, h)
-            # cache hit
+            # cache hit, and new block is higher than tip (by default)
             now += 1
             work, _ = await miner.get_work(now=now)
             self.assertEqual(work.hash, h)
+            self.assertEqual(work.height, 43)
             self.assertEqual(len(miner.work_map), 1)
+            # cache hit, but current work is outdated because tip has updated
+            mock_tip.height += 1
+            work, _ = await miner.get_work(now=now)
+            h = work.hash
+            self.assertEqual(len(miner.work_map), 2)
+            self.assertEqual(work.height, 44)
             # new work if interval passed
             now += 10
             work, _ = await miner.get_work(now=now)
-            self.assertEqual(len(miner.work_map), 2)
+            self.assertEqual(len(miner.work_map), 3)
+            # height didn't change, but hash should
             self.assertNotEqual(work.hash, h)
+            self.assertEqual(work.height, 44)
             # work map cleaned up if too much time passed
             now += 100
             await miner.get_work(now=now)
@@ -173,24 +200,33 @@ class TestMiner(unittest.TestCase):
         loop.run_until_complete(go())
 
     def test_submit_work(self):
-        now = 42
+        now, height = 42, 42
         doublesha = ConsensusType.POW_DOUBLESHA256
+        mock_tip = RootBlockHeader(height=height)
         block = RootBlock(
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
 
         async def create(retry=True):
-            return block
+            nonlocal block, mock_tip
+            ret = copy.deepcopy(block)
+            ret.header.height = mock_tip.height + 1
+            return ret
 
         async def add(block_to_add):
             validate_seal(block_to_add.header, doublesha)
             self.added_blocks.append(block_to_add)
 
-        miner = self.miner_gen(doublesha, create, add, remote=True)
+        def tip_getter():
+            nonlocal mock_tip
+            return mock_tip
+
+        miner = self.miner_gen(doublesha, create, add, tip_getter, remote=True)
 
         async def go():
+            nonlocal mock_tip
             work, _ = await miner.get_work(now=now)
-            self.assertEqual(work.height, 0)
+            self.assertEqual(work.height, 43)
             self.assertEqual(work.difficulty, 5)
             # submitted block doesn't exist
             res = await miner.submit_work(b"lolwut", 0, sha3_256(b""))
@@ -203,12 +239,19 @@ class TestMiner(unittest.TestCase):
             # invalid pow proof
             res = await miner.submit_work(work.hash, non_sol, sha3_256(b""))
             self.assertFalse(res)
+            # valid submission, but tip updated so should fail
+            mock_tip.height += 1
+            res = await miner.submit_work(work.hash, sol, sha3_256(b""))
+            self.assertFalse(res)
+            self.assertEqual(miner.work_map, {})
+            # bring tip back and regenerate the work
+            mock_tip.height -= 1
+            work, _ = await miner.get_work(now=now)
             # valid submission, also check internal state afterwards
             res = await miner.submit_work(work.hash, sol, sha3_256(b""))
             self.assertTrue(res)
             self.assertEqual(miner.work_map, {})
             self.assertEqual(len(self.added_blocks), 1)
-            self.assertIsNone(miner.current_work)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())

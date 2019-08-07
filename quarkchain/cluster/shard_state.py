@@ -258,7 +258,7 @@ class ShardState:
         )
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
-        self.header_tip = None  # MinorBlockHeader
+        self.header_tip = None  # type: Optional[MinorBlockHeader]
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             check_blocks=5, percentile=50

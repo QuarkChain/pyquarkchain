@@ -18,11 +18,12 @@ from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHe
 from quarkchain.utils import Logger, sha256, time_ms
 
 Block = Union[MinorBlock, RootBlock]
+Header = Union[MinorBlockHeader, RootBlockHeader]
 MAX_NONCE = 2 ** 64 - 1  # 8-byte nonce max
 
 
 def validate_seal(
-    block_header: Union[RootBlockHeader, MinorBlockHeader],
+    block_header: Header,
     consensus_type: ConsensusType,
     adjusted_diff: int = None,  # for overriding
 ) -> None:
@@ -137,9 +138,10 @@ class Miner:
     def __init__(
         self,
         consensus_type: ConsensusType,
-        create_block_async_func: Callable[[], Awaitable[Optional[Block]]],
+        create_block_async_func: Callable[..., Awaitable[Optional[Block]]],
         add_block_async_func: Callable[[Block], Awaitable[None]],
         get_mining_param_func: Callable[[], Dict[str, Any]],
+        get_header_tip_func: Callable[[], Header],
         remote: bool = False,
         guardian_private_key: Optional[KeyAPI.PrivateKey] = None,
     ):
@@ -154,6 +156,7 @@ class Miner:
         self.create_block_async_func = create_block_async_func
         self.add_block_async_func = add_block_async_func
         self.get_mining_param_func = get_mining_param_func
+        self.get_header_tip_func = get_header_tip_func
         self.enabled = False
         self.process = None
 
@@ -254,8 +257,12 @@ class Miner:
 
         if now is None:  # clock open for mock
             now = time.time()
-        # 5 sec interval magic number
-        if not self.current_work or now - self.current_work.header.create_time > 5:
+        tip = self.get_header_tip_func()
+        if (
+            not self.current_work  # no cache
+            or self.current_work.header.height <= tip.height  # cache outdated
+            or now - self.current_work.header.create_time > 5  # stale
+        ):
             block = await self.create_block_async_func(retry=False)
             if not block:
                 raise RuntimeError("Failed to create block")
@@ -267,7 +274,7 @@ class Miner:
         self.work_map[header_hash] = self.current_work
 
         # clean up worker map
-        # TODO: for now, same param as go-ethereum
+        # TODO: for now, same param as go-ethereum. or LRU cache?
         self.work_map = {
             h: b
             for h, b in self.work_map.items()
@@ -294,6 +301,13 @@ class Miner:
         # this copy is necessary since there might be multiple submissions concurrently
         block = copy.deepcopy(self.work_map[header_hash])
         header = block.header
+
+        # reject if tip updated
+        tip = self.get_header_tip_func()
+        if header.height <= tip.height:
+            del self.work_map[header_hash]
+            return False
+
         header.nonce, header.mixhash = nonce, mixhash
         # sign as a guardian
         if self.guardian_private_key and isinstance(block, RootBlock):
@@ -308,7 +322,6 @@ class Miner:
             # a previous submission of the same work could have removed the key
             if header_hash in self.work_map:
                 del self.work_map[header_hash]
-                self.current_work = None
             return True
         except Exception:
             Logger.error_exception()
