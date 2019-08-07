@@ -1220,10 +1220,6 @@ class TestCluster(unittest.TestCase):
         ) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
-            # Enable xshard receipt
-            clusters[0].get_shard(
-                (1 << 16) + 1
-            ).env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
             genesis_token = (
                 clusters[0].get_shard_state(1).env.quark_chain_config.genesis_token
             )
@@ -1420,9 +1416,6 @@ class TestCluster(unittest.TestCase):
         ) as clusters:
             master = clusters[0].master
             slaves = clusters[0].slave_list
-            clusters[0].get_shard(
-                (1 << 16) + 1
-            ).env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
 
             # Add a root block first so that later minor blocks referring to this root
             # can be broadcasted to other shards
