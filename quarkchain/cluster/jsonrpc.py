@@ -337,8 +337,8 @@ def loglist_encoder(loglist: List[Log]):
 
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     if i >= len(block.tx_list):
-        tx_id = "0x0"
-        tx_hash = "0x0"
+        tx_id = EMPTY_TX_ID
+        tx_hash = data_encoder(b"")
     else:
         tx = block.tx_list[i]
         evm_tx = tx.tx.to_evm_tx()
