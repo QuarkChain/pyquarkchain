@@ -88,7 +88,9 @@ class TestShardDbOperator(unittest.TestCase):
         # acc1 and acc2 should have the same transaction history
         # while acc3 is different
         tx_list1, _ = state.db.get_transactions_by_address(acc1)
-        self.assertListEqual([t.value for t in tx_list1], [12345, 54321])
+        self.assertListEqual([t.value for t in tx_list1], [54321, 12345])
+        # higher block should display first
+        self.assertListEqual([t.block_height for t in tx_list1], [2, 1])
         tx_list2, _ = state.db.get_transactions_by_address(acc2)
         self.assertListEqual(tx_list2, tx_list1)
         tx_list3, _ = state.db.get_transactions_by_address(acc3)

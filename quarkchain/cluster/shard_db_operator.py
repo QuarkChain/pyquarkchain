@@ -32,7 +32,7 @@ class TransactionHistoryMixin:
         cross_shard_byte = b"\x00" if cross_shard else b"\x01"
         return (
             b"index_addr_"
-            + address.serialize()
+            + address.recipient
             + height.to_bytes(4, "big")
             + cross_shard_byte
             + index.to_bytes(4, "big")
@@ -161,12 +161,12 @@ class TransactionHistoryMixin:
         if not start or start > original_start:
             start = original_start
 
-        # decoding starts at byte 11 + 24 == len("index_addr_") + len(Address)
+        # decoding starts at byte 11 + 20 == len("index_addr_") + len(Address.recipient)
         return self.__get_transaction_details(
             start,
             end,
             limit,
-            decoding_byte_offset=11 + 24,
+            decoding_byte_offset=11 + 20,
             transfer_token_id=transfer_token_id,
         )
 
