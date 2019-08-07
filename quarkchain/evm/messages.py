@@ -267,8 +267,8 @@ def apply_transaction_message(
     state.logs = []
     if is_cross_shard:
         if (
-            state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP is not None
-            and state.timestamp >= state.qkc_config.XSHARD_ADD_RECIEPT_TIMESTAMP
+            state.qkc_config.ENABLE_EVM_TIMESTAMP is None
+            or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
         ):
             state.add_xshard_deposit_receipt(r)
     else:
@@ -277,7 +277,7 @@ def apply_transaction_message(
     return success, output
 
 
-def apply_xshard_desposit(state, deposit, gas_used_start):
+def apply_xshard_deposit(state, deposit, gas_used_start):
     state.logs = []
     state.suicides = []
     state.refunds = 0
