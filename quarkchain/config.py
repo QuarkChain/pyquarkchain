@@ -82,7 +82,7 @@ class ShardGenesis(BaseConfig):
     DIFFICULTY = 10000
     GAS_LIMIT = 30000 * 400  # 400 xshard tx
     NONCE = 0
-    ALLOC = None  # dict() hex address -> qkc amount
+    ALLOC = None  # dict() hex address -> token map or {token map, code, storage}
 
     def __init__(self):
         self.ALLOC = dict()
@@ -499,13 +499,16 @@ class QuarkChainConfig(BaseConfig):
                 )
                 # filter alloc addresses based on shard id
                 alloc = dict()
-                for address_hex, balances in shard_config.GENESIS.ALLOC.items():
+                for (
+                    address_hex,
+                    alloc_data_per_address,
+                ) in shard_config.GENESIS.ALLOC.items():
                     address = Address.create_from(bytes.fromhex(address_hex))
                     address_shard_id = address.full_shard_key & (
                         chain_config.SHARD_SIZE - 1
                     )
                     if shard_id == address_shard_id:
-                        alloc[address_hex] = balances
+                        alloc[address_hex] = alloc_data_per_address
                 shard_config.GENESIS.ALLOC = alloc
                 shards[shard_config.get_full_shard_id()] = shard_config
         config.CHAINS = chains
@@ -524,9 +527,17 @@ class QuarkChainConfig(BaseConfig):
         if self._allowed_token_ids is None:
             self._allowed_token_ids = {self.genesis_token}
             for _, shard in self.shards.items():
-                for _, token_dict in shard.GENESIS.ALLOC.items():
-                    for token_id in token_dict:
-                        self._allowed_token_ids.add(token_id_encode(token_id))
+                for _, alloc_data in shard.GENESIS.ALLOC.items():
+                    # genesis config is backward compatible:
+                    # v1: {addr: {QKC: 1234}}
+                    # v2: {addr: {balances: {QKC: 1234}, code: 0x, storage: {0x12: 0x34}}}
+                    balances = alloc_data
+                    if "balances" in alloc_data:
+                        balances = alloc_data["balances"]
+                    for k in balances:
+                        if k in ("code", "storage"):
+                            continue
+                        self._allowed_token_ids.add(token_id_encode(k))
         return self._allowed_token_ids
 
     @property
