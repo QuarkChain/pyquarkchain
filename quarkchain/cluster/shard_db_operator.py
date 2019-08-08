@@ -28,11 +28,11 @@ class HashList(Serializable):
 
 class TransactionHistoryMixin:
     @staticmethod
-    def __encode_address_transaction_key(address, height, index, cross_shard):
+    def __encode_address_transaction_key(recipient, height, index, cross_shard):
         cross_shard_byte = b"\x00" if cross_shard else b"\x01"
         return (
             b"index_addr_"
-            + address.serialize()
+            + recipient
             + height.to_bytes(4, "big")
             + cross_shard_byte
             + index.to_bytes(4, "big")
@@ -68,14 +68,14 @@ class TransactionHistoryMixin:
         evm_tx = tx.tx.to_evm_tx()
         key = self.__encode_alltx_key(block_height, index, False)
         func(key, b"")
-        addr = Address(evm_tx.sender, evm_tx.from_full_shard_key)
-        key = self.__encode_address_transaction_key(addr, block_height, index, False)
+        key = self.__encode_address_transaction_key(
+            evm_tx.sender, block_height, index, False
+        )
         func(key, b"")
         # "to" can be empty for smart contract deployment
         if evm_tx.to and self.branch.is_in_branch(evm_tx.to_full_shard_key):
-            addr = Address(evm_tx.to, evm_tx.to_full_shard_key)
             key = self.__encode_address_transaction_key(
-                addr, block_height, index, False
+                evm_tx.to, block_height, index, False
             )
             func(key, b"")
 
@@ -102,7 +102,7 @@ class TransactionHistoryMixin:
             if tx.is_from_root_chain and tx.value == 0:
                 continue
             key = self.__encode_address_transaction_key(
-                tx.to_address, minor_block.header.height, i, True
+                tx.to_address.recipient, minor_block.header.height, i, True
             )
             func(key, b"")
             # skip ALL coinbase reward deposits for all tx index
@@ -161,12 +161,12 @@ class TransactionHistoryMixin:
         if not start or start > original_start:
             start = original_start
 
-        # decoding starts at byte 11 + 24 == len("index_addr_") + len(Address)
+        # decoding starts at byte 11 + 20 == len("index_addr_") + len(Address.recipient)
         return self.__get_transaction_details(
             start,
             end,
             limit,
-            decoding_byte_offset=11 + 24,
+            decoding_byte_offset=11 + 20,
             transfer_token_id=transfer_token_id,
         )
 
