@@ -336,10 +336,8 @@ def loglist_encoder(loglist: List[Log]):
 
 
 def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
-    if i >= len(block.tx_list):
-        tx_id = EMPTY_TX_ID
-        tx_hash = data_encoder(b"")
-    else:
+    tx_id, tx_hash = None, None  # if empty, will be populated at call site
+    if i < len(block.tx_list):
         tx = block.tx_list[i]
         evm_tx = tx.tx.to_evm_tx()
         tx_id = id_encoder(tx.get_hash(), evm_tx.from_full_shard_key)
@@ -830,9 +828,14 @@ class JSONRPCServer:
         return await self._call_or_estimate_gas(is_call=False, **data)
 
     @public_methods.add
-    @decode_arg("tx_id", id_decoder)
     async def getTransactionReceipt(self, tx_id):
-        tx_hash, full_shard_key = tx_id
+        id_bytes = data_decoder(tx_id)
+        if len(id_bytes) != 36:
+            raise InvalidParams("Invalid id encoding")
+        tx_hash, full_shard_key = (
+            id_bytes[:32],
+            int.from_bytes(id_bytes[32:], byteorder="big"),
+        )
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
@@ -843,7 +846,11 @@ class JSONRPCServer:
             return None
         minor_block, i, receipt = resp
 
-        return receipt_encoder(minor_block, i, receipt)
+        ret = receipt_encoder(minor_block, i, receipt)
+        if ret["transactionId"] is None:
+            ret["transactionId"] = tx_id
+            ret["transactionHash"] = data_encoder(tx_hash)
+        return ret
 
     @public_methods.add
     @decode_arg("full_shard_key", shard_id_decoder)
