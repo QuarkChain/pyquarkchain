@@ -522,6 +522,7 @@ class Shard:
             __create_block,
             __add_block,
             __get_mining_param,
+            lambda: self.state.header_tip,
             remote=shard_config.CONSENSUS_CONFIG.REMOTE_MINE,
         )
 
