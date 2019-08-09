@@ -626,8 +626,6 @@ class TestJSONRPC(unittest.TestCase):
         ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
-            # enable EVM
-            master.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 0
 
             block = call_async(
                 master.get_next_block_to_mine(address=acc2, branch_value=None)
