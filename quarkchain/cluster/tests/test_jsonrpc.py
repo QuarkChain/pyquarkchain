@@ -625,8 +625,7 @@ class TestJSONRPC(unittest.TestCase):
             master = clusters[0].master
             slaves = clusters[0].slave_list
             # enable EVM
-            # TODO: unify flag as in https://github.com/QuarkChain/pyquarkchain/pull/683
-            master.env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
+            master.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 0
 
             block = call_async(
                 master.get_next_block_to_mine(address=acc2, branch_value=None)
