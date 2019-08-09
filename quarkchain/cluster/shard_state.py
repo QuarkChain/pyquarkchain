@@ -5,6 +5,8 @@ from collections import Counter, deque
 from fractions import Fraction
 from typing import Dict, List, Optional, Tuple, Union, NamedTuple
 
+from rlp import DecodingError
+
 from quarkchain.cluster.filter import Filter
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
@@ -258,7 +260,7 @@ class ShardState:
         )
         self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
-        self.header_tip = None  # MinorBlockHeader
+        self.header_tip = None  # type: Optional[MinorBlockHeader]
         # TODO: make the oracle configurable
         self.gas_price_suggestion_oracle = GasPriceSuggestionOracle(
             check_blocks=5, percentile=50
@@ -1518,7 +1520,7 @@ class ShardState:
                 >= self.env.quark_chain_config.XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT,
             )
 
-            # Impose soft-limit of xshard gas limit
+            # impose soft-limit of xshard gas limit
             if evm_state.gas_used >= mblock.meta.evm_xshard_gas_limit:
                 break
 
@@ -1545,7 +1547,21 @@ class ShardState:
         block, index = self.db.get_transaction_by_hash(h)
         if not block:
             return None
-        receipt = block.get_receipt(self.evm_state.db, index)
+        try:
+            receipt = block.get_receipt(self.evm_state.db, index)
+        except DecodingError:
+            # must be a cross-shard tx at target while EVM is not enabled yet
+            check(index >= len(block.tx_list))
+            Logger.debug(
+                "[{}] Querying xshard receipt before enabled with tx hash {}".format(
+                    self.branch.to_str(), h
+                )
+            )
+            # make a fake receipt
+            receipt = TransactionReceipt.create_empty_receipt()
+            receipt.success = b"\x01"
+            return block, index, receipt
+
         if receipt.contract_address != Address.create_empty_account(0):
             address = receipt.contract_address
             check(
@@ -1753,7 +1769,8 @@ class ShardState:
         cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
-        return PoSWInfo(diff, block_threshold, cnt)
+        # mined blocks should include current one
+        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:

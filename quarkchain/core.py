@@ -736,6 +736,11 @@ class MinorBlockHeader(Serializable):
     def get_hash_for_mining(self):
         return sha3_256(self.serialize_without(["nonce", "mixhash"]))
 
+    @property
+    def hash_prev_block(self):
+        """In most cases, asking a previous block should mean minor block."""
+        return self.hash_prev_minor_block
+
 
 class MinorBlock(Serializable):
     FIELDS = [
