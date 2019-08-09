@@ -561,7 +561,8 @@ class TestJSONRPC(unittest.TestCase):
                 gas=21000 if f == t else 30000,
                 value=12345,
             )
-            self.assertTrue(slaves[0].add_tx(tx_gen(s1, acc1, acc2)))
+            tx1 = tx_gen(s1, acc1, acc2)
+            self.assertTrue(slaves[0].add_tx(tx1))
             b1 = call_async(
                 master.get_next_block_to_mine(address=acc1, branch_value=0b10)
             )
@@ -573,8 +574,8 @@ class TestJSONRPC(unittest.TestCase):
 
             call_async(master.add_root_block(root_block))
 
-            tx = tx_gen(s2, acc2, acc2)
-            self.assertTrue(slaves[0].add_tx(tx))
+            tx2 = tx_gen(s2, acc2, acc2)
+            self.assertTrue(slaves[0].add_tx(tx2))
             b3 = call_async(
                 master.get_next_block_to_mine(address=acc2, branch_value=0b11)
             )
@@ -589,15 +590,91 @@ class TestJSONRPC(unittest.TestCase):
                     endpoint,
                     [
                         "0x"
-                        + tx.get_hash().hex()
+                        + tx2.get_hash().hex()
                         + acc2.full_shard_key.to_bytes(4, "big").hex()
                     ],
                 )
-                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["transactionHash"], "0x" + tx2.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
                 self.assertEqual(resp["cumulativeGasUsed"], hex(30000))
                 self.assertEqual(resp["gasUsed"], hex(21000))
                 self.assertIsNone(resp["contractAddress"])
+
+            # query xshard tx receipt on the target shard
+            resp = send_request(
+                endpoint,
+                [
+                    "0x"
+                    + tx1.get_hash().hex()
+                    + acc2.full_shard_key.to_bytes(4, "big").hex()
+                ],
+            )
+            self.assertEqual(resp["status"], "0x1")
+            # other fields are fake
+            self.assertEqual(resp["cumulativeGasUsed"], hex(0))
+            self.assertEqual(resp["gasUsed"], hex(0))
+
+    def test_getTransactionReceipt_on_x_shard_transfer_after_enabling_EVM(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_server_context(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            # enable EVM
+            # TODO: unify flag as in https://github.com/QuarkChain/pyquarkchain/pull/683
+            master.env.quark_chain_config.XSHARD_ADD_RECIEPT_TIMESTAMP = 0
+
+            block = call_async(
+                master.get_next_block_to_mine(address=acc2, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+
+            s1, s2 = (
+                clusters[0].get_shard_state(2 | 0),
+                clusters[0].get_shard_state(2 | 1),
+            )
+            tx = create_transfer_transaction(
+                shard_state=s1,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc2,
+                gas=30000,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+            # source shard
+            b1 = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(b1)))
+            # root chain
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+            # target shard
+            b3 = call_async(
+                master.get_next_block_to_mine(address=acc2, branch_value=0b11)
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(b3)))
+
+            # query xshard tx receipt on the target shard
+            resp = send_request(
+                "getTransactionReceipt",
+                [
+                    "0x"
+                    + tx.get_hash().hex()
+                    + acc2.full_shard_key.to_bytes(4, "big").hex()
+                ],
+            )
+            self.assertEqual(resp["status"], "0x1")
+            self.assertEqual(resp["transactionIndex"], "0x3")
+            self.assertEqual(resp["cumulativeGasUsed"], hex(9000))
+            self.assertEqual(resp["gasUsed"], hex(9000))
 
     def test_getTransactionReceipt_on_contract_creation(self):
         id1 = Identity.create_random_identity()
