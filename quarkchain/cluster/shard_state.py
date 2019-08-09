@@ -36,7 +36,7 @@ from quarkchain.evm import opcodes
 from quarkchain.evm.messages import (
     apply_transaction,
     validate_transaction,
-    apply_xshard_desposit,
+    apply_xshard_deposit,
 )
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
@@ -1495,7 +1495,7 @@ class ShardState:
                 evm_state.block_coinbase, tx.gas_token_id, xshard_fee
             )
         else:
-            apply_xshard_desposit(evm_state, deposit, gas_used_start)
+            apply_xshard_deposit(evm_state, deposit, gas_used_start)
         check(evm_state.gas_used <= evm_state.gas_limit)
 
     def __run_cross_shard_tx_with_cursor(self, evm_state, mblock):
