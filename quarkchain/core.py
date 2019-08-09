@@ -1214,7 +1214,10 @@ class Log(Serializable):
     def create_from_eth_log(cls, eth_log, block: MinorBlock, tx_idx: int, log_idx: int):
         recipient = eth_log.address
         data = eth_log.data
-        tx = block.tx_list[tx_idx]  # type: Transaction
+        if tx_idx < len(block.tx_list):
+            tx_hash = block.tx_list[tx_idx].get_hash()
+        else:
+            tx_hash = bytes(Constant.HASH_LENGTH)
 
         topics = []
         for topic in eth_log.topics:
@@ -1226,7 +1229,7 @@ class Log(Serializable):
             block_number=block.header.height,
             block_hash=block.header.get_hash(),
             tx_idx=tx_idx,
-            tx_hash=tx.get_hash(),
+            tx_hash=tx_hash,
             log_idx=log_idx,
         )
 

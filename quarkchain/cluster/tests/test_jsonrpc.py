@@ -533,7 +533,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
                 self.assertIsNone(resp["contractAddress"])
 
-    def test_getTransactionReceipt_on_x_shard_transfer(self):
+    def test_getTransactionReceipt_on_xshard_transfer(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1)
@@ -616,7 +616,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["cumulativeGasUsed"], hex(0))
             self.assertEqual(resp["gasUsed"], hex(0))
 
-    def test_getTransactionReceipt_on_x_shard_transfer_after_enabling_EVM(self):
+    def test_getTransactionReceipt_on_xshard_transfer_after_enabling_EVM(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1)
