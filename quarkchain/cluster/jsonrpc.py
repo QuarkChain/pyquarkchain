@@ -4,6 +4,7 @@ import json
 from typing import Callable, Dict, List, Optional
 
 import aiohttp_cors
+import websockets
 import rlp
 from aiohttp import web
 from async_armor import armor
@@ -13,6 +14,7 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.slave import SlaveServer
 from quarkchain.core import (
     Address,
     Branch,
@@ -439,7 +441,7 @@ private_methods = AsyncMethods()
 
 
 # noinspection PyPep8Naming
-class JSONRPCServer:
+class JSONRPCHttpServer:
     @classmethod
     def start_public_server(cls, env, master_server):
         server = cls(
@@ -1361,3 +1363,102 @@ class JSONRPCServer:
         else:  # estimate gas
             res = await self.master.estimate_gas(tx, sender_address)
             return quantity_encoder(res) if res is not None else None
+
+
+# JSONRPC Websocket Server
+class JSONRPCWSServer:
+    @classmethod
+    def start_public_server(cls, env, slave_server):
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            public_methods,
+        )
+        server.start()
+        return server
+
+    @classmethod
+    def start_private_server(cls, env, slave_server):
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.PRIVATE_JSON_RPC_PORT,
+            env.cluster_config.PRIVATE_JSON_RPC_HOST,
+            private_methods,
+        )
+        server.start()
+        return server
+
+    @classmethod
+    def start_test_server(cls, env, slave_server):
+        methods = AsyncMethods()
+        for method in public_methods.values():
+            methods.add(method)
+        for method in private_methods.values():
+            methods.add(method)
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            methods,
+        )
+        server.start()
+        return server
+
+    def __init__(
+        self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
+    ):
+        self.loop = asyncio.get_event_loop()
+        self.port = port
+        self.host = host
+        self.env = env
+        self.master = slave_server
+        self.counters = dict()
+
+        # Bind RPC handler functions to this instance
+        self.handlers = AsyncMethods()
+        for rpc_name in methods:
+            func = methods[rpc_name]
+            self.handlers[rpc_name] = func.__get__(self, self.__class__)
+
+    async def __handle(self, websocket, path):
+        request = await websocket.recv()
+        Logger.info(request)
+
+        d = dict()
+        try:
+            d = json.loads(request)
+        except Exception:
+            pass
+        method = d.get("method", "null")
+        if method in self.counters:
+            self.counters[method] += 1
+        else:
+            self.counters[method] = 1
+
+        response = await self.handlers.dispatch(request)
+        if "error" in response:
+            Logger.error(response)
+        if not response.is_notification:
+            await websocket.send(str(response))
+        return response
+
+    @public_methods.add
+    async def ping(self):
+        return "pong"
+
+    @public_methods.add
+    async def echo(self, params):
+        print(params)
+        return "lollol"
+
+    def start(self):
+        start_server = websockets.serve(self.__handle, "localhost", 5000)
+        self.loop.run_until_complete(start_server)
+        self.loop.run_forever()
+
+    def shutdown(self):
+        pass  # TODO
