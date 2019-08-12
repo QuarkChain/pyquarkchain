@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import logging
 import unittest
 from contextlib import contextmanager
@@ -885,7 +884,6 @@ class TestJSONRPC(unittest.TestCase):
             # no filter object as wild cards
             resp = req({})
             self.assertEqual(1, len(resp))
-            expected_log_parts = copy.copy(expected_log_parts)
             expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
             expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
             expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
