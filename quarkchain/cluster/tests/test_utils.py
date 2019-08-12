@@ -308,6 +308,7 @@ def create_test_clusters(
     shard_size,
     num_slaves,
     genesis_root_heights,
+    genesis_minor_quarkash,
     remote_mining=False,
     small_coinbase=False,
     loadtest_accounts=None,
@@ -327,7 +328,7 @@ def create_test_clusters(
     for i in range(num_cluster):
         env = get_test_env(
             genesis_account,
-            genesis_minor_quarkash=1000000,
+            genesis_minor_quarkash=genesis_minor_quarkash,
             chain_size=chain_size,
             shard_size=shard_size,
             genesis_root_heights=genesis_root_heights,
@@ -439,6 +440,7 @@ class ClusterContext(ContextDecorator):
         connect=True,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
+        genesis_minor_quarkash=1000000,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -452,6 +454,7 @@ class ClusterContext(ContextDecorator):
         self.connect = connect
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
+        self.genesis_minor_quarkash = genesis_minor_quarkash
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -464,6 +467,7 @@ class ClusterContext(ContextDecorator):
             self.shard_size,
             self.num_slaves,
             self.genesis_root_heights,
+            genesis_minor_quarkash=self.genesis_minor_quarkash,
             remote_mining=self.remote_mining,
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,

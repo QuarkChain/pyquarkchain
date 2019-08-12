@@ -87,11 +87,12 @@ class Filter:
         """Given potential blocks, re-run tx to find exact matches."""
         ret = []
         for b_i, block in enumerate(blocks):
-            deposit_hlist = (
-                self.db.get_xshard_deposit_hash_list(block.header.get_hash()) or []
-            )
             tx_list_len = len(block.tx_list)
-            for i in range(tx_list_len + len(deposit_hlist)):
+            deposit_hlist = self.db.get_xshard_deposit_hash_list(
+                block.header.get_hash()
+            )
+            deposit_hlist_len = 0 if not deposit_hlist else len(deposit_hlist.hlist)
+            for i in range(tx_list_len + deposit_hlist_len):
                 # only provide deposit list when needed
                 r = block.get_receipt(
                     self.db.db, i, None if i < tx_list_len else deposit_hlist

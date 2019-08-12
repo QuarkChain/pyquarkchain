@@ -823,6 +823,10 @@ class MinorBlock(Serializable):
         if i < len(self.tx_list):
             tx_hash = self.tx_list[i].get_hash()
         else:
+            check(
+                x_shard_receive_tx_list is not None,
+                "xshard receipt should have xshard deposits",
+            )
             tx_hash = x_shard_receive_tx_list.hlist[i - len(self.tx_list)]
         logs = [
             Log.create_from_eth_log(eth_log, self, tx_hash, tx_idx=i, log_idx=j)

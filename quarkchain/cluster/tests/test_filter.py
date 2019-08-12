@@ -34,7 +34,9 @@ class TestFilter(unittest.TestCase):
         start_height = b.header.height
         # https://hastebin.com/debezaqocu.cs
         # 1 log with 2 topics - sha3(b'Hi(address)') and msg.sender
-        log = Log.create_from_eth_log(state.evm_state.receipts[0].logs[0], b, 0, 0)
+        log = Log.create_from_eth_log(
+            state.evm_state.receipts[0].logs[0], b, tx.get_hash(), 0, 0
+        )
 
         # add other random blocks with normal tx
         for _ in range(10):
@@ -119,4 +121,4 @@ class TestFilter(unittest.TestCase):
         addresses = [Address(self.log.recipient, 0)]
         f = self.filter_gen_with_criteria(criteria, addresses)
         logs = f._get_logs([self.hit_block])
-        self.assertEqual([self.log], logs)
+        self.assertListEqual([self.log], logs)
