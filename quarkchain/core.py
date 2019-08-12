@@ -373,6 +373,13 @@ def normalize_bytes(data, size):
     raise RuntimeError("Unable to normalize bytes")
 
 
+class HashList(Serializable):
+    FIELDS = [("hlist", PrependedSizeListSerializer(4, hash256))]
+
+    def __init__(self, hlist):
+        self.hlist = hlist
+
+
 class Identity:
     @staticmethod
     def create_random_identity():
@@ -796,7 +803,7 @@ class MinorBlock(Serializable):
         self.tx_list.append(tx)
         return self
 
-    def get_receipt(self, db, i):
+    def get_receipt(self, db, i, x_shard_receive_tx_list: typing.Optional[HashList]):
         t = trie.Trie(db, self.meta.hash_evm_receipt_root)
         receipt = rlp.decode(t.get(rlp.encode(i)), quarkchain.evm.messages.Receipt)
         if receipt.contract_address != b"":
@@ -813,8 +820,12 @@ class MinorBlock(Serializable):
         else:
             prev_gas_used = self.meta.evm_cross_shard_receive_gas_used
 
+        if i < len(self.tx_list):
+            tx_hash = self.tx_list[i].get_hash()
+        else:
+            tx_hash = x_shard_receive_tx_list.hlist[i - len(self.tx_list)]
         logs = [
-            Log.create_from_eth_log(eth_log, self, tx_idx=i, log_idx=j)
+            Log.create_from_eth_log(eth_log, self, tx_hash, tx_idx=i, log_idx=j)
             for j, eth_log in enumerate(receipt.logs)
         ]
 
@@ -1211,13 +1222,11 @@ class Log(Serializable):
         self.log_idx = log_idx
 
     @classmethod
-    def create_from_eth_log(cls, eth_log, block: MinorBlock, tx_idx: int, log_idx: int):
+    def create_from_eth_log(
+        cls, eth_log, block: MinorBlock, tx_hash: bytes, tx_idx: int, log_idx: int
+    ):
         recipient = eth_log.address
         data = eth_log.data
-        if tx_idx < len(block.tx_list):
-            tx_hash = block.tx_list[tx_idx].get_hash()
-        else:
-            tx_hash = bytes(Constant.HASH_LENGTH)
 
         topics = []
         for topic in eth_log.topics:
