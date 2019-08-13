@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import unittest
 from contextlib import contextmanager
@@ -67,6 +68,9 @@ class TestJSONRPC(unittest.TestCase):
         ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
+
+            stats = call_async(master.get_stats())
+            self.assertTrue("posw" in json.dumps(stats))
 
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0
