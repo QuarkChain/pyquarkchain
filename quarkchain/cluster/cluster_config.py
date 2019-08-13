@@ -143,6 +143,11 @@ class ClusterConfig(BaseConfig):
     ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
 
+    JSON_RPC_WS_PORT = 5000  # To be decided
+    PRIVATE_JSON_RPC_WS_PORT = 5050  # To be decided
+    JSON_RPC_WS_HOST = "localhost"
+    PRIVATE_JSON_RPC_WS_HOST = "localhost"
+
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
 

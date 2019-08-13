@@ -1372,8 +1372,8 @@ class JSONRPCWSServer:
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
+            env.cluster_config.JSON_RPC_WS_PORT,
+            env.cluster_config.JSON_RPC_WS_HOST,
             public_methods,
         )
         server.start()
@@ -1384,8 +1384,8 @@ class JSONRPCWSServer:
         server = cls(
             env,
             slave_server,
-            env.cluster_config.PRIVATE_JSON_RPC_PORT,
-            env.cluster_config.PRIVATE_JSON_RPC_HOST,
+            env.cluster_config.PRIVATE_JSON_RPC_WS_PORT,
+            env.cluster_config.PRIVATE_JSON_RPC_WS_HOST,
             private_methods,
         )
         server.start()
@@ -1401,8 +1401,8 @@ class JSONRPCWSServer:
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
+            env.cluster_config.JSON_RPC_WS_PORT,
+            env.cluster_config.JSON_RPC_WS_HOST,
             methods,
         )
         server.start()
