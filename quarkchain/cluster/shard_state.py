@@ -1548,7 +1548,13 @@ class ShardState:
         if not block:
             return None
         try:
-            receipt = block.get_receipt(self.evm_state.db, index)
+            deposit_hlist = None
+            if index >= len(block.tx_list):
+                deposit_hlist = self.db.get_xshard_deposit_hash_list(
+                    block.header.get_hash()
+                )
+            # only provide deposit list when needed
+            receipt = block.get_receipt(self.evm_state.db, index, deposit_hlist)
         except DecodingError:
             # must be a cross-shard tx at target while EVM is not enabled yet
             check(index >= len(block.tx_list))

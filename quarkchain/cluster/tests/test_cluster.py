@@ -1391,7 +1391,7 @@ class TestCluster(unittest.TestCase):
                 call_async(
                     master.get_primary_account_data(acc4)
                 ).token_balances.balance_map,
-                {genesis_token: 679498},
+                {genesis_token: 677758},
             )
             _, _, receipt = call_async(
                 master.get_transaction_receipt(tx3.get_hash(), b3.header.branch)

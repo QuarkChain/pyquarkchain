@@ -162,12 +162,18 @@ pragma solidity ^0.5.1;
 contract Storage {
     uint pos0;
     mapping(address => uint) pos1;
+    event DummyEvent(
+        address indexed addr1,
+        address addr2,
+        uint value
+    );
     function Save() public {
         pos1[msg.sender] = 5678;
+        emit DummyEvent(msg.sender, msg.sender, 5678);
     }
 }
 """
-CONTRACT_WITH_STORAGE2 = "6080604052348015600f57600080fd5b5060c68061001e6000396000f3fe6080604052600436106039576000357c010000000000000000000000000000000000000000000000000000000090048063c2e171d714603e575b600080fd5b348015604957600080fd5b5060506052565b005b61162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000208190555056fea165627a7a72305820fe440b2cadff2d38365becb4339baa8c7b29ce933a2ad1b43f49feea0e1f7a7e0029"
+CONTRACT_WITH_STORAGE2 = "6080604052348015600f57600080fd5b5061014f8061001f6000396000f3fe60806040526004361061003b576000357c010000000000000000000000000000000000000000000000000000000090048063c2e171d714610040575b600080fd5b34801561004c57600080fd5b50610055610057565b005b61162e600160003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055503373ffffffffffffffffffffffffffffffffffffffff167f6913c5075e49aeb31648f1ac7b0a95caf5b8c8e6be84340c46b3577f52cfed1f3361162e604051808373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020018281526020019250505060405180910390a256fea165627a7a72305820559521a1a9b5f0ef661ed51a52948ab46847df6a98b5b052fa061f9ccdba09070029"
 
 
 def _contract_tx_gen(shard_state, key, from_address, to_full_shard_key, bytecode):
@@ -302,6 +308,7 @@ def create_test_clusters(
     shard_size,
     num_slaves,
     genesis_root_heights,
+    genesis_minor_quarkash,
     remote_mining=False,
     small_coinbase=False,
     loadtest_accounts=None,
@@ -321,7 +328,7 @@ def create_test_clusters(
     for i in range(num_cluster):
         env = get_test_env(
             genesis_account,
-            genesis_minor_quarkash=1000000,
+            genesis_minor_quarkash=genesis_minor_quarkash,
             chain_size=chain_size,
             shard_size=shard_size,
             genesis_root_heights=genesis_root_heights,
@@ -433,6 +440,7 @@ class ClusterContext(ContextDecorator):
         connect=True,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
+        genesis_minor_quarkash=1000000,
     ):
         self.num_cluster = num_cluster
         self.genesis_account = genesis_account
@@ -446,6 +454,7 @@ class ClusterContext(ContextDecorator):
         self.connect = connect
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
+        self.genesis_minor_quarkash = genesis_minor_quarkash
 
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
@@ -458,6 +467,7 @@ class ClusterContext(ContextDecorator):
             self.shard_size,
             self.num_slaves,
             self.genesis_root_heights,
+            genesis_minor_quarkash=self.genesis_minor_quarkash,
             remote_mining=self.remote_mining,
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
