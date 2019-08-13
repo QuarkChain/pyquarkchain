@@ -10,20 +10,11 @@ from quarkchain.core import (
     Address,
     CrossShardTransactionDeposit,
     TypedTransaction,
-    Serializable,
-    PrependedSizeListSerializer,
-    hash256,
+    HashList,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import check
 from cachetools import LRUCache
-
-
-class HashList(Serializable):
-    FIELDS = [("hlist", PrependedSizeListSerializer(4, hash256))]
-
-    def __init__(self, hlist):
-        self.hlist = hlist
 
 
 class TransactionHistoryMixin:
@@ -232,7 +223,10 @@ class TransactionHistoryMixin:
                         )
                     )
             else:
-                receipt = m_block.get_receipt(self.db, index)
+                # no need to provide cross shard deposit list for in-shard tx receipt
+                receipt = m_block.get_receipt(
+                    self.db, index, x_shard_receive_tx_list=None
+                )
                 tx = m_block.tx_list[index]  # type: TypedTransaction
                 evm_tx = tx.tx.to_evm_tx()
                 tx_hash = tx.get_hash()
@@ -455,9 +449,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         for i, tx in enumerate(minor_block.tx_list):
             self.put_transaction_index(tx, minor_block.header.height, i)
 
-        deposit_hlist = self.__get_xshard_deposit_hash_list(
-            minor_block.header.get_hash()
-        )
+        deposit_hlist = self.get_xshard_deposit_hash_list(minor_block.header.get_hash())
         # Old version of db may not have the hash list
         if deposit_hlist is not None:
             for i, h in enumerate(deposit_hlist.hlist):
@@ -471,9 +463,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         for i, tx in enumerate(minor_block.tx_list):
             self.remove_transaction_index(tx, minor_block.header.height, i)
 
-        deposit_hlist = self.__get_xshard_deposit_hash_list(
-            minor_block.header.get_hash()
-        )
+        deposit_hlist = self.get_xshard_deposit_hash_list(minor_block.header.get_hash())
         # Old version of db may not have the hash list
         if deposit_hlist is not None:
             for i, h in enumerate(deposit_hlist.hlist):
@@ -487,7 +477,7 @@ class ShardDbOperator(TransactionHistoryMixin):
     def put_minor_block_xshard_tx_list(self, h, tx_list: CrossShardTransactionList):
         self.db.put(b"xShard_" + h, tx_list.serialize())
 
-    def get_minor_block_xshard_tx_list(self, h) -> CrossShardTransactionList:
+    def get_minor_block_xshard_tx_list(self, h) -> Optional[CrossShardTransactionList]:
         key = b"xShard_" + h
         if key not in self.db:
             return None
@@ -500,7 +490,7 @@ class ShardDbOperator(TransactionHistoryMixin):
     def __put_xshard_deposit_hash_list(self, h, hlist: HashList):
         self.db.put(b"xd_" + h, hlist.serialize())
 
-    def __get_xshard_deposit_hash_list(self, h) -> HashList:
+    def get_xshard_deposit_hash_list(self, h) -> Optional[HashList]:
         data = self.db.get(b"xd_" + h)
         if data is None:
             return None

@@ -533,7 +533,7 @@ class TestJSONRPC(unittest.TestCase):
                 self.assertEqual(resp["cumulativeGasUsed"], "0x5208")
                 self.assertIsNone(resp["contractAddress"])
 
-    def test_getTransactionReceipt_on_x_shard_transfer(self):
+    def test_getTransactionReceipt_on_xshard_transfer_before_enabling_EVM(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1)
@@ -616,7 +616,7 @@ class TestJSONRPC(unittest.TestCase):
             self.assertEqual(resp["cumulativeGasUsed"], hex(0))
             self.assertEqual(resp["gasUsed"], hex(0))
 
-    def test_getTransactionReceipt_on_x_shard_transfer_after_enabling_EVM(self):
+    def test_getTransactionReceipt_on_xshard_transfer_after_enabling_EVM(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=1)
@@ -732,10 +732,8 @@ class TestJSONRPC(unittest.TestCase):
             )
             call_async(master.add_root_block(root_block))
 
-            to_full_shard_key = (
-                acc1.full_shard_key + 1
-            )  # x-shard contract creation should fail
-            tx = create_contract_creation_transaction(
+            to_full_shard_key = acc1.full_shard_key + 1
+            tx = create_contract_creation_with_event_transaction(
                 shard_state=clusters[0].get_shard_state(2 | 0),
                 key=id1.get_key(),
                 from_address=acc1,
@@ -752,8 +750,24 @@ class TestJSONRPC(unittest.TestCase):
                 resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000002"])
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
-                self.assertEqual(resp["cumulativeGasUsed"], "0x13d6c")
+                self.assertEqual(resp["cumulativeGasUsed"], "0x1369c")
                 self.assertIsNone(resp["contractAddress"])
+
+            # x-shard contract creation should succeed. check target shard
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )  # root chain
+            call_async(master.add_root_block(root_block))
+            block2 = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b11)
+            )  # target shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(block2)))
+            for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
+                resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000003"])
+                self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
+                self.assertEqual(resp["status"], "0x1")
+                self.assertEqual(resp["cumulativeGasUsed"], "0xc515")
+                self.assertIsNotNone(resp["contractAddress"])
 
     def test_getLogs(self):
         id1 = Identity.create_random_identity()
@@ -768,10 +782,17 @@ class TestJSONRPC(unittest.TestCase):
         }
 
         with ClusterContext(
-            1, acc1, small_coinbase=True
+            1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
         ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
+
+            # Add a root block to update block gas limit for xshard tx throttling
+            # so that the following tx can be processed
+            root_block = call_async(
+                master.get_next_block_to_mine(acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
 
             tx = create_contract_creation_with_event_transaction(
                 shard_state=clusters[0].get_shard_state(2 | 0),
@@ -779,6 +800,7 @@ class TestJSONRPC(unittest.TestCase):
                 from_address=acc1,
                 to_full_shard_key=acc1.full_shard_key,
             )
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
             self.assertTrue(slaves[0].add_tx(tx))
 
             block = call_async(
@@ -836,6 +858,37 @@ class TestJSONRPC(unittest.TestCase):
                         "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
                         resp[0]["topics"][0],
                     )
+
+            # xshard creation and check logs: shard 0 -> shard 1
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key + 1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )  # source shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )  # root chain
+            call_async(master.add_root_block(root_block))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b11)
+            )  # target shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(block)))
+
+            req = lambda o: send_request("getLogs", [o, hex(0b11)])
+            # no filter object as wild cards
+            resp = req({})
+            self.assertEqual(1, len(resp))
+            expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
+            expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
+            self.assertDictContainsSubset(expected_log_parts, resp[0])
+            self.assertEqual(2, len(resp[0]["topics"]))
 
     def test_estimateGas(self):
         id1 = Identity.create_random_identity()
