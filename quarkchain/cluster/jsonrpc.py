@@ -1372,38 +1372,9 @@ class JSONRPCWSServer:
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
+            env.cluster_config.JSON_RPC_WS_PORT,
+            env.cluster_config.JSON_RPC_WS_HOST,
             public_methods,
-        )
-        server.start()
-        return server
-
-    @classmethod
-    def start_private_server(cls, env, slave_server):
-        server = cls(
-            env,
-            slave_server,
-            env.cluster_config.PRIVATE_JSON_RPC_PORT,
-            env.cluster_config.PRIVATE_JSON_RPC_HOST,
-            private_methods,
-        )
-        server.start()
-        return server
-
-    @classmethod
-    def start_test_server(cls, env, slave_server):
-        methods = AsyncMethods()
-        for method in public_methods.values():
-            methods.add(method)
-        for method in private_methods.values():
-            methods.add(method)
-        server = cls(
-            env,
-            slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
-            methods,
         )
         server.start()
         return server
@@ -1446,6 +1417,14 @@ class JSONRPCWSServer:
             await websocket.send(str(response))
         return response
 
+    def start(self):
+        start_server = websockets.serve(self.__handle, "localhost", 5000)
+        self.loop.run_until_complete(start_server)
+        self.loop.run_forever()
+
+    def shutdown(self):
+        pass  # TODO
+
     @public_methods.add
     async def ping(self):
         return "pong"
@@ -1454,11 +1433,3 @@ class JSONRPCWSServer:
     async def echo(self, params):
         print(params)
         return "lollol"
-
-    def start(self):
-        start_server = websockets.serve(self.__handle, "localhost", 5000)
-        self.loop.run_until_complete(start_server)
-        self.loop.run_forever()
-
-    def shutdown(self):
-        pass  # TODO
