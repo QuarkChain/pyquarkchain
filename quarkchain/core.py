@@ -471,6 +471,9 @@ class Address(Serializable):
     def is_empty(self):
         return set(self.recipient) == {0}
 
+    def __repr__(self):
+        return self.to_hex()
+
 
 class Branch(Serializable):
     FIELDS = [("value", uint32)]
@@ -505,6 +508,9 @@ class Branch(Serializable):
 
     def to_str(self):
         return "{}/{}".format(self.get_chain_id(), self.get_shard_id())
+
+    def __repr__(self):
+        return self.to_str()
 
 
 class ChainMask(Serializable):

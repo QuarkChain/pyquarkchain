@@ -434,7 +434,7 @@ class TestCluster(unittest.TestCase):
                 clusters[0].get_shard_state(0b10).header_tip,
             )
 
-    def test_shard_genesis_fork_fork(self):
+    def test_shard_genesis_fork(self):
         """ Test shard forks at genesis blocks due to root chain fork at GENESIS.ROOT_HEIGHT"""
         acc1 = Address.create_random_account(0)
         acc2 = Address.create_random_account(1)
@@ -494,6 +494,29 @@ class TestCluster(unittest.TestCase):
                 == genesis1.header.get_hash()
             )
             self.assertTrue(clusters[0].get_shard_state(2 | 1).root_tip == root2.header)
+
+    def test_new_minor_block_after_root_genesis(self):
+        """ Test scenario: 1 chain with 2 shards. the second shard's genesis on block 1 """
+        acc = Address.create_random_account(0)
+        id1 = 0 << 16 | 2 | 0
+        id2 = 0 << 16 | 2 | 1
+        genesis_root_heights = {id1: 0, id2: 1}
+        with ClusterContext(
+            1,
+            acc,
+            chain_size=1,
+            shard_size=2,
+            genesis_root_heights=genesis_root_heights,
+        ) as clusters:
+            master = clusters[0].master
+
+            rb0 = call_async(master.get_next_block_to_mine(acc, branch_value=None))
+            call_async(master.add_root_block(rb0))
+            self.assertEqual(master.root_state.tip.height, 1)
+
+            # try create another minor block on shard 1, which points to the new root block
+            # containing shard 0's minor block, which points to root chain's genesis block
+            call_async(master.get_next_block_to_mine(address=acc, branch_value=2 | 1))
 
     def test_broadcast_cross_shard_transactions(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """

@@ -174,7 +174,8 @@ class XshardTxCursor:
                 mblock_header.hash_prev_root_block
             )
             if (
-                prev_root_header.height
+                prev_root_header is None
+                or prev_root_header.height
                 <= self.shard_state.env.quark_chain_config.get_genesis_root_height(
                     self.shard_state.full_shard_id
                 )
