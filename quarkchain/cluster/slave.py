@@ -1402,17 +1402,9 @@ def main():
     slave_server.start()
 
     callbacks = []
-    if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
-        public_json_rpc_ws_server = JSONRPCWSServer.start_public_server(
-            env, slave_server.start
-        )
-        callbacks.append(public_json_rpc_ws_server.shutdown)
-
-    if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
-        private_json_rpc_ws_server = JSONRPCWSServer.start_private_server(
-            env, slave_server.start
-        )
-        callbacks.append(private_json_rpc_ws_server.shutdown)
+    if env.cluster_config.ENABLE_JSON_RPC_WS:
+        json_rpc_ws_server = JSONRPCWSServer.start_ws_server(env, slave_server.start)
+        callbacks.append(json_rpc_ws_server.shutdown)
 
     slave_server.do_loop()
     if env.arguments.enable_profiler:

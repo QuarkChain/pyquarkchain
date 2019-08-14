@@ -1368,7 +1368,7 @@ class JSONRPCHttpServer:
 # JSONRPC Websocket Server
 class JSONRPCWSServer:
     @classmethod
-    def start_public_server(cls, env, slave_server):
+    def start_ws_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
@@ -1386,7 +1386,7 @@ class JSONRPCWSServer:
         self.port = port
         self.host = host
         self.env = env
-        self.master = slave_server
+        self.slave = slave_server
         self.counters = dict()
 
         # Bind RPC handler functions to this instance
@@ -1418,7 +1418,7 @@ class JSONRPCWSServer:
         return response
 
     def start(self):
-        start_server = websockets.serve(self.__handle, "localhost", 5000)
+        start_server = websockets.serve(self.__handle, self.host, self.port)
         self.loop.run_until_complete(start_server)
         self.loop.run_forever()
 
