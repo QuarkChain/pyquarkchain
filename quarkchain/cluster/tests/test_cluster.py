@@ -118,6 +118,9 @@ class TestCluster(unittest.TestCase):
             # shard 1 created at root height 2
             self.assertIsNotNone(clusters[0].get_shard(id2))
 
+            # should be able to get next block from shard 1
+            call_async(master.get_next_block_to_mine(address=acc1, branch_value=id2))
+
             # X-shard from root should be deposited to the shard
             mblock = shard_state.create_block_to_mine()
             self.assertEqual(
@@ -439,13 +442,8 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.create_random_account(0)
         acc2 = Address.create_random_account(1)
 
-        genesis_root_heights = {2: 0, 3: 1}
         with ClusterContext(
-            2,
-            acc1,
-            chain_size=1,
-            shard_size=2,
-            genesis_root_heights=genesis_root_heights,
+            2, acc1, chain_size=1, shard_size=2, genesis_root_heights={2: 0, 3: 1}
         ) as clusters:
             # shutdown cluster connection
             clusters[1].peer.close()
@@ -494,22 +492,6 @@ class TestCluster(unittest.TestCase):
                 == genesis1.header.get_hash()
             )
             self.assertTrue(clusters[0].get_shard_state(2 | 1).root_tip == root2.header)
-
-    def test_new_minor_block_after_root_genesis(self):
-        """ Test scenario: 1 chain with 2 shards. the second shard's genesis on block 1 """
-        acc = Address.create_random_account(0)
-        with ClusterContext(
-            1, acc, chain_size=1, shard_size=2, genesis_root_heights={2: 0, 3: 1}
-        ) as clusters:
-            master = clusters[0].master
-
-            rb0 = call_async(master.get_next_block_to_mine(acc, branch_value=None))
-            call_async(master.add_root_block(rb0))
-            self.assertEqual(master.root_state.tip.height, 1)
-
-            # try create another minor block on shard 1, which points to the new root block
-            # containing shard 0's minor block, which points to root chain's genesis block
-            call_async(master.get_next_block_to_mine(address=acc, branch_value=2 | 1))
 
     def test_broadcast_cross_shard_transactions(self):
         """ Test the cross shard transactions are broadcasted to the destination shards """
