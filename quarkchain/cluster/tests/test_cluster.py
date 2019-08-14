@@ -435,7 +435,7 @@ class TestCluster(unittest.TestCase):
             )
 
     def test_shard_genesis_fork(self):
-        """ Test shard forks at genesis blocks due to root chain fork at GENESIS.ROOT_HEIGHT"""
+        """ Test shard forks at genesis blocks due to root chain fork at GENESIS.ROOT_HEIGHT """
         acc1 = Address.create_random_account(0)
         acc2 = Address.create_random_account(1)
 
@@ -498,15 +498,8 @@ class TestCluster(unittest.TestCase):
     def test_new_minor_block_after_root_genesis(self):
         """ Test scenario: 1 chain with 2 shards. the second shard's genesis on block 1 """
         acc = Address.create_random_account(0)
-        id1 = 0 << 16 | 2 | 0
-        id2 = 0 << 16 | 2 | 1
-        genesis_root_heights = {id1: 0, id2: 1}
         with ClusterContext(
-            1,
-            acc,
-            chain_size=1,
-            shard_size=2,
-            genesis_root_heights=genesis_root_heights,
+            1, acc, chain_size=1, shard_size=2, genesis_root_heights={2: 0, 3: 1}
         ) as clusters:
             master = clusters[0].master
 
