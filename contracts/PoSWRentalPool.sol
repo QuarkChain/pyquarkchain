@@ -30,7 +30,7 @@ contract PoSWRentalPool {
         totalPrincipal_ = totalPrincipal_ + msg.value;
     }
 
-    function GetDivident() public view returns (uint256) {
+    function GetDividend() public view returns (uint256) {
         return address(this).balance - totalPrincipal_;
     }
 
@@ -49,8 +49,8 @@ contract PoSWRentalPool {
     }
 
     function Payout() public {
-        uint256 divident = GetDivident();
-        uint256 stakerPayout = divident * (10000 - minerRate_) / 10000;
+        uint256 dividend = GetDividend();
+        uint256 stakerPayout = dividend * (10000 - minerRate_) / 10000;
         uint256 stakerPayoutPrecise = 0;
         for (uint16 i = 1; i <= totalStakers_; i++) {
             uint256 stakePayoutIndividual = principalMap_[i] * stakerPayout / totalPrincipal_;
@@ -62,7 +62,7 @@ contract PoSWRentalPool {
 
         // Ignore failure if miner is a contract.
         // If failure happens, then the miner's reward will be rewarded to stakers (by calling Payout() repeatedly)
-        miner_.send(divident - stakerPayoutPrecise);
+        miner_.send(dividend - stakerPayoutPrecise);
 
         assert(address(this).balance >= totalPrincipal_);
     }
