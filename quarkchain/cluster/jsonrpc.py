@@ -13,6 +13,7 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.slave import SlaveServer
 from quarkchain.core import (
     Address,
     Branch,
@@ -29,6 +30,9 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
+
+import websockets
+
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1361,3 +1365,96 @@ class JSONRPCServer:
         else:  # estimate gas
             res = await self.master.estimate_gas(tx, sender_address)
             return quantity_encoder(res) if res is not None else None
+
+
+class JSONRPCWebSocketServer:
+    @classmethod
+    def start_public_server(cls, env, slave_server):
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            public_methods,
+        )
+        server.start()
+        return server
+
+    @classmethod
+    def start_private_server(cls, env, slave_server):
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.PRIVATE_JSON_RPC_PORT,
+            env.cluster_config.PRIVATE_JSON_RPC_HOST,
+            private_methods,
+        )
+        server.start()
+        return server
+
+    @classmethod
+    def start_test_server(cls, env, slave_server):
+        methods = AsyncMethods()
+        for method in public_methods.values():
+            methods.add(method)
+        for method in private_methods.values():
+            methods.add(method)
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.JSON_RPC_PORT,
+            env.cluster_config.JSON_RPC_HOST,
+            methods,
+        )
+        server.start()
+        return server
+
+    def __init__(
+        self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
+    ):
+        self.loop = asyncio.get_event_loop()
+        self.port = port
+        self.host = host
+        self.env = env
+        self.slave = slave_server
+        self.counters = dict()
+
+        # Bind RPC handler functions to this instance
+        self.handlers = AsyncMethods()
+        for rpc_name in methods:
+            func = methods[rpc_name]
+            self.handlers[rpc_name] = func.__get__(self, self.__class__)
+
+    async def __handle(self, websocket, path):
+        request = await websocket.recv()
+
+        d = dict()
+        try:
+            d = json.loads(request)
+        except Exception:
+            pass
+        method = d.get("method", "null")
+        if method in self.counters:
+            self.counters[method] += 1
+        else:
+            self.counters[method] = 1
+
+        response = await self.handlers.dispatch(request)
+        await websocket.send(str(response))
+
+    def start(self):
+        server = websockets.serve(self.__handle, "localhost", 8080)
+        asyncio.get_event_loop().run_until_complete(server)
+        asyncio.get_event_loop().run_forever()
+
+    def shutdown(self):
+        pass
+        # self.loop.run_until_complete(self.runner.cleanup())
+
+    @public_methods.add
+    async def ping(self):
+        return "pong"
+
+    @public_methods.add
+    async def echo(self, params):
+        return params
