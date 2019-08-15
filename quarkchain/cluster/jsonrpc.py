@@ -4,6 +4,7 @@ import json
 from typing import Callable, Dict, List, Optional
 
 import aiohttp_cors
+import websockets
 import rlp
 from aiohttp import web
 from async_armor import armor
@@ -13,6 +14,7 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.slave import SlaveServer
 from quarkchain.core import (
     Address,
     Branch,
@@ -439,7 +441,7 @@ private_methods = AsyncMethods()
 
 
 # noinspection PyPep8Naming
-class JSONRPCServer:
+class JSONRPCHttpServer:
     @classmethod
     def start_public_server(cls, env, master_server):
         server = cls(
@@ -1361,3 +1363,70 @@ class JSONRPCServer:
         else:  # estimate gas
             res = await self.master.estimate_gas(tx, sender_address)
             return quantity_encoder(res) if res is not None else None
+
+
+class JSONRPCWebsocketServer:
+    @classmethod
+    def start_websocket_server(cls, env, slave_server):
+        server = cls(
+            env,
+            slave_server,
+            env.cluster_config.JSON_RPC_WEBSOCKET_PORT,
+            env.cluster_config.JSON_RPC_WEBSOCKET_HOST,
+            public_methods,
+        )
+        server.start()
+        return server
+
+    def __init__(
+        self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
+    ):
+        self.loop = asyncio.get_event_loop()
+        self.port = port
+        self.host = host
+        self.env = env
+        self.slave = slave_server
+        self.counters = dict()
+
+        # Bind RPC handler functions to this instance
+        self.handlers = AsyncMethods()
+        for rpc_name in methods:
+            func = methods[rpc_name]
+            self.handlers[rpc_name] = func.__get__(self, self.__class__)
+
+    async def __handle(self, websocket, path):
+        request = await websocket.recv()
+        Logger.info(request)
+
+        d = dict()
+        try:
+            d = json.loads(request)
+        except Exception:
+            pass
+        method = d.get("method", "null")
+        if method in self.counters:
+            self.counters[method] += 1
+        else:
+            self.counters[method] = 1
+
+        response = await self.handlers.dispatch(request)
+        if "error" in response:
+            Logger.error(response)
+        if not response.is_notification:
+            await websocket.send(str(response))
+        return response
+
+    def start(self):
+        start_server = websockets.serve(self.__handle, self.host, self.port)
+        self.loop.run_until_complete(start_server)
+
+    def shutdown(self):
+        pass  # TODO
+
+    @public_methods.add
+    async def ping(self):
+        return "pong"
+
+    @public_methods.add
+    async def echo(self, params):
+        return params
