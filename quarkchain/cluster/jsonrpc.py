@@ -1365,15 +1365,14 @@ class JSONRPCHttpServer:
             return quantity_encoder(res) if res is not None else None
 
 
-# JSONRPC Websocket Server
-class JSONRPCWSServer:
+class JSONRPCWebsocketServer:
     @classmethod
-    def start_ws_server(cls, env, slave_server):
+    def start_websocket_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_WS_PORT,
-            env.cluster_config.JSON_RPC_WS_HOST,
+            env.cluster_config.JSON_RPC_WEBSOCKET_PORT,
+            env.cluster_config.JSON_RPC_WEBSOCKET_HOST,
             public_methods,
         )
         server.start()
@@ -1420,7 +1419,6 @@ class JSONRPCWSServer:
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
         self.loop.run_until_complete(start_server)
-        self.loop.run_forever()
 
     def shutdown(self):
         pass  # TODO
