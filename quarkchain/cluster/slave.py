@@ -1390,7 +1390,7 @@ def parse_args():
 
 
 def main():
-    from quarkchain.cluster.jsonrpc import JSONRPCWSServer
+    from quarkchain.cluster.jsonrpc import JSONRPCWebsocketServer
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     env = parse_args()
@@ -1402,9 +1402,11 @@ def main():
     slave_server.start()
 
     callbacks = []
-    if env.cluster_config.ENABLE_JSON_RPC_WS:
-        json_rpc_ws_server = JSONRPCWSServer.start_ws_server(env, slave_server.start)
-        callbacks.append(json_rpc_ws_server.shutdown)
+    if env.cluster_config.ENABLE_JSON_RPC_WEBSOCKET:
+        json_rpc_websocket_server = JSONRPCWebsocketServer.start_websocket_server(
+            env, slave_server.start
+        )
+        callbacks.append(json_rpc_websocket_server.shutdown)
 
     slave_server.do_loop()
     if env.arguments.enable_profiler:
