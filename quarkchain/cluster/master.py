@@ -68,7 +68,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
-from quarkchain.config import RootConfig
+from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
     ChainMask,
@@ -1396,7 +1396,6 @@ class MasterServer:
         shards = []
         for shard_stats in self.branch_to_shard_stats.values():
             full_shard_id = shard_stats.branch.get_full_shard_id()
-            config = shard_configs[full_shard_id].POSW_CONFIG
             shard = dict()
             shard["fullShardId"] = full_shard_id
             shard["chainId"] = shard_stats.branch.get_chain_id()
@@ -1411,6 +1410,9 @@ class MasterServer:
             shard["blockCount60s"] = shard_stats.block_count60s
             shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
             shard["lastBlockTime"] = shard_stats.last_block_time
+
+            config = shard_configs[full_shard_id].POSW_CONFIG  # type: POSWConfig
+            shard["poswEnabled"] = config.ENABLED
             shard["poswMinStake"] = config.TOTAL_STAKE_PER_BLOCK
             shard["poswWindowSize"] = config.WINDOW_SIZE
             shard["difficultyDivider"] = config.DIFF_DIVIDER
