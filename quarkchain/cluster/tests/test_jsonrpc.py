@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import unittest
 from contextlib import contextmanager
@@ -7,7 +8,7 @@ import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.cluster.jsonrpc import EMPTY_TX_ID, JSONRPCServer, quantity_encoder
+from quarkchain.cluster.jsonrpc import EMPTY_TX_ID, JSONRPCHttpServer, quantity_encoder
 from quarkchain.cluster.miner import DoubleSHA256, MiningWork
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -39,7 +40,7 @@ def jrpc_server_context(master):
     env.cluster_config.JSON_RPC_PORT = 38391
     # to pass the circleCi
     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
-    server = JSONRPCServer.start_test_server(env, master)
+    server = JSONRPCHttpServer.start_test_server(env, master)
     try:
         yield server
     finally:
@@ -67,6 +68,9 @@ class TestJSONRPC(unittest.TestCase):
         ) as clusters, jrpc_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
+
+            stats = call_async(master.get_stats())
+            self.assertTrue("posw" in json.dumps(stats))
 
             self.assertEqual(
                 call_async(master.get_primary_account_data(acc1)).transaction_count, 0

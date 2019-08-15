@@ -1365,8 +1365,8 @@ class MasterServer:
         responses = await asyncio.gather(*futures)
         check(all([resp.error_code == 0 for _, resp, _ in responses]))
 
-    def update_shard_stats(self, shard_state):
-        self.branch_to_shard_stats[shard_state.branch.value] = shard_state
+    def update_shard_stats(self, shard_stats):
+        self.branch_to_shard_stats[shard_stats.branch.value] = shard_stats
 
     def update_tx_count_history(self, tx_count, xshard_tx_count, timestamp):
         """ maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 12 hours window
@@ -1392,10 +1392,13 @@ class MasterServer:
         return {"rootHeight": header.height, "shardRC": shard_r_c}
 
     async def get_stats(self):
+        shard_configs = self.env.quark_chain_config.shards
         shards = []
         for shard_stats in self.branch_to_shard_stats.values():
+            full_shard_id = shard_stats.branch.get_full_shard_id()
+            config = shard_configs[full_shard_id].POSW_CONFIG
             shard = dict()
-            shard["fullShardId"] = shard_stats.branch.get_full_shard_id()
+            shard["fullShardId"] = full_shard_id
             shard["chainId"] = shard_stats.branch.get_chain_id()
             shard["shardId"] = shard_stats.branch.get_shard_id()
             shard["height"] = shard_stats.height
@@ -1408,6 +1411,9 @@ class MasterServer:
             shard["blockCount60s"] = shard_stats.block_count60s
             shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
             shard["lastBlockTime"] = shard_stats.last_block_time
+            shard["poswMinStake"] = config.TOTAL_STAKE_PER_BLOCK
+            shard["poswWindowSize"] = config.WINDOW_SIZE
+            shard["difficultyDivider"] = config.DIFF_DIVIDER
             shards.append(shard)
         shards.sort(key=lambda x: x["fullShardId"])
 

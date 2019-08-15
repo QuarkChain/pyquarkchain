@@ -4,6 +4,7 @@ import json
 from typing import Callable, Dict, List, Optional
 
 import aiohttp_cors
+import websockets
 import rlp
 from aiohttp import web
 from async_armor import armor
@@ -32,7 +33,8 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 
 import websockets
-
+import os
+import time
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -260,6 +262,37 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     return d
 
 
+def minor_block_header_encoder(header):
+    """Encode a block header as JSON object.
+
+    :param header: a :class:`ethereum.block.Block`
+    :returns: a json encodable dictionary
+    """
+
+    d = {
+        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
+        "height": quantity_encoder(header.height),
+        "hash": data_encoder(header.get_hash()),
+        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+        "chainId": quantity_encoder(header.branch.get_chain_id()),
+        "shardId": quantity_encoder(header.branch.get_shard_id()),
+        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
+        "idPrevMinorBlock": id_encoder(
+            header.hash_prev_minor_block, header.branch.get_full_shard_id()
+        ),
+        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
+        "nonce": quantity_encoder(header.nonce),
+        "miner": address_encoder(header.coinbase_address.serialize()),
+        "coinbase": balances_encoder(header.coinbase_amount_map),
+        "difficulty": quantity_encoder(header.difficulty),
+        "extraData": data_encoder(header.extra_data),
+        "gasLimit": quantity_encoder(header.evm_gas_limit),
+        # "gasUsed": quantity_encoder(meta.evm_gas_used),
+        "timestamp": quantity_encoder(header.create_time),
+    }
+    return d
+
+
 def tx_encoder(block, i):
     """Encode a transaction as JSON object.
 
@@ -443,7 +476,7 @@ private_methods = AsyncMethods()
 
 
 # noinspection PyPep8Naming
-class JSONRPCServer:
+class JSONRPCHttpServer:
     @classmethod
     def start_public_server(cls, env, master_server):
         server = cls(
@@ -1367,14 +1400,15 @@ class JSONRPCServer:
             return quantity_encoder(res) if res is not None else None
 
 
-class JSONRPCWebSocketServer:
+# JSONRPC Websocket Server
+class JSONRPCWSServer:
     @classmethod
     def start_public_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
+            env.cluster_config.JSON_RPC_WS_PORT,
+            env.cluster_config.JSON_RPC_WS_HOST,
             public_methods,
         )
         server.start()
@@ -1425,8 +1459,14 @@ class JSONRPCWebSocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
+        self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+        self.latest_header = None
+
     async def __handle(self, websocket, path):
+        # requests = []
         request = await websocket.recv()
+        # requests.append(request)
+        Logger.info(request)
 
         d = dict()
         try:
@@ -1439,17 +1479,22 @@ class JSONRPCWebSocketServer:
         else:
             self.counters[method] = 1
 
+        params = d.get("params", "null")
         response = await self.handlers.dispatch(request)
-        await websocket.send(str(response))
+
+        if "error" in response:
+            Logger.error(response)
+        if not response.is_notification:
+            await websocket.send(str(response))
+        return response
 
     def start(self):
-        server = websockets.serve(self.__handle, "localhost", 8080)
-        asyncio.get_event_loop().run_until_complete(server)
-        asyncio.get_event_loop().run_forever()
+        start_server = websockets.serve(self.__handle, "localhost", 5000)
+        self.loop.run_until_complete(start_server)
+        self.loop.run_forever()
 
     def shutdown(self):
-        pass
-        # self.loop.run_until_complete(self.runner.cleanup())
+        pass  # TODO
 
     @public_methods.add
     async def ping(self):
@@ -1457,4 +1502,39 @@ class JSONRPCWebSocketServer:
 
     @public_methods.add
     async def echo(self, params):
-        return params
+        print(params)
+        return "lollol"
+
+    @public_methods.add
+    async def subscribe(self, sub_type, full_shard_id):
+        sub_id = os.urandom(16)
+        if sub_type == "newHeads":
+            await self.fetch_new_head(sub_id, full_shard_id)
+        else:
+            print("other types")
+            self.subscribers[sub_type].append(sub_id)
+        return int(sub_id, 16)
+
+    async def fetch_new_head(self, sub_id, full_shard_id):
+        def response_transcoder(header_info):
+
+            return {
+                "jsonrpc": "2.0",
+                "method": "eth_subscription",
+                "result": {**header_info},
+                "subscription": sub_id,
+            }
+
+        while True:
+            # await time.sleep(1000)
+            branch = Branch(full_shard_id)
+            shard = await self.slave.shards.get(branch, None)
+            if not shard:
+                return None
+
+            latest_header = shard.state.header_tip
+            if self.latest_header != latest_header:
+                response = response_transcoder(
+                    minor_block_header_encoder(latest_header)
+                )
+                websockets.send(response)
