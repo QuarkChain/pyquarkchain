@@ -19,6 +19,7 @@ from typing import (
     Set,
     Tuple,
     Type,
+    Optional,
 )
 
 from toolz import groupby
@@ -54,7 +55,13 @@ from quarkchain.p2p.exceptions import (
     HandshakeDisconnectedFailure,
 )
 from quarkchain.p2p.service import BaseService
-from quarkchain.p2p.utils import get_devp2p_cmd_id, roundup_16, sxor, time_since, CLUSTER_PEER_ID_LEN
+from quarkchain.p2p.utils import (
+    get_devp2p_cmd_id,
+    roundup_16,
+    sxor,
+    time_since,
+    CLUSTER_PEER_ID_LEN,
+)
 from quarkchain.p2p.p2p_proto import (
     Disconnect,
     DisconnectReason,
@@ -947,11 +954,13 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         await self.stop_all_peers()
 
     def dialout_blacklist(self, remote_address: Address) -> None:
-        # never blacklist bootstap
+        # never blacklist boot nodes
         for node in self.whitelist_nodes:
             if node.address.ip == remote_address.ip:
                 return
-        self._dialout_blacklist[remote_address.ip] = time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
+        self._dialout_blacklist[remote_address.ip] = (
+            time_ms() // 1000 + DIALOUT_BLACKLIST_COOLDOWN_SEC
+        )
 
     def chk_dialout_blacklist(self, remote_address: Address) -> bool:
         if remote_address.ip not in self._dialout_blacklist:
@@ -963,11 +972,13 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         return True
 
     def dialin_blacklist(self, remote_address: Address) -> None:
-        # never blacklist bootstap
+        # never blacklist boot nodes
         for node in self.whitelist_nodes:
             if node.address.ip == remote_address.ip:
                 return
-        self._dialin_blacklist[remote_address.ip] = time_ms() // 1000 + DIALIN_BLACKLIST_COOLDOWN_SEC
+        self._dialin_blacklist[remote_address.ip] = (
+            time_ms() // 1000 + DIALIN_BLACKLIST_COOLDOWN_SEC
+        )
 
     def chk_dialin_blacklist(self, remote_address: Address) -> bool:
         if remote_address.ip not in self._dialin_blacklist:
@@ -981,7 +992,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
     async def _periodically_unblacklist(self) -> None:
         while self.is_operational:
             now = time_ms() // 1000
-            for blk in (self._dialout_blacklist,self._dialin_blacklist):
+            for blk in (self._dialout_blacklist, self._dialin_blacklist):
                 remove = []
                 for ip, t in blk.items():
                     if now >= t:
@@ -990,7 +1001,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                     del blk[ip]
             await self.sleep(UNBLACKLIST_INTERVAL)
 
-    async def connect(self, remote: Node) -> BasePeer:
+    async def connect(self, remote: Node) -> Optional[BasePeer]:
         """
         Connect to the given remote and return a Peer instance when successful.
         Returns None if the remote is unreachable, times out or is useless.
@@ -1011,14 +1022,14 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                 "failed to connect {} at least once, will not connect again; discovery should have removed it".format(
                     remote.address
                 ),
-                100
+                100,
             )
             return None
         blacklistworthy_exceptions = (
-            HandshakeFailure,    # after secure handshake handshake, when negotiating p2p command, eg. parsing hello failed; no matching p2p capabilities
+            HandshakeFailure,  # after secure handshake handshake, when negotiating p2p command, eg. parsing hello failed; no matching p2p capabilities
             PeerConnectionLost,  # conn lost while reading
-            TimeoutError,        # eg. read timeout (raised by CancelToken)
-            UnreachablePeer,     # ConnectionRefusedError, OSError
+            TimeoutError,  # eg. read timeout (raised by CancelToken)
+            UnreachablePeer,  # ConnectionRefusedError, OSError
         )
         expected_exceptions = (
             HandshakeDisconnectedFailure,  # during secure handshake, disconnected before getting ack; or got Disconnect cmd for some known reason
@@ -1043,7 +1054,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         except MalformedMessage:
             # This is kept separate from the `expected_exceptions` to be sure that we aren't
             # silencing an error in how we decode messages during handshake.
-            Logger.error_every_n("Got malformed response from {} during handshake".format(remote), 100)
+            Logger.error_every_n(
+                "Got malformed response from {} during handshake".format(remote), 100
+            )
             # dump the full stacktrace in the debug logs
             self.logger.debug("Got malformed response from %r", remote, exc_info=True)
             self.dialout_blacklist(remote.address)
@@ -1051,13 +1064,19 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             self.logger.debug(
                 "Could not complete handshake with %r: %s", remote, repr(e)
             )
-            Logger.error_every_n("Could not complete handshake with {}: {}".format(repr(remote), repr(e)), 100)
+            Logger.error_every_n(
+                "Could not complete handshake with {}: {}".format(
+                    repr(remote), repr(e)
+                ),
+                100,
+            )
             self.dialout_blacklist(remote.address)
         except expected_exceptions as e:
-            self.logger.debug(
-                "Disconnected during handshake %r: %s", remote, repr(e)
+            self.logger.debug("Disconnected during handshake %r: %s", remote, repr(e))
+            Logger.error_every_n(
+                "Disconnected during handshake {}: {}".format(repr(remote), repr(e)),
+                100,
             )
-            Logger.error_every_n("Disconnected during handshake {}: {}".format(repr(remote), repr(e)), 100)
         except Exception:
             self.logger.exception(
                 "Unexpected error during auth/p2p handshake with %r", remote
@@ -1067,7 +1086,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             reader, writer = auth.opened_connections[remote.__repr__()]
             reader.feed_eof()
             writer.close()
-            Logger.error_every_n("Closing connection to {}".format(remote.__repr__()), 100)
+            Logger.error_every_n(
+                "Closing connection to {}".format(remote.__repr__()), 100
+            )
             del auth.opened_connections[remote.__repr__()]
         return None
 

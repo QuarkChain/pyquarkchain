@@ -1401,44 +1401,15 @@ class JSONRPCHttpServer:
 
 
 # JSONRPC Websocket Server
-class JSONRPCWSServer:
+class JSONRPCWebsocketServer:
     @classmethod
-    def start_public_server(cls, env, slave_server):
+    def start_websocket_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_WS_PORT,
-            env.cluster_config.JSON_RPC_WS_HOST,
+            env.cluster_config.JSON_RPC_WEBSOCKET_PORT,
+            env.cluster_config.JSON_RPC_WEBSOCKET_HOST,
             public_methods,
-        )
-        server.start()
-        return server
-
-    @classmethod
-    def start_private_server(cls, env, slave_server):
-        server = cls(
-            env,
-            slave_server,
-            env.cluster_config.PRIVATE_JSON_RPC_PORT,
-            env.cluster_config.PRIVATE_JSON_RPC_HOST,
-            private_methods,
-        )
-        server.start()
-        return server
-
-    @classmethod
-    def start_test_server(cls, env, slave_server):
-        methods = AsyncMethods()
-        for method in public_methods.values():
-            methods.add(method)
-        for method in private_methods.values():
-            methods.add(method)
-        server = cls(
-            env,
-            slave_server,
-            env.cluster_config.JSON_RPC_PORT,
-            env.cluster_config.JSON_RPC_HOST,
-            methods,
         )
         server.start()
         return server
@@ -1463,9 +1434,7 @@ class JSONRPCWSServer:
         self.latest_header = None
 
     async def __handle(self, websocket, path):
-        # requests = []
         request = await websocket.recv()
-        # requests.append(request)
         Logger.info(request)
 
         d = dict()
@@ -1479,9 +1448,7 @@ class JSONRPCWSServer:
         else:
             self.counters[method] = 1
 
-        params = d.get("params", "null")
         response = await self.handlers.dispatch(request)
-
         if "error" in response:
             Logger.error(response)
         if not response.is_notification:
@@ -1489,9 +1456,8 @@ class JSONRPCWSServer:
         return response
 
     def start(self):
-        start_server = websockets.serve(self.__handle, "localhost", 5000)
+        start_server = websockets.serve(self.__handle, self.host, self.port)
         self.loop.run_until_complete(start_server)
-        self.loop.run_forever()
 
     def shutdown(self):
         pass  # TODO
@@ -1502,8 +1468,7 @@ class JSONRPCWSServer:
 
     @public_methods.add
     async def echo(self, params):
-        print(params)
-        return "lollol"
+        return params
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id):
