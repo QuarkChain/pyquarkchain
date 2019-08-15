@@ -1672,7 +1672,7 @@ def parse_args():
 
 
 def main():
-    from quarkchain.cluster.jsonrpc import JSONRPCServer
+    from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -1712,11 +1712,11 @@ def main():
 
     callbacks = [network.shutdown]
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
-        public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
+        public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
 
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
-        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+        private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
 
     master.do_loop(callbacks)
