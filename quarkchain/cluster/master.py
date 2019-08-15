@@ -68,7 +68,7 @@ from quarkchain.cluster.rpc import (
     GetTransactionListByAddressRequest,
 )
 from quarkchain.cluster.simple_network import SimpleNetwork
-from quarkchain.config import RootConfig
+from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
     ChainMask,
@@ -1396,7 +1396,6 @@ class MasterServer:
         shards = []
         for shard_stats in self.branch_to_shard_stats.values():
             full_shard_id = shard_stats.branch.get_full_shard_id()
-            config = shard_configs[full_shard_id].POSW_CONFIG
             shard = dict()
             shard["fullShardId"] = full_shard_id
             shard["chainId"] = shard_stats.branch.get_chain_id()
@@ -1411,6 +1410,9 @@ class MasterServer:
             shard["blockCount60s"] = shard_stats.block_count60s
             shard["staleBlockCount60s"] = shard_stats.stale_block_count60s
             shard["lastBlockTime"] = shard_stats.last_block_time
+
+            config = shard_configs[full_shard_id].POSW_CONFIG  # type: POSWConfig
+            shard["poswEnabled"] = config.ENABLED
             shard["poswMinStake"] = config.TOTAL_STAKE_PER_BLOCK
             shard["poswWindowSize"] = config.WINDOW_SIZE
             shard["difficultyDivider"] = config.DIFF_DIVIDER
@@ -1670,7 +1672,7 @@ def parse_args():
 
 
 def main():
-    from quarkchain.cluster.jsonrpc import JSONRPCServer
+    from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -1710,11 +1712,11 @@ def main():
 
     callbacks = [network.shutdown]
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
-        public_json_rpc_server = JSONRPCServer.start_public_server(env, master)
+        public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
 
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
-        private_json_rpc_server = JSONRPCServer.start_private_server(env, master)
+        private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
 
     master.do_loop(callbacks)
