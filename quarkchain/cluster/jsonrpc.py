@@ -1433,3 +1433,12 @@ class JSONRPCWSServer:
     async def echo(self, params):
         print(params)
         return "lollol"
+
+    @public_methods.add
+    async def qkc_subscribe(self, params):
+        if params == "newPendingTracsactions":
+            pass
+
+    @public_methods.add
+    async def fetch_new_pending_tx(self):
+        pass
