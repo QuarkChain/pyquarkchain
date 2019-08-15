@@ -1429,8 +1429,7 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def echo(self, params):
-        print(params)
-        return "lollol"
+        return params
 
     @public_methods.add
     async def qkc_subscribe(self, params):
