@@ -26,6 +26,7 @@ from quarkchain.core import (
     TransactionReceipt,
     TypedTransaction,
     Constant,
+    MinorBlockHeader,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
@@ -260,12 +261,7 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     return d
 
 
-def minor_block_header_encoder(header):
-    """Encode a block header as JSON object.
-
-    :param header: a :class:`ethereum.block.Block`
-    :returns: a json encodable dictionary
-    """
+def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
 
     d = {
         "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
@@ -1397,7 +1393,6 @@ class JSONRPCHttpServer:
             return quantity_encoder(res) if res is not None else None
 
 
-# JSONRPC Websocket Server
 class JSONRPCWebsocketServer:
     @classmethod
     def start_websocket_server(cls, env, slave_server):
@@ -1415,7 +1410,7 @@ class JSONRPCWebsocketServer:
         self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
     ):
         self.loop = asyncio.get_event_loop()
-        self.port = port + int(slave_server.id[-1:])
+        self.port = port
         self.host = host
         self.env = env
         self.slave = slave_server
@@ -1428,6 +1423,7 @@ class JSONRPCWebsocketServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
         self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+        self.sub_id = 0
 
     async def __handle(self, websocket, path):
         async for message in websocket:
@@ -1444,12 +1440,7 @@ class JSONRPCWebsocketServer:
             else:
                 self.counters[method] = 1
 
-            response = await self.handlers.dispatch(message, context=websocket)
-            if "error" in response:
-                Logger.error(response)
-
-            # if not response.is_notification:
-            #     await websocket.send(str(response))
+            await self.handlers.dispatch(message, context=websocket)
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1463,35 +1454,12 @@ class JSONRPCWebsocketServer:
         return "pong"
 
     @public_methods.add
-    async def echo(self, params, context):
-        if context is not None:
-            response = {"jsonrpc": "2.0", "result": params, "id": 1}
-            await context.send(str(response))
-        # return params
-
-    @public_methods.add
-    async def subscribe(self, sub_type, full_shard_id, context):
+    async def qkc_subscribe(self, sub_type, full_shard_id, context):
         if context is None or full_shard_id is None:
             return None
-        sub_id = os.urandom(16).hex()
-        response = {"jsonrpc": "2.0", "result": sub_id, "id": 1}  # TODO: change id
+        self.sub_id += 1
+        response = {"jsonrpc": "2.0", "result": self.sub_id, "id": 1}  # TODO: change id
         await context.send(str(response))
-        if sub_type == "newHeads":
-            await self.fetch_new_head(sub_id, full_shard_id, context)
-        else:
-            print("other types of subscription")
-            self.subscribers[sub_type].append(sub_id)
-        # return str(sub_id)
-
-    async def fetch_new_head(self, sub_id, full_shard_id, context):
-        def response_transcoder(header_info):
-
-            return {
-                "jsonrpc": "2.0",
-                "method": "eth_subscription",
-                "result": {**header_info},
-                "subscription": sub_id,
-            }
 
         full_shard_id = shard_id_decoder(full_shard_id)
         branch = Branch(full_shard_id)
@@ -1499,12 +1467,31 @@ class JSONRPCWebsocketServer:
         if not shard:
             return None
 
+        if sub_type == "newHeads":
+            await self.fetch_new_head(sub_id, shard, context)
+        else:
+            print("other types of subscription")
+            self.subscribers[sub_type].append(sub_id)
+
+    async def fetch_new_head(self, sub_id, shard, websocket):
         latest_header = None
         while True:
             header = shard.state.header_tip
             if not latest_header or header.height != latest_header.height:
                 latest_header = header
-                response = response_transcoder(minor_block_header_encoder(header))
-                await context.send(str(response))
+                response = self.response_transcoder(
+                    minor_block_header_encoder(header), sub_id
+                )
+                await websocket.send(str(response))
 
             await asyncio.sleep(0.5)
+
+    @staticmethod
+    def response_transcoder(result, sub_id):
+
+        return {
+            "jsonrpc": "2.0",
+            "method": "eth_subscription",
+            "result": {**result},
+            "subscription": sub_id,
+        }
