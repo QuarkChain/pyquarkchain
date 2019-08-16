@@ -139,11 +139,8 @@ class ClusterConfig(BaseConfig):
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
     PRIVATE_JSON_RPC_HOST = "localhost"
-    JSON_RPC_WEBSOCKET_PORT = 38591
-    JSON_RPC_WEBSOCKET_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
-    ENABLE_JSON_RPC_WEBSOCKET = False
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
@@ -172,6 +169,7 @@ class ClusterConfig(BaseConfig):
 
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
+        slave_config.WEBSOCKET_JSON_RPC_PORT = 38590
         slave_config.ID = "S0"
         slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         self.SLAVE_LIST.append(slave_config)
@@ -184,7 +182,13 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
+                SlaveInfo(
+                    slave.ID,
+                    slave.HOST,
+                    slave.PORT,
+                    slave.WEBSOCKET_JSON_RPC_PORT,
+                    slave.CHAIN_MASK_LIST,
+                )
             )
         return results
 
@@ -267,6 +271,7 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
+        parser.add_argument("--websocket_json_rpc_port_start", default=38590, type=int)
         parser.add_argument(
             "--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str
         )
@@ -415,6 +420,9 @@ class ClusterConfig(BaseConfig):
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
+                slave_config.WEBSOCKET_JSON_RPC_PORT = (
+                    args.websocket_json_rpc_port_start + i
+                )
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
