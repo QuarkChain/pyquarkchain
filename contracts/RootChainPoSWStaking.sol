@@ -18,7 +18,7 @@ contract RootChainPoSWStaking {
         require(!stake.unlocked, "should only stake more in locked state");
         
         uint256 newAmount = stake.amount + msg.value;
-        require(newAmount > stake.amount, "ddition overflow");
+        require(newAmount > stake.amount, "addition overflow");
         stake.amount = newAmount;
     }
     
