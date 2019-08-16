@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from Crypto.Hash import keccak
 
-FNV_PRIME_64 = 0x100000001b3
+FNV_PRIME_64 = 0x100000001B3
 UINT64_MAX = 2 ** 64
 
 CACHE_ENTRIES = 1024 * 64
@@ -147,6 +147,14 @@ class QkcHashNative:
             ctypes.POINTER(ctypes.c_uint64),
         )  # output result
 
+        self._hash_func_with_rotation_stats = self._lib.qkc_hash_with_rotation_stats
+        self._hash_func_with_rotation_stats.restype = None
+        self._hash_func_with_rotation_stats.argtypes = (
+            ctypes.c_void_p,  # cache pointer
+            ctypes.POINTER(ctypes.c_uint64),  # input seed
+            ctypes.POINTER(ctypes.c_uint64),
+        )  # output result
+
         self._cache_create = self._lib.cache_create
         self._cache_create.restype = ctypes.c_void_p
         self._cache_create.argtypes = (
@@ -164,12 +172,15 @@ class QkcHashNative:
         ptr = self._cache_create(cache, len(cache))
         return QkcHashCache(self, ptr)
 
-    def calculate_hash(self, header, nonce, cache):
+    def calculate_hash(self, header, nonce, cache, with_rotation_stats=False):
         s = sha3_512(header + nonce[::-1])
         seed = list_to_uint64_array(s)
         result = (ctypes.c_uint64 * 4)()
 
-        self._hash_func(cache._ptr, seed, result)
+        if with_rotation_stats:
+            self._hash_func_with_rotation_stats(cache._ptr, seed, result)
+        else:
+            self._hash_func(cache._ptr, seed, result)
 
         return {
             "mix digest": serialize_hash(result),
@@ -298,8 +309,27 @@ def print_test_vector():
     print("Hash of Hello World!:")
     h1 = qkchash(b"Hello World!", bytes(), cache)
     print(deserialize_hash(h1["mix digest"]))
+    print()
+
+
+def print_test_vector_with_rotations():
+    print("Test vectors with rotation stats")
+    # Native version
+    native = QkcHashNative()
+    cache = native.make_cache(CACHE_ENTRIES, bytes())
+    print("Hash of empty:")
+    h0 = native.calculate_hash(bytes(), bytes(), cache, with_rotation_stats=True)
+    print(deserialize_hash(h0["mix digest"]))
+
+    print("Hash of Hello World!:")
+    h1 = native.calculate_hash(
+        b"Hello World!", bytes(), cache, with_rotation_stats=True
+    )
+    print(deserialize_hash(h1["mix digest"]))
+    print()
 
 
 if __name__ == "__main__":
     print_test_vector()
+    print_test_vector_with_rotations()
     test_qkchash_perf()

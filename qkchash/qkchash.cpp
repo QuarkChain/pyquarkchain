@@ -204,10 +204,10 @@ extern "C" void cache_destroy(void *ptr) {
     delete tree;
 }
 
-extern "C" void qkc_hash(void *ptr,
-                         uint64_t* seed_ptr,
-                         uint64_t* result_ptr) {
-    org::quarkchain::LLRB<uint64_t>* tree0 = (org::quarkchain::LLRB<uint64_t>*)ptr;
+void qkc_hashx(org::quarkchain::LLRB<uint64_t>* tree0,
+               uint64_t* seed_ptr,
+               uint64_t* result_ptr,
+               bool with_rotation_stats) {
     void *arena1 = malloc(org::quarkchain::INIT_SET_ENTRIES *
                           org::quarkchain::LLRB<uint64_t>::getNodeSize());
     org::quarkchain::LLRB<uint64_t> tree1 = tree0->copy((uintptr_t)arena1);
@@ -218,8 +218,28 @@ extern "C" void qkc_hash(void *ptr,
 
     org::quarkchain::qkc_hash_llrb(tree1, seed, result);
 
+    if (with_rotation_stats) {
+        std::array<uint64_t, 4> r_stats = tree1.getRotationStats();
+        for (size_t i = 0; i < r_stats.size(); i++) {
+            result[i] ^= r_stats[i];
+        }
+    }
     std::copy(result.begin(), result.end(), result_ptr);
     free(arena1);
+}
+
+extern "C" void qkc_hash(void *ptr,
+                         uint64_t* seed_ptr,
+                         uint64_t* result_ptr) {
+    org::quarkchain::LLRB<uint64_t>* tree0 = (org::quarkchain::LLRB<uint64_t>*)ptr;
+    qkc_hashx(tree0, seed_ptr, result_ptr, false);
+}
+
+extern "C" void qkc_hash_with_rotation_stats(void *ptr,
+                                             uint64_t* seed_ptr,
+                                             uint64_t* result_ptr) {
+    org::quarkchain::LLRB<uint64_t>* tree0 = (org::quarkchain::LLRB<uint64_t>*)ptr;
+    qkc_hashx(tree0, seed_ptr, result_ptr, true);
 }
 
 void test_sorted_list() {
