@@ -1371,8 +1371,8 @@ class JSONRPCWebsocketServer:
         server = cls(
             env,
             slave_server,
-            env.cluster_config.JSON_RPC_WEBSOCKET_PORT,
-            env.cluster_config.JSON_RPC_WEBSOCKET_HOST,
+            env.slave_config.WEBSOCKET_JSON_RPC_PORT,
+            env.slave_config.HOST,
             public_methods,
         )
         server.start()
