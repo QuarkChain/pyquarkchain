@@ -1402,7 +1402,7 @@ def main():
     slave_server.start()
 
     callbacks = []
-    if env.slave_config.WEBSOCKET_JSON_RPC_PORT:
+    if env.slave_config.WEBSOCKET_JSON_RPC_PORT is not None:
         json_rpc_websocket_server = JSONRPCWebsocketServer.start_websocket_server(
             env, slave_server
         )

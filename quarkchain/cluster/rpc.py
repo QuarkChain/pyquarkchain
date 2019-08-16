@@ -75,15 +75,13 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
-        ("websocket_json_rpc_port", uint16),
         ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
-    def __init__(self, id, host, port, websocket_json_rpc_port, chain_mask_list):
+    def __init__(self, id, host, port, chain_mask_list):
         self.id = id if isinstance(id, bytes) else bytes(id, "ascii")
         self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
-        self.websocket_json_rpc_port = websocket_json_rpc_port
         self.chain_mask_list = chain_mask_list
 
 

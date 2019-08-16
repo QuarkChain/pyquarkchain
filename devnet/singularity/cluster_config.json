@@ -377,7 +377,6 @@
     {
       "HOST": "127.0.0.1",
       "PORT": 38000,
-      "WEBSOCKET_JSON_RPC_PORT": 38590,
       "ID": "S0",
       "CHAIN_MASK_LIST": [
         4
@@ -386,7 +385,7 @@
     {
       "HOST": "127.0.0.1",
       "PORT": 38001,
-      "WEBSOCKET_JSON_RPC_PORT": 38391,
+      "WEBSOCKET_JSON_RPC_PORT": 38591,
       "ID": "S1",
       "CHAIN_MASK_LIST": [
         5

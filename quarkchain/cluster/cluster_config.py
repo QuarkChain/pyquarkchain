@@ -89,6 +89,7 @@ class MasterConfig(BaseConfig):
 class SlaveConfig(BaseConfig):
     HOST = DEFAULT_HOST
     PORT = 38392
+    WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
 
@@ -169,7 +170,6 @@ class ClusterConfig(BaseConfig):
 
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
-        slave_config.WEBSOCKET_JSON_RPC_PORT = 38590
         slave_config.ID = "S0"
         slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         self.SLAVE_LIST.append(slave_config)
@@ -182,13 +182,7 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(
-                    slave.ID,
-                    slave.HOST,
-                    slave.PORT,
-                    slave.WEBSOCKET_JSON_RPC_PORT,
-                    slave.CHAIN_MASK_LIST,
-                )
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
             )
         return results
 
@@ -271,7 +265,6 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
-        parser.add_argument("--websocket_json_rpc_port_start", default=38590, type=int)
         parser.add_argument(
             "--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str
         )
@@ -420,9 +413,6 @@ class ClusterConfig(BaseConfig):
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
-                slave_config.WEBSOCKET_JSON_RPC_PORT = (
-                    args.websocket_json_rpc_port_start + i
-                )
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
