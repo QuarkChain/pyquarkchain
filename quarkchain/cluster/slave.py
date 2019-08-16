@@ -1390,7 +1390,6 @@ def parse_args():
 
 
 def main():
-
     from quarkchain.cluster.jsonrpc import JSONRPCWebsocketServer
 
     os.chdir(os.path.dirname(os.path.abspath(__file__)))

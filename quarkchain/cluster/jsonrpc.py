@@ -33,7 +33,6 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 
 import os
-import time
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -286,7 +285,6 @@ def minor_block_header_encoder(header):
         "difficulty": quantity_encoder(header.difficulty),
         "extraData": data_encoder(header.extra_data),
         "gasLimit": quantity_encoder(header.evm_gas_limit),
-        # "gasUsed": quantity_encoder(meta.evm_gas_used),
         "timestamp": quantity_encoder(header.create_time),
     }
     return d
@@ -1430,29 +1428,28 @@ class JSONRPCWebsocketServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
         self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
-        self.latest_header = None
 
     async def __handle(self, websocket, path):
-        request = await websocket.recv()
-        Logger.info(request)
+        async for message in websocket:
+            Logger.info(message)
 
-        d = dict()
-        try:
-            d = json.loads(request)
-        except Exception:
-            pass
-        method = d.get("method", "null")
-        if method in self.counters:
-            self.counters[method] += 1
-        else:
-            self.counters[method] = 1
+            d = dict()
+            try:
+                d = json.loads(message)
+            except Exception:
+                pass
+            method = d.get("method", "null")
+            if method in self.counters:
+                self.counters[method] += 1
+            else:
+                self.counters[method] = 1
 
-        response = await self.handlers.dispatch(request, context=websocket)
-        if "error" in response:
-            Logger.error(response)
-        if not response.is_notification:
-            await websocket.send(str(response))
-        return response
+            response = await self.handlers.dispatch(message, context=websocket)
+            if "error" in response:
+                Logger.error(response)
+
+            # if not response.is_notification:
+            #     await websocket.send(str(response))
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1474,13 +1471,15 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, context):
-        sub_id = os.urandom(16)
-        response = {"jsonrpc": "2.0", "result": sub_id, "id": 1}
+        if context is None or full_shard_id is None:
+            return None
+        sub_id = os.urandom(16).hex()
+        response = {"jsonrpc": "2.0", "result": sub_id, "id": 1}  # TODO: change id
         await context.send(str(response))
         if sub_type == "newHeads":
             await self.fetch_new_head(sub_id, full_shard_id, context)
         else:
-            print("other types")
+            print("other types of subscription")
             self.subscribers[sub_type].append(sub_id)
         # return str(sub_id)
 
@@ -1494,24 +1493,18 @@ class JSONRPCWebsocketServer:
                 "subscription": sub_id,
             }
 
-        while True:
-            # await time.sleep(1000)
-            full_shard_id = shard_id_decoder(full_shard_id)
-            if full_shard_id is None:
-                return None
-            branch = Branch(full_shard_id)
-            shard = self.slave.shards.get(branch, None)
-            # if not shard:
-            #     return None
+        full_shard_id = shard_id_decoder(full_shard_id)
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
+        if not shard:
+            return None
 
-            latest_header = shard.state.header_tip
-            if (
-                self.latest_header is None
-                or self.latest_header != latest_header.get_hash()
-            ):
-                self.latest_header = latest_header.get_hash()
-                if context is not None:
-                    response = response_transcoder(
-                        minor_block_header_encoder(latest_header)
-                    )
-                    await context.send(str(response))
+        latest_header = None
+        while True:
+            header = shard.state.header_tip
+            if not latest_header or header.height != latest_header.height:
+                latest_header = header
+                response = response_transcoder(minor_block_header_encoder(header))
+                await context.send(str(response))
+
+            await asyncio.sleep(0.5)
