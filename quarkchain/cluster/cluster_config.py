@@ -89,6 +89,7 @@ class MasterConfig(BaseConfig):
 class SlaveConfig(BaseConfig):
     HOST = DEFAULT_HOST
     PORT = 38392
+    WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
 
@@ -139,11 +140,8 @@ class ClusterConfig(BaseConfig):
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
     PRIVATE_JSON_RPC_HOST = "localhost"
-    JSON_RPC_WEBSOCKET_PORT = 38591
-    JSON_RPC_WEBSOCKET_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
-    ENABLE_JSON_RPC_WEBSOCKET = False
     ENABLE_TRANSACTION_HISTORY = False
 
     DB_PATH_ROOT = "./db"
