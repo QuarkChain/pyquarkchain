@@ -34,7 +34,7 @@ def query_balance(recipient, chain_id, token_str):
         "getBalances",
         recipient.lower() + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
     )
-    for balance in resp["balances"]:
+    for balance in resp.data.result["balances"]:
         if balance["tokenStr"] == token_str:
             return int(balance["balance"], 16)
     return 0
