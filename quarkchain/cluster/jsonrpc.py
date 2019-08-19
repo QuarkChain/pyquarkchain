@@ -436,6 +436,15 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
     return address_decoder("0x" + eth_hex + full_shard_key_hex)
 
 
+def response_transcoder(result, subscription_id):
+    return {
+        "jsonrpc": "2.0",
+        "method": "qkc_subscription",
+        "result": result,
+        "subscription": subscription_id,
+    }
+
+
 public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
@@ -1409,7 +1418,7 @@ class JSONRPCWebsocketServer:
         else:
             self.counters[method] = 1
 
-        response = await self.handlers.dispatch(request)
+        response = await self.handlers.dispatch(request, context=websocket)
         if "error" in response:
             Logger.error(response)
         if not response.is_notification:
@@ -1424,18 +1433,40 @@ class JSONRPCWebsocketServer:
         pass  # TODO
 
     @public_methods.add
-    async def ping(self):
-        return "pong"
+    async def qkc_subscribe(self, type_name, full_shard_id, context):
+        subscription_id = 666  # TODO: hardcode for now
+        full_shard_id = shard_id_decoder(full_shard_id)
+        if full_shard_id is None:
+            return None
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
 
-    @public_methods.add
-    async def echo(self, params):
-        return params
+        response = {
+            "jsonrpc": "2.0",
+            "result": subscription_id,
+            "id": 1,
+        }  # TODO: change id
+        await context.send(str(response))
 
-    @public_methods.add
-    async def qkc_subscribe(self, params):
-        if params == "newPendingTransactions":
+        if not shard:
+            return None
+
+        if type_name == "newPendingTransactions":
+            await self.get_new_pending_transaction(subscription_id, shard, context)
+        else:
             pass
 
     @public_methods.add
-    async def fetch_new_pending_tx(self):
-        pass
+    async def get_new_pending_transaction(self, subscription_id, shard, websocket):
+        all_pending_txs = set()
+
+        while True:
+            if len(shard.state.tx_queue.txs) > 0:
+                for orderable_tx in shard.state.tx_queue.txs:
+                    tx = orderable_tx.tx
+                    if tx not in all_pending_txs:
+                        all_pending_txs.add(tx)
+                        response = response_transcoder(tx.get_hash(), subscription_id)
+                        await websocket.send(str(response))
+
+            await asyncio.sleep(0.2)
