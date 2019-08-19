@@ -33,7 +33,6 @@ from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 
-import os
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -186,24 +185,7 @@ def root_block_encoder(block):
     }
 
     for header in block.minor_block_header_list:
-        h = {
-            "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-            "height": quantity_encoder(header.height),
-            "hash": data_encoder(header.get_hash()),
-            "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-            "chainId": quantity_encoder(header.branch.get_chain_id()),
-            "shardId": quantity_encoder(header.branch.get_shard_id()),
-            "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-            "idPrevMinorBlock": id_encoder(
-                header.hash_prev_minor_block, header.branch.get_full_shard_id()
-            ),
-            "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-            "nonce": quantity_encoder(header.nonce),
-            "difficulty": quantity_encoder(header.difficulty),
-            "miner": address_encoder(header.coinbase_address.serialize()),
-            "coinbase": balances_encoder(header.coinbase_amount_map),
-            "timestamp": quantity_encoder(header.create_time),
-        }
+        h = minor_block_header_encoder(header)
         d["minorBlockHeaders"].append(h)
     return d
 
@@ -220,28 +202,12 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     header = block.header
     meta = block.meta
 
+    header_info = minor_block_header_encoder(header)
     d = {
-        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-        "height": quantity_encoder(header.height),
-        "hash": data_encoder(header.get_hash()),
-        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-        "chainId": quantity_encoder(header.branch.get_chain_id()),
-        "shardId": quantity_encoder(header.branch.get_shard_id()),
-        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-        "idPrevMinorBlock": id_encoder(
-            header.hash_prev_minor_block, header.branch.get_full_shard_id()
-        ),
-        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-        "nonce": quantity_encoder(header.nonce),
+        **header_info,
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
-        "miner": address_encoder(header.coinbase_address.serialize()),
-        "coinbase": balances_encoder(header.coinbase_amount_map),
-        "difficulty": quantity_encoder(header.difficulty),
-        "extraData": data_encoder(header.extra_data),
-        "gasLimit": quantity_encoder(header.evm_gas_limit),
         "gasUsed": quantity_encoder(meta.evm_gas_used),
-        "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
     }
     if include_transactions:
@@ -1468,10 +1434,10 @@ class JSONRPCWebsocketServer:
             return None
 
         if sub_type == "newHeads":
-            await self.fetch_new_head(sub_id, shard, context)
+            await self.fetch_new_head(self.sub_id, shard, context)
         else:
             print("other types of subscription")
-            self.subscribers[sub_type].append(sub_id)
+            self.subscribers[sub_type].append(self.sub_id)
 
     async def fetch_new_head(self, sub_id, shard, websocket):
         latest_header = None
