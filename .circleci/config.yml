@@ -120,6 +120,11 @@ jobs:
             mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
 
       - run:
+          name: Build qkchash lib
+          command: |
+            cd qkchash && make clean && make && cd -
+
+      - run:
           name: Check DB
           command: |
             height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
