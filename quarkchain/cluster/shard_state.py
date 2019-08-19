@@ -124,7 +124,7 @@ class XshardTxCursor:
                 return CrossShardTransactionDeposit(
                     # Use root block hash as identifier.
                     tx_hash=self.rblock.header.get_hash(),
-                    from_address=Address.create_empty_account(0),
+                    from_address=self.rblock.header.coinbase_address,
                     to_address=self.rblock.header.coinbase_address,
                     value=coinbase_amount,
                     gas_price=0,
