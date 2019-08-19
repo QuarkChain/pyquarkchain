@@ -10,7 +10,11 @@ from quarkchain.cluster.tests.test_utils import (
     contract_creation_tx,
 )
 from quarkchain.config import ConsensusType
-from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
+from quarkchain.core import (
+    CrossShardTransactionDeposit,
+    CrossShardTransactionList,
+    MinorBlockHeader,
+)
 from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
@@ -1072,30 +1076,62 @@ class TestShardState(unittest.TestCase):
 
     def test_xshard_from_root_block(self):
         id1 = Identity.create_random_identity()
-        id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id2, full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env, shard_id=0)
 
-        # Add a root block to update block gas limit so that xshard tx can be included
-        root_block = (
-            state.root_tip.create_block_to_append()
-            .add_minor_block_header(state.header_tip)
-            .finalize(
-                coinbase_tokens={env.quark_chain_config.genesis_token: 1000000},
-                coinbase_address=acc2,
+        def _testcase_evm_not_enabled():
+            env.quark_chain_config.ENABLE_EVM_TIMESTAMP = None
+            return None, Address.create_random_account(0)
+
+        def _testcase_evm_enabled():
+            env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 1
+            return None, Address.create_random_account(0)
+
+        def _testcase_evm_enabled_coinbase_is_code():
+            env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 1
+            old_header_tip = state.header_tip
+            # Let acc2 has some code
+            tx = create_contract_creation_transaction(
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=0,
             )
-        )
-        state.add_root_block(root_block)
+            state.add_tx(tx)
+            b = state.create_block_to_mine()
+            state.finalize_and_add_block(b)
+            _, _, r = state.get_transaction_receipt(tx.get_hash())
+            self.assertNotEqual(
+                state.evm_state.get_code(r.contract_address.recipient), b""
+            )
+            return old_header_tip, r.contract_address
 
-        b0 = state.create_block_to_mine()
-        state.finalize_and_add_block(b0)
+        for testcase_func in [
+            _testcase_evm_not_enabled,
+            _testcase_evm_enabled,
+            _testcase_evm_enabled_coinbase_is_code,
+        ]:
+            missed_header, coinbase_addr = testcase_func()
+            # Add a root block to update block gas limit so that xshard tx can be included
+            root_block = state.root_tip.create_block_to_append()
+            if missed_header:
+                root_block.add_minor_block_header(missed_header)
+            root_block.add_minor_block_header(state.header_tip)
+            root_block.finalize(
+                coinbase_tokens={env.quark_chain_config.genesis_token: 1000000},
+                coinbase_address=coinbase_addr,
+            )
+            state.add_root_block(root_block)
 
-        self.assertEqual(
-            state.get_token_balance(acc2.recipient, self.genesis_token), 1000000
-        )
+            b0 = state.create_block_to_mine()
+            state.finalize_and_add_block(b0)
+
+            self.assertEqual(
+                state.get_token_balance(coinbase_addr.recipient, self.genesis_token),
+                1000000,
+            )
 
     def test_xshard_for_two_root_blocks(self):
         id1 = Identity.create_random_identity()
