@@ -66,7 +66,7 @@ def send_request(*args):
 
 
 @contextmanager
-def jrpc_websocket_server_context():
+def jrpc_websocket_server_context(slave_server):
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
@@ -82,7 +82,6 @@ def jrpc_websocket_server_context():
 
     env.cluster_config.SLAVE_LIST.append(slave_config)
     env.slave_config = env.cluster_config.get_slave_config("S1")
-    slave_server = SlaveServer(env)
     server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
     try:
         yield server
@@ -91,6 +90,22 @@ def jrpc_websocket_server_context():
 
 
 def send_websocket_request(request):
+    responses = []
+
+    async def __send_request(request):
+        uri = "ws://0.0.0.0:38591"
+        async with websockets.connect(uri) as websocket:
+            await websocket.send(request)
+            while True:
+                response = await websocket.recv()
+                responses.append(response)
+                if len(responses) == 2:
+                    return responses
+
+    return call_async(__send_request(request))
+
+
+def send_websocket_ping(request):
     async def __send_request(request):
         uri = "ws://0.0.0.0:38591"
         async with websockets.connect(uri) as websocket:
@@ -1176,26 +1191,44 @@ class TestJSONRPC(unittest.TestCase):
 
             send_request("createTransactions", {"numTxPerShard": 1, "xShardPercent": 0})
 
-    def test_qkc_subscribe(self):
+    def test_subscribe(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_websocket_server_context():
-            # jrpc_websocket_server_context(clusters[0].slave_list[0]):
-            master = clusters[0].master
+        ) as clusters, jrpc_server_context(
+            clusters[0].master
+        ), jrpc_websocket_server_context(
+            clusters[0].slave_list[0]
+        ):
+            # master = clusters[0].master
             # slaves = clusters[0].slave_list
 
-            block = call_async(
-                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
-            )
-            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+            # block = call_async(
+            #     master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            # )
+            # self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
 
             request = '{"jsonrpc": "2.0", "method": "ping", "id": 1}'
-            resp = send_websocket_request(request)
+            response = send_websocket_ping(request)
+            # response = '{\'jsonrpc\': \'2.0\', \'result\': \'pong\', \'id\': 1}'
+            # TODO: How to deal with the response in this format with back slashes?
+            response = response.replace("\\", "")
+            response = response.replace("'", '"')
+            response = json.loads(response)
+            self.assertEqual(response["result"], "pong")
 
-            resp.replace("\\", "")
-            r = resp.replace("'", '"')
-            j = json.loads(r)
-            self.assertEqual(j["result"], "pong")
+            # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
+            request = '{"jsonrpc": "2.0", "method": "subscribe", "params":["newHeads", "0x00000002"], "id": 3}'
+            responses = send_websocket_request(
+                request
+            )  # two responses: one with subscription_id and one with new head
+            results = []
+            for response in responses:
+                response = response.replace("\\", "")
+                response = response.replace("'", '"')
+                results.append(json.loads(response))
+
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
