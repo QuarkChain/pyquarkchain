@@ -98,7 +98,7 @@ jobs:
   check-db:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 4
+    parallelism: 5
     working_directory: /code/pyquarkchain
 
     steps:
@@ -118,6 +118,11 @@ jobs:
             mkdir -p quarkchain/cluster/qkc-data
             cd /tmp/workspace && mv data mainnet && cd -
             mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
+
+      - run:
+          name: Build qkchash lib
+          command: |
+            cd qkchash && make clean && make && cd -
 
       - run:
           name: Check DB
