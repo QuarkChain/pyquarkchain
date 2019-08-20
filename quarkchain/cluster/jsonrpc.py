@@ -1389,9 +1389,9 @@ class JSONRPCWebsocketServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
         self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
-        self.sub_id = 0
 
     async def __handle(self, websocket, path):
+        sub_id = 0
         async for message in websocket:
             Logger.info(message)
 
@@ -1406,7 +1406,15 @@ class JSONRPCWebsocketServer:
             else:
                 self.counters[method] = 1
 
-            await self.handlers.dispatch(message, context=websocket)
+            msg_id = d.get("id", 0)
+            response = await self.handlers.dispatch(
+                message,
+                context={"websocket": websocket, "sub_id": sub_id, "msg_id": msg_id},
+            )
+            sub_id += 1
+
+            if not response["result"]:
+                break
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1420,12 +1428,14 @@ class JSONRPCWebsocketServer:
         return "pong"
 
     @public_methods.add
-    async def qkc_subscribe(self, sub_type, full_shard_id, context):
+    async def subscribe(self, sub_type, full_shard_id, context):
         if context is None or full_shard_id is None:
             return None
-        self.sub_id += 1
-        response = {"jsonrpc": "2.0", "result": self.sub_id, "id": 1}  # TODO: change id
-        await context.send(str(response))
+        websocket = context["websocket"]
+        sub_id = context["sub_id"]
+        msg_id = context["msg_id"]
+        response = {"jsonrpc": "2.0", "result": sub_id, "id": msg_id}
+        await websocket.send(str(response))
 
         full_shard_id = shard_id_decoder(full_shard_id)
         branch = Branch(full_shard_id)
@@ -1434,17 +1444,17 @@ class JSONRPCWebsocketServer:
             return None
 
         if sub_type == "newHeads":
-            await self.fetch_new_head(self.sub_id, shard, context)
+            await self.fetch_new_head(sub_id, shard, websocket)
         else:
             print("other types of subscription")
-            self.subscribers[sub_type].append(self.sub_id)
+            self.subscribers[sub_type].append(sub_id)
 
     async def fetch_new_head(self, sub_id, shard, websocket):
-        latest_header = None
+        last_header = None
         while True:
             header = shard.state.header_tip
-            if not latest_header or header.height != latest_header.height:
-                latest_header = header
+            if not last_header or header.height != last_header.height:
+                last_header = header
                 response = self.response_transcoder(
                     minor_block_header_encoder(header), sub_id
                 )
@@ -1457,7 +1467,6 @@ class JSONRPCWebsocketServer:
 
         return {
             "jsonrpc": "2.0",
-            "method": "eth_subscription",
-            "result": {**result},
-            "subscription": sub_id,
+            "method": "subscription",
+            "params": {"subscription": sub_id, "result": result},
         }
