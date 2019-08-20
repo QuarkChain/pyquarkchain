@@ -436,15 +436,6 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
     return address_decoder("0x" + eth_hex + full_shard_key_hex)
 
 
-def response_transcoder(result, subscription_id):
-    return {
-        "jsonrpc": "2.0",
-        "method": "qkc_subscription",
-        "result": result,
-        "subscription": subscription_id,
-    }
-
-
 public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
@@ -1434,7 +1425,9 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def qkc_subscribe(self, type_name, full_shard_id, context):
-        subscription_id = 666  # TODO: hardcode for now
+        subscription_id = (
+            666
+        )  # TODO: hardcode for now, will be replaced when merged with NewHeads
         full_shard_id = shard_id_decoder(full_shard_id)
         if full_shard_id is None:
             return None
@@ -1466,7 +1459,17 @@ class JSONRPCWebsocketServer:
                     tx = orderable_tx.tx
                     if tx not in all_pending_txs:
                         all_pending_txs.add(tx)
-                        response = response_transcoder(tx.get_hash(), subscription_id)
+                        response = self.response_transcoder(
+                            subscription_id, data_encoder(tx.hash)
+                        )
                         await websocket.send(str(response))
 
             await asyncio.sleep(0.2)
+
+    @staticmethod
+    def response_transcoder(subscription_id, result):
+        return {
+            "jsonrpc": "2.0",
+            "method": "qkc_subscription",
+            "params": {"subscription": subscription_id, "result": result},
+        }
