@@ -1424,8 +1424,11 @@ class JSONRPCWebsocketServer:
         pass  # TODO
 
     @public_methods.add
-    async def ping(self):
-        return "pong"
+    async def ping(self, context):
+        websocket = context["websocket"]
+        msg_id = context["msg_id"]
+        response = {"jsonrpc": "2.0", "result": "pong", "id": msg_id}
+        await websocket.send(str(response))
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, context):
