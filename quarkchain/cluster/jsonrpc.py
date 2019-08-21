@@ -1428,7 +1428,7 @@ class JSONRPCWebsocketServer:
         websocket = context["websocket"]
         msg_id = context["msg_id"]
         response = {"jsonrpc": "2.0", "result": "pong", "id": msg_id}
-        await websocket.send(str(response))
+        await websocket.send(json.dumps(response))
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, context):
@@ -1438,7 +1438,7 @@ class JSONRPCWebsocketServer:
         sub_id = context["sub_id"]
         msg_id = context["msg_id"]
         response = {"jsonrpc": "2.0", "result": sub_id, "id": msg_id}
-        await websocket.send(str(response))
+        await websocket.send(json.dumps(response))
 
         full_shard_id = shard_id_decoder(full_shard_id)
         branch = Branch(full_shard_id)
@@ -1461,7 +1461,7 @@ class JSONRPCWebsocketServer:
                 response = self.response_transcoder(
                     minor_block_header_encoder(header), sub_id
                 )
-                await websocket.send(str(response))
+                await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
 

@@ -34,7 +34,7 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
 
 import websockets
-from quarkchain.cluster.slave import SlaveServer
+from jsonrpcclient.websockets_client import WebSocketsClient
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -89,17 +89,20 @@ def jrpc_websocket_server_context(slave_server):
         server.shutdown()
 
 
-def send_websocket_request(request):
+def send_websocket_request(request, num_response=1):
     responses = []
 
     async def __send_request(request):
         uri = "ws://0.0.0.0:38591"
         async with websockets.connect(uri) as websocket:
+            # TODO: Failed to validate the new_head response in WebSocketsClient's given json schema
+            # while True:
+            #     response = await WebSocketsClient(websocket).send(request)
             await websocket.send(request)
             while True:
                 response = await websocket.recv()
                 responses.append(response)
-                if len(responses) == 2:
+                if len(responses) == num_response:
                     return responses
 
     return call_async(__send_request(request))
@@ -109,8 +112,7 @@ def send_websocket_ping(request):
     async def __send_request(request):
         uri = "ws://0.0.0.0:38591"
         async with websockets.connect(uri) as websocket:
-            await websocket.send(request)
-            response = await websocket.recv()
+            response = await WebSocketsClient(websocket).send(request)
             return response
 
     return call_async(__send_request(request))
@@ -1202,33 +1204,21 @@ class TestJSONRPC(unittest.TestCase):
         ), jrpc_websocket_server_context(
             clusters[0].slave_list[0]
         ):
-            # master = clusters[0].master
-            # slaves = clusters[0].slave_list
 
-            # block = call_async(
-            #     master.get_next_block_to_mine(address=acc1, branch_value=0b10)
-            # )
-            # self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
-
-            request = '{"jsonrpc": "2.0", "method": "ping", "id": 1}'
+            request = {"jsonrpc": "2.0", "method": "ping", "id": 1}
             response = send_websocket_ping(request)
-            # response = '{\'jsonrpc\': \'2.0\', \'result\': \'pong\', \'id\': 1}'
-            # TODO: How to deal with the response in this format with back slashes?
-            response = response.replace("\\", "")
-            response = response.replace("'", '"')
-            response = json.loads(response)
-            self.assertEqual(response["result"], "pong")
+            self.assertEqual(response, "pong")
 
             # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
-            request = '{"jsonrpc": "2.0", "method": "subscribe", "params":["newHeads", "0x00000002"], "id": 3}'
-            responses = send_websocket_request(
-                request
-            )  # two responses: one with subscription_id and one with new head
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2)
             results = []
             for response in responses:
-                response = response.replace("\\", "")
-                response = response.replace("'", '"')
                 results.append(json.loads(response))
-
             self.assertEqual(results[0]["result"], 0)  # subscription id
             self.assertEqual(results[0]["id"], 3)
