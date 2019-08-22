@@ -1431,7 +1431,7 @@ class JSONRPCWebsocketServer:
         await websocket.send(json.dumps(response))
 
     @public_methods.add
-    async def subscribe(self, sub_type, full_shard_id, context):
+    async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
         if context is None or full_shard_id is None:
             return None
         websocket = context["websocket"]
@@ -1448,6 +1448,10 @@ class JSONRPCWebsocketServer:
 
         if sub_type == "newHeads":
             await self.fetch_new_head(sub_id, shard, websocket)
+        elif sub_type == "logs":
+            await self.fetch_logs(sub_id, full_shard_id, params, websocket)
+        elif sub_type == "syncing":
+            await self.fetch_sync_status(sub_id, full_shard_id, websocket)
         else:
             print("other types of subscription")
             self.subscribers[sub_type].append(sub_id)
@@ -1464,6 +1468,76 @@ class JSONRPCWebsocketServer:
                 await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
+
+    async def fetch_logs(self, sub_id, full_shard_id, params, websocket):
+        decoder = address_decoder
+        start_block = params.get("fromBlock", "latest")
+        end_block = params.get("toBlock", "latest")
+        # TODO: not supported yet for "earliest" or "pending" block
+        if (isinstance(start_block, str) and start_block != "latest") or (
+            isinstance(end_block, str) and end_block != "latest"
+        ):
+            return None
+        # parse addresses / topics
+        addresses, topics = [], []
+        if "address" in params:
+            if isinstance(params["address"], str):
+                addresses = [Address.deserialize(decoder(params["address"]))]
+            elif isinstance(params["address"], list):
+                addresses = [Address.deserialize(decoder(a)) for a in params["address"]]
+        if full_shard_id is not None:
+            addresses = [Address(a.recipient, full_shard_id) for a in addresses]
+        if "topics" in params:
+            for topic_item in params["topics"]:
+                if isinstance(topic_item, str):
+                    topics.append([data_decoder(topic_item)])
+                elif isinstance(topic_item, list):
+                    topics.append([data_decoder(tp) for tp in topic_item])
+
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
+        header = shard.state.header_tip
+        if start_block == "latest":
+            start_block = header.height
+        if end_block == "latest":
+            end_block = header.height
+
+        logs = await self.slave.get_logs(
+            addresses, topics, start_block, end_block, branch
+        )
+        if logs is None:
+            return None
+        log_list = loglist_encoder(logs)
+        for log in log_list:
+            response = self.response_transcoder(log, sub_id)
+            await websocket.send(json.dumps(response))
+
+    async def fetch_sync_status(self, sub_id, shard, websocket):
+        syncing = shard.synchronizer.running
+        queue = shard.synchronizer.queue
+
+        def resp_transcoder(sub_id, syncing, queue):
+            if not syncing:
+                return {
+                    "jsonrpc": "2.0",
+                    "subscription": sub_id,
+                    "result": {"syncing": syncing},
+                }
+
+            return {
+                "jsonrpc": "2.0",
+                "subscription": sub_id,
+                "result": {
+                    "syncing": syncing,
+                    "status": {
+                        "startingBlock": queue[0][0].height,
+                        "highestBlock": queue[0][0].height + len(queue) - 1,
+                    },
+                },
+            }
+
+        response = resp_transcoder(sub_id, syncing, queue)
+        await websocket.send(json.dumps(response))
 
     @staticmethod
     def response_transcoder(result, sub_id):
