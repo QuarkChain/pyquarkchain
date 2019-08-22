@@ -4,6 +4,7 @@ import os
 import cProfile
 import sys
 import time
+from fractions import Fraction
 
 import psutil
 import time
@@ -1648,12 +1649,14 @@ class MasterServer:
         return await slave.submit_work(branch, header_hash, nonce, mixhash)
 
     def get_total_supply(self) -> Optional[int]:
-        # TODO: only handle QKC for now
+        # return None if stats not ready
+        if len(self.branch_to_shard_stats) != len(self.env.quark_chain_config.shards):
+            return None
+
+        # TODO: only handle QKC and assume all configured shards are initialized
         ret = 0
-        m_coinbase = {}
-        # calc genesis and record minor block coinbase
+        # calc genesis
         for full_shard_id, shard_config in self.env.quark_chain_config.shards.items():
-            m_coinbase[full_shard_id] = shard_config.COINBASE_AMOUNT
             for _, alloc_data in shard_config.GENESIS.ALLOC.items():
                 # backward compatible:
                 # v1: {addr: {QKC: 1234}}
@@ -1664,16 +1667,30 @@ class MasterServer:
                 for k, v in balances.items():
                     ret += v if k == "QKC" else 0
 
-        # return None if stats not ready
-        if len(self.branch_to_shard_stats) != len(m_coinbase):
-            return None
+        decay = self.env.quark_chain_config.block_reward_decay_factor  # type: Fraction
 
-        ret += (
-            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
-            * self.root_state.tip.height
+        def _coinbase_calc_with_decay(height, epoch_interval, coinbase):
+            return sum(
+                coinbase
+                * (decay.numerator ** epoch)
+                // (decay.denominator ** epoch)
+                * min(height - epoch * epoch_interval, epoch_interval)
+                for epoch in range(height // epoch_interval + 1)
+            )
+
+        ret += _coinbase_calc_with_decay(
+            self.root_state.tip.height,
+            self.env.quark_chain_config.ROOT.EPOCH_INTERVAL,
+            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT,
         )
+
         for full_shard_id, shard_stats in self.branch_to_shard_stats.items():
-            ret += shard_stats.height * m_coinbase[full_shard_id]
+            ret += _coinbase_calc_with_decay(
+                shard_stats.height,
+                self.env.quark_chain_config.shards[full_shard_id].EPOCH_INTERVAL,
+                self.env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT,
+            )
+
         return ret
 
 
