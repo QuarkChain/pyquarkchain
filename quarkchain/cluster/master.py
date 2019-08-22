@@ -1669,7 +1669,7 @@ class MasterServer:
 
         decay = self.env.quark_chain_config.block_reward_decay_factor  # type: Fraction
 
-        def _coinbase_calc_with_decay(height, epoch_interval, coinbase):
+        def _calc_coinbase_with_decay(height, epoch_interval, coinbase):
             return sum(
                 coinbase
                 * (decay.numerator ** epoch)
@@ -1678,14 +1678,14 @@ class MasterServer:
                 for epoch in range(height // epoch_interval + 1)
             )
 
-        ret += _coinbase_calc_with_decay(
+        ret += _calc_coinbase_with_decay(
             self.root_state.tip.height,
             self.env.quark_chain_config.ROOT.EPOCH_INTERVAL,
             self.env.quark_chain_config.ROOT.COINBASE_AMOUNT,
         )
 
         for full_shard_id, shard_stats in self.branch_to_shard_stats.items():
-            ret += _coinbase_calc_with_decay(
+            ret += _calc_coinbase_with_decay(
                 shard_stats.height,
                 self.env.quark_chain_config.shards[full_shard_id].EPOCH_INTERVAL,
                 self.env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT,
