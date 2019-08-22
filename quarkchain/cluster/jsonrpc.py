@@ -26,11 +26,13 @@ from quarkchain.core import (
     TransactionReceipt,
     TypedTransaction,
     Constant,
+    MinorBlockHeader,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
+
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -183,24 +185,7 @@ def root_block_encoder(block):
     }
 
     for header in block.minor_block_header_list:
-        h = {
-            "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-            "height": quantity_encoder(header.height),
-            "hash": data_encoder(header.get_hash()),
-            "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-            "chainId": quantity_encoder(header.branch.get_chain_id()),
-            "shardId": quantity_encoder(header.branch.get_shard_id()),
-            "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-            "idPrevMinorBlock": id_encoder(
-                header.hash_prev_minor_block, header.branch.get_full_shard_id()
-            ),
-            "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-            "nonce": quantity_encoder(header.nonce),
-            "difficulty": quantity_encoder(header.difficulty),
-            "miner": address_encoder(header.coinbase_address.serialize()),
-            "coinbase": balances_encoder(header.coinbase_amount_map),
-            "timestamp": quantity_encoder(header.create_time),
-        }
+        h = minor_block_header_encoder(header)
         d["minorBlockHeaders"].append(h)
     return d
 
@@ -217,28 +202,12 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     header = block.header
     meta = block.meta
 
+    header_info = minor_block_header_encoder(header)
     d = {
-        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-        "height": quantity_encoder(header.height),
-        "hash": data_encoder(header.get_hash()),
-        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-        "chainId": quantity_encoder(header.branch.get_chain_id()),
-        "shardId": quantity_encoder(header.branch.get_shard_id()),
-        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-        "idPrevMinorBlock": id_encoder(
-            header.hash_prev_minor_block, header.branch.get_full_shard_id()
-        ),
-        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-        "nonce": quantity_encoder(header.nonce),
+        **header_info,
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
-        "miner": address_encoder(header.coinbase_address.serialize()),
-        "coinbase": balances_encoder(header.coinbase_amount_map),
-        "difficulty": quantity_encoder(header.difficulty),
-        "extraData": data_encoder(header.extra_data),
-        "gasLimit": quantity_encoder(header.evm_gas_limit),
         "gasUsed": quantity_encoder(meta.evm_gas_used),
-        "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
     }
     if include_transactions:
@@ -255,6 +224,31 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
         d["poswMineableBlocks"] = quantity_encoder(extra_info.posw_mineable_blocks)
         d["poswMinedBlocks"] = quantity_encoder(extra_info.posw_mined_blocks)
         d["stakingApplied"] = extra_info.effective_difficulty < header.difficulty
+    return d
+
+
+def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
+
+    d = {
+        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
+        "height": quantity_encoder(header.height),
+        "hash": data_encoder(header.get_hash()),
+        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+        "chainId": quantity_encoder(header.branch.get_chain_id()),
+        "shardId": quantity_encoder(header.branch.get_shard_id()),
+        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
+        "idPrevMinorBlock": id_encoder(
+            header.hash_prev_minor_block, header.branch.get_full_shard_id()
+        ),
+        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
+        "nonce": quantity_encoder(header.nonce),
+        "miner": address_encoder(header.coinbase_address.serialize()),
+        "coinbase": balances_encoder(header.coinbase_amount_map),
+        "difficulty": quantity_encoder(header.difficulty),
+        "extraData": data_encoder(header.extra_data),
+        "gasLimit": quantity_encoder(header.evm_gas_limit),
+        "timestamp": quantity_encoder(header.create_time),
+    }
     return d
 
 
@@ -1394,27 +1388,33 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
+        self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+
     async def __handle(self, websocket, path):
-        request = await websocket.recv()
-        Logger.info(request)
+        sub_id = 0
+        async for message in websocket:
+            Logger.info(message)
 
-        d = dict()
-        try:
-            d = json.loads(request)
-        except Exception:
-            pass
-        method = d.get("method", "null")
-        if method in self.counters:
-            self.counters[method] += 1
-        else:
-            self.counters[method] = 1
+            d = dict()
+            try:
+                d = json.loads(message)
+            except Exception:
+                pass
+            method = d.get("method", "null")
+            if method in self.counters:
+                self.counters[method] += 1
+            else:
+                self.counters[method] = 1
 
-        response = await self.handlers.dispatch(request)
-        if "error" in response:
-            Logger.error(response)
-        if not response.is_notification:
-            await websocket.send(str(response))
-        return response
+            msg_id = d.get("id", 0)
+            response = await self.handlers.dispatch(
+                message,
+                context={"websocket": websocket, "sub_id": sub_id, "msg_id": msg_id},
+            )
+            sub_id += 1
+
+            if not response["result"]:
+                break
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1424,9 +1424,52 @@ class JSONRPCWebsocketServer:
         pass  # TODO
 
     @public_methods.add
-    async def ping(self):
-        return "pong"
+    async def ping(self, context):
+        websocket = context["websocket"]
+        msg_id = context["msg_id"]
+        response = {"jsonrpc": "2.0", "result": "pong", "id": msg_id}
+        await websocket.send(json.dumps(response))
 
     @public_methods.add
-    async def echo(self, params):
-        return params
+    async def subscribe(self, sub_type, full_shard_id, context):
+        if context is None or full_shard_id is None:
+            return None
+        websocket = context["websocket"]
+        sub_id = context["sub_id"]
+        msg_id = context["msg_id"]
+        response = {"jsonrpc": "2.0", "result": sub_id, "id": msg_id}
+        await websocket.send(json.dumps(response))
+
+        full_shard_id = shard_id_decoder(full_shard_id)
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
+        if not shard:
+            return None
+
+        if sub_type == "newHeads":
+            await self.fetch_new_head(sub_id, shard, websocket)
+        else:
+            print("other types of subscription")
+            self.subscribers[sub_type].append(sub_id)
+
+    async def fetch_new_head(self, sub_id, shard, websocket):
+        last_header = None
+        while True:
+            header = shard.state.header_tip
+            if not last_header or header.height != last_header.height:
+                last_header = header
+                response = self.response_transcoder(
+                    minor_block_header_encoder(header), sub_id
+                )
+                await websocket.send(json.dumps(response))
+
+            await asyncio.sleep(0.5)
+
+    @staticmethod
+    def response_transcoder(result, sub_id):
+
+        return {
+            "jsonrpc": "2.0",
+            "method": "subscription",
+            "params": {"subscription": sub_id, "result": result},
+        }
