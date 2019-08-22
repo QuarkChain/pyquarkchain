@@ -8,7 +8,7 @@ import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 import websockets
 
-from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.cluster.cluster_config import ClusterConfig, SlaveConfig
 from quarkchain.cluster.jsonrpc import (
     EMPTY_TX_ID,
     JSONRPCHttpServer,
@@ -33,6 +33,9 @@ from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
+
+import websockets
+from jsonrpcclient.websockets_client import WebSocketsClient
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -1140,31 +1143,109 @@ class TestJSONRPCHttp(unittest.TestCase):
 
 
 # ------------------------------- Test for JSONRPCWebsocketServer -------------------------------
+# @contextmanager
+# def jrpc_websocket_server_context(slave):
+#     env = DEFAULT_ENV.copy()
+#     env.cluster_config = ClusterConfig()
+#     env.cluster_config.JSON_RPC_PORT = 38391
+#     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
+
+#     env.slave_config = env.cluster_config.get_slave_config("S0")
+#     env.slave_config.WEBSOCKET_JSON_RPC_PORT = 38590
+#     server = JSONRPCWebsocketServer.start_websocket_server(env, slave)
+#     try:
+#         yield server
+#     finally:
+#         server.shutdown()
+
+
+# def send_websocket_request(*args):
+#     async def __send_websocket_request(*args):
+#         async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
+#             client = aiohttpClient(session, "http://localhost:38391")
+#             response = await client.request(*args)
+#             return response
+
+#     return call_async(__send_websocket_request(*args))
+
+
+class TestJSONRPCWebsocket(unittest.TestCase):
+    def test_qkc_subscribe(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_http_server_context(
+            clusters[0].master
+        ), jrpc_websocket_server_context(
+            clusters[0].slave_list[0]
+        ):
+
+            request = {"jsonrpc": "2.0", "method": "ping", "id": 1}
+            response = send_websocket_ping(request)
+            self.assertEqual(response, "pong")
+
+            # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+
+
 @contextmanager
-def jrpc_websocket_server_context(slave):
+def jrpc_websocket_server_context(slave_server):
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
+    # to pass the circleCi
     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
 
-    env.slave_config = env.cluster_config.get_slave_config("S0")
-    env.slave_config.WEBSOCKET_JSON_RPC_PORT = 38590
-    server = JSONRPCWebsocketServer.start_websocket_server(env, slave)
+    slave_config = SlaveConfig()
+    slave_config.HOST = "0.0.0.0"
+    slave_config.PORT = 38001
+    slave_config.WEBSOCKET_JSON_RPC_PORT = 38591
+    slave_config.ID = "S1"
+    slave_config.CHAIN_MASK_LIST = [5]
+
+    env.cluster_config.SLAVE_LIST.append(slave_config)
+    env.slave_config = env.cluster_config.get_slave_config("S1")
+    server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
     try:
         yield server
     finally:
         server.shutdown()
 
 
-def send_websocket_request(*args):
-    async def __send_websocket_request(*args):
-        async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-            client = aiohttpClient(session, "http://localhost:38391")
-            response = await client.request(*args)
+def send_websocket_request(request, num_response=1):
+    responses = []
+
+    async def __send_request(request):
+        uri = "ws://0.0.0.0:38591"
+        async with websockets.connect(uri) as websocket:
+            await websocket.send(request)
+            while True:
+                response = await websocket.recv()
+                responses.append(response)
+                if len(responses) == num_response:
+                    return responses
+
+    return call_async(__send_request(request))
+
+
+def send_websocket_ping(request):
+    async def __send_request(request):
+        uri = "ws://0.0.0.0:38591"
+        async with websockets.connect(uri) as websocket:
+            response = await WebSocketsClient(websocket).send(request)
             return response
 
-    return call_async(__send_websocket_request(*args))
-
-
-class TestJSONRPCWebsocket(unittest.TestCase):
-    pass
+    return call_async(__send_request(request))
