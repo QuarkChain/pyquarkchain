@@ -5,7 +5,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from queue import Queue, Empty as QueueEmpty
-from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union, Set
+from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union
 
 import numpy
 from aioprocessing import AioProcess, AioQueue

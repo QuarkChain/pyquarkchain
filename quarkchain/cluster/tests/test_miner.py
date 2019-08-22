@@ -181,7 +181,7 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(work.hash, h)
             # cache hit and new block is linked to tip (by default)
             now += 1
-            work, block = await miner.get_work(now=now)
+            work, _ = await miner.get_work(now=now)
             self.assertEqual(work.hash, h)
             self.assertEqual(work.height, 43)
             self.assertEqual(len(miner.work_map), 1)
