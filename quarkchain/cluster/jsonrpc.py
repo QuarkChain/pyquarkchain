@@ -1418,6 +1418,10 @@ class JSONRPCWebsocketServer:
             )
             sub_id += 1
 
+            if "error" in response:
+                Logger.error(response)
+            if not response.is_notification:
+                await websocket.send(json.dumps(response))
             if not response["result"]:
                 break
 
@@ -1427,6 +1431,14 @@ class JSONRPCWebsocketServer:
 
     def shutdown(self):
         pass  # TODO
+
+    @staticmethod
+    def response_transcoder(sub_id, result):
+        return {
+            "jsonrpc": "2.0",
+            "method": "qkc_subscription",
+            "params": {"subscription": sub_id, "result": result},
+        }
 
     @public_methods.add
     async def qkc_subscribe(self, sub_type, full_shard_id, context):
@@ -1446,15 +1458,30 @@ class JSONRPCWebsocketServer:
             return None
 
         if sub_type == "newHeads":
-            await self.get_new_head(sub_id, shard, websocket)
+            await self.get_new_heads(sub_id, shard, websocket)
         if sub_type == "newPendingTransactions":
-            await self.get_new_pending_transaction(sub_id, shard, websocket)
+            await self.get_new_pending_transactions(sub_id, shard, websocket)
         else:
             print("other types of subscription")
             self.subscribers[sub_type].append(sub_id)
 
     @public_methods.add
-    async def get_new_pending_transaction(self, sub_id, shard, websocket):
+    async def get_new_heads(self, sub_id, shard, websocket):
+        last_header = None
+
+        while True:
+            header = shard.state.header_tip
+            if not last_header or header.height != last_header.height:
+                last_header = header
+                response = self.response_transcoder(
+                    sub_id, minor_block_header_encoder(header)
+                )
+                await websocket.send(json.dumps(response))
+
+            await asyncio.sleep(0.5)
+
+    @public_methods.add
+    async def get_new_pending_transactions(self, sub_id, shard, websocket):
         all_pending_txs = set()
 
         while True:
@@ -1469,31 +1496,3 @@ class JSONRPCWebsocketServer:
                         await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
-
-    async def get_new_head(self, sub_id, shard, websocket):
-        last_header = None
-
-        while True:
-            header = shard.state.header_tip
-            if not last_header or header.height != last_header.height:
-                last_header = header
-                response = self.response_transcoder(
-                    sub_id, minor_block_header_encoder(header)
-                )
-                await websocket.send(json.dumps(response))
-
-            await asyncio.sleep(0.5)
-
-    @staticmethod
-    def response_transcoder(sub_id, result):
-        return {
-            "jsonrpc": "2.0",
-            "method": "qkc_subscription",
-            "params": {"subscription": sub_id, "result": result},
-        }
-
-    async def ping(self, context):
-        websocket = context["websocket"]
-        msg_id = context["msg_id"]
-        response = {"jsonrpc": "2.0", "result": "pong", "id": msg_id}
-        await websocket.send(json.dumps(response))

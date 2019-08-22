@@ -1143,64 +1143,6 @@ class TestJSONRPCHttp(unittest.TestCase):
 
 
 # ------------------------------- Test for JSONRPCWebsocketServer -------------------------------
-# @contextmanager
-# def jrpc_websocket_server_context(slave):
-#     env = DEFAULT_ENV.copy()
-#     env.cluster_config = ClusterConfig()
-#     env.cluster_config.JSON_RPC_PORT = 38391
-#     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
-
-#     env.slave_config = env.cluster_config.get_slave_config("S0")
-#     env.slave_config.WEBSOCKET_JSON_RPC_PORT = 38590
-#     server = JSONRPCWebsocketServer.start_websocket_server(env, slave)
-#     try:
-#         yield server
-#     finally:
-#         server.shutdown()
-
-
-# def send_websocket_request(*args):
-#     async def __send_websocket_request(*args):
-#         async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-#             client = aiohttpClient(session, "http://localhost:38391")
-#             response = await client.request(*args)
-#             return response
-
-#     return call_async(__send_websocket_request(*args))
-
-
-class TestJSONRPCWebsocket(unittest.TestCase):
-    def test_qkc_subscribe(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-
-        with ClusterContext(
-            1, acc1, small_coinbase=True
-        ) as clusters, jrpc_http_server_context(
-            clusters[0].master
-        ), jrpc_websocket_server_context(
-            clusters[0].slave_list[0]
-        ):
-
-            request = {"jsonrpc": "2.0", "method": "ping", "id": 1}
-            response = send_websocket_ping(request)
-            self.assertEqual(response, "pong")
-
-            # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
-            request = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["newHeads", "0x00000002"],
-                "id": 3,
-            }
-            responses = send_websocket_request(json.dumps(request), 2)
-            results = []
-            for response in responses:
-                results.append(json.loads(response))
-            self.assertEqual(results[0]["result"], 0)  # subscription id
-            self.assertEqual(results[0]["id"], 3)
-
-
 @contextmanager
 def jrpc_websocket_server_context(slave_server):
     env = DEFAULT_ENV.copy()
@@ -1249,3 +1191,68 @@ def send_websocket_ping(request):
             return response
 
     return call_async(__send_request(request))
+
+
+class TestJSONRPCWebsocket(unittest.TestCase):
+    def test_newHeads(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_http_server_context(
+            clusters[0].master
+        ), jrpc_websocket_server_context(
+            clusters[0].slave_list[0]
+        ):
+            # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
+            request = {
+                "jsonrpc": "2.0",
+                "method": "qkc_subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+
+    def test_newPendingTransactions(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_http_server_context(
+            clusters[0].master
+        ), jrpc_websocket_server_context(
+            clusters[0].slave_list[0]
+        ):
+            slaves = clusters[0].slave_list
+            request = {
+                "jsonrpc": "2.0",
+                "method": "qkc_subscribe",
+                "params": ["newPendingTransactions", "0x00000002"],
+                "id": 6,
+            }
+            tx = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            responses = send_websocket_request(json.dumps(request), 2)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)
+            self.assertEqual(results[0]["id"], 6)
+
+            self.assertEqual(results[1]["params"]["subscription"], results[0]["result"])
+            self.assertTrue(results[1]["params"]["result"].startswith("0x"))
+            self.assertTrue(results[1]["params"]["result"], tx.get_hash())
