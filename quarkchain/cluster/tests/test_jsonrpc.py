@@ -95,9 +95,6 @@ def send_websocket_request(request, num_response=1):
     async def __send_request(request):
         uri = "ws://0.0.0.0:38591"
         async with websockets.connect(uri) as websocket:
-            # TODO: Failed to validate the new_head response in WebSocketsClient's given json schema
-            # while True:
-            #     response = await WebSocketsClient(websocket).send(request)
             await websocket.send(request)
             while True:
                 response = await websocket.recv()
