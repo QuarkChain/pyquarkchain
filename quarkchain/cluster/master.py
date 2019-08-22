@@ -4,6 +4,7 @@ import os
 import cProfile
 import sys
 import time
+from fractions import Fraction
 
 import psutil
 import time
@@ -1655,6 +1656,51 @@ class MasterServer:
             return False
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.submit_work(branch, header_hash, nonce, mixhash)
+
+    def get_total_supply(self) -> Optional[int]:
+        # return None if stats not ready
+        if len(self.branch_to_shard_stats) != len(self.env.quark_chain_config.shards):
+            return None
+
+        # TODO: only handle QKC and assume all configured shards are initialized
+        ret = 0
+        # calc genesis
+        for full_shard_id, shard_config in self.env.quark_chain_config.shards.items():
+            for _, alloc_data in shard_config.GENESIS.ALLOC.items():
+                # backward compatible:
+                # v1: {addr: {QKC: 1234}}
+                # v2: {addr: {balances: {QKC: 1234}, code: 0x, storage: {0x12: 0x34}}}
+                balances = alloc_data
+                if "balances" in alloc_data:
+                    balances = alloc_data["balances"]
+                for k, v in balances.items():
+                    ret += v if k == "QKC" else 0
+
+        decay = self.env.quark_chain_config.block_reward_decay_factor  # type: Fraction
+
+        def _calc_coinbase_with_decay(height, epoch_interval, coinbase):
+            return sum(
+                coinbase
+                * (decay.numerator ** epoch)
+                // (decay.denominator ** epoch)
+                * min(height - epoch * epoch_interval, epoch_interval)
+                for epoch in range(height // epoch_interval + 1)
+            )
+
+        ret += _calc_coinbase_with_decay(
+            self.root_state.tip.height,
+            self.env.quark_chain_config.ROOT.EPOCH_INTERVAL,
+            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT,
+        )
+
+        for full_shard_id, shard_stats in self.branch_to_shard_stats.items():
+            ret += _calc_coinbase_with_decay(
+                shard_stats.height,
+                self.env.quark_chain_config.shards[full_shard_id].EPOCH_INTERVAL,
+                self.env.quark_chain_config.shards[full_shard_id].COINBASE_AMOUNT,
+            )
+
+        return ret
 
 
 def parse_args():
