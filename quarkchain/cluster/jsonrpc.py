@@ -1248,6 +1248,11 @@ class JSONRPCHttpServer:
             raise InvalidRequest("network is not P2P")
         return [n.to_uri() for n in self.master.network.server.discovery.proto.routing]
 
+    @private_methods.add
+    async def getTotalSupply(self):
+        total_supply = self.master.get_total_supply()
+        return quantity_encoder(total_supply) if total_supply else None
+
     @staticmethod
     def _convert_eth_call_data(data, shard):
         to_address = Address.create_from(

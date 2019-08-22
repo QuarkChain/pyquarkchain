@@ -1647,6 +1647,35 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.submit_work(branch, header_hash, nonce, mixhash)
 
+    def get_total_supply(self) -> Optional[int]:
+        # TODO: only handle QKC for now
+        ret = 0
+        m_coinbase = {}
+        # calc genesis and record minor block coinbase
+        for full_shard_id, shard_config in self.env.quark_chain_config.shards.items():
+            m_coinbase[full_shard_id] = shard_config.COINBASE_AMOUNT
+            for _, alloc_data in shard_config.GENESIS.ALLOC.items():
+                # backward compatible:
+                # v1: {addr: {QKC: 1234}}
+                # v2: {addr: {balances: {QKC: 1234}, code: 0x, storage: {0x12: 0x34}}}
+                balances = alloc_data
+                if "balances" in alloc_data:
+                    balances = alloc_data["balances"]
+                for k, v in balances.items():
+                    ret += v if k == "QKC" else 0
+
+        # return None if stats not ready
+        if len(self.branch_to_shard_stats) != len(m_coinbase):
+            return None
+
+        ret += (
+            self.env.quark_chain_config.ROOT.COINBASE_AMOUNT
+            * self.root_state.tip.height
+        )
+        for full_shard_id, shard_stats in self.branch_to_shard_stats.items():
+            ret += shard_stats.height * m_coinbase[full_shard_id]
+        return ret
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
