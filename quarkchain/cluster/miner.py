@@ -5,16 +5,23 @@ import random
 import time
 from abc import ABC, abstractmethod
 from queue import Queue, Empty as QueueEmpty
-from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, NamedTuple, Optional, Union, Set
 
 import numpy
 from aioprocessing import AioProcess, AioQueue
+from cachetools import LRUCache
 from eth_keys import KeyAPI
 
 from ethereum.pow.ethpow import EthashMiner, check_pow
 from qkchash.qkcpow import QkchashMiner, check_pow as qkchash_check_pow
 from quarkchain.config import ConsensusType
-from quarkchain.core import MinorBlock, MinorBlockHeader, RootBlock, RootBlockHeader
+from quarkchain.core import (
+    MinorBlock,
+    MinorBlockHeader,
+    RootBlock,
+    RootBlockHeader,
+    Address,
+)
 from quarkchain.utils import Logger, sha256, time_ms
 
 Block = Union[MinorBlock, RootBlock]
@@ -163,14 +170,17 @@ class Miner:
         self.input_q = AioQueue()  # [(MiningWork, param dict)]
         self.output_q = AioQueue()  # [MiningResult]
 
-        # header hash -> work
-        self.work_map = {}  # type: Dict[bytes, Block]
+        # header hash -> block under work
+        # max size (tx max 258 bytes, gas limit 12m) ~= ((12m / 21000) * 258) * 128 = 18mb
+        self.work_map = LRUCache(maxsize=128)
 
         if not remote and consensus_type != ConsensusType.POW_SIMULATE:
             Logger.warning("Mining locally, could be slow and error-prone")
         # remote miner specific attributes
         self.remote = remote
-        self.current_work = None  # type: Optional[Block]
+        # coinbase address -> header hash
+        # key can be None, meaning default coinbase address from local config
+        self.current_works = LRUCache(128)
         self.guardian_private_key = guardian_private_key
 
     def start(self):
@@ -251,42 +261,39 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block())
 
-    async def get_work(self, now=None) -> (MiningWork, Block):
+    async def get_work(
+        self, now=None, coinbase_addr: Optional[Address] = None
+    ) -> (MiningWork, Block):
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
         if now is None:  # clock open for mock
             now = time.time()
-        work_prev_hash = (
-            self.current_work.header.hash_prev_block if self.current_work else None
-        )
+
+        block = None
+        header_hash = self.current_works.get(coinbase_addr)
+        if header_hash:
+            block = self.work_map.get(header_hash)
         tip_hash = self.get_header_tip_func().get_hash()
         if (
-            not self.current_work  # no cache
-            or work_prev_hash != tip_hash  # cache outdated
-            or now - self.current_work.header.create_time > 5  # stale
+            not block  # no work cache
+            or block.header.hash_prev_block != tip_hash  # cache outdated
+            or now - block.header.create_time > 10  # stale
         ):
-            block = await self.create_block_async_func(retry=False)
+            block = await self.create_block_async_func(
+                retry=False, coinbase_addr=coinbase_addr
+            )
             if not block:
                 raise RuntimeError("Failed to create block")
-            self.current_work = block
+            header_hash = block.header.get_hash_for_mining()
+            # note that key could be None
+            self.current_works[coinbase_addr] = header_hash
+            self.work_map[header_hash] = block
 
-        header = self.current_work.header
-        header_hash = header.get_hash_for_mining()
-        # store in memory for future retrieval during work submission
-        self.work_map[header_hash] = self.current_work
-
-        # clean up worker map
-        # TODO: for now, same param as go-ethereum. or LRU cache?
-        self.work_map = {
-            h: b
-            for h, b in self.work_map.items()
-            if now - b.header.create_time < 7 * 12
-        }
-
+        header = block.header
         return (
             MiningWork(header_hash, header.height, header.difficulty),
-            copy.deepcopy(self.current_work),
+            copy.deepcopy(block),
         )
 
     async def submit_work(

@@ -533,7 +533,7 @@ class MasterConnection(ClusterConnection):
         return GasPriceResponse(error_code=int(fail), result=res or 0)
 
     async def handle_get_work(self, req: GetWorkRequest) -> GetWorkResponse:
-        res = await self.slave_server.get_work(req.branch)
+        res = await self.slave_server.get_work(req.branch, req.coinbase_addr)
         if not res:
             return GetWorkResponse(error_code=1)
         return GetWorkResponse(
@@ -1346,12 +1346,14 @@ class SlaveServer:
             return None
         return shard.state.gas_price(token_id)
 
-    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+    async def get_work(
+        self, branch: Branch, coinbase_addr: Optional[Address] = None
+    ) -> Optional[MiningWork]:
         if branch not in self.shards:
             return None
         try:
             shard = self.shards[branch]
-            work, block = await shard.miner.get_work()
+            work, block = await shard.miner.get_work(coinbase_addr)
             if shard.state.shard_config.POSW_CONFIG.ENABLED:
                 check(isinstance(block, MinorBlock))
                 diff = shard.state.posw_diff_adjust(block)
