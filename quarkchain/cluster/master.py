@@ -1659,7 +1659,6 @@ class MasterServer:
         for full_shard_id, shard_config in self.env.quark_chain_config.shards.items():
             for _, alloc_data in shard_config.GENESIS.ALLOC.items():
                 # backward compatible:
-
                 # v1: {addr: {QKC: 1234}}
                 # v2: {addr: {balances: {QKC: 1234}, code: 0x, storage: {0x12: 0x34}}}
                 balances = alloc_data

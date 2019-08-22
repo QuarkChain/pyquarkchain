@@ -1183,16 +1183,6 @@ def send_websocket_request(request, num_response=1):
     return call_async(__send_request(request))
 
 
-def send_websocket_ping(request):
-    async def __send_request(request):
-        uri = "ws://0.0.0.0:38591"
-        async with websockets.connect(uri) as websocket:
-            response = await WebSocketsClient(websocket).send(request)
-            return response
-
-    return call_async(__send_request(request))
-
-
 class TestJSONRPCWebsocket(unittest.TestCase):
     def test_newHeads(self):
         id1 = Identity.create_random_identity()
