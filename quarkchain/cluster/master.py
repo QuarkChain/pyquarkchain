@@ -759,15 +759,9 @@ class MasterServer:
         self.__init_root_miner()
 
     def __init_root_miner(self):
-        default_miner_address = Address.create_from(
-            self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
-        )
-
-        async def __create_block(retry=True, coinbase_addr: Optional[Address] = None):
-            if coinbase_addr is None:
-                coinbase_addr = default_miner_address
+        async def __create_block(coinbase_addr: Address, retry=True):
             while True:
-                block = await self.__create_root_block_to_mine(address=coinbase_addr)
+                block = await self.__create_root_block_to_mine(coinbase_addr)
                 if block:
                     return block
                 if not retry:
@@ -1631,7 +1625,10 @@ class MasterServer:
         if recipient is not None:
             coinbase_addr = Address(recipient, branch.value if branch else 0)
         if not branch:  # get root chain work
-            work, _ = await self.root_miner.get_work(coinbase_addr)
+            default_addr = Address.create_from(
+                self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
+            )
+            work, _ = await self.root_miner.get_work(coinbase_addr or default_addr)
             return work
 
         if branch.value not in self.branch_to_slaves:

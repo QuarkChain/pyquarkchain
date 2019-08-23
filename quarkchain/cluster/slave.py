@@ -1351,9 +1351,12 @@ class SlaveServer:
     ) -> Optional[MiningWork]:
         if branch not in self.shards:
             return None
+        default_addr = Address.create_from(
+            self.env.quark_chain_config.shards[branch.value].COINBASE_ADDRESS
+        )
         try:
             shard = self.shards[branch]
-            work, block = await shard.miner.get_work(coinbase_addr)
+            work, block = await shard.miner.get_work(coinbase_addr or default_addr)
             if shard.state.shard_config.POSW_CONFIG.ENABLED:
                 check(isinstance(block, MinorBlock))
                 diff = shard.state.posw_diff_adjust(block)

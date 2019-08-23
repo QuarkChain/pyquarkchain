@@ -214,7 +214,9 @@ class Miner:
                     # FIXME: Root block should include latest minor block headers while it's being mined
                     # This is a hack to get the latest minor block included since testnet does not check difficulty
                     if self.consensus_type == ConsensusType.POW_SIMULATE:
-                        block = await self.create_block_async_func()
+                        block = await self.create_block_async_func(
+                            Address.create_empty_account()
+                        )
                         block.header.nonce = random.randint(0, 2 ** 32 - 1)
                         self._track(block)
                         self._log_status(block)
@@ -226,7 +228,7 @@ class Miner:
             """Get a new block and start mining.
             If a mining process has already been started, update the process to mine the new block.
             """
-            block = await self.create_block_async_func()
+            block = await self.create_block_async_func(Address.create_empty_account())
             if not block:
                 self.input_q.put((None, {}))
                 return
@@ -261,9 +263,7 @@ class Miner:
             return None
         return asyncio.ensure_future(mine_new_block())
 
-    async def get_work(
-        self, now=None, coinbase_addr: Optional[Address] = None
-    ) -> (MiningWork, Block):
+    async def get_work(self, coinbase_addr: Address, now=None) -> (MiningWork, Block):
         if not self.remote:
             raise ValueError("Should only be used for remote miner")
 
@@ -280,13 +280,10 @@ class Miner:
             or block.header.hash_prev_block != tip_hash  # cache outdated
             or now - block.header.create_time > 10  # stale
         ):
-            block = await self.create_block_async_func(
-                retry=False, coinbase_addr=coinbase_addr
-            )
+            block = await self.create_block_async_func(coinbase_addr, retry=False)
             if not block:
                 raise RuntimeError("Failed to create block")
             header_hash = block.header.get_hash_for_mining()
-            # note that key could be None
             self.current_works[coinbase_addr] = header_hash
             self.work_map[header_hash] = block
 
