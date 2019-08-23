@@ -1190,11 +1190,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_http_server_context(
-            clusters[0].master
-        ), jrpc_websocket_server_context(
-            clusters[0].slave_list[0]
-        ):
+        ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
             # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
             request = {
                 "jsonrpc": "2.0",
@@ -1215,11 +1211,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_http_server_context(
-            clusters[0].master
-        ), jrpc_websocket_server_context(
-            clusters[0].slave_list[0]
-        ):
+        ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
             slaves = clusters[0].slave_list
             request = {
                 "jsonrpc": "2.0",
@@ -1244,5 +1236,4 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             self.assertEqual(results[0]["id"], 6)
 
             self.assertEqual(results[1]["params"]["subscription"], results[0]["result"])
-            self.assertTrue(results[1]["params"]["result"].startswith("0x"))
             self.assertTrue(results[1]["params"]["result"], tx.get_hash())
