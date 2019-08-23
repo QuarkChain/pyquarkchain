@@ -1144,22 +1144,11 @@ class TestJSONRPCHttp(unittest.TestCase):
 
 # ------------------------------- Test for JSONRPCWebsocketServer -------------------------------
 @contextmanager
-def jrpc_websocket_server_context(slave_server):
+def jrpc_websocket_server_context(slave_server, port=38590):
     env = DEFAULT_ENV.copy()
-    env.cluster_config = ClusterConfig()
-    env.cluster_config.JSON_RPC_PORT = 38391
-    # to pass the circleCi
-    env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
-
-    slave_config = SlaveConfig()
-    slave_config.HOST = "0.0.0.0"
-    slave_config.PORT = 38001
-    slave_config.WEBSOCKET_JSON_RPC_PORT = 38591
-    slave_config.ID = "S1"
-    slave_config.CHAIN_MASK_LIST = [5]
-
-    env.cluster_config.SLAVE_LIST.append(slave_config)
-    env.slave_config = env.cluster_config.get_slave_config("S1")
+    env.slave_config = env.cluster_config.get_slave_config("S0")
+    env.slave_config.HOST = "0.0.0.0"
+    env.slave_config.WEBSOCKET_JSON_RPC_PORT = port
     server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
     try:
         yield server
@@ -1167,11 +1156,11 @@ def jrpc_websocket_server_context(slave_server):
         server.shutdown()
 
 
-def send_websocket_request(request, num_response=1):
+def send_websocket_request(request, num_response=1, port=38590):
     responses = []
 
-    async def __send_request(request):
-        uri = "ws://0.0.0.0:38591"
+    async def __send_request(request, port):
+        uri = "ws://0.0.0.0:" + str(port)
         async with websockets.connect(uri) as websocket:
             await websocket.send(request)
             while True:
@@ -1180,7 +1169,7 @@ def send_websocket_request(request, num_response=1):
                 if len(responses) == num_response:
                     return responses
 
-    return call_async(__send_request(request))
+    return call_async(__send_request(request, port))
 
 
 class TestJSONRPCWebsocket(unittest.TestCase):
@@ -1202,6 +1191,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             results = []
             for response in responses:
                 results.append(json.loads(response))
+
             self.assertEqual(results[0]["result"], 0)  # subscription id
             self.assertEqual(results[0]["id"], 3)
 
@@ -1211,7 +1201,9 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38591
+        ):
             slaves = clusters[0].slave_list
             request = {
                 "jsonrpc": "2.0",
@@ -1228,12 +1220,12 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             )
             self.assertTrue(slaves[0].add_tx(tx))
 
-            responses = send_websocket_request(json.dumps(request), 2)
+            responses = send_websocket_request(json.dumps(request), 2, port=38591)
             results = []
             for response in responses:
                 results.append(json.loads(response))
+
             self.assertEqual(results[0]["result"], 0)
             self.assertEqual(results[0]["id"], 6)
-
             self.assertEqual(results[1]["params"]["subscription"], results[0]["result"])
             self.assertTrue(results[1]["params"]["result"], tx.get_hash())
