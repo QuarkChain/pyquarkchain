@@ -1198,7 +1198,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
             request = {
                 "jsonrpc": "2.0",
-                "method": "qkc_subscribe",
+                "method": "subscribe",
                 "params": ["newHeads", "0x00000002"],
                 "id": 3,
             }
@@ -1223,7 +1223,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             slaves = clusters[0].slave_list
             request = {
                 "jsonrpc": "2.0",
-                "method": "qkc_subscribe",
+                "method": "subscribe",
                 "params": ["newPendingTransactions", "0x00000002"],
                 "id": 6,
             }

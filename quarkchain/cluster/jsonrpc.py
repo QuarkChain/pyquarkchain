@@ -1436,12 +1436,12 @@ class JSONRPCWebsocketServer:
     def response_transcoder(sub_id, result):
         return {
             "jsonrpc": "2.0",
-            "method": "qkc_subscription",
+            "method": "subscription",
             "params": {"subscription": sub_id, "result": result},
         }
 
     @public_methods.add
-    async def qkc_subscribe(self, sub_type, full_shard_id, context):
+    async def subscribe(self, sub_type, full_shard_id, context):
         if context is None or full_shard_id is None:
             return None
 
@@ -1459,11 +1459,14 @@ class JSONRPCWebsocketServer:
 
         if sub_type == "newHeads":
             await self.get_new_heads(sub_id, shard, websocket)
-        if sub_type == "newPendingTransactions":
+        elif sub_type == "logs":
+            await self.get_logs(sub_id, shard, websocket)
+        elif sub_type == "newPendingTransactions":
             await self.get_new_pending_transactions(sub_id, shard, websocket)
+        elif sub_type == "syncing":
+            await self.get_syncing(sub_id, shard, websocket)
         else:
-            print("other types of subscription")
-            self.subscribers[sub_type].append(sub_id)
+            raise ValueError("Unrecognized subscription type")
 
     @public_methods.add
     async def get_new_heads(self, sub_id, shard, websocket):
@@ -1488,11 +1491,20 @@ class JSONRPCWebsocketServer:
             if len(shard.state.tx_queue.txs) > 0:
                 for orderable_tx in shard.state.tx_queue.txs:
                     tx = orderable_tx.tx
-                    if tx not in all_pending_txs:
-                        all_pending_txs.add(tx)
+                    tx_hash = tx.hash
+                    if tx_hash not in all_pending_txs:
+                        all_pending_txs.add(tx_hash)
                         response = self.response_transcoder(
-                            sub_id, data_encoder(tx.hash)
+                            sub_id, data_encoder(tx_hash)
                         )
                         await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
+
+    @public_methods.add
+    async def get_logs(self, sub_id, shard, websocket):
+        pass
+
+    @public_methods.add
+    async def get_syncing(self, sub_id, shard, websocket):
+        pass
