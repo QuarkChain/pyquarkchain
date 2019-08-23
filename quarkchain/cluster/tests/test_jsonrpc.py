@@ -7,7 +7,7 @@ from contextlib import contextmanager
 import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 
-from quarkchain.cluster.cluster_config import ClusterConfig, SlaveConfig
+from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import (
     EMPTY_TX_ID,
     JSONRPCHttpServer,
@@ -66,22 +66,16 @@ def send_request(*args):
 
 
 @contextmanager
-def jrpc_websocket_server_context(slave_server):
+def jrpc_websocket_server_context(slave_server, port=38590):
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
     # to pass the circleCi
     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
 
-    slave_config = SlaveConfig()
-    slave_config.HOST = "0.0.0.0"
-    slave_config.PORT = 38001
-    slave_config.WEBSOCKET_JSON_RPC_PORT = 38591
-    slave_config.ID = "S1"
-    slave_config.CHAIN_MASK_LIST = [5]
-
-    env.cluster_config.SLAVE_LIST.append(slave_config)
-    env.slave_config = env.cluster_config.get_slave_config("S1")
+    env.slave_config = env.cluster_config.get_slave_config("S0")
+    env.slave_config.HOST = "0.0.0.0"
+    env.slave_config.WEBSOCKET_JSON_RPC_PORT = port
     server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
     try:
         yield server
@@ -89,11 +83,11 @@ def jrpc_websocket_server_context(slave_server):
         server.shutdown()
 
 
-def send_websocket_request(request, num_response=1):
+def send_websocket_request(request, num_response=1, port=38590):
     responses = []
 
-    async def __send_request(request):
-        uri = "ws://0.0.0.0:38591"
+    async def __send_request(request, port):
+        uri = "ws://0.0.0.0:" + str(port)
         async with websockets.connect(uri) as websocket:
             await websocket.send(request)
             while True:
@@ -102,7 +96,7 @@ def send_websocket_request(request, num_response=1):
                 if len(responses) == num_response:
                     return responses
 
-    return call_async(__send_request(request))
+    return call_async(__send_request(request, port))
 
 
 def send_websocket_ping(request):
@@ -1190,21 +1184,13 @@ class TestJSONRPC(unittest.TestCase):
 
             send_request("createTransactions", {"numTxPerShard": 1, "xShardPercent": 0})
 
-    def test_subscribe(self):
+    def test_newHeads(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(
-            clusters[0].master
-        ), jrpc_websocket_server_context(
-            clusters[0].slave_list[0]
-        ):
-
-            request = {"jsonrpc": "2.0", "method": "ping", "id": 1}
-            response = send_websocket_ping(request)
-            self.assertEqual(response, "pong")
+        ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
 
             # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
             request = {
@@ -1219,3 +1205,172 @@ class TestJSONRPC(unittest.TestCase):
                 results.append(json.loads(response))
             self.assertEqual(results[0]["result"], 0)  # subscription id
             self.assertEqual(results[0]["id"], 3)
+
+    def test_logs(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        expected_log_parts = {
+            "logIndex": "0x0",
+            "transactionIndex": "0x0",
+            "blockNumber": "0x1",
+            "blockHeight": "0x1",
+            "data": "0x",
+        }
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38592
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            # Add a root block to update block gas limit for xshard tx throttling
+            # so that the following tx can be processed
+            root_block = call_async(
+                master.get_next_block_to_mine(acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key,
+            )
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            block = call_async(
+                master.get_next_block_to_mine(
+                    address=acc1, branch_value=0b10
+                )  # branch_value = 2
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+
+            # no filters
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["logs", "0x00000002", {}],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+
+            # filter by contract address
+            contract_addr = mk_contract_address(acc1.recipient, 0, acc1.full_shard_key)
+            filter_req = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "address": "0x"
+                        + contract_addr.hex()
+                        + hex(acc1.full_shard_key)[2:].zfill(8)
+                    },
+                ],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(filter_req), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+
+            # filter by topics
+            filter_req = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "topics": [
+                            "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                        ]
+                    },
+                ],
+                "id": 3,
+            }
+            filter_req_nested = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "topics": [
+                            [
+                                "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                            ]
+                        ]
+                    },
+                ],
+                "id": 3,
+            }
+            for req in (filter_req, filter_req_nested):
+                responses = send_websocket_request(json.dumps(req), 2, port=38592)
+                results = []
+                for response in responses:
+                    results.append(json.loads(response))
+                self.assertEqual(2, len(results))
+                self.assertDictContainsSubset(
+                    expected_log_parts, results[1]["params"]["result"]
+                )
+                self.assertEqual(
+                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
+                    results[1]["params"]["result"]["topics"][0],
+                )
+
+            # xshard creation and check logs: shard 0 -> shard 1
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key + 1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )  # source shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )  # root chain
+            call_async(master.add_root_block(root_block))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b11)
+            )  # target shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(block)))
+
+            # no filter
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["logs", "0x00000003", {}],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
+            expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+            self.assertEqual(2, len(results[1]["params"]["result"]["topics"]))

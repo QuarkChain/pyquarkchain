@@ -1438,7 +1438,8 @@ class JSONRPCWebsocketServer:
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
         if context is None or full_shard_id is None:
-            return None
+            raise ValueError("Unexpected subscription request")
+            return
         websocket = context["websocket"]
         sub_id = context["sub_id"]
         msg_id = context["msg_id"]
@@ -1456,9 +1457,9 @@ class JSONRPCWebsocketServer:
         elif sub_type == "logs":
             await self.fetch_logs(sub_id, full_shard_id, params, websocket)
         elif sub_type == "syncing":
-            await self.fetch_sync_status(sub_id, full_shard_id, websocket)
+            await self.fetch_sync_status(sub_id, shard, websocket)
         else:
-            print("other types of subscription")
+            raise ValueError("Unrecognized subscription type")
             self.subscribers[sub_type].append(sub_id)
 
     async def fetch_new_head(self, sub_id, shard, websocket):
@@ -1476,13 +1477,7 @@ class JSONRPCWebsocketServer:
 
     async def fetch_logs(self, sub_id, full_shard_id, params, websocket):
         decoder = address_decoder
-        start_block = params.get("fromBlock", "latest")
-        end_block = params.get("toBlock", "latest")
-        # TODO: not supported yet for "earliest" or "pending" block
-        if (isinstance(start_block, str) and start_block != "latest") or (
-            isinstance(end_block, str) and end_block != "latest"
-        ):
-            return None
+
         # parse addresses / topics
         addresses, topics = [], []
         if "address" in params:
@@ -1502,13 +1497,9 @@ class JSONRPCWebsocketServer:
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
         header = shard.state.header_tip
-        if start_block == "latest":
-            start_block = header.height
-        if end_block == "latest":
-            end_block = header.height
 
-        logs = await self.slave.get_logs(
-            addresses, topics, start_block, end_block, branch
+        logs = self.slave.get_logs(
+            addresses, topics, header.height, header.height, branch
         )
         if logs is None:
             return None
