@@ -1191,7 +1191,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             results = []
             for response in responses:
                 results.append(json.loads(response))
-
             self.assertEqual(results[0]["result"], 0)  # subscription id
             self.assertEqual(results[0]["id"], 3)
 
@@ -1224,8 +1223,32 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             results = []
             for response in responses:
                 results.append(json.loads(response))
-
             self.assertEqual(results[0]["result"], 0)
             self.assertEqual(results[0]["id"], 6)
             self.assertEqual(results[1]["params"]["subscription"], results[0]["result"])
             self.assertTrue(results[1]["params"]["result"], tx.get_hash())
+
+    def test_invalid_subscription(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38599
+        ):
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newBlocks", "0x00000002"],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2, port=38599)
+            self.assertRaises(ValueError)
+
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+            self.assertTrue(results[1]["error"])

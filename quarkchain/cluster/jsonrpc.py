@@ -1393,7 +1393,12 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
-        self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+        self.subscribers = {
+            "newHeads": [],
+            "logs": [],
+            "newPendingTransactions": [],
+            "syncing": [],
+        }
 
     async def __handle(self, websocket, path):
         sub_id = 0
@@ -1422,8 +1427,6 @@ class JSONRPCWebsocketServer:
                 Logger.error(response)
             if not response.is_notification:
                 await websocket.send(json.dumps(response))
-            if not response["result"]:
-                break
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1443,7 +1446,7 @@ class JSONRPCWebsocketServer:
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, context):
         if context is None or full_shard_id is None:
-            return None
+            raise ValueError("Unexpected subscription request")
 
         websocket = context["websocket"]
         sub_id = context["sub_id"]
