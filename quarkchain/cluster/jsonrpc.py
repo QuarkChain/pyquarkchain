@@ -1393,7 +1393,12 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
-        self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+        self.subscribers = {
+            "newHeads": [],
+            "logs": [],
+            "newPendingTransactions": [],
+            "syncing": [],
+        }
 
     async def __handle(self, websocket, path):
         sub_id = 0
@@ -1452,6 +1457,7 @@ class JSONRPCWebsocketServer:
         if not shard:
             return None
 
+        self.subscribers[sub_type].append(sub_id)
         if sub_type == "newHeads":
             await self.fetch_new_head(sub_id, shard, websocket)
         elif sub_type == "logs":
@@ -1460,7 +1466,6 @@ class JSONRPCWebsocketServer:
             await self.fetch_sync_status(sub_id, shard, websocket)
         else:
             raise ValueError("Unrecognized subscription type")
-            self.subscribers[sub_type].append(sub_id)
 
     async def fetch_new_head(self, sub_id, shard, websocket):
         last_header = None
