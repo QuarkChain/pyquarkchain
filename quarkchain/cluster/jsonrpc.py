@@ -432,6 +432,27 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
     return address_decoder("0x" + eth_hex + full_shard_key_hex)
 
 
+def _parse_log_request(
+    params: Dict, addr_decoder: Callable[[str], bytes]
+) -> (bytes, bytes):
+    """Returns addresses and topics from a EVM log request."""
+    addresses, topics = [], []
+    if "address" in params:
+        if isinstance(params["address"], str):
+            addresses = [Address.deserialize(addr_decoder(params["address"]))]
+        elif isinstance(params["address"], list):
+            addresses = [
+                Address.deserialize(addr_decoder(a)) for a in params["address"]
+            ]
+    if "topics" in params:
+        for topic_item in params["topics"]:
+            if isinstance(topic_item, str):
+                topics.append([data_decoder(topic_item)])
+            elif isinstance(topic_item, list):
+                topics.append([data_decoder(tp) for tp in topic_item])
+    return addresses, topics
+
+
 public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
@@ -1281,21 +1302,9 @@ class JSONRPCHttpServer:
             isinstance(end_block, str) and end_block != "latest"
         ):
             return None
-        # parse addresses / topics
-        addresses, topics = [], []
-        if "address" in data:
-            if isinstance(data["address"], str):
-                addresses = [Address.deserialize(decoder(data["address"]))]
-            elif isinstance(data["address"], list):
-                addresses = [Address.deserialize(decoder(a)) for a in data["address"]]
+        addresses, topics = _parse_log_request(data, decoder)
         if full_shard_key is not None:
             addresses = [Address(a.recipient, full_shard_key) for a in addresses]
-        if "topics" in data:
-            for topic_item in data["topics"]:
-                if isinstance(topic_item, str):
-                    topics.append([data_decoder(topic_item)])
-                elif isinstance(topic_item, list):
-                    topics.append([data_decoder(tp) for tp in topic_item])
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
@@ -1396,7 +1405,12 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
-        self.subscribers = {"logs": [], "newPendingTransactions": [], "syncing": []}
+        self.subscribers = {
+            "newHeads": [],
+            "logs": [],
+            "newPendingTransactions": [],
+            "syncing": [],
+        }
 
     async def __handle(self, websocket, path):
         sub_id = 0
@@ -1415,14 +1429,11 @@ class JSONRPCWebsocketServer:
                 self.counters[method] = 1
 
             msg_id = d.get("id", 0)
-            response = await self.handlers.dispatch(
+            await self.handlers.dispatch(
                 message,
                 context={"websocket": websocket, "sub_id": sub_id, "msg_id": msg_id},
             )
             sub_id += 1
-
-            if not response["result"]:
-                break
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1439,9 +1450,8 @@ class JSONRPCWebsocketServer:
         await websocket.send(json.dumps(response))
 
     @public_methods.add
-    async def subscribe(self, sub_type, full_shard_id, context):
-        if context is None or full_shard_id is None:
-            return None
+    async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
+        assert context is not None and full_shard_id is not None
         websocket = context["websocket"]
         sub_id = context["sub_id"]
         msg_id = context["msg_id"]
@@ -1454,11 +1464,17 @@ class JSONRPCWebsocketServer:
         if not shard:
             return None
 
+        self.subscribers[sub_type].append(sub_id)
         if sub_type == "newHeads":
-            await self.fetch_new_head(sub_id, shard, websocket)
+            asyncio.ensure_future(self.fetch_new_head(sub_id, shard, websocket))
+        elif sub_type == "logs":
+            asyncio.ensure_future(
+                self.fetch_logs(sub_id, full_shard_id, params, websocket)
+            )
+        elif sub_type == "syncing":
+            asyncio.ensure_future(self.fetch_sync_status(sub_id, shard, websocket))
         else:
-            print("other types of subscription")
-            self.subscribers[sub_type].append(sub_id)
+            raise ValueError("Unrecognized subscription type")
 
     async def fetch_new_head(self, sub_id, shard, websocket):
         last_header = None
@@ -1472,6 +1488,54 @@ class JSONRPCWebsocketServer:
                 await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
+
+    async def fetch_logs(self, sub_id, full_shard_id, params, websocket):
+        addresses, topics = _parse_log_request(params, address_decoder)
+        if full_shard_id is not None:
+            addresses = [Address(a.recipient, full_shard_id) for a in addresses]
+
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
+        while True:
+            header = shard.state.header_tip
+            logs = self.slave.get_logs(
+                addresses, topics, header.height, header.height, branch
+            )
+            if logs is None:
+                return None
+            log_list = loglist_encoder(logs)
+            for log in log_list:
+                response = self.response_transcoder(log, sub_id)
+                await websocket.send(json.dumps(response))
+            await asyncio.sleep(1)
+
+    async def fetch_sync_status(self, sub_id, shard, websocket):
+        def resp_transcoder(sub_id, syncing, queue):
+            if not syncing:
+                return {
+                    "jsonrpc": "2.0",
+                    "subscription": sub_id,
+                    "result": {"syncing": syncing},
+                }
+
+            return {
+                "jsonrpc": "2.0",
+                "subscription": sub_id,
+                "result": {
+                    "syncing": syncing,
+                    "status": {
+                        "startingBlock": shard.state.header_tip,
+                        "highestBlock": max(h.height for h, _ in queue),
+                    },
+                },
+            }
+
+        while True:
+            syncing = shard.synchronizer.running
+            queue = shard.synchronizer.queue
+            response = resp_transcoder(sub_id, syncing, queue)
+            await websocket.send(json.dumps(response))
+            await asyncio.sleep(10)
 
     @staticmethod
     def response_transcoder(result, sub_id):
