@@ -432,6 +432,27 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
     return address_decoder("0x" + eth_hex + full_shard_key_hex)
 
 
+def _parse_log_request(
+    params: Dict, addr_decoder: Callable[[str], bytes]
+) -> (bytes, bytes):
+    """Returns addresses and topics from a EVM log request."""
+    addresses, topics = [], []
+    if "address" in params:
+        if isinstance(params["address"], str):
+            addresses = [Address.deserialize(addr_decoder(params["address"]))]
+        elif isinstance(params["address"], list):
+            addresses = [
+                Address.deserialize(addr_decoder(a)) for a in params["address"]
+            ]
+    if "topics" in params:
+        for topic_item in params["topics"]:
+            if isinstance(topic_item, str):
+                topics.append([data_decoder(topic_item)])
+            elif isinstance(topic_item, list):
+                topics.append([data_decoder(tp) for tp in topic_item])
+    return addresses, topics
+
+
 public_methods = AsyncMethods()
 private_methods = AsyncMethods()
 
@@ -1281,21 +1302,9 @@ class JSONRPCHttpServer:
             isinstance(end_block, str) and end_block != "latest"
         ):
             return None
-        # parse addresses / topics
-        addresses, topics = [], []
-        if "address" in data:
-            if isinstance(data["address"], str):
-                addresses = [Address.deserialize(decoder(data["address"]))]
-            elif isinstance(data["address"], list):
-                addresses = [Address.deserialize(decoder(a)) for a in data["address"]]
+        addresses, topics = _parse_log_request(data, decoder)
         if full_shard_key is not None:
             addresses = [Address(a.recipient, full_shard_key) for a in addresses]
-        if "topics" in data:
-            for topic_item in data["topics"]:
-                if isinstance(topic_item, str):
-                    topics.append([data_decoder(topic_item)])
-                elif isinstance(topic_item, list):
-                    topics.append([data_decoder(tp) for tp in topic_item])
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
@@ -1445,9 +1454,7 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
-        if context is None or full_shard_id is None:
-            raise ValueError("Unexpected subscription request")
-            return
+        assert context is not None and full_shard_id is not None
         websocket = context["websocket"]
         sub_id = context["sub_id"]
         msg_id = context["msg_id"]
@@ -1484,23 +1491,9 @@ class JSONRPCWebsocketServer:
             await asyncio.sleep(0.5)
 
     async def fetch_logs(self, sub_id, full_shard_id, params, websocket):
-        decoder = address_decoder
-
-        # parse addresses / topics
-        addresses, topics = [], []
-        if "address" in params:
-            if isinstance(params["address"], str):
-                addresses = [Address.deserialize(decoder(params["address"]))]
-            elif isinstance(params["address"], list):
-                addresses = [Address.deserialize(decoder(a)) for a in params["address"]]
+        addresses, topics = _parse_log_request(params, address_decoder)
         if full_shard_id is not None:
             addresses = [Address(a.recipient, full_shard_id) for a in addresses]
-        if "topics" in params:
-            for topic_item in params["topics"]:
-                if isinstance(topic_item, str):
-                    topics.append([data_decoder(topic_item)])
-                elif isinstance(topic_item, list):
-                    topics.append([data_decoder(tp) for tp in topic_item])
 
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
@@ -1520,6 +1513,12 @@ class JSONRPCWebsocketServer:
         syncing = shard.synchronizer.running
         queue = shard.synchronizer.queue
 
+        def find_highest_block(queue):
+            block_height_list = []
+            for header, shard_conn in queue:
+                block_height_list.append(header.height)
+            return max(block_height_list)
+
         def resp_transcoder(sub_id, syncing, queue):
             if not syncing:
                 return {
@@ -1535,7 +1534,7 @@ class JSONRPCWebsocketServer:
                     "syncing": syncing,
                     "status": {
                         "startingBlock": queue[0][0].height,
-                        "highestBlock": queue[0][0].height + len(queue) - 1,
+                        "highestBlock": find_highest_block(queue),
                     },
                 },
             }
