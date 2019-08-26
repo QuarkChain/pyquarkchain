@@ -1,5 +1,5 @@
 CC=g++
-CFLAGS=-Wall -O3 -std=c++17
+CFLAGS=-Wall -O3 -std=c++11
 
 all: qkchash libqkchash.so qkchash_llrb
 

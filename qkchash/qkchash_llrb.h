@@ -14,7 +14,7 @@ template <typename T>
 class LLRB {
 
 private:
-    const uint32_t NULL_IDX = 0xFFFFFFFF;
+    static const uint32_t NULL_IDX = 0xFFFFFFFF;
     struct Node {
         T value;
         uint32_t left;
@@ -40,16 +40,18 @@ public:
         }
     }
 
-    LLRB<T>& operator=(LLRB<T>&& other) {
-        arenaBase_ = other.arenaBase_;
-        arenaSize_ = other.arenaSize_;
-        capacity_ = other.capacity_;
-        root_ = other.root_;
-        freeList_ = std::move(other.freeList_);
-        return *this;
-    };
-    LLRB<T>& operator=(const LLRB<T>& other)  = delete;
-    LLRB<T>(LLRB<T>&& o) = default;
+    LLRB<T>& operator=(const LLRB<T>& other) = default;
+
+    // For C++17
+    // LLRB<T>& operator=(LLRB<T>&& other) {
+    //     arenaBase_ = other.arenaBase_;
+    //     arenaSize_ = other.arenaSize_;
+    //     capacity_ = other.capacity_;
+    //     root_ = other.root_;
+    //     freeList_ = std::move(other.freeList_);
+    //     return *this;
+    // };
+    // LLRB<T>(LLRB<T>&& o) = default;
 
     void insert(T value) {
         Node* n = insert(getNode(root_), value);
@@ -156,8 +158,8 @@ private:
     uint32_t root_;
     std::vector<uint32_t> freeList_;
 
-    const bool RED = true;
-    const bool BLACK = false;
+    static const bool RED = true;
+    static const bool BLACK = false;
 
     void print(uint32_t idx) {
         Node* n = getNode(idx);
