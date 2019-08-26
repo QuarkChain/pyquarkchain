@@ -8,7 +8,6 @@ contract RootChainPoSWStaking {
         bool unlocked;
         uint256 withdrawableTimestamp;
         uint256 amount;
-        //
         address minerAddress;
     }
 
