@@ -1497,28 +1497,20 @@ class JSONRPCWebsocketServer:
 
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
-        header = shard.state.header_tip
-
-        logs = self.slave.get_logs(
-            addresses, topics, header.height, header.height, branch
-        )
-        if logs is None:
-            return None
-        log_list = loglist_encoder(logs)
-        for log in log_list:
-            response = self.response_transcoder(log, sub_id)
-            await websocket.send(json.dumps(response))
+        while True:
+            header = shard.state.header_tip
+            logs = self.slave.get_logs(
+                addresses, topics, header.height, header.height, branch
+            )
+            if logs is None:
+                return None
+            log_list = loglist_encoder(logs)
+            for log in log_list:
+                response = self.response_transcoder(log, sub_id)
+                await websocket.send(json.dumps(response))
+            await asyncio.sleep(1)
 
     async def fetch_sync_status(self, sub_id, shard, websocket):
-        syncing = shard.synchronizer.running
-        queue = shard.synchronizer.queue
-
-        def find_highest_block(queue):
-            block_height_list = []
-            for header, shard_conn in queue:
-                block_height_list.append(header.height)
-            return max(block_height_list)
-
         def resp_transcoder(sub_id, syncing, queue):
             if not syncing:
                 return {
@@ -1533,14 +1525,18 @@ class JSONRPCWebsocketServer:
                 "result": {
                     "syncing": syncing,
                     "status": {
-                        "startingBlock": queue[0][0].height,
-                        "highestBlock": find_highest_block(queue),
+                        "startingBlock": shard.state.header_tip,
+                        "highestBlock": max(h.height for h, _ in queue),
                     },
                 },
             }
 
-        response = resp_transcoder(sub_id, syncing, queue)
-        await websocket.send(json.dumps(response))
+        while True:
+            syncing = shard.synchronizer.running
+            queue = shard.synchronizer.queue
+            response = resp_transcoder(sub_id, syncing, queue)
+            await websocket.send(json.dumps(response))
+            await asyncio.sleep(0.5)
 
     @staticmethod
     def response_transcoder(result, sub_id):
