@@ -842,10 +842,11 @@ class GasPriceResponse(Serializable):
 
 
 class GetWorkRequest(Serializable):
-    FIELDS = [("branch", Branch)]
+    FIELDS = [("branch", Branch), ("coinbase_addr", Optional(Address))]
 
-    def __init__(self, branch: Branch):
+    def __init__(self, branch: Branch, coinbase_addr: typing.Optional[Address]):
         self.branch = branch
+        self.coinbase_addr = coinbase_addr
 
 
 class GetWorkResponse(Serializable):

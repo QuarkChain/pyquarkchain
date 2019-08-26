@@ -47,14 +47,10 @@ config.log_responses = False
 EMPTY_TX_ID = "0x" + "0" * Constant.TX_ID_HEX_LENGTH
 
 
-def optional_quantity_decoder(optional_hex_str):
-    if optional_hex_str is None:
-        return None
-    return quantity_decoder(optional_hex_str)
-
-
-def quantity_decoder(hex_str):
+def quantity_decoder(hex_str, allow_optional=False):
     """Decode `hexStr` representing a quantity."""
+    if allow_optional and hex_str is None:
+        return None
     # must start with "0x"
     if not hex_str.startswith("0x") or len(hex_str) < 3:
         raise InvalidParams("Invalid quantity encoding")
@@ -100,8 +96,10 @@ def address_encoder(addr_bytes):
     return data_encoder(addr_bytes)
 
 
-def recipient_decoder(hex_str):
+def recipient_decoder(hex_str, allow_optional=False):
     """Decode an recipient from hex with 0x prefix to 20 bytes."""
+    if allow_optional and hex_str is None:
+        return None
     recipient_bytes = data_decoder(hex_str)
     if len(recipient_bytes) not in (20, 0):
         raise InvalidParams("Addresses must be 20 or 0 bytes long")
@@ -369,13 +367,17 @@ def balances_encoder(balances: TokenBalanceMap) -> List[Dict]:
     return balance_list
 
 
-def decode_arg(name, decoder):
+def decode_arg(name, decoder, allow_optional=False):
     """Create a decorator that applies `decoder` to argument `name`."""
 
     @decorator
     def new_f(f, *args, **kwargs):
         call_args = inspect.getcallargs(f, *args, **kwargs)
-        call_args[name] = decoder(call_args[name])
+        call_args[name] = (
+            decoder(call_args[name], allow_optional=True)
+            if allow_optional
+            else decoder(call_args[name])
+        )
         return f(**call_args)
 
     return new_f
@@ -871,7 +873,7 @@ class JSONRPCServer:
     @decode_arg("address", address_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
-    @decode_arg("transfer_token_id", optional_quantity_decoder)
+    @decode_arg("transfer_token_id", quantity_decoder, allow_optional=True)
     async def getTransactionsByAddress(
         self, address, start="0x", limit="0xa", transfer_token_id=None
     ):
@@ -937,7 +939,8 @@ class JSONRPCServer:
 
     @public_methods.add
     @decode_arg("full_shard_key", shard_id_decoder)
-    async def getWork(self, full_shard_key):
+    @decode_arg("coinbase_addr", recipient_decoder, allow_optional=True)
+    async def getWork(self, full_shard_key, coinbase_addr=None):
         branch = None  # `None` means getting work from root chain
         if full_shard_key is not None:
             branch = Branch(
@@ -945,7 +948,7 @@ class JSONRPCServer:
                     full_shard_key
                 )
             )
-        ret = await self.master.get_work(branch)
+        ret = await self.master.get_work(branch, coinbase_addr)
         if ret is None:
             return None
         return [

@@ -630,8 +630,10 @@ class SlaveConnection(ClusterConnection):
         _, resp, _ = await self.write_rpc_request(ClusterOp.GAS_PRICE_REQUEST, request)
         return resp.result if resp.error_code == 0 else None
 
-    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
-        request = GetWorkRequest(branch)
+    async def get_work(
+        self, branch: Branch, coinbase_addr: Optional[Address]
+    ) -> Optional[MiningWork]:
+        request = GetWorkRequest(branch, coinbase_addr)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_WORK_REQUEST, request)
         get_work_resp = resp  # type: GetWorkResponse
         if get_work_resp.error_code != 0:
@@ -734,13 +736,9 @@ class MasterServer:
         self.__init_root_miner()
 
     def __init_root_miner(self):
-        miner_address = Address.create_from(
-            self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
-        )
-
-        async def __create_block(retry=True):
+        async def __create_block(coinbase_addr: Address, retry=True):
             while True:
-                block = await self.__create_root_block_to_mine(address=miner_address)
+                block = await self.__create_root_block_to_mine(coinbase_addr)
                 if block:
                     return block
                 if not retry:
@@ -1538,15 +1536,23 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         return await slave.gas_price(branch, token_id)
 
-    async def get_work(self, branch: Optional[Branch]) -> Optional[MiningWork]:
+    async def get_work(
+        self, branch: Optional[Branch], recipient: Optional[bytes]
+    ) -> Optional[MiningWork]:
+        coinbase_addr = None
+        if recipient is not None:
+            coinbase_addr = Address(recipient, branch.value if branch else 0)
         if not branch:  # get root chain work
-            work, _ = await self.root_miner.get_work()
+            default_addr = Address.create_from(
+                self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
+            )
+            work, _ = await self.root_miner.get_work(coinbase_addr or default_addr)
             return work
 
         if branch.value not in self.branch_to_slaves:
             return None
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_work(branch)
+        return await slave.get_work(branch, coinbase_addr)
 
     async def submit_work(
         self,
