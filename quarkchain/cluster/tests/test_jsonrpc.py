@@ -34,8 +34,6 @@ from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
 
-import websockets
-from jsonrpcclient.websockets_client import WebSocketsClient
 
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
@@ -1243,12 +1241,11 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                 "params": ["newBlocks", "0x00000002"],
                 "id": 3,
             }
-            responses = send_websocket_request(json.dumps(request), 2, port=38599)
-            self.assertRaises(ValueError)
 
+            responses = send_websocket_request(json.dumps(request), 2, port=38599)
             results = []
             for response in responses:
                 results.append(json.loads(response))
             self.assertEqual(results[0]["result"], 0)  # subscription id
             self.assertEqual(results[0]["id"], 3)
-            self.assertTrue(results[1]["error"])
+            self.assertTrue(results[1]["error"])  # error message

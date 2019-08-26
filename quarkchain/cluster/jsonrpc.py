@@ -32,7 +32,7 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
-
+from cachetools import LRUCache
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1386,6 +1386,7 @@ class JSONRPCWebsocketServer:
         self.env = env
         self.slave = slave_server
         self.counters = dict()
+        self.pending_tx_cache = LRUCache(maxsize=1024)
 
         # Bind RPC handler functions to this instance
         self.handlers = AsyncMethods()
@@ -1488,15 +1489,17 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def get_new_pending_transactions(self, sub_id, shard, websocket):
-        all_pending_txs = set()
-
         while True:
-            if len(shard.state.tx_queue.txs) > 0:
-                for orderable_tx in shard.state.tx_queue.txs:
-                    tx = orderable_tx.tx
-                    tx_hash = tx.hash
-                    if tx_hash not in all_pending_txs:
-                        all_pending_txs.add(tx_hash)
+            tx_queue = shard.state.tx_queue.txs
+            tx_queue_length = len(tx_queue)
+            if tx_queue_length > 0:
+                if tx_queue_length > self.pending_tx_cache.maxsize:
+                    self.pending_tx_cache = LRUCache(maxsize=tx_queue_length)
+
+                for tx in tx_queue:
+                    tx_hash = tx.tx.hash
+                    if tx_hash not in self.pending_tx_cache:
+                        self.pending_tx_cache[tx_hash] = 0
                         response = self.response_transcoder(
                             sub_id, data_encoder(tx_hash)
                         )
