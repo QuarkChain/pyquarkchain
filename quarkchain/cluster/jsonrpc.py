@@ -1451,9 +1451,6 @@ class JSONRPCWebsocketServer:
 
         websocket = context["websocket"]
         sub_id = context["sub_id"]
-        msg_id = context["msg_id"]
-        response = {"jsonrpc": "2.0", "result": sub_id, "id": msg_id}
-        await websocket.send(json.dumps(response))
 
         full_shard_id = shard_id_decoder(full_shard_id)
         branch = Branch(full_shard_id)
@@ -1462,15 +1459,19 @@ class JSONRPCWebsocketServer:
             return None
 
         if sub_type == "newHeads":
-            await self.get_new_heads(sub_id, shard, websocket)
+            asyncio.create_task(self.get_new_heads(sub_id, shard, websocket))
         elif sub_type == "logs":
-            await self.get_logs(sub_id, shard, websocket)
+            asyncio.create_task(self.get_logs(sub_id, shard, websocket))
         elif sub_type == "newPendingTransactions":
-            await self.get_new_pending_transactions(sub_id, shard, websocket)
+            asyncio.create_task(
+                self.get_new_pending_transactions(sub_id, shard, websocket)
+            )
         elif sub_type == "syncing":
-            await self.get_syncing(sub_id, shard, websocket)
+            asyncio.create_task(self.get_syncing(sub_id, shard, websocket))
         else:
             raise ValueError("Unrecognized subscription type")
+
+        return sub_id
 
     @public_methods.add
     async def get_new_heads(self, sub_id, shard, websocket):
