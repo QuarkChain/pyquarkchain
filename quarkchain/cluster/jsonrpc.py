@@ -1429,14 +1429,11 @@ class JSONRPCWebsocketServer:
                 self.counters[method] = 1
 
             msg_id = d.get("id", 0)
-            response = await self.handlers.dispatch(
+            await self.handlers.dispatch(
                 message,
                 context={"websocket": websocket, "sub_id": sub_id, "msg_id": msg_id},
             )
             sub_id += 1
-
-            if not response["result"]:
-                break
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1469,11 +1466,13 @@ class JSONRPCWebsocketServer:
 
         self.subscribers[sub_type].append(sub_id)
         if sub_type == "newHeads":
-            await self.fetch_new_head(sub_id, shard, websocket)
+            asyncio.ensure_future(self.fetch_new_head(sub_id, shard, websocket))
         elif sub_type == "logs":
-            await self.fetch_logs(sub_id, full_shard_id, params, websocket)
+            asyncio.ensure_future(
+                self.fetch_logs(sub_id, full_shard_id, params, websocket)
+            )
         elif sub_type == "syncing":
-            await self.fetch_sync_status(sub_id, shard, websocket)
+            asyncio.ensure_future(self.fetch_sync_status(sub_id, shard, websocket))
         else:
             raise ValueError("Unrecognized subscription type")
 
@@ -1536,7 +1535,7 @@ class JSONRPCWebsocketServer:
             queue = shard.synchronizer.queue
             response = resp_transcoder(sub_id, syncing, queue)
             await websocket.send(json.dumps(response))
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(10)
 
     @staticmethod
     def response_transcoder(result, sub_id):
