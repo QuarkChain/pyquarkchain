@@ -1457,7 +1457,7 @@ class JSONRPCWebsocketServer:
         }
 
     @public_methods.add
-    async def subscribe(self, sub_type, full_shard_id, context=None):
+    async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
         assert context is not None and full_shard_id is not None
         websocket = context["websocket"]
         sub_id = context["sub_id"]
@@ -1472,7 +1472,7 @@ class JSONRPCWebsocketServer:
         if sub_type == "newHeads":
             asyncio.create_task(self.get_new_heads(sub_id, shard, websocket))
         elif sub_type == "logs":
-            asyncio.create_task(self.get_logs(sub_id, shard, websocket))
+            asyncio.create_task(self.get_logs(sub_id, full_shard_id, params, websocket))
         elif sub_type == "newPendingTransactions":
             asyncio.create_task(
                 self.get_new_pending_transactions(sub_id, shard, websocket)
@@ -1535,7 +1535,7 @@ class JSONRPCWebsocketServer:
                 return None
             log_list = loglist_encoder(logs)
             for log in log_list:
-                response = self.response_transcoder(log, sub_id)
+                response = self.response_transcoder(sub_id, log)
                 await websocket.send(json.dumps(response))
             await asyncio.sleep(1)
 
