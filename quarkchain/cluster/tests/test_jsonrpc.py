@@ -1242,10 +1242,8 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                 "id": 3,
             }
 
-            responses = send_websocket_request(json.dumps(request), 2, port=38599)
+            responses = send_websocket_request(json.dumps(request), 1, port=38599)
             results = []
             for response in responses:
                 results.append(json.loads(response))
-            self.assertEqual(results[0]["result"], 0)  # subscription id
-            self.assertEqual(results[0]["id"], 3)
-            self.assertTrue(results[1]["error"])  # error message
+            self.assertTrue(results[0]["error"])  # error message
