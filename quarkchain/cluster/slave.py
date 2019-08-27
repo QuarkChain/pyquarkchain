@@ -561,7 +561,7 @@ class MasterConnection(ClusterConnection):
             req.address, req.minor_block_hash
         )
         if res is None:
-            return GetRootChainStakesResponse(error_code=errno.EBADMSG)
+            return GetRootChainStakesResponse(error_code=errno.EINVAL)
         stakes, signer = res
         return GetRootChainStakesResponse(0, stakes, signer)
 

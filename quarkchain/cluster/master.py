@@ -1252,12 +1252,9 @@ class MasterServer:
             adjusted_diff = Guardian.adjust_difficulty(
                 r_header.difficulty, r_header.height
             )
-        else:
-            enable_ts = (
-                self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
-            )  # same time as enabling EVM
-            if enable_ts is None or r_block.header.create_time >= enable_ts:
-                adjusted_diff = await self.posw_diff_adjust(r_block)
+        elif self._should_apply_posw(r_block):
+            # TODO: should handle diff is `None` case. panic? retry?
+            adjusted_diff = await self.posw_diff_adjust(r_block)
 
         try:
             update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
@@ -1642,7 +1639,13 @@ class MasterServer:
             default_addr = Address.create_from(
                 self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
             )
-            work, _ = await self.root_miner.get_work(coinbase_addr or default_addr)
+            work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
+            if self._should_apply_posw(block):
+                check(isinstance(block, RootBlock))
+                diff = await self.posw_diff_adjust(block)
+                # TODO: should handle diff is `None` case. panic? retry?
+                if diff is not None and diff != work.difficulty:
+                    work = MiningWork(work.hash, work.height, diff)
             return work
 
         if branch.value not in self.branch_to_slaves:
@@ -1712,6 +1715,12 @@ class MasterServer:
             )
 
         return ret
+
+    def _should_apply_posw(self, block: RootBlock) -> bool:
+        enable_ts = (
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+        )  # same time as enabling EVM
+        return enable_ts is None or block.header.create_time >= enable_ts
 
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
         posw_info = await self._posw_info(block)
