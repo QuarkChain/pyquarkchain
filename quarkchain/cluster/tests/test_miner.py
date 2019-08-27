@@ -7,9 +7,11 @@ from typing import Optional
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import DoubleSHA256, Miner, MiningWork, validate_seal
 from quarkchain.config import ConsensusType
-from quarkchain.core import RootBlock, RootBlockHeader
+from quarkchain.core import RootBlock, RootBlockHeader, Address
 from quarkchain.p2p import ecies
 from quarkchain.utils import sha3_256
+
+EMPTY_ADDR = Address.create_empty_account()
 
 
 class TestMiner(unittest.TestCase):
@@ -42,7 +44,7 @@ class TestMiner(unittest.TestCase):
         return ret
 
     def test_mine_new_block_normal_case(self):
-        async def create(retry=True):
+        async def create(coinbase_addr=None, retry=True):
             if len(self.added_blocks) >= 5:
                 return None  # stop the game
             return RootBlock(
@@ -68,7 +70,7 @@ class TestMiner(unittest.TestCase):
     def test_simulate_mine_handle_block_exception(self):
         i = 0
 
-        async def create(retry=True):
+        async def create(coibase_addr=None, retry=True):
             nonlocal i
             if i >= 5:
                 return None
@@ -136,7 +138,7 @@ class TestMiner(unittest.TestCase):
         async def go():
             miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
             with self.assertRaises(ValueError):
-                await miner.get_work()
+                await miner.get_work(EMPTY_ADDR)
             with self.assertRaises(ValueError):
                 await miner.submit_work(b"", 42, b"")
 
@@ -147,10 +149,11 @@ class TestMiner(unittest.TestCase):
         now, height = 42, 42
         mock_tip = RootBlockHeader(height=height)
 
-        async def create(**kwargs):
+        async def create(coinbase_addr, **kwargs):
             nonlocal now, mock_tip
             return RootBlock(
                 RootBlockHeader(
+                    coinbase_address=coinbase_addr,
                     create_time=now,
                     extra_data=b"{}",
                     hash_prev_block=mock_tip.get_hash(),
@@ -169,37 +172,39 @@ class TestMiner(unittest.TestCase):
         async def go():
             nonlocal now, mock_tip
             # no current work, will generate a new one
-            work, _ = await miner.get_work(now=now)
+            work, block = await miner.get_work(EMPTY_ADDR, now=now)
             self.assertEqual(len(work), 3)
+            self.assertEqual(
+                block.header.coinbase_address, Address.create_empty_account()
+            )
             self.assertEqual(len(miner.work_map), 1)
             h = list(miner.work_map.keys())[0]
             self.assertEqual(work.hash, h)
             # cache hit and new block is linked to tip (by default)
             now += 1
-            work, _ = await miner.get_work(now=now)
+            work, _ = await miner.get_work(EMPTY_ADDR, now=now)
             self.assertEqual(work.hash, h)
             self.assertEqual(work.height, 43)
             self.assertEqual(len(miner.work_map), 1)
             # cache hit, but current work is outdated because tip has updated
             mock_tip.height += 1
-            work, _ = await miner.get_work(now=now)
+            work, _ = await miner.get_work(EMPTY_ADDR, now=now)
             h = work.hash
             self.assertEqual(len(miner.work_map), 2)
             self.assertEqual(work.height, 44)
-            self.assertEqual(
-                miner.current_work.header.hash_prev_block, mock_tip.get_hash()
-            )
             # new work if interval passed
-            now += 10
-            work, _ = await miner.get_work(now=now)
+            now += 11
+            work, _ = await miner.get_work(EMPTY_ADDR, now=now)
             self.assertEqual(len(miner.work_map), 3)
             # height didn't change, but hash should
             self.assertNotEqual(work.hash, h)
             self.assertEqual(work.height, 44)
-            # work map cleaned up if too much time passed
-            now += 100
-            await miner.get_work(now=now)
-            self.assertEqual(len(miner.work_map), 1)  # only new work itself
+            # get work with specified coinbase address
+            addr = Address.create_random_account(0)
+            work, block = await miner.get_work(addr, now=now)
+            self.assertEqual(block.header.coinbase_address, addr)
+            self.assertEqual(len(miner.work_map), 4)
+            self.assertEqual(len(miner.current_works), 2)
 
         loop = asyncio.get_event_loop()
         loop.run_until_complete(go())
@@ -212,7 +217,7 @@ class TestMiner(unittest.TestCase):
             RootBlockHeader(create_time=42, extra_data=b"{}", difficulty=5)
         )
 
-        async def create(retry=True):
+        async def create(coinbase_addr=None, retry=True):
             nonlocal block, mock_tip
             ret = copy.deepcopy(block)
             ret.header.height = mock_tip.height + 1
@@ -231,7 +236,7 @@ class TestMiner(unittest.TestCase):
 
         async def go():
             nonlocal mock_tip
-            work, _ = await miner.get_work(now=now)
+            work, _ = await miner.get_work(EMPTY_ADDR, now=now)
             self.assertEqual(work.height, 43)
             self.assertEqual(work.difficulty, 5)
             # submitted block doesn't exist
@@ -252,7 +257,7 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(miner.work_map, {})
             # bring tip back and regenerate the work
             mock_tip.height -= 1
-            work, _ = await miner.get_work(now=now)
+            work, _ = await miner.get_work(EMPTY_ADDR, now=now)
             # valid submission, also check internal state afterwards
             res = await miner.submit_work(work.hash, sol, sha3_256(b""))
             self.assertTrue(res)
@@ -275,7 +280,7 @@ class TestMiner(unittest.TestCase):
         )
         priv = ecies.generate_privkey()
 
-        async def create(retry=True):
+        async def create(coinbase_addr=None, retry=True):
             return block
 
         async def add(block_to_add):
@@ -291,7 +296,7 @@ class TestMiner(unittest.TestCase):
 
         async def go():
             for i in range(42, 100):
-                work, _ = await miner.get_work(now=now)
+                work, _ = await miner.get_work(EMPTY_ADDR, now=now)
                 self.assertEqual(work.height, 0)
 
                 # guardian: diff 1000 -> 1, any number should work
@@ -314,7 +319,7 @@ class TestMiner(unittest.TestCase):
         )
         priv = ecies.generate_privkey()
 
-        async def create(retry=True):
+        async def create(coinbase_addr=None, retry=True):
             return block
 
         async def add(block_to_add):
@@ -331,7 +336,7 @@ class TestMiner(unittest.TestCase):
 
         async def go():
             for i in range(42, 100):
-                work, _ = await miner.get_work(now=now)
+                work, _ = await miner.get_work(EMPTY_ADDR, now=now)
                 self.assertEqual(work.height, 0)
 
                 # remote guardian: diff 1000 -> 1, any number should work

@@ -469,7 +469,7 @@ class Address(Serializable):
         return Address(bs[0:20], int.from_bytes(bs[20:], byteorder="big"))
 
     def is_empty(self):
-        return set(self.recipient) == {0}
+        return self.recipient == b"\x00" * 20
 
 
 class Branch(Serializable):
