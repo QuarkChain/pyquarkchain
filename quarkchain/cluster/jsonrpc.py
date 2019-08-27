@@ -32,7 +32,7 @@ from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
-
+from cachetools import LRUCache
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1398,6 +1398,7 @@ class JSONRPCWebsocketServer:
         self.env = env
         self.slave = slave_server
         self.counters = dict()
+        self.pending_tx_cache = LRUCache(maxsize=1024)
 
         # Bind RPC handler functions to this instance
         self.handlers = AsyncMethods()
@@ -1429,11 +1430,16 @@ class JSONRPCWebsocketServer:
                 self.counters[method] = 1
 
             msg_id = d.get("id", 0)
-            await self.handlers.dispatch(
+            response = await self.handlers.dispatch(
                 message,
                 context={"websocket": websocket, "sub_id": sub_id, "msg_id": msg_id},
             )
             sub_id += 1
+
+            if "error" in response:
+                Logger.error(response)
+            if not response.is_notification:
+                await websocket.send(json.dumps(response))
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1442,54 +1448,78 @@ class JSONRPCWebsocketServer:
     def shutdown(self):
         pass  # TODO
 
-    @public_methods.add
-    async def ping(self, context):
-        websocket = context["websocket"]
-        msg_id = context["msg_id"]
-        response = {"jsonrpc": "2.0", "result": "pong", "id": msg_id}
-        await websocket.send(json.dumps(response))
+    @staticmethod
+    def response_transcoder(sub_id, result):
+        return {
+            "jsonrpc": "2.0",
+            "method": "subscription",
+            "params": {"subscription": sub_id, "result": result},
+        }
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
         assert context is not None and full_shard_id is not None
         websocket = context["websocket"]
         sub_id = context["sub_id"]
-        msg_id = context["msg_id"]
-        response = {"jsonrpc": "2.0", "result": sub_id, "id": msg_id}
-        await websocket.send(json.dumps(response))
 
         full_shard_id = shard_id_decoder(full_shard_id)
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
         if not shard:
             return None
-
         self.subscribers[sub_type].append(sub_id)
+
         if sub_type == "newHeads":
-            asyncio.ensure_future(self.fetch_new_head(sub_id, shard, websocket))
+            asyncio.create_task(self.get_new_heads(sub_id, shard, websocket))
         elif sub_type == "logs":
-            asyncio.ensure_future(
-                self.fetch_logs(sub_id, full_shard_id, params, websocket)
+            asyncio.create_task(self.get_logs(sub_id, full_shard_id, params, websocket))
+        elif sub_type == "newPendingTransactions":
+            asyncio.create_task(
+                self.get_new_pending_transactions(sub_id, shard, websocket)
             )
         elif sub_type == "syncing":
-            asyncio.ensure_future(self.fetch_sync_status(sub_id, shard, websocket))
+            asyncio.create_task(self.get_syncing(sub_id, shard, websocket))
         else:
             raise ValueError("Unrecognized subscription type")
 
-    async def fetch_new_head(self, sub_id, shard, websocket):
+        return sub_id
+
+    @public_methods.add
+    async def get_new_heads(self, sub_id, shard, websocket):
         last_header = None
+
         while True:
             header = shard.state.header_tip
             if not last_header or header.height != last_header.height:
                 last_header = header
                 response = self.response_transcoder(
-                    minor_block_header_encoder(header), sub_id
+                    sub_id, minor_block_header_encoder(header)
                 )
                 await websocket.send(json.dumps(response))
 
             await asyncio.sleep(0.5)
 
-    async def fetch_logs(self, sub_id, full_shard_id, params, websocket):
+    @public_methods.add
+    async def get_new_pending_transactions(self, sub_id, shard, websocket):
+        while True:
+            tx_queue = shard.state.tx_queue.txs
+            tx_queue_length = len(tx_queue)
+            if tx_queue_length > 0:
+                if tx_queue_length > self.pending_tx_cache.maxsize:
+                    self.pending_tx_cache = LRUCache(maxsize=tx_queue_length)
+
+                for tx in tx_queue:
+                    tx_hash = tx.tx.hash
+                    if tx_hash not in self.pending_tx_cache:
+                        self.pending_tx_cache[tx_hash] = 0
+                        response = self.response_transcoder(
+                            sub_id, data_encoder(tx_hash)
+                        )
+                        await websocket.send(json.dumps(response))
+            await asyncio.sleep(0.5)
+
+    @public_methods.add
+    async def get_logs(self, sub_id, full_shard_id, params, websocket):
         addresses, topics = _parse_log_request(params, address_decoder)
         if full_shard_id is not None:
             addresses = [Address(a.recipient, full_shard_id) for a in addresses]
@@ -1505,11 +1535,12 @@ class JSONRPCWebsocketServer:
                 return None
             log_list = loglist_encoder(logs)
             for log in log_list:
-                response = self.response_transcoder(log, sub_id)
+                response = self.response_transcoder(sub_id, log)
                 await websocket.send(json.dumps(response))
             await asyncio.sleep(1)
 
-    async def fetch_sync_status(self, sub_id, shard, websocket):
+    @public_methods.add
+    async def get_syncing(self, sub_id, shard, websocket):
         def resp_transcoder(sub_id, syncing, queue):
             if not syncing:
                 return {
@@ -1536,12 +1567,3 @@ class JSONRPCWebsocketServer:
             response = resp_transcoder(sub_id, syncing, queue)
             await websocket.send(json.dumps(response))
             await asyncio.sleep(10)
-
-    @staticmethod
-    def response_transcoder(result, sub_id):
-
-        return {
-            "jsonrpc": "2.0",
-            "method": "subscription",
-            "params": {"subscription": sub_id, "result": result},
-        }
