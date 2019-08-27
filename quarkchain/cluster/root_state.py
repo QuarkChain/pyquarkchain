@@ -4,7 +4,6 @@ import time
 from fractions import Fraction
 from typing import Optional, List, Dict
 
-from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.core import (
     Address,
@@ -340,7 +339,9 @@ class RootState:
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         return block.finalize(coinbase_tokens=coinbase_tokens, coinbase_address=address)
 
-    def __validate_block_header(self, block_header: RootBlockHeader):
+    def __validate_block_header(
+        self, block_header: RootBlockHeader, adjusted_diff: int = None
+    ):
         """ Validate the block header.
         """
         height = block_header.height
@@ -379,18 +380,12 @@ class RootState:
             raise ValueError("extra_data in block is too large")
 
         # Check difficulty, potentially adjusted by guardian mechanism
-        adjusted_diff = None  # type: Optional[int]
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
             diff = self.diff_calc.calculate_diff_with_parent(
                 prev_block_header, block_header.create_time
             )
             if diff != block_header.difficulty:
                 raise ValueError("incorrect difficulty")
-            # lower the difficulty for root block signed by guardian
-            if block_header.verify_signature(
-                self.env.quark_chain_config.guardian_public_key
-            ):
-                adjusted_diff = Guardian.adjust_difficulty(diff, block_header.height)
 
         if (
             block_header.difficulty + prev_block_header.total_difficulty
@@ -401,7 +396,10 @@ class RootState:
         # Check PoW if applicable
         if not self.env.quark_chain_config.DISABLE_POW_CHECK:
             consensus_type = self.root_config.CONSENSUS_TYPE
-            validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
+            diff = (
+                adjusted_diff if adjusted_diff is not None else block_header.difficulty
+            )
+            validate_seal(block_header, consensus_type, adjusted_diff=diff)
 
         return block_header.get_hash()
 
@@ -414,10 +412,10 @@ class RootState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def validate_block(self, block):
+    def validate_block(self, block, adjusted_diff: int = None):
         """Raise on validation errors """
 
-        block_hash = self.__validate_block_header(block.header)
+        block_hash = self.__validate_block_header(block.header, adjusted_diff)
 
         if (
             len(block.tracking_data)
@@ -552,7 +550,9 @@ class RootState:
             self.db.put_root_block_index(block)
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
-    def add_block(self, block, write_db=True, skip_if_too_old=True):
+    def add_block(
+        self, block, write_db=True, skip_if_too_old=True, adjusted_diff: int = None
+    ):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
@@ -574,7 +574,9 @@ class RootState:
             )
 
         start_ms = time_ms()
-        block_hash, last_minor_block_header_list = self.validate_block(block)
+        block_hash, last_minor_block_header_list = self.validate_block(
+            block, adjusted_diff
+        )
 
         if write_db:
             self.db.put_root_block(block, last_minor_block_header_list)

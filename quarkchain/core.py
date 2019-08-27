@@ -7,7 +7,7 @@
 import argparse
 import random
 import typing
-from typing import List, Dict
+from typing import List, Dict, NamedTuple
 
 import ecdsa
 import rlp
@@ -40,6 +40,16 @@ class Constant:
     SIGNATURE_HEX_LENGTH = SIGNATURE_LENGTH * 2
     TX_ID_HEX_LENGTH = 72
     HASH_LENGTH = 32
+
+
+PoSWInfo = NamedTuple(
+    "PoSWInfo",
+    [
+        ("effective_difficulty", int),
+        ("posw_mineable_blocks", int),
+        ("posw_mined_blocks", int),
+    ],
+)
 
 
 class ByteBuffer:
