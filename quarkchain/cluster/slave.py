@@ -37,6 +37,8 @@ from quarkchain.cluster.rpc import (
     GetAllTransactionsResponse,
     GetMinorBlockRequest,
     MinorBlockExtraInfo,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -551,6 +553,14 @@ class MasterConnection(ClusterConnection):
             return SubmitWorkResponse(error_code=1, success=False)
 
         return SubmitWorkResponse(error_code=0, success=res)
+
+    async def handle_get_root_chain_stakes(
+        self, req: GetRootChainStakesRequest
+    ) -> GetRootChainStakesResponse:
+        stakes, signer = await self.slave_server.get_root_chain_stakes(
+            req.address, req.minor_block_hash
+        )
+        return GetRootChainStakesResponse(0, stakes, signer)
 
 
 MASTER_OP_NONRPC_MAP = {
@@ -1376,6 +1386,20 @@ class SlaveServer:
         except Exception:
             Logger.log_exception()
             return None
+
+    def get_root_chain_stakes(
+        self, address: Address, block_hash: bytes
+    ) -> (int, bytes):
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
+        # only applies to chain 0 shard 0
+        check(branch.value == 1)
+        shard = self.shards.get(branch, None)
+        check(shard is not None)
+        return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
 
 def parse_args():

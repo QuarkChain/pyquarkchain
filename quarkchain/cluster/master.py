@@ -3,7 +3,6 @@ import asyncio
 import os
 import cProfile
 import sys
-import time
 from fractions import Fraction
 
 import psutil
@@ -11,6 +10,7 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -79,6 +79,7 @@ from quarkchain.core import (
     TransactionReceipt,
     TypedTransaction,
     MinorBlock,
+    PoSWInfo,
 )
 from quarkchain.db import PersistentDb
 from quarkchain.env import DEFAULT_ENV
@@ -1238,15 +1239,25 @@ class MasterServer:
     def handle_new_root_block_header(self, header, peer):
         self.synchronizer.add_task(header, peer)
 
-    async def add_root_block(self, r_block):
+    async def add_root_block(self, r_block: RootBlock):
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
         # use write-ahead log so if crashed the root block can be re-broadcasted
         self.root_state.write_committing_hash(r_block.header.get_hash())
 
+        # lower the difficulty for root block signed by guardian
+        r_header, adjusted_diff = r_block.header, None
+        if r_header.verify_signature(self.env.quark_chain_config.guardian_public_key):
+            adjusted_diff = Guardian.adjust_difficulty(
+                r_header.difficulty, r_header.height
+            )
+        elif self._should_apply_posw(r_block):
+            # TODO: should handle diff is `None` case. panic? retry?
+            adjusted_diff = await self.posw_diff_adjust(r_block)
+
         try:
-            update_tip = self.root_state.add_block(r_block)
+            update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
         except ValueError as e:
             Logger.log_exception()
             raise e
@@ -1628,7 +1639,13 @@ class MasterServer:
             default_addr = Address.create_from(
                 self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
             )
-            work, _ = await self.root_miner.get_work(coinbase_addr or default_addr)
+            work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
+            if self._should_apply_posw(block):
+                check(isinstance(block, RootBlock))
+                diff = await self.posw_diff_adjust(block)
+                # TODO: should handle diff is `None` case. panic? retry?
+                if diff is not None and diff != work.difficulty:
+                    work = MiningWork(work.hash, work.height, diff)
             return work
 
         if branch.value not in self.branch_to_slaves:
@@ -1698,6 +1715,20 @@ class MasterServer:
             )
 
         return ret
+
+    def _should_apply_posw(self, block: RootBlock) -> bool:
+        enable_ts = (
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+        )  # same time as enabling EVM
+        return enable_ts is None or block.header.create_time >= enable_ts
+
+    async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
+        posw_info = await self._posw_info(block)
+        return posw_info and posw_info.effective_difficulty
+
+    async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
+        # TODO
+        return None
 
 
 def parse_args():

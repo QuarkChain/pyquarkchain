@@ -3,7 +3,7 @@ import json
 import time
 from collections import Counter, deque
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple, Union, NamedTuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from rlp import DecodingError
 
@@ -21,6 +21,7 @@ from quarkchain.core import (
     MinorBlock,
     MinorBlockHeader,
     MinorBlockMeta,
+    PoSWInfo,
     RootBlock,
     SerializedEvmTransaction,
     TokenBalanceMap,
@@ -55,16 +56,6 @@ class GasPriceSuggestionOracle:
         self.cache = LRUCache(maxsize=128)
         self.check_blocks = check_blocks
         self.percentile = percentile
-
-
-PoSWInfo = NamedTuple(
-    "PoSWInfo",
-    [
-        ("effective_difficulty", int),
-        ("posw_mineable_blocks", int),
-        ("posw_mined_blocks", int),
-    ],
-)
 
 
 class XshardTxCursor:
@@ -1865,3 +1856,9 @@ class ShardState:
             # for now extra info is only posw-related
             return block, None
         return block, self._posw_info(block)._asdict()
+
+    def get_root_chain_stakes(
+        self, recipient: bytes, block_hash: bytes
+    ) -> (int, bytes):
+        # TODO: impl
+        return 0, bytes(20)
