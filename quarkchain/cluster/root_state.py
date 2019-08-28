@@ -4,7 +4,10 @@ import time
 from fractions import Fraction
 from typing import Optional, List, Dict
 
+from eth_keys.datatypes import Signature
+
 from quarkchain.cluster.miner import validate_seal
+from quarkchain.config import POSWConfig
 from quarkchain.core import (
     Address,
     MinorBlockHeader,
@@ -14,10 +17,12 @@ from quarkchain.core import (
     Serializable,
     calculate_merkle_root,
     TokenBalanceMap,
+    PoSWInfo,
 )
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.evm.trie import BLANK_ROOT
 from cachetools import LRUCache
@@ -252,6 +257,8 @@ class RootState:
             env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
+        # header hash -> (height, [coinbase address]) during previous blocks (ascending)
+        self.coinbase_addr_cache = LRUCache(maxsize=128)
 
         self.tip = self.db.get_tip_header()  # type: RootBlockHeader
         if self.tip:
@@ -631,3 +638,41 @@ class RootState:
         return self.db.get_root_block_by_height(
             tip.height if height is None else height
         )
+
+    def get_last_confirmed_minor_block_header(
+        self, h, full_shard_id
+    ) -> Optional[MinorBlockHeader]:
+        headers = self.db.get_root_block_last_minor_block_header_list(h)
+        for header in headers:
+            if header.branch.get_full_shard_id() == full_shard_id:
+                return header
+        return None
+
+    def get_posw_info(
+        self, header: RootBlockHeader, stakes: int, signer: str
+    ) -> Optional[PoSWInfo]:
+        check(len(signer) == 42)  # format: 0x0000...
+        config = self.root_config.POSW_CONFIG  # type: POSWConfig
+        if config is None or not config.ENABLED:
+            return
+        # step 1: match signer with the signature
+        sig = Signature(header.signature)
+        pubk = sig.recover_public_key_from_msg_hash(header.get_hash_for_mining())
+        if pubk.to_address() != signer:
+            return None
+        # step 2: compare stakes with config
+        diff = header.difficulty
+        coinbase_recipient = header.coinbase_address.recipient
+        block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
+        block_threshold = min(config.WINDOW_SIZE, block_threshold)
+        block_cnt = get_posw_coinbase_blockcnt(
+            config,
+            self.coinbase_addr_cache,
+            header.hash_prev_block,
+            self.db.get_root_block_header_by_hash,
+        )
+        cnt = block_cnt.get(coinbase_recipient, 0)
+        if cnt < block_threshold:
+            diff //= config.DIFF_DIVIDER
+        # mined blocks should include current one
+        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)

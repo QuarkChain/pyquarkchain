@@ -10,6 +10,8 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+from eth_keys.datatypes import Signature
+
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -49,6 +51,8 @@ from quarkchain.cluster.rpc import (
     GetStorageRequest,
     GetCodeRequest,
     GasPriceRequest,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
     GetWorkRequest,
     GetWorkResponse,
     SubmitWorkRequest,
@@ -680,6 +684,17 @@ class SlaveConnection(ClusterConnection):
         )
         submit_work_resp = resp  # type: SubmitWorkResponse
         return submit_work_resp.error_code == 0 and submit_work_resp.success
+
+    async def get_root_chain_stakes(
+        self, address: Address, minor_block_hash: bytes
+    ) -> (int, str):
+        request = GetRootChainStakesRequest(address, minor_block_hash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST, request
+        )
+        root_chain_stakes_resp = resp  # type: GetRootChainStakesResponse
+        check(root_chain_stakes_resp.error_code != 0)
+        return root_chain_stakes_resp.stakes, "0x" + root_chain_stakes_resp.signer.hex()
 
     # RPC handlers
 
@@ -1643,7 +1658,6 @@ class MasterServer:
             if self._should_apply_posw(block):
                 check(isinstance(block, RootBlock))
                 diff = await self.posw_diff_adjust(block)
-                # TODO: should handle diff is `None` case. panic? retry?
                 if diff is not None and diff != work.difficulty:
                     work = MiningWork(work.hash, work.height, diff)
             return work
@@ -1720,15 +1734,30 @@ class MasterServer:
         enable_ts = (
             self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
         )  # same time as enabling EVM
-        return enable_ts is None or block.header.create_time >= enable_ts
+        return enable_ts and block.header.create_time >= enable_ts
 
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
+        """"Return None if PoSW check doesn't apply."""
         posw_info = await self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
 
     async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
-        # TODO
-        return None
+        addr = block.header.coinbase_address
+        # requires root block miner to specify chain 0 shard 0 when calculating stakes
+        full_shard_id = 1
+        check(full_shard_id in self.branch_to_slaves)
+
+        # get chain 0 shard 0's last confirmed block header
+        last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
+            block.header.hash_prev_block, full_shard_id
+        )
+        check(last_confirmed_minor_block_header is not None)
+
+        slave = self.branch_to_slaves[full_shard_id][0]
+        stakes, signer = await slave.get_root_chain_stakes(
+            addr, last_confirmed_minor_block_header.get_hash()
+        )
+        return self.root_state.get_posw_info(block.header, stakes, signer)
 
 
 def parse_args():

@@ -1,7 +1,6 @@
 import asyncio
 import json
 import time
-from collections import Counter, deque
 from fractions import Fraction
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -44,6 +43,7 @@ from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 from cachetools import LRUCache
@@ -1781,43 +1781,18 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
-    def __get_coinbase_addresses_until_block(self, header_hash: bytes) -> List[bytes]:
-        """Get coinbase addresses up until block of given hash within the window."""
-        header = self.db.get_minor_block_header_by_hash(header_hash)
-        length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
-        if not header:
-            raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
-        height = header.height
-        prev_hash = header.hash_prev_minor_block
-        cache = self.coinbase_addr_cache
-        if prev_hash in cache:  # mem cache hit
-            _, addrs = cache[prev_hash]
-            addrs = addrs.copy()
-            if len(addrs) == length:
-                addrs.popleft()
-            addrs.append(header.coinbase_address.recipient)
-        else:  # miss, iterating DB
-            addrs = deque()
-            for _ in range(length):
-                addrs.appendleft(header.coinbase_address.recipient)
-                if header.height == 0:
-                    break
-                header = self.db.get_minor_block_header_by_hash(
-                    header.hash_prev_minor_block
-                )
-                check(header is not None, "mysteriously missing block")
-        cache[header_hash] = (height, addrs)
-        check(len(addrs) <= length)
-        return list(addrs)
-
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash)
-        return Counter(coinbase_addrs)
+        return get_posw_coinbase_blockcnt(
+            self.shard_config.POSW_CONFIG,
+            self.coinbase_addr_cache,
+            header_hash,
+            self.db.get_minor_block_header_by_hash,
+        )
 
     def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
         """Take an additional recipient parameter and add its block count."""
