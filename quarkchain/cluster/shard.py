@@ -455,8 +455,6 @@ class Synchronizer:
 
 class Shard:
     def __init__(self, env, full_shard_id, slave):
-        from quarkchain.cluster.jsonrpc import SubscriptionManager
-
         self.env = env
         self.full_shard_id = full_shard_id
         self.slave = slave
@@ -475,7 +473,6 @@ class Shard:
         self.tx_generator = TransactionGenerator(self.env.quark_chain_config, self)
 
         self.__init_miner()
-        self.subscription_manager = SubscriptionManager()
 
     def __init_shard_db(self):
         """
@@ -671,9 +668,6 @@ class Shard:
             )
         )
 
-        asyncio.ensure_future(
-            self.subscription_manager.notify("newHeads", self.state.header_tip)
-        )
         self.broadcast_new_block(block)
         await self.add_block(block)
 
