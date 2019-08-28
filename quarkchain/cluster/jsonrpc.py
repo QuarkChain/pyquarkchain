@@ -33,7 +33,7 @@ from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 from cachetools import LRUCache
-from os import urandom
+import uuid
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1408,9 +1408,9 @@ class JSONRPCWebsocketServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
         self.shard_subscription_managers = self.slave.shard_subscription_managers
+        self.sub_ids = dict()  # Dict[sub_id, full_shard_id]
 
     async def __handle(self, websocket, path):
-        sub_ids = set()
         try:
             async for message in websocket:
                 Logger.info(message)
@@ -1433,19 +1433,22 @@ class JSONRPCWebsocketServer:
                 sub_id = response["result"]
 
                 if method == "subscribe":
-                    sub_ids.add(sub_id)
-                else:  # unsubscribe
-                    sub_ids.remove(sub_id)
+                    full_shard_id = shard_id_decoder(d.get("params")[1])
+                    self.sub_ids[sub_id] = full_shard_id
+                elif method == "unsubscribe":
+                    del self.sub_ids[sub_id]
 
                 if "error" in response:
                     Logger.error(response)
                 if not response.is_notification:
                     await websocket.send(json.dumps(response))
         finally:  # websocket connection terminates, remove all subscribers
-            for sub_id in sub_ids:
+            for sub_id, full_shard_id in self.sub_ids.items():
                 try:
-                    # remove sub_id， full_shard_id not known?
-                    pass
+                    shard_subscription_manager = self.shard_subscription_managers[
+                        full_shard_id
+                    ]
+                    shard_subscription_manager.remove_subscriber(sub_id)
                 except:
                     pass
 
@@ -1471,12 +1474,24 @@ class JSONRPCWebsocketServer:
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
         if not shard:
-            raise InvalidParams("Full shard id not found")
+            raise InvalidParams("Full shard ID not found")
 
         websocket = context["websocket"]
-        sub_id = urandom(16).hex()  # TODO: deal with random number collision
+        sub_id = "0x" + uuid.uuid4().hex
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
         shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
+
+        return sub_id
+
+    @public_methods.add
+    async def unsubscribe(self, sub_id, context=None):
+        assert context is not None and sub_id is not None
+        if sub_id not in self.sub_ids:
+            raise InvalidParams("Subscription ID not found")
+
+        full_shard_id = self.sub_ids[sub_id]
+        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
+        shard_subscription_manager.remove_subscriber(sub_id)
 
         return sub_id
 

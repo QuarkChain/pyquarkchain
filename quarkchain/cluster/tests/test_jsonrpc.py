@@ -1158,6 +1158,7 @@ def jrpc_websocket_server_context(slave_server, port=38590):
         server.shutdown()
 
 
+"""
 def send_websocket_request(request, num_response=1, port=38590):
     responses = []
 
@@ -1174,7 +1175,6 @@ def send_websocket_request(request, num_response=1, port=38590):
     return call_async(__send_request(request, port))
 
 
-"""
 class TestJSONRPCWebsocket(unittest.TestCase):
     def test_newHeads(self):
         id1 = Identity.create_random_identity()
