@@ -878,6 +878,7 @@ class SlaveServer:
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
+        self.shard_subscription_managers = dict()
 
     def __cover_shard_id(self, full_shard_id):
         """ Does the shard belong to this slave? """
@@ -902,6 +903,9 @@ class SlaveServer:
             await shard.create_peer_shard_connections(
                 self.cluster_peer_ids, self.master
             )
+            self.shard_subscription_managers[
+                shard.full_shard_id
+            ] = shard.subscription_manager
             branch = Branch(shard.full_shard_id)
             self.shards[branch] = shard
             if self.mining:

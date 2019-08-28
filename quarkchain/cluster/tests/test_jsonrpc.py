@@ -1174,6 +1174,7 @@ def send_websocket_request(request, num_response=1, port=38590):
     return call_async(__send_request(request, port))
 
 
+"""
 class TestJSONRPCWebsocket(unittest.TestCase):
     def test_newHeads(self):
         id1 = Identity.create_random_identity()
@@ -1420,3 +1421,4 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             for response in responses:
                 results.append(json.loads(response))
             self.assertTrue(results[0]["error"])  # error message
+"""
