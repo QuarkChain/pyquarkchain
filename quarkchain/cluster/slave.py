@@ -557,7 +557,7 @@ class MasterConnection(ClusterConnection):
     async def handle_get_root_chain_stakes(
         self, req: GetRootChainStakesRequest
     ) -> GetRootChainStakesResponse:
-        stakes, signer = await self.slave_server.get_root_chain_stakes(
+        stakes, signer = self.slave_server.get_root_chain_stakes(
             req.address, req.minor_block_hash
         )
         return GetRootChainStakesResponse(0, stakes, signer)
@@ -673,6 +673,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: (
         ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE,
         MasterConnection.handle_get_all_transaction_request,
+    ),
+    ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: (
+        ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE,
+        MasterConnection.handle_get_root_chain_stakes,
     ),
 }
 

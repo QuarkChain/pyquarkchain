@@ -956,7 +956,7 @@ class SubmitWorkResponse(Serializable):
         self.success = success
 
 
-class GetRootChainStakesRequest:
+class GetRootChainStakesRequest(Serializable):
     FIELDS = [("address", Address), ("minor_block_hash", hash256)]
 
     def __init__(self, address: Address, minor_block_hash: bytes):
@@ -964,7 +964,7 @@ class GetRootChainStakesRequest:
         self.minor_block_hash = minor_block_hash
 
 
-class GetRootChainStakesResponse:
+class GetRootChainStakesResponse(Serializable):
     FIELDS = [
         ("error_code", uint32),
         ("stakes", biguint),

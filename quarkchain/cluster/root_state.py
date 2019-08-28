@@ -5,6 +5,7 @@ from fractions import Fraction
 from typing import Optional, List, Dict
 
 from eth_keys.datatypes import Signature
+from eth_keys.exceptions import BadSignature
 
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.config import POSWConfig
@@ -649,16 +650,19 @@ class RootState:
         return None
 
     def get_posw_info(
-        self, header: RootBlockHeader, stakes: int, signer: str
+        self, header: RootBlockHeader, stakes: int, signer: bytes
     ) -> Optional[PoSWInfo]:
-        check(len(signer) == 42)  # format: 0x0000...
         config = self.root_config.POSW_CONFIG  # type: POSWConfig
         if config is None or not config.ENABLED:
             return
         # step 1: match signer with the signature
         sig = Signature(header.signature)
-        pubk = sig.recover_public_key_from_msg_hash(header.get_hash_for_mining())
-        if pubk.to_address() != signer:
+        try:
+            pubk = sig.recover_public_key_from_msg_hash(header.get_hash_for_mining())
+        except BadSignature:
+            return None
+
+        if pubk.to_canonical_address() != signer:
             return None
         # step 2: compare stakes with config
         diff = header.difficulty
