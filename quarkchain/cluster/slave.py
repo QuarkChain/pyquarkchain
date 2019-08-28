@@ -557,12 +557,9 @@ class MasterConnection(ClusterConnection):
     async def handle_get_root_chain_stakes(
         self, req: GetRootChainStakesRequest
     ) -> GetRootChainStakesResponse:
-        res = await self.slave_server.get_root_chain_stakes(
+        stakes, signer = await self.slave_server.get_root_chain_stakes(
             req.address, req.minor_block_hash
         )
-        if res is None:
-            return GetRootChainStakesResponse(error_code=errno.EINVAL)
-        stakes, signer = res
         return GetRootChainStakesResponse(0, stakes, signer)
 
 
@@ -1392,18 +1389,16 @@ class SlaveServer:
 
     def get_root_chain_stakes(
         self, address: Address, block_hash: bytes
-    ) -> Optional[Tuple[int, bytes]]:
+    ) -> (int, bytes):
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
             )
         )
         # only applies to chain 0 shard 0
-        if branch.value != 1:
-            return None
+        check(branch.value == 1)
         shard = self.shards.get(branch, None)
-        if not shard:
-            return None
+        check(shard is not None)
         return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
 
