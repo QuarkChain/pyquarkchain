@@ -1,6 +1,6 @@
 """Some helper functions for PoSW-related stuff."""
 from collections import deque, Counter
-from typing import Callable, Optional, Union, List, Dict
+from typing import Callable, Optional, Union, Dict
 
 from cachetools import LRUCache
 
@@ -11,13 +11,17 @@ from quarkchain.utils import check
 Header = Union[MinorBlockHeader, RootBlockHeader]
 
 
-def _get_coinbase_addresses_until_block(
+def get_posw_coinbase_blockcnt(
     posw_config: POSWConfig,
     cache: LRUCache,
     header_hash: bytes,
     header_func: Callable[[bytes], Optional[Header]],
-) -> List[bytes]:
-    """Get coinbase addresses up until block of given hash within the window."""
+) -> Dict[bytes, int]:
+    """ PoSW needed function: get coinbase address counts up until the given block
+    hash (inclusive) within the PoSW window.
+
+    Raise ValueError if anything goes wrong.
+    """
     header = header_func(header_hash)
     length = posw_config.WINDOW_SIZE - 1
     if not header:
@@ -40,21 +44,5 @@ def _get_coinbase_addresses_until_block(
             check(header is not None, "mysteriously missing block")
     cache[header_hash] = (height, addrs)
     check(len(addrs) <= length)
-    return list(addrs)
-
-
-def get_posw_coinbase_blockcnt(
-    posw_config: POSWConfig,
-    cache: LRUCache,
-    header_hash: bytes,
-    header_func: Callable[[bytes], Optional[Header]],
-) -> Dict[bytes, int]:
-    """ PoSW needed function: get coinbase addresses up until the given block
-    hash (inclusive) along with block counts within the PoSW window.
-
-    Raise ValueError if anything goes wrong.
-    """
-    coinbase_addrs = _get_coinbase_addresses_until_block(
-        posw_config, cache, header_hash, header_func
-    )
+    coinbase_addrs = list(addrs)
     return Counter(coinbase_addrs)

@@ -10,8 +10,6 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
-from eth_keys.datatypes import Signature
-
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -1743,7 +1741,6 @@ class MasterServer:
 
     async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
         addr = block.header.coinbase_address
-        # requires root block miner to specify chain 0 shard 0 when calculating stakes
         full_shard_id = 1
         check(full_shard_id in self.branch_to_slaves)
 
