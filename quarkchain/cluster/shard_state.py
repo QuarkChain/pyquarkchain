@@ -310,7 +310,7 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
         self.confirmed_header_tip = confirmed_header_tip
-        sender_disallow_map = self._get_sender_disallow_map(header_tip_hash)
+        sender_disallow_map = self._get_sender_disallow_map(header_tip)
         self.evm_state = self.__create_evm_state(
             self.meta_tip.hash_evm_state_root, sender_disallow_map
         )
@@ -537,10 +537,11 @@ class ShardState:
 
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
         prev_minor_hash = block.header.hash_prev_minor_block
+        prev_minor_header = self.db.get_minor_block_header_by_hash(prev_minor_hash)
         root_hash = self.db.get_minor_block_evm_root_hash_by_hash(prev_minor_hash)
         coinbase_recipient = block.header.coinbase_address.recipient
         sender_disallow_map = self._get_sender_disallow_map(
-            prev_minor_hash, recipient=coinbase_recipient
+            prev_minor_header, recipient=coinbase_recipient
         )
 
         state = self.__create_evm_state(root_hash, sender_disallow_map)
@@ -948,7 +949,7 @@ class ShardState:
 
         if update_tip:
             tip_prev_root_header = prev_root_header
-            evm_state.sender_disallow_map = self._get_sender_disallow_map(block_hash)
+            evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
             self.__update_tip(block, evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
@@ -1427,7 +1428,7 @@ class ShardState:
         if self.header_tip != orig_header_tip:
             h = self.header_tip.get_hash()
             b = self.db.get_minor_block_by_hash(h)
-            sender_disallow_map = self._get_sender_disallow_map(h)
+            sender_disallow_map = self._get_sender_disallow_map(b.header)
             evm_state = self.__create_evm_state(
                 b.meta.hash_evm_state_root, sender_disallow_map
             )
@@ -1739,7 +1740,7 @@ class ShardState:
         consensus_type = self.env.quark_chain_config.shards[
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
-        if not self.shard_config.POSW_CONFIG.ENABLED:
+        if not self._posw_enabled(block.header):
             validate_seal(block.header, consensus_type)
         else:
             diff = self.posw_diff_adjust(block)
@@ -1794,12 +1795,12 @@ class ShardState:
             self.db.get_minor_block_header_by_hash,
         )
 
-    def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
+    def _get_sender_disallow_map(self, header, recipient=None) -> Dict[bytes, int]:
         """Take an additional recipient parameter and add its block count."""
-        if not self.shard_config.POSW_CONFIG.ENABLED:
+        if not self._posw_enabled(header):
             return {}
         total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-        blockcnt = self._get_posw_coinbase_blockcnt(header_hash)
+        blockcnt = self._get_posw_coinbase_blockcnt(header.get_hash())
         if recipient:
             blockcnt[recipient] += 1
         return {k: v * total_stakes for k, v in blockcnt.items()}
@@ -1816,7 +1817,7 @@ class ShardState:
         block = self.db.get_minor_block_by_hash(block_hash)
         if not block:
             return None, None
-        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
+        if not need_extra_info or not self._posw_info(block):
             # for now extra info is only posw-related
             return block, None
         return block, self._posw_info(block)._asdict()
@@ -1827,7 +1828,7 @@ class ShardState:
         block = self.db.get_minor_block_by_height(height)
         if not block:
             return None, None
-        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
+        if not need_extra_info or not self._posw_enabled(block.header):
             # for now extra info is only posw-related
             return block, None
         return block, self._posw_info(block)._asdict()
@@ -1837,3 +1838,7 @@ class ShardState:
     ) -> (int, bytes):
         # TODO: impl
         return 0, bytes(20)
+
+    def _posw_enabled(self, header):
+        config = self.shard_config.POSW_CONFIG
+        return config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP

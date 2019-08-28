@@ -1731,10 +1731,8 @@ class MasterServer:
         return ret
 
     def _should_apply_posw(self, block: RootBlock) -> bool:
-        enable_ts = (
-            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
-        )  # same time as enabling EVM
-        return enable_ts and block.header.create_time >= enable_ts
+        config = self.env.quark_chain_config.ROOT.POSW_CONFIG
+        return config.ENABLED and block.header.create_time >= config.ENABLE_TIMESTAMP
 
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
         """"Return None if PoSW check doesn't apply."""

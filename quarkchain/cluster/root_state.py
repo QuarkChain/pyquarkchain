@@ -653,8 +653,6 @@ class RootState:
         self, header: RootBlockHeader, stakes: int, signer: bytes
     ) -> Optional[PoSWInfo]:
         config = self.root_config.POSW_CONFIG  # type: POSWConfig
-        if config is None or not config.ENABLED:
-            return
         # step 1: match signer with the signature
         sig = Signature(header.signature)
         try:

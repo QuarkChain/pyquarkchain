@@ -2388,11 +2388,10 @@ class TestCluster(unittest.TestCase):
             qkc_config = master.env.quark_chain_config
             qkc_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             qkc_config.ROOT.POSW_CONFIG.ENABLED = True
+            qkc_config.ROOT.POSW_CONFIG.ENABLE_TIMESTAMP = 0
             qkc_config.ROOT.POSW_CONFIG.WINDOW_SIZE = 2
             # should always pass pow check if posw is applied
             qkc_config.ROOT.POSW_CONFIG.DIFF_DIVIDER = 1000000
-            # force enabling root chain PoSW
-            qkc_config.ENABLE_EVM_TIMESTAMP = -1
             shard = next(iter(clusters[0].slave_list[0].shards.values()))
 
             # monkey patch staking results
