@@ -230,6 +230,8 @@ class ShardState:
     """
 
     def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
+        from quarkchain.cluster.jsonrpc import SubscriptionManager
+
         self.env = env
         self.shard_config = env.quark_chain_config.shards[full_shard_id]
         self.full_shard_id = full_shard_id
@@ -265,6 +267,7 @@ class ShardState:
         self.local_fee_rate = (
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
+        self.subscription_manager = SubscriptionManager()
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.

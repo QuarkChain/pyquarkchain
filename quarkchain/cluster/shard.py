@@ -667,6 +667,7 @@ class Shard:
                 block.header.height,
             )
         )
+
         self.broadcast_new_block(block)
         await self.add_block(block)
 

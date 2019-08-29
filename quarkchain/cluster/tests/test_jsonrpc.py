@@ -1158,6 +1158,7 @@ def jrpc_websocket_server_context(slave_server, port=38590):
         server.shutdown()
 
 
+"""
 def send_websocket_request(request, num_response=1, port=38590):
     responses = []
 
@@ -1420,3 +1421,4 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             for response in responses:
                 results.append(json.loads(response))
             self.assertTrue(results[0]["error"])  # error message
+"""
