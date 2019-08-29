@@ -4,7 +4,11 @@ import time
 from fractions import Fraction
 from typing import Optional, List, Dict
 
+from eth_keys.datatypes import Signature
+from eth_keys.exceptions import BadSignature
+
 from quarkchain.cluster.miner import validate_seal
+from quarkchain.config import POSWConfig
 from quarkchain.core import (
     Address,
     MinorBlockHeader,
@@ -14,10 +18,12 @@ from quarkchain.core import (
     Serializable,
     calculate_merkle_root,
     TokenBalanceMap,
+    PoSWInfo,
 )
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.evm.trie import BLANK_ROOT
 from cachetools import LRUCache
@@ -252,6 +258,8 @@ class RootState:
             env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
+        # header hash -> [coinbase address] during previous blocks (ascending)
+        self.coinbase_addr_cache = LRUCache(maxsize=128)
 
         self.tip = self.db.get_tip_header()  # type: RootBlockHeader
         if self.tip:
@@ -631,3 +639,24 @@ class RootState:
         return self.db.get_root_block_by_height(
             tip.height if height is None else height
         )
+
+    def get_last_confirmed_minor_block_header(
+        self, h, full_shard_id
+    ) -> Optional[MinorBlockHeader]:
+        headers = self.db.get_root_block_last_minor_block_header_list(h)
+        for header in headers:
+            if header.branch.get_full_shard_id() == full_shard_id:
+                return header
+        return None
+
+    def get_posw_info(
+        self, block: RootBlock, stakes: int, signer: bytes
+    ) -> Optional[PoSWInfo]:
+        config = self.root_config.POSW_CONFIG  # type: POSWConfig
+        block_cnt = get_posw_coinbase_blockcnt(
+            config,
+            self.coinbase_addr_cache,
+            block.header.hash_prev_block,
+            self.db.get_root_block_header_by_hash,
+        )
+        return get_posw_info(config, block.header, lambda: stakes, block_cnt, signer)

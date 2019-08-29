@@ -49,6 +49,8 @@ from quarkchain.cluster.rpc import (
     GetStorageRequest,
     GetCodeRequest,
     GasPriceRequest,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
     GetWorkRequest,
     GetWorkResponse,
     SubmitWorkRequest,
@@ -681,6 +683,17 @@ class SlaveConnection(ClusterConnection):
         submit_work_resp = resp  # type: SubmitWorkResponse
         return submit_work_resp.error_code == 0 and submit_work_resp.success
 
+    async def get_root_chain_stakes(
+        self, address: Address, minor_block_hash: bytes
+    ) -> (int, bytes):
+        request = GetRootChainStakesRequest(address, minor_block_hash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST, request
+        )
+        root_chain_stakes_resp = resp  # type: GetRootChainStakesResponse
+        check(root_chain_stakes_resp.error_code == 0)
+        return root_chain_stakes_resp.stakes, root_chain_stakes_resp.signer
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -1252,8 +1265,8 @@ class MasterServer:
             adjusted_diff = Guardian.adjust_difficulty(
                 r_header.difficulty, r_header.height
             )
-        elif self._should_apply_posw(r_block):
-            # TODO: should handle diff is `None` case. panic? retry?
+        else:
+            # could be None if PoSW not applicable
             adjusted_diff = await self.posw_diff_adjust(r_block)
 
         try:
@@ -1640,12 +1653,10 @@ class MasterServer:
                 self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
             )
             work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
-            if self._should_apply_posw(block):
-                check(isinstance(block, RootBlock))
-                diff = await self.posw_diff_adjust(block)
-                # TODO: should handle diff is `None` case. panic? retry?
-                if diff is not None and diff != work.difficulty:
-                    work = MiningWork(work.hash, work.height, diff)
+            check(isinstance(block, RootBlock))
+            posw_diff = await self.posw_diff_adjust(block)
+            if posw_diff is not None and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
 
         if branch.value not in self.branch_to_slaves:
@@ -1716,19 +1727,33 @@ class MasterServer:
 
         return ret
 
-    def _should_apply_posw(self, block: RootBlock) -> bool:
-        enable_ts = (
-            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
-        )  # same time as enabling EVM
-        return enable_ts is None or block.header.create_time >= enable_ts
-
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
+        """"Return None if PoSW check doesn't apply."""
         posw_info = await self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
 
     async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
-        # TODO
-        return None
+        config = self.env.quark_chain_config.ROOT.POSW_CONFIG
+        if not (config.ENABLED and block.header.create_time >= config.ENABLE_TIMESTAMP):
+            return None
+
+        addr = block.header.coinbase_address
+        full_shard_id = 1
+        check(full_shard_id in self.branch_to_slaves)
+
+        # get chain 0 shard 0's last confirmed block header
+        last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
+            block.header.hash_prev_block, full_shard_id
+        )
+        if not last_confirmed_minor_block_header:
+            # happens if no shard block has been confirmed
+            return None
+
+        slave = self.branch_to_slaves[full_shard_id][0]
+        stakes, signer = await slave.get_root_chain_stakes(
+            addr, last_confirmed_minor_block_header.get_hash()
+        )
+        return self.root_state.get_posw_info(block, stakes, signer)
 
 
 def parse_args():

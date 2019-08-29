@@ -1,5 +1,7 @@
 import unittest
 
+from eth_keys.datatypes import PrivateKey
+
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
     GetRootBlockHeaderListWithSkipRequest,
@@ -11,12 +13,14 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_with_storage2_transaction,
     ClusterContext,
 )
+from quarkchain.config import ConsensusType
 from quarkchain.core import (
     Address,
     Branch,
     Identity,
     TokenBalanceMap,
     XshardTxCursorInfo,
+    RootBlock,
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
@@ -2371,3 +2375,54 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(resp.block_header_list[2], minor_block_header_list[4])
             self.assertEqual(resp.block_header_list[3], minor_block_header_list[2])
             self.assertEqual(resp.block_header_list[4], minor_block_header_list[0])
+
+    def test_posw_on_root_chain(self):
+        """ Test the broadcast is only done to the neighbors """
+        staker_id = Identity.create_random_identity()
+        staker_addr = Address.create_from_identity(staker_id, full_shard_key=0)
+        signer_id = Identity.create_random_identity()
+        signer_addr = Address.create_from_identity(signer_id, full_shard_key=0)
+
+        def add_root_block(addr, sign=False):
+            root_block = call_async(
+                master.get_next_block_to_mine(addr, branch_value=None)
+            )  # type: RootBlock
+            if sign:
+                root_block.header.sign_with_private_key(PrivateKey(signer_id.get_key()))
+            call_async(master.add_root_block(root_block))
+
+        with ClusterContext(1, staker_addr, shard_size=1) as clusters:
+            master = clusters[0].master
+
+            # add a root block first to init shard chains
+            add_root_block(Address.create_empty_account())
+
+            qkc_config = master.env.quark_chain_config
+            qkc_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+            qkc_config.ROOT.POSW_CONFIG.ENABLED = True
+            qkc_config.ROOT.POSW_CONFIG.ENABLE_TIMESTAMP = 0
+            qkc_config.ROOT.POSW_CONFIG.WINDOW_SIZE = 2
+            # should always pass pow check if posw is applied
+            qkc_config.ROOT.POSW_CONFIG.DIFF_DIVIDER = 1000000
+            shard = next(iter(clusters[0].slave_list[0].shards.values()))
+
+            # monkey patch staking results
+            def mock_get_root_chain_stakes(recipient, _):
+                if recipient == staker_addr.recipient:
+                    # allow 1 block in the windows
+                    return (
+                        qkc_config.ROOT.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK,
+                        signer_addr.recipient,
+                    )
+                return 0, bytes(20)
+
+            shard.state.get_root_chain_stakes = mock_get_root_chain_stakes
+
+            # fail, because signature mismatch
+            with self.assertRaises(ValueError):
+                add_root_block(staker_addr)
+            # succeed
+            add_root_block(staker_addr, sign=True)
+            # fail again, because quota used up
+            with self.assertRaises(ValueError):
+                add_root_block(staker_addr, sign=True)
