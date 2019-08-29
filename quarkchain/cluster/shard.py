@@ -435,14 +435,18 @@ class SyncTask:
 class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
-    def __init__(self):
+    def __init__(self, instance):
         self.queue = deque()
         self.running = False
+        self.shard = instance
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
+            asyncio.ensure_future(
+                self.subscription_manager.notify("syncing", self.shard)
+            )
             asyncio.ensure_future(self.__run())
 
     async def __run(self):
@@ -451,11 +455,11 @@ class Synchronizer:
             task = SyncTask(header, shard_conn)
             await task.sync()
         self.running = False
+        asyncio.ensure_future(self.subscription_manager.notify("syncing", self.shard))
 
 
 class Shard:
     def __init__(self, env, full_shard_id, slave):
-        from quarkchain.cluster.jsonrpc import SubscriptionManager
 
         self.env = env
         self.full_shard_id = full_shard_id
@@ -464,7 +468,7 @@ class Shard:
         self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
         self.loop = asyncio.get_event_loop()
-        self.synchronizer = Synchronizer()
+        self.synchronizer = Synchronizer(self)
 
         self.peers = dict()  # cluster_peer_id -> PeerShardConnection
 
@@ -475,7 +479,6 @@ class Shard:
         self.tx_generator = TransactionGenerator(self.env.quark_chain_config, self)
 
         self.__init_miner()
-        self.subscription_manager = SubscriptionManager()
 
     def __init_shard_db(self):
         """
@@ -672,7 +675,7 @@ class Shard:
         )
 
         asyncio.ensure_future(
-            self.subscription_manager.notify("newHeads", self.state.header_tip)
+            self.state.subscription_manager.notify("newHeads", self.state.header_tip)
         )
         self.broadcast_new_block(block)
         await self.add_block(block)

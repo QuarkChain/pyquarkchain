@@ -239,6 +239,8 @@ class ShardState:
     """
 
     def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
+        from quarkchain.cluster.jsonrpc import SubscriptionManager
+
         self.env = env
         self.shard_config = env.quark_chain_config.shards[full_shard_id]
         self.full_shard_id = full_shard_id
@@ -274,6 +276,7 @@ class ShardState:
         self.local_fee_rate = (
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
+        self.subscription_manager = SubscriptionManager()
 
     def init_from_root_block(self, root_block):
         """ Master will send its root chain tip when it connects to slaves.
@@ -539,6 +542,12 @@ class ShardState:
             )
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
+            asyncio.ensure_future(
+                self.subscription_manager.notify(
+                    "newPendingTransactions",
+                    tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big"),
+                )
+            )
             return True
         except Exception as e:
             Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
@@ -1286,6 +1295,14 @@ class ShardState:
         - it is a neighor of current shard following our routing rule
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
+        for tx in tx_list.tx_list:
+            asyncio.ensure_future(
+                self.subscription_manager.notify(
+                    "newPendingTransactions",
+                    tx.tx_hash
+                    + tx.from_address.full_shard_key.to_bytes(4, byteorder="big"),
+                )
+            )
 
     def __update_tip(self, block, evm_state):
         self.__rewrite_block_index_to(block)

@@ -15,6 +15,7 @@ from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.slave import SlaveServer
+from quarkchain.cluster.shard import Shard
 from quarkchain.core import (
     Address,
     Branch,
@@ -1407,7 +1408,6 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
-        self.shard_subscription_managers = self.slave.shard_subscription_managers
         self.sub_ids = dict()  # Dict[sub_id, full_shard_id]
 
     async def __handle(self, websocket, path):
@@ -1445,7 +1445,7 @@ class JSONRPCWebsocketServer:
         finally:  # websocket connection terminates, remove all subscribers
             for sub_id, full_shard_id in self.sub_ids.items():
                 try:
-                    shard_subscription_manager = self.shard_subscription_managers[
+                    shard_subscription_manager = self.slave.shard_subscription_managers[
                         full_shard_id
                     ]
                     shard_subscription_manager.remove_subscriber(sub_id)
@@ -1478,7 +1478,9 @@ class JSONRPCWebsocketServer:
 
         websocket = context["websocket"]
         sub_id = "0x" + uuid.uuid4().hex
-        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
+        shard_subscription_manager = self.slave.shard_subscription_managers[
+            full_shard_id
+        ]
         shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
 
         return sub_id
@@ -1490,7 +1492,9 @@ class JSONRPCWebsocketServer:
             raise InvalidParams("Subscription ID not found")
 
         full_shard_id = self.sub_ids[sub_id]
-        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
+        shard_subscription_manager = self.slave.shard_subscription_managers[
+            full_shard_id
+        ]
         shard_subscription_manager.remove_subscriber(sub_id)
 
         return sub_id
@@ -1518,13 +1522,18 @@ class SubscriptionManager:
         raise InvalidParams("subscription not found")
 
     async def notify(self, sub_type, data):
-        assert sub_type in self.subscribers
+        assert sub_type in self.subscribers, "Invalid subscription type"
         for sub_id, websocket in self.subscribers[sub_type].items():
             # parse data and send through websocket
             if sub_type == "newHeads":
                 response = self.response_encoder(
                     sub_id, minor_block_header_encoder(data)
                 )
+            elif sub_type == "newPendingTransactions":
+                response = self.response_encoder(sub_id, data_encoder(data))
+            elif sub_type == "syncing":
+                response = self.syncing_response_encoder(sub_id, data)
+
             await websocket.send(json.dumps(response))
 
     @staticmethod
@@ -1533,4 +1542,28 @@ class SubscriptionManager:
             "jsonrpc": "2.0",
             "method": "subscription",
             "params": {"subscription": sub_id, "result": result},
+        }
+
+    @staticmethod
+    def syncing_response_encoder(sub_id, shard: Shard):
+        is_running = shard.synchronizer.running
+        queue = shard.synchronizer.queue
+
+        if not is_running:
+            return {
+                "jsonrpc": "2.0",
+                "subscription": sub_id,
+                "result": {"syncing": is_running},
+            }
+
+        return {
+            "jsonrpc": "2.0",
+            "subscription": sub_id,
+            "result": {
+                "syncing": is_running,
+                "status": {
+                    "startingBlock": shard.state.header_tip,
+                    "highestBlock": max(h.height for h, _ in queue),
+                },
+            },
         }

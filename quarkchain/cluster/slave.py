@@ -905,7 +905,7 @@ class SlaveServer:
             )
             self.shard_subscription_managers[
                 shard.full_shard_id
-            ] = shard.subscription_manager
+            ] = shard.state.subscription_manager
             branch = Branch(shard.full_shard_id)
             self.shards[branch] = shard
             if self.mining:
