@@ -1089,7 +1089,7 @@ class ShardState:
             return cnt, 0
 
         posw_config = self.shard_config.POSW_CONFIG
-        stakes = token_balance.get(recipient, 0)
+        stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
         block_threshold = min(
             posw_config.WINDOW_SIZE, stakes // posw_config.TOTAL_STAKE_PER_BLOCK
         )
