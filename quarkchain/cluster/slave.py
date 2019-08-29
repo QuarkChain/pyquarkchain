@@ -1237,7 +1237,9 @@ class SlaveServer:
         for branch, shard in self.shards.items():
             token_balances = shard.state.get_balances(address.recipient, block_height)
             is_contract = len(shard.state.get_code(address.recipient, block_height)) > 0
-            mined, posw_mineable = shard.state.get_mining_info(address.recipient)
+            mined, posw_mineable = shard.state.get_mining_info(
+                address.recipient, token_balances
+            )
             results.append(
                 AccountBranchData(
                     branch=branch,
