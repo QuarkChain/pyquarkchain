@@ -259,7 +259,7 @@ class ShardState:
 
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_header_pool = dict()
-        # header hash -> (height, [coinbase address]) during previous blocks (ascending)
+        # header hash -> [coinbase address] during previous blocks (ascending)
         self.coinbase_addr_cache = LRUCache(maxsize=128)
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (

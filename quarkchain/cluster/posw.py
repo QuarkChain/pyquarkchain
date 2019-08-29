@@ -32,7 +32,7 @@ def get_posw_coinbase_blockcnt(
     Raise ValueError if anything goes wrong.
     """
     if header_hash in cache:
-        _, addrs = cache[header_hash]
+        addrs = cache[header_hash]
         return Counter(addrs)
 
     header = header_func(header_hash)
@@ -42,8 +42,7 @@ def get_posw_coinbase_blockcnt(
     height = header.height
     prev_hash = header.hash_prev_block
     if prev_hash in cache:  # mem cache hit
-        _, addrs = cache[prev_hash]
-        addrs = addrs.copy()
+        addrs = cache[prev_hash].copy()
         if len(addrs) == length:
             addrs.popleft()
         addrs.append(header.coinbase_address.recipient)
@@ -55,7 +54,7 @@ def get_posw_coinbase_blockcnt(
                 break
             header = header_func(header.hash_prev_block)
             check(header is not None, "mysteriously missing block")
-    cache[header_hash] = (height, addrs)
+    cache[header_hash] = addrs
     check(len(addrs) <= length)
     return Counter(addrs)
 

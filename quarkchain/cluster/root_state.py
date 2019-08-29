@@ -258,7 +258,7 @@ class RootState:
             env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
-        # header hash -> (height, [coinbase address]) during previous blocks (ascending)
+        # header hash -> [coinbase address] during previous blocks (ascending)
         self.coinbase_addr_cache = LRUCache(maxsize=128)
 
         self.tip = self.db.get_tip_header()  # type: RootBlockHeader
