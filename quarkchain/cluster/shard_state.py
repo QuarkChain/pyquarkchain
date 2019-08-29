@@ -43,7 +43,7 @@ from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
-from quarkchain.cluster.posw import get_posw_coinbase_blockcnt
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 from cachetools import LRUCache
@@ -1749,25 +1749,18 @@ class ShardState:
 
     def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
         header = block.header
-        if not self._posw_enabled(header) or header.height == 0:
-            return None
-
-        diff = header.difficulty
-        coinbase_recipient = header.coinbase_address.recipient
-        # evaluate stakes before the to-be-added block
-        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
-        config = self.shard_config.POSW_CONFIG
-        stakes = evm_state.get_balance(
-            coinbase_recipient, self.env.quark_chain_config.genesis_token
-        )
-        block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
-        block_threshold = min(config.WINDOW_SIZE, block_threshold)
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
-        cnt = block_cnt.get(coinbase_recipient, 0)
-        if cnt < block_threshold:
-            diff //= config.DIFF_DIVIDER
-        # mined blocks should include current one, assuming success
-        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
+        return get_posw_info(
+            self.shard_config.POSW_CONFIG,
+            header,
+            lambda: self._get_evm_state_for_new_block(
+                block, ephemeral=True
+            ).get_balance(
+                header.coinbase_address.recipient,
+                self.env.quark_chain_config.genesis_token,
+            ),
+            block_cnt,
+        )
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:

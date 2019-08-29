@@ -23,7 +23,7 @@ from quarkchain.core import (
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
-from quarkchain.cluster.posw import get_posw_coinbase_blockcnt
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.evm.trie import BLANK_ROOT
 from cachetools import LRUCache
@@ -650,31 +650,13 @@ class RootState:
         return None
 
     def get_posw_info(
-        self, header: RootBlockHeader, stakes: int, signer: bytes
+        self, block: RootBlock, stakes: int, signer: bytes
     ) -> Optional[PoSWInfo]:
         config = self.root_config.POSW_CONFIG  # type: POSWConfig
-        # step 1: match signer with the signature
-        sig = Signature(header.signature)
-        try:
-            pubk = sig.recover_public_key_from_msg_hash(header.get_hash_for_mining())
-        except BadSignature:
-            return None
-
-        if pubk.to_canonical_address() != signer:
-            return None
-        # step 2: compare stakes with config
-        diff = header.difficulty
-        coinbase_recipient = header.coinbase_address.recipient
-        block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
-        block_threshold = min(config.WINDOW_SIZE, block_threshold)
         block_cnt = get_posw_coinbase_blockcnt(
             config,
             self.coinbase_addr_cache,
-            header.hash_prev_block,
+            block.header.hash_prev_block,
             self.db.get_root_block_header_by_hash,
         )
-        cnt = block_cnt.get(coinbase_recipient, 0)
-        if cnt < block_threshold:
-            diff //= config.DIFF_DIVIDER
-        # mined blocks should include current one
-        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
+        return get_posw_info(config, block.header, lambda: stakes, block_cnt, signer)

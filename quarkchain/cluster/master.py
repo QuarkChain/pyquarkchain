@@ -1658,7 +1658,7 @@ class MasterServer:
             work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
             check(isinstance(block, RootBlock))
             posw_diff = await self.posw_diff_adjust(block)
-            if posw_diff and posw_diff != work.difficulty:
+            if posw_diff is not None and posw_diff != work.difficulty:
                 work = MiningWork(work.hash, work.height, posw_diff)
             return work
 
@@ -1756,7 +1756,7 @@ class MasterServer:
         stakes, signer = await slave.get_root_chain_stakes(
             addr, last_confirmed_minor_block_header.get_hash()
         )
-        return self.root_state.get_posw_info(block.header, stakes, signer)
+        return self.root_state.get_posw_info(block, stakes, signer)
 
     def __get_shard_genesis_block_header(self, full_shard_id):
         root_genesis = self.root_state.get_root_block_by_height(0)

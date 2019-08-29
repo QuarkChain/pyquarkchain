@@ -1373,7 +1373,7 @@ class SlaveServer:
             work, block = await shard.miner.get_work(coinbase_addr or default_addr)
             check(isinstance(block, MinorBlock))
             posw_diff = shard.state.posw_diff_adjust(block)
-            if posw_diff and posw_diff != work.difficulty:
+            if posw_diff is not None and posw_diff != work.difficulty:
                 work = MiningWork(work.hash, work.height, posw_diff)
             return work
         except Exception:
