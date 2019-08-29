@@ -2383,8 +2383,20 @@ class TestCluster(unittest.TestCase):
         signer_id = Identity.create_random_identity()
         signer_addr = Address.create_from_identity(signer_id, full_shard_key=0)
 
+        def add_root_block(addr, sign=False):
+            root_block = call_async(
+                master.get_next_block_to_mine(addr, branch_value=None)
+            )  # type: RootBlock
+            if sign:
+                root_block.header.sign_with_private_key(PrivateKey(signer_id.get_key()))
+            call_async(master.add_root_block(root_block))
+
         with ClusterContext(1, staker_addr, shard_size=1) as clusters:
             master = clusters[0].master
+
+            # add a root block first to init shard chains
+            add_root_block(Address.create_empty_account())
+
             qkc_config = master.env.quark_chain_config
             qkc_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             qkc_config.ROOT.POSW_CONFIG.ENABLED = True
@@ -2405,16 +2417,6 @@ class TestCluster(unittest.TestCase):
                 return 0, bytes(20)
 
             shard.state.get_root_chain_stakes = mock_get_root_chain_stakes
-
-            def add_root_block(addr, sign=False):
-                root_block = call_async(
-                    master.get_next_block_to_mine(addr, branch_value=None)
-                )  # type: RootBlock
-                if sign:
-                    root_block.header.sign_with_private_key(
-                        PrivateKey(signer_id.get_key())
-                    )
-                call_async(master.add_root_block(root_block))
 
             # fail, because signature mismatch
             with self.assertRaises(ValueError):

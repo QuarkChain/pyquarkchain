@@ -82,6 +82,7 @@ from quarkchain.core import (
     TypedTransaction,
     MinorBlock,
     PoSWInfo,
+    RootBlockHeader,
 )
 from quarkchain.db import PersistentDb, InMemoryDb
 from quarkchain.env import DEFAULT_ENV
@@ -1267,8 +1268,8 @@ class MasterServer:
             adjusted_diff = Guardian.adjust_difficulty(
                 r_header.difficulty, r_header.height
             )
-        elif self._should_apply_posw(r_block):
-            # TODO: should handle diff is `None` case. panic? retry?
+        else:
+            # could be None if PoSW not applicable
             adjusted_diff = await self.posw_diff_adjust(r_block)
 
         try:
@@ -1655,11 +1656,10 @@ class MasterServer:
                 self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
             )
             work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
-            if self._should_apply_posw(block):
-                check(isinstance(block, RootBlock))
-                diff = await self.posw_diff_adjust(block)
-                if diff is not None and diff != work.difficulty:
-                    work = MiningWork(work.hash, work.height, diff)
+            check(isinstance(block, RootBlock))
+            posw_diff = await self.posw_diff_adjust(block)
+            if posw_diff and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
 
         if branch.value not in self.branch_to_slaves:
@@ -1730,31 +1730,27 @@ class MasterServer:
 
         return ret
 
-    def _should_apply_posw(self, block: RootBlock) -> bool:
-        config = self.env.quark_chain_config.ROOT.POSW_CONFIG
-        return config.ENABLED and block.header.create_time >= config.ENABLE_TIMESTAMP
-
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
         """"Return None if PoSW check doesn't apply."""
         posw_info = await self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
 
     async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
+        config = self.env.quark_chain_config.ROOT.POSW_CONFIG
+        if not (config.ENABLED and block.header.create_time >= config.ENABLE_TIMESTAMP):
+            return None
+
         addr = block.header.coinbase_address
         full_shard_id = 1
         check(full_shard_id in self.branch_to_slaves)
 
         # get chain 0 shard 0's last confirmed block header
-        if block.header.height == 1:
-            # use shard genesis
-            last_confirmed_minor_block_header = self.__get_shard_genesis_block_header(
-                full_shard_id
-            )
-        else:
-            last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
-                block.header.hash_prev_block, full_shard_id
-            )
-        check(last_confirmed_minor_block_header is not None)
+        last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
+            block.header.hash_prev_block, full_shard_id
+        )
+        if not last_confirmed_minor_block_header:
+            # happens if no shard block has been confirmed
+            return None
 
         slave = self.branch_to_slaves[full_shard_id][0]
         stakes, signer = await slave.get_root_chain_stakes(

@@ -1740,19 +1740,18 @@ class ShardState:
         consensus_type = self.env.quark_chain_config.shards[
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
-        if not self._posw_enabled(block.header):
-            validate_seal(block.header, consensus_type)
-        else:
-            diff = self.posw_diff_adjust(block)
-            validate_seal(block.header, consensus_type, adjusted_diff=diff)
+        posw_diff = self.posw_diff_adjust(block)  # could be None
+        validate_seal(block.header, consensus_type, adjusted_diff=posw_diff)
 
-    def posw_diff_adjust(self, block: MinorBlock) -> int:
-        return self._posw_info(block).effective_difficulty
+    def posw_diff_adjust(self, block: MinorBlock) -> Optional[int]:
+        posw_info = self._posw_info(block)
+        return posw_info and posw_info.effective_difficulty
 
-    def _posw_info(self, block: MinorBlock) -> PoSWInfo:
+    def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
         header = block.header
-        if header.height == 0:  # genesis
-            return PoSWInfo(header.difficulty, 0, 0)
+        if not self._posw_enabled(header) or header.height == 0:
+            return None
+
         diff = header.difficulty
         coinbase_recipient = header.coinbase_address.recipient
         # evaluate stakes before the to-be-added block
@@ -1767,7 +1766,7 @@ class ShardState:
         cnt = block_cnt.get(coinbase_recipient, 0)
         if cnt < block_threshold:
             diff //= config.DIFF_DIVIDER
-        # mined blocks should include current one
+        # mined blocks should include current one, assuming success
         return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
@@ -1817,10 +1816,10 @@ class ShardState:
         block = self.db.get_minor_block_by_hash(block_hash)
         if not block:
             return None, None
-        if not need_extra_info or not self._posw_info(block):
-            # for now extra info is only posw-related
+        if not need_extra_info:
             return block, None
-        return block, self._posw_info(block)._asdict()
+        posw_info = self._posw_info(block)
+        return block, posw_info and posw_info._asdict()
 
     def get_minor_block_by_height(
         self, height: int, need_extra_info: bool
@@ -1828,10 +1827,10 @@ class ShardState:
         block = self.db.get_minor_block_by_height(height)
         if not block:
             return None, None
-        if not need_extra_info or not self._posw_enabled(block.header):
-            # for now extra info is only posw-related
+        if not need_extra_info:
             return block, None
-        return block, self._posw_info(block)._asdict()
+        posw_info = self._posw_info(block)
+        return block, posw_info and posw_info._asdict()
 
     def get_root_chain_stakes(
         self, recipient: bytes, block_hash: bytes

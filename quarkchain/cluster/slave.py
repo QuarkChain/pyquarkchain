@@ -1371,10 +1371,10 @@ class SlaveServer:
         try:
             shard = self.shards[branch]
             work, block = await shard.miner.get_work(coinbase_addr or default_addr)
-            if shard.state.shard_config.POSW_CONFIG.ENABLED:
-                check(isinstance(block, MinorBlock))
-                diff = shard.state.posw_diff_adjust(block)
-                work = MiningWork(work.hash, work.height, diff)
+            check(isinstance(block, MinorBlock))
+            posw_diff = shard.state.posw_diff_adjust(block)
+            if posw_diff and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
         except Exception:
             Logger.log_exception()
