@@ -34,6 +34,7 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 from cachetools import LRUCache
 import uuid
+from quarkchain.cluster.filter import Filter
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1408,9 +1409,9 @@ class JSONRPCWebsocketServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
         self.shard_subscription_managers = self.slave.shard_subscription_managers
-        self.sub_ids = dict()  # Dict[sub_id, full_shard_id]
 
     async def __handle(self, websocket, path):
+        sub_ids = dict()  # per-websocket var, Dict[sub_id, full_shard_id]
         try:
             async for message in websocket:
                 Logger.info(message)
@@ -1419,7 +1420,7 @@ class JSONRPCWebsocketServer:
                 try:
                     d = json.loads(message)
                 except Exception:
-                    pass
+                    raise InvalidParams("Cannot parse message as JSON")
                 method = d.get("method", "null")
                 if method in self.counters:
                     self.counters[method] += 1
@@ -1428,22 +1429,28 @@ class JSONRPCWebsocketServer:
                 msg_id = d.get("id", 0)
 
                 response = await self.handlers.dispatch(
-                    message, context={"websocket": websocket, "msg_id": msg_id}
+                    message,
+                    context={
+                        "websocket": websocket,
+                        "msg_id": msg_id,
+                        "sub_ids": sub_ids,
+                    },
                 )
-                sub_id = response["result"]
 
                 if method == "subscribe":
+                    sub_id = response["result"]
                     full_shard_id = shard_id_decoder(d.get("params")[1])
-                    self.sub_ids[sub_id] = full_shard_id
+                    sub_ids[sub_id] = full_shard_id
                 elif method == "unsubscribe":
-                    del self.sub_ids[sub_id]
+                    sub_id = d.get("params")[0]
+                    del sub_ids[sub_id]
 
                 if "error" in response:
                     Logger.error(response)
                 if not response.is_notification:
                     await websocket.send(json.dumps(response))
-        finally:  # websocket connection terminates, remove all subscribers
-            for sub_id, full_shard_id in self.sub_ids.items():
+        finally:  # current websocket connection terminates, remove subscribers in this connection
+            for sub_id, full_shard_id in sub_ids.items():
                 try:
                     shard_subscription_manager = self.shard_subscription_managers[
                         full_shard_id
@@ -1469,8 +1476,10 @@ class JSONRPCWebsocketServer:
 
     @public_methods.add
     async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
-        assert context is not None and full_shard_id is not None
+        assert context is not None
         full_shard_id = shard_id_decoder(full_shard_id)
+        if full_shard_id is None:
+            raise InvalidParams("Invalid full shard ID")
         branch = Branch(full_shard_id)
         shard = self.slave.shards.get(branch, None)
         if not shard:
@@ -1479,21 +1488,37 @@ class JSONRPCWebsocketServer:
         websocket = context["websocket"]
         sub_id = "0x" + uuid.uuid4().hex
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
-        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
+
+        if sub_type == "logs":
+            addresses, topics = _parse_log_request(params, address_decoder)
+            addresses = [Address(a.recipient, full_shard_id) for a in addresses]
+            filter = Filter(
+                shard.state.db,
+                addresses,
+                topics,
+                shard.state.header_tip,
+                shard.state.header_tip,
+            )
+            shard_subscription_manager.add_subscriber(
+                sub_type, sub_id, websocket, filter
+            )
+        else:
+            shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
 
         return sub_id
 
     @public_methods.add
     async def unsubscribe(self, sub_id, context=None):
-        assert context is not None and sub_id is not None
-        if sub_id not in self.sub_ids:
+        sub_ids = context["sub_ids"]
+        assert context is not None
+        if sub_id not in sub_ids:
             raise InvalidParams("Subscription ID not found")
 
-        full_shard_id = self.sub_ids[sub_id]
+        full_shard_id = sub_ids[sub_id]
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
         shard_subscription_manager.remove_subscriber(sub_id)
 
-        return sub_id
+        return True
 
 
 class SubscriptionManager:
@@ -1505,10 +1530,13 @@ class SubscriptionManager:
             "syncing": {},
         }  # type: Dict[str, Dict[str, StreamReaderProtocol]]
 
-    def add_subscriber(self, sub_type, sub_id, conn):
+    def add_subscriber(self, sub_type, sub_id, conn, filter=None):
         if sub_type not in self.subscribers:
             raise InvalidParams("Invalid subscription")
-        self.subscribers[sub_type][sub_id] = conn
+        if sub_type == "logs":
+            self.subscribers[sub_type][sub_id] = (conn, filter)
+        else:
+            self.subscribers[sub_type][sub_id] = conn
 
     def remove_subscriber(self, sub_id):
         for _, subscriber_dict in self.subscribers.items():
@@ -1519,13 +1547,24 @@ class SubscriptionManager:
 
     async def notify(self, sub_type, data):
         assert sub_type in self.subscribers
-        for sub_id, websocket in self.subscribers[sub_type].items():
+        for sub_id, value in self.subscribers[sub_type].items():
             # parse data and send through websocket
+            websocket = value
             if sub_type == "newHeads":
                 response = self.response_encoder(
                     sub_id, minor_block_header_encoder(data)
                 )
-            await websocket.send(json.dumps(response))
+                asyncio.ensure_future(websocket.send(json.dumps(response)))
+            elif sub_type == "logs":
+                websocket = value[0]
+                filter = value[1]
+                filter.start_block = data.height
+                filter.end_block = data.height
+                logs = filter.run()
+                log_list = loglist_encoder(logs)
+                for log in log_list:
+                    response = self.response_encoder(sub_id, log)
+                    asyncio.ensure_future(websocket.send(json.dumps(response)))
 
     @staticmethod
     def response_encoder(sub_id, result):

@@ -962,6 +962,9 @@ class ShardState:
             asyncio.ensure_future(
                 self.subscription_manager.notify("newHeads", self.header_tip)
             )
+            asyncio.ensure_future(
+                self.subscription_manager.notify("logs", self.header_tip)
+            )
             tip_prev_root_header = prev_root_header
             evm_state.sender_disallow_map = self._get_sender_disallow_map(block_hash)
             self.__update_tip(block, evm_state)
