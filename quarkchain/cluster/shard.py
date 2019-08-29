@@ -445,7 +445,7 @@ class Synchronizer:
         if not self.running:
             self.running = True
             asyncio.ensure_future(
-                self.subscription_manager.notify("syncing", self.shard)
+                self.shard.state.subscription_manager.notify("syncing", self.shard)
             )
             asyncio.ensure_future(self.__run())
 
@@ -455,7 +455,9 @@ class Synchronizer:
             task = SyncTask(header, shard_conn)
             await task.sync()
         self.running = False
-        asyncio.ensure_future(self.subscription_manager.notify("syncing", self.shard))
+        asyncio.ensure_future(
+            self.shard.state.subscription_manager.notify("syncing", self.shard)
+        )
 
 
 class Shard:
