@@ -1488,22 +1488,7 @@ class JSONRPCWebsocketServer:
         websocket = context["websocket"]
         sub_id = "0x" + uuid.uuid4().hex
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
-
-        if sub_type == "logs":
-            addresses, topics = _parse_log_request(params, address_decoder)
-            addresses = [Address(a.recipient, full_shard_id) for a in addresses]
-            filter = Filter(
-                shard.state.db,
-                addresses,
-                topics,
-                shard.state.header_tip,
-                shard.state.header_tip,
-            )
-            shard_subscription_manager.add_subscriber(
-                sub_type, sub_id, websocket, filter
-            )
-        else:
-            shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
+        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
 
         return sub_id
 
@@ -1547,24 +1532,9 @@ class SubscriptionManager:
 
     async def notify(self, sub_type, data):
         assert sub_type in self.subscribers
-        for sub_id, value in self.subscribers[sub_type].items():
+        for sub_id, websocket in self.subscribers[sub_type].items():
             # parse data and send through websocket
-            websocket = value
-            if sub_type == "newHeads":
-                response = self.response_encoder(
-                    sub_id, minor_block_header_encoder(data)
-                )
-                asyncio.ensure_future(websocket.send(json.dumps(response)))
-            elif sub_type == "logs":
-                websocket = value[0]
-                filter = value[1]
-                filter.start_block = data.height
-                filter.end_block = data.height
-                logs = filter.run()
-                log_list = loglist_encoder(logs)
-                for log in log_list:
-                    response = self.response_encoder(sub_id, log)
-                    asyncio.ensure_future(websocket.send(json.dumps(response)))
+            pass
 
     @staticmethod
     def response_encoder(sub_id, result):
