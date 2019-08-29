@@ -1085,8 +1085,11 @@ class ShardState:
     def get_mining_info(self, recipient: bytes, token_balance: Dict[bytes, int]):
         block_cnt = self._get_posw_coinbase_blockcnt(self.header_tip.get_hash())
         cnt = block_cnt.get(recipient, 0)
-        stakes = token_balance.get(recipient, 0)
+        if not self._posw_enabled(self.header_tip):
+            return cnt, 0
+
         posw_config = self.shard_config.POSW_CONFIG
+        stakes = token_balance.get(recipient, 0)
         block_threshold = min(
             posw_config.WINDOW_SIZE, stakes // posw_config.TOTAL_STAKE_PER_BLOCK
         )
