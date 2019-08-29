@@ -82,13 +82,10 @@ from quarkchain.core import (
     TypedTransaction,
     MinorBlock,
     PoSWInfo,
-    RootBlockHeader,
 )
-from quarkchain.db import PersistentDb, InMemoryDb
+from quarkchain.db import PersistentDb
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-from quarkchain.genesis import GenesisManager
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
 from quarkchain.utils import Logger, check
@@ -1757,19 +1754,6 @@ class MasterServer:
             addr, last_confirmed_minor_block_header.get_hash()
         )
         return self.root_state.get_posw_info(block, stakes, signer)
-
-    def __get_shard_genesis_block_header(self, full_shard_id):
-        root_genesis = self.root_state.get_root_block_by_height(0)
-        genesis_manager = GenesisManager(self.env.quark_chain_config)
-        ephemeral_evm_state = EvmState(
-            env=self.env.evm_env,
-            db=InMemoryDb(),
-            qkc_config=self.env.quark_chain_config,
-        )
-        shard_genesis, _ = genesis_manager.create_minor_block(
-            root_genesis, full_shard_id, ephemeral_evm_state
-        )
-        return shard_genesis.header
 
 
 def parse_args():
