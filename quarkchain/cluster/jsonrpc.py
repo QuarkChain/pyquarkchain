@@ -646,8 +646,10 @@ class JSONRPCHttpServer:
                 "balances": balances_encoder(balances),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
-                "minedBlocks": account_branch_data.mined_blocks,
-                "poswMineableBlocks": account_branch_data.posw_mineable_blocks,
+                "minedBlocks": quantity_encoder(account_branch_data.mined_blocks),
+                "poswMineableBlocks": quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                ),
             }
             return {"primary": primary}
 
@@ -671,7 +673,13 @@ class JSONRPCHttpServer:
             if branch.get_full_shard_id() == self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
             ):
-                primary = data
+                primary = data.copy()
+                primary["minedBlocks"] = quantity_encoder(
+                    account_branch_data.mined_blocks
+                )
+                primary["poswMineableBlocks"] = quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                )
 
         return {"primary": primary, "shards": shards}
 
