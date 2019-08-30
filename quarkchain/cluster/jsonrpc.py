@@ -34,7 +34,6 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 from cachetools import LRUCache
 import uuid
-from quarkchain.cluster.filter import Filter
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -1504,42 +1503,3 @@ class JSONRPCWebsocketServer:
         shard_subscription_manager.remove_subscriber(sub_id)
 
         return True
-
-
-class SubscriptionManager:
-    def __init__(self):
-        self.subscribers = {
-            "newHeads": {},
-            "newPendingTransactions": {},
-            "logs": {},
-            "syncing": {},
-        }  # type: Dict[str, Dict[str, StreamReaderProtocol]]
-
-    def add_subscriber(self, sub_type, sub_id, conn, filter=None):
-        if sub_type not in self.subscribers:
-            raise InvalidParams("Invalid subscription")
-        if sub_type == "logs":
-            self.subscribers[sub_type][sub_id] = (conn, filter)
-        else:
-            self.subscribers[sub_type][sub_id] = conn
-
-    def remove_subscriber(self, sub_id):
-        for _, subscriber_dict in self.subscribers.items():
-            if sub_id in subscriber_dict:
-                del subscriber_dict[sub_id]
-                return
-        raise InvalidParams("subscription not found")
-
-    async def notify(self, sub_type, data):
-        assert sub_type in self.subscribers
-        for sub_id, websocket in self.subscribers[sub_type].items():
-            # parse data and send through websocket
-            pass
-
-    @staticmethod
-    def response_encoder(sub_id, result):
-        return {
-            "jsonrpc": "2.0",
-            "method": "subscription",
-            "params": {"subscription": sub_id, "result": result},
-        }
