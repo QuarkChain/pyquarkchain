@@ -4,8 +4,11 @@ import time
 from fractions import Fraction
 from typing import Optional, List, Dict
 
-from quarkchain.cluster.guardian import Guardian
+from eth_keys.datatypes import Signature
+from eth_keys.exceptions import BadSignature
+
 from quarkchain.cluster.miner import validate_seal
+from quarkchain.config import POSWConfig
 from quarkchain.core import (
     Address,
     MinorBlockHeader,
@@ -15,10 +18,12 @@ from quarkchain.core import (
     Serializable,
     calculate_merkle_root,
     TokenBalanceMap,
+    PoSWInfo,
 )
 from quarkchain.constants import ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.utils import Logger, check, time_ms
 from quarkchain.evm.trie import BLANK_ROOT
 from cachetools import LRUCache
@@ -253,6 +258,8 @@ class RootState:
             env.quark_chain_config,
             count_minor_blocks=env.cluster_config.ENABLE_TRANSACTION_HISTORY,
         )
+        # header hash -> [coinbase address] during previous blocks (ascending)
+        self.coinbase_addr_cache = LRUCache(maxsize=128)
 
         self.tip = self.db.get_tip_header()  # type: RootBlockHeader
         if self.tip:
@@ -340,7 +347,9 @@ class RootState:
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
         return block.finalize(coinbase_tokens=coinbase_tokens, coinbase_address=address)
 
-    def __validate_block_header(self, block_header: RootBlockHeader):
+    def __validate_block_header(
+        self, block_header: RootBlockHeader, adjusted_diff: int = None
+    ):
         """ Validate the block header.
         """
         height = block_header.height
@@ -379,18 +388,12 @@ class RootState:
             raise ValueError("extra_data in block is too large")
 
         # Check difficulty, potentially adjusted by guardian mechanism
-        adjusted_diff = None  # type: Optional[int]
         if not self.env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK:
             diff = self.diff_calc.calculate_diff_with_parent(
                 prev_block_header, block_header.create_time
             )
             if diff != block_header.difficulty:
                 raise ValueError("incorrect difficulty")
-            # lower the difficulty for root block signed by guardian
-            if block_header.verify_signature(
-                self.env.quark_chain_config.guardian_public_key
-            ):
-                adjusted_diff = Guardian.adjust_difficulty(diff, block_header.height)
 
         if (
             block_header.difficulty + prev_block_header.total_difficulty
@@ -401,7 +404,10 @@ class RootState:
         # Check PoW if applicable
         if not self.env.quark_chain_config.DISABLE_POW_CHECK:
             consensus_type = self.root_config.CONSENSUS_TYPE
-            validate_seal(block_header, consensus_type, adjusted_diff=adjusted_diff)
+            diff = (
+                adjusted_diff if adjusted_diff is not None else block_header.difficulty
+            )
+            validate_seal(block_header, consensus_type, adjusted_diff=diff)
 
         return block_header.get_hash()
 
@@ -414,10 +420,10 @@ class RootState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def validate_block(self, block):
+    def validate_block(self, block, adjusted_diff: int = None):
         """Raise on validation errors """
 
-        block_hash = self.__validate_block_header(block.header)
+        block_hash = self.__validate_block_header(block.header, adjusted_diff)
 
         if (
             len(block.tracking_data)
@@ -552,7 +558,9 @@ class RootState:
             self.db.put_root_block_index(block)
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
-    def add_block(self, block, write_db=True, skip_if_too_old=True):
+    def add_block(
+        self, block, write_db=True, skip_if_too_old=True, adjusted_diff: int = None
+    ):
         """ Add new block.
         return True if a longest block is added, False otherwise
         There are a couple of optimizations can be done here:
@@ -574,7 +582,9 @@ class RootState:
             )
 
         start_ms = time_ms()
-        block_hash, last_minor_block_header_list = self.validate_block(block)
+        block_hash, last_minor_block_header_list = self.validate_block(
+            block, adjusted_diff
+        )
 
         if write_db:
             self.db.put_root_block(block, last_minor_block_header_list)
@@ -629,3 +639,24 @@ class RootState:
         return self.db.get_root_block_by_height(
             tip.height if height is None else height
         )
+
+    def get_last_confirmed_minor_block_header(
+        self, h, full_shard_id
+    ) -> Optional[MinorBlockHeader]:
+        headers = self.db.get_root_block_last_minor_block_header_list(h)
+        for header in headers:
+            if header.branch.get_full_shard_id() == full_shard_id:
+                return header
+        return None
+
+    def get_posw_info(
+        self, block: RootBlock, stakes: int, signer: bytes
+    ) -> Optional[PoSWInfo]:
+        config = self.root_config.POSW_CONFIG  # type: POSWConfig
+        block_cnt = get_posw_coinbase_blockcnt(
+            config,
+            self.coinbase_addr_cache,
+            block.header.hash_prev_block,
+            self.db.get_root_block_header_by_hash,
+        )
+        return get_posw_info(config, block.header, lambda: stakes, block_cnt, signer)

@@ -37,6 +37,8 @@ from quarkchain.cluster.rpc import (
     GetAllTransactionsResponse,
     GetMinorBlockRequest,
     MinorBlockExtraInfo,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -552,6 +554,14 @@ class MasterConnection(ClusterConnection):
 
         return SubmitWorkResponse(error_code=0, success=res)
 
+    async def handle_get_root_chain_stakes(
+        self, req: GetRootChainStakesRequest
+    ) -> GetRootChainStakesResponse:
+        stakes, signer = self.slave_server.get_root_chain_stakes(
+            req.address, req.minor_block_hash
+        )
+        return GetRootChainStakesResponse(0, stakes, signer)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -663,6 +673,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: (
         ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE,
         MasterConnection.handle_get_all_transaction_request,
+    ),
+    ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: (
+        ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE,
+        MasterConnection.handle_get_root_chain_stakes,
     ),
 }
 
@@ -1361,10 +1375,10 @@ class SlaveServer:
         try:
             shard = self.shards[branch]
             work, block = await shard.miner.get_work(coinbase_addr or default_addr)
-            if shard.state.shard_config.POSW_CONFIG.ENABLED:
-                check(isinstance(block, MinorBlock))
-                diff = shard.state.posw_diff_adjust(block)
-                work = MiningWork(work.hash, work.height, diff)
+            check(isinstance(block, MinorBlock))
+            posw_diff = shard.state.posw_diff_adjust(block)
+            if posw_diff is not None and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
         except Exception:
             Logger.log_exception()
@@ -1380,6 +1394,20 @@ class SlaveServer:
         except Exception:
             Logger.log_exception()
             return None
+
+    def get_root_chain_stakes(
+        self, address: Address, block_hash: bytes
+    ) -> (int, bytes):
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
+        # only applies to chain 0 shard 0
+        check(branch.value == 1)
+        shard = self.shards.get(branch, None)
+        check(shard is not None)
+        return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
 
 def parse_args():

@@ -1,9 +1,8 @@
 import asyncio
 import json
 import time
-from collections import Counter, deque
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple, Union, NamedTuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from rlp import DecodingError
 
@@ -21,6 +20,7 @@ from quarkchain.core import (
     MinorBlock,
     MinorBlockHeader,
     MinorBlockMeta,
+    PoSWInfo,
     RootBlock,
     SerializedEvmTransaction,
     TokenBalanceMap,
@@ -43,6 +43,7 @@ from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import add_dict
 from quarkchain.genesis import GenesisManager
+from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 from cachetools import LRUCache
@@ -55,16 +56,6 @@ class GasPriceSuggestionOracle:
         self.cache = LRUCache(maxsize=128)
         self.check_blocks = check_blocks
         self.percentile = percentile
-
-
-PoSWInfo = NamedTuple(
-    "PoSWInfo",
-    [
-        ("effective_difficulty", int),
-        ("posw_mineable_blocks", int),
-        ("posw_mined_blocks", int),
-    ],
-)
 
 
 class XshardTxCursor:
@@ -270,7 +261,7 @@ class ShardState:
 
         # new blocks that passed POW validation and should be made available to whole network
         self.new_block_header_pool = dict()
-        # header hash -> (height, [coinbase address]) during previous blocks (ascending)
+        # header hash -> [coinbase address] during previous blocks (ascending)
         self.coinbase_addr_cache = LRUCache(maxsize=128)
         self.genesis_token_id = self.env.quark_chain_config.genesis_token
         self.local_fee_rate = (
@@ -322,7 +313,7 @@ class ShardState:
 
         self.meta_tip = self.db.get_minor_block_meta_by_hash(header_tip_hash)
         self.confirmed_header_tip = confirmed_header_tip
-        sender_disallow_map = self._get_sender_disallow_map(header_tip_hash)
+        sender_disallow_map = self._get_sender_disallow_map(header_tip)
         self.evm_state = self.__create_evm_state(
             self.meta_tip.hash_evm_state_root, sender_disallow_map
         )
@@ -549,10 +540,11 @@ class ShardState:
 
     def _get_evm_state_for_new_block(self, block, ephemeral=True):
         prev_minor_hash = block.header.hash_prev_minor_block
+        prev_minor_header = self.db.get_minor_block_header_by_hash(prev_minor_hash)
         root_hash = self.db.get_minor_block_evm_root_hash_by_hash(prev_minor_hash)
         coinbase_recipient = block.header.coinbase_address.recipient
         sender_disallow_map = self._get_sender_disallow_map(
-            prev_minor_hash, recipient=coinbase_recipient
+            prev_minor_header, recipient=coinbase_recipient
         )
 
         state = self.__create_evm_state(root_hash, sender_disallow_map)
@@ -966,7 +958,7 @@ class ShardState:
                 self.subscription_manager.notify("logs", self.header_tip)
             )
             tip_prev_root_header = prev_root_header
-            evm_state.sender_disallow_map = self._get_sender_disallow_map(block_hash)
+            evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
             self.__update_tip(block, evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
@@ -1445,7 +1437,7 @@ class ShardState:
         if self.header_tip != orig_header_tip:
             h = self.header_tip.get_hash()
             b = self.db.get_minor_block_by_hash(h)
-            sender_disallow_map = self._get_sender_disallow_map(h)
+            sender_disallow_map = self._get_sender_disallow_map(b.header)
             evm_state = self.__create_evm_state(
                 b.meta.hash_evm_state_root, sender_disallow_map
             )
@@ -1757,35 +1749,27 @@ class ShardState:
         consensus_type = self.env.quark_chain_config.shards[
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
-        if not self.shard_config.POSW_CONFIG.ENABLED:
-            validate_seal(block.header, consensus_type)
-        else:
-            diff = self.posw_diff_adjust(block)
-            validate_seal(block.header, consensus_type, adjusted_diff=diff)
+        posw_diff = self.posw_diff_adjust(block)  # could be None
+        validate_seal(block.header, consensus_type, adjusted_diff=posw_diff)
 
-    def posw_diff_adjust(self, block: MinorBlock) -> int:
-        return self._posw_info(block).effective_difficulty
+    def posw_diff_adjust(self, block: MinorBlock) -> Optional[int]:
+        posw_info = self._posw_info(block)
+        return posw_info and posw_info.effective_difficulty
 
-    def _posw_info(self, block: MinorBlock) -> PoSWInfo:
+    def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
         header = block.header
-        if header.height == 0:  # genesis
-            return PoSWInfo(header.difficulty, 0, 0)
-        diff = header.difficulty
-        coinbase_recipient = header.coinbase_address.recipient
-        # evaluate stakes before the to-be-added block
-        evm_state = self._get_evm_state_for_new_block(block, ephemeral=True)
-        config = self.shard_config.POSW_CONFIG
-        stakes = evm_state.get_balance(
-            coinbase_recipient, self.env.quark_chain_config.genesis_token
-        )
-        block_threshold = stakes // config.TOTAL_STAKE_PER_BLOCK
-        block_threshold = min(config.WINDOW_SIZE, block_threshold)
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
-        cnt = block_cnt.get(coinbase_recipient, 0)
-        if cnt < block_threshold:
-            diff //= config.DIFF_DIVIDER
-        # mined blocks should include current one
-        return PoSWInfo(diff, block_threshold, posw_mined_blocks=cnt + 1)
+        return get_posw_info(
+            self.shard_config.POSW_CONFIG,
+            header,
+            lambda: self._get_evm_state_for_new_block(
+                block, ephemeral=True
+            ).get_balance(
+                header.coinbase_address.recipient,
+                self.env.quark_chain_config.genesis_token,
+            ),
+            block_cnt,
+        )
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
@@ -1799,50 +1783,25 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
-    def __get_coinbase_addresses_until_block(self, header_hash: bytes) -> List[bytes]:
-        """Get coinbase addresses up until block of given hash within the window."""
-        header = self.db.get_minor_block_header_by_hash(header_hash)
-        length = self.shard_config.POSW_CONFIG.WINDOW_SIZE - 1
-        if not header:
-            raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
-        height = header.height
-        prev_hash = header.hash_prev_minor_block
-        cache = self.coinbase_addr_cache
-        if prev_hash in cache:  # mem cache hit
-            _, addrs = cache[prev_hash]
-            addrs = addrs.copy()
-            if len(addrs) == length:
-                addrs.popleft()
-            addrs.append(header.coinbase_address.recipient)
-        else:  # miss, iterating DB
-            addrs = deque()
-            for _ in range(length):
-                addrs.appendleft(header.coinbase_address.recipient)
-                if header.height == 0:
-                    break
-                header = self.db.get_minor_block_header_by_hash(
-                    header.hash_prev_minor_block
-                )
-                check(header is not None, "mysteriously missing block")
-        cache[header_hash] = (height, addrs)
-        check(len(addrs) <= length)
-        return list(addrs)
-
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.
         """
-        coinbase_addrs = self.__get_coinbase_addresses_until_block(header_hash)
-        return Counter(coinbase_addrs)
+        return get_posw_coinbase_blockcnt(
+            self.shard_config.POSW_CONFIG,
+            self.coinbase_addr_cache,
+            header_hash,
+            self.db.get_minor_block_header_by_hash,
+        )
 
-    def _get_sender_disallow_map(self, header_hash, recipient=None) -> Dict[bytes, int]:
+    def _get_sender_disallow_map(self, header, recipient=None) -> Dict[bytes, int]:
         """Take an additional recipient parameter and add its block count."""
-        if not self.shard_config.POSW_CONFIG.ENABLED:
+        if not self._posw_enabled(header):
             return {}
         total_stakes = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
-        blockcnt = self._get_posw_coinbase_blockcnt(header_hash)
+        blockcnt = self._get_posw_coinbase_blockcnt(header.get_hash())
         if recipient:
             blockcnt[recipient] += 1
         return {k: v * total_stakes for k, v in blockcnt.items()}
@@ -1859,10 +1818,10 @@ class ShardState:
         block = self.db.get_minor_block_by_hash(block_hash)
         if not block:
             return None, None
-        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
-            # for now extra info is only posw-related
+        if not need_extra_info:
             return block, None
-        return block, self._posw_info(block)._asdict()
+        posw_info = self._posw_info(block)
+        return block, posw_info and posw_info._asdict()
 
     def get_minor_block_by_height(
         self, height: int, need_extra_info: bool
@@ -1870,7 +1829,17 @@ class ShardState:
         block = self.db.get_minor_block_by_height(height)
         if not block:
             return None, None
-        if not need_extra_info or not self.shard_config.POSW_CONFIG.ENABLED:
-            # for now extra info is only posw-related
+        if not need_extra_info:
             return block, None
-        return block, self._posw_info(block)._asdict()
+        posw_info = self._posw_info(block)
+        return block, posw_info and posw_info._asdict()
+
+    def get_root_chain_stakes(
+        self, recipient: bytes, block_hash: bytes
+    ) -> (int, bytes):
+        # TODO: impl
+        return 0, bytes(20)
+
+    def _posw_enabled(self, header):
+        config = self.shard_config.POSW_CONFIG
+        return config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP
