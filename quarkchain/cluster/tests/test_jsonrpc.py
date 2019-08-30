@@ -14,6 +14,8 @@ from quarkchain.cluster.jsonrpc import (
     JSONRPCHttpServer,
     JSONRPCWebsocketServer,
     quantity_encoder,
+    data_encoder,
+    quantity_decoder,
 )
 from quarkchain.cluster.miner import DoubleSHA256, MiningWork
 from quarkchain.cluster.tests.test_utils import (
@@ -1158,7 +1160,6 @@ def jrpc_websocket_server_context(slave_server, port=38590):
         server.shutdown()
 
 
-"""
 def send_websocket_request(request, num_response=1, port=38590):
     responses = []
 
@@ -1175,6 +1176,12 @@ def send_websocket_request(request, num_response=1, port=38590):
     return call_async(__send_request(request, port))
 
 
+async def get_websocket(port=38590):
+    uri = "ws://0.0.0.0:" + str(port)
+    websocket = await websockets.connect(uri)
+    return websocket
+
+
 class TestJSONRPCWebsocket(unittest.TestCase):
     def test_newHeads(self):
         id1 = Identity.create_random_identity()
@@ -1184,19 +1191,43 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
             # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
+            master = clusters[0].master
+
             request = {
                 "jsonrpc": "2.0",
                 "method": "subscribe",
                 "params": ["newHeads", "0x00000002"],
                 "id": 3,
             }
-            responses = send_websocket_request(json.dumps(request), 2)
-            results = []
-            for response in responses:
-                results.append(json.loads(response))
-            self.assertEqual(results[0]["result"], 0)  # subscription id
-            self.assertEqual(results[0]["id"], 3)
+            websocket = call_async(get_websocket())
+            call_async(websocket.send(json.dumps(request)))
+            response = call_async(websocket.recv())
+            response = json.loads(response)
+            self.assertEqual(response["id"], 3)
 
+            root_block = call_async(
+                master.get_next_block_to_mine(acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+            block_hash = block.header.get_hash()
+            block_height = block.header.height
+
+            response = call_async(websocket.recv())
+            response = json.loads(response)
+            self.assertEqual(
+                response["params"]["result"]["hash"], data_encoder(block_hash)
+            )
+            self.assertEqual(
+                response["params"]["result"]["height"], quantity_encoder(block_height)
+            )
+
+
+"""
     def test_newPendingTransactions(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)

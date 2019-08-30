@@ -951,15 +951,15 @@ class ShardState:
                 update_tip = prev_root_header.height > tip_prev_root_header.height
 
         if update_tip:
+            tip_prev_root_header = prev_root_header
+            evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
+            self.__update_tip(block, evm_state)
             asyncio.ensure_future(
                 self.subscription_manager.notify("newHeads", self.header_tip)
             )
             asyncio.ensure_future(
                 self.subscription_manager.notify("logs", self.header_tip)
             )
-            tip_prev_root_header = prev_root_header
-            evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
-            self.__update_tip(block, evm_state)
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(
