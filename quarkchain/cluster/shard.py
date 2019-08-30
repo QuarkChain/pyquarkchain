@@ -462,7 +462,6 @@ class Synchronizer:
 
 class Shard:
     def __init__(self, env, full_shard_id, slave):
-
         self.env = env
         self.full_shard_id = full_shard_id
         self.slave = slave
@@ -676,9 +675,6 @@ class Shard:
             )
         )
 
-        asyncio.ensure_future(
-            self.state.subscription_manager.notify("newHeads", self.state.header_tip)
-        )
         self.broadcast_new_block(block)
         await self.add_block(block)
 
