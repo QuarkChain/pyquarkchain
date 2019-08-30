@@ -11,6 +11,7 @@ from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
+from quarkchain.cluster.subscription import SubscriptionManager
 from quarkchain.core import (
     Address,
     Branch,
@@ -230,7 +231,6 @@ class ShardState:
     """
 
     def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
-        from quarkchain.cluster.jsonrpc import SubscriptionManager
 
         self.env = env
         self.shard_config = env.quark_chain_config.shards[full_shard_id]
