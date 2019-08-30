@@ -3,7 +3,6 @@ import asyncio
 import os
 import cProfile
 import sys
-import time
 from fractions import Fraction
 
 import psutil
@@ -11,6 +10,7 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
     CommandOp,
@@ -49,6 +49,8 @@ from quarkchain.cluster.rpc import (
     GetStorageRequest,
     GetCodeRequest,
     GasPriceRequest,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
     GetWorkRequest,
     GetWorkResponse,
     SubmitWorkRequest,
@@ -79,6 +81,7 @@ from quarkchain.core import (
     TransactionReceipt,
     TypedTransaction,
     MinorBlock,
+    PoSWInfo,
 )
 from quarkchain.db import PersistentDb
 from quarkchain.env import DEFAULT_ENV
@@ -680,6 +683,17 @@ class SlaveConnection(ClusterConnection):
         submit_work_resp = resp  # type: SubmitWorkResponse
         return submit_work_resp.error_code == 0 and submit_work_resp.success
 
+    async def get_root_chain_stakes(
+        self, address: Address, minor_block_hash: bytes
+    ) -> (int, bytes):
+        request = GetRootChainStakesRequest(address, minor_block_hash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST, request
+        )
+        root_chain_stakes_resp = resp  # type: GetRootChainStakesResponse
+        check(root_chain_stakes_resp.error_code == 0)
+        return root_chain_stakes_resp.stakes, root_chain_stakes_resp.signer
+
     # RPC handlers
 
     async def handle_add_minor_block_header_request(self, req):
@@ -1238,15 +1252,25 @@ class MasterServer:
     def handle_new_root_block_header(self, header, peer):
         self.synchronizer.add_task(header, peer)
 
-    async def add_root_block(self, r_block):
+    async def add_root_block(self, r_block: RootBlock):
         """ Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
         # use write-ahead log so if crashed the root block can be re-broadcasted
         self.root_state.write_committing_hash(r_block.header.get_hash())
 
+        # lower the difficulty for root block signed by guardian
+        r_header, adjusted_diff = r_block.header, None
+        if r_header.verify_signature(self.env.quark_chain_config.guardian_public_key):
+            adjusted_diff = Guardian.adjust_difficulty(
+                r_header.difficulty, r_header.height
+            )
+        else:
+            # could be None if PoSW not applicable
+            adjusted_diff = await self.posw_diff_adjust(r_block)
+
         try:
-            update_tip = self.root_state.add_block(r_block)
+            update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
         except ValueError as e:
             Logger.log_exception()
             raise e
@@ -1628,7 +1652,11 @@ class MasterServer:
             default_addr = Address.create_from(
                 self.env.quark_chain_config.ROOT.COINBASE_ADDRESS
             )
-            work, _ = await self.root_miner.get_work(coinbase_addr or default_addr)
+            work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
+            check(isinstance(block, RootBlock))
+            posw_diff = await self.posw_diff_adjust(block)
+            if posw_diff is not None and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
 
         if branch.value not in self.branch_to_slaves:
@@ -1698,6 +1726,34 @@ class MasterServer:
             )
 
         return ret
+
+    async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
+        """"Return None if PoSW check doesn't apply."""
+        posw_info = await self._posw_info(block)
+        return posw_info and posw_info.effective_difficulty
+
+    async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
+        config = self.env.quark_chain_config.ROOT.POSW_CONFIG
+        if not (config.ENABLED and block.header.create_time >= config.ENABLE_TIMESTAMP):
+            return None
+
+        addr = block.header.coinbase_address
+        full_shard_id = 1
+        check(full_shard_id in self.branch_to_slaves)
+
+        # get chain 0 shard 0's last confirmed block header
+        last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
+            block.header.hash_prev_block, full_shard_id
+        )
+        if not last_confirmed_minor_block_header:
+            # happens if no shard block has been confirmed
+            return None
+
+        slave = self.branch_to_slaves[full_shard_id][0]
+        stakes, signer = await slave.get_root_chain_stakes(
+            addr, last_confirmed_minor_block_header.get_hash()
+        )
+        return self.root_state.get_posw_info(block, stakes, signer)
 
 
 def parse_args():

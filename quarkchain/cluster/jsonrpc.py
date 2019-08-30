@@ -1453,7 +1453,7 @@ class JSONRPCWebsocketServer:
         finally:  # current websocket connection terminates, remove subscribers in this connection
             for sub_id, full_shard_id in sub_ids.items():
                 try:
-                    shard_subscription_manager = self.slave.shard_subscription_managers[
+                    shard_subscription_manager = self.shard_subscription_managers[
                         full_shard_id
                     ]
                     shard_subscription_manager.remove_subscriber(sub_id)
@@ -1488,9 +1488,7 @@ class JSONRPCWebsocketServer:
 
         websocket = context["websocket"]
         sub_id = "0x" + uuid.uuid4().hex
-        shard_subscription_manager = self.slave.shard_subscription_managers[
-            full_shard_id
-        ]
+        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
         shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
 
         return sub_id

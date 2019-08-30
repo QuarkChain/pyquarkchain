@@ -6,7 +6,7 @@ from quarkchain.cluster.cluster_config import ClusterConfig
 
 
 class TestClusterConfig(unittest.TestCase):
-    def test_cluster_dict_wloadtest(self):
+    def test_cluster_dict_with_loadtest(self):
         """convert to dict and back to check if the content changed, requires `__eq__`
         removing --loadtest will make the test faster
         passing more num_shards will increase runtime linearly
