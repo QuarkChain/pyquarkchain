@@ -6,7 +6,6 @@ from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
 
 from quarkchain.cluster.filter import Filter as EvmLogFilter
-from quarkchain.cluster.jsonrpc import data_encoder
 from quarkchain.core import MinorBlockHeader
 
 SUB_NEW_HEADS = "newHeads"
@@ -48,7 +47,7 @@ class SubscriptionManager:
         await self.__notify(SUB_NEW_HEADS, data)
 
     async def notify_new_pending_tx(self, tx_hash: bytes):
-        await self.__notify(SUB_NEW_PENDING_TX, data_encoder(tx_hash))
+        await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
 
     async def notify_log(self, height: int):
         # TODO
