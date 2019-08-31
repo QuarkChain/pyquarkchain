@@ -11,6 +11,7 @@ from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
+from quarkchain.cluster.subscription import SubscriptionManager
 from quarkchain.core import (
     Address,
     Branch,
@@ -230,7 +231,6 @@ class ShardState:
     """
 
     def __init__(self, env, full_shard_id: int, db=None, diff_calc=None):
-        from quarkchain.cluster.jsonrpc import SubscriptionManager
 
         self.env = env
         self.shard_config = env.quark_chain_config.shards[full_shard_id]
@@ -955,10 +955,10 @@ class ShardState:
             evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
             self.__update_tip(block, evm_state)
             asyncio.ensure_future(
-                self.subscription_manager.notify("newHeads", self.header_tip)
+                self.subscription_manager.notify_new_heads(self.header_tip)
             )
             asyncio.ensure_future(
-                self.subscription_manager.notify("logs", self.header_tip)
+                self.subscription_manager.notify_log(self.header_tip.height)
             )
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
