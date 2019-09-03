@@ -14,6 +14,7 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.rpc import AccountBranchData
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.core import (
     Address,
@@ -634,7 +635,7 @@ class JSONRPCHttpServer:
         if not include_shards:
             account_branch_data = await self.master.get_primary_account_data(
                 address, block_height
-            )
+            )  # type: AccountBranchData
             branch = account_branch_data.branch
             count = account_branch_data.transaction_count
 
@@ -646,6 +647,10 @@ class JSONRPCHttpServer:
                 "balances": balances_encoder(balances),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
+                "minedBlocks": quantity_encoder(account_branch_data.mined_blocks),
+                "poswMineableBlocks": quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                ),
             }
             return {"primary": primary}
 
@@ -669,7 +674,13 @@ class JSONRPCHttpServer:
             if branch.get_full_shard_id() == self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
             ):
-                primary = data
+                primary = data.copy()
+                primary["minedBlocks"] = quantity_encoder(
+                    account_branch_data.mined_blocks
+                )
+                primary["poswMineableBlocks"] = quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                )
 
         return {"primary": primary, "shards": shards}
 
