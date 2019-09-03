@@ -435,17 +435,19 @@ class SyncTask:
 class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
-    def __init__(self, instance):
+    def __init__(self, tip):
         self.queue = deque()
         self.running = False
-        self.shard = instance
+        self.tip = tip
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
             asyncio.ensure_future(
-                self.shard.state.subscription_manager.notify("syncing", self.shard)
+                self.shard.state.subscription_manager.notify_sync(
+                    self.running, self.tip, self.queue
+                )
             )
             asyncio.ensure_future(self.__run())
 
@@ -456,7 +458,9 @@ class Synchronizer:
             await task.sync()
         self.running = False
         asyncio.ensure_future(
-            self.shard.state.subscription_manager.notify("syncing", self.shard)
+            self.shard.state.subscription_manager.notify_sync(
+                self.running, self.tip, self.queue
+            )
         )
 
 
@@ -469,7 +473,7 @@ class Shard:
         self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
         self.loop = asyncio.get_event_loop()
-        self.synchronizer = Synchronizer(self)
+        self.synchronizer = Synchronizer(self.state.header_tip)
 
         self.peers = dict()  # cluster_peer_id -> PeerShardConnection
 

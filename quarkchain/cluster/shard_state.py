@@ -534,9 +534,8 @@ class ShardState:
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
             asyncio.ensure_future(
-                self.subscription_manager.notify(
-                    "newPendingTransactions",
-                    tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big"),
+                self.subscription_manager.notify_new_pending_tx(
+                    tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
                 )
             )
             return True
@@ -1289,10 +1288,9 @@ class ShardState:
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
         for tx in tx_list.tx_list:
             asyncio.ensure_future(
-                self.subscription_manager.notify(
-                    "newPendingTransactions",
+                self.subscription_manager.notify_new_pending_tx(
                     tx.tx_hash
-                    + tx.from_address.full_shard_key.to_bytes(4, byteorder="big"),
+                    + tx.from_address.full_shard_key.to_bytes(4, byteorder="big")
                 )
             )
 
