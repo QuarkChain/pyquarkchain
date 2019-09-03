@@ -357,12 +357,10 @@ void test_qkc_hash_perf() {
             org::quarkchain::qkc_hash(new_oset, seed, result);
         }
         total_count += count;
-
         used_time = std::chrono::steady_clock::now() - t_start;
         auto used_time_ms = (uint64_t)std::chrono::duration<double, std::milli>(used_time).count();
         std::cout << total_count * 1000 / used_time_ms
                   << std::endl;
-
         std::cout << "Hash:" << std::endl;
         for (uint64_t v : result) {
             std::cout << v << " ";

@@ -26,11 +26,14 @@ from quarkchain.core import (
     TransactionReceipt,
     TypedTransaction,
     Constant,
+    MinorBlockHeader,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
+from cachetools import LRUCache
+import uuid
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -49,14 +52,10 @@ config.log_responses = False
 EMPTY_TX_ID = "0x" + "0" * Constant.TX_ID_HEX_LENGTH
 
 
-def optional_quantity_decoder(optional_hex_str):
-    if optional_hex_str is None:
-        return None
-    return quantity_decoder(optional_hex_str)
-
-
-def quantity_decoder(hex_str):
+def quantity_decoder(hex_str, allow_optional=False):
     """Decode `hexStr` representing a quantity."""
+    if allow_optional and hex_str is None:
+        return None
     # must start with "0x"
     if not hex_str.startswith("0x") or len(hex_str) < 3:
         raise InvalidParams("Invalid quantity encoding")
@@ -102,8 +101,10 @@ def address_encoder(addr_bytes):
     return data_encoder(addr_bytes)
 
 
-def recipient_decoder(hex_str):
+def recipient_decoder(hex_str, allow_optional=False):
     """Decode an recipient from hex with 0x prefix to 20 bytes."""
+    if allow_optional and hex_str is None:
+        return None
     recipient_bytes = data_decoder(hex_str)
     if len(recipient_bytes) not in (20, 0):
         raise InvalidParams("Addresses must be 20 or 0 bytes long")
@@ -183,24 +184,7 @@ def root_block_encoder(block):
     }
 
     for header in block.minor_block_header_list:
-        h = {
-            "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-            "height": quantity_encoder(header.height),
-            "hash": data_encoder(header.get_hash()),
-            "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-            "chainId": quantity_encoder(header.branch.get_chain_id()),
-            "shardId": quantity_encoder(header.branch.get_shard_id()),
-            "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-            "idPrevMinorBlock": id_encoder(
-                header.hash_prev_minor_block, header.branch.get_full_shard_id()
-            ),
-            "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-            "nonce": quantity_encoder(header.nonce),
-            "difficulty": quantity_encoder(header.difficulty),
-            "miner": address_encoder(header.coinbase_address.serialize()),
-            "coinbase": balances_encoder(header.coinbase_amount_map),
-            "timestamp": quantity_encoder(header.create_time),
-        }
+        h = minor_block_header_encoder(header)
         d["minorBlockHeaders"].append(h)
     return d
 
@@ -217,28 +201,12 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
     header = block.header
     meta = block.meta
 
+    header_info = minor_block_header_encoder(header)
     d = {
-        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
-        "height": quantity_encoder(header.height),
-        "hash": data_encoder(header.get_hash()),
-        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
-        "chainId": quantity_encoder(header.branch.get_chain_id()),
-        "shardId": quantity_encoder(header.branch.get_shard_id()),
-        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
-        "idPrevMinorBlock": id_encoder(
-            header.hash_prev_minor_block, header.branch.get_full_shard_id()
-        ),
-        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
-        "nonce": quantity_encoder(header.nonce),
+        **header_info,
         "hashMerkleRoot": data_encoder(meta.hash_merkle_root),
         "hashEvmStateRoot": data_encoder(meta.hash_evm_state_root),
-        "miner": address_encoder(header.coinbase_address.serialize()),
-        "coinbase": balances_encoder(header.coinbase_amount_map),
-        "difficulty": quantity_encoder(header.difficulty),
-        "extraData": data_encoder(header.extra_data),
-        "gasLimit": quantity_encoder(header.evm_gas_limit),
         "gasUsed": quantity_encoder(meta.evm_gas_used),
-        "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
     }
     if include_transactions:
@@ -255,6 +223,31 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
         d["poswMineableBlocks"] = quantity_encoder(extra_info.posw_mineable_blocks)
         d["poswMinedBlocks"] = quantity_encoder(extra_info.posw_mined_blocks)
         d["stakingApplied"] = extra_info.effective_difficulty < header.difficulty
+    return d
+
+
+def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
+
+    d = {
+        "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
+        "height": quantity_encoder(header.height),
+        "hash": data_encoder(header.get_hash()),
+        "fullShardId": quantity_encoder(header.branch.get_full_shard_id()),
+        "chainId": quantity_encoder(header.branch.get_chain_id()),
+        "shardId": quantity_encoder(header.branch.get_shard_id()),
+        "hashPrevMinorBlock": data_encoder(header.hash_prev_minor_block),
+        "idPrevMinorBlock": id_encoder(
+            header.hash_prev_minor_block, header.branch.get_full_shard_id()
+        ),
+        "hashPrevRootBlock": data_encoder(header.hash_prev_root_block),
+        "nonce": quantity_encoder(header.nonce),
+        "miner": address_encoder(header.coinbase_address.serialize()),
+        "coinbase": balances_encoder(header.coinbase_amount_map),
+        "difficulty": quantity_encoder(header.difficulty),
+        "extraData": data_encoder(header.extra_data),
+        "gasLimit": quantity_encoder(header.evm_gas_limit),
+        "timestamp": quantity_encoder(header.create_time),
+    }
     return d
 
 
@@ -382,13 +375,17 @@ def balances_encoder(balances: TokenBalanceMap) -> List[Dict]:
     return balance_list
 
 
-def decode_arg(name, decoder):
+def decode_arg(name, decoder, allow_optional=False):
     """Create a decorator that applies `decoder` to argument `name`."""
 
     @decorator
     def new_f(f, *args, **kwargs):
         call_args = inspect.getcallargs(f, *args, **kwargs)
-        call_args[name] = decoder(call_args[name])
+        call_args[name] = (
+            decoder(call_args[name], allow_optional=True)
+            if allow_optional
+            else decoder(call_args[name])
+        )
         return f(**call_args)
 
     return new_f
@@ -434,6 +431,27 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
         index = i * 10
         full_shard_key_hex += eth_hex[index : index + 2]
     return address_decoder("0x" + eth_hex + full_shard_key_hex)
+
+
+def _parse_log_request(
+    params: Dict, addr_decoder: Callable[[str], bytes]
+) -> (bytes, bytes):
+    """Returns addresses and topics from a EVM log request."""
+    addresses, topics = [], []
+    if "address" in params:
+        if isinstance(params["address"], str):
+            addresses = [Address.deserialize(addr_decoder(params["address"]))]
+        elif isinstance(params["address"], list):
+            addresses = [
+                Address.deserialize(addr_decoder(a)) for a in params["address"]
+            ]
+    if "topics" in params:
+        for topic_item in params["topics"]:
+            if isinstance(topic_item, str):
+                topics.append([data_decoder(topic_item)])
+            elif isinstance(topic_item, list):
+                topics.append([data_decoder(tp) for tp in topic_item])
+    return addresses, topics
 
 
 public_methods = AsyncMethods()
@@ -905,7 +923,7 @@ class JSONRPCHttpServer:
     @decode_arg("address", address_decoder)
     @decode_arg("start", data_decoder)
     @decode_arg("limit", quantity_decoder)
-    @decode_arg("transfer_token_id", optional_quantity_decoder)
+    @decode_arg("transfer_token_id", quantity_decoder, allow_optional=True)
     async def getTransactionsByAddress(
         self, address, start="0x", limit="0xa", transfer_token_id=None
     ):
@@ -971,7 +989,8 @@ class JSONRPCHttpServer:
 
     @public_methods.add
     @decode_arg("full_shard_key", shard_id_decoder)
-    async def getWork(self, full_shard_key):
+    @decode_arg("coinbase_addr", recipient_decoder, allow_optional=True)
+    async def getWork(self, full_shard_key, coinbase_addr=None):
         branch = None  # `None` means getting work from root chain
         if full_shard_key is not None:
             branch = Branch(
@@ -979,7 +998,7 @@ class JSONRPCHttpServer:
                     full_shard_key
                 )
             )
-        ret = await self.master.get_work(branch)
+        ret = await self.master.get_work(branch, coinbase_addr)
         if ret is None:
             return None
         return [
@@ -1254,6 +1273,11 @@ class JSONRPCHttpServer:
             raise InvalidRequest("network is not P2P")
         return [n.to_uri() for n in self.master.network.server.discovery.proto.routing]
 
+    @public_methods.add
+    async def getTotalSupply(self):
+        total_supply = self.master.get_total_supply()
+        return quantity_encoder(total_supply) if total_supply else None
+
     @staticmethod
     def _convert_eth_call_data(data, shard):
         to_address = Address.create_from(
@@ -1279,21 +1303,9 @@ class JSONRPCHttpServer:
             isinstance(end_block, str) and end_block != "latest"
         ):
             return None
-        # parse addresses / topics
-        addresses, topics = [], []
-        if "address" in data:
-            if isinstance(data["address"], str):
-                addresses = [Address.deserialize(decoder(data["address"]))]
-            elif isinstance(data["address"], list):
-                addresses = [Address.deserialize(decoder(a)) for a in data["address"]]
+        addresses, topics = _parse_log_request(data, decoder)
         if full_shard_key is not None:
             addresses = [Address(a.recipient, full_shard_key) for a in addresses]
-        if "topics" in data:
-            for topic_item in data["topics"]:
-                if isinstance(topic_item, str):
-                    topics.append([data_decoder(topic_item)])
-                elif isinstance(topic_item, list):
-                    topics.append([data_decoder(tp) for tp in topic_item])
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
@@ -1387,6 +1399,7 @@ class JSONRPCWebsocketServer:
         self.env = env
         self.slave = slave_server
         self.counters = dict()
+        self.pending_tx_cache = LRUCache(maxsize=1024)
 
         # Bind RPC handler functions to this instance
         self.handlers = AsyncMethods()
@@ -1394,27 +1407,56 @@ class JSONRPCWebsocketServer:
             func = methods[rpc_name]
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
+        self.shard_subscription_managers = self.slave.shard_subscription_managers
+
     async def __handle(self, websocket, path):
-        request = await websocket.recv()
-        Logger.info(request)
-
-        d = dict()
+        sub_ids = dict()  # per-websocket var, Dict[sub_id, full_shard_id]
         try:
-            d = json.loads(request)
-        except Exception:
-            pass
-        method = d.get("method", "null")
-        if method in self.counters:
-            self.counters[method] += 1
-        else:
-            self.counters[method] = 1
+            async for message in websocket:
+                Logger.info(message)
 
-        response = await self.handlers.dispatch(request)
-        if "error" in response:
-            Logger.error(response)
-        if not response.is_notification:
-            await websocket.send(str(response))
-        return response
+                d = dict()
+                try:
+                    d = json.loads(message)
+                except Exception:
+                    raise InvalidParams("Cannot parse message as JSON")
+                method = d.get("method", "null")
+                if method in self.counters:
+                    self.counters[method] += 1
+                else:
+                    self.counters[method] = 1
+                msg_id = d.get("id", 0)
+
+                response = await self.handlers.dispatch(
+                    message,
+                    context={
+                        "websocket": websocket,
+                        "msg_id": msg_id,
+                        "sub_ids": sub_ids,
+                    },
+                )
+
+                if method == "subscribe":
+                    sub_id = response["result"]
+                    full_shard_id = shard_id_decoder(d.get("params")[1])
+                    sub_ids[sub_id] = full_shard_id
+                elif method == "unsubscribe":
+                    sub_id = d.get("params")[0]
+                    del sub_ids[sub_id]
+
+                if "error" in response:
+                    Logger.error(response)
+                if not response.is_notification:
+                    await websocket.send(json.dumps(response))
+        finally:  # current websocket connection terminates, remove subscribers in this connection
+            for sub_id, full_shard_id in sub_ids.items():
+                try:
+                    shard_subscription_manager = self.shard_subscription_managers[
+                        full_shard_id
+                    ]
+                    shard_subscription_manager.remove_subscriber(sub_id)
+                except:
+                    pass
 
     def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
@@ -1423,10 +1465,41 @@ class JSONRPCWebsocketServer:
     def shutdown(self):
         pass  # TODO
 
-    @public_methods.add
-    async def ping(self):
-        return "pong"
+    @staticmethod
+    def response_transcoder(sub_id, result):
+        return {
+            "jsonrpc": "2.0",
+            "method": "subscription",
+            "params": {"subscription": sub_id, "result": result},
+        }
 
     @public_methods.add
-    async def echo(self, params):
-        return params
+    async def subscribe(self, sub_type, full_shard_id, params=None, context=None):
+        assert context is not None
+        full_shard_id = shard_id_decoder(full_shard_id)
+        if full_shard_id is None:
+            raise InvalidParams("Invalid full shard ID")
+        branch = Branch(full_shard_id)
+        shard = self.slave.shards.get(branch, None)
+        if not shard:
+            raise InvalidParams("Full shard ID not found")
+
+        websocket = context["websocket"]
+        sub_id = "0x" + uuid.uuid4().hex
+        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
+        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
+
+        return sub_id
+
+    @public_methods.add
+    async def unsubscribe(self, sub_id, context=None):
+        sub_ids = context["sub_ids"]
+        assert context is not None
+        if sub_id not in sub_ids:
+            raise InvalidParams("Subscription ID not found")
+
+        full_shard_id = sub_ids[sub_id]
+        shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
+        shard_subscription_manager.remove_subscriber(sub_id)
+
+        return True

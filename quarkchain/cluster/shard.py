@@ -1,6 +1,6 @@
 import asyncio
 from collections import deque
-from typing import List
+from typing import List, Optional
 
 from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.p2p_commands import (
@@ -487,24 +487,22 @@ class Shard:
         return PersistentDb(db_path, clean=self.env.cluster_config.CLEAN)
 
     def __init_miner(self):
-        miner_address = Address.create_from(
-            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_ADDRESS
-        )
-
-        async def __create_block(retry=True):
+        async def __create_block(coinbase_addr: Address, retry=True):
             # hold off mining if the shard is syncing
             while self.synchronizer.running or not self.state.initialized:
                 if not retry:
                     break
                 await asyncio.sleep(0.1)
 
-            return self.state.create_block_to_mine(address=miner_address)
+            if coinbase_addr.is_empty():  # devnet or wrong config
+                coinbase_addr.full_shard_key = self.full_shard_id
+            return self.state.create_block_to_mine(address=coinbase_addr)
 
         async def __add_block(block):
-            # Do not add block if there is a sync in progress
+            # do not add block if there is a sync in progress
             if self.synchronizer.running:
                 return
-            # Do not add stale block
+            # do not add stale block
             if self.state.header_tip.height >= block.header.height:
                 return
             await self.handle_new_block(block)
@@ -669,6 +667,7 @@ class Shard:
                 block.header.height,
             )
         )
+
         self.broadcast_new_block(block)
         await self.add_block(block)
 

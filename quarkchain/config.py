@@ -111,6 +111,7 @@ class POWConfig(BaseConfig):
 
 class POSWConfig(BaseConfig):
     ENABLED = False
+    ENABLE_TIMESTAMP = 0
     DIFF_DIVIDER = 20  # Something similar to Beta
     WINDOW_SIZE = 256  # For estimating effective hash power
     # TODO: needs better tuning / estimating
@@ -239,8 +240,15 @@ class RootConfig(BaseConfig):
     DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 40
     DIFFICULTY_ADJUSTMENT_FACTOR = 1024
 
+    POSW_CONFIG = None
+
     def __init__(self):
         self.GENESIS = RootGenesis()
+        self.POSW_CONFIG = POSWConfig()
+        # dummy values
+        self.POSW_CONFIG.WINDOW_SIZE = 4320  # 72 hours
+        self.POSW_CONFIG.DIFF_DIVIDER = 1000
+        self.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 240000 * QUARKSH_TO_JIAOZI
 
     def to_dict(self):
         ret = super().to_dict()
@@ -251,6 +259,7 @@ class RootConfig(BaseConfig):
         else:
             ret["CONSENSUS_CONFIG"] = self.CONSENSUS_CONFIG.to_dict()
             ret["GENESIS"] = self.GENESIS.to_dict()
+        ret["POSW_CONFIG"] = self.POSW_CONFIG.to_dict()
         return ret
 
     @classmethod
@@ -260,6 +269,7 @@ class RootConfig(BaseConfig):
         if config.CONSENSUS_TYPE in ConsensusType.pow_types():
             config.CONSENSUS_CONFIG = POWConfig.from_dict(config.CONSENSUS_CONFIG)
             config.GENESIS = RootGenesis.from_dict(config.GENESIS)
+        config.POSW_CONFIG = POSWConfig.from_dict(config.POSW_CONFIG)
         return config
 
 

@@ -6,9 +6,15 @@ from contextlib import contextmanager
 
 import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
+import websockets
 
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.cluster.jsonrpc import EMPTY_TX_ID, JSONRPCHttpServer, quantity_encoder
+from quarkchain.cluster.jsonrpc import (
+    EMPTY_TX_ID,
+    JSONRPCHttpServer,
+    JSONRPCWebsocketServer,
+    quantity_encoder,
+)
 from quarkchain.cluster.miner import DoubleSHA256, MiningWork
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -28,13 +34,14 @@ from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
 
+
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 
 @contextmanager
-def jrpc_server_context(master):
+def jrpc_http_server_context(master):
     env = DEFAULT_ENV.copy()
     env.cluster_config = ClusterConfig()
     env.cluster_config.JSON_RPC_PORT = 38391
@@ -57,7 +64,7 @@ def send_request(*args):
     return call_async(__send_request(*args))
 
 
-class TestJSONRPC(unittest.TestCase):
+class TestJSONRPCHttp(unittest.TestCase):
     def test_getTransactionCount(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -65,7 +72,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -120,7 +127,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
             master = clusters[0].master
 
@@ -174,7 +181,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
 
             block = call_async(
@@ -203,7 +210,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
 
             block = call_async(
@@ -231,7 +238,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -303,7 +310,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -395,7 +402,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -432,7 +439,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             response = send_request(
@@ -452,7 +459,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             # gas is not specified in the request
@@ -473,7 +480,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
 
             # insufficient gas
@@ -494,7 +501,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             for endpoint in ("getTransactionReceipt", "eth_getTransactionReceipt"):
                 resp = send_request(endpoint, ["0x" + bytes(36).hex()])
                 self.assertIsNone(resp)
@@ -505,7 +512,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -544,7 +551,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
             # disable EVM to have fake xshard receipts
@@ -627,7 +634,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -685,7 +692,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -725,7 +732,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -787,7 +794,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -900,7 +907,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             response = send_request(
                 "estimateGas", [{"to": "0x" + acc1.serialize().hex()}]
             )
@@ -916,7 +923,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -976,7 +983,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -1010,7 +1017,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -1049,7 +1056,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, remote_mining=True, shard_size=1, small_coinbase=True
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             master = clusters[0].master
             slaves = clusters[0].slave_list
 
@@ -1121,7 +1128,7 @@ class TestJSONRPC(unittest.TestCase):
 
         with ClusterContext(
             1, acc1, small_coinbase=True, loadtest_accounts=loadtest_accounts
-        ) as clusters, jrpc_server_context(clusters[0].master):
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
             slaves = clusters[0].slave_list
             master = clusters[0].master
 
@@ -1131,3 +1138,287 @@ class TestJSONRPC(unittest.TestCase):
             call_async(master.add_root_block(block))
 
             send_request("createTransactions", {"numTxPerShard": 1, "xShardPercent": 0})
+
+
+# ------------------------------- Test for JSONRPCWebsocketServer -------------------------------
+@contextmanager
+def jrpc_websocket_server_context(slave_server, port=38590):
+    env = DEFAULT_ENV.copy()
+    env.cluster_config = ClusterConfig()
+    env.cluster_config.JSON_RPC_PORT = 38391
+    env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
+
+    env.slave_config = env.cluster_config.get_slave_config("S0")
+    env.slave_config.HOST = "0.0.0.0"
+    env.slave_config.WEBSOCKET_JSON_RPC_PORT = port
+    server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
+    try:
+        yield server
+    finally:
+        server.shutdown()
+
+
+"""
+def send_websocket_request(request, num_response=1, port=38590):
+    responses = []
+
+    async def __send_request(request, port):
+        uri = "ws://0.0.0.0:" + str(port)
+        async with websockets.connect(uri) as websocket:
+            await websocket.send(request)
+            while True:
+                response = await websocket.recv()
+                responses.append(response)
+                if len(responses) == num_response:
+                    return responses
+
+    return call_async(__send_request(request, port))
+
+
+class TestJSONRPCWebsocket(unittest.TestCase):
+    def test_newHeads(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(clusters[0].slave_list[0]):
+            # clusters[0].slave_list[0] has two shards with full_shard_id 2 and 3
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+
+    def test_newPendingTransactions(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38591
+        ):
+            slaves = clusters[0].slave_list
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newPendingTransactions", "0x00000002"],
+                "id": 6,
+            }
+            tx = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            responses = send_websocket_request(json.dumps(request), 2, port=38591)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)
+            self.assertEqual(results[0]["id"], 6)
+            self.assertEqual(results[1]["params"]["subscription"], results[0]["result"])
+            self.assertTrue(results[1]["params"]["result"], tx.get_hash())
+
+    def test_logs(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        expected_log_parts = {
+            "logIndex": "0x0",
+            "transactionIndex": "0x0",
+            "blockNumber": "0x1",
+            "blockHeight": "0x1",
+            "data": "0x",
+        }
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38592
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+
+            # Add a root block to update block gas limit for xshard tx throttling
+            # so that the following tx can be processed
+            root_block = call_async(
+                master.get_next_block_to_mine(acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(root_block))
+
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key,
+            )
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            block = call_async(
+                master.get_next_block_to_mine(
+                    address=acc1, branch_value=0b10
+                )  # branch_value = 2
+            )
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+
+            # no filters
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["logs", "0x00000002", {}],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertEqual(results[0]["result"], 0)  # subscription id
+            self.assertEqual(results[0]["id"], 3)
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+
+            # filter by contract address
+            contract_addr = mk_contract_address(acc1.recipient, 0, acc1.full_shard_key)
+            filter_req = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "address": "0x"
+                        + contract_addr.hex()
+                        + hex(acc1.full_shard_key)[2:].zfill(8)
+                    },
+                ],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(filter_req), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+
+            # filter by topics
+            filter_req = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "topics": [
+                            "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                        ]
+                    },
+                ],
+                "id": 3,
+            }
+            filter_req_nested = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": [
+                    "logs",
+                    "0x00000002",
+                    {
+                        "topics": [
+                            [
+                                "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
+                            ]
+                        ]
+                    },
+                ],
+                "id": 3,
+            }
+            for req in (filter_req, filter_req_nested):
+                responses = send_websocket_request(json.dumps(req), 2, port=38592)
+                results = []
+                for response in responses:
+                    results.append(json.loads(response))
+                self.assertEqual(2, len(results))
+                self.assertDictContainsSubset(
+                    expected_log_parts, results[1]["params"]["result"]
+                )
+                self.assertEqual(
+                    "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
+                    results[1]["params"]["result"]["topics"][0],
+                )
+
+            # xshard creation and check logs: shard 0 -> shard 1
+            tx = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key + 1,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
+            )  # source shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
+            root_block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )  # root chain
+            call_async(master.add_root_block(root_block))
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=0b11)
+            )  # target shard
+            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(block)))
+
+            # no filter
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["logs", "0x00000003", {}],
+                "id": 3,
+            }
+            responses = send_websocket_request(json.dumps(request), 2, port=38592)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
+            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
+            expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
+            self.assertDictContainsSubset(
+                expected_log_parts, results[1]["params"]["result"]
+            )
+            self.assertEqual(2, len(results[1]["params"]["result"]["topics"]))
+
+    def test_invalid_subscription(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38599
+        ):
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newBlocks", "0x00000002"],
+                "id": 3,
+            }
+
+            responses = send_websocket_request(json.dumps(request), 1, port=38599)
+            results = []
+            for response in responses:
+                results.append(json.loads(response))
+            self.assertTrue(results[0]["error"])  # error message
+"""

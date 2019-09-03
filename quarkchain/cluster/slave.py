@@ -37,6 +37,8 @@ from quarkchain.cluster.rpc import (
     GetAllTransactionsResponse,
     GetMinorBlockRequest,
     MinorBlockExtraInfo,
+    GetRootChainStakesRequest,
+    GetRootChainStakesResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -533,7 +535,7 @@ class MasterConnection(ClusterConnection):
         return GasPriceResponse(error_code=int(fail), result=res or 0)
 
     async def handle_get_work(self, req: GetWorkRequest) -> GetWorkResponse:
-        res = await self.slave_server.get_work(req.branch)
+        res = await self.slave_server.get_work(req.branch, req.coinbase_addr)
         if not res:
             return GetWorkResponse(error_code=1)
         return GetWorkResponse(
@@ -551,6 +553,14 @@ class MasterConnection(ClusterConnection):
             return SubmitWorkResponse(error_code=1, success=False)
 
         return SubmitWorkResponse(error_code=0, success=res)
+
+    async def handle_get_root_chain_stakes(
+        self, req: GetRootChainStakesRequest
+    ) -> GetRootChainStakesResponse:
+        stakes, signer = self.slave_server.get_root_chain_stakes(
+            req.address, req.minor_block_hash
+        )
+        return GetRootChainStakesResponse(0, stakes, signer)
 
 
 MASTER_OP_NONRPC_MAP = {
@@ -663,6 +673,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: (
         ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE,
         MasterConnection.handle_get_all_transaction_request,
+    ),
+    ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: (
+        ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE,
+        MasterConnection.handle_get_root_chain_stakes,
     ),
 }
 
@@ -878,6 +892,7 @@ class SlaveServer:
         # block hash -> future (that will return when the block is fully propagated in the cluster)
         # the block that has been added locally but not have been fully propagated will have an entry here
         self.add_block_futures = dict()
+        self.shard_subscription_managers = dict()
 
     def __cover_shard_id(self, full_shard_id):
         """ Does the shard belong to this slave? """
@@ -902,6 +917,9 @@ class SlaveServer:
             await shard.create_peer_shard_connections(
                 self.cluster_peer_ids, self.master
             )
+            self.shard_subscription_managers[
+                shard.full_shard_id
+            ] = shard.state.subscription_manager
             branch = Branch(shard.full_shard_id)
             self.shards[branch] = shard
             if self.mining:
@@ -1346,16 +1364,21 @@ class SlaveServer:
             return None
         return shard.state.gas_price(token_id)
 
-    async def get_work(self, branch: Branch) -> Optional[MiningWork]:
+    async def get_work(
+        self, branch: Branch, coinbase_addr: Optional[Address] = None
+    ) -> Optional[MiningWork]:
         if branch not in self.shards:
             return None
+        default_addr = Address.create_from(
+            self.env.quark_chain_config.shards[branch.value].COINBASE_ADDRESS
+        )
         try:
             shard = self.shards[branch]
-            work, block = await shard.miner.get_work()
-            if shard.state.shard_config.POSW_CONFIG.ENABLED:
-                check(isinstance(block, MinorBlock))
-                diff = shard.state.posw_diff_adjust(block)
-                work = MiningWork(work.hash, work.height, diff)
+            work, block = await shard.miner.get_work(coinbase_addr or default_addr)
+            check(isinstance(block, MinorBlock))
+            posw_diff = shard.state.posw_diff_adjust(block)
+            if posw_diff is not None and posw_diff != work.difficulty:
+                work = MiningWork(work.hash, work.height, posw_diff)
             return work
         except Exception:
             Logger.log_exception()
@@ -1371,6 +1394,20 @@ class SlaveServer:
         except Exception:
             Logger.log_exception()
             return None
+
+    def get_root_chain_stakes(
+        self, address: Address, block_hash: bytes
+    ) -> (int, bytes):
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
+        # only applies to chain 0 shard 0
+        check(branch.value == 1)
+        shard = self.shards.get(branch, None)
+        check(shard is not None)
+        return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
 
 def parse_args():

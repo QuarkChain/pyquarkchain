@@ -896,10 +896,11 @@ class GasPriceResponse(Serializable):
 
 
 class GetWorkRequest(Serializable):
-    FIELDS = [("branch", Branch)]
+    FIELDS = [("branch", Branch), ("coinbase_addr", Optional(Address))]
 
-    def __init__(self, branch: Branch):
+    def __init__(self, branch: Branch, coinbase_addr: typing.Optional[Address]):
         self.branch = branch
+        self.coinbase_addr = coinbase_addr
 
 
 class GetWorkResponse(Serializable):
@@ -953,6 +954,27 @@ class SubmitWorkResponse(Serializable):
     def __init__(self, error_code: int, success: bool):
         self.error_code = error_code
         self.success = success
+
+
+class GetRootChainStakesRequest(Serializable):
+    FIELDS = [("address", Address), ("minor_block_hash", hash256)]
+
+    def __init__(self, address: Address, minor_block_hash: bytes):
+        self.address = address
+        self.minor_block_hash = minor_block_hash
+
+
+class GetRootChainStakesResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+        ("stakes", biguint),
+        ("signer", FixedSizeBytesSerializer(20)),
+    ]
+
+    def __init__(self, error_code: int, stakes: int = 0, signer: bytes = bytes(20)):
+        self.error_code = error_code
+        self.stakes = stakes
+        self.signer = signer
 
 
 CLUSTER_OP_BASE = 128
@@ -1024,6 +1046,8 @@ class ClusterOp:
     CHECK_MINOR_BLOCK_RESPONSE = 62 + CLUSTER_OP_BASE
     GET_ALL_TRANSACTIONS_REQUEST = 63 + CLUSTER_OP_BASE
     GET_ALL_TRANSACTIONS_RESPONSE = 64 + CLUSTER_OP_BASE
+    GET_ROOT_CHAIN_STAKES_REQUEST = 65 + CLUSTER_OP_BASE
+    GET_ROOT_CHAIN_STAKES_RESPONSE = 66 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -1090,4 +1114,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.CHECK_MINOR_BLOCK_RESPONSE: CheckMinorBlockResponse,
     ClusterOp.GET_ALL_TRANSACTIONS_REQUEST: GetAllTransactionsRequest,
     ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE: GetAllTransactionsResponse,
+    ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: GetRootChainStakesRequest,
+    ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE: GetRootChainStakesResponse,
 }

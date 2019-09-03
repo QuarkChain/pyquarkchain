@@ -65,7 +65,14 @@ class TestQuarkChainConfig(unittest.TestCase):
         "COINBASE_AMOUNT": 120000000000000000000,
         "EPOCH_INTERVAL": 2100000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
-        "DIFFICULTY_ADJUSTMENT_FACTOR": 1024
+        "DIFFICULTY_ADJUSTMENT_FACTOR": 1024,
+        "POSW_CONFIG": {
+            "ENABLED": false,
+            "ENABLE_TIMESTAMP": 0,
+            "DIFF_DIVIDER": 1000,
+            "WINDOW_SIZE": 4320,
+            "TOTAL_STAKE_PER_BLOCK": 240000000000000000000000
+        }
     },
     "CHAINS": [
         {
@@ -98,6 +105,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
+                "ENABLE_TIMESTAMP": 0,
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
@@ -134,6 +142,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
+                "ENABLE_TIMESTAMP": 0,
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000
@@ -170,6 +179,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 3,
             "POSW_CONFIG": {
                 "ENABLED": false,
+                "ENABLE_TIMESTAMP": 0,
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000

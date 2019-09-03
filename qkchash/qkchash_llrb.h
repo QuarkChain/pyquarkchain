@@ -140,7 +140,7 @@ public:
     uintptr_t getArenaBase() {
         return arenaBase_;
     }
-
+  
     std::array<uint64_t, 4> getRotationStats() {
         return rotationStats_;
     }
@@ -150,7 +150,6 @@ public:
             rotationStats_[i] = 0;
         }
     }
-
 private:
     LLRB(uintptr_t arenaBase,
          uint64_t arenaSize,
@@ -170,7 +169,6 @@ private:
     uint32_t root_;
     std::vector<uint32_t> freeList_;
     std::array<uint64_t, 4> rotationStats_;
-
 
     const bool RED = true;
     const bool BLACK = false;
@@ -204,7 +202,6 @@ private:
         x->color = h->color;
         h->color = RED;
         x->size += (h->size + 1);
-
         uint64_t c = 0;
         for (size_t i = 0; i < rotationStats_.size(); i++) {
             uint64_t nc = (rotationStats_[i] & (0x1ULL << 63)) == 0 ? 0 : 1;
@@ -230,7 +227,6 @@ private:
         x->color = h->color;
         h->color = RED;
         h->size -= (x->size + 1);
-
         uint64_t c = 1;
         for (size_t i = 0; i < rotationStats_.size(); i++) {
             uint64_t nc = (rotationStats_[i] & (0x1ULL << 63)) == 0 ? 0 : 1;
@@ -238,7 +234,6 @@ private:
             c = nc;
         }
         rotationStats_[0] = rotationStats_[0] ^ c;
-
         return x;
     }
 
