@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import unittest
-from pytest import mark
 from contextlib import contextmanager
 
 import aiohttp
@@ -1199,7 +1198,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
     """
 
-    @mark.asyncio
     async def test_newPendingTransactions(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)

@@ -47,11 +47,7 @@
       "DIFFICULTY_ADJUSTMENT_FACTOR": 1024,
       "EPOCH_INTERVAL": 525600,
       "POSW_CONFIG": {
-        "ENABLED": true,
-        "ENABLE_TIMESTAMP": 1569567600,
-        "DIFF_DIVIDER": 1000,
-        "WINDOW_SIZE": 4320,
-        "TOTAL_STAKE_PER_BLOCK": 1
+        "ENABLED": false
       }
     },
     "CHAINS": [

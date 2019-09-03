@@ -55,20 +55,21 @@ class SubscriptionManager:
         await self.__notify(SUB_LOGS, data)
 
     async def notify_sync(
-        self, running: bool, tip: MinorBlockHeader, queue: List[MinorBlockHeader]
+        self,
+        running: bool,
+        header_tip: MinorBlockHeader,
+        highest_block: MinorBlockHeader,
     ):
-        data = [running, tip, queue]
+        data = [running, header_tip, highest_block]
         await self.__notify(SUB_SYNC, data)
 
     async def __notify(self, sub_type, data):
         assert sub_type in self.subscribers
+        encoder = (
+            self.sync_status_encoder if sub_type == SUB_SYNC else self.response_encoder
+        )
         for sub_id, websocket in self.subscribers[sub_type].items():
-            if sub_type == SUB_SYNC:
-                response = self.syncing_response_encoder(
-                    sub_id, data[0], data[1], data[2]
-                )
-            else:
-                response = self.response_encoder(sub_id, data)
+            response = encoder(sub_id, data)
             asyncio.ensure_future(websocket.send(json.dumps(response)))
 
     @staticmethod
@@ -80,22 +81,13 @@ class SubscriptionManager:
         }
 
     @staticmethod
-    def syncing_response_encoder(sub_id, running, tip, queue):
-        if not running:
-            return {
-                "jsonrpc": "2.0",
-                "subscription": sub_id,
-                "result": {"syncing": running},
-            }
+    def sync_status_encoder(sub_id, data):
+        running, header_tip, highest_block = data
 
-        return {
-            "jsonrpc": "2.0",
-            "subscription": sub_id,
-            "result": {
-                "syncing": running,
-                "status": {
-                    "startingBlock": tip,
-                    "highestBlock": max(h.height for h, _ in queue),
-                },
-            },
-        }
+        ret = {"jsonrpc": "2.0", "subscription": sub_id, "result": {"syncing": running}}
+        if running:
+            ret["result"]["status"] = {
+                "startingBlock": header_tip,
+                "highestBlock": highest_block,
+            }
+        return ret

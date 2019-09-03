@@ -1,6 +1,6 @@
 import asyncio
 from collections import deque
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.p2p_commands import (
@@ -435,17 +435,23 @@ class SyncTask:
 class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
-    def __init__(self, notify_sync, tip):
+    def __init__(self, notify_sync, header_tip_getter: Callable[[], MinorBlockHeader]):
         self.queue = deque()
         self.running = False
         self.notify_sync = notify_sync
-        self.tip = tip
+        self.header_tip_getter = header_tip_getter
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
-            asyncio.ensure_future(self.notify_sync(self.running, self.tip, self.queue))
+            asyncio.ensure_future(
+                self.notify_sync(
+                    self.running,
+                    self.header_tip_getter(),
+                    max(h.height for h, _ in self.queue),
+                )
+            )
             asyncio.ensure_future(self.__run())
 
     async def __run(self):
@@ -454,7 +460,13 @@ class Synchronizer:
             task = SyncTask(header, shard_conn)
             await task.sync()
         self.running = False
-        asyncio.ensure_future(self.notify_sync(self.running, self.tip, self.queue))
+        asyncio.ensure_future(
+            self.notify_sync(
+                self.running,
+                self.header_tip_getter(),
+                max(h.height for h, _ in self.queue),
+            )
+        )
 
 
 class Shard:
@@ -467,7 +479,7 @@ class Shard:
 
         self.loop = asyncio.get_event_loop()
         self.synchronizer = Synchronizer(
-            self.state.subscription_manager.notify_sync, self.state.header_tip
+            self.state.subscription_manager.notify_sync, lambda: self.state.header_tip
         )
 
         self.peers = dict()  # cluster_peer_id -> PeerShardConnection
