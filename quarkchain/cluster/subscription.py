@@ -51,8 +51,20 @@ class SubscriptionManager:
         await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
 
     async def notify_log(self, height: int):
-        data = height
-        await self.__notify(SUB_LOGS, data)
+        from quarkchain.cluster.jsonrpc import loglist_encoder
+
+        for sub_id, websocket in self.subscribers[SUB_LOGS].items():
+            log_filter = self.log_filters[sub_id]
+            log_filter.start_block = height
+            log_filter.end_block = height
+            logs = log_filter.run()
+            log_list = loglist_encoder(logs)
+            tasks = []
+            for log in log_list:
+                response = self.response_encoder(sub_id, log)
+                task = asyncio.ensure_future(websocket.send(json.dumps(response)))
+                tasks.append(task)
+            await asyncio.gather(*tasks)
 
     async def notify_sync(
         self, running: bool, tip: MinorBlockHeader, queue: List[MinorBlockHeader]
@@ -63,22 +75,9 @@ class SubscriptionManager:
 
     async def __notify(self, sub_type, data):
         assert sub_type in self.subscribers
-        if sub_type == SUB_LOGS:
-            from quarkchain.cluster.jsonrpc import loglist_encoder
-
-            for sub_id, websocket in self.subscribers[sub_type].items():
-                filter = self.log_filters[sub_id]
-                filter.start_block = data
-                filter.end_block = data
-                logs = filter.run()
-                log_list = loglist_encoder(logs)
-                for log in log_list:
-                    response = self.response_encoder(sub_id, log)
-                    asyncio.ensure_future(websocket.send(json.dumps(response)))
-        else:
-            for sub_id, websocket in self.subscribers[sub_type].items():
-                response = self.response_encoder(sub_id, data)
-                asyncio.ensure_future(websocket.send(json.dumps(response)))
+        for sub_id, websocket in self.subscribers[sub_type].items():
+            response = self.response_encoder(sub_id, data)
+            asyncio.ensure_future(websocket.send(json.dumps(response)))
 
     @staticmethod
     def response_encoder(sub_id, result):
