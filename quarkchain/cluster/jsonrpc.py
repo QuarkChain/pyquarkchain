@@ -15,7 +15,6 @@ from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.slave import SlaveServer
-from quarkchain.cluster.shard import Shard
 from quarkchain.core import (
     Address,
     Branch,
