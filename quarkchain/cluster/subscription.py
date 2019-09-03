@@ -64,7 +64,7 @@ class SubscriptionManager:
         assert sub_type in self.subscribers
         for sub_id, websocket in self.subscribers[sub_type].items():
             if sub_type == SUB_SYNC:
-                response == self.syncing_response_encoder(
+                response = self.syncing_response_encoder(
                     sub_id, data[0], data[1], data[2]
                 )
             else:
