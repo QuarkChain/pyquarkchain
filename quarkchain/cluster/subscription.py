@@ -62,7 +62,7 @@ class SubscriptionManager:
             tasks = []
             for log in log_list:
                 response = self.response_encoder(sub_id, log)
-                task = asyncio.ensure_future(websocket.send(json.dumps(response)))
+                task = websocket.send(json.dumps(response))
                 tasks.append(task)
             await asyncio.gather(*tasks)
 
@@ -75,9 +75,12 @@ class SubscriptionManager:
 
     async def __notify(self, sub_type, data):
         assert sub_type in self.subscribers
+        tasks = []
         for sub_id, websocket in self.subscribers[sub_type].items():
             response = self.response_encoder(sub_id, data)
-            asyncio.ensure_future(websocket.send(json.dumps(response)))
+            task = websocket.send(json.dumps(response))
+            tasks.append(task)
+        await asyncio.gather(*tasks)
 
     @staticmethod
     def response_encoder(sub_id, result):
