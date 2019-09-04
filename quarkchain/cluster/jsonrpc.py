@@ -1315,8 +1315,9 @@ class JSONRPCHttpServer:
         ):
             return None
         addresses, topics = _parse_log_request(data, decoder)
-        if full_shard_key is not None:
-            addresses = [Address(a.recipient, full_shard_key) for a in addresses]
+        if full_shard_key is None:
+            raise InvalidParams("Full shard key is required to get logs")
+        addresses = [Address(a.recipient, full_shard_key) for a in addresses]
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
