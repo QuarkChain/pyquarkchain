@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Dict
+from typing import List, Dict, Tuple, Optional
 
 from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
@@ -55,13 +55,8 @@ class SubscriptionManager:
         await self.__notify(SUB_LOGS, data)
 
     async def notify_sync(
-        self,
-        running: bool,
-        start_block: int,
-        header_tip_height: int,
-        highest_block: MinorBlockHeader,
-    ):
-        data = [running, start_block, header_tip_height, highest_block]
+        self, data: Optional[Tuple[int, ...]] = None
+    ):  # data = (header_tip_height, highest_block)
         await self.__notify(SUB_SYNC, data)
 
     async def __notify(self, sub_type, data):
@@ -83,12 +78,14 @@ class SubscriptionManager:
 
     @staticmethod
     def sync_status_encoder(sub_id, data):
-        running, start_block, tip_height, highest_block = data
-
-        ret = {"jsonrpc": "2.0", "subscription": sub_id, "result": {"syncing": running}}
-        if running:
+        ret = {
+            "jsonrpc": "2.0",
+            "subscription": sub_id,
+            "result": {"syncing": bool(data)},
+        }
+        if data:
+            tip_height, highest_block = data
             ret["result"]["status"] = {
-                "startingBlock": start_block,
                 "currentBlock": tip_height,
                 "highestBlock": highest_block,
             }

@@ -298,14 +298,14 @@ class SyncTask:
         shard_config = self.shard_state.env.quark_chain_config.shards[full_shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
-    async def sync(self):
+    async def sync(self, notify_sync: Callable):
         try:
-            await self.__run_sync()
+            await self.__run_sync(notify_sync)
         except Exception as e:
             Logger.log_exception()
             self.shard_conn.close_with_error(str(e))
 
-    async def __run_sync(self):
+    async def __run_sync(self, notify_sync: Callable):
         if self.__has_block_hash(self.header.get_hash()):
             return
 
@@ -371,6 +371,7 @@ class SyncTask:
                     "Bad peer sending less than requested blocks"
                 )
 
+            counter = 0
             for block in block_chain:
                 # Stop if the block depends on an unknown root block
                 # TODO: move this check to early stage to avoid downloading unnecessary headers
@@ -379,6 +380,11 @@ class SyncTask:
                 ):
                     return
                 await self.shard.add_block(block)
+                if counter % 100 == 0:
+                    sync_data = (block.header.height, block_header_chain[-1])
+                    asyncio.ensure_future(notify_sync(sync_data))
+                    counter = 0
+                counter += 1
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
@@ -444,35 +450,34 @@ class Synchronizer:
         self.running = False
         self.notify_sync = notify_sync
         self.header_tip_getter = header_tip_getter
+        self.counter = 0
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
-            asyncio.ensure_future(
-                self.notify_sync(
-                    self.running,
-                    min(h.height for h, _ in self.queue),
-                    self.header_tip_getter().height,
-                    max(h.height for h, _ in self.queue),
-                )
-            )
             asyncio.ensure_future(self.__run())
+            if self.counter % 10 == 0:
+                self.__call_notify_sync()
+                self.counter = 0
+            self.counter += 1
 
     async def __run(self):
         while len(self.queue) > 0:
             header, shard_conn = self.queue.popleft()
             task = SyncTask(header, shard_conn)
-            await task.sync()
+            await task.sync(self.notify_sync)
         self.running = False
-        asyncio.ensure_future(
-            self.notify_sync(
-                self.running,
-                min(h.height for h, _ in self.queue),
-                self.header_tip_getter().height,
-                max(h.height for h, _ in self.queue),
-            )
+        if self.counter % 10 == 1:
+            self.__call_notify_sync()
+
+    def __call_notify_sync(self):
+        sync_data = (
+            (self.header_tip_getter().height, max(h.height for h, _ in self.queue))
+            if len(self.queue) > 0
+            else None
         )
+        asyncio.ensure_future(self.notify_sync(sync_data))
 
 
 class Shard:
