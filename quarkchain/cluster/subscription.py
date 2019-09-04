@@ -62,8 +62,7 @@ class SubscriptionManager:
             tasks = []
             for log in log_list:
                 response = self.response_encoder(sub_id, log)
-                task = websocket.send(json.dumps(response))
-                tasks.append(task)
+                tasks.append(websocket.send(json.dumps(response)))
             await asyncio.gather(*tasks)
 
     async def notify_sync(
@@ -78,8 +77,7 @@ class SubscriptionManager:
         tasks = []
         for sub_id, websocket in self.subscribers[sub_type].items():
             response = self.response_encoder(sub_id, data)
-            task = websocket.send(json.dumps(response))
-            tasks.append(task)
+            tasks.append(websocket.send(json.dumps(response)))
         await asyncio.gather(*tasks)
 
     @staticmethod

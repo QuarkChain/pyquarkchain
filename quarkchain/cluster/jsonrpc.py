@@ -1490,16 +1490,14 @@ class JSONRPCWebsocketServer:
         sub_id = "0x" + uuid.uuid4().hex
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
 
+        extra = None
         if sub_type == SUB_LOGS:
             addresses, topics = _parse_log_request(params, address_decoder)
             addresses = [Address(a.recipient, full_shard_id) for a in addresses]
             log_filter = Filter(shard.state.db, addresses, topics, 0, 0)
-            shard_subscription_manager.add_subscriber(
-                sub_type, sub_id, websocket, log_filter
-            )
-        else:
-            shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
+            extra = log_filter
 
+        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket, extra)
         return sub_id
 
     @public_methods.add
