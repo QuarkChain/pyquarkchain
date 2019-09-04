@@ -435,7 +435,11 @@ class SyncTask:
 class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
-    def __init__(self, notify_sync, header_tip_getter: Callable[[], MinorBlockHeader]):
+    def __init__(
+        self,
+        notify_sync: Callable[[bool, int, int, int], None],
+        header_tip_getter: Callable[[], MinorBlockHeader],
+    ):
         self.queue = deque()
         self.running = False
         self.notify_sync = notify_sync
@@ -448,7 +452,8 @@ class Synchronizer:
             asyncio.ensure_future(
                 self.notify_sync(
                     self.running,
-                    self.header_tip_getter(),
+                    min(h.height for h, _ in self.queue),
+                    self.header_tip_getter().height,
                     max(h.height for h, _ in self.queue),
                 )
             )
@@ -463,7 +468,8 @@ class Synchronizer:
         asyncio.ensure_future(
             self.notify_sync(
                 self.running,
-                self.header_tip_getter(),
+                min(h.height for h, _ in self.queue),
+                self.header_tip_getter().height,
                 max(h.height for h, _ in self.queue),
             )
         )
