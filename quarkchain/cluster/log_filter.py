@@ -2,7 +2,7 @@ import time
 from typing import List, Optional
 
 from quarkchain.cluster.shard_db_operator import ShardDbOperator
-from quarkchain.core import Address, Log, MinorBlock
+from quarkchain.core import Address, Log, MinorBlock, MinorBlockHeader
 from quarkchain.evm.bloom import bloom
 from quarkchain.utils import Logger
 
@@ -20,8 +20,8 @@ class Filter:
         db: ShardDbOperator,
         addresses: List[Address],
         topics: List[List[bytes]],
-        start_block: int,
-        end_block: int,
+        end_block_hash: bytes,
+        size: int,
         block_hash: Optional[str] = None,
     ):
         """
@@ -32,8 +32,8 @@ class Filter:
         self.db = db
         # if `addresses` present, should be in the same shard
         self.recipients = [addr.recipient for addr in addresses]
-        self.start_block = start_block
-        self.end_block = end_block
+        self.end_block_hash = end_block_hash
+        self.size = size
         self.block_hash = block_hash  # TODO: not supported yet
         # construct bloom bits:
         # innermost: an integer with 3 bits set
@@ -58,8 +58,8 @@ class Filter:
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
         ret = []
-        for i in range(self.start_block, self.end_block + 1):
-            block = self.db.get_minor_block_by_height(i)
+        for i in range(self.size):
+            block = self.db.get_minor_block_by_hash(self.end_block_hash)
             if not block:
                 Logger.error(
                     "No block found for height {} at shard {}".format(
@@ -80,6 +80,8 @@ class Filter:
 
             if (1 + i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
                 raise Exception("Filter timeout")
+
+            self.end_block_hash = block.header.hash_prev_block
 
         return ret
 

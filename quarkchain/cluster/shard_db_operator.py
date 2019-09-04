@@ -395,7 +395,7 @@ class ShardDbOperator(TransactionHistoryMixin):
         block_hash = self.db.get(key)
         return self.get_minor_block_by_hash(block_hash)
 
-    def get_minor_block_header_by_height(self, height) -> Optional[MinorBlock]:
+    def get_minor_block_header_by_height(self, height) -> Optional[MinorBlockHeader]:
         key = b"mi_%d" % height
         if key not in self.db:
             return None
