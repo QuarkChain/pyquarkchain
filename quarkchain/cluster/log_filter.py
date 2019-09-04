@@ -7,7 +7,7 @@ from quarkchain.evm.bloom import bloom
 from quarkchain.utils import Logger
 
 
-class Filter:
+class LogFilter:
     """
     Filter class for logs, blocks, pending tx, etc.
     TODO: For now only supports filtering logs.
@@ -20,7 +20,7 @@ class Filter:
         db: ShardDbOperator,
         addresses: List[Address],
         topics: List[List[bytes]],
-        end_block_hash: bytes,
+        end_block_header: MinorBlockHeader,
         size: int,
         block_hash: Optional[str] = None,
     ):
@@ -32,7 +32,7 @@ class Filter:
         self.db = db
         # if `addresses` present, should be in the same shard
         self.recipients = [addr.recipient for addr in addresses]
-        self.end_block_hash = end_block_hash
+        self.end_block_header = end_block_header
         self.size = size
         self.block_hash = block_hash  # TODO: not supported yet
         # construct bloom bits:
@@ -58,8 +58,9 @@ class Filter:
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
         ret = []
+        end_block_hash = self.end_block_header.get_hash()
         for i in range(self.size):
-            block = self.db.get_minor_block_by_hash(self.end_block_hash)
+            block = self.db.get_minor_block_by_hash(end_block_hash)
             if not block:
                 Logger.error(
                     "No block found for height {} at shard {}".format(
@@ -78,10 +79,10 @@ class Filter:
             if not should_skip_block:
                 ret.append(block)
 
-            if (1 + i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+            if (1 + i) % 100 == 0 and time.time() - self.start_ts > LogFilter.TIMEOUT:
                 raise Exception("Filter timeout")
 
-            self.end_block_hash = block.header.hash_prev_block
+            end_block_hash = block.header.hash_prev_block
 
         return ret
 
@@ -105,7 +106,7 @@ class Filter:
                         continue
                     if self._log_topics_match(log):
                         ret.append(log)
-            if (1 + b_i) % 100 == 0 and time.time() - self.start_ts > Filter.TIMEOUT:
+            if (1 + b_i) % 100 == 0 and time.time() - self.start_ts > LogFilter.TIMEOUT:
                 raise Exception("Filter timeout")
         return ret
 
