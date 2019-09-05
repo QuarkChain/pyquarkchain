@@ -1086,6 +1086,19 @@ class ShardState:
             Logger.warning_every_sec("Failed to apply transaction: {}".format(e), 1)
             return None
 
+    def get_mining_info(self, recipient: bytes, token_balance: Dict[bytes, int]):
+        block_cnt = self._get_posw_coinbase_blockcnt(self.header_tip.get_hash())
+        cnt = block_cnt.get(recipient, 0)
+        if not self._posw_enabled(self.header_tip):
+            return cnt, 0
+
+        posw_config = self.shard_config.POSW_CONFIG
+        stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
+        block_threshold = min(
+            posw_config.WINDOW_SIZE, stakes // posw_config.TOTAL_STAKE_PER_BLOCK
+        )
+        return cnt, block_threshold
+
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:
             create_time = max(int(time.time()), self.header_tip.create_time + 1)
@@ -1785,7 +1798,7 @@ class ShardState:
         Raise ValueError if anything goes wrong.
         """
         return get_posw_coinbase_blockcnt(
-            self.shard_config.POSW_CONFIG,
+            self.shard_config.POSW_CONFIG.WINDOW_SIZE,
             self.coinbase_addr_cache,
             header_hash,
             self.db.get_minor_block_header_by_hash,
