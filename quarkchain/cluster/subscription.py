@@ -5,7 +5,7 @@ from typing import List, Dict
 from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
 
-from quarkchain.cluster.filter import Filter as EvmLogFilter
+from quarkchain.cluster.log_filter import LogFilter as EvmLogFilter
 from quarkchain.core import MinorBlockHeader
 
 SUB_NEW_HEADS = "newHeads"
