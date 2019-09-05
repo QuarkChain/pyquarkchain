@@ -315,7 +315,7 @@ class QuarkChainConfig(BaseConfig):
     XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT = 90000
     DISABLE_POW_CHECK = False
 
-    ROOT_CHAIN_POSW_CONTRACT = "7aefa013e212154a294b54c4edad4d25262cefab"
+    ROOT_CHAIN_POSW_CONTRACT = "53345c04cfb710a9c4eeae36e4a554547ec1b235"
 
     def __init__(self):
         self.loadtest_accounts = (
