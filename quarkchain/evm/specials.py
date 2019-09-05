@@ -1,6 +1,8 @@
 # -*- coding: utf8 -*-
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
+
+from quarkchain.constants import ROOT_CHAIN_POSW_CONTRACT_BYTECODE
 from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
@@ -254,6 +256,27 @@ def proc_transfer_mnt(ext, msg):
     return apply_msg(ext, new_msg)
 
 
+def proc_deploy_root_chain_staking_contract(ext, msg):
+    from quarkchain.evm.messages import create_contract
+
+    gascost = 3
+    if msg.gas < gascost:
+        return 0, 0, []
+    new_msg = vm.Message(
+        msg.to,  # current special address
+        b"",
+        0,
+        msg.gas - gascost,
+        ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+        msg.depth + 1,
+        to_full_shard_key=msg.to_full_shard_key,
+        transfer_token_id=msg.transfer_token_id,
+        gas_token_id=msg.gas_token_id,
+    )
+    # CREATE2, deterministic staking contract address
+    return create_contract(ext, new_msg, b"", salt=bytes(32))
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -267,6 +290,7 @@ specials = {
         b"0000000000000000000000000000000000000008": proc_ecpairing,
         b"000000000000000000000000000000514b430001": proc_current_mnt_id,
         b"000000000000000000000000000000514b430002": proc_transfer_mnt,
+        b"000000000000000000000000000000514b430003": proc_deploy_root_chain_staking_contract,
     }.items()
 }
 
