@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
@@ -50,15 +50,17 @@ class SubscriptionManager:
     async def notify_new_pending_tx(self, tx_hash: bytes):
         await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
 
-    async def notify_log(self, height: int):
+    async def notify_log(
+        self, end_block_header: MinorBlockHeader, is_removed: Optional[bool] = False
+    ):
         from quarkchain.cluster.jsonrpc import loglist_encoder
 
         for sub_id, websocket in self.subscribers[SUB_LOGS].items():
             log_filter = self.log_filters[sub_id]
-            log_filter.start_block = height
-            log_filter.end_block = height
+            log_filter.end_block_header = end_block_header
+            log_filter.size = 1
             logs = log_filter.run()
-            log_list = loglist_encoder(logs)
+            log_list = loglist_encoder(logs, is_removed)
             tasks = []
             for log in log_list:
                 response = self.response_encoder(sub_id, log)
