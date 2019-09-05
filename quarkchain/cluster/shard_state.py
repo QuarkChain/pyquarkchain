@@ -1774,6 +1774,8 @@ class ShardState:
 
     def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
         header = block.header
+        if header.height == 0:  # genesis
+            return None
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
