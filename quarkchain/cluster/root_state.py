@@ -652,6 +652,8 @@ class RootState:
     def get_posw_info(
         self, block: RootBlock, stakes: int, signer: bytes
     ) -> Optional[PoSWInfo]:
+        if block.header.height == 0:  # genesis
+            return None
         config = self.root_config.POSW_CONFIG  # type: POSWConfig
         block_cnt = get_posw_coinbase_blockcnt(
             config.WINDOW_SIZE,
