@@ -1,7 +1,7 @@
 import unittest
 from copy import copy
 
-from quarkchain.cluster.filter import Filter
+from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.tests.test_shard_state import create_default_shard_state
 from quarkchain.cluster.tests.test_utils import (
     get_test_env,
@@ -61,9 +61,10 @@ class TestFilter(unittest.TestCase):
         self.start_height = start_height
 
         def filter_gen_with_criteria(criteria, addresses=None):
-            return Filter(
-                state.db, addresses or [], criteria, start_height, start_height + 10
+            end_block_header = state.db.get_minor_block_header_by_height(
+                start_height + 10
             )
+            return LogFilter(state.db, addresses or [], criteria, end_block_header, 11)
 
         self.filter_gen_with_criteria = filter_gen_with_criteria
 

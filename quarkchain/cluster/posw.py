@@ -21,7 +21,7 @@ Block = Union[MinorBlock, RootBlock]
 
 
 def get_posw_coinbase_blockcnt(
-    config: POSWConfig,
+    window_size: int,
     cache: LRUCache,
     header_hash: bytes,
     header_func: Callable[[bytes], Optional[Header]],
@@ -36,7 +36,7 @@ def get_posw_coinbase_blockcnt(
         return Counter(addrs)
 
     header = header_func(header_hash)
-    length = config.WINDOW_SIZE - 1
+    length = window_size - 1
     if not header:
         raise ValueError("curr block not found: hash {}".format(header_hash.hex()))
     height = header.height
