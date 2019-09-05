@@ -6,7 +6,7 @@ from contextlib import contextmanager
 
 import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
-import websockets
+from jsonrpcclient.exceptions import ReceivedErrorResponse
 
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import (
@@ -901,6 +901,12 @@ class TestJSONRPCHttp(unittest.TestCase):
             expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
             self.assertDictContainsSubset(expected_log_parts, resp[0])
             self.assertEqual(2, len(resp[0]["topics"]))
+            # missing shard ID should fail
+            for endpoint in ("getLogs", "eth_getLogs"):
+                with self.assertRaises(ReceivedErrorResponse):
+                    send_request(endpoint, [{}])
+                with self.assertRaises(ReceivedErrorResponse):
+                    send_request(endpoint, [{}, None])
 
     def test_estimateGas(self):
         id1 = Identity.create_random_identity()

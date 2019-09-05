@@ -14,6 +14,7 @@ from jsonrpcserver.async_methods import AsyncMethods
 from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
 
 from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.rpc import AccountBranchData
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.core import (
     Address,
@@ -636,7 +637,7 @@ class JSONRPCHttpServer:
         if not include_shards:
             account_branch_data = await self.master.get_primary_account_data(
                 address, block_height
-            )
+            )  # type: AccountBranchData
             branch = account_branch_data.branch
             count = account_branch_data.transaction_count
 
@@ -648,6 +649,10 @@ class JSONRPCHttpServer:
                 "balances": balances_encoder(balances),
                 "transactionCount": quantity_encoder(count),
                 "isContract": account_branch_data.is_contract,
+                "minedBlocks": quantity_encoder(account_branch_data.mined_blocks),
+                "poswMineableBlocks": quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                ),
             }
             return {"primary": primary}
 
@@ -671,7 +676,13 @@ class JSONRPCHttpServer:
             if branch.get_full_shard_id() == self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key
             ):
-                primary = data
+                primary = data.copy()
+                primary["minedBlocks"] = quantity_encoder(
+                    account_branch_data.mined_blocks
+                )
+                primary["poswMineableBlocks"] = quantity_encoder(
+                    account_branch_data.posw_mineable_blocks
+                )
 
         return {"primary": primary, "shards": shards}
 
@@ -1306,8 +1317,9 @@ class JSONRPCHttpServer:
         ):
             return None
         addresses, topics = _parse_log_request(data, decoder)
-        if full_shard_key is not None:
-            addresses = [Address(a.recipient, full_shard_key) for a in addresses]
+        if full_shard_key is None:
+            raise InvalidParams("Full shard key is required to get logs")
+        addresses = [Address(a.recipient, full_shard_key) for a in addresses]
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 full_shard_key
