@@ -806,14 +806,20 @@ class ShardState:
             self.db.remove_minor_block_index(block)
             if add_tx_back_to_queue:
                 self.__add_transactions_from_block(block)
+        if len(old_chain) > 0:
             asyncio.ensure_future(
-                self.subscription_manager.notify_log(block.header, True)
+                self.subscription_manager.notify_log(block.header, len(old_chain), True)
             )
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
-            asyncio.ensure_future(self.subscription_manager.notify_log(block.header))
+        # new_chain has at least one block, starting from minor_block with block height descending
+        new_chain.sort(key=lambda x: x.header.height)
+        asyncio.ensure_future(self.subscription_manager.notify_new_heads(new_chain))
+        asyncio.ensure_future(
+            self.subscription_manager.notify_log(minor_block.header, len(new_chain))
+        )
 
     def __add_transactions_from_block(self, block):
         for tx in block.tx_list:
@@ -958,9 +964,6 @@ class ShardState:
             tip_prev_root_header = prev_root_header
             evm_state.sender_disallow_map = self._get_sender_disallow_map(block.header)
             self.__update_tip(block, evm_state)
-            asyncio.ensure_future(
-                self.subscription_manager.notify_new_heads(self.header_tip)
-            )
 
         check(self.__is_same_root_chain(self.root_tip, tip_prev_root_header))
         Logger.debug(

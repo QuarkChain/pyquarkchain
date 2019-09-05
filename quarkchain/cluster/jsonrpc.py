@@ -312,7 +312,7 @@ def tx_detail_encoder(tx):
     }
 
 
-def loglist_encoder(loglist: List[Log], is_removed: Optional[bool] = False):
+def loglist_encoder(loglist: List[Log], is_removed: bool):
     """Encode a list of log"""
     result = []
     for l in loglist:
@@ -359,7 +359,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
             if not receipt.contract_address.is_empty()
             else None
         ),
-        "logs": loglist_encoder(receipt.logs),
+        "logs": loglist_encoder(receipt.logs, False),
         "timestamp": quantity_encoder(block.header.create_time),
     }
 
@@ -1331,7 +1331,7 @@ class JSONRPCHttpServer:
         )
         if logs is None:
             return None
-        return loglist_encoder(logs)
+        return loglist_encoder(logs, False)
 
     async def _call_or_estimate_gas(self, is_call: bool, **data):
         """ Returns the result of the transaction application without putting in block chain """

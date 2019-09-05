@@ -6,7 +6,7 @@ from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
 
 from quarkchain.cluster.log_filter import LogFilter as EvmLogFilter
-from quarkchain.core import MinorBlockHeader
+from quarkchain.core import MinorBlock, MinorBlockHeader
 
 SUB_NEW_HEADS = "newHeads"
 SUB_NEW_PENDING_TX = "newPendingTransactions"
@@ -41,24 +41,31 @@ class SubscriptionManager:
                 return
         raise InvalidParams("subscription not found")
 
-    async def notify_new_heads(self, header: MinorBlockHeader):
+    async def notify_new_heads(self, blocks: List[MinorBlock]):
         from quarkchain.cluster.jsonrpc import minor_block_header_encoder
 
-        data = minor_block_header_encoder(header)
-        await self.__notify(SUB_NEW_HEADS, data)
+        tasks = []
+        for block in blocks:
+            header = block.header
+            data = minor_block_header_encoder(header)
+            tasks.append(self.__notify(SUB_NEW_HEADS, data))
+        await asyncio.gather(*tasks)
 
     async def notify_new_pending_tx(self, tx_hash: bytes):
         await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
 
     async def notify_log(
-        self, end_block_header: MinorBlockHeader, is_removed: Optional[bool] = False
+        self,
+        end_block_header: MinorBlockHeader,
+        size: int,
+        is_removed: Optional[bool] = False,
     ):
         from quarkchain.cluster.jsonrpc import loglist_encoder
 
         for sub_id, websocket in self.subscribers[SUB_LOGS].items():
             log_filter = self.log_filters[sub_id]
             log_filter.end_block_header = end_block_header
-            log_filter.size = 1
+            log_filter.size = size
             logs = log_filter.run()
             log_list = loglist_encoder(logs, is_removed)
             tasks = []
