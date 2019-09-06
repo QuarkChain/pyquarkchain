@@ -1757,7 +1757,20 @@ class ShardState:
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
         posw_diff = self.posw_diff_adjust(block)  # could be None
-        validate_seal(block.header, consensus_type, adjusted_diff=posw_diff)
+
+        with_rotation_stats = False
+        if (
+            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+            and self.evm_state.timestamp
+            >= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+        ):
+            with_rotation_stats = True
+        validate_seal(
+            block.header,
+            consensus_type,
+            adjusted_diff=posw_diff,
+            with_rotation_stats=with_rotation_stats,
+        )
 
     def posw_diff_adjust(self, block: MinorBlock) -> Optional[int]:
         posw_info = self._posw_info(block)

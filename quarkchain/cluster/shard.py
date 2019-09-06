@@ -401,7 +401,20 @@ class SyncTask:
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-                validate_seal(header, consensus_type, adjusted_diff=diff)
+                with_rotation_stats = False
+                if (
+                    self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+                    and self.shard_state.evm_state.timestamp
+                    >= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+                ):
+                    with_rotation_stats = True
+
+                validate_seal(
+                    header,
+                    consensus_type,
+                    adjusted_diff=diff,
+                    with_rotation_stats=with_rotation_stats,
+                )
             except Exception as e:
                 Logger.warning(
                     "[{}] got block with bad seal in sync: {}".format(

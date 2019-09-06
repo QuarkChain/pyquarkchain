@@ -20,6 +20,7 @@ from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import token_id_encode
+from quarkchain.cluster.miner import MiningWork, validate_seal, Miner, QkchashMiner
 
 
 def create_default_shard_state(
@@ -2750,6 +2751,62 @@ class TestShardState(unittest.TestCase):
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
+
+    def test_enable_evm_timestamp_qkchash_with_rotation_stats(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+        state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_QKCHASH
+        # set the initial evm timestamp to zero
+        state.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 0
+
+        # generate a minor block to mine
+        b1 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
+        evm_state = state.run_block(b1)
+        coinbase_amount_map = state.get_coinbase_amount_map(b1.header.height)
+        coinbase_amount_map.add(evm_state.block_fee_tokens)
+        b1.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+
+        # mine the block using QkchashMiner
+        miner = QkchashMiner(
+            1, 5, b1.header.get_hash_for_mining(), with_rotation_stats=True
+        )
+        nonce_found, mixhash = miner.mine(rounds=100)
+        b1.header.nonce = int.from_bytes(nonce_found, byteorder="big")
+        b1.header.mixhash = mixhash
+
+        # validate the minor block and make sure it works for qkchashX using the new flag
+        validate_seal(b1.header, ConsensusType.POW_QKCHASH, with_rotation_stats=True)
+        with self.assertRaises(ValueError):
+            validate_seal(
+                b1.header, ConsensusType.POW_QKCHASH, with_rotation_stats=False
+            )
+        state.finalize_and_add_block(b1)
+
+        # change the evm timestamp and make sure it works for original qkchash
+        state.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = b1.header.create_time + 100
+
+        b2 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
+        evm_state2 = state.run_block(b2)
+        coinbase_amount_map2 = state.get_coinbase_amount_map(b2.header.height)
+        coinbase_amount_map2.add(evm_state2.block_fee_tokens)
+        b2.finalize(evm_state=evm_state2, coinbase_amount_map=coinbase_amount_map2)
+
+        miner2 = QkchashMiner(
+            2, 5, b2.header.get_hash_for_mining(), with_rotation_stats=False
+        )
+        nonce_found2, mixhash2 = miner2.mine(rounds=100)
+        b2.header.nonce = int.from_bytes(nonce_found2, byteorder="big")
+        b2.header.mixhash = mixhash2
+
+        validate_seal(b2.header, ConsensusType.POW_QKCHASH, with_rotation_stats=False)
+        with self.assertRaises(ValueError):
+            validate_seal(
+                b2.header, ConsensusType.POW_QKCHASH, with_rotation_stats=True
+            )
+        state.finalize_and_add_block(b2)
 
     def test_failed_transaction_gas(self):
         """in-shard revert contract transaction validating the failed transaction gas used
