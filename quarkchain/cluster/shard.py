@@ -403,9 +403,9 @@ class SyncTask:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
                 with_rotation_stats = False
                 if (
-                    self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
+                    self.shard.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
                     and self.shard_state.evm_state.timestamp
-                    >= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
+                    >= self.shard.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
                 ):
                     with_rotation_stats = True
 
