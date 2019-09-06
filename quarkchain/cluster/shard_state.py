@@ -1758,13 +1758,7 @@ class ShardState:
         ].CONSENSUS_TYPE
         posw_diff = self.posw_diff_adjust(block)  # could be None
 
-        with_rotation_stats = False
-        if (
-            self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
-            and self.evm_state.timestamp
-            >= self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
-        ):
-            with_rotation_stats = True
+        with_rotation_stats = self._qkchashx_enabled(block.header)
         validate_seal(
             block.header,
             consensus_type,
@@ -1863,3 +1857,10 @@ class ShardState:
     def _posw_enabled(self, header):
         config = self.shard_config.POSW_CONFIG
         return config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP
+
+    def _qkchashx_enabled(self, header):
+        config = self.env.quark_chain_config
+        return (
+            config.ENABLE_QKCHASHX_HEIGHT is not None
+            and header.height >= config.ENABLE_QKCHASHX_HEIGHT
+        )

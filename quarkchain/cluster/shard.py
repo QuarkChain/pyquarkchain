@@ -401,14 +401,7 @@ class SyncTask:
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-                with_rotation_stats = False
-                if (
-                    self.shard.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
-                    and self.shard_state.evm_state.timestamp
-                    >= self.shard.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
-                ):
-                    with_rotation_stats = True
-
+                with_rotation_stats = self.shard.state._qkchashx_enabled(self, header)
                 validate_seal(
                     header,
                     consensus_type,
