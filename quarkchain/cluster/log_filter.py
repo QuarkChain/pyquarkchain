@@ -22,6 +22,7 @@ class LogFilter:
         topics: List[List[bytes]],
         end_block_header: MinorBlockHeader,
         size: int,
+        candidate_blocks: Optional[List[MinorBlock]] = None,
         block_hash: Optional[str] = None,
     ):
         """
@@ -34,6 +35,11 @@ class LogFilter:
         self.recipients = [addr.recipient for addr in addresses]
         self.end_block_header = end_block_header
         self.size = size
+        self.candidate_blocks = candidate_blocks
+        if candidate_blocks is not None and end_block_header is not None and size != 0:
+            raise ValueError(
+                "Should pass in either candidate blocks or end block header and size"
+            )
         self.block_hash = block_hash  # TODO: not supported yet
         # construct bloom bits:
         # innermost: an integer with 3 bits set
@@ -57,17 +63,8 @@ class LogFilter:
 
     def _get_block_candidates(self) -> List[MinorBlock]:
         """Use given criteria to generate potential blocks matching the bloom."""
-        ret = []
-        end_block_hash = self.end_block_header.get_hash()
-        for i in range(self.size):
-            block = self.db.get_minor_block_by_hash(end_block_hash)
-            if not block:
-                Logger.error(
-                    "No block found for height {} at shard {}".format(
-                        i, self.db.branch.get_full_shard_id()
-                    )
-                )
-                continue
+
+        def check_should_skip_block(block: MinorBlock) -> bool:
             should_skip_block = False
             # same byte order as in bloom.py
             header_bloom = block.header.bloom
@@ -75,15 +72,35 @@ class LogFilter:
                 if not any((header_bloom & i) == i for i in bit_list):
                     should_skip_block = True
                     break
+                if (
+                    1 + i
+                ) % 100 == 0 and time.time() - self.start_ts > LogFilter.TIMEOUT:
+                    raise Exception("Filter timeout")
+            return should_skip_block
 
-            if not should_skip_block:
-                ret.append(block)
+        ret = []
+        if self.candidate_blocks is not None:
+            for block in self.candidate_blocks:
+                if not check_should_skip_block(block):
+                    ret.append(block)
+        else:
+            end_block_hash = self.end_block_header.get_hash()
+            for i in range(self.size):
+                block = self.db.get_minor_block_by_hash(end_block_hash)
+                if not block:
+                    Logger.error(
+                        "No block found for height {} at shard {}".format(
+                            i, self.db.branch.get_full_shard_id()
+                        )
+                    )
+                    continue
 
-            if (1 + i) % 100 == 0 and time.time() - self.start_ts > LogFilter.TIMEOUT:
-                raise Exception("Filter timeout")
+                if not check_should_skip_block(block):
+                    ret.append(block)
 
-            end_block_hash = block.header.hash_prev_block
+                end_block_hash = block.header.hash_prev_block
 
+        ret = sorted(ret, key=lambda x: x.header.height)
         return ret
 
     def _get_logs(self, blocks: List[MinorBlock]) -> List[Log]:

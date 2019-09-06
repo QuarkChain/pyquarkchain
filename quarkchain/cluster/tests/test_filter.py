@@ -123,3 +123,14 @@ class TestFilter(unittest.TestCase):
         f = self.filter_gen_with_criteria(criteria, addresses)
         logs = f._get_logs([self.hit_block])
         self.assertListEqual([self.log], logs)
+
+    def test_get_block_candidates_height_ascending(self):
+        criteria = []
+        addresses = []
+        f = self.filter_gen_with_criteria(criteria, addresses)
+        blocks = f._get_block_candidates()
+
+        height = 1
+        for block in blocks:
+            self.assertEqual(block.header.height, height)
+            height += 1
