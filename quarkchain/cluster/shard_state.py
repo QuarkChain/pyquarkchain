@@ -816,7 +816,7 @@ class ShardState:
         if len(old_chain) > 0:
             asyncio.ensure_future(
                 self.subscription_manager.notify_log(
-                    old_chain_highest_block, len(old_chain), True
+                    old_chain_highest_block.header, len(old_chain), True
                 )
             )
         for block in new_chain:
