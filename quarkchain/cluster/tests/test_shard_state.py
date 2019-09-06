@@ -2760,7 +2760,7 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env)
         state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_QKCHASH
         # set the initial evm timestamp to zero
-        state.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 0
+        state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 1
 
         # generate a minor block to mine
         b1 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
@@ -2786,7 +2786,7 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b1)
 
         # change the evm timestamp and make sure it works for original qkchash
-        state.env.quark_chain_config.ENABLE_EVM_TIMESTAMP = b1.header.create_time + 100
+        state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 100
 
         b2 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
         evm_state2 = state.run_block(b2)
