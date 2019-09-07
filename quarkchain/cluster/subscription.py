@@ -54,9 +54,7 @@ class SubscriptionManager:
         data = None
         await self.__notify(SUB_LOGS, data)
 
-    async def notify_sync(
-        self, data: Optional[Tuple[int, ...]] = None
-    ):  # data = (header_tip_height, highest_block)
+    async def notify_sync(self, data: Optional[Tuple[int, ...]] = None):
         await self.__notify(SUB_SYNC, data)
 
     async def __notify(self, sub_type, data):
