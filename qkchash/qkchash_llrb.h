@@ -38,6 +38,7 @@ public:
         for (int32_t i = arenaSize_ / sizeof (Node) - 1; i >= 0; i--) {
             freeList_.push_back(i);
         }
+        resetRotationStats();
     }
 
     LLRB<T>& operator=(LLRB<T>&& other) {
@@ -46,6 +47,7 @@ public:
         capacity_ = other.capacity_;
         root_ = other.root_;
         freeList_ = std::move(other.freeList_);
+        rotationStats_ = std::move(other.rotationStats_);
         return *this;
     };
     LLRB<T>& operator=(const LLRB<T>& other)  = delete;
@@ -110,7 +112,7 @@ public:
 
     LLRB<T> copy(uintptr_t arenaBase) {
         memcpy((void *)arenaBase, (void *)arenaBase_, arenaSize_);
-        return LLRB<T>(arenaBase, arenaSize_, root_, freeList_);
+        return LLRB<T>(arenaBase, arenaSize_, root_, freeList_, rotationStats_);
     }
 
     uint32_t size() {
@@ -138,23 +140,35 @@ public:
     uintptr_t getArenaBase() {
         return arenaBase_;
     }
+  
+    std::array<uint64_t, 4> getRotationStats() {
+        return rotationStats_;
+    }
 
+    void resetRotationStats() {
+        for (size_t i = 0; i < rotationStats_.size(); i++) {
+            rotationStats_[i] = 0;
+        }
+    }
 private:
     LLRB(uintptr_t arenaBase,
          uint64_t arenaSize,
          uint32_t root,
-         std::vector<uint32_t> freeList)
+         std::vector<uint32_t> freeList,
+         std::array<uint64_t, 4> rotationStats)
          : arenaBase_(arenaBase),
            arenaSize_(arenaSize),
            capacity_(arenaSize_ / sizeof (Node)),
            root_(root),
-           freeList_(std::move(freeList)) { }
+           freeList_(std::move(freeList)),
+           rotationStats_(std::move(rotationStats)) { }
 
     uintptr_t arenaBase_;
     uint64_t arenaSize_;
     uint32_t capacity_;
     uint32_t root_;
     std::vector<uint32_t> freeList_;
+    std::array<uint64_t, 4> rotationStats_;
 
     const bool RED = true;
     const bool BLACK = false;
@@ -188,6 +202,13 @@ private:
         x->color = h->color;
         h->color = RED;
         x->size += (h->size + 1);
+        uint64_t c = 0;
+        for (size_t i = 0; i < rotationStats_.size(); i++) {
+            uint64_t nc = (rotationStats_[i] & (0x1ULL << 63)) == 0 ? 0 : 1;
+            rotationStats_[i] = (rotationStats_[i] << 1) ^ c;
+            c = nc;
+        }
+        rotationStats_[0] = rotationStats_[0] ^ c;
         return x;
     }
 
@@ -206,6 +227,13 @@ private:
         x->color = h->color;
         h->color = RED;
         h->size -= (x->size + 1);
+        uint64_t c = 1;
+        for (size_t i = 0; i < rotationStats_.size(); i++) {
+            uint64_t nc = (rotationStats_[i] & (0x1ULL << 63)) == 0 ? 0 : 1;
+            rotationStats_[i] = (rotationStats_[i] << 1) ^ c;
+            c = nc;
+        }
+        rotationStats_[0] = rotationStats_[0] ^ c;
         return x;
     }
 

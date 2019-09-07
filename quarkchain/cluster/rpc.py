@@ -558,13 +558,25 @@ class AccountBranchData(Serializable):
         ("transaction_count", uint256),
         ("token_balances", TokenBalanceMap),
         ("is_contract", boolean),
+        ("posw_mineable_blocks", uint16),
+        ("mined_blocks", uint16),
     ]
 
-    def __init__(self, branch, transaction_count, token_balances, is_contract):
+    def __init__(
+        self,
+        branch,
+        transaction_count,
+        token_balances,
+        is_contract,
+        mined_blocks=0,
+        posw_mineable_blocks=0,
+    ):
         self.branch = branch
         self.transaction_count = transaction_count
         self.token_balances = token_balances
         self.is_contract = is_contract
+        self.mined_blocks = mined_blocks
+        self.posw_mineable_blocks = posw_mineable_blocks
 
 
 class GetAccountDataResponse(Serializable):
