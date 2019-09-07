@@ -7,6 +7,7 @@ from contextlib import contextmanager
 import aiohttp
 from jsonrpcclient.aiohttp_client import aiohttpClient
 from jsonrpcclient.exceptions import ReceivedErrorResponse
+import websockets
 
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.jsonrpc import (
