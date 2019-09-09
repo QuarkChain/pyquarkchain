@@ -401,7 +401,7 @@ class SyncTask:
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-                with_rotation_stats = self.shard.state._qkchashx_enabled(self, header)
+                with_rotation_stats = self.shard.state._qkchashx_enabled(header)
                 validate_seal(
                     header,
                     consensus_type,
