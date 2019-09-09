@@ -149,22 +149,15 @@ class TestFilter(unittest.TestCase):
         addresses = []
         f = self.filter_gen_with_criteria(criteria, addresses)
         blocks = f._get_block_candidates()
-
-        height = 1
-        for block in blocks:
-            self.assertEqual(block.header.height, height)
-            height += 1
+        self.assertListEqual([b.header.height for b in blocks], list(range(1, 12)))
 
         f = self.filter_gen_with_criteria(criteria, addresses, option="block_list")
         blocks = f._get_block_candidates()
-        height = 2
-        for block in blocks:
-            self.assertEqual(block.header.height, height)
-            height += 1
+        self.assertEqual([b.header.height for b in blocks], list(range(2, 12)))
 
         with self.assertRaises(Exception) as context:
             f = self.filter_gen_with_criteria(criteria, addresses, option="both")
-            self.assertTrue(
+            self.assertEqual(
                 "Should pass in either candidate blocks or end block header and size",
                 context.exception,
             )
