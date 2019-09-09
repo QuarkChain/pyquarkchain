@@ -36,7 +36,7 @@ def get_mining_output(
     block_number: int,
     header_hash: bytes,
     nonce: bytes,
-    with_rotation_stats: bool = False,
+    qkchash_with_rotation_stats: bool = False,
 ) -> Dict[str, bytes]:
     seed = get_seed_from_block_number(block_number)
     if QKC_HASH_NATIVE is None:
@@ -45,7 +45,7 @@ def get_mining_output(
     else:
         current_cache = QKC_HASH_NATIVE.make_cache(CACHE_ENTRIES, seed)
         mining_output = QKC_HASH_NATIVE.calculate_hash(
-            header_hash, nonce, current_cache, with_rotation_stats
+            header_hash, nonce, current_cache, qkchash_with_rotation_stats
         )
     return mining_output
 
@@ -57,14 +57,14 @@ def check_pow(
     mixhash: bytes,
     bin_nonce: bytes,
     difficulty: int,
-    with_rotation_stats: bool = False,
+    qkchash_with_rotation_stats: bool = False,
 ) -> bool:
     """Check if the proof-of-work of the block is valid."""
     if len(mixhash) != 32 or len(header_hash) != 32 or len(bin_nonce) != 8:
         return False
 
     mining_output = get_mining_output(
-        block_number, header_hash, bin_nonce, with_rotation_stats
+        block_number, header_hash, bin_nonce, qkchash_with_rotation_stats
     )
     if mining_output["mix digest"] != mixhash:
         return False
@@ -78,12 +78,12 @@ class QkchashMiner:
         block_number: int,
         difficulty: int,
         header_hash: bytes,
-        with_rotation_stats: bool = False,
+        qkchash_with_rotation_stats: bool = False,
     ):
         self.block_number = block_number
         self.difficulty = difficulty
         self.header_hash = header_hash
-        self.with_rotation_stats = with_rotation_stats
+        self.qkchash_with_rotation_stats = qkchash_with_rotation_stats
 
     def mine(
         self, rounds=1000, start_nonce=0
@@ -94,7 +94,7 @@ class QkchashMiner:
             self.header_hash,
             start_nonce=start_nonce,
             rounds=rounds,
-            with_rotation_stats=self.with_rotation_stats,
+            qkchash_with_rotation_stats=self.qkchash_with_rotation_stats,
         )
         if bin_nonce is not None:
             return bin_nonce, mixhash
@@ -108,7 +108,7 @@ def mine(
     header_hash: bytes,
     start_nonce: int = 0,
     rounds: int = 1000,
-    with_rotation_stats: bool = False,
+    qkchash_with_rotation_stats: bool = False,
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
     nonce = start_nonce
     target = 2 ** 256 // (difficulty or 1)
@@ -116,7 +116,7 @@ def mine(
         # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
         mining_output = get_mining_output(
-            block_number, header_hash, bin_nonce, with_rotation_stats
+            block_number, header_hash, bin_nonce, qkchash_with_rotation_stats
         )
         result = int.from_bytes(mining_output["result"], byteorder="big")
         if result <= target:

@@ -33,7 +33,7 @@ def validate_seal(
     block_header: Header,
     consensus_type: ConsensusType,
     adjusted_diff: int = None,  # for overriding
-    with_rotation_stats: bool = False,
+    **kwargs
 ) -> None:
     diff = adjusted_diff if adjusted_diff is not None else block_header.difficulty
     nonce_bytes = block_header.nonce.to_bytes(8, byteorder="big")
@@ -53,7 +53,7 @@ def validate_seal(
             block_header.mixhash,
             nonce_bytes,
             diff,
-            with_rotation_stats,
+            kwargs.get("qkchash_with_rotation_stats", False),
         ):
             raise ValueError("invalid pow proof")
     elif consensus_type == ConsensusType.POW_DOUBLESHA256:
@@ -112,9 +112,9 @@ class Ethash(MiningAlgorithm):
 
 class Qkchash(MiningAlgorithm):
     def __init__(self, work: MiningWork, **kwargs):
-        with_rotation_stats = kwargs.get("with_rotation_stats", False)
+        qkchash_with_rotation_stats = kwargs.get("qkchash_with_rotation_stats", False)
         self.miner = QkchashMiner(
-            work.height, work.difficulty, work.hash, with_rotation_stats
+            work.height, work.difficulty, work.hash, qkchash_with_rotation_stats
         )
 
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:

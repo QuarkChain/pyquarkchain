@@ -48,6 +48,7 @@ from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 from cachetools import LRUCache
+from quarkchain.config import ConsensusType
 
 MAX_FUTURE_TX_NONCE = 64
 
@@ -1757,13 +1758,12 @@ class ShardState:
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
         posw_diff = self.posw_diff_adjust(block)  # could be None
-
-        with_rotation_stats = self._qkchashx_enabled(block.header)
         validate_seal(
             block.header,
             consensus_type,
             adjusted_diff=posw_diff,
-            with_rotation_stats=with_rotation_stats,
+            qkchash_with_rotation_stats=consensus_type == ConsensusType.POW_QKCHASH
+            and self._qkchashx_enabled(block.header),
         )
 
     def posw_diff_adjust(self, block: MinorBlock) -> Optional[int]:

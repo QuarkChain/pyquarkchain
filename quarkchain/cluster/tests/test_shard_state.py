@@ -2752,7 +2752,7 @@ class TestShardState(unittest.TestCase):
         ):
             state.finalize_and_add_block(b1)
 
-    def test_enable_evm_timestamp_qkchash_with_rotation_stats(self):
+    def test_qkchashx_qkchash_with_rotation_stats(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
@@ -2762,49 +2762,47 @@ class TestShardState(unittest.TestCase):
         # set the initial enabled Qkchashx block height to one
         state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 1
 
-        # generate a minor block to mine
-        b1 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
-        evm_state = state.run_block(b1)
-        coinbase_amount_map = state.get_coinbase_amount_map(b1.header.height)
-        coinbase_amount_map.add(evm_state.block_fee_tokens)
-        b1.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+        # generate and mine a minor block
+        def _testcase_generate_and_mine_minor_block(qkchash_with_rotation_stats):
+            block = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
+            evm_state = state.run_block(block)
+            coinbase_amount_map = state.get_coinbase_amount_map(block.header.height)
+            coinbase_amount_map.add(evm_state.block_fee_tokens)
+            block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
 
-        # mine the block using QkchashMiner
-        miner = QkchashMiner(
-            1, 5, b1.header.get_hash_for_mining(), with_rotation_stats=True
-        )
-        nonce_found, mixhash = miner.mine(rounds=100)
-        b1.header.nonce = int.from_bytes(nonce_found, byteorder="big")
-        b1.header.mixhash = mixhash
+            # mine the block using QkchashMiner
+            miner = QkchashMiner(
+                1,
+                5,
+                block.header.get_hash_for_mining(),
+                qkchash_with_rotation_stats=qkchash_with_rotation_stats,
+            )
+            nonce_found, mixhash = miner.mine(rounds=100)
+            block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
+            block.header.mixhash = mixhash
+            return block
 
+        b1 = _testcase_generate_and_mine_minor_block(True)
         # validate the minor block and make sure it works for qkchashX using the new flag
-        validate_seal(b1.header, ConsensusType.POW_QKCHASH, with_rotation_stats=True)
+        validate_seal(
+            b1.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=True
+        )
         with self.assertRaises(ValueError):
             validate_seal(
-                b1.header, ConsensusType.POW_QKCHASH, with_rotation_stats=False
+                b1.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=False
             )
         state.finalize_and_add_block(b1)
 
         # change the enabled Qkchashx block height and make sure it works for original qkchash
         state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 100
 
-        b2 = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
-        evm_state2 = state.run_block(b2)
-        coinbase_amount_map2 = state.get_coinbase_amount_map(b2.header.height)
-        coinbase_amount_map2.add(evm_state2.block_fee_tokens)
-        b2.finalize(evm_state=evm_state2, coinbase_amount_map=coinbase_amount_map2)
-
-        miner2 = QkchashMiner(
-            2, 5, b2.header.get_hash_for_mining(), with_rotation_stats=False
+        b2 = _testcase_generate_and_mine_minor_block(False)
+        validate_seal(
+            b2.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=False
         )
-        nonce_found2, mixhash2 = miner2.mine(rounds=100)
-        b2.header.nonce = int.from_bytes(nonce_found2, byteorder="big")
-        b2.header.mixhash = mixhash2
-
-        validate_seal(b2.header, ConsensusType.POW_QKCHASH, with_rotation_stats=False)
         with self.assertRaises(ValueError):
             validate_seal(
-                b2.header, ConsensusType.POW_QKCHASH, with_rotation_stats=True
+                b2.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=True
             )
         state.finalize_and_add_block(b2)
 
