@@ -41,7 +41,9 @@ class LogFilter:
                 "Should pass in either candidate blocks or end block header and size"
             )
         if candidate_blocks is not None:
-            candidate_blocks.sort(key=lambda x: x.header.height)
+            self.candidate_blocks = sorted(
+                candidate_blocks, key=lambda x: x.header.height
+            )
         self.block_hash = block_hash  # TODO: not supported yet
         # construct bloom bits:
         # innermost: an integer with 3 bits set
@@ -95,7 +97,7 @@ class LogFilter:
                     ret.append(block)
 
                 end_block_hash = block.header.hash_prev_block
-            ret.reverse()
+            ret = list(reversed(ret))
 
         return ret
 
