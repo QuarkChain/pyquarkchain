@@ -1496,15 +1496,22 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             # Add one block and include it in the root block
             b0 = state.get_tip().create_block_to_append(address=acc1)
             b1 = state.get_tip().create_block_to_append(address=acc2)
-            tx = create_contract_creation_with_event_transaction(
+            tx1 = create_contract_creation_with_event_transaction(
                 shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_key=acc1.full_shard_key,
             )
-            b0.add_tx(tx)
-            b1.add_tx(tx)
-            tx_hash = tx.get_hash()
+            tx2 = create_contract_creation_with_event_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
+                key=id1.get_key(),
+                from_address=acc1,
+                to_full_shard_key=acc1.full_shard_key,
+            )
+            b0.add_tx(tx1)
+            b1.add_tx(tx2)
+            tx1_hash = tx1.get_hash()
+            tx2_hash = tx2.get_hash()
 
             root_block0 = (
                 state.root_tip.create_block_to_append()
@@ -1523,6 +1530,9 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             state.add_root_block(root_block0)
             response = call_async(websocket.recv())
             d = json.loads(response)
+            self.assertEqual(
+                d["params"]["result"]["transactionHash"], data_encoder(tx1_hash)
+            )
             self.assertEqual(d["params"]["result"]["removed"], False)
             self.assertEqual(state.header_tip, b0.header)
 
@@ -1544,15 +1554,15 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             response = call_async(websocket.recv())
             d = json.loads(response)
             self.assertEqual(
-                d["params"]["result"]["transactionHash"], data_encoder(tx_hash)
+                d["params"]["result"]["transactionHash"], data_encoder(tx1_hash)
             )
             self.assertEqual(d["params"]["result"]["removed"], True)
 
-            # log emitted from new chain, flag is not set
+            # log emitted from new chain
             response = call_async(websocket.recv())
             d = json.loads(response)
             self.assertEqual(
-                d["params"]["result"]["transactionHash"], data_encoder(tx_hash)
+                d["params"]["result"]["transactionHash"], data_encoder(tx2_hash)
             )
             self.assertEqual(d["params"]["result"]["removed"], False)
 
