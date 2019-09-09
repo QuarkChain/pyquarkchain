@@ -11,6 +11,7 @@ from quarkchain.cluster.tests.test_utils import (
 from quarkchain.core import Identity, Address, Log
 from quarkchain.evm.bloom import bits_in_number, bloom
 from quarkchain.utils import sha3_256
+import random
 
 
 class TestFilter(unittest.TestCase):
@@ -38,6 +39,7 @@ class TestFilter(unittest.TestCase):
             state.evm_state.receipts[0].logs[0], b, tx.get_hash(), 0, 0
         )
 
+        block_list = []
         # add other random blocks with normal tx
         for _ in range(10):
             tx = create_transfer_transaction(
@@ -52,19 +54,37 @@ class TestFilter(unittest.TestCase):
             )
             self.assertTrue(state.add_tx(tx))
             b = state.create_block_to_mine(address=acc1)
+            block_list.append(b)
             state.finalize_and_add_block(b)
         self.assertEqual(b.header.height, start_height + 10)
+        random.shuffle(block_list)
 
         self.hit_block = hit_block
         self.log = log
         self.state = state
         self.start_height = start_height
 
-        def filter_gen_with_criteria(criteria, addresses=None):
+        def filter_gen_with_criteria(criteria, addresses=None, option="default"):
             end_block_header = state.db.get_minor_block_header_by_height(
                 start_height + 10
             )
-            return LogFilter(state.db, addresses or [], criteria, end_block_header, 11)
+            if option == "default":
+                return LogFilter(
+                    state.db, addresses or [], criteria, end_block_header, 11
+                )
+            elif option == "block_list":
+                return LogFilter(
+                    state.db, addresses or [], criteria, None, 0, block_list
+                )
+            elif option == "both":
+                return LogFilter(
+                    state.db,
+                    addresses or [],
+                    criteria,
+                    end_block_header,
+                    10,
+                    self.block_list,
+                )
 
         self.filter_gen_with_criteria = filter_gen_with_criteria
 
@@ -134,3 +154,17 @@ class TestFilter(unittest.TestCase):
         for block in blocks:
             self.assertEqual(block.header.height, height)
             height += 1
+
+        f = self.filter_gen_with_criteria(criteria, addresses, option="block_list")
+        blocks = f._get_block_candidates()
+        height = 2
+        for block in blocks:
+            self.assertEqual(block.header.height, height)
+            height += 1
+
+        with self.assertRaises(Exception) as context:
+            f = self.filter_gen_with_criteria(criteria, addresses, option="both")
+            self.assertTrue(
+                "Should pass in either candidate blocks or end block header and size",
+                context.exception,
+            )
