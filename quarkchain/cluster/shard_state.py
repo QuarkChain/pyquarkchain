@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 from rlp import DecodingError
 
 from quarkchain import utils
-from quarkchain.cluster.filter import Filter
+from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
 from quarkchain.cluster.rpc import ShardStats, TransactionDetail
@@ -1681,7 +1681,9 @@ class ShardState:
             # should have the same full_shard_id for the given addresses
             return None
 
-        log_filter = Filter(self.db, addresses, topics, start_block, end_block)
+        size = end_block - start_block + 1
+        end_block_header = self.db.get_minor_block_header_by_height(end_block)
+        log_filter = LogFilter(self.db, addresses, topics, end_block_header, size)
 
         try:
             logs = log_filter.run()
@@ -1766,6 +1768,8 @@ class ShardState:
 
     def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
         header = block.header
+        if header.height == 0:  # genesis
+            return None
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
