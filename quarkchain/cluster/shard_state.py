@@ -1854,14 +1854,11 @@ class ShardState:
         code = evm_state.get_code(contract_addr)
         if not code:
             return 0, bytes(20)
-        code_hash = utils.sha3_256(code)
         # have to make sure the code is expected
-        # FIXME: which means the contract is not upgradable without a hard fork
-        # but a new PoSW-on-root-chain contract needs a hard fork in config anyway
-        expected_code_hash = bytes.fromhex(
-            "5a7707e2684bd79484f3d952ac6a43f2631e3ef8e2085659c18af5714cee4f4c"
-        )
-        if code_hash != expected_code_hash:
+        if (
+            utils.sha3_256(code)
+            != self.env.quark_chain_config.root_chain_posw_contract_bytecode_hash
+        ):
             return 0, bytes(20)
 
         #  call the contract's 'getLockedStakes' function
