@@ -58,6 +58,7 @@ class SubscriptionManager:
         self,
         end_block_header: MinorBlockHeader,
         size: int,
+        candidate_blocks: Optional[List[MinorBlock]] = None,
         is_removed: Optional[bool] = False,
     ):
         from quarkchain.cluster.jsonrpc import loglist_encoder
@@ -66,6 +67,7 @@ class SubscriptionManager:
             log_filter = self.log_filters[sub_id]
             log_filter.end_block_header = end_block_header
             log_filter.size = size
+            log_filter.candidate_blocks = candidate_blocks
             logs = log_filter.run()
             log_list = loglist_encoder(logs, is_removed)
             tasks = []

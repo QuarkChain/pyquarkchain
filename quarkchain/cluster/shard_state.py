@@ -787,10 +787,6 @@ class ShardState:
                 break
             old_chain.append(orig_block)
             height += 1
-        if len(old_chain) > 0:
-            old_chain_highest_block = old_chain[-1]
-        else:
-            old_chain_highest_block = minor_block
 
         block = minor_block
         # Find common ancestor and record the blocks that needs to be updated
@@ -805,9 +801,6 @@ class ShardState:
                 break
             block = self.db.get_minor_block_by_hash(block.header.hash_prev_minor_block)
 
-        if len(old_chain) == 0:
-            old_chain_highest_block = None
-
         for block in old_chain:
             self.db.remove_transaction_index_from_block(block)
             self.db.remove_minor_block_index(block)
@@ -815,9 +808,7 @@ class ShardState:
                 self.__add_transactions_from_block(block)
         if len(old_chain) > 0:
             asyncio.ensure_future(
-                self.subscription_manager.notify_log(
-                    old_chain_highest_block.header, len(old_chain), True
-                )
+                self.subscription_manager.notify_log(None, 0, old_chain, True)
             )
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
@@ -829,9 +820,7 @@ class ShardState:
                 sorted(new_chain, key=lambda x: x.header.height)
             )
         )
-        asyncio.ensure_future(
-            self.subscription_manager.notify_log(minor_block.header, len(new_chain))
-        )
+        asyncio.ensure_future(self.subscription_manager.notify_log(None, 0, new_chain))
 
     def __add_transactions_from_block(self, block):
         for tx in block.tx_list:
