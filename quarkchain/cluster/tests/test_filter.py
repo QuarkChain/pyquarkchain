@@ -82,8 +82,8 @@ class TestFilter(unittest.TestCase):
                     addresses or [],
                     criteria,
                     end_block_header,
-                    10,
-                    self.block_list,
+                    11,
+                    block_list,
                 )
 
         self.filter_gen_with_criteria = filter_gen_with_criteria
