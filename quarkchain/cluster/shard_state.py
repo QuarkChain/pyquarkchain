@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from rlp import DecodingError
 
+from quarkchain import utils
 from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
@@ -39,6 +40,7 @@ from quarkchain.evm.messages import (
     validate_transaction,
     apply_xshard_deposit,
 )
+from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -1848,8 +1850,45 @@ class ShardState:
     def get_root_chain_stakes(
         self, recipient: bytes, block_hash: bytes
     ) -> (int, bytes):
-        # TODO: impl
-        return 0, bytes(20)
+        h = self.db.get_minor_block_header_by_hash(block_hash)
+        check(h is not None)
+        evm_state = self._get_evm_state_from_height(h.height).ephemeral_clone()
+        evm_state.gas_used = 0
+        check(evm_state is not None)
+        contract_addr = SystemContract.ROOT_CHAIN_POSW.addr()
+        code = evm_state.get_code(contract_addr)
+        if not code:
+            return 0, bytes(20)
+        # have to make sure the code is expected
+        if (
+            utils.sha3_256(code)
+            != self.env.quark_chain_config.root_chain_posw_contract_bytecode_hash
+        ):
+            return 0, bytes(20)
+
+        #  call the contract's 'getLockedStakes' function
+        mock_sender = bytes(20)  # empty address
+        data = bytes.fromhex("fd8c4646000000000000000000000000") + recipient
+        evm_tx = EvmTransaction(
+            evm_state.get_nonce(mock_sender),
+            0,  # gas price
+            1000000,  # startgas
+            contract_addr,
+            0,  # value
+            data,
+            gas_token_id=self.genesis_token_id,
+            transfer_token_id=self.genesis_token_id,
+        )
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        evm_tx.sender = mock_sender
+        success, output = apply_transaction(
+            evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+        )
+        if not success or not output:
+            return 0, bytes(20)
+        stakes = int.from_bytes(output[:32], byteorder="big")
+        signer = output[32 + 12 :]
+        return stakes, signer
 
     def _posw_enabled(self, header):
         config = self.shard_config.POSW_CONFIG

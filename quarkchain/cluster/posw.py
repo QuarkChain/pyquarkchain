@@ -64,7 +64,7 @@ def get_posw_info(
     header: Header,
     stake_func: Callable[[], int],
     block_cnt: Dict[bytes, int],
-    signer: bytes = None,
+    signer: Optional[bytes] = None,
 ) -> Optional[PoSWInfo]:
     if (
         not (config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP)
@@ -86,9 +86,15 @@ def get_posw_info(
         posw_mined_blocks=cnt + 1,
     )
 
+    # fast path
+    if block_threshold == 0:
+        return ret(False)
+
     # need to check signature if signer is specified. only applies for root chain
     if signer:
         check(isinstance(header, RootBlockHeader))
+        if signer == bytes(20):
+            return ret(False)
         block_sig = Signature(header.signature)
         try:
             pubk = block_sig.recover_public_key_from_msg_hash(

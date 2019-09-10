@@ -10,14 +10,13 @@ from quarkchain.cluster.tests.test_utils import (
     contract_creation_tx,
 )
 from quarkchain.config import ConsensusType
-from quarkchain.core import (
-    CrossShardTransactionDeposit,
-    CrossShardTransactionList,
-    MinorBlockHeader,
-)
+from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
+from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.specials import SystemContract
+from quarkchain.evm.state import State as EvmState
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import token_id_encode
 
@@ -2865,3 +2864,121 @@ class TestShardState(unittest.TestCase):
         b1 = state.create_block_to_mine()
         self.assertEqual(len(b1.tx_list), 1)
         self.assertEqual(len(state.tx_queue), 1)
+
+    def test_get_root_chain_stakes(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+        evm_state = state.evm_state  # type: EvmState
+
+        # contract not deployed yet
+        stakes, signer = state.get_root_chain_stakes(
+            acc1.recipient, state.header_tip.get_hash()
+        )
+        self.assertEqual(stakes, 0)
+        self.assertEqual(signer, bytes(20))
+
+        contract_runtime_bytecode = bytes.fromhex(
+            "60806040526004361061007b5760003560e01c8063853828b61161004e578063853828b6146101b5578063a69df4b5146101ca578063f83d08ba146101df578063fd8c4646146101e75761007b565b806316934fc4146100d85780632e1a7d4d1461013c578063485d3834146101685780636c19e7831461018f575b336000908152602081905260409020805460ff16156100cb5760405162461bcd60e51b815260040180806020018281038252602681526020018061062e6026913960400191505060405180910390fd5b6100d5813461023b565b50005b3480156100e457600080fd5b5061010b600480360360208110156100fb57600080fd5b50356001600160a01b031661029b565b6040805194151585526020850193909352838301919091526001600160a01b03166060830152519081900360800190f35b34801561014857600080fd5b506101666004803603602081101561015f57600080fd5b50356102cf565b005b34801561017457600080fd5b5061017d61034a565b60408051918252519081900360200190f35b610166600480360360208110156101a557600080fd5b50356001600160a01b0316610351565b3480156101c157600080fd5b506101666103c8565b3480156101d657600080fd5b50610166610436565b6101666104f7565b3480156101f357600080fd5b5061021a6004803603602081101561020a57600080fd5b50356001600160a01b0316610558565b604080519283526001600160a01b0390911660208301528051918290030190f35b8015610297576002820154808201908111610291576040805162461bcd60e51b81526020600482015260116024820152706164646974696f6e206f766572666c6f7760781b604482015290519081900360640190fd5b60028301555b5050565b600060208190529081526040902080546001820154600283015460039093015460ff9092169290916001600160a01b031684565b336000908152602081905260409020805460ff1680156102f3575080600101544210155b6102fc57600080fd5b806002015482111561030d57600080fd5b6002810180548390039055604051339083156108fc029084906000818181858888f19350505050158015610345573d6000803e3d6000fd5b505050565b6203f48081565b336000908152602081905260409020805460ff16156103a15760405162461bcd60e51b81526004018080602001828103825260268152602001806106546026913960400191505060405180910390fd5b6003810180546001600160a01b0319166001600160a01b038416179055610297813461023b565b6103d06105fa565b5033600090815260208181526040918290208251608081018452815460ff16151581526001820154928101929092526002810154928201839052600301546001600160a01b031660608201529061042657600080fd5b61043381604001516102cf565b50565b336000908152602081905260409020805460ff16156104865760405162461bcd60e51b815260040180806020018281038252602b8152602001806106a1602b913960400191505060405180910390fd5b60008160020154116104df576040805162461bcd60e51b815260206004820152601b60248201527f73686f756c642068617665206578697374696e67207374616b65730000000000604482015290519081900360640190fd5b805460ff191660019081178255426203f48001910155565b336000908152602081905260409020805460ff166105465760405162461bcd60e51b815260040180806020018281038252602781526020018061067a6027913960400191505060405180910390fd5b805460ff19168155610433813461023b565b6000806105636105fa565b506001600160a01b03808416600090815260208181526040918290208251608081018452815460ff161580158252600183015493820193909352600282015493810193909352600301549092166060820152906105c75750600091508190506105f5565b60608101516000906001600160a01b03166105e35750836105ea565b5060608101515b604090910151925090505b915091565b6040518060800160405280600015158152602001600081526020016000815260200160006001600160a01b03168152509056fe73686f756c64206f6e6c7920616464207374616b657320696e206c6f636b656420737461746573686f756c64206f6e6c7920736574207369676e657220696e206c6f636b656420737461746573686f756c64206e6f74206c6f636b20616c72656164792d6c6f636b6564206163636f756e747373686f756c64206e6f7420756e6c6f636b20616c72656164792d756e6c6f636b6564206163636f756e7473a265627a7a723158209e63eb3a780a7d11481d2a83c4e24d05d871e092ff25110f135022766bf6761564736f6c634300050b0032"
+        )
+        contract_addr = SystemContract.ROOT_CHAIN_POSW.addr()
+        evm_state.set_code(contract_addr, contract_runtime_bytecode)
+        evm_state.commit()
+
+        # contract deployed, but no stakes. signer defaults to the recipient
+        stakes, signer = state.get_root_chain_stakes(
+            acc1.recipient, state.header_tip.get_hash()
+        )
+        self.assertEqual(stakes, 0)
+        self.assertEqual(signer, acc1.recipient)
+
+        def tx_gen(nonce, value, data: str):
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=Address(contract_addr, 0),
+                value=value,
+                gas=100000,
+                gas_price=0,
+                data=bytes.fromhex(data),
+            ).tx.to_evm_tx()
+            ret.set_quark_chain_config(env.quark_chain_config)
+            return ret
+
+        add_stake_tx = lambda n, v: tx_gen(n, v, "")
+        set_signer_tx = lambda n, v, a: tx_gen(
+            n, v, "6c19e783000000000000000000000000" + a.recipient.hex()
+        )
+        withdraw_tx = lambda n: tx_gen(n, 0, "853828b6")
+        unlock_tx = lambda n: tx_gen(n, 0, "a69df4b5")
+        lock_tx = lambda n, v: tx_gen(n, v, "f83d08ba")
+
+        # add stakes and set signer
+        tx0 = add_stake_tx(0, 1234)
+        success, _ = apply_transaction(evm_state, tx0, bytes(32))
+        self.assertTrue(success)
+        random_signer = Address.create_random_account()
+        tx1 = set_signer_tx(1, 4321, random_signer)
+        success, _ = apply_transaction(evm_state, tx1, bytes(32))
+        self.assertTrue(success)
+
+        evm_state.commit()
+        stakes, signer = state.get_root_chain_stakes(
+            acc1.recipient, state.header_tip.get_hash()
+        )
+        self.assertEqual(stakes, 1234 + 4321)
+        self.assertEqual(signer, random_signer.recipient)
+
+        # can't withdraw during locking
+        tx2 = withdraw_tx(2)
+        success, _ = apply_transaction(evm_state, tx2, bytes(32))
+        self.assertFalse(success)
+
+        # unlock should succeed
+        tx3 = unlock_tx(3)
+        success, _ = apply_transaction(evm_state, tx3, bytes(32))
+        self.assertTrue(success)
+        # but still can't withdraw
+        tx4 = withdraw_tx(4)
+        success, _ = apply_transaction(evm_state, tx4, bytes(32))
+        self.assertFalse(success)
+        # and can't add stakes or set signer either
+        tx5 = add_stake_tx(5, 100)
+        success, _ = apply_transaction(evm_state, tx5, bytes(32))
+        self.assertFalse(success)
+        tx6 = set_signer_tx(6, 0, acc1)
+        success, _ = apply_transaction(evm_state, tx6, bytes(32))
+        self.assertFalse(success)
+
+        # now stakes should be 0 when unlocked
+        evm_state.commit()
+        stakes, signer = state.get_root_chain_stakes(
+            acc1.recipient, state.header_tip.get_hash()
+        )
+        self.assertEqual(stakes, 0)
+        self.assertEqual(signer, bytes(20))
+
+        # 4 days passed, should be able to withdraw
+        evm_state.timestamp += 3600 * 24 * 4
+        balance_before = evm_state.get_balance(acc1.recipient)
+        tx7 = withdraw_tx(7)
+        success, _ = apply_transaction(evm_state, tx7, bytes(32))
+        self.assertTrue(success)
+        balance_after = evm_state.get_balance(acc1.recipient)
+        self.assertEqual(balance_before + 5555, balance_after)
+
+        # lock again
+        tx8 = lock_tx(8, 42)
+        success, _ = apply_transaction(evm_state, tx8, bytes(32))
+        self.assertTrue(success)
+
+        # should be able to get stakes
+        evm_state.commit()
+        stakes, signer = state.get_root_chain_stakes(
+            acc1.recipient, state.header_tip.get_hash()
+        )
+        self.assertEqual(stakes, 42)
+        self.assertEqual(signer, random_signer.recipient)

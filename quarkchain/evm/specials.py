@@ -1,11 +1,15 @@
 # -*- coding: utf8 -*-
+from enum import Enum
+
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
+
+from quarkchain.constants import ROOT_CHAIN_POSW_CONTRACT_BYTECODE
 from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
-
+from quarkchain.utils import check
 
 ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
 
@@ -254,6 +258,29 @@ def proc_transfer_mnt(ext, msg):
     return apply_msg(ext, new_msg)
 
 
+def proc_deploy_root_chain_staking_contract(ext, msg):
+    from quarkchain.evm.messages import create_contract
+
+    gascost = 3
+    if msg.gas < gascost:
+        return 0, 0, []
+
+    target_addr, bytecode = _system_contracts[SystemContract.ROOT_CHAIN_POSW]
+    new_msg = vm.Message(
+        msg.to,  # current special address
+        b"",
+        0,
+        msg.gas - gascost,
+        bytecode,
+        msg.depth + 1,
+        to_full_shard_key=msg.to_full_shard_key,
+        transfer_token_id=msg.transfer_token_id,
+        gas_token_id=msg.gas_token_id,
+    )
+    # Use predetermined contract address
+    return create_contract(ext, new_msg, target_addr)
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -267,7 +294,25 @@ specials = {
         b"0000000000000000000000000000000000000008": proc_ecpairing,
         b"000000000000000000000000000000514b430001": proc_current_mnt_id,
         b"000000000000000000000000000000514b430002": proc_transfer_mnt,
+        b"000000000000000000000000000000514b430003": proc_deploy_root_chain_staking_contract,
     }.items()
+}
+
+
+class SystemContract(Enum):
+    ROOT_CHAIN_POSW = 1
+
+    def addr(self) -> bytes:
+        ret = _system_contracts[self][0]
+        check(len(ret) == 20)
+        return ret
+
+
+_system_contracts = {
+    SystemContract.ROOT_CHAIN_POSW: (
+        decode_hex(b"514b430000000000000000000000000000000001"),
+        ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    )
 }
 
 if __name__ == "__main__":

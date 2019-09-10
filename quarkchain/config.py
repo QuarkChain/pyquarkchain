@@ -315,6 +315,10 @@ class QuarkChainConfig(BaseConfig):
     XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT = 90000
     DISABLE_POW_CHECK = False
 
+    ROOT_CHAIN_POSW_CONTRACT_BYTECODE_HASH = (
+        "5a7707e2684bd79484f3d952ac6a43f2631e3ef8e2085659c18af5714cee4f4c"
+    )
+
     def __init__(self):
         self.loadtest_accounts = (
             []
@@ -564,6 +568,12 @@ class QuarkChainConfig(BaseConfig):
                 bytes.fromhex(s) for s in self.TX_WHITELIST_SENDERS
             )
         return self._tx_whitelist_senders
+
+    @property
+    def root_chain_posw_contract_bytecode_hash(self):
+        ret = bytes.fromhex(self.ROOT_CHAIN_POSW_CONTRACT_BYTECODE_HASH)
+        check(len(ret) == 32)
+        return ret
 
 
 def get_default_evm_config():
