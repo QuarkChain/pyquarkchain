@@ -207,7 +207,7 @@ extern "C" void cache_destroy(void *ptr) {
 void qkc_hashx(org::quarkchain::LLRB<uint64_t>* tree0,
                uint64_t* seed_ptr,
                uint64_t* result_ptr,
-               bool qkchash_with_rotation_stats) {
+               bool with_rotation_stats) {
     void *arena1 = malloc(org::quarkchain::INIT_SET_ENTRIES *
                           org::quarkchain::LLRB<uint64_t>::getNodeSize());
     org::quarkchain::LLRB<uint64_t> tree1 = tree0->copy((uintptr_t)arena1);
@@ -218,7 +218,7 @@ void qkc_hashx(org::quarkchain::LLRB<uint64_t>* tree0,
 
     org::quarkchain::qkc_hash_llrb(tree1, seed, result);
 
-    if (qkchash_with_rotation_stats) {
+    if (with_rotation_stats) {
         std::array<uint64_t, 4> r_stats = tree1.getRotationStats();
         for (size_t i = 0; i < r_stats.size(); i++) {
             result[i] ^= r_stats[i];

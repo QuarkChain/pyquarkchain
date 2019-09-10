@@ -172,12 +172,12 @@ class QkcHashNative:
         ptr = self._cache_create(cache, len(cache))
         return QkcHashCache(self, ptr)
 
-    def calculate_hash(self, header, nonce, cache, qkchash_with_rotation_stats=False):
+    def calculate_hash(self, header, nonce, cache, with_rotation_stats=False):
         s = sha3_512(header + nonce[::-1])
         seed = list_to_uint64_array(s)
         result = (ctypes.c_uint64 * 4)()
 
-        if qkchash_with_rotation_stats:
+        if with_rotation_stats:
             self._hash_func_with_rotation_stats(cache._ptr, seed, result)
         else:
             self._hash_func(cache._ptr, seed, result)
@@ -318,14 +318,12 @@ def print_test_vector_with_rotations():
     native = QkcHashNative()
     cache = native.make_cache(CACHE_ENTRIES, bytes())
     print("Hash of empty:")
-    h0 = native.calculate_hash(
-        bytes(), bytes(), cache, qkchash_with_rotation_stats=True
-    )
+    h0 = native.calculate_hash(bytes(), bytes(), cache, with_rotation_stats=True)
     print(deserialize_hash(h0["mix digest"]))
 
     print("Hash of Hello World!:")
     h1 = native.calculate_hash(
-        b"Hello World!", bytes(), cache, qkchash_with_rotation_stats=True
+        b"Hello World!", bytes(), cache, with_rotation_stats=True
     )
     print(deserialize_hash(h1["mix digest"]))
     print()
