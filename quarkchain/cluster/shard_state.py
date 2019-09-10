@@ -40,6 +40,7 @@ from quarkchain.evm.messages import (
     validate_transaction,
     apply_xshard_deposit,
 )
+from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -1854,7 +1855,7 @@ class ShardState:
         evm_state = self._get_evm_state_from_height(h.height).ephemeral_clone()
         evm_state.gas_used = 0
         check(evm_state is not None)
-        contract_addr = self.env.quark_chain_config.root_chain_posw_contract
+        contract_addr = SystemContract.ROOT_CHAIN_POSW.addr()
         code = evm_state.get_code(contract_addr)
         if not code:
             return 0, bytes(20)

@@ -1,4 +1,6 @@
 # -*- coding: utf8 -*-
+from enum import Enum
+
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 
@@ -7,7 +9,7 @@ from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
-
+from quarkchain.utils import check
 
 ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
 
@@ -263,7 +265,7 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
-    target_addr, bytecode = system_contracts["POSW_ROOT_CHAIN"]
+    target_addr, bytecode = _system_contracts[SystemContract.ROOT_CHAIN_POSW]
     new_msg = vm.Message(
         msg.to,  # current special address
         b"",
@@ -296,8 +298,18 @@ specials = {
     }.items()
 }
 
-system_contracts = {
-    "POSW_ROOT_CHAIN": (
+
+class SystemContract(Enum):
+    ROOT_CHAIN_POSW = 1
+
+    def addr(self) -> bytes:
+        ret = _system_contracts[self][0]
+        check(len(ret) == 20)
+        return ret
+
+
+_system_contracts = {
+    SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
     )
