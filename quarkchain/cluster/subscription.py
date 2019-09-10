@@ -45,10 +45,12 @@ class SubscriptionManager:
         from quarkchain.cluster.jsonrpc import minor_block_header_encoder
 
         tasks = []
-        for block in blocks:
-            header = block.header
-            data = minor_block_header_encoder(header)
-            tasks.append(self.__notify(SUB_NEW_HEADS, data))
+        for sub_id, websocket in self.subscribers[SUB_NEW_HEADS].items():
+            for block in blocks:
+                header = block.header
+                data = minor_block_header_encoder(header)
+                response = self.response_encoder(sub_id, data)
+                tasks.append(websocket.send(json.dumps(response)))
         await asyncio.gather(*tasks)
 
     async def notify_new_pending_tx(self, tx_hash: bytes):
@@ -59,15 +61,15 @@ class SubscriptionManager:
     ):
         from quarkchain.cluster.jsonrpc import loglist_encoder
 
+        tasks = []
         for sub_id, websocket in self.subscribers[SUB_LOGS].items():
             log_filter = self.log_filter_gen[sub_id](candidate_blocks)
             logs = log_filter.run()
             log_list = loglist_encoder(logs, is_removed)
-            tasks = []
             for log in log_list:
                 response = self.response_encoder(sub_id, log)
                 tasks.append(websocket.send(json.dumps(response)))
-            await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
 
     async def notify_sync(
         self, running: bool, tip: MinorBlockHeader, queue: List[MinorBlockHeader]

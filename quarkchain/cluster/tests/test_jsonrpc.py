@@ -1189,7 +1189,7 @@ async def get_websocket(port=38590):
 
 
 class TestJSONRPCWebsocket(unittest.TestCase):
-    def test_newHeads(self):
+    def test_new_heads(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
