@@ -197,7 +197,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "MIN_MINING_GAS_PRICE": 1000000000,
     "XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT": 90000,
     "DISABLE_POW_CHECK": false,
-    "ROOT_CHAIN_POSW_CONTRACT": "7aefa013e212154a294b54c4edad4d25262cefab"
+    "ROOT_CHAIN_POSW_CONTRACT_BYTECODE_HASH": "5a7707e2684bd79484f3d952ac6a43f2631e3ef8e2085659c18af5714cee4f4c"
 }
     """
         expected_json = expected_json.strip()
