@@ -1687,7 +1687,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
         with ClusterContext(
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_websocket_server_context(
-            clusters[0].slave_list[0], port=38590
+            clusters[0].slave_list[0], port=38600
         ):
             slaves = clusters[0].slave_list
             request = {
@@ -1696,7 +1696,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                 "params": ["newPendingTransactions", "0x00000002"],
                 "id": 6,
             }
-            websocket = call_async(get_websocket())
+            websocket = call_async(get_websocket(port=38600))
             call_async(websocket.send(json.dumps(request)))
             sub_response = json.loads(call_async(websocket.recv()))
 
