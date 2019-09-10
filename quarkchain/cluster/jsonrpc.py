@@ -312,7 +312,7 @@ def tx_detail_encoder(tx):
     }
 
 
-def loglist_encoder(loglist: List[Log], is_removed: bool):
+def loglist_encoder(loglist: List[Log], is_removed: bool = False):
     """Encode a list of log"""
     result = []
     for l in loglist:
@@ -359,7 +359,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
             if not receipt.contract_address.is_empty()
             else None
         ),
-        "logs": loglist_encoder(receipt.logs, False),
+        "logs": loglist_encoder(receipt.logs),
         "timestamp": quantity_encoder(block.header.create_time),
     }
 
@@ -1331,7 +1331,7 @@ class JSONRPCHttpServer:
         )
         if logs is None:
             return None
-        return loglist_encoder(logs, False)
+        return loglist_encoder(logs)
 
     async def _call_or_estimate_gas(self, is_call: bool, **data):
         """ Returns the result of the transaction application without putting in block chain """
@@ -1507,10 +1507,9 @@ class JSONRPCWebsocketServer:
         if sub_type == SUB_LOGS:
             addresses, topics = _parse_log_request(params, address_decoder)
             addresses = [Address(a.recipient, full_shard_id) for a in addresses]
-            log_filter = LogFilter(
-                shard.state.db, addresses, topics, shard.state.header_tip, 1
+            extra = lambda candidate_blocks: LogFilter.create_from_block_candidates(
+                shard.state.db, addresses, topics, candidate_blocks
             )
-            extra = log_filter
 
         shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket, extra)
         return sub_id

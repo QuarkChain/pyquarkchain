@@ -807,9 +807,7 @@ class ShardState:
             if add_tx_back_to_queue:
                 self.__add_transactions_from_block(block)
         if len(old_chain) > 0:
-            asyncio.ensure_future(
-                self.subscription_manager.notify_log(None, 0, old_chain, True)
-            )
+            asyncio.ensure_future(self.subscription_manager.notify_log(old_chain, True))
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
             self.db.put_minor_block_index(block)
@@ -820,7 +818,7 @@ class ShardState:
                 sorted(new_chain, key=lambda x: x.header.height)
             )
         )
-        asyncio.ensure_future(self.subscription_manager.notify_log(None, 0, new_chain))
+        asyncio.ensure_future(self.subscription_manager.notify_log(new_chain))
 
     def __add_transactions_from_block(self, block):
         for tx in block.tx_list:
@@ -1693,7 +1691,9 @@ class ShardState:
 
         size = end_block - start_block + 1
         end_block_header = self.db.get_minor_block_header_by_height(end_block)
-        log_filter = LogFilter(self.db, addresses, topics, end_block_header, size)
+        log_filter = LogFilter.create_from_end_block_header(
+            self.db, addresses, topics, end_block_header, size
+        )
 
         try:
             logs = log_filter.run()

@@ -1,6 +1,6 @@
 import asyncio
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Callable
 
 from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
@@ -22,22 +22,22 @@ class SubscriptionManager:
             SUB_LOGS: {},
             SUB_SYNC: {},
         }  # type: Dict[str, Dict[str, WebSocketServerProtocol]]
-        self.log_filters = {}  # type: Dict[str, EvmLogFilter]
+        self.log_filter_gen = {}  # type: Dict[str, Callable]
 
     def add_subscriber(self, sub_type, sub_id, conn, extra=None):
         if sub_type not in self.subscribers:
             raise InvalidParams("Invalid subscription")
         self.subscribers[sub_type][sub_id] = conn
         if sub_type == SUB_LOGS:
-            assert extra and isinstance(extra, EvmLogFilter)
-            self.log_filters[sub_id] = extra
+            assert extra and isinstance(extra, Callable)
+            self.log_filter_gen[sub_id] = extra
 
     def remove_subscriber(self, sub_id):
         for sub_type, subscriber_dict in self.subscribers.items():
             if sub_id in subscriber_dict:
                 del subscriber_dict[sub_id]
                 if sub_type == SUB_LOGS:
-                    del self.log_filters[sub_id]
+                    del self.log_filter_gen[sub_id]
                 return
         raise InvalidParams("subscription not found")
 
@@ -55,19 +55,12 @@ class SubscriptionManager:
         await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
 
     async def notify_log(
-        self,
-        end_block_header: MinorBlockHeader,
-        size: int,
-        candidate_blocks: Optional[List[MinorBlock]] = None,
-        is_removed: Optional[bool] = False,
+        self, candidate_blocks: List[MinorBlock], is_removed: bool = False
     ):
         from quarkchain.cluster.jsonrpc import loglist_encoder
 
         for sub_id, websocket in self.subscribers[SUB_LOGS].items():
-            log_filter = self.log_filters[sub_id]
-            log_filter.end_block_header = end_block_header
-            log_filter.size = size
-            log_filter.candidate_blocks = candidate_blocks
+            log_filter = self.log_filter_gen[sub_id](candidate_blocks)
             logs = log_filter.run()
             log_list = loglist_encoder(logs, is_removed)
             tasks = []
