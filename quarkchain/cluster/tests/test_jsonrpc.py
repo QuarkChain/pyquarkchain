@@ -1451,10 +1451,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
         ) as clusters, jrpc_websocket_server_context(
             clusters[0].slave_list[0], port=38598
         ):
-            master = clusters[0].master
-            slaves = clusters[0].slave_list
             websocket = call_async(get_websocket(port=38598))
-
             request = {
                 "jsonrpc": "2.0",
                 "method": "subscribe",
@@ -1462,6 +1459,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                 "id": 3,
             }
             call_async(websocket.send(json.dumps(request)))
+
             sub_response = json.loads(call_async(websocket.recv()))
             self.assertEqual(sub_response["id"], 3)
             self.assertEqual(len(sub_response["result"]), 34)
@@ -1681,3 +1679,37 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             call_async(websocket.send(json.dumps(request)))
             sub_response = json.loads(call_async(websocket.recv()))
             self.assertTrue(sub_response["error"])  # emit error message
+
+    def test_unsubscribe_with_invalid_sub_id(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38590
+        ):
+            slaves = clusters[0].slave_list
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newPendingTransactions", "0x00000002"],
+                "id": 6,
+            }
+            websocket = call_async(get_websocket())
+            call_async(websocket.send(json.dumps(request)))
+            sub_response = json.loads(call_async(websocket.recv()))
+
+            # Check subscription response
+            self.assertEqual(sub_response["id"], 6)
+            self.assertEqual(len(sub_response["result"]), 34)
+
+            unsub_request = {
+                "jsonrpc": "2.0",
+                "method": "unsubscribe",
+                "params": [sub_response["result"][:-1]],
+                "id": 3,
+            }
+            call_async(websocket.send(json.dumps(unsub_request)))
+            response = json.loads(call_async(websocket.recv()))
+            self.assertTrue(response["error"])
