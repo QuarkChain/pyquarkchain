@@ -262,19 +262,21 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     gascost = 3
     if msg.gas < gascost:
         return 0, 0, []
+
+    target_addr, bytecode = system_contracts["POSW_ROOT_CHAIN"]
     new_msg = vm.Message(
         msg.to,  # current special address
         b"",
         0,
         msg.gas - gascost,
-        ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+        bytecode,
         msg.depth + 1,
         to_full_shard_key=msg.to_full_shard_key,
         transfer_token_id=msg.transfer_token_id,
         gas_token_id=msg.gas_token_id,
     )
-    # CREATE2, deterministic staking contract address
-    return create_contract(ext, new_msg, b"", salt=bytes(32))
+    # Use predetermined contract address
+    return create_contract(ext, new_msg, target_addr)
 
 
 specials = {
@@ -292,6 +294,13 @@ specials = {
         b"000000000000000000000000000000514b430002": proc_transfer_mnt,
         b"000000000000000000000000000000514b430003": proc_deploy_root_chain_staking_contract,
     }.items()
+}
+
+system_contracts = {
+    "POSW_ROOT_CHAIN": (
+        decode_hex(b"514b430000000000000000000000000000000001"),
+        ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    )
 }
 
 if __name__ == "__main__":
