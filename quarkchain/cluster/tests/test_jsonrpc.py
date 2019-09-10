@@ -1387,6 +1387,110 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             )
             self.assertTrue(tx_response["params"]["result"], tx.get_hash())
 
+    def test_new_pending_tx_same_acc_multi_requests(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0x0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=0x10001)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38594
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+
+            requests = []
+            REQ_NUM = 5
+            for i in range(REQ_NUM):
+                req = {
+                    "jsonrpc": "2.0",
+                    "method": "subscribe",
+                    "params": ["newPendingTransactions", "0x00000002"],
+                    "id": i,
+                }
+                requests.append(req)
+
+            websocket = call_async(get_websocket(38594))
+            [call_async(websocket.send(json.dumps(req))) for req in requests]
+            sub_responses = [json.loads(call_async(websocket.recv())) for _ in requests]
+
+            for i, resp in enumerate(sub_responses):
+                self.assertEqual(resp["id"], i)
+                self.assertEqual(len(resp["result"]), 34)
+
+            tx = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(2 | 0),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc2,
+                gas=30000,
+                value=12345,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            tx_responses = [json.loads(call_async(websocket.recv())) for _ in requests]
+            for i, resp in enumerate(tx_responses):
+                self.assertEqual(
+                    resp["params"]["subscription"], sub_responses[i]["result"]
+                )
+                self.assertTrue(resp["params"]["result"], tx.get_hash())
+
+    def test_new_pending_tx_with_reorg(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38598
+        ):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            websocket = call_async(get_websocket(port=38598))
+
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newPendingTransactions", "0x00000002"],
+                "id": 3,
+            }
+            call_async(websocket.send(json.dumps(request)))
+            sub_response = json.loads(call_async(websocket.recv()))
+            self.assertEqual(sub_response["id"], 3)
+            self.assertEqual(len(sub_response["result"]), 34)
+
+            state = clusters[0].get_shard_state(2 | 0)
+            b0 = state.get_tip().create_block_to_append()
+            b1 = state.get_tip().create_block_to_append()
+            tx = create_transfer_transaction(
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc2,
+                gas=30000,
+                value=12345,
+            )
+            self.assertTrue(b0.add_tx(tx))
+            state.finalize_and_add_block(b0)
+
+            state.finalize_and_add_block(b1)
+            b2 = b1.create_block_to_append()
+            state.finalize_and_add_block(b2)
+            tx_response = json.loads(call_async(websocket.recv()))
+
+            self.assertEqual(state.header_tip, b2.header)
+            self.assertEqual(
+                tx_response["params"]["subscription"], sub_response["result"]
+            )
+            self.assertTrue(tx_response["params"]["result"], tx.get_hash())
+
     """
     def test_logs(self):
         id1 = Identity.create_random_identity()
