@@ -816,6 +816,7 @@ class ShardState:
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
 
+    # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
         tx_hashes = []
         for tx in block.tx_list:

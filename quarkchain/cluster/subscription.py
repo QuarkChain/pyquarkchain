@@ -47,8 +47,11 @@ class SubscriptionManager:
         await self.__notify(SUB_NEW_HEADS, data)
 
     async def notify_new_pending_tx(self, tx_hashes: List[bytes]):
-        for tx_hash in tx_hashes:
-            await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
+        if not self.subscribers[SUB_NEW_PENDING_TX].items():
+            return
+        await asyncio.gather(
+            *[self.__notify(SUB_NEW_PENDING_TX, "0x" + h.hex()) for h in tx_hashes]
+        )
 
     async def notify_log(self, height: int):
         # TODO
