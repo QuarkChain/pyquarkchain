@@ -1,4 +1,4 @@
-CC=g++
+CC=g++-9
 CFLAGS=-Wall -O3 -std=c++17
 
 all: qkchash libqkchash.so qkchash_llrb
