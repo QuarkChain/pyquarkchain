@@ -18,7 +18,7 @@ from quarkchain.cluster.p2p_commands import (
 from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
-from quarkchain.config import ShardConfig
+from quarkchain.config import ShardConfig, ConsensusType
 from quarkchain.core import (
     Address,
     Branch,
@@ -401,7 +401,14 @@ class SyncTask:
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-                validate_seal(header, consensus_type, adjusted_diff=diff)
+                validate_seal(
+                    header,
+                    consensus_type,
+                    adjusted_diff=diff,
+                    qkchash_with_rotation_stats=consensus_type
+                    == ConsensusType.POW_QKCHASH
+                    and self.shard.state._qkchashx_enabled(header),
+                )
             except Exception as e:
                 Logger.warning(
                     "[{}] got block with bad seal in sync: {}".format(

@@ -40,6 +40,11 @@ jobs:
           keys:
           - pyquarkchain-dep-{{ checksum "requirements.txt" }}
 
+      - run:
+          name: Build qkchash lib
+          command: |
+            cd qkchash && make clean && make && cd -
+
       # Run tests!
       - run:
           name: Run py.test tests excluding integration test

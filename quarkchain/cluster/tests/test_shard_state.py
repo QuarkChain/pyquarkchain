@@ -19,6 +19,7 @@ from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
 from quarkchain.genesis import GenesisManager
 from quarkchain.utils import token_id_encode
+from quarkchain.cluster.miner import MiningWork, validate_seal, Miner, QkchashMiner
 
 
 def create_default_shard_state(
@@ -2749,6 +2750,60 @@ class TestShardState(unittest.TestCase):
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
+
+    def test_qkchashx_qkchash_with_rotation_stats(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+        state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_QKCHASH
+        # set the initial enabled Qkchashx block height to one
+        state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 1
+
+        # generate and mine a minor block
+        def _testcase_generate_and_mine_minor_block(qkchash_with_rotation_stats):
+            block = state.get_tip().create_block_to_append(address=acc1, difficulty=5)
+            evm_state = state.run_block(block)
+            coinbase_amount_map = state.get_coinbase_amount_map(block.header.height)
+            coinbase_amount_map.add(evm_state.block_fee_tokens)
+            block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+
+            # mine the block using QkchashMiner
+            miner = QkchashMiner(
+                1,
+                5,
+                block.header.get_hash_for_mining(),
+                qkchash_with_rotation_stats=qkchash_with_rotation_stats,
+            )
+            nonce_found, mixhash = miner.mine(rounds=100)
+            block.header.nonce = int.from_bytes(nonce_found, byteorder="big")
+            block.header.mixhash = mixhash
+            return block
+
+        b1 = _testcase_generate_and_mine_minor_block(True)
+        # validate the minor block and make sure it works for qkchashX using the new flag
+        validate_seal(
+            b1.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=True
+        )
+        with self.assertRaises(ValueError):
+            validate_seal(
+                b1.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=False
+            )
+        state.finalize_and_add_block(b1)
+
+        # change the enabled Qkchashx block height and make sure it works for original qkchash
+        state.env.quark_chain_config.ENABLE_QKCHASHX_HEIGHT = 100
+
+        b2 = _testcase_generate_and_mine_minor_block(False)
+        validate_seal(
+            b2.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=False
+        )
+        with self.assertRaises(ValueError):
+            validate_seal(
+                b2.header, ConsensusType.POW_QKCHASH, qkchash_with_rotation_stats=True
+            )
+        state.finalize_and_add_block(b2)
 
     def test_failed_transaction_gas(self):
         """in-shard revert contract transaction validating the failed transaction gas used
