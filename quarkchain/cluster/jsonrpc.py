@@ -1448,16 +1448,16 @@ class JSONRPCWebsocketServer:
                     },
                 )
 
-                if method == "subscribe":
-                    sub_id = response["result"]
-                    full_shard_id = shard_id_decoder(d.get("params")[1])
-                    sub_ids[sub_id] = full_shard_id
-                elif method == "unsubscribe":
-                    sub_id = d.get("params")[0]
-                    del sub_ids[sub_id]
-
                 if "error" in response:
                     Logger.error(response)
+                else:
+                    if method == "subscribe":
+                        sub_id = response["result"]
+                        full_shard_id = shard_id_decoder(d.get("params")[1])
+                        sub_ids[sub_id] = full_shard_id
+                    elif method == "unsubscribe":
+                        sub_id = d.get("params")[0]
+                        del sub_ids[sub_id]
                 if not response.is_notification:
                     await websocket.send(json.dumps(response))
         finally:  # current websocket connection terminates, remove subscribers in this connection

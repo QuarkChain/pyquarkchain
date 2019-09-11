@@ -536,6 +536,11 @@ class ShardState:
             )
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
+            asyncio.ensure_future(
+                self.subscription_manager.notify_new_pending_tx(
+                    [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
+                )
+            )
             return True
         except Exception as e:
             Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
@@ -814,10 +819,20 @@ class ShardState:
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
 
+    # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
+        tx_hashes = []
         for tx in block.tx_list:
-            self.tx_dict[tx.get_hash()] = tx
-            self.tx_queue.add_transaction(tx.tx.to_evm_tx())
+            evm_tx = tx.tx.to_evm_tx()
+            tx_hash = tx.get_hash()
+            self.tx_dict[tx_hash] = tx
+            self.tx_queue.add_transaction(evm_tx)
+            tx_hashes.append(
+                tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
+            )
+        asyncio.ensure_future(
+            self.subscription_manager.notify_new_pending_tx(tx_hashes)
+        )
 
     def __remove_transactions_from_block(self, block):
         evm_tx_list = []
@@ -1297,6 +1312,13 @@ class ShardState:
         - it is a neighor of current shard following our routing rule
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
+        tx_hashes = [
+            tx.tx_hash + tx.from_address.full_shard_key.to_bytes(4, byteorder="big")
+            for tx in tx_list.tx_list
+        ]
+        asyncio.ensure_future(
+            self.subscription_manager.notify_new_pending_tx(tx_hashes)
+        )
 
     def __update_tip(self, block, evm_state):
         self.__rewrite_block_index_to(block)
