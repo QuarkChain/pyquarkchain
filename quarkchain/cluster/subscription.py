@@ -44,11 +44,14 @@ class SubscriptionManager:
     async def notify_new_heads(self, blocks: List[MinorBlock]):
         from quarkchain.cluster.jsonrpc import minor_block_header_encoder
 
+        if len(self.subscribers[SUB_NEW_HEADS]) == 0:
+            return
+
         tasks = []
-        for sub_id, websocket in self.subscribers[SUB_NEW_HEADS].items():
-            for block in blocks:
-                header = block.header
-                data = minor_block_header_encoder(header)
+        for block in blocks:
+            header = block.header
+            data = minor_block_header_encoder(header)
+            for sub_id, websocket in self.subscribers[SUB_NEW_HEADS].items():
                 response = self.response_encoder(sub_id, data)
                 tasks.append(websocket.send(json.dumps(response)))
         await asyncio.gather(*tasks)
