@@ -1,6 +1,6 @@
 import asyncio
 from collections import deque
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 from quarkchain.cluster.miner import Miner, validate_seal
 from quarkchain.cluster.p2p_commands import (
@@ -18,7 +18,7 @@ from quarkchain.cluster.p2p_commands import (
 from quarkchain.cluster.protocol import ClusterMetadata, VirtualConnection
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tx_generator import TransactionGenerator
-from quarkchain.config import ShardConfig
+from quarkchain.config import ShardConfig, ConsensusType
 from quarkchain.core import (
     Address,
     Branch,
@@ -298,14 +298,14 @@ class SyncTask:
         shard_config = self.shard_state.env.quark_chain_config.shards[full_shard_id]
         self.max_staleness = shard_config.max_stale_minor_block_height_diff
 
-    async def sync(self):
+    async def sync(self, notify_sync: Callable):
         try:
-            await self.__run_sync()
+            await self.__run_sync(notify_sync)
         except Exception as e:
             Logger.log_exception()
             self.shard_conn.close_with_error(str(e))
 
-    async def __run_sync(self):
+    async def __run_sync(self, notify_sync: Callable):
         if self.__has_block_hash(self.header.get_hash()):
             return
 
@@ -371,6 +371,7 @@ class SyncTask:
                     "Bad peer sending less than requested blocks"
                 )
 
+            counter = 0
             for block in block_chain:
                 # Stop if the block depends on an unknown root block
                 # TODO: move this check to early stage to avoid downloading unnecessary headers
@@ -379,6 +380,11 @@ class SyncTask:
                 ):
                     return
                 await self.shard.add_block(block)
+                if counter % 100 == 0:
+                    sync_data = (block.header.height, block_header_chain[-1])
+                    asyncio.ensure_future(notify_sync(sync_data))
+                    counter = 0
+                counter += 1
                 block_header_chain.pop(0)
 
     def __has_block_hash(self, block_hash):
@@ -401,7 +407,14 @@ class SyncTask:
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
                     diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
-                validate_seal(header, consensus_type, adjusted_diff=diff)
+                validate_seal(
+                    header,
+                    consensus_type,
+                    adjusted_diff=diff,
+                    qkchash_with_rotation_stats=consensus_type
+                    == ConsensusType.POW_QKCHASH
+                    and self.shard.state._qkchashx_enabled(header),
+                )
             except Exception as e:
                 Logger.warning(
                     "[{}] got block with bad seal in sync: {}".format(
@@ -435,22 +448,43 @@ class SyncTask:
 class Synchronizer:
     """ Buffer the headers received from peer and sync one by one """
 
-    def __init__(self):
+    def __init__(
+        self,
+        notify_sync: Callable[[bool, int, int, int], None],
+        header_tip_getter: Callable[[], MinorBlockHeader],
+    ):
         self.queue = deque()
         self.running = False
+        self.notify_sync = notify_sync
+        self.header_tip_getter = header_tip_getter
+        self.counter = 0
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
             asyncio.ensure_future(self.__run())
+            if self.counter % 10 == 0:
+                self.__call_notify_sync()
+                self.counter = 0
+            self.counter += 1
 
     async def __run(self):
         while len(self.queue) > 0:
             header, shard_conn = self.queue.popleft()
             task = SyncTask(header, shard_conn)
-            await task.sync()
+            await task.sync(self.notify_sync)
         self.running = False
+        if self.counter % 10 == 1:
+            self.__call_notify_sync()
+
+    def __call_notify_sync(self):
+        sync_data = (
+            (self.header_tip_getter().height, max(h.height for h, _ in self.queue))
+            if len(self.queue) > 0
+            else None
+        )
+        asyncio.ensure_future(self.notify_sync(sync_data))
 
 
 class Shard:
@@ -462,7 +496,9 @@ class Shard:
         self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
         self.loop = asyncio.get_event_loop()
-        self.synchronizer = Synchronizer()
+        self.synchronizer = Synchronizer(
+            self.state.subscription_manager.notify_sync, lambda: self.state.header_tip
+        )
 
         self.peers = dict()  # cluster_peer_id -> PeerShardConnection
 

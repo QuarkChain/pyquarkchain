@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from rlp import DecodingError
 
+from quarkchain import utils
 from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.miner import validate_seal
 from quarkchain.cluster.neighbor import is_neighbor
@@ -39,6 +40,7 @@ from quarkchain.evm.messages import (
     validate_transaction,
     apply_xshard_deposit,
 )
+from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
 from quarkchain.evm.transaction_queue import TransactionQueue
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -48,6 +50,7 @@ from quarkchain.cluster.posw import get_posw_coinbase_blockcnt, get_posw_info
 from quarkchain.reward import ConstMinorBlockRewardCalcultor
 from quarkchain.utils import Logger, check, time_ms
 from cachetools import LRUCache
+from quarkchain.config import ConsensusType
 
 MAX_FUTURE_TX_NONCE = 64
 
@@ -533,6 +536,11 @@ class ShardState:
             )
             self.tx_queue.add_transaction(evm_tx)
             self.tx_dict[tx_hash] = tx
+            asyncio.ensure_future(
+                self.subscription_manager.notify_new_pending_tx(
+                    [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
+                )
+            )
             return True
         except Exception as e:
             Logger.warning_every_sec("Failed to add transaction: {}".format(e), 1)
@@ -820,10 +828,20 @@ class ShardState:
         )
         asyncio.ensure_future(self.subscription_manager.notify_log(new_chain))
 
+    # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
+        tx_hashes = []
         for tx in block.tx_list:
-            self.tx_dict[tx.get_hash()] = tx
-            self.tx_queue.add_transaction(tx.tx.to_evm_tx())
+            evm_tx = tx.tx.to_evm_tx()
+            tx_hash = tx.get_hash()
+            self.tx_dict[tx_hash] = tx
+            self.tx_queue.add_transaction(evm_tx)
+            tx_hashes.append(
+                tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
+            )
+        asyncio.ensure_future(
+            self.subscription_manager.notify_new_pending_tx(tx_hashes)
+        )
 
     def __remove_transactions_from_block(self, block):
         evm_tx_list = []
@@ -1303,6 +1321,13 @@ class ShardState:
         - it is a neighor of current shard following our routing rule
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
+        tx_hashes = [
+            tx.tx_hash + tx.from_address.full_shard_key.to_bytes(4, byteorder="big")
+            for tx in tx_list.tx_list
+        ]
+        asyncio.ensure_future(
+            self.subscription_manager.notify_new_pending_tx(tx_hashes)
+        )
 
     def __update_tip(self, block, evm_state):
         self.__rewrite_block_index_to(block)
@@ -1770,7 +1795,13 @@ class ShardState:
             block.header.branch.get_full_shard_id()
         ].CONSENSUS_TYPE
         posw_diff = self.posw_diff_adjust(block)  # could be None
-        validate_seal(block.header, consensus_type, adjusted_diff=posw_diff)
+        validate_seal(
+            block.header,
+            consensus_type,
+            adjusted_diff=posw_diff,
+            qkchash_with_rotation_stats=consensus_type == ConsensusType.POW_QKCHASH
+            and self._qkchashx_enabled(block.header),
+        )
 
     def posw_diff_adjust(self, block: MinorBlock) -> Optional[int]:
         posw_info = self._posw_info(block)
@@ -1859,9 +1890,53 @@ class ShardState:
     def get_root_chain_stakes(
         self, recipient: bytes, block_hash: bytes
     ) -> (int, bytes):
-        # TODO: impl
-        return 0, bytes(20)
+        h = self.db.get_minor_block_header_by_hash(block_hash)
+        check(h is not None)
+        evm_state = self._get_evm_state_from_height(h.height).ephemeral_clone()
+        evm_state.gas_used = 0
+        check(evm_state is not None)
+        contract_addr = SystemContract.ROOT_CHAIN_POSW.addr()
+        code = evm_state.get_code(contract_addr)
+        if not code:
+            return 0, bytes(20)
+        # have to make sure the code is expected
+        if (
+            utils.sha3_256(code)
+            != self.env.quark_chain_config.root_chain_posw_contract_bytecode_hash
+        ):
+            return 0, bytes(20)
+
+        #  call the contract's 'getLockedStakes' function
+        mock_sender = bytes(20)  # empty address
+        data = bytes.fromhex("fd8c4646000000000000000000000000") + recipient
+        evm_tx = EvmTransaction(
+            evm_state.get_nonce(mock_sender),
+            0,  # gas price
+            1000000,  # startgas
+            contract_addr,
+            0,  # value
+            data,
+            gas_token_id=self.genesis_token_id,
+            transfer_token_id=self.genesis_token_id,
+        )
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        evm_tx.sender = mock_sender
+        success, output = apply_transaction(
+            evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+        )
+        if not success or not output:
+            return 0, bytes(20)
+        stakes = int.from_bytes(output[:32], byteorder="big")
+        signer = output[32 + 12 :]
+        return stakes, signer
 
     def _posw_enabled(self, header):
         config = self.shard_config.POSW_CONFIG
         return config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP
+
+    def _qkchashx_enabled(self, header):
+        config = self.env.quark_chain_config
+        return (
+            config.ENABLE_QKCHASHX_HEIGHT is not None
+            and header.height >= config.ENABLE_QKCHASHX_HEIGHT
+        )

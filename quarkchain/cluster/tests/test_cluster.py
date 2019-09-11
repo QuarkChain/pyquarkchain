@@ -416,7 +416,7 @@ class TestCluster(unittest.TestCase):
             self.assertTrue(add_result)
             block_list.append(block)
 
-            # expect cluster 1 has all the blocks from cluter 0 and
+            # expect cluster 1 has all the blocks from cluster 0 and
             # has the same tip as cluster 0
             for block in block_list:
                 assert_true_with_timeout(

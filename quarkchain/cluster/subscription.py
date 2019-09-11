@@ -1,12 +1,11 @@
 import asyncio
 import json
-from typing import List, Dict, Callable
+from typing import List, Dict, Tuple, Optional, Callable
 
 from jsonrpcserver.exceptions import InvalidParams
 from websockets import WebSocketServerProtocol
 
-from quarkchain.cluster.log_filter import LogFilter as EvmLogFilter
-from quarkchain.core import MinorBlock, MinorBlockHeader
+from quarkchain.core import MinorBlock
 
 SUB_NEW_HEADS = "newHeads"
 SUB_NEW_PENDING_TX = "newPendingTransactions"
@@ -56,8 +55,14 @@ class SubscriptionManager:
                 tasks.append(websocket.send(json.dumps(response)))
         await asyncio.gather(*tasks)
 
-    async def notify_new_pending_tx(self, tx_hash: bytes):
-        await self.__notify(SUB_NEW_PENDING_TX, "0x" + tx_hash.hex())
+    async def notify_new_pending_tx(self, tx_hashes: List[bytes]):
+        tasks = []
+        for sub_id, websocket in self.subscribers[SUB_NEW_PENDING_TX].items():
+            for tx_hash in tx_hashes:
+                tx_hash = "0x" + tx_hash.hex()
+                response = self.response_encoder(sub_id, tx_hash)
+                tasks.append(websocket.send(json.dumps(response)))
+        await asyncio.gather(*tasks)
 
     async def notify_log(
         self, candidate_blocks: List[MinorBlock], is_removed: bool = False
@@ -74,20 +79,17 @@ class SubscriptionManager:
                 tasks.append(websocket.send(json.dumps(response)))
         await asyncio.gather(*tasks)
 
-    async def notify_sync(
-        self, running: bool, tip: MinorBlockHeader, queue: List[MinorBlockHeader]
-    ):
-        # TODO
-        data = None
+    async def notify_sync(self, data: Optional[Tuple[int, ...]] = None):
         await self.__notify(SUB_SYNC, data)
 
     async def __notify(self, sub_type, data):
         assert sub_type in self.subscribers
-        tasks = []
+        encoder = (
+            self.sync_status_encoder if sub_type == SUB_SYNC else self.response_encoder
+        )
         for sub_id, websocket in self.subscribers[sub_type].items():
-            response = self.response_encoder(sub_id, data)
-            tasks.append(websocket.send(json.dumps(response)))
-        await asyncio.gather(*tasks)
+            response = encoder(sub_id, data)
+            asyncio.ensure_future(websocket.send(json.dumps(response)))
 
     @staticmethod
     def response_encoder(sub_id, result):
@@ -96,3 +98,18 @@ class SubscriptionManager:
             "method": "subscription",
             "params": {"subscription": sub_id, "result": result},
         }
+
+    @staticmethod
+    def sync_status_encoder(sub_id, data):
+        ret = {
+            "jsonrpc": "2.0",
+            "subscription": sub_id,
+            "result": {"syncing": bool(data)},
+        }
+        if data:
+            tip_height, highest_block = data
+            ret["result"]["status"] = {
+                "currentBlock": tip_height,
+                "highestBlock": highest_block,
+            }
+        return ret

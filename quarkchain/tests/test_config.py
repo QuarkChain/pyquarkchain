@@ -193,10 +193,12 @@ class TestQuarkChainConfig(unittest.TestCase):
     "ENABLE_TX_TIMESTAMP": null,
     "TX_WHITELIST_SENDERS": [],
     "ENABLE_EVM_TIMESTAMP": null,
+    "ENABLE_QKCHASHX_HEIGHT": null,
     "MIN_TX_POOL_GAS_PRICE": 1000000000,
     "MIN_MINING_GAS_PRICE": 1000000000,
     "XSHARD_GAS_DDOS_FIX_ROOT_HEIGHT": 90000,
-    "DISABLE_POW_CHECK": false
+    "DISABLE_POW_CHECK": false,
+    "ROOT_CHAIN_POSW_CONTRACT_BYTECODE_HASH": "5a7707e2684bd79484f3d952ac6a43f2631e3ef8e2085659c18af5714cee4f4c"
 }
     """
         expected_json = expected_json.strip()
