@@ -47,7 +47,6 @@
       "DIFFICULTY_ADJUSTMENT_FACTOR": 1024,
       "EPOCH_INTERVAL": 525600,
       "POSW_CONFIG": {
-        "ENABLED": false
       }
     },
     "CHAINS": [
