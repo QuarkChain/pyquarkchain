@@ -1598,7 +1598,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             responses = [json.loads(call_async(websocket.recv())) for _ in range(2)]
             [self.assertTrue(resp["error"]) for resp in responses]  # emit error message
 
-    def test_unsubscribe_with_invalid_sub_id(self):
+    def test_unsubscribe(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
@@ -1607,7 +1607,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
         ) as clusters, jrpc_websocket_server_context(
             clusters[0].slave_list[0], port=38600
         ):
-            slaves = clusters[0].slave_list
             request = {
                 "jsonrpc": "2.0",
                 "method": "subscribe",
@@ -1622,12 +1621,20 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             self.assertEqual(sub_response["id"], 6)
             self.assertEqual(len(sub_response["result"]), 34)
 
-            unsub_request = {
+            unsubscribe = {
                 "jsonrpc": "2.0",
                 "method": "unsubscribe",
-                "params": [sub_response["result"][:-1]],
+                "params": [sub_response["result"]],
                 "id": 3,
             }
-            call_async(websocket.send(json.dumps(unsub_request)))
+
+            # Unsubscribe successfully
+            call_async(websocket.send(json.dumps(unsubscribe)))
+            response = json.loads(call_async(websocket.recv()))
+            self.assertTrue(response["result"])
+            self.assertEqual(response["id"], 3)
+
+            # Invalid unsubscription if sub_id does not exist
+            call_async(websocket.send(json.dumps(unsubscribe)))
             response = json.loads(call_async(websocket.recv()))
             self.assertTrue(response["error"])

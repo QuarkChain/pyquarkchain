@@ -47,11 +47,13 @@ class SubscriptionManager:
         await self.__notify(SUB_NEW_HEADS, data)
 
     async def notify_new_pending_tx(self, tx_hashes: List[bytes]):
-        if not self.subscribers[SUB_NEW_PENDING_TX].items():
-            return
-        await asyncio.gather(
-            *[self.__notify(SUB_NEW_PENDING_TX, "0x" + h.hex()) for h in tx_hashes]
-        )
+        tasks = []
+        for sub_id, websocket in self.subscribers[SUB_NEW_PENDING_TX].items():
+            for tx_hash in tx_hashes:
+                tx_hash = "0x" + tx_hash.hex()
+                response = self.response_encoder(sub_id, tx_hash)
+                tasks.append(websocket.send(json.dumps(response)))
+        await asyncio.gather(*tasks)
 
     async def notify_log(self, height: int):
         # TODO
