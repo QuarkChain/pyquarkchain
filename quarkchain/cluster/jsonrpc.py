@@ -1009,14 +1009,17 @@ class JSONRPCHttpServer:
                     full_shard_key
                 )
             )
-        ret = await self.master.get_work(branch, coinbase_addr)
-        if ret is None:
+        work, optional_divider = await self.master.get_work(branch, coinbase_addr)
+        if work is None:
             return None
-        return [
-            data_encoder(ret.hash),
-            quantity_encoder(ret.height),
-            quantity_encoder(ret.difficulty),
+        ret = [
+            data_encoder(work.hash),
+            quantity_encoder(work.height),
+            quantity_encoder(work.difficulty),
         ]
+        if optional_divider is not None:
+            ret.append(quantity_encoder(optional_divider))
+        return ret
 
     @public_methods.add
     @decode_arg("block_id", data_decoder)

@@ -24,6 +24,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_contract_creation_with_event_transaction,
     create_contract_with_storage_transaction,
 )
+from quarkchain.config import ConsensusType
 from quarkchain.core import (
     Address,
     Identity,
@@ -1116,6 +1117,41 @@ class TestJSONRPCHttp(unittest.TestCase):
             self.assertEqual(
                 clusters[0].get_shard_state(1 | 0).get_tip().header.height, 1
             )
+
+    def test_getWork_with_optional_diff_divider(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, remote_mining=True, shard_size=1, small_coinbase=True
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            shard = next(iter(slaves[0].shards.values()))
+            qkc_config = master.env.quark_chain_config
+            qkc_config.ROOT.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
+
+            # add a root block first to init shard chains
+            block = call_async(
+                master.get_next_block_to_mine(address=acc1, branch_value=None)
+            )
+            call_async(master.add_root_block(block))
+
+            qkc_config.ROOT.POSW_CONFIG.ENABLED = True
+            qkc_config.ROOT.POSW_CONFIG.ENABLE_TIMESTAMP = 0
+            qkc_config.ROOT.POSW_CONFIG.WINDOW_SIZE = 2
+
+            def mock_get_root_chain_stakes(recipient, block_hash):
+                return (
+                    qkc_config.ROOT.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK,
+                    acc1.recipient,
+                )
+
+            shard.state.get_root_chain_stakes = mock_get_root_chain_stakes
+
+            resp = send_request("getWork", [None])
+            # height and diff, and returns the diff divider since it's PoSW mineable
+            self.assertEqual(resp[1:], ["0x2", "0xa", hex(1000)])
 
     def test_createTransactions(self):
         id1 = Identity.create_random_identity()
