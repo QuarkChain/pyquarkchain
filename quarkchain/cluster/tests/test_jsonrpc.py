@@ -1210,11 +1210,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             response = json.loads(response)
             self.assertEqual(response["id"], 3)
 
-            root_block = call_async(
-                master.get_next_block_to_mine(acc1, branch_value=None)
-            )
-            call_async(master.add_root_block(root_block))
-
             block = call_async(
                 master.get_next_block_to_mine(address=acc1, branch_value=0b10)
             )
@@ -1233,17 +1228,13 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
     def test_new_heads_with_chain_reorg(self):
         id1 = Identity.create_random_identity()
-        id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id2, full_shard_key=0)
 
         with ClusterContext(
             1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
         ) as clusters, jrpc_websocket_server_context(
             clusters[0].slave_list[0], port=38591
         ):
-            master = clusters[0].master
-            slaves = clusters[0].slave_list
             websocket = call_async(get_websocket(port=38591))
 
             request = {
@@ -1258,54 +1249,33 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             self.assertEqual(response["id"], 3)
 
             state = clusters[0].get_shard_state(2 | 0)
-            genesis = state.header_tip
-            # Add one block and include it in the root block
-            b0 = state.get_tip().create_block_to_append(address=acc1)
-            b1 = state.get_tip().create_block_to_append(address=acc2)
-            b0_height = b0.header.height
-            b1_height = b1.header.height
-            self.assertEqual(b0_height, b1_height)  # two headers of the same height
+            tip = state.get_tip()
 
-            root_block0 = (
-                state.root_tip.create_block_to_append()
-                .add_minor_block_header(genesis)
-                .add_minor_block_header(b0.header)
-                .finalize()
-            )
-            root_block1 = (
-                state.root_tip.create_block_to_append()
-                .add_minor_block_header(genesis)
-                .add_minor_block_header(b1.header)
-                .finalize()
-            )
-
+            # no chain reorg at this point
+            b0 = state.create_block_to_mine(address=acc1)
             state.finalize_and_add_block(b0)
-            state.add_root_block(root_block0)
+            self.assertEqual(state.header_tip, b0.header)
             response = call_async(websocket.recv())
             d = json.loads(response)
-            self.assertEqual(state.header_tip, b0.header)
+            self.assertEqual(
+                d["params"]["result"]["hash"], data_encoder(b0.header.get_hash())
+            )
 
-            # no chain reorg at this point, header tip is still b0
+            # fork happens
+            b1 = tip.create_block_to_append(address=acc1)
             state.finalize_and_add_block(b1)
-            self.assertEqual(state.header_tip, b0.header)
+            b2 = b1.create_block_to_append(address=acc1)
+            state.finalize_and_add_block(b2)
+            self.assertEqual(state.header_tip, b2.header)
 
-            # Add another root block with higher TD
-            root_block1.header.total_difficulty += root_block1.header.difficulty
-            root_block1.header.difficulty *= 2
-            self.assertTrue(state.add_root_block(root_block1))
-            self.assertEqual(state.header_tip, b1.header)
-            self.assertEqual(state.meta_tip, b1.meta)
-            self.assertEqual(state.root_tip, root_block1.header)
-            self.assertEqual(
-                state.evm_state.trie.root_hash, b1.meta.hash_evm_state_root
-            )
-
-            # new head b1 emitted from new chain
-            response = call_async(websocket.recv())
-            d = json.loads(response)
-            self.assertEqual(
-                d["params"]["result"]["hash"], data_encoder(b1.header.get_hash())
-            )
+            # new heads b1, b2 emitted from new chain
+            blocks = [b1, b2]
+            for b in blocks:
+                response = call_async(websocket.recv())
+                d = json.loads(response)
+                self.assertEqual(
+                    d["params"]["result"]["hash"], data_encoder(b.header.get_hash())
+                )
 
     def test_new_pending_xshard_tx_sender(self):
         id1 = Identity.create_random_identity()
@@ -1537,18 +1507,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             slaves = clusters[0].slave_list
             websocket = call_async(get_websocket(port=38596))
 
-            # no filters
-            request = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["logs", "0x00000002", {}],
-                "id": 3,
-            }
-            call_async(websocket.send(json.dumps(request)))
-            response = call_async(websocket.recv())
-            response = json.loads(response)
-            self.assertEqual(response["id"], 3)
-
             # filter by contract address
             contract_addr = mk_contract_address(acc1.recipient, 0, acc1.full_shard_key)
             filter_req = {
@@ -1590,34 +1548,6 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             response = json.loads(response)
             self.assertEqual(response["id"], 5)
 
-            filter_req_nested = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": [
-                    "logs",
-                    "0x00000002",
-                    {
-                        "topics": [
-                            [
-                                "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa"
-                            ]
-                        ]
-                    },
-                ],
-                "id": 6,
-            }
-            call_async(websocket.send(json.dumps(filter_req_nested)))
-            response = call_async(websocket.recv())
-            response = json.loads(response)
-            self.assertEqual(response["id"], 6)
-
-            # Add a root block to update block gas limit for xshard tx throttling
-            # so that the following tx can be processed
-            root_block = call_async(
-                master.get_next_block_to_mine(acc1, branch_value=None)
-            )
-            call_async(master.add_root_block(root_block))
-
             tx = create_contract_creation_with_event_transaction(
                 shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
                 key=id1.get_key(),
@@ -1635,7 +1565,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
 
             count = 0
-            while count < 4:
+            while count < 2:
                 response = call_async(websocket.recv())
                 count += 1
                 d = json.loads(response)
@@ -1644,62 +1574,17 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                     "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
                     d["params"]["result"]["topics"][0],
                 )
-            self.assertEqual(count, 4)
-
-            # xshard creation and check logs: shard 0 -> shard 1
-            # no filter
-            request = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["logs", "0x00000003", {}],
-                "id": 7,
-            }
-            call_async(websocket.send(json.dumps(request)))
-            response = call_async(websocket.recv())
-            response = json.loads(response)
-            self.assertEqual(response["id"], 7)
-
-            tx = create_contract_creation_with_event_transaction(
-                shard_state=clusters[0].get_shard_state(2 | 0),
-                key=id1.get_key(),
-                from_address=acc1,
-                to_full_shard_key=acc1.full_shard_key + 1,
-            )
-            self.assertTrue(slaves[0].add_tx(tx))
-            block = call_async(
-                master.get_next_block_to_mine(address=acc1, branch_value=0b10)
-            )  # source shard
-            self.assertTrue(call_async(clusters[0].get_shard(2 | 0).add_block(block)))
-            root_block = call_async(
-                master.get_next_block_to_mine(address=acc1, branch_value=None)
-            )  # root chain
-            call_async(master.add_root_block(root_block))
-            block = call_async(
-                master.get_next_block_to_mine(address=acc1, branch_value=0b11)
-            )  # target shard
-            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(block)))
-
-            response = call_async(websocket.recv())
-            d = json.loads(response)
-            expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
-            expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
-            expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
-            self.assertDictContainsSubset(expected_log_parts, d["params"]["result"])
-            self.assertEqual(2, len(d["params"]["result"]["topics"]))
+            self.assertEqual(count, 2)
 
     def test_log_removed_flag_with_chain_reorg(self):
         id1 = Identity.create_random_identity()
-        id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id2, full_shard_key=0)
 
         with ClusterContext(
             1, acc1, small_coinbase=True, genesis_minor_quarkash=10000000
         ) as clusters, jrpc_websocket_server_context(
             clusters[0].slave_list[0], port=38597
         ):
-            master = clusters[0].master
-            slaves = clusters[0].slave_list
             websocket = call_async(get_websocket(port=38597))
 
             # a log subscriber with no-filter request
@@ -1715,69 +1600,39 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             self.assertEqual(response["id"], 3)
 
             state = clusters[0].get_shard_state(2 | 0)
-            genesis = state.header_tip
-            # Add one block and include it in the root block
-            b0 = state.get_tip().create_block_to_append(address=acc1)
-            b1 = state.get_tip().create_block_to_append(address=acc2)
-            tx1 = create_contract_creation_with_event_transaction(
+            tip = state.get_tip()
+            b0 = state.create_block_to_mine(address=acc1)
+            tx = create_contract_creation_with_event_transaction(
                 shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
                 key=id1.get_key(),
                 from_address=acc1,
                 to_full_shard_key=acc1.full_shard_key,
             )
-            tx2 = create_contract_creation_with_event_transaction(
-                shard_state=clusters[0].get_shard_state(2 | 0),  # full_shard_id = 2
-                key=id1.get_key(),
-                from_address=acc1,
-                to_full_shard_key=acc1.full_shard_key,
-            )
-            b0.add_tx(tx1)
-            b1.add_tx(tx2)
-            tx1_hash = tx1.get_hash()
-            tx2_hash = tx2.get_hash()
-
-            root_block0 = (
-                state.root_tip.create_block_to_append()
-                .add_minor_block_header(genesis)
-                .add_minor_block_header(b0.header)
-                .finalize()
-            )
-            root_block1 = (
-                state.root_tip.create_block_to_append()
-                .add_minor_block_header(genesis)
-                .add_minor_block_header(b1.header)
-                .finalize()
-            )
-
+            b0.add_tx(tx)
             state.finalize_and_add_block(b0)
-            state.add_root_block(root_block0)
+            self.assertEqual(state.header_tip, b0.header)
+            tx_hash = tx.get_hash()
+
             response = call_async(websocket.recv())
             d = json.loads(response)
             self.assertEqual(
-                d["params"]["result"]["transactionHash"], data_encoder(tx1_hash)
+                d["params"]["result"]["transactionHash"], data_encoder(tx_hash)
             )
             self.assertEqual(d["params"]["result"]["removed"], False)
-            self.assertEqual(state.header_tip, b0.header)
 
+            # fork happens
+            b1 = tip.create_block_to_append(address=acc1)
+            b1.add_tx(tx)
             state.finalize_and_add_block(b1)
-            self.assertEqual(state.header_tip, b0.header)
-
-            # Add another root block with higher TD
-            root_block1.header.total_difficulty += root_block1.header.difficulty
-            root_block1.header.difficulty *= 2
-            self.assertTrue(state.add_root_block(root_block1))
-            self.assertEqual(state.header_tip, b1.header)
-            self.assertEqual(state.meta_tip, b1.meta)
-            self.assertEqual(state.root_tip, root_block1.header)
-            self.assertEqual(
-                state.evm_state.trie.root_hash, b1.meta.hash_evm_state_root
-            )
+            b2 = b1.create_block_to_append(address=acc1)
+            state.finalize_and_add_block(b2)
+            self.assertEqual(state.header_tip, b2.header)
 
             # log emitted from old chain, flag is set to True
             response = call_async(websocket.recv())
             d = json.loads(response)
             self.assertEqual(
-                d["params"]["result"]["transactionHash"], data_encoder(tx1_hash)
+                d["params"]["result"]["transactionHash"], data_encoder(tx_hash)
             )
             self.assertEqual(d["params"]["result"]["removed"], True)
 
@@ -1785,7 +1640,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
             response = call_async(websocket.recv())
             d = json.loads(response)
             self.assertEqual(
-                d["params"]["result"]["transactionHash"], data_encoder(tx2_hash)
+                d["params"]["result"]["transactionHash"], data_encoder(tx_hash)
             )
             self.assertEqual(d["params"]["result"]["removed"], False)
 
@@ -1835,48 +1690,31 @@ class TestJSONRPCWebsocket(unittest.TestCase):
 
             # make 3 subscriptions on new heads
             ids = [3, 4, 5]
-            request1 = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["newHeads", "0x00000002"],
-                "id": 3,
-            }
-            call_async(websocket.send(json.dumps(request1)))
-
-            request2 = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["newHeads", "0x00000002"],
-                "id": 4,
-            }
-            call_async(websocket.send(json.dumps(request2)))
-
-            request3 = {
-                "jsonrpc": "2.0",
-                "method": "subscribe",
-                "params": ["newHeads", "0x00000002"],
-                "id": 5,
-            }
-            call_async(websocket.send(json.dumps(request3)))
-
             sub_ids = []
             for id in ids:
+                request = {
+                    "jsonrpc": "2.0",
+                    "method": "subscribe",
+                    "params": ["newHeads", "0x00000002"],
+                    "id": id,
+                }
+                call_async(websocket.send(json.dumps(request)))
                 response = call_async(websocket.recv())
                 response = json.loads(response)
                 sub_ids.append(response["result"])
                 self.assertEqual(response["id"], id)
 
             # cancel the first subscription
-            request4 = {
+            request = {
                 "jsonrpc": "2.0",
                 "method": "unsubscribe",
                 "params": [sub_ids[0]],
                 "id": 3,
             }
-            call_async(websocket.send(json.dumps(request4)))
+            call_async(websocket.send(json.dumps(request)))
             response = call_async(websocket.recv())
             response = json.loads(response)
-            self.assertEqual(response["result"], True)
+            self.assertEqual(response["result"], True)  # unsubscribed successfully
 
             # add a new block, should expect only 2 responses
             root_block = call_async(

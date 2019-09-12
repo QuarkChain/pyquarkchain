@@ -33,7 +33,7 @@ class LogFilter:
         addresses: List[Address],
         topics: List[List[bytes]],
         end_block_header: Optional[MinorBlockHeader] = None,
-        size: Optional[int] = 0,
+        size: int = 0,
         candidate_blocks: Optional[List[MinorBlock]] = None,
         block_hash: Optional[str] = None,
     ):
