@@ -23,12 +23,12 @@ contract PoSWRental{
         principal_ = principal_ - amount;
     }
 
-    function GetDivident() public view returns (uint256) {
+    function GetDividend() public view returns (uint256) {
         return address(this).balance - principal_;
     }
 
     function Payout() public {
-        uint256 amount = GetDivident() * minerRate_ / 10000;
+        uint256 amount = GetDividend() * minerRate_ / 10000;
 
         // Ignore failure if miner is a contract
         miner_.send(amount);
