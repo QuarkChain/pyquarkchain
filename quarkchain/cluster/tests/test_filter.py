@@ -69,12 +69,12 @@ class TestFilter(unittest.TestCase):
                 start_height + 10
             )
             if option == "default":
-                return LogFilter(
+                return LogFilter.create_from_end_block_header(
                     state.db, addresses or [], criteria, end_block_header, 11
                 )
             elif option == "block_list":
-                return LogFilter(
-                    state.db, addresses or [], criteria, None, 0, block_list
+                return LogFilter.create_from_block_candidates(
+                    state.db, addresses or [], criteria, block_list
                 )
             elif option == "both":
                 return LogFilter(

@@ -814,10 +814,19 @@ class ShardState:
             self.db.remove_minor_block_index(block)
             if add_tx_back_to_queue:
                 self.__add_transactions_from_block(block)
+        if len(old_chain) > 0:
+            asyncio.ensure_future(self.subscription_manager.notify_log(old_chain, True))
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
+        # new_chain has at least one block, starting from minor_block with block height descending
+        asyncio.ensure_future(
+            self.subscription_manager.notify_new_heads(
+                sorted(new_chain, key=lambda x: x.header.height)
+            )
+        )
+        asyncio.ensure_future(self.subscription_manager.notify_log(new_chain))
 
     # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
@@ -1707,7 +1716,9 @@ class ShardState:
 
         size = end_block - start_block + 1
         end_block_header = self.db.get_minor_block_header_by_height(end_block)
-        log_filter = LogFilter(self.db, addresses, topics, end_block_header, size)
+        log_filter = LogFilter.create_from_end_block_header(
+            self.db, addresses, topics, end_block_header, size
+        )
 
         try:
             logs = log_filter.run()

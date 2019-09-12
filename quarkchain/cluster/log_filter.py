@@ -15,13 +15,25 @@ class LogFilter:
 
     TIMEOUT = 10  # seconds
 
+    @classmethod
+    def create_from_block_candidates(cls, db, addresses, topics, candidate_blocks):
+        return LogFilter(db, addresses, topics, candidate_blocks=candidate_blocks)
+
+    @classmethod
+    def create_from_end_block_header(
+        cls, db, addresses, topics, end_block_header, size
+    ):
+        return LogFilter(
+            db, addresses, topics, end_block_header=end_block_header, size=size
+        )
+
     def __init__(
         self,
         db: ShardDbOperator,
         addresses: List[Address],
         topics: List[List[bytes]],
-        end_block_header: MinorBlockHeader,
-        size: int,
+        end_block_header: Optional[MinorBlockHeader] = None,
+        size: int = 0,
         candidate_blocks: Optional[List[MinorBlock]] = None,
         block_hash: Optional[str] = None,
     ):
@@ -36,6 +48,7 @@ class LogFilter:
         self.end_block_header = end_block_header
         self.size = size
         self.candidate_blocks = candidate_blocks
+        # in case filter is instantiated through constructor instead of factory methods
         if candidate_blocks is not None and (end_block_header is not None or size != 0):
             raise ValueError(
                 "Should pass in either candidate blocks or end block header and size"

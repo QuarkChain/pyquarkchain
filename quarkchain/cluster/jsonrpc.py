@@ -35,6 +35,8 @@ from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.utils import Logger, token_id_decode, token_id_encode
 from cachetools import LRUCache
 import uuid
+from quarkchain.cluster.log_filter import LogFilter
+from quarkchain.cluster.subscription import SUB_LOGS
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -310,7 +312,7 @@ def tx_detail_encoder(tx):
     }
 
 
-def loglist_encoder(loglist: List[Log]):
+def loglist_encoder(loglist: List[Log], is_removed: bool = False):
     """Encode a list of log"""
     result = []
     for l in loglist:
@@ -326,6 +328,7 @@ def loglist_encoder(loglist: List[Log]):
                 "recipient": data_encoder(l.recipient),
                 "data": data_encoder(l.data),
                 "topics": [data_encoder(topic) for topic in l.topics],
+                "removed": is_removed,
             }
         )
     return result
@@ -1499,8 +1502,16 @@ class JSONRPCWebsocketServer:
         websocket = context["websocket"]
         sub_id = "0x" + uuid.uuid4().hex
         shard_subscription_manager = self.shard_subscription_managers[full_shard_id]
-        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket)
 
+        extra = None
+        if sub_type == SUB_LOGS:
+            addresses, topics = _parse_log_request(params, address_decoder)
+            addresses = [Address(a.recipient, full_shard_id) for a in addresses]
+            extra = lambda candidate_blocks: LogFilter.create_from_block_candidates(
+                shard.state.db, addresses, topics, candidate_blocks
+            )
+
+        shard_subscription_manager.add_subscriber(sub_type, sub_id, websocket, extra)
         return sub_id
 
     @public_methods.add
