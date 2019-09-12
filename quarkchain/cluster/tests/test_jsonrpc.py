@@ -1141,13 +1141,10 @@ class TestJSONRPCHttp(unittest.TestCase):
             qkc_config.ROOT.POSW_CONFIG.ENABLE_TIMESTAMP = 0
             qkc_config.ROOT.POSW_CONFIG.WINDOW_SIZE = 2
 
-            def mock_get_root_chain_stakes(recipient, block_hash):
-                return (
-                    qkc_config.ROOT.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK,
-                    acc1.recipient,
-                )
-
-            shard.state.get_root_chain_stakes = mock_get_root_chain_stakes
+            shard.state.get_root_chain_stakes = lambda _1, _2: (
+                qkc_config.ROOT.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK,
+                acc1.recipient,
+            )
 
             resp = send_request("getWork", [None])
             # height and diff, and returns the diff divider since it's PoSW mineable
