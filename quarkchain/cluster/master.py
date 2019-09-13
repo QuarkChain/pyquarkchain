@@ -1644,7 +1644,7 @@ class MasterServer:
 
     async def get_work(
         self, branch: Optional[Branch], recipient: Optional[bytes]
-    ) -> Optional[MiningWork]:
+    ) -> Tuple[Optional[MiningWork], Optional[int]]:
         coinbase_addr = None
         if recipient is not None:
             coinbase_addr = Address(recipient, branch.value if branch else 0)
@@ -1654,15 +1654,14 @@ class MasterServer:
             )
             work, block = await self.root_miner.get_work(coinbase_addr or default_addr)
             check(isinstance(block, RootBlock))
-            posw_diff = await self.posw_diff_adjust(block)
-            if posw_diff is not None and posw_diff != work.difficulty:
-                work = MiningWork(work.hash, work.height, posw_diff)
-            return work
+            posw_mineable = await self.posw_mineable(block)
+            config = self.env.quark_chain_config.ROOT.POSW_CONFIG
+            return work, config.DIFF_DIVIDER if posw_mineable else None
 
         if branch.value not in self.branch_to_slaves:
-            return None
+            return None, None
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_work(branch, coinbase_addr)
+        return (await slave.get_work(branch, coinbase_addr)), None
 
     async def submit_work(
         self,
@@ -1731,6 +1730,14 @@ class MasterServer:
         """"Return None if PoSW check doesn't apply."""
         posw_info = await self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
+
+    async def posw_mineable(self, block: RootBlock) -> bool:
+        """Return mined blocks < threshold, regardless of signature."""
+        posw_info = await self._posw_info(block)
+        if not posw_info:
+            return False
+        # need to minus 1 since *mined blocks* assumes current one will succeed
+        return posw_info.posw_mined_blocks - 1 < posw_info.posw_mineable_blocks
 
     async def _posw_info(self, block: RootBlock) -> Optional[PoSWInfo]:
         config = self.env.quark_chain_config.ROOT.POSW_CONFIG
