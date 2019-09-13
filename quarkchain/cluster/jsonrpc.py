@@ -772,7 +772,7 @@ class JSONRPCHttpServer:
     @decode_arg("block_id", data_decoder)
     @decode_arg("need_extra_info", bool_decoder)
     async def getRootBlockById(self, block_id, need_extra_info=True):
-        block, extra_info = self.master.get_root_block_by_height_or_hash(
+        block, extra_info = await self.master.get_root_block_by_height_or_hash(
             None, block_id, need_extra_info
         )
         if not block:
