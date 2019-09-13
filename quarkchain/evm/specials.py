@@ -229,7 +229,7 @@ def proc_current_mnt_id(ext, msg):
     return 1, msg.gas - gascost, encode_int32(msg.transfer_token_id)
 
 
-# 3 inputs: (address, token ID and value)
+# 4 inputs: (address, token ID, value, data)
 def proc_transfer_mnt(ext, msg):
     from quarkchain.evm.messages import apply_msg
 
