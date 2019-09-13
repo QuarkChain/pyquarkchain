@@ -430,11 +430,7 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
     eth_hex = hex_str[2:]
     if len(eth_hex) != 40:
         raise InvalidParams("Addresses must be 40 or 0 bytes long")
-    full_shard_key_hex = ""
-    for i in range(4):
-        index = i * 10
-        full_shard_key_hex += eth_hex[index : index + 2]
-    return address_decoder("0x" + eth_hex + full_shard_key_hex)
+    return address_decoder("0x" + eth_hex + "00000001")
 
 
 def _parse_log_request(
@@ -1110,7 +1106,7 @@ class JSONRPCHttpServer:
         if shard is not None:
             address = Address(address.recipient, shard)
         account_branch_data = await self.master.get_primary_account_data(address)
-        balance = account_branch_data.balance
+        balance = account_branch_data.token_balances.balance_map[token_id_encode("QKC")]
         return balance
 
     @public_methods.add

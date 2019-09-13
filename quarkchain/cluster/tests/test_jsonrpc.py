@@ -123,6 +123,22 @@ class TestJSONRPCHttp(unittest.TestCase):
                 )
                 self.assertEqual(response, hex(i + 1))
 
+    def test_getBalance(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_http_server_context(clusters[0].master):
+            response = send_request("getBalances", ["0x" + acc1.serialize().hex()])
+            self.assertListEqual(
+                response["balances"],
+                [{"tokenId": "0x8bb0", "tokenStr": "QKC", "balance": "0xf4240"}],
+            )
+
+            response = send_request("eth_getBalance", ["0x" + acc1.recipient.hex()])
+            self.assertEqual(response, "0xf4240")
+
     def test_sendTransaction(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
