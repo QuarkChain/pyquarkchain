@@ -34,6 +34,7 @@ PROC_CURRENT_MNT_ID = (
     b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x51\x4b\x43\x00\x01"
 )
 
+
 # Wrapper to store call data. This is needed because it is possible to
 # call a contract N times with N bytes of data with a gas cost of O(N);
 # if implemented naively this would require O(N**2) bytes of data
