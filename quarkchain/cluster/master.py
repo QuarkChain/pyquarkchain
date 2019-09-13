@@ -542,12 +542,17 @@ class SlaveConnection(ClusterConnection):
         )
         return resp.result if resp.error_code == 0 else None
 
-    async def get_minor_block_by_hash(
-        self, block_hash, branch, need_extra_info
+    async def get_minor_block_by_hash_or_height(
+        self, branch, need_extra_info, block_hash=None, height=None
     ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
-        request = GetMinorBlockRequest(
-            branch, minor_block_hash=block_hash, need_extra_info=need_extra_info
-        )
+        request = GetMinorBlockRequest(branch, need_extra_info=need_extra_info)
+        if block_hash is not None:
+            request.minor_block_hash = block_hash
+        elif height is not None:
+            request.height = height
+        else:
+            raise ValueError("no height or block hash provide")
+
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_MINOR_BLOCK_REQUEST, request
         )
@@ -555,18 +560,19 @@ class SlaveConnection(ClusterConnection):
             return None, None
         return resp.minor_block, resp.extra_info
 
+    async def get_minor_block_by_hash(
+        self, block_hash, branch, need_extra_info
+    ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
+        return await self.get_minor_block_by_hash_or_height(
+            branch, need_extra_info, block_hash
+        )
+
     async def get_minor_block_by_height(
         self, height, branch, need_extra_info
     ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
-        request = GetMinorBlockRequest(
-            branch, height=height, need_extra_info=need_extra_info
+        return await self.get_minor_block_by_hash_or_height(
+            branch, need_extra_info, height=height
         )
-        _, resp, _ = await self.write_rpc_request(
-            ClusterOp.GET_MINOR_BLOCK_REQUEST, request
-        )
-        if resp.error_code != 0:
-            return None, None
-        return resp.minor_block, resp.extra_info
 
     async def get_transaction_by_hash(self, tx_hash, branch):
         request = GetTransactionRequest(tx_hash, branch)
@@ -1761,6 +1767,21 @@ class MasterServer:
             addr, last_confirmed_minor_block_header.get_hash()
         )
         return self.root_state.get_posw_info(block, stakes, signer)
+
+    async def get_root_block_by_height_or_hash(
+        self, height=None, block_hash=None, need_extra_info=False
+    ) -> Tuple[Optional[RootBlock], Optional[PoSWInfo]]:
+        if block_hash is not None:
+            block = self.root_state.db.get_root_block_by_hash(block_hash)
+        else:
+            block = self.root_state.get_root_block_by_height(height)
+        if not block:
+            return None, None
+
+        posw_info = None
+        if need_extra_info:
+            posw_info = await self._posw_info(block)
+        return block, posw_info
 
 
 def parse_args():
