@@ -266,6 +266,12 @@ class ClusterConfig(BaseConfig):
         parser.add_argument("--num_slaves", default=4, type=int)
         parser.add_argument("--port_start", default=38000, type=int)
         parser.add_argument(
+            "--websocket_port_start",
+            default=38590,
+            type=int,
+            help="if empty, will start from 38590 by default",
+        )
+        parser.add_argument(
             "--db_path_root", default=ClusterConfig.DB_PATH_ROOT, type=str
         )
         parser.add_argument("--p2p_port", default=ClusterConfig.P2P_PORT, type=int)
@@ -413,6 +419,7 @@ class ClusterConfig(BaseConfig):
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
+                slave_config.WEBSOCKET_JSON_RPC_PORT = args.websocket_port_start + i
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
