@@ -28,6 +28,7 @@ from quarkchain.core import (
     TypedTransaction,
     Constant,
     MinorBlockHeader,
+    PoSWInfo,
 )
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.utils import denoms, is_numeric
@@ -167,7 +168,14 @@ def bool_decoder(data):
     return data
 
 
-def root_block_encoder(block):
+def _add_posw_info_to_resp(d: Dict, diff: int, posw_info: PoSWInfo):
+    d["effectiveDifficulty"] = quantity_encoder(posw_info.effective_difficulty)
+    d["poswMineableBlocks"] = quantity_encoder(posw_info.posw_mineable_blocks)
+    d["poswMinedBlocks"] = quantity_encoder(posw_info.posw_mined_blocks)
+    d["stakingApplied"] = posw_info.effective_difficulty < diff
+
+
+def root_block_encoder(block, extra_info):
     header = block.header
 
     d = {
@@ -185,6 +193,8 @@ def root_block_encoder(block):
         "size": quantity_encoder(len(block.serialize())),
         "minorBlockHeaders": [],
     }
+    if extra_info:
+        _add_posw_info_to_resp(d, header.difficulty, extra_info)
 
     for header in block.minor_block_header_list:
         h = minor_block_header_encoder(header)
@@ -222,10 +232,7 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
             for tx in block.tx_list
         ]
     if extra_info:
-        d["effectiveDifficulty"] = quantity_encoder(extra_info.effective_difficulty)
-        d["poswMineableBlocks"] = quantity_encoder(extra_info.posw_mineable_blocks)
-        d["poswMinedBlocks"] = quantity_encoder(extra_info.posw_mined_blocks)
-        d["stakingApplied"] = extra_info.effective_difficulty < header.difficulty
+        _add_posw_info_to_resp(d, header.difficulty, extra_info)
     return d
 
 
@@ -763,21 +770,26 @@ class JSONRPCHttpServer:
 
     @public_methods.add
     @decode_arg("block_id", data_decoder)
-    async def getRootBlockById(self, block_id):
-        try:
-            block = self.master.root_state.db.get_root_block_by_hash(block_id)
-            return root_block_encoder(block)
-        except Exception:
-            return None
-
-    @public_methods.add
-    async def getRootBlockByHeight(self, height=None):
-        if height is not None:
-            height = quantity_decoder(height)
-        block = self.master.root_state.get_root_block_by_height(height)
+    @decode_arg("need_extra_info", bool_decoder)
+    async def getRootBlockById(self, block_id, need_extra_info=True):
+        block, extra_info = await self.master.get_root_block_by_height_or_hash(
+            None, block_id, need_extra_info
+        )
         if not block:
             return None
-        return root_block_encoder(block)
+        return root_block_encoder(block, extra_info)
+
+    @public_methods.add
+    @decode_arg("need_extra_info", bool_decoder)
+    async def getRootBlockByHeight(self, height=None, need_extra_info=True):
+        if height is not None:
+            height = quantity_decoder(height)
+        block, extra_info = await self.master.get_root_block_by_height_or_hash(
+            height, None, need_extra_info
+        )
+        if not block:
+            return None
+        return root_block_encoder(block, extra_info)
 
     @public_methods.add
     @decode_arg("block_id", id_decoder)

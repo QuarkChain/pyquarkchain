@@ -93,7 +93,7 @@ class RootDb:
     def update_tip_hash(self, block_hash):
         self.db.put(b"tipHash", block_hash)
 
-    def get_root_block_by_hash(self, h):
+    def get_root_block_by_hash(self, h) -> Optional[RootBlock]:
         key = b"rblock_" + h
         if key in self.rblock_cache:
             return self.rblock_cache[key]
@@ -636,9 +636,10 @@ class RootState:
 
     def get_root_block_by_height(self, height: Optional[int]):
         tip = self.tip  # type: RootBlockHeader
-        return self.db.get_root_block_by_height(
+        block = self.db.get_root_block_by_height(
             tip.height if height is None else height
         )
+        return block
 
     def get_last_confirmed_minor_block_header(
         self, h, full_shard_id
