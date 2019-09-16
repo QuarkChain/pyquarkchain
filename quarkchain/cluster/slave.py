@@ -310,7 +310,7 @@ class MasterConnection(ClusterConnection):
     async def handle_execute_transaction(
         self, req: ExecuteTransactionRequest
     ) -> ExecuteTransactionResponse:
-        res = self.slave_server.execute_tx(req.tx, req.from_address)
+        res = self.slave_server.execute_tx(req.tx, req.from_address, req.block_height)
         fail = res is None
         return ExecuteTransactionResponse(
             error_code=int(fail), result=res if not fail else b""
@@ -1192,14 +1192,16 @@ class SlaveServer:
             return False
         return shard.add_tx(tx)
 
-    def execute_tx(self, tx: TypedTransaction, from_address) -> Optional[bytes]:
+    def execute_tx(
+        self, tx: TypedTransaction, from_address: Address, height: Optional[int]
+    ) -> Optional[bytes]:
         evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
         if not shard:
             return None
-        return shard.state.execute_tx(tx, from_address)
+        return shard.state.execute_tx(tx, from_address, height)
 
     def get_transaction_count(self, address):
         branch = Branch(
