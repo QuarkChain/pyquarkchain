@@ -1106,7 +1106,9 @@ class JSONRPCHttpServer:
         if shard is not None:
             address = Address(address.recipient, shard)
         account_branch_data = await self.master.get_primary_account_data(address)
-        balance = account_branch_data.token_balances.balance_map[token_id_encode("QKC")]
+        balance = account_branch_data.token_balances.balance_map.get(
+            token_id_encode("QKC"), 0
+        )
         return balance
 
     @public_methods.add
