@@ -192,6 +192,7 @@ def root_block_encoder(block, extra_info):
         "timestamp": quantity_encoder(header.create_time),
         "size": quantity_encoder(len(block.serialize())),
         "minorBlockHeaders": [],
+        "signature": data_encoder(header.signature),
     }
     if extra_info:
         _add_posw_info_to_resp(d, header.difficulty, extra_info)
