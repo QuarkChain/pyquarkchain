@@ -1888,11 +1888,14 @@ class ShardState:
         return block, posw_info and posw_info._asdict()
 
     def get_root_chain_stakes(
-        self, recipient: bytes, block_hash: bytes
+        self,
+        recipient: bytes,
+        block_hash: bytes,
+        mock_evm_state: Optional[EvmState] = None,  # open for testing
     ) -> (int, bytes):
         meta = self.db.get_minor_block_meta_by_hash(block_hash)
         check(meta is not None)
-        evm_state = elf.__create_evm_state(
+        evm_state = mock_evm_state or self.__create_evm_state(
             meta.hash_evm_state_root, {}
         )
         check(evm_state is not None)

@@ -2929,7 +2929,7 @@ class TestShardState(unittest.TestCase):
 
         # contract not deployed yet
         stakes, signer = state.get_root_chain_stakes(
-            acc1.recipient, state.header_tip.get_hash()
+            acc1.recipient, state.header_tip.get_hash(), mock_evm_state=evm_state
         )
         self.assertEqual(stakes, 0)
         self.assertEqual(signer, bytes(20))
@@ -2946,7 +2946,7 @@ class TestShardState(unittest.TestCase):
 
         # contract deployed, but no stakes. signer defaults to the recipient
         stakes, signer = state.get_root_chain_stakes(
-            acc1.recipient, state.header_tip.get_hash()
+            acc1.recipient, state.header_tip.get_hash(), mock_evm_state=evm_state
         )
         self.assertEqual(stakes, 0)
         self.assertEqual(signer, acc1.recipient)
@@ -2985,7 +2985,7 @@ class TestShardState(unittest.TestCase):
 
         evm_state.commit()
         stakes, signer = state.get_root_chain_stakes(
-            acc1.recipient, state.header_tip.get_hash()
+            acc1.recipient, state.header_tip.get_hash(), mock_evm_state=evm_state
         )
         self.assertEqual(stakes, 1234 + 4321)
         self.assertEqual(signer, random_signer.recipient)
@@ -3014,7 +3014,7 @@ class TestShardState(unittest.TestCase):
         # now stakes should be 0 when unlocked
         evm_state.commit()
         stakes, signer = state.get_root_chain_stakes(
-            acc1.recipient, state.header_tip.get_hash()
+            acc1.recipient, state.header_tip.get_hash(), mock_evm_state=evm_state
         )
         self.assertEqual(stakes, 0)
         self.assertEqual(signer, bytes(20))
@@ -3036,7 +3036,7 @@ class TestShardState(unittest.TestCase):
         # should be able to get stakes
         evm_state.commit()
         stakes, signer = state.get_root_chain_stakes(
-            acc1.recipient, state.header_tip.get_hash()
+            acc1.recipient, state.header_tip.get_hash(), mock_evm_state=evm_state
         )
         self.assertEqual(stakes, 42)
         self.assertEqual(signer, random_signer.recipient)
