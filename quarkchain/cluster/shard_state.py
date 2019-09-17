@@ -1890,10 +1890,11 @@ class ShardState:
     def get_root_chain_stakes(
         self, recipient: bytes, block_hash: bytes
     ) -> (int, bytes):
-        h = self.db.get_minor_block_header_by_hash(block_hash)
-        check(h is not None)
-        evm_state = self._get_evm_state_from_height(h.height).ephemeral_clone()
-        evm_state.gas_used = 0
+        meta = self.db.get_minor_block_meta_by_hash(block_hash)
+        check(meta is not None)
+        evm_state = elf.__create_evm_state(
+            meta.hash_evm_state_root, {}
+        )
         check(evm_state is not None)
         contract_addr = SystemContract.ROOT_CHAIN_POSW.addr()
         code = evm_state.get_code(contract_addr)
