@@ -182,6 +182,7 @@ def root_block_encoder(block, extra_info):
         "id": data_encoder(header.get_hash()),
         "height": quantity_encoder(header.height),
         "hash": data_encoder(header.get_hash()),
+        "sealHash": data_encoder(header.get_hash_for_mining()),
         "hashPrevBlock": data_encoder(header.hash_prev_block),
         "idPrevBlock": data_encoder(header.hash_prev_block),
         "nonce": quantity_encoder(header.nonce),
