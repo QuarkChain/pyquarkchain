@@ -160,4 +160,3 @@ workflows:
       - check-db:
           requires:
             - build
-            - download-snapshot
