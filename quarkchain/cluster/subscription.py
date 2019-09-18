@@ -80,15 +80,15 @@ class SubscriptionManager:
         await asyncio.gather(*tasks)
 
     async def notify_sync(self, data: Optional[Tuple[int, ...]] = None):
-        await self.__notify(SUB_SYNC, data)
-
-    async def __notify(self, sub_type, data):
-        assert sub_type in self.subscribers
-        encoder = (
-            self.sync_status_encoder if sub_type == SUB_SYNC else self.response_encoder
-        )
-        for sub_id, websocket in self.subscribers[sub_type].items():
-            response = encoder(sub_id, data)
+        result = {"syncing": bool(data)}
+        if data:
+            tip_height, highest_block = data
+            result["status"] = {
+                "currentBlock": tip_height,
+                "highestBlock": highest_block,
+            }
+        for sub_id, websocket in self.subscribers[SUB_SYNC].items():
+            response = self.response_encoder(sub_id, result)
             asyncio.ensure_future(websocket.send(json.dumps(response)))
 
     @staticmethod
@@ -98,18 +98,3 @@ class SubscriptionManager:
             "method": "subscription",
             "params": {"subscription": sub_id, "result": result},
         }
-
-    @staticmethod
-    def sync_status_encoder(sub_id, data):
-        ret = {
-            "jsonrpc": "2.0",
-            "subscription": sub_id,
-            "result": {"syncing": bool(data)},
-        }
-        if data:
-            tip_height, highest_block = data
-            ret["result"]["status"] = {
-                "currentBlock": tip_height,
-                "highestBlock": highest_block,
-            }
-        return ret
