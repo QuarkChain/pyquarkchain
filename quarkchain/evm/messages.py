@@ -560,8 +560,7 @@ def _apply_msg(ext, msg, code):
                 have=ext.get_balance(msg.sender, token_id=msg.transfer_token_id),
                 want=msg.value,
             )
-            # TODO: Why return success if the transfer failed?
-            return 1, msg.gas, []
+            return 0, 0, []
 
     # Main loop
     if msg.code_address in ext.specials:
