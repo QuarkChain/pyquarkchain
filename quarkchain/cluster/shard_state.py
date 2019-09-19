@@ -1648,7 +1648,7 @@ class ShardState:
                             TypedTransaction(
                                 SerializedEvmTransaction.from_evm_tx(tx)
                             ).get_hash(),
-                            address,
+                            Address(tx.sender, tx.from_full_shard_key),
                             Address(tx.to, tx.to_full_shard_key) if tx.to else None,
                             tx.value,
                             block_height=0,
