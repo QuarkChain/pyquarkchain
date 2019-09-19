@@ -137,7 +137,7 @@ class TestTransactionQueue(unittest.TestCase):
         # Verify internal state, still have remaining txs with nonce == 1
         self.assertEqual(len(q), 4)
         # Stale tx will be cleaned up in the future
-        res = q.pop_transaction(nonce_getter_maker(100))
+        res = q.pop_transaction(nonce_getter_maker(2))
         self.assertIsNone(res)
         self.assertEqual(len(q), 0)
 
