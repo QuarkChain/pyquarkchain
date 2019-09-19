@@ -147,16 +147,16 @@ workflows:
           requires:
             - build
   nightly:
-    # triggers:
-      # - schedule:
-          # cron: "0 3 * * *"
-          # filters:
-            # branches:
-              # only:
-                # - master
+    triggers:
+      - schedule:
+          cron: "0 3 * * *"
+          filters:
+            branches:
+              only:
+                - master
     jobs:
       - build
-      # - download-snapshot
+      - download-snapshot
       - check-db:
           requires:
             - build
