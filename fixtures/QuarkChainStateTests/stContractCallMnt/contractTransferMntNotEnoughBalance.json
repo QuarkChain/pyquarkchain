@@ -24,18 +24,7 @@
             "gas": 0,
             "value": 0,
             "transferTokenId": 0
-          },
-          "logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-        },
-        {
-          "hash": "0xf5811632e06923cfbbd8b8d2fc8dcd13dd0c583f96d385f203d423fd73bee80c",
-          "indexes": {
-            "data": 0,
-            "gas": 0,
-            "value": 0,
-            "transferTokenId": 0
-          },
-          "logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+          }
         }
       ]
     },
