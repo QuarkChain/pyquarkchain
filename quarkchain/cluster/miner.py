@@ -155,7 +155,7 @@ class Miner:
         get_mining_param_func: Callable[[], Dict[str, Any]],
         get_header_tip_func: Callable[[], Header],
         remote: bool = False,
-        guardian_private_key: Optional[KeyAPI.PrivateKey] = None,
+        root_signer_private_key: Optional[KeyAPI.PrivateKey] = None,
     ):
         """Mining will happen on a subprocess managed by this class
 
@@ -186,7 +186,7 @@ class Miner:
         # coinbase address -> header hash
         # key can be None, meaning default coinbase address from local config
         self.current_works = LRUCache(128)
-        self.guardian_private_key = guardian_private_key
+        self.root_signer_private_key = root_signer_private_key
 
     def start(self):
         self.enabled = True
@@ -321,9 +321,9 @@ class Miner:
             return False
 
         header.nonce, header.mixhash = nonce, mixhash
-        # sign as a guardian
-        if self.guardian_private_key and isinstance(block, RootBlock):
-            header.sign_with_private_key(self.guardian_private_key)
+        # sign using the root_signer_private_key
+        if self.root_signer_private_key and isinstance(block, RootBlock):
+            header.sign_with_private_key(self.root_signer_private_key)
 
         # remote sign as a guardian
         if isinstance(block, RootBlock) and signature is not None:
