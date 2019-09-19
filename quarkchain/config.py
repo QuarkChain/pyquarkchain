@@ -283,7 +283,7 @@ class QuarkChainConfig(BaseConfig):
     BLOCK_EXTRA_DATA_SIZE_LIMIT = 1024
 
     GUARDIAN_PUBLIC_KEY = "ab856abd0983a82972021e454fcf66ed5940ed595b0898bcd75cbe2d0a51a00f5358b566df22395a2a8bf6c022c1d51a2c3defe654e91a8d244947783029694d"
-    # at the early state, guardian privkey only specified in nodes certified by QuarkChain team
+    # root chain miner can sign the PoSW root block header using the root signer private key
     ROOT_SIGNER_PRIVATE_KEY = None
 
     # P2P
