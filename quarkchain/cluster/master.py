@@ -801,7 +801,7 @@ class MasterServer:
             __get_mining_params,
             lambda: self.root_state.tip,
             remote=root_config.CONSENSUS_CONFIG.REMOTE_MINE,
-            guardian_private_key=self.env.quark_chain_config.guardian_private_key,
+            root_signer_private_key=self.env.quark_chain_config.root_signer_private_key,
         )
 
     async def __rebroadcast_committing_root_block(self):

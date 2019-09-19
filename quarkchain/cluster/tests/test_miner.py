@@ -291,7 +291,7 @@ class TestMiner(unittest.TestCase):
             validate_seal(block_to_add.header, doublesha, adjusted_diff=diff)
 
         miner = self.miner_gen(
-            doublesha, create, add, remote=True, guardian_private_key=priv
+            doublesha, create, add, remote=True, root_signer_private_key=priv
         )
 
         async def go():

@@ -284,7 +284,7 @@ class QuarkChainConfig(BaseConfig):
 
     GUARDIAN_PUBLIC_KEY = "ab856abd0983a82972021e454fcf66ed5940ed595b0898bcd75cbe2d0a51a00f5358b566df22395a2a8bf6c022c1d51a2c3defe654e91a8d244947783029694d"
     # at the early state, guardian privkey only specified in nodes certified by QuarkChain team
-    GUARDIAN_PRIVATE_KEY = None
+    ROOT_SIGNER_PRIVATE_KEY = None
 
     # P2P
     P2P_PROTOCOL_VERSION = 0
@@ -345,7 +345,7 @@ class QuarkChainConfig(BaseConfig):
                 s.SHARD_ID = shard_id
                 self.shards[s.get_full_shard_id()] = s
 
-        self._cached_guardian_private_key = None
+        self._cached_root_signer_private_key = None
 
         self.init_and_validate()
 
@@ -430,20 +430,19 @@ class QuarkChainConfig(BaseConfig):
         )
 
     @property
-    def guardian_private_key(self) -> Optional[KeyAPI.PrivateKey]:
-        if self._cached_guardian_private_key:
-            return self._cached_guardian_private_key
+    def root_signer_private_key(self) -> Optional[KeyAPI.PrivateKey]:
+        if self._cached_root_signer_private_key:
+            return self._cached_root_signer_private_key
         # cache miss
         ret = None
-        if self.GUARDIAN_PRIVATE_KEY:
+        if self.ROOT_SIGNER_PRIVATE_KEY:
             # make sure private key and public key match
             # noinspection PyCallByClass
             privkey = KeyAPI.PrivateKey(
-                private_key_bytes=bytes.fromhex(self.GUARDIAN_PRIVATE_KEY)
+                private_key_bytes=bytes.fromhex(self.ROOT_SIGNER_PRIVATE_KEY)
             )
-            assert privkey.public_key == self.guardian_public_key
             ret = privkey
-        self._cached_guardian_private_key = ret
+        self._cached_root_signer_private_key = ret
         return ret
 
     def update(
