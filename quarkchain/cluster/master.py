@@ -994,8 +994,23 @@ class MasterServer:
 
             for crb in rb_list:
                 try:
+                    # lower the difficulty for root block signed by guardian
+                    crh, adjusted_diff = crb.header, None
+                    if crh.verify_signature(
+                        self.env.quark_chain_config.guardian_public_key
+                    ):
+                        adjusted_diff = Guardian.adjust_difficulty(
+                            crh.difficulty, crh.height
+                        )
+                    else:
+                        # could be None if PoSW not applicable
+                        adjusted_diff = await self.posw_diff_adjust(crb)
+
                     self.root_state.add_block(
-                        crb, write_db=False, skip_if_too_old=False
+                        crb,
+                        write_db=False,
+                        skip_if_too_old=False,
+                        adjusted_diff=adjusted_diff,
                     )
                 except Exception as e:
                     Logger.log_exception()
