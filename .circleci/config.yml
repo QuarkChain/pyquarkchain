@@ -136,7 +136,7 @@ jobs:
             lo=$(( height / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
             hi=$(( height / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
             echo "checking: $hi -> $lo"
-            QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
+            QKC__QUARKCHAIN__DISABLE_POW_CHECK=False ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
 
 workflows:
   version: 2
@@ -147,17 +147,8 @@ workflows:
           requires:
             - build
   nightly:
-    triggers:
-      - schedule:
-          cron: "0 3 * * *"
-          filters:
-            branches:
-              only:
-                - master
     jobs:
       - build
-      - download-snapshot
       - check-db:
           requires:
             - build
-            - download-snapshot
