@@ -4,9 +4,6 @@ from functools import total_ordering
 from typing import Callable
 
 
-MAX_STALE_TX_NONCE = 32
-
-
 @total_ordering
 class OrderableTx(object):
     def __init__(self, prio, counter, tx):
@@ -51,7 +48,7 @@ class TransactionQueue(object):
             item = self.txs[i]
             tx = item.tx
             # discard old tx
-            if tx.nonce < req_nonce_getter(tx.sender) - MAX_STALE_TX_NONCE:
+            if tx.nonce < req_nonce_getter(tx.sender):
                 self.txs.pop(i)
                 continue
             # target found
