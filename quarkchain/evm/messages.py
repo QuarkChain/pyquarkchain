@@ -283,6 +283,7 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
     state.refunds = 0
     state.full_shard_key = deposit.to_address.full_shard_key
 
+    # gas should be accounted by gas_used_start
     state.delta_token_balance(
         deposit.from_address.recipient, deposit.transfer_token_id, deposit.value
     )
@@ -380,7 +381,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             local_gas_used = tx.startgas
         elif tx.to == b"":
             state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            success = 1
             remote_gas_reserved = tx.startgas - intrinsic_gas
             ext.add_cross_shard_transaction_deposit(
                 quarkchain.core.CrossShardTransactionDeposit(
@@ -403,6 +403,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                     gas_remained=remote_gas_reserved,
                 )
             )
+            success = 1
         else:
             state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
             if (
@@ -447,6 +448,11 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         output = []
 
         state.gas_used += local_gas_used
+        if (
+            state.qkc_config.ENABLE_EVM_TIMESTAMP is None
+            or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
+        ):
+            state.gas_used -= opcodes.GTXXSHARDCOST if success else 0
 
         # Construct a receipt
         r = mk_receipt(

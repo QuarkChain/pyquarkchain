@@ -800,6 +800,69 @@ class TestShardState(unittest.TestCase):
             10000000 - 888888 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
         )
         # Make sure the xshard gas is not used by local block
+        self.assertEqual(state.evm_state.gas_used, opcodes.GTXCOST)
+        # GTXXSHARDCOST is consumed by remote shard
+        self.assertEqual(
+            state.get_token_balance(acc3.recipient, self.genesis_token),
+            self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
+        )
+
+    def test_xshard_tx_sent_old(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+        acc3 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env.quark_chain_config.ENABLE_EVM_TIMESTAMP = 2 ** 64
+        state = create_default_shard_state(env=env, shard_id=0)
+        env1 = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env1.quark_chain_config.ENABLE_EVM_TIMESTAMP = 2 ** 64
+        state1 = create_default_shard_state(env=env1, shard_id=1)
+
+        # Add a root block to update block gas limit so that xshard tx can be included
+        root_block = (
+            state.root_tip.create_block_to_append()
+            .add_minor_block_header(state.header_tip)
+            .add_minor_block_header(state1.header_tip)
+            .finalize()
+        )
+        state.add_root_block(root_block)
+
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=888888,
+            gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
+        )
+        state.add_tx(tx)
+
+        b1 = state.create_block_to_mine(address=acc3)
+        self.assertEqual(len(b1.tx_list), 1)
+
+        self.assertEqual(state.evm_state.gas_used, 0)
+        # Should succeed
+        state.finalize_and_add_block(b1)
+        self.assertEqual(len(state.evm_state.xshard_list), 1)
+        self.assertEqual(
+            state.evm_state.xshard_list[0],
+            CrossShardTransactionDeposit(
+                tx_hash=tx.get_hash(),
+                from_address=acc1,
+                to_address=acc2,
+                value=888888,
+                gas_price=1,
+                gas_token_id=self.genesis_token,
+                transfer_token_id=self.genesis_token,
+            ),
+        )
+        self.assertEqual(
+            state.get_token_balance(id1.recipient, self.genesis_token),
+            10000000 - 888888 - (opcodes.GTXCOST + opcodes.GTXXSHARDCOST),
+        )
+        # Make sure the xshard gas is not used by local block
         self.assertEqual(
             state.evm_state.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST
         )
