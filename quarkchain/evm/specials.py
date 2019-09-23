@@ -1,4 +1,5 @@
 # -*- coding: utf8 -*-
+import collections
 from enum import Enum
 
 from py_ecc.secp256k1 import N as secp256k1n
@@ -281,25 +282,51 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     return create_contract(ext, new_msg, target_addr)
 
 
-specials = {
-    decode_hex(k): v
-    for k, v in {
-        b"0000000000000000000000000000000000000001": (proc_ecrecover, 0),
-        b"0000000000000000000000000000000000000002": (proc_sha256, 0),
-        b"0000000000000000000000000000000000000003": (proc_ripemd160, 0),
-        b"0000000000000000000000000000000000000004": (proc_identity, 0),
-        b"0000000000000000000000000000000000000005": (proc_modexp, 0),
-        b"0000000000000000000000000000000000000006": (proc_ecadd, 0),
-        b"0000000000000000000000000000000000000007": (proc_ecmul, 0),
-        b"0000000000000000000000000000000000000008": (proc_ecpairing, 0),
-        b"000000000000000000000000000000514b430001": (proc_current_mnt_id, 1569567600),
-        b"000000000000000000000000000000514b430002": (proc_transfer_mnt, 1569567600),
-        b"000000000000000000000000000000514b430003": (
-            proc_deploy_root_chain_staking_contract,
-            1569567600,
-        ),
-    }.items()
-}
+class Specials(collections.Mapping):
+    def __init__(self):
+        self.store = {
+            decode_hex(k): v
+            for k, v in {
+                b"0000000000000000000000000000000000000001": (proc_ecrecover, 0),
+                b"0000000000000000000000000000000000000002": (proc_sha256, 0),
+                b"0000000000000000000000000000000000000003": (proc_ripemd160, 0),
+                b"0000000000000000000000000000000000000004": (proc_identity, 0),
+                b"0000000000000000000000000000000000000005": (proc_modexp, 0),
+                b"0000000000000000000000000000000000000006": (proc_ecadd, 0),
+                b"0000000000000000000000000000000000000007": (proc_ecmul, 0),
+                b"0000000000000000000000000000000000000008": (proc_ecpairing, 0),
+                b"000000000000000000000000000000514b430001": (proc_current_mnt_id, 0),
+                b"000000000000000000000000000000514b430002": (proc_transfer_mnt, 0),
+                b"000000000000000000000000000000514b430003": (
+                    proc_deploy_root_chain_staking_contract,
+                    0,
+                ),
+            }.items()
+        }
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, value):
+        self.store[key] = value
+
+    def __delitem__(self, key):
+        del self.store[key]
+
+    def __iter__(self):
+        return iter(self.store)
+
+    def __len__(self):
+        return len(self.store)
+
+    def configure_ts(self, addr, ts):
+        assert addr in self.store
+        proc, _ = self.store[addr]
+        # Replace timestamp.
+        self.store[addr] = proc, ts
+
+
+specials = Specials()
 
 
 class SystemContract(Enum):

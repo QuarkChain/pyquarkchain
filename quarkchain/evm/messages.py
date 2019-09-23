@@ -563,12 +563,9 @@ def _apply_msg(ext, msg, code):
             return 0, 0, []
 
     # Main loop
-    if msg.code_address in ext.specials:
-        special_proc, enable_ts = ext.specials[msg.code_address]
-        if ext.block_timestamp > enable_ts:
-            res, gas, dat = special_proc(ext, msg)
-        else:
-            res, gas, dat = vm.vm_execute(ext, msg, code)
+    special_proc, enable_ts = ext.specials.get(msg.code_address, (None, 0))
+    if special_proc and ext.block_timestamp > enable_ts:
+        res, gas, dat = special_proc(ext, msg)
     else:
         res, gas, dat = vm.vm_execute(ext, msg, code)
 
