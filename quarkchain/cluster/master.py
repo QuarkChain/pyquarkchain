@@ -993,20 +993,8 @@ class MasterServer:
                     )
 
             for crb in rb_list:
+                adjusted_diff = await self.__adjust_diff(crb)
                 try:
-                    # lower the difficulty for root block signed by guardian
-                    crh, adjusted_diff = crb.header, None
-                    if not self.env.quark_chain_config.DISABLE_POW_CHECK:
-                        if crh.verify_signature(
-                            self.env.quark_chain_config.guardian_public_key
-                        ):
-                            adjusted_diff = Guardian.adjust_difficulty(
-                                crh.difficulty, crh.height
-                            )
-                        else:
-                            # could be None if PoSW not applicable
-                            adjusted_diff = await self.posw_diff_adjust(crb)
-
                     self.root_state.add_block(
                         crb,
                         write_db=False,
@@ -1281,16 +1269,7 @@ class MasterServer:
         # use write-ahead log so if crashed the root block can be re-broadcasted
         self.root_state.write_committing_hash(r_block.header.get_hash())
 
-        # lower the difficulty for root block signed by guardian
-        r_header, adjusted_diff = r_block.header, None
-        if r_header.verify_signature(self.env.quark_chain_config.guardian_public_key):
-            adjusted_diff = Guardian.adjust_difficulty(
-                r_header.difficulty, r_header.height
-            )
-        else:
-            # could be None if PoSW not applicable
-            adjusted_diff = await self.posw_diff_adjust(r_block)
-
+        adjusted_diff = await self.__adjust_diff(r_block)
         try:
             update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
         except ValueError as e:
@@ -1310,6 +1289,17 @@ class MasterServer:
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
         self.root_state.clear_committing_hash()
+
+    async def __adjust_diff(self, r_block) -> Optional[int]:
+        """Perform proof-of-guardian or proof-of-staked-work adjustment on block difficulty."""
+        r_header, ret = r_block.header, None
+        # lower the difficulty for root block signed by guardian
+        if r_header.verify_signature(self.env.quark_chain_config.guardian_public_key):
+            ret = Guardian.adjust_difficulty(r_header.difficulty, r_header.height)
+        else:
+            # could be None if PoSW not applicable
+            ret = await self.posw_diff_adjust(r_block)
+        return ret
 
     async def add_raw_minor_block(self, branch, block_data):
         if branch.value not in self.branch_to_slaves:
