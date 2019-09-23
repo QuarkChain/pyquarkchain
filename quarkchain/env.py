@@ -4,7 +4,7 @@ from quarkchain.constants import PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.evm.specials import specials
+from quarkchain.evm.specials import specials, configure_special_contract_ts
 
 
 class Env:
@@ -34,7 +34,9 @@ class Env:
         # Configure precompiled contracts according to hard fork config
         if c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP is not None:
             for addr in PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED:
-                specials.configure_ts(addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP)
+                configure_special_contract_ts(
+                    specials, addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
+                )
 
     def copy(self):
         ret = Env(self.db, dict(self.evm_config))
