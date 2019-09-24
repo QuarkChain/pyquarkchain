@@ -21,7 +21,7 @@ class Env:
 
     @property
     def quark_chain_config(self):
-        return self.cluster_config.QUARKCHAIN
+        return self.__cluster_config.QUARKCHAIN
 
     @property
     def cluster_config(self):
