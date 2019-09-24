@@ -1,5 +1,4 @@
-import copy
-from quarkchain.config import get_default_evm_config, QuarkChainConfig
+from quarkchain.config import get_default_evm_config
 from quarkchain.constants import PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
