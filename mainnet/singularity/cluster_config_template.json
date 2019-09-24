@@ -82,9 +82,9 @@
       "POSW_CONFIG": {
         "ENABLED": true,
         "ENABLE_TIMESTAMP": 1569567600,
-        "DIFF_DIVIDER": 1000,
-        "WINDOW_SIZE": 4320,
-        "TOTAL_STAKE_PER_BLOCK": 1
+        "DIFF_DIVIDER": 10000,
+        "WINDOW_SIZE": 512,
+        "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000
       }
     },
     "CHAINS": [
