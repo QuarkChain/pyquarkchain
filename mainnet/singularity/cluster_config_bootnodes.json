@@ -121,10 +121,11 @@
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
         "EXTRA_SHARD_BLOCKS_IN_ROOT_BLOCK": 12,
         "POSW_CONFIG": {
-          "ENABLED": false,
-          "DIFF_DIVIDER": 20,
-          "WINDOW_SIZE": 256,
-          "TOTAL_STAKE_PER_BLOCK": 0
+          "ENABLED": true,
+          "ENABLE_TIMESTAMP": 1569567600,
+          "DIFF_DIVIDER": 10000,
+          "WINDOW_SIZE": 512,
+          "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000
         },
         "EPOCH_INTERVAL": 3153600
       },
