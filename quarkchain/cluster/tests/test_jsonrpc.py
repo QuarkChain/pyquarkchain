@@ -780,7 +780,7 @@ class TestJSONRPCHttp(unittest.TestCase):
                 resp = send_request(endpoint, ["0x" + tx.get_hash().hex() + "00000002"])
                 self.assertEqual(resp["transactionHash"], "0x" + tx.get_hash().hex())
                 self.assertEqual(resp["status"], "0x1")
-                self.assertEqual(resp["cumulativeGasUsed"], "0x1369c")
+                self.assertEqual(resp["cumulativeGasUsed"], "0x11374")
                 self.assertIsNone(resp["contractAddress"])
 
             # x-shard contract creation should succeed. check target shard

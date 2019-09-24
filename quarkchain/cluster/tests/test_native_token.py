@@ -293,9 +293,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(state.get_token_balance(id1.recipient, QETH), 999999 - 888888)
 
         # Make sure the xshard gas is not used by local block
-        self.assertEqual(
-            state.evm_state.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST
-        )
+        self.assertEqual(state.evm_state.gas_used, opcodes.GTXCOST)
         # GTXXSHARDCOST is consumed by remote shard
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
@@ -465,9 +463,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
 
         # Make sure the xshard gas is not used by local block
-        self.assertEqual(
-            state.evm_state.gas_used, opcodes.GTXCOST + opcodes.GTXXSHARDCOST
-        )
+        self.assertEqual(state.evm_state.gas_used, opcodes.GTXCOST)
         # block coinbase for mining is still in genesis_token
         self.assertEqual(
             state.get_token_balance(acc3.recipient, self.genesis_token),
