@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from typing import Optional, Tuple, Dict
+from quarkchain.utils import check
 
 from qkchash.qkchash import (
     CACHE_ENTRIES,
@@ -17,11 +18,9 @@ def get_qkchashlib_path():
 
 
 def init_qkc_hash_native():
-    try:
-        return QkcHashNative(get_qkchashlib_path())
-    except Exception:
-        print("====== WARNING: qkchash native is not loaded ======")
-        return None
+    qkc_hash_native = QkcHashNative(get_qkchashlib_path())
+    check(qkc_hash_native is not None)
+    return qkc_hash_native
 
 
 QKC_HASH_NATIVE = init_qkc_hash_native()
