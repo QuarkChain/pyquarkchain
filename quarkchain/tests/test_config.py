@@ -1,6 +1,7 @@
 import unittest
 from fractions import Fraction
 
+from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.config import (
     ChainConfig,
     ConsensusType,
@@ -9,6 +10,9 @@ from quarkchain.config import (
     RootConfig,
     ShardConfig,
 )
+from quarkchain.constants import PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED
+from quarkchain.env import Env
+from quarkchain.evm.specials import specials
 
 
 class TestQuarkChainConfig(unittest.TestCase):
@@ -300,3 +304,13 @@ class TestQuarkChainConfig(unittest.TestCase):
         config.REWARD_TAX_RATE = 0.123
         with self.assertRaises(AssertionError):
             _ = config.reward_tax_rate
+
+    def test_special_contract_enable_ts(self):
+        env = Env()
+        for addr in PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED:
+            self.assertEqual(specials[addr][1], 0)
+        cluster_config = ClusterConfig()
+        cluster_config.QUARKCHAIN.ENABLE_EVM_TIMESTAMP = 123
+        env.cluster_config = cluster_config
+        for addr in PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED:
+            self.assertEqual(specials[addr][1], 123)
