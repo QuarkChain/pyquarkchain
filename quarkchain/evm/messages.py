@@ -390,9 +390,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                     ),
                     to_address=quarkchain.core.Address(
                         mk_contract_address(
-                            tx.sender,
-                            state.get_nonce(tx.sender),
-                            tx.from_full_shard_key,
+                            tx.sender, tx.to_full_shard_key, state.get_nonce(tx.sender)
                         ),
                         tx.to_full_shard_key,
                     ),
