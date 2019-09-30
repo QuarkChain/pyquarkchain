@@ -59,10 +59,13 @@ class TestTransactionQueue(unittest.TestCase):
                 assert expected_s is expected_g is None
 
     def test_diff(self):
-        tx1 = make_test_tx(data=b"foo")
+        tx1 = make_test_tx(data=b"foo", nonce=1)
         tx2 = make_test_tx(data=b"bar")
         tx3 = make_test_tx(data=b"baz")
         tx4 = make_test_tx(data=b"foobar")
+        tx5 = make_test_tx(data=b"foobaz", nonce=1)
+        tx5.sender = tx1.sender
+
         q1 = TransactionQueue()
         for tx in [tx1, tx2, tx3, tx4]:
             q1.add_transaction(tx)
@@ -75,6 +78,14 @@ class TestTransactionQueue(unittest.TestCase):
         q3 = q2.diff([tx4])
         assert len(q3) == 2
         assert tx1 in [item.tx for item in q3.txs]
+        assert tx3 in [item.tx for item in q3.txs]
+
+        q3.add_transaction(tx5)
+        assert len(q3) == 3
+        assert tx1 in [item.tx for item in q3.txs]
+        assert tx5 in [item.tx for item in q3.txs]
+        q4 = q3.diff([tx5])
+        assert len(q4) == 1
         assert tx3 in [item.tx for item in q3.txs]
 
     def test_orderable_tx(self):
