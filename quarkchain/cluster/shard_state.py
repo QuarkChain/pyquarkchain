@@ -844,11 +844,22 @@ class ShardState:
         )
 
     def __remove_transactions_from_block(self, block):
-        evm_tx_list = []
+        remove_txs = []
         for tx in block.tx_list:
             self.tx_dict.pop(tx.get_hash(), None)
-            evm_tx_list.append(tx.tx.to_evm_tx())
-        self.tx_queue = self.tx_queue.diff(evm_tx_list)
+            evm_tx = tx.tx.to_evm_tx()
+            remove_txs.append((evm_tx.sender, evm_tx.nonce))
+
+        def should_remove(tx):
+            evm_tx = tx.tx.to_evm_tx()
+            return (evm_tx.sender, evm_tx.nonce) in remove_txs
+
+        self.tx_dict = {k: v for k, v in self.tx_dict.items() if not should_remove(v)}
+        self.tx_queue.txs = [
+            tx
+            for tx in self.tx_queue.txs
+            if not (tx.tx.sender, tx.tx.nonce) in remove_txs
+        ]
 
     def add_block(
         self,

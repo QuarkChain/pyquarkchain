@@ -66,12 +66,15 @@ class TransactionQueue(object):
 
     def diff(self, txs):
         remove_txs = [(tx.sender, tx.nonce) for tx in txs]
-        keep_txs = [
-            item
-            for item in self.txs
-            if (item.tx.sender, item.tx.nonce) not in remove_txs
-        ]
+        remove_hashes = []
+        keep_txs = []
+        for item in self.txs:
+            if (item.tx.sender, item.tx.nonce) in remove_txs:
+                remove_hashes.append(item.tx.hash)
+            else:
+                keep_txs.append(item)
+
         q = TransactionQueue(self.limit)
         q.txs = keep_txs
         q.counter = self.counter
-        return q
+        return q, remove_hashes
