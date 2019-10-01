@@ -1,5 +1,4 @@
 # -*- coding: utf8 -*-
-import collections
 from enum import Enum
 
 from py_ecc.secp256k1 import N as secp256k1n
