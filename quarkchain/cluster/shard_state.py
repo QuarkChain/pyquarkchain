@@ -1225,8 +1225,8 @@ class ShardState:
                 )
 
         # We don't want to drop the transactions if the mined block failed to be appended
-        for tx in poped_txs:
-            self.tx_queue.add_transaction(tx)
+        for evm_tx in poped_txs:
+            self.tx_queue.add_transaction(evm_tx)
 
     def create_block_to_mine(
         self,
