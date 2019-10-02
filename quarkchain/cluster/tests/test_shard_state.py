@@ -368,7 +368,6 @@ class TestShardState(unittest.TestCase):
         self.assertFalse(state.add_tx(tx))  # already in tx_queue
 
         self.assertEqual(len(state.tx_queue), 1)
-        self.assertEqual(len(state.tx_dict), 1)
 
         block, i = state.get_transaction_by_hash(tx.get_hash())
         self.assertEqual(len(block.tx_list), 1)
@@ -3143,7 +3142,6 @@ class TestShardState(unittest.TestCase):
         self.assertTrue(state.add_tx(tx3))
 
         self.assertEqual(len(state.tx_queue), 3)
-        self.assertEqual(len(state.tx_dict), 3)
 
         b0 = state.get_tip().create_block_to_append()
         b0.add_tx(tx3)
@@ -3151,9 +3149,7 @@ class TestShardState(unittest.TestCase):
 
         self.assertEqual(len(b0.tx_list), 2)
         self.assertEqual(len(state.tx_queue), 3)
-        self.assertEqual(len(state.tx_dict), 3)
 
         state.finalize_and_add_block(b0)
         self.assertEqual(len(b0.tx_list), 2)
         self.assertEqual(len(state.tx_queue), 0)
-        self.assertEqual(len(state.tx_dict), 0)

@@ -254,7 +254,6 @@ class ShardState:
         self.tx_queue = TransactionQueue(
             env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
         )
-        self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
         self.header_tip = None  # type: Optional[MinorBlockHeader]
         # TODO: make the oracle configurable
@@ -525,7 +524,7 @@ class ShardState:
         if self.db.contain_transaction_hash(tx_hash):
             return False
 
-        if tx_hash in self.tx_dict:
+        if tx_hash in self.tx_queue:
             return False
 
         evm_state = self.evm_state.ephemeral_clone()
@@ -535,7 +534,6 @@ class ShardState:
                 tx, evm_state, xshard_gas_limit=xshard_gas_limit
             )
             self.tx_queue.add_transaction(evm_tx)
-            self.tx_dict[tx_hash] = tx
             asyncio.ensure_future(
                 self.subscription_manager.notify_new_pending_tx(
                     [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
@@ -834,7 +832,6 @@ class ShardState:
         for tx in block.tx_list:
             evm_tx = tx.tx.to_evm_tx()
             tx_hash = tx.get_hash()
-            self.tx_dict[tx_hash] = tx
             self.tx_queue.add_transaction(evm_tx)
             tx_hashes.append(
                 tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
@@ -844,22 +841,10 @@ class ShardState:
         )
 
     def __remove_transactions_from_block(self, block):
-        remove_txs = []
+        evm_tx_list = []
         for tx in block.tx_list:
-            self.tx_dict.pop(tx.get_hash(), None)
-            evm_tx = tx.tx.to_evm_tx()
-            remove_txs.append((evm_tx.sender, evm_tx.nonce))
-
-        def should_remove(tx):
-            evm_tx = tx.tx.to_evm_tx()
-            return (evm_tx.sender, evm_tx.nonce) in remove_txs
-
-        self.tx_dict = {k: v for k, v in self.tx_dict.items() if not should_remove(v)}
-        self.tx_queue.txs = [
-            tx
-            for tx in self.tx_queue.txs
-            if not (tx.tx.sender, tx.tx.nonce) in remove_txs
-        ]
+            evm_tx_list.append(tx.tx.to_evm_tx())
+        self.tx_queue = self.tx_queue.diff(evm_tx_list)
 
     def add_block(
         self,
@@ -1238,11 +1223,10 @@ class ShardState:
                 Logger.warning_every_sec(
                     "Failed to include transaction: {}".format(e), 1
                 )
-                self.tx_dict.pop(tx.get_hash(), None)
 
         # We don't want to drop the transactions if the mined block failed to be appended
-        for evm_tx in poped_txs:
-            self.tx_queue.add_transaction(evm_tx)
+        for tx in poped_txs:
+            self.tx_queue.add_transaction(tx)
 
     def create_block_to_mine(
         self,
@@ -1588,9 +1572,10 @@ class ShardState:
         block, index = self.db.get_transaction_by_hash(h)
         if block:
             return block, index
-        if h in self.tx_dict:
+        if h in self.tx_queue:
             block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            block.tx_list.append(self.tx_dict[h])
+            tx = self.tx_queue.get_transaction_by_hash(h)
+            block.tx_list.append(tx)
             return block, 0
         return None, None
 

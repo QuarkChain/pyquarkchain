@@ -3,6 +3,8 @@ from functools import total_ordering
 
 from typing import Callable
 
+from quarkchain.core import TypedTransaction, SerializedEvmTransaction
+
 
 @total_ordering
 class OrderableTx(object):
@@ -25,19 +27,30 @@ class TransactionQueue(object):
         self.counter = 0
         self.limit = limit
         self.txs = []
+        self.tx_dict = dict()  # type: Dict[hash, OrderableTx]
 
     def __len__(self):
         return len(self.txs)
 
-    def add_transaction(self, tx):
+    def __contains__(self, tx_hash):
+        return tx_hash in self.tx_dict
+
+    def __remove_hash(self, evm_tx):
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
+        self.tx_dict.pop(tx.get_hash(), None)
+
+    def add_transaction(self, evm_tx):
+        tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         if len(self.txs) >= self.limit:
-            if tx.gasprice < self.txs[-1].tx.gasprice:
+            if evm_tx.gasprice < self.txs[-1].tx.gasprice:
                 return  # no-op
-            self.txs.pop(-1)
-        prio = -tx.gasprice
-        ordered_tx = OrderableTx(prio, self.counter, tx)
+            pop_tx = self.txs.pop(-1)
+            self.__remove_hash(pop_tx.tx)
+        prio = -evm_tx.gasprice
+        ordered_tx = OrderableTx(prio, self.counter, evm_tx)
         # amortized O(n) cost, ~9x slower than heapq push, may need optimization if becoming a bottleneck
         bisect.insort(self.txs, ordered_tx)
+        self.tx_dict[tx.get_hash()] = ordered_tx
         self.counter += 1
 
     def pop_transaction(
@@ -49,11 +62,13 @@ class TransactionQueue(object):
             tx = item.tx
             # discard old tx
             if tx.nonce < req_nonce_getter(tx.sender):
-                self.txs.pop(i)
+                pop_tx = self.txs.pop(i)
+                self.__remove_hash(pop_tx.tx)
                 continue
             # target found
             if tx.startgas <= max_gas and req_nonce_getter(tx.sender) == tx.nonce:
-                self.txs.pop(i)
+                pop_tx = self.txs.pop(i)
+                self.__remove_hash(pop_tx.tx)
                 return tx
             i += 1
         return None
@@ -63,3 +78,19 @@ class TransactionQueue(object):
             return self.txs[0:num]
         else:
             return self.txs
+
+    def diff(self, txs):
+        remove_txs = [(tx.sender, tx.nonce) for tx in txs]
+        keep_txs = [
+            item
+            for item in self.txs
+            if (item.tx.sender, item.tx.nonce) not in remove_txs
+        ]
+        q = TransactionQueue(self.limit)
+        q.txs = keep_txs
+        q.counter = self.counter
+        return q
+
+    def get_transaction_by_hash(self, hash):
+        evm_tx = self.tx_dict[hash].tx
+        return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
