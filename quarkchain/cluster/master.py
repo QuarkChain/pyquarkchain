@@ -1211,7 +1211,7 @@ class MasterServer:
 
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
-        evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
+        evm_tx = tx.tx.evm_tx  # type: EvmTransaction
         if evm_tx.gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
             return False
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
@@ -1241,7 +1241,7 @@ class MasterServer:
         self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
-        evm_tx = tx.tx.to_evm_tx()
+        evm_tx = tx.tx.evm_tx
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:
@@ -1614,7 +1614,7 @@ class MasterServer:
     async def estimate_gas(
         self, tx: TypedTransaction, from_address: Address
     ) -> Optional[int]:
-        evm_tx = tx.tx.to_evm_tx()
+        evm_tx = tx.tx.evm_tx
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:

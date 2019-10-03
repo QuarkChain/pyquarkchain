@@ -269,7 +269,7 @@ def tx_encoder(block, i):
     `transaction` is the `i`th transaction in `block`.
     """
     tx = block.tx_list[i]
-    evm_tx = tx.tx.to_evm_tx()
+    evm_tx = tx.tx.evm_tx
     branch = block.header.branch
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
@@ -347,7 +347,7 @@ def receipt_encoder(block: MinorBlock, i: int, receipt: TransactionReceipt):
     tx_id, tx_hash = None, None  # if empty, will be populated at call site
     if i < len(block.tx_list):
         tx = block.tx_list[i]
-        evm_tx = tx.tx.to_evm_tx()
+        evm_tx = tx.tx.evm_tx
         tx_id = id_encoder(tx.get_hash(), evm_tx.from_full_shard_key)
         tx_hash = data_encoder(tx.get_hash())
     resp = {

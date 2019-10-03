@@ -50,7 +50,7 @@ class TransactionGenerator:
             start_time = time.time()
             tx_list = []
             total = 0
-            sample_evm_tx = sample_tx.tx.to_evm_tx()
+            sample_evm_tx = sample_tx.tx.evm_tx
             for account in self.accounts:
                 nonce = self.shard.state.get_transaction_count(
                     account.address.recipient
