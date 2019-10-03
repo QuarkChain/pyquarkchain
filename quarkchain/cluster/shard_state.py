@@ -1190,8 +1190,6 @@ class ShardState:
 
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
 
-            # tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
-
             # check if TX is disabled
             if (
                 self.env.quark_chain_config.ENABLE_TX_TIMESTAMP is not None
