@@ -3,7 +3,7 @@ from functools import total_ordering
 
 from typing import Callable, List
 
-from quarkchain.core import TypedTransaction, SerializedEvmTransaction
+from quarkchain.core import TypedTransaction
 
 
 @total_ordering
@@ -26,8 +26,8 @@ class TransactionQueue(object):
     def __init__(self, limit: int = 10000):
         self.counter = 0
         self.limit = limit
-        self.txs = []  # type: Dict[OrderableTx]
-        self.tx_dict = dict()  # type: Dict[hash, OrderableTx]
+        self.txs = []  # type: List[OrderableTx]
+        self.tx_dict = dict()  # type: Dict[bytes, OrderableTx]
 
     def __len__(self):
         return len(self.txs)
