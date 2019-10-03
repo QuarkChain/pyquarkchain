@@ -1,7 +1,7 @@
 import bisect
 from functools import total_ordering
 
-from typing import Callable
+from typing import Callable, List
 
 from quarkchain.core import TypedTransaction, SerializedEvmTransaction
 
@@ -26,7 +26,7 @@ class TransactionQueue(object):
     def __init__(self, limit: int = 10000):
         self.counter = 0
         self.limit = limit
-        self.txs = []
+        self.txs = []  # type: Dict[OrderableTx]
         self.tx_dict = dict()  # type: Dict[hash, OrderableTx]
 
     def __len__(self):
@@ -57,21 +57,21 @@ class TransactionQueue(object):
     ):
         i, found = 0, None
         while i < len(self.txs):
-            item = self.txs[i]
-            tx = item.tx
+            item = self.txs[i]  # type: OrderableTx
+            tx = item.tx  # type: TypedTransaction
             evm_tx = tx.tx.evm_tx
             # discard old tx
             if evm_tx.nonce < req_nonce_getter(evm_tx.sender):
-                pop_tx = self.txs.pop(i)
-                self.tx_dict.pop(pop_tx.tx.get_hash(), None)
+                pop_tx = self.txs.pop(i).tx  # type: TypedTransaction
+                self.tx_dict.pop(pop_tx.get_hash(), None)
                 continue
             # target found
             if (
                 evm_tx.startgas <= max_gas
                 and req_nonce_getter(evm_tx.sender) == evm_tx.nonce
             ):
-                pop_tx = self.txs.pop(i)
-                self.tx_dict.pop(pop_tx.tx.get_hash(), None)
+                pop_tx = self.txs.pop(i).tx  # type: TypedTransaction
+                self.tx_dict.pop(pop_tx.get_hash(), None)
                 return tx
             i += 1
         return None
@@ -82,7 +82,7 @@ class TransactionQueue(object):
         else:
             return self.txs
 
-    def diff(self, txs):
+    def diff(self, txs: List[TypedTransaction]):
         remove_txs = [(tx.tx.evm_tx.sender, tx.tx.evm_tx.nonce) for tx in txs]
 
         keep_txs = []
