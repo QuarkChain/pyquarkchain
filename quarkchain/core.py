@@ -554,6 +554,7 @@ class SerializedEvmTransaction(Serializable):
         check(type == TransactionType.SERIALIZED_EVM)
         self.type = TransactionType.SERIALIZED_EVM
         self.serialized_tx = serialized_tx
+        self.evm_tx = None
 
     @classmethod
     def from_evm_tx(cls, evm_tx: EvmTransaction):
@@ -562,7 +563,9 @@ class SerializedEvmTransaction(Serializable):
         )
 
     def to_evm_tx(self) -> EvmTransaction:
-        return rlp.decode(self.serialized_tx, EvmTransaction)
+        if self.evm_tx is None:
+            self.evm_tx = rlp.decode(self.serialized_tx, EvmTransaction)
+        return self.evm_tx
 
 
 class TypedTransaction(Serializable):
