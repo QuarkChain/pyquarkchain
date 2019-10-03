@@ -533,7 +533,7 @@ class ShardState:
             evm_tx = self.__validate_tx(
                 tx, evm_state, xshard_gas_limit=xshard_gas_limit
             )
-            self.tx_queue.add_transaction(evm_tx)
+            self.tx_queue.add_transaction(tx)
             asyncio.ensure_future(
                 self.subscription_manager.notify_new_pending_tx(
                     [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
@@ -832,7 +832,7 @@ class ShardState:
         for tx in block.tx_list:
             evm_tx = tx.tx.to_evm_tx()
             tx_hash = tx.get_hash()
-            self.tx_queue.add_transaction(evm_tx)
+            self.tx_queue.add_transaction(tx)
             tx_hashes.append(
                 tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
             )
@@ -841,10 +841,7 @@ class ShardState:
         )
 
     def __remove_transactions_from_block(self, block):
-        evm_tx_list = []
-        for tx in block.tx_list:
-            evm_tx_list.append(tx.tx.to_evm_tx())
-        self.tx_queue = self.tx_queue.diff(evm_tx_list)
+        self.tx_queue = self.tx_queue.diff(block.tx_list)
 
     def add_block(
         self,
@@ -1178,12 +1175,14 @@ class ShardState:
         poped_txs = []
 
         while evm_state.gas_used < evm_state.gas_limit:
-            evm_tx = self.tx_queue.pop_transaction(
+            tx = self.tx_queue.pop_transaction(
                 req_nonce_getter=evm_state.get_nonce,
                 max_gas=evm_state.gas_limit - evm_state.gas_used,
             )
-            if evm_tx is None:  # tx_queue is exhausted
+            if tx is None:  # tx_queue is exhausted
                 break
+
+            evm_tx = tx.tx.to_evm_tx()
 
             # simply ignore tx with lower gas price than specified
             if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
@@ -1191,7 +1190,7 @@ class ShardState:
 
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
 
-            tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
+            # tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
             # check if TX is disabled
             if (
@@ -1218,15 +1217,15 @@ class ShardState:
             try:
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 block.add_tx(tx)
-                poped_txs.append(evm_tx)
+                poped_txs.append(tx)
             except Exception as e:
                 Logger.warning_every_sec(
                     "Failed to include transaction: {}".format(e), 1
                 )
 
         # We don't want to drop the transactions if the mined block failed to be appended
-        for evm_tx in poped_txs:
-            self.tx_queue.add_transaction(evm_tx)
+        for tx in poped_txs:
+            self.tx_queue.add_transaction(tx)
 
     def create_block_to_mine(
         self,
@@ -1574,8 +1573,7 @@ class ShardState:
             return block, index
         if h in self.tx_queue:
             block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            tx = self.tx_queue.get_transaction_by_hash(h)
-            block.tx_list.append(tx)
+            block.tx_list.append(self.tx_queue[h])
             return block, 0
         return None, None
 

@@ -2487,7 +2487,7 @@ class TestShardState(unittest.TestCase):
             gas=21000,
             gas_price=0,
         )
-        state.tx_queue.add_transaction(tx0.tx.to_evm_tx())
+        state.tx_queue.add_transaction(tx0)
 
         m = state.create_block_to_mine(address=acc1)
         state.finalize_and_add_block(m)
