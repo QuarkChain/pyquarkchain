@@ -21,8 +21,8 @@ def make_test_tx(s=100000, g=50, data=b"", nonce=0, key=None):
     )
     if key:
         evm_tx.sign(key=key)
-    tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
-    return tx
+
+    return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
 
 class TestTransactionQueue(unittest.TestCase):
