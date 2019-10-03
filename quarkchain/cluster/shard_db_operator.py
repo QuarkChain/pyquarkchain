@@ -56,7 +56,7 @@ class TransactionHistoryMixin:
         return CrossShardTransactionList.from_data(data).tx_list
 
     def __update_transaction_history_index(self, tx, block_height, index, func):
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         key = self.__encode_alltx_key(block_height, index, False)
         func(key, b"")
         key = self.__encode_address_transaction_key(
@@ -228,7 +228,7 @@ class TransactionHistoryMixin:
                     self.db, index, x_shard_receive_tx_list=None
                 )
                 tx = m_block.tx_list[index]  # type: TypedTransaction
-                evm_tx = tx.tx.evm_tx
+                evm_tx = tx.tx.to_evm_tx()
                 tx_hash = tx.get_hash()
                 if tx_hash not in tx_hashes and not skip_tx(evm_tx):
                     limit -= 1

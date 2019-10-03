@@ -554,7 +554,6 @@ class SerializedEvmTransaction(Serializable):
         check(type == TransactionType.SERIALIZED_EVM)
         self.type = TransactionType.SERIALIZED_EVM
         self.serialized_tx = serialized_tx
-        self.evm_tx = self.__to_evm_tx()
 
     @classmethod
     def from_evm_tx(cls, evm_tx: EvmTransaction):
@@ -562,7 +561,7 @@ class SerializedEvmTransaction(Serializable):
             TransactionType.SERIALIZED_EVM, rlp.encode(evm_tx)
         )
 
-    def __to_evm_tx(self) -> EvmTransaction:
+    def to_evm_tx(self) -> EvmTransaction:
         return rlp.decode(self.serialized_tx, EvmTransaction)
 
 
@@ -855,7 +854,7 @@ class MinorBlock(Serializable):
     def get_block_prices(self) -> Dict[int, list]:
         prices = {}
         for typed_tx in self.tx_list:
-            evm_tx = typed_tx.tx.evm_tx
+            evm_tx = typed_tx.tx.to_evm_tx()
             prices.setdefault(evm_tx.gas_token_id, []).append(evm_tx.gasprice)
 
         return prices

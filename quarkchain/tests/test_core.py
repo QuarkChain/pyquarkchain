@@ -261,7 +261,7 @@ class TestTypedTransaction(unittest.TestCase):
 
         recovered_typed_tx = TypedTransaction.deserialize(typed_tx_bytes)
         self.assertEqual(recovered_typed_tx.tx, serialized_evm_tx)
-        self.assertEqual(recovered_typed_tx.tx.evm_tx, evm_tx)
+        self.assertEqual(recovered_typed_tx.tx.to_evm_tx(), evm_tx)
 
 
 class MapData(Serializable):

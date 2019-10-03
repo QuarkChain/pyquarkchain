@@ -400,7 +400,7 @@ class ShardState:
         xshard_gas_limit=None,
     ) -> EvmTransaction:
         """from_address will be set for execute_tx"""
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
 
         if from_address:
             check(evm_tx.from_full_shard_key == from_address.full_shard_key)
@@ -830,7 +830,7 @@ class ShardState:
     def __add_transactions_from_block(self, block):
         tx_hashes = []
         for tx in block.tx_list:
-            evm_tx = tx.tx.evm_tx
+            evm_tx = tx.tx.to_evm_tx()
             tx_hash = tx.get_hash()
             self.tx_queue.add_transaction(tx)
             tx_hashes.append(
@@ -1092,7 +1092,7 @@ class ShardState:
         state.gas_used = 0
 
         # Use the maximum gas allowed if gas is 0
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         gas = evm_tx.startgas if evm_tx.startgas else state.gas_limit
 
         try:
@@ -1182,7 +1182,7 @@ class ShardState:
             if tx is None:  # tx_queue is exhausted
                 break
 
-            evm_tx = tx.tx.evm_tx
+            evm_tx = tx.tx.to_evm_tx()
 
             # simply ignore tx with lower gas price than specified
             if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
@@ -1721,7 +1721,7 @@ class ShardState:
 
     def estimate_gas(self, tx: TypedTransaction, from_address) -> Optional[int]:
         """Estimate a tx's gas usage by binary searching."""
-        evm_tx_start_gas = tx.tx.evm_tx.startgas
+        evm_tx_start_gas = tx.tx.to_evm_tx().startgas
         # binary search. similar as in go-ethereum
         lo = 21000 - 1
         hi = evm_tx_start_gas if evm_tx_start_gas > 21000 else self.evm_state.gas_limit

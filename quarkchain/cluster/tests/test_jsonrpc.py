@@ -189,7 +189,9 @@ class TestJSONRPCHttp(unittest.TestCase):
             state = clusters[0].get_shard_state(2 | 0)
             self.assertEqual(len(state.tx_queue), 1)
             self.assertEqual(
-                state.tx_queue.pop_transaction(state.get_transaction_count).tx.evm_tx,
+                state.tx_queue.pop_transaction(
+                    state.get_transaction_count
+                ).tx.to_evm_tx(),
                 evm_tx,
             )
 

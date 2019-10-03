@@ -244,19 +244,19 @@ class TestCluster(unittest.TestCase):
 
             # check the tx is received by the other cluster
             state0 = clusters[1].get_shard_state(0b10)
-            tx_queue, expect_evm_tx1 = state0.tx_queue, tx1.tx.evm_tx
+            tx_queue, expect_evm_tx1 = state0.tx_queue, tx1.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
             actual_evm_tx = tx_queue.pop_transaction(
                 state0.get_transaction_count
-            ).tx.evm_tx
+            ).tx.to_evm_tx()
             self.assertEqual(actual_evm_tx, expect_evm_tx1)
 
             state1 = clusters[1].get_shard_state(0b11)
-            tx_queue, expect_evm_tx2 = state1.tx_queue, tx2.tx.evm_tx
+            tx_queue, expect_evm_tx2 = state1.tx_queue, tx2.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
             actual_evm_tx = tx_queue.pop_transaction(
                 state1.get_transaction_count
-            ).tx.evm_tx
+            ).tx.to_evm_tx()
             self.assertEqual(actual_evm_tx, expect_evm_tx2)
 
     def test_add_minor_block_request_list(self):
@@ -796,7 +796,7 @@ class TestCluster(unittest.TestCase):
                 to_address=acc4,
                 value=1234,
                 gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-                nonce=tx1.tx.evm_tx.nonce + 1,
+                nonce=tx1.tx.to_evm_tx().nonce + 1,
             )
             self.assertTrue(slaves[0].add_tx(tx2))
 
@@ -963,7 +963,7 @@ class TestCluster(unittest.TestCase):
                 to_address=acc3,
                 value=5555,
                 gas=opcodes.GTXXSHARDCOST + opcodes.GTXCOST,
-                nonce=tx1.tx.evm_tx.nonce + 1,
+                nonce=tx1.tx.to_evm_tx().nonce + 1,
                 gas_price=3,
             )
             self.assertTrue(slaves[0].add_tx(tx2))

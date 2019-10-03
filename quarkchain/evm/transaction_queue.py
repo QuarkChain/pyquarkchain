@@ -39,9 +39,9 @@ class TransactionQueue(object):
         return self.tx_dict[h].tx
 
     def add_transaction(self, tx: TypedTransaction):
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         if len(self.txs) >= self.limit:
-            if evm_tx.gasprice < self.txs[-1].tx.tx.evm_tx.gasprice:
+            if evm_tx.gasprice < self.txs[-1].tx.tx.to_evm_tx().gasprice:
                 return  # no-op
             pop_tx = self.txs.pop(-1)
             self.tx_dict.pop(pop_tx.tx.get_hash(), None)
@@ -59,7 +59,7 @@ class TransactionQueue(object):
         while i < len(self.txs):
             item = self.txs[i]  # type: OrderableTx
             tx = item.tx  # type: TypedTransaction
-            evm_tx = tx.tx.evm_tx
+            evm_tx = tx.tx.to_evm_tx()
             # discard old tx
             if evm_tx.nonce < req_nonce_getter(evm_tx.sender):
                 pop_tx = self.txs.pop(i).tx  # type: TypedTransaction
@@ -83,13 +83,13 @@ class TransactionQueue(object):
             return self.txs
 
     def diff(self, txs: List[TypedTransaction]):
-        remove_txs = [(tx.tx.evm_tx.sender, tx.tx.evm_tx.nonce) for tx in txs]
+        remove_txs = [(tx.tx.to_evm_tx().sender, tx.tx.to_evm_tx().nonce) for tx in txs]
 
         keep_txs = []
         tx_hashes = dict()
         for item in self.txs:
             tx = item.tx
-            evm_tx = tx.tx.evm_tx
+            evm_tx = tx.tx.to_evm_tx()
             if (evm_tx.sender, evm_tx.nonce) not in remove_txs:
                 keep_txs.append(item)
                 tx_hashes[tx.get_hash()] = item

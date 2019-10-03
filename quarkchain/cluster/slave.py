@@ -1184,7 +1184,7 @@ class SlaveServer:
         return await shard.add_block_list_for_sync(block_list)
 
     def add_tx(self, tx: TypedTransaction) -> bool:
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
@@ -1195,7 +1195,7 @@ class SlaveServer:
     def execute_tx(
         self, tx: TypedTransaction, from_address: Address, height: Optional[int]
     ) -> Optional[bytes]:
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
@@ -1329,7 +1329,7 @@ class SlaveServer:
         return shard.state.get_logs(addresses, topics, start_block, end_block)
 
     def estimate_gas(self, tx: TypedTransaction, from_address) -> Optional[int]:
-        evm_tx = tx.tx.evm_tx
+        evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)

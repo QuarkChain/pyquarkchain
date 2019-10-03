@@ -2551,7 +2551,7 @@ class TestShardState(unittest.TestCase):
             value=2,
             gas=30000,
             gas_price=1,
-            nonce=tx0.tx.evm_tx.nonce + 1,
+            nonce=tx0.tx.to_evm_tx().nonce + 1,
         )
         self.assertTrue(state.add_tx(tx1))
 
@@ -3024,7 +3024,7 @@ class TestShardState(unittest.TestCase):
                 gas=100000,
                 gas_price=0,
                 data=bytes.fromhex(data),
-            ).tx.evm_tx
+            ).tx.to_evm_tx()
             ret.set_quark_chain_config(env.quark_chain_config)
             return ret
 
