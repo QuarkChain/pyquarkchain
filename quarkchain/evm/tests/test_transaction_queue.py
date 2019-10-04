@@ -1,11 +1,12 @@
 import unittest
 
+from quarkchain.core import TypedTransaction, SerializedEvmTransaction
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.evm.transaction_queue import OrderableTx, TransactionQueue
 
 
-def make_test_tx(s=100000, g=50, data=b"", nonce=0):
-    return EvmTransaction(
+def make_test_tx(s=100000, g=50, data=b"", nonce=0, key=None):
+    evm_tx = EvmTransaction(
         nonce=nonce,
         startgas=s,
         gasprice=g,
@@ -18,12 +19,16 @@ def make_test_tx(s=100000, g=50, data=b"", nonce=0):
         s=1,
         v=28,
     )
+    if key:
+        evm_tx.sign(key=key)
+
+    return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
 
 class TestTransactionQueue(unittest.TestCase):
     @staticmethod
     def _gasprices(q: TransactionQueue):
-        return [i.tx.gasprice for i in q.txs]
+        return [i.tx.tx.to_evm_tx().gasprice for i in q.txs]
 
     def test(self):
         q = TransactionQueue()
@@ -54,15 +59,19 @@ class TestTransactionQueue(unittest.TestCase):
         for (max_gas, expected_s, expected_g) in operations:
             tx = q.pop_transaction(req_nonce_getter=lambda _: 0, max_gas=max_gas)
             if tx:
-                assert (tx.startgas, tx.gasprice) == (expected_s, expected_g)
+                evm_tx = tx.tx.to_evm_tx()
+                assert (evm_tx.startgas, evm_tx.gasprice) == (expected_s, expected_g)
             else:
                 assert expected_s is expected_g is None
 
     def test_diff(self):
-        tx1 = make_test_tx(data=b"foo")
+        key = b"00000000000000000000000000000000"
+        tx1 = make_test_tx(data=b"foo", nonce=1, key=key)
         tx2 = make_test_tx(data=b"bar")
         tx3 = make_test_tx(data=b"baz")
         tx4 = make_test_tx(data=b"foobar")
+        tx5 = make_test_tx(data=b"foobaz", nonce=1, key=key)
+
         q1 = TransactionQueue()
         for tx in [tx1, tx2, tx3, tx4]:
             q1.add_transaction(tx)
@@ -75,6 +84,14 @@ class TestTransactionQueue(unittest.TestCase):
         q3 = q2.diff([tx4])
         assert len(q3) == 2
         assert tx1 in [item.tx for item in q3.txs]
+        assert tx3 in [item.tx for item in q3.txs]
+
+        q3.add_transaction(tx5)
+        assert len(q3) == 3
+        assert tx1 in [item.tx for item in q3.txs]
+        assert tx5 in [item.tx for item in q3.txs]
+        q4 = q3.diff([tx5])
+        assert len(q4) == 1
         assert tx3 in [item.tx for item in q3.txs]
 
     def test_orderable_tx(self):
@@ -94,7 +111,7 @@ class TestTransactionQueue(unittest.TestCase):
         expected_nonce_order = [i for i in range(count)]
         nonces = []
         for i in range(count):
-            tx = q.pop_transaction(req_nonce_getter=lambda _: i)
+            tx = q.pop_transaction(req_nonce_getter=lambda _: i).tx.to_evm_tx()
             nonces.append(tx.nonce)
         # Since they have the same gasprice they should have the same priority and
         # thus be popped in the order they were inserted.
@@ -128,10 +145,10 @@ class TestTransactionQueue(unittest.TestCase):
         self.assertEqual(len(q), 5)
         # Add first valid tx
         q.add_transaction(make_test_tx(nonce=0))
-        res = q.pop_transaction(nonce_getter_maker(0))
+        res = q.pop_transaction(nonce_getter_maker(0)).tx.to_evm_tx()
         self.assertIsNotNone(res)
         # Now verify next tx
-        res = q.pop_transaction(nonce_getter_maker(1))
+        res = q.pop_transaction(nonce_getter_maker(1)).tx.to_evm_tx()
         self.assertEqual(res.nonce, 1)
         self.assertEqual(res.gasprice, 5)
         # Verify internal state, still have remaining txs with nonce == 1
