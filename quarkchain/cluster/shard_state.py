@@ -317,7 +317,9 @@ class ShardState:
         self.confirmed_header_tip = confirmed_header_tip
         sender_disallow_map = self._get_sender_disallow_map(header_tip)
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, sender_disallow_map
+            self.meta_tip.hash_evm_state_root,
+            sender_disallow_map,
+            header_tip.create_time + 1,
         )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(header_tip_hash)
@@ -329,7 +331,10 @@ class ShardState:
         )
 
     def __create_evm_state(
-        self, trie_root_hash: Optional[bytes], sender_disallow_map: Dict[bytes, int]
+        self,
+        trie_root_hash: Optional[bytes],
+        sender_disallow_map: Dict[bytes, int],
+        timestamp: Optional[int] = None,
     ):
         """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
@@ -339,6 +344,8 @@ class ShardState:
         if trie_root_hash:
             state.trie.root_hash = trie_root_hash
         state.sender_disallow_map = sender_disallow_map
+        if timestamp:
+            state.timestamp = timestamp
         return state
 
     def init_genesis_state(self, root_block):
@@ -553,10 +560,11 @@ class ShardState:
             prev_minor_header, recipient=coinbase_recipient
         )
 
-        state = self.__create_evm_state(root_hash, sender_disallow_map)
+        state = self.__create_evm_state(
+            root_hash, sender_disallow_map, block.header.create_time
+        )
         if ephemeral:
             state = state.ephemeral_clone()
-        state.timestamp = block.header.create_time
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
@@ -1472,7 +1480,9 @@ class ShardState:
             b = self.db.get_minor_block_by_hash(h)
             sender_disallow_map = self._get_sender_disallow_map(b.header)
             evm_state = self.__create_evm_state(
-                b.meta.hash_evm_state_root, sender_disallow_map
+                b.meta.hash_evm_state_root,
+                sender_disallow_map,
+                b.header.create_time + 1,
             )
             self.__update_tip(b, evm_state)
             Logger.info(
