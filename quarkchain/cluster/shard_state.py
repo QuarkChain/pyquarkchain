@@ -565,7 +565,6 @@ class ShardState:
         )
         if ephemeral:
             state = state.ephemeral_clone()
-        state.timestamp = block.header.create_time
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
