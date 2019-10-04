@@ -368,7 +368,6 @@ class TestShardState(unittest.TestCase):
         self.assertFalse(state.add_tx(tx))  # already in tx_queue
 
         self.assertEqual(len(state.tx_queue), 1)
-        self.assertEqual(len(state.tx_dict), 1)
 
         block, i = state.get_transaction_by_hash(tx.get_hash())
         self.assertEqual(len(block.tx_list), 1)
@@ -2488,7 +2487,7 @@ class TestShardState(unittest.TestCase):
             gas=21000,
             gas_price=0,
         )
-        state.tx_queue.add_transaction(tx0.tx.to_evm_tx())
+        state.tx_queue.add_transaction(tx0)
 
         m = state.create_block_to_mine(address=acc1)
         state.finalize_and_add_block(m)
@@ -3103,3 +3102,53 @@ class TestShardState(unittest.TestCase):
         )
         self.assertEqual(stakes, 42)
         self.assertEqual(signer, random_signer.recipient)
+
+    def test_remove_tx_from_queue_with_higher_nonce(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        state = create_default_shard_state(env=env)
+
+        tx1 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=11,
+            nonce=1,
+        )
+        self.assertTrue(state.add_tx(tx1))
+
+        tx2 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=22,
+            nonce=1,
+        )
+        self.assertTrue(state.add_tx(tx2))
+
+        tx3 = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=33,
+            nonce=0,
+        )
+        self.assertTrue(state.add_tx(tx3))
+
+        self.assertEqual(len(state.tx_queue), 3)
+
+        b0 = state.get_tip().create_block_to_append()
+        b0.add_tx(tx3)
+        b0.add_tx(tx1)
+
+        self.assertEqual(len(b0.tx_list), 2)
+        self.assertEqual(len(state.tx_queue), 3)
+
+        state.finalize_and_add_block(b0)
+        self.assertEqual(len(state.tx_queue), 0)

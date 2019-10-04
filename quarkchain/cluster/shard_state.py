@@ -254,7 +254,6 @@ class ShardState:
         self.tx_queue = TransactionQueue(
             env.quark_chain_config.TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD
         )
-        self.tx_dict = dict()  # hash -> Transaction for explorer
         self.initialized = False
         self.header_tip = None  # type: Optional[MinorBlockHeader]
         # TODO: make the oracle configurable
@@ -525,7 +524,7 @@ class ShardState:
         if self.db.contain_transaction_hash(tx_hash):
             return False
 
-        if tx_hash in self.tx_dict:
+        if tx_hash in self.tx_queue:
             return False
 
         evm_state = self.evm_state.ephemeral_clone()
@@ -534,8 +533,7 @@ class ShardState:
             evm_tx = self.__validate_tx(
                 tx, evm_state, xshard_gas_limit=xshard_gas_limit
             )
-            self.tx_queue.add_transaction(evm_tx)
-            self.tx_dict[tx_hash] = tx
+            self.tx_queue.add_transaction(tx)
             asyncio.ensure_future(
                 self.subscription_manager.notify_new_pending_tx(
                     [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
@@ -834,8 +832,7 @@ class ShardState:
         for tx in block.tx_list:
             evm_tx = tx.tx.to_evm_tx()
             tx_hash = tx.get_hash()
-            self.tx_dict[tx_hash] = tx
-            self.tx_queue.add_transaction(evm_tx)
+            self.tx_queue.add_transaction(tx)
             tx_hashes.append(
                 tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
             )
@@ -844,11 +841,7 @@ class ShardState:
         )
 
     def __remove_transactions_from_block(self, block):
-        evm_tx_list = []
-        for tx in block.tx_list:
-            self.tx_dict.pop(tx.get_hash(), None)
-            evm_tx_list.append(tx.tx.to_evm_tx())
-        self.tx_queue = self.tx_queue.diff(evm_tx_list)
+        self.tx_queue = self.tx_queue.diff(block.tx_list)
 
     def add_block(
         self,
@@ -1135,7 +1128,7 @@ class ShardState:
         # TODO: the current calculation is bogus and just serves as a placeholder.
         coinbase = 0
         for tx_wrapper in self.tx_queue.peek():
-            tx = tx_wrapper.tx
+            tx = tx_wrapper.tx.tx.to_evm_tx()
             coinbase += tx.gasprice * tx.startgas
 
         # TODO: add x-shard tx
@@ -1182,20 +1175,20 @@ class ShardState:
         poped_txs = []
 
         while evm_state.gas_used < evm_state.gas_limit:
-            evm_tx = self.tx_queue.pop_transaction(
+            tx = self.tx_queue.pop_transaction(
                 req_nonce_getter=evm_state.get_nonce,
                 max_gas=evm_state.gas_limit - evm_state.gas_used,
             )
-            if evm_tx is None:  # tx_queue is exhausted
+            if tx is None:  # tx_queue is exhausted
                 break
+
+            evm_tx = tx.tx.to_evm_tx()
 
             # simply ignore tx with lower gas price than specified
             if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
                 continue
 
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
-
-            tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
             # check if TX is disabled
             if (
@@ -1222,16 +1215,15 @@ class ShardState:
             try:
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 block.add_tx(tx)
-                poped_txs.append(evm_tx)
+                poped_txs.append(tx)
             except Exception as e:
                 Logger.warning_every_sec(
                     "Failed to include transaction: {}".format(e), 1
                 )
-                self.tx_dict.pop(tx.get_hash(), None)
 
         # We don't want to drop the transactions if the mined block failed to be appended
-        for evm_tx in poped_txs:
-            self.tx_queue.add_transaction(evm_tx)
+        for tx in poped_txs:
+            self.tx_queue.add_transaction(tx)
 
     def create_block_to_mine(
         self,
@@ -1577,9 +1569,9 @@ class ShardState:
         block, index = self.db.get_transaction_by_hash(h)
         if block:
             return block, index
-        if h in self.tx_dict:
+        if h in self.tx_queue:
             block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
-            block.tx_list.append(self.tx_dict[h])
+            block.tx_list.append(self.tx_queue[h])
             return block, 0
         return None, None
 
@@ -1637,25 +1629,28 @@ class ShardState:
         if start == bytes(1):  # get pending tx
             tx_list = []
             for orderable_tx in self.tx_queue.txs:
-                tx = orderable_tx.tx
+                tx = orderable_tx.tx  # type: TypedTransaction
+                evm_tx = tx.tx.to_evm_tx()
                 # TODO: could also show incoming pending tx
-                if (tx.sender == address.recipient or tx.to == address.recipient) and (
+                if (
+                    evm_tx.sender == address.recipient or evm_tx.to == address.recipient
+                ) and (
                     transfer_token_id is None
-                    or tx.transfer_token_id == transfer_token_id
+                    or evm_tx.transfer_token_id == transfer_token_id
                 ):
                     tx_list.append(
                         TransactionDetail(
-                            TypedTransaction(
-                                SerializedEvmTransaction.from_evm_tx(tx)
-                            ).get_hash(),
-                            Address(tx.sender, tx.from_full_shard_key),
-                            Address(tx.to, tx.to_full_shard_key) if tx.to else None,
-                            tx.value,
+                            tx.get_hash(),
+                            Address(evm_tx.sender, evm_tx.from_full_shard_key),
+                            Address(evm_tx.to, evm_tx.to_full_shard_key)
+                            if evm_tx.to
+                            else None,
+                            evm_tx.value,
                             block_height=0,
                             timestamp=0,
                             success=False,
-                            gas_token_id=tx.gas_token_id,
-                            transfer_token_id=tx.transfer_token_id,
+                            gas_token_id=evm_tx.gas_token_id,
+                            transfer_token_id=evm_tx.transfer_token_id,
                             is_from_root_chain=False,
                         )
                     )

@@ -246,13 +246,17 @@ class TestCluster(unittest.TestCase):
             state0 = clusters[1].get_shard_state(0b10)
             tx_queue, expect_evm_tx1 = state0.tx_queue, tx1.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            actual_evm_tx = tx_queue.pop_transaction(state0.get_transaction_count)
+            actual_evm_tx = tx_queue.pop_transaction(
+                state0.get_transaction_count
+            ).tx.to_evm_tx()
             self.assertEqual(actual_evm_tx, expect_evm_tx1)
 
             state1 = clusters[1].get_shard_state(0b11)
             tx_queue, expect_evm_tx2 = state1.tx_queue, tx2.tx.to_evm_tx()
             assert_true_with_timeout(lambda: len(tx_queue) == 1)
-            actual_evm_tx = tx_queue.pop_transaction(state1.get_transaction_count)
+            actual_evm_tx = tx_queue.pop_transaction(
+                state1.get_transaction_count
+            ).tx.to_evm_tx()
             self.assertEqual(actual_evm_tx, expect_evm_tx2)
 
     def test_add_minor_block_request_list(self):
