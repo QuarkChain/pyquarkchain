@@ -43,8 +43,8 @@ class TransactionQueue(object):
         if len(self.txs) >= self.limit:
             if evm_tx.gasprice < self.txs[-1].tx.tx.to_evm_tx().gasprice:
                 return  # no-op
-            pop_tx = self.txs.pop(-1)
-            self.tx_dict.pop(pop_tx.tx.get_hash(), None)
+            pop_tx = self.txs.pop(-1).tx  # type: TypedTransaction
+            self.tx_dict.pop(pop_tx.get_hash(), None)
         prio = -evm_tx.gasprice
         ordered_tx = OrderableTx(prio, self.counter, tx)
         # amortized O(n) cost, ~9x slower than heapq push, may need optimization if becoming a bottleneck
