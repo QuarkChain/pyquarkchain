@@ -1128,7 +1128,7 @@ class ShardState:
         # TODO: the current calculation is bogus and just serves as a placeholder.
         coinbase = 0
         for tx_wrapper in self.tx_queue.peek():
-            tx = tx_wrapper.tx
+            tx = tx_wrapper.tx.tx.to_evm_tx()
             coinbase += tx.gasprice * tx.startgas
 
         # TODO: add x-shard tx
@@ -1629,25 +1629,30 @@ class ShardState:
         if start == bytes(1):  # get pending tx
             tx_list = []
             for orderable_tx in self.tx_queue.txs:
-                tx = orderable_tx.tx
+                tx = orderable_tx.tx  # type: TypedTransaction
+                evm_tx = tx.tx.to_evm_tx()
                 # TODO: could also show incoming pending tx
-                if (tx.sender == address.recipient or tx.to == address.recipient) and (
+                if (
+                    evm_tx.sender == address.recipient or evm_tx.to == address.recipient
+                ) and (
                     transfer_token_id is None
-                    or tx.transfer_token_id == transfer_token_id
+                    or evm_tx.transfer_token_id == transfer_token_id
                 ):
                     tx_list.append(
                         TransactionDetail(
                             TypedTransaction(
                                 SerializedEvmTransaction.from_evm_tx(tx)
                             ).get_hash(),
-                            Address(tx.sender, tx.from_full_shard_key),
-                            Address(tx.to, tx.to_full_shard_key) if tx.to else None,
-                            tx.value,
+                            Address(evm_tx.sender, evm_tx.from_full_shard_key),
+                            Address(evm_tx.to, evm_tx.to_full_shard_key)
+                            if evm_tx.to
+                            else None,
+                            evm_tx.value,
                             block_height=0,
                             timestamp=0,
                             success=False,
-                            gas_token_id=tx.gas_token_id,
-                            transfer_token_id=tx.transfer_token_id,
+                            gas_token_id=evm_tx.gas_token_id,
+                            transfer_token_id=evm_tx.transfer_token_id,
                             is_from_root_chain=False,
                         )
                     )
