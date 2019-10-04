@@ -1641,7 +1641,7 @@ class ShardState:
                     tx_list.append(
                         TransactionDetail(
                             TypedTransaction(
-                                SerializedEvmTransaction.from_evm_tx(tx)
+                                SerializedEvmTransaction.from_evm_tx(evm_tx)
                             ).get_hash(),
                             Address(evm_tx.sender, evm_tx.from_full_shard_key),
                             Address(evm_tx.to, evm_tx.to_full_shard_key)

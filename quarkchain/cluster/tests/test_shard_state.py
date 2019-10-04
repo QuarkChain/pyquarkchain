@@ -3151,5 +3151,4 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(state.tx_queue), 3)
 
         state.finalize_and_add_block(b0)
-        self.assertEqual(len(b0.tx_list), 2)
         self.assertEqual(len(state.tx_queue), 0)
