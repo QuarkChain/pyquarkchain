@@ -3,7 +3,7 @@ aioprocessing==1.0.1
 async_armor==0.0.2
 coincurve==7.1.0
 decorator==4.2.1
-ecdsa==0.13
+ecdsa==0.13.3
 jsonrpcclient==2.5.2
 jsonrpcserver==3.5.4
 jsonrpc-async==0.6
