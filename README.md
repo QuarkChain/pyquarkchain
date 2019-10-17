@@ -93,16 +93,10 @@ pre-commit install
 
 [black](https://github.com/ambv/black) is used to format modified python code, which will be automatically triggered on new commit after running the above commands. Refer to [STYLE](https://github.com/QuarkChain/pyquarkchain/blob/master/STYLE) for coding style suggestions.
 
-## Joining Testnet
-
-Please check [Testnet2-Schedule](https://github.com/QuarkChain/pyquarkchain/wiki/Testnet2-Schedule) for updates and schedule.
-
-### Running a cluster to join QuarkChain testnet 2.0
+## Running Clusters
 If you are on a private network (e.g. running from a laptop which connects to the Internet through a router), you need to first setup [port forwarding](https://github.com/QuarkChain/pyquarkchain/wiki/Private-Network-Setting%2C-Port-Forwarding) for UDP/TCP 38291.
 
-Then fill in your own coinbase address and [bootstrap a cluster](https://github.com/QuarkChain/pyquarkchain/wiki/Run-a-Private-Cluster-on-the-QuarkChain-Testnet-2.0) on QuarkChain Testnet 2.0.
-
-We provide the [demo implementation of CPU mining software](https://github.com/QuarkChain/pyquarkchain/wiki/Demo-Implementation-of-CPU-Mining). Please refer to [QuarkChain mining](https://github.com/QuarkChain/pyquarkchain/wiki/Introduction-of-Mining-Algorithms) for more details.
+We recommend following [the instruction wiki](https://github.com/QuarkChain/pyquarkchain/wiki/Start-Clusters-on-the-QuarkChain) to start clusters using docker.
 
 ### Running a single cluster for local testing
 Start running a local cluster which does not connect to anyone else. The default cluster has 8 shards and 4 slaves.
