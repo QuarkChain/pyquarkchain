@@ -564,7 +564,7 @@ class ShardState:
             root_hash, sender_disallow_map, block.header.create_time
         )
         if ephemeral:
-            state = state.ephemeral_clone()
+            state = state.ephemeral_clone(block.header.create_time)
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
         state.recent_uncles[
