@@ -103,7 +103,7 @@ Start running a local cluster which does not connect to anyone else. The default
 
 ```bash
 cd quarkchain/cluster
-pypy3 cluster.py
+pypy3 cluster.py --p2p
 # add --start_simulated_mining to mine blocks with simulated mining (does not run any hash algorithms)
 ```
 
