@@ -1325,13 +1325,8 @@ class JSONRPCHttpServer:
         return data
 
     async def _get_logs(self, data, full_shard_key, decoder: Callable[[str], bytes]):
-        start_block = data.get("fromBlock", "latest")
-        end_block = data.get("toBlock", "latest")
-        # TODO: not supported yet for "earliest" or "pending" block
-        if (isinstance(start_block, str) and start_block != "latest") or (
-            isinstance(end_block, str) and end_block != "latest"
-        ):
-            return None
+        start_block = block_height_decoder(data.get("fromBlock", "latest"))
+        end_block = block_height_decoder(data.get("toBlock", "latest"))
         addresses, topics = _parse_log_request(data, decoder)
         if full_shard_key is None:
             raise InvalidParams("Full shard key is required to get logs")

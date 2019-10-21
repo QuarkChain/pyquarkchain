@@ -1596,16 +1596,16 @@ class MasterServer:
         self,
         addresses: List[Address],
         topics: List[List[bytes]],
-        start_block: Union[int, str],
-        end_block: Union[int, str],
+        start_block: Optional[int],
+        end_block: Optional[int],
         branch: Branch,
     ) -> Optional[List[Log]]:
         if branch.value not in self.branch_to_slaves:
             return None
 
-        if start_block == "latest":
+        if start_block is None:
             start_block = self.branch_to_shard_stats[branch.value].height
-        if end_block == "latest":
+        if end_block is None:
             end_block = self.branch_to_shard_stats[branch.value].height
 
         slave = self.branch_to_slaves[branch.value][0]
