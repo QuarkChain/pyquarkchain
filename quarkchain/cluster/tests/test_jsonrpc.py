@@ -936,10 +936,14 @@ class TestJSONRPCHttp(unittest.TestCase):
         with ClusterContext(
             1, acc1, small_coinbase=True
         ) as clusters, jrpc_http_server_context(clusters[0].master):
-            response = send_request(
-                "estimateGas", [{"to": "0x" + acc1.serialize().hex()}]
-            )
+            payload = {"to": "0x" + acc1.serialize().hex()}
+            response = send_request("estimateGas", [payload])
             self.assertEqual(response, "0x5208")  # 21000
+            # cross-shard
+            from_addr = "0x" + acc1.address_in_shard(1).serialize().hex()
+            payload["from"] = from_addr
+            response = send_request("estimateGas", [payload])
+            self.assertEqual(response, "0x7530")  # 30000
 
     def test_getStorageAt(self):
         key = bytes.fromhex(

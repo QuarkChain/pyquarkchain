@@ -1370,6 +1370,7 @@ class JSONRPCHttpServer:
         data_ = get_data_default("data", data_decoder, b"")
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         sender_address = Address.create_from(sender)
+        from_full_shard_key = sender_address.full_shard_key
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
         )
@@ -1389,7 +1390,7 @@ class JSONRPCHttpServer:
             to[:20],
             value,
             data_,
-            from_full_shard_key=sender_address.full_shard_key,
+            from_full_shard_key=from_full_shard_key,
             to_full_shard_key=to_full_shard_key,
             network_id=network_id,
             gas_token_id=gas_token_id,
@@ -1398,6 +1399,9 @@ class JSONRPCHttpServer:
 
         tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         if is_call:
+            # xshard not supported for now
+            if to_full_shard_key != from_full_shard_key:
+                raise InvalidParams("Call cross-shard tx not supported yet")
             res = await self.master.execute_transaction(
                 tx, sender_address, data["block_height"]
             )
