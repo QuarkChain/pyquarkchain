@@ -691,7 +691,7 @@ class State:
         state.changed = {}
         return state
 
-    def ephemeral_clone(self, timestamp: Optional[int] = None):
+    def ephemeral_clone(self):
         snapshot = self.to_snapshot(root_only=True, no_prevblocks=True)
         env2 = Env(OverlayDb(self.db), self.env.config)
         s = State.from_snapshot(snapshot, env2)
@@ -704,8 +704,6 @@ class State:
         s.journal = copy.copy(self.journal)
         s.cache = {}
         s.qkc_config = self.qkc_config
-        if timestamp:
-            s.timestamp = timestamp
         s.sender_disallow_map = self.sender_disallow_map
         return s
 
