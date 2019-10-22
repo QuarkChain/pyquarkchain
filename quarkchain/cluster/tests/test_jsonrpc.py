@@ -854,6 +854,13 @@ class TestJSONRPCHttp(unittest.TestCase):
                 self.assertEqual(1, len(resp))
                 self.assertDictContainsSubset(expected_log_parts, resp[0])
 
+                # filter with from/to blocks
+                resp = req({"fromBlock": "0x0", "toBlock": "0x1"})
+                self.assertEqual(1, len(resp))
+                self.assertDictContainsSubset(expected_log_parts, resp[0])
+                resp = req({"fromBlock": "0x0", "toBlock": "0x0"})
+                self.assertEqual(0, len(resp))
+
                 # filter by contract address
                 contract_addr = mk_contract_address(
                     acc1.recipient, 0, acc1.full_shard_key
