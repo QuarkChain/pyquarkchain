@@ -1622,8 +1622,9 @@ class MasterServer:
         slave = self.branch_to_slaves[branch.value][0]
         if not evm_tx.is_cross_shard:
             return await slave.estimate_gas(tx, from_address)
-        # xshard estimate
-        # update full shard key so the correct state will be picked
+        # xshard estimate:
+        # update full shard key so the correct state will be picked, because it's based on
+        # given from address's full shard key
         from_address = Address(from_address.recipient, evm_tx.to_full_shard_key)
         res = await slave.estimate_gas(tx, from_address)
         # add xshard cost
