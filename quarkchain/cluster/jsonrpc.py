@@ -1400,7 +1400,10 @@ class JSONRPCHttpServer:
         tx = TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
         if is_call:
             # xshard not supported for now
-            if to_full_shard_key != from_full_shard_key:
+            is_same_shard = self.master.env.quark_chain_config.is_same_full_shard(
+                to_full_shard_key, from_full_shard_key
+            )
+            if not is_same_shard:
                 raise InvalidParams("Call cross-shard tx not supported yet")
             res = await self.master.execute_transaction(
                 tx, sender_address, data["block_height"]
