@@ -401,6 +401,11 @@ class QuarkChainConfig(BaseConfig):
         shard_id = full_shard_key & (shard_size - 1)
         return chain_id << 16 | shard_size | shard_id
 
+    def is_same_full_shard(self, full_shard_key_a: int, full_shard_key_b: int) -> bool:
+        return self.get_full_shard_id_by_full_shard_key(
+            full_shard_key_a
+        ) == self.get_full_shard_id_by_full_shard_key(full_shard_key_b)
+
     def get_shard_size_by_chain_id(self, chain_id: int) -> int:
         return self._chain_id_to_shard_size[chain_id]
 

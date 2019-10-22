@@ -1616,12 +1616,19 @@ class MasterServer:
     ) -> Optional[int]:
         evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
-        branch = Branch(evm_tx.from_full_shard_id)
+        branch = Branch(evm_tx.to_full_shard_id)
         if branch.value not in self.branch_to_slaves:
             return None
-
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.estimate_gas(tx, from_address)
+        if not evm_tx.is_cross_shard:
+            return await slave.estimate_gas(tx, from_address)
+        # xshard estimate:
+        # update full shard key so the correct state will be picked, because it's based on
+        # given from address's full shard key
+        from_address = Address(from_address.recipient, evm_tx.to_full_shard_key)
+        res = await slave.estimate_gas(tx, from_address)
+        # add xshard cost
+        return res + 9000 if res else None
 
     async def get_storage_at(
         self, address: Address, key: int, block_height: Optional[int]

@@ -407,8 +407,8 @@ class ShardState:
         """from_address will be set for execute_tx"""
         evm_tx = tx.tx.to_evm_tx()
 
+        # usually from call / estimateGas
         if from_address:
-            check(evm_tx.from_full_shard_key == from_address.full_shard_key)
             nonce = evm_state.get_nonce(from_address.recipient)
             # have to create a new evm_tx as nonce is immutable
             evm_tx = EvmTransaction(
@@ -418,7 +418,7 @@ class ShardState:
                 evm_tx.to,
                 evm_tx.value,
                 evm_tx.data,
-                from_full_shard_key=evm_tx.from_full_shard_key,
+                from_full_shard_key=from_address.full_shard_key,
                 to_full_shard_key=evm_tx.to_full_shard_key,
                 network_id=evm_tx.network_id,
                 gas_token_id=evm_tx.gas_token_id,
@@ -1738,7 +1738,22 @@ class ShardState:
 
         def run_tx(gas):
             try:
+                evm_tx = tx.tx.to_evm_tx()
+                evm_tx.set_quark_chain_config(self.env.quark_chain_config)
                 evm_state = self.evm_state.ephemeral_clone()  # type: EvmState
+                # simulate applying xshard deposit at target shard for both transfer value and gas fee
+                if (
+                    evm_tx.is_cross_shard
+                    and evm_tx.to_full_shard_id == self.full_shard_id
+                ):
+                    evm_state.delta_token_balance(
+                        from_address.recipient, evm_tx.transfer_token_id, evm_tx.value
+                    )
+                    evm_state.delta_token_balance(
+                        from_address.recipient,
+                        evm_tx.gas_token_id,
+                        evm_tx.gasprice * gas,
+                    )
                 evm_state.gas_used = 0
                 evm_tx = self.__validate_tx(tx, evm_state, from_address, gas=gas)
                 success, _ = apply_transaction(
@@ -1746,7 +1761,7 @@ class ShardState:
                 )
                 return success
             except Exception:
-                return False
+                return None
 
         while lo + 1 < hi:
             mid = (lo + hi) // 2

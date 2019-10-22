@@ -1329,9 +1329,11 @@ class SlaveServer:
         return shard.state.get_logs(addresses, topics, start_block, end_block)
 
     def estimate_gas(self, tx: TypedTransaction, from_address) -> Optional[int]:
-        evm_tx = tx.tx.to_evm_tx()
-        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
-        branch = Branch(evm_tx.from_full_shard_id)
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                from_address.full_shard_key
+            )
+        )
         shard = self.shards.get(branch, None)
         if not shard:
             return None
