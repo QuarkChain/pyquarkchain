@@ -337,6 +337,9 @@ class RootState:
         block = self.tip.create_block_to_append(
             create_time=create_time, address=address, difficulty=difficulty
         )
+
+        # Filter out minor blocks with greater create_time
+        m_header_list = [h for h in m_header_list if h.create_time <= create_time]
         block.minor_block_header_list = m_header_list
 
         coinbase_tokens = self._calculate_root_block_coinbase(
