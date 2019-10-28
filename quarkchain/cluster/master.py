@@ -1277,7 +1277,6 @@ class MasterServer:
 
         try:
             update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
-
         except ValueError as e:
             Logger.log_exception()
             raise e
