@@ -1272,6 +1272,9 @@ class MasterServer:
         adjusted_diff = await self.__adjust_diff(r_block)
         try:
             update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
+            for m_block_header in r_block.minor_block_header_list:
+                if m_block_header.create_time > r_block.header.create_time:
+                    update_tip = False
         except ValueError as e:
             Logger.log_exception()
             raise e
