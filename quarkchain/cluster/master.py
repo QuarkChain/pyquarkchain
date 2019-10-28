@@ -1270,7 +1270,6 @@ class MasterServer:
         self.root_state.write_committing_hash(r_block.header.get_hash())
 
         adjusted_diff = await self.__adjust_diff(r_block)
-
         try:
             update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
         except ValueError as e:
