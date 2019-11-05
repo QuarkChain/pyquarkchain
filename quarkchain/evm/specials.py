@@ -284,17 +284,22 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     return create_contract(ext, new_msg, target_addr)
 
 
-# 2 inputs: (token ID, amount)
+# 3 inputs: (minter, token ID, amount)
 def proc_mint_mnt(ext, msg):
     gascost = 3
     if msg.gas < gascost:
         return 0, 0, []
 
-    target_addr, bytecode = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
-    mnt = msg.data.extract32(0)
-    amount = msg.data.extract32(32)
+    target_addr, _ = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
+    assert (
+        msg.sender == target_addr
+    ), "Only authorized account has access to minting new token"
+
+    minter = msg.data.extract32(0)
+    mnt = msg.data.extract32(32)
+    amount = msg.data.extract32(64)
     state = ext._state
-    state.delta_token_balance(target_addr, mnt, amount)
+    state.delta_token_balance(minter, mnt, amount)
     return 1, msg.gas - gascost, [0] * 31 + [1]
 
 
@@ -315,7 +320,10 @@ specials = {
             proc_deploy_root_chain_staking_contract,
             0,
         ),
-        b"000000000000000000000000000000514b430004": (proc_mint_mnt, 0),
+        b"000000000000000000000000000000514b430004": (
+            proc_mint_mnt,
+            99999999999999999999,
+        ),
     }.items()
 }
 
