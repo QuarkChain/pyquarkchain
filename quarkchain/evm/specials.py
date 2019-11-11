@@ -291,9 +291,9 @@ def proc_mint_mnt(ext, msg):
         return 0, 0, []
 
     target_addr, _ = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
-    assert (
-        msg.sender == target_addr
-    ), "Only authorized account has access to minting new token"
+    # Only authorized account has access to minting new token
+    if target_addr != msg.sender:
+        return 0, 0, []
 
     minter = msg.data.extract32(0)
     mnt = msg.data.extract32(32)
