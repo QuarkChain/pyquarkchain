@@ -1115,6 +1115,7 @@ class CrossShardTransactionDeposit(Serializable):
         ("gas_token_id", uint64),
         ("transfer_token_id", uint64),
         ("gas_remained", uint256),
+        ("refund_rate", uint256),
         ("message_data", PrependedSizeBytesSerializer(4)),
         ("create_contract", boolean),
         ("is_from_root_chain", boolean),
@@ -1130,6 +1131,7 @@ class CrossShardTransactionDeposit(Serializable):
         gas_token_id,
         transfer_token_id,
         gas_remained=0,
+        refund_rate=100,
         message_data=b"",
         create_contract=False,
         is_from_root_chain=False,
@@ -1142,6 +1144,7 @@ class CrossShardTransactionDeposit(Serializable):
         self.gas_token_id = gas_token_id
         self.transfer_token_id = transfer_token_id
         self.gas_remained = gas_remained
+        self.refund_rate = refund_rate
         self.message_data = message_data
         self.create_contract = create_contract
         self.is_from_root_chain = is_from_root_chain

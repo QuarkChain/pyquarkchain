@@ -25,6 +25,7 @@ from quarkchain.evm.exceptions import (
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
+from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
@@ -195,6 +196,7 @@ def apply_transaction_message(
     gas_used_start,
     is_cross_shard=False,
     contract_address=b"",
+    refund_rate=100,
 ):
 
     local_fee_rate = (
@@ -241,9 +243,16 @@ def apply_transaction_message(
         success = 1
 
     # sell remaining gas
-    state.delta_token_balance(
-        message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
-    )
+    refund_gas = ext.tx_gasprice * gas_remained * refund_rate // 100
+    state.delta_token_balance(message.sender, message.gas_token_id, refund_gas)
+    # burn the remained token
+    if refund_rate < 100:
+        state.delta_token_balance(
+            bytes(20),
+            state.genesis_token_id,
+            ext.tx_gasprice * gas_remained - refund_gas,
+        )
+
     fee = (
         ext.tx_gasprice
         * gas_used
@@ -277,7 +286,7 @@ def apply_transaction_message(
     return success, output
 
 
-def apply_xshard_deposit(state, deposit, gas_used_start):
+def apply_xshard_deposit(state, deposit, gas_used_start, refund_rate):
     state.logs = []
     state.suicides = []
     state.refunds = 0
@@ -315,6 +324,7 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
         state,
         message,
         ext,
+        refund_rate=refund_rate,
         should_create_contract=deposit.create_contract,
         gas_used_start=gas_used_start,
         is_cross_shard=True,
@@ -351,7 +361,31 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.get_balance(tx.sender, token_id=tx.gas_token_id)
         >= tx.startgas * tx.gasprice
     )
-    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
+    original_gas_token_id = tx.gas_token_id
+    refund_rate = 100
+    if tx.gas_token_id != state.genesis_token_id:
+        refund_rate, gasprice = state.get_gas_utility_info(
+            tx.gas_token_id, state.evm_state
+        )
+        assert gasprice > 0
+
+        contract_addr = SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY.addr()
+        assert (
+            state.get_balance(contract_addr, token_id=state.genesis_token_id)
+            >= tx.startgas * gasprice
+        )
+        # change the system contract state
+        assert state.pay_as_gas(tx.gas_token_id, tx.startgas, state.evm_state) == True
+
+        # change the evm state
+        state.delta_token_balance(
+            contract_addr, state.genesis_token_id, -tx.startgas * gasprice
+        )
+        state.delta_token_balance(
+            tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice
+        )
+        tx.gasprice = gasprice
+        tx.gas_token_id = state.genesis_token_id
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -403,6 +437,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                     message_data=tx.data,
                     create_contract=True,
                     gas_remained=remote_gas_reserved,
+                    refund_rate=refund_rate,
                 )
             )
             success = 1
@@ -427,15 +462,26 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                     message_data=tx.data,
                     create_contract=False,
                     gas_remained=remote_gas_reserved,
+                    refund_rate=refund_rate,
                 )
             )
             success = 1
         gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
 
         # Refund
-        state.delta_token_balance(
-            message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
-        )
+        if original_gas_token_id != state.genesis_token_id:
+            refund_gas = gasprice * gas_remained * refund_rate // 100
+            state.delta_token_balance(
+                message.sender, state.genesis_token_id, refund_gas
+            )
+            # burn the remained token
+            state.delta_token_balance(
+                bytes(20), state.genesis_token_id, gasprice * gas_remained - refund_gas
+            )
+        else:
+            state.delta_token_balance(
+                message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
+            )
 
         # if x-shard, reserve part of the gas for the target shard miner for fee
         fee = (
@@ -464,7 +510,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.add_receipt(r)
         return success, output
 
-    return apply_transaction_message(state, message, ext, tx.to == b"", intrinsic_gas)
+    return apply_transaction_message(
+        state, message, ext, tx.to == b"", intrinsic_gas, refund_rate
+    )
 
 
 # VM interface
