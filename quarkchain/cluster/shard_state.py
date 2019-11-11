@@ -1950,6 +1950,50 @@ class ShardState:
         signer = output[32 + 12 :]
         return stakes, signer
 
+    def get_gas_utility_info(
+        self,
+        token_id: int,
+        block_hash: bytes,
+        mock_evm_state: Optional[EvmState] = None,
+    ) -> (int, int):
+        meta = self.db.get_minor_block_meta_by_hash(block_hash)
+        check(meta is not None)
+        evm_state = mock_evm_state or self.__create_evm_state(
+            meta.hash_evm_state_root, {}
+        )
+        check(evm_state is not None)
+        contract_addr = SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY.addr()
+        code = evm_state.get_code(contract_addr)
+        if not code:
+            return 0, bytes(20)
+        if (
+            utils.sha3_256(code)
+            != self.env.quark_chain_config.multi_native_token_gas_utility_contract_bytecode_hash
+        ):
+            return 0, bytes(20)
+        mock_sender = bytes(20)
+        # To be done, call the calculateGasPrice function
+        data = bytes.fromhex("")
+        evm_tx = EvmTransaction(
+            evm_state.get_nonce(mock_sender),
+            0,
+            1000000,
+            contract_addr,
+            0,
+            data,
+            gas_token_id=self.genesis_token_id,
+            transfer_token_id=self.genesis_token_id,
+        )
+        evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+        evm_tx.sender = mock_sender
+        success, output = apply_transaction(
+            evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+        )
+        if not success or not output:
+            return 0, bytes(20)
+        gas_price = int.from_bytes(output[32], byteorder="big")
+        return token_id, gas_price
+
     def _posw_enabled(self, header):
         config = self.shard_config.POSW_CONFIG
         return config.ENABLED and header.create_time >= config.ENABLE_TIMESTAMP
