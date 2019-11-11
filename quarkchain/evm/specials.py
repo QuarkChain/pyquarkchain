@@ -343,6 +343,7 @@ def configure_special_contract_ts(specials_dict, addr, ts):
 
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
+    MULTI_NATIVE_TOKEN_GAS_UTILITY = 3
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
@@ -354,14 +355,11 @@ _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
-    )
-}
-
-_system_contracts = {
+    ),
     SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY: (
         decode_hex(b"514b430000000000000000000000000000000003"),
         MULTI_NATIVE_TOKEN_GAS_UTILITY_CONTRACT_BYTECODE,
-    )
+    ),
 }
 
 if __name__ == "__main__":
