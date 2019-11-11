@@ -1965,12 +1965,12 @@ class ShardState:
         contract_addr = SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY.addr()
         code = evm_state.get_code(contract_addr)
         if not code:
-            return 0, bytes(20)
+            return 0, 0
         if (
             utils.sha3_256(code)
             != self.env.quark_chain_config.multi_native_token_gas_utility_contract_bytecode_hash
         ):
-            return 0, bytes(20)
+            return 0, 0
         mock_sender = bytes(20)
         # To be done, call the calculateGasPrice function
         data = bytes.fromhex("")
@@ -1990,7 +1990,7 @@ class ShardState:
             evm_state, evm_tx, tx_wrapper_hash=bytes(32)
         )
         if not success or not output:
-            return 0, bytes(20)
+            return 0, 0
         gas_price = int.from_bytes(output[32], byteorder="big")
         return token_id, gas_price
 
