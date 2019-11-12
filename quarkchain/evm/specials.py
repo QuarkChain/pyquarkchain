@@ -298,8 +298,7 @@ def proc_mint_mnt(ext, msg):
     minter = msg.data.extract32(0)
     mnt = msg.data.extract32(32)
     amount = msg.data.extract32(64)
-    state = ext._state
-    state.delta_token_balance(minter, mnt, amount)
+    ext._state.delta_token_balance(minter, mnt, amount)
     return 1, msg.gas - gascost, [0] * 31 + [1]
 
 
