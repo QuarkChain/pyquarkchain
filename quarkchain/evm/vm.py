@@ -923,3 +923,4 @@ class VmExtBase:
         self.create = lambda msg: 0, 0, 0
         self.call = lambda msg: 0, 0, 0
         self.sendmsg = lambda msg: 0, 0, 0
+        self.balance_empty = lambda addr: False

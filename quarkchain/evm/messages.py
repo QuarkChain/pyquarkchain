@@ -259,7 +259,7 @@ def apply_transaction_message(
     suicides = state.suicides
     state.suicides = []
     for s in suicides:
-        state.set_balances(s, {})
+        state.reset_balances(s)
         state.del_account(s)
 
     # Construct a receipt
@@ -480,7 +480,6 @@ class VMExt:
         self.get_balance = (
             state.get_balance
         )  # gets default_chain_token balance if no token_id is passed in
-        self.set_balances = state.set_balances  # sets token balances dict
         self.set_token_balance = state.set_token_balance
         self.set_balance = state.set_balance  # gets default_chain_token balance
         self.get_nonce = state.get_nonce
@@ -520,6 +519,7 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
+        self.balance_empty = state.balance_empty
 
 
 def apply_msg(ext, msg):
@@ -644,9 +644,8 @@ def create_contract(ext, msg, contract_recipient=b"", salt=None):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
         return 0, 0, b""
 
-    b = ext.get_balances(msg.to)
-    if b != {}:
-        ext.set_balances(msg.to, b)
+    balance_empty = ext.balance_empty(msg.to)
+    if not balance_empty:
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
         ext.reset_storage(msg.to)
@@ -675,7 +674,6 @@ def create_contract(ext, msg, contract_recipient=b"", salt=None):
         if gas >= gcost and (len(dat) <= 24576):
             gas -= gcost
         else:
-            dat = []
             log_msg.debug(
                 "CONTRACT CREATION FAILED",
                 have=gas,

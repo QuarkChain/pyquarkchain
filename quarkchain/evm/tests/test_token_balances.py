@@ -7,7 +7,7 @@ from quarkchain.utils import token_id_encode
 
 def test_blank_account():
     b = TokenBalances(b"", InMemoryDb())
-    assert b.balances == {}
+    assert b._balances == {}
     assert b.serialize() == b""
 
 
@@ -50,13 +50,13 @@ def test_encode_bytes(encoding, mapping):
     # starting from blank account
     b0 = TokenBalances(b"", InMemoryDb())
     for k, v in mapping.items():
-        b0.balances[k] = v
-    assert b0.balances == mapping
+        b0._balances[k] = v
+    assert b0._balances == mapping
     assert b0.serialize() == encoding
 
     # starting from RLP encoding
     b1 = TokenBalances(encoding, InMemoryDb())
-    assert b1.balances == mapping
+    assert b1._balances == mapping
     assert b1.serialize() == encoding
 
 
@@ -99,14 +99,14 @@ def test_encode_zero_balance(encoding, mapping):
     # starting from blank account
     b0 = TokenBalances(b"", InMemoryDb())
     for k, v in mapping.items():
-        b0.balances[k] = v
-    assert b0.balances == mapping
+        b0._balances[k] = v
+    assert b0._balances == mapping
     assert b0.serialize() == encoding
 
     # starting from RLP encoding
     b1 = TokenBalances(encoding, InMemoryDb())
-    assert b1.balances == {k: v for k, v in mapping.items() if v != 0}
-    if b1.balances:
+    assert b1._balances == {k: v for k, v in mapping.items() if v != 0}
+    if b1._balances:
         assert b1.serialize() == encoding
     else:
         assert b1.serialize() == b""
@@ -114,15 +114,58 @@ def test_encode_zero_balance(encoding, mapping):
 
 def test_encoding_singularity():
     b0 = TokenBalances(b"", InMemoryDb())
-    b0.balances[0] = 100
-    b0.balances[1] = 100
-    b0.balances[2] = 100
-    b0.balances[3] = 100
+    b0._balances[0] = 100
+    b0._balances[1] = 100
+    b0._balances[2] = 100
+    b0._balances[3] = 100
 
     b1 = TokenBalances(b"", InMemoryDb())
-    b1.balances[3] = 100
-    b1.balances[2] = 100
-    b1.balances[1] = 100
-    b1.balances[0] = 100
+    b1._balances[3] = 100
+    b1._balances[2] = 100
+    b1._balances[1] = 100
+    b1._balances[0] = 100
 
     assert b0.serialize() == b1.serialize()
+
+
+@pytest.mark.parametrize(
+    "encoding, mapping",
+    (
+        (
+            b"\x01m\xc4\x84bg\xd1Wcm0\xf8\x12\xc7\xa5\xf4\xd4$\x9a\xc7\xbf.\xb4\x0b\x9dO\xa4is\xceq\xcc\x15",
+            {
+                0: int(1e8),
+                token_id_encode("QETH"): int(3e18),
+                token_id_encode("QETC"): int(1e8),
+                token_id_encode("QA"): int(2e9),
+                token_id_encode("QB"): int(1e8),
+                token_id_encode("QC"): int(1e18),
+                token_id_encode("QD"): int(1e8),
+                token_id_encode("QE"): int(1e6),
+                token_id_encode("QF"): int(5e8),
+                token_id_encode("QG"): int(6e8),
+                token_id_encode("QH"): int(7e8),
+                token_id_encode("QI"): int(8e8),
+                token_id_encode("QJ"): int(9e8),
+                token_id_encode("QK"): int(10e8),
+                token_id_encode("QL"): int(1e17),
+                token_id_encode("QM"): int(15e16),
+                # one more key to make it greater than 16
+                token_id_encode("QN"): int(5e16),
+            },
+        ),
+    ),
+)
+def test_encoding_in_trie(encoding, mapping):
+    db = InMemoryDb()
+    # starting from blank account
+    b0 = TokenBalances(b"", db)
+    for k, v in mapping.items():
+        b0._balances[k] = v
+    assert b0._balances == mapping
+    assert b0.serialize() == encoding
+
+    # starting from RLP encoding
+    b1 = TokenBalances(encoding, db)
+    assert b1.to_dict() == mapping
+    assert b1.serialize() == encoding
