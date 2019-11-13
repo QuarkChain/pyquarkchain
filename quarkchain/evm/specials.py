@@ -6,7 +6,7 @@ import hashlib
 
 from quarkchain.constants import (
     ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
-    MINT_MULTI_NATIVE_TOKEN_CONTRACT_BYTECODE,
+    NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
 )
 from quarkchain.rlp.utils import ascii_chr
 
@@ -290,15 +290,15 @@ def proc_mint_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
-    target_addr, _ = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
+    allowed_sender, _ = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
     # Only authorized account has access to minting new token
-    if target_addr != msg.sender:
+    if allowed_sender != msg.sender:
         return 0, 0, []
 
     minter = msg.data.extract32(0)
-    mnt = msg.data.extract32(32)
+    token_id = msg.data.extract32(32)
     amount = msg.data.extract32(64)
-    ext._state.delta_token_balance(minter, mnt, amount)
+    ext._state.delta_token_balance(minter, token_id, amount)
     return 1, msg.gas - gascost, [0] * 31 + [1]
 
 
@@ -351,7 +351,7 @@ _system_contracts = {
     ),
     SystemContract.MINT_MULTI_NATIVE_TOKEN: (
         decode_hex(b"514b430000000000000000000000000000000002"),
-        MINT_MULTI_NATIVE_TOKEN_CONTRACT_BYTECODE,
+        NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
     ),
 }
 

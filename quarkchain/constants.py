@@ -34,7 +34,7 @@ ROOT_CHAIN_POSW_CONTRACT_BYTECODE = bytes.fromhex(
 )
 
 # TODO
-MINT_MULTI_NATIVE_TOKEN_CONTRACT_BYTECODE = bytes.fromhex(
+NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE = bytes.fromhex(
     """
 """.strip()
 )

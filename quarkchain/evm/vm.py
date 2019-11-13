@@ -923,4 +923,4 @@ class VmExtBase:
         self.create = lambda msg: 0, 0, 0
         self.call = lambda msg: 0, 0, 0
         self.sendmsg = lambda msg: 0, 0, 0
-        self._state = state
+        self._state = state  # this field is only for mocking purpose
