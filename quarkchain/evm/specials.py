@@ -290,8 +290,8 @@ def proc_mint_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
-    allowed_sender, _ = _system_contracts[SystemContract.MINT_MULTI_NATIVE_TOKEN]
-    # Only authorized account has access to minting new token
+    allowed_sender, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
+    # Only system contract has access to minting new token
     if allowed_sender != msg.sender:
         return 0, 0, []
 
@@ -349,7 +349,7 @@ _system_contracts = {
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
     ),
-    SystemContract.MINT_MULTI_NATIVE_TOKEN: (
+    SystemContract.NON_RESERVED_NATIVE_TOKEN: (
         decode_hex(b"514b430000000000000000000000000000000002"),
         NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
     ),
