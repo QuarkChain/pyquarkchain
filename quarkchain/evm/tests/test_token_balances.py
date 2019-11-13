@@ -128,35 +128,9 @@ def test_encoding_singularity():
     assert b0.serialize() == b1.serialize()
 
 
-@pytest.mark.parametrize(
-    "encoding, mapping",
-    (
-        (
-            b"\x01m\xc4\x84bg\xd1Wcm0\xf8\x12\xc7\xa5\xf4\xd4$\x9a\xc7\xbf.\xb4\x0b\x9dO\xa4is\xceq\xcc\x15",
-            {
-                0: int(1e8),
-                token_id_encode("QETH"): int(3e18),
-                token_id_encode("QETC"): int(1e8),
-                token_id_encode("QA"): int(2e9),
-                token_id_encode("QB"): int(1e8),
-                token_id_encode("QC"): int(1e18),
-                token_id_encode("QD"): int(1e8),
-                token_id_encode("QE"): int(1e6),
-                token_id_encode("QF"): int(5e8),
-                token_id_encode("QG"): int(6e8),
-                token_id_encode("QH"): int(7e8),
-                token_id_encode("QI"): int(8e8),
-                token_id_encode("QJ"): int(9e8),
-                token_id_encode("QK"): int(10e8),
-                token_id_encode("QL"): int(1e17),
-                token_id_encode("QM"): int(15e16),
-                # one more key to make it greater than 16
-                token_id_encode("QN"): int(5e16),
-            },
-        ),
-    ),
-)
-def test_encoding_in_trie(encoding, mapping):
+def test_encoding_in_trie():
+    encoding = b"\x01\x84\x8dBq\xe4N\xa4\x14f\xfe5Ua\xddC\xb1f\xc9'\xd2\xec\xa0\xa8\xdd\x90\x1a\x8edi\xec\xde\xb1"
+    mapping = {token_id_encode("Q" + chr(65 + i)): int(i * 1e3) + 42 for i in range(17)}
     db = InMemoryDb()
     # starting from blank account
     b0 = TokenBalances(b"", db)
@@ -165,7 +139,17 @@ def test_encoding_in_trie(encoding, mapping):
     assert b0._balances == mapping
     assert b0.serialize() == encoding
 
+    # check internal states
+    assert b0._committed
+    assert b0.token_trie is not None
+
     # starting from RLP encoding
     b1 = TokenBalances(encoding, db)
     assert b1.to_dict() == mapping
     assert b1.serialize() == encoding
+
+    # check internal states
+    assert b1._balances == {}  # not populated
+    assert b1.token_trie is not None
+    assert not b1.is_empty()
+    assert b1.balance(token_id_encode("QC")) == mapping[token_id_encode("QC")]
