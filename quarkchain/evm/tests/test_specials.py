@@ -25,34 +25,29 @@ class TestPrecompiledContracts(unittest.TestCase):
         self.assertEqual(int.from_bytes(data, byteorder="big"), 2 ** 64 - 1)
 
     def test_proc_mint_mnt(self):
-        addr = decode_hex(b"514b430000000000000000000000000000000002")
+        sys_contract_addr = decode_hex(b"514b430000000000000000000000000000000002")
+        random_addr = Address.create_random_account().recipient
+        testcases = [(sys_contract_addr, True), (random_addr, False)]
+
         minter = b"\x00" * 19 + b"\x34"
         token_id = b"\x00" * 28 + b"\x11" * 4
         amount = b"\x00" * 30 + b"\x22" * 2
         data = b"\x00" * 12 + minter + token_id + amount
 
-        msg = Message(addr, addr, gas=5, data=data)
-        state = State()
-        result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
-        self.assertListEqual([result, gas_remained], [1, 5 - 3])
-        self.assertEqual(len(ret), 32)
-        self.assertEqual(int.from_bytes(ret, byteorder="big"), 1)
+        for addr, expect_success in testcases:
+            msg = Message(addr, addr, gas=5, data=data)
+            state = State()
+            result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
+            balance = state.get_balance(
+                minter, int.from_bytes(token_id, byteorder="big")
+            )
 
-        balance = state.get_balance(minter, int.from_bytes(token_id, byteorder="big"))
-        self.assertEqual(balance, int.from_bytes(amount, byteorder="big"))
-
-    def test_proc_mint_mnt_invalid_user(self):
-        addr = Address.create_random_account().recipient
-        minter = b"\x00" * 19 + b"\x34"
-        token_id = b"\x00" * 28 + b"\x11" * 4
-        amount = b"\x00" * 30 + b"\x22" * 2
-        data = b"\x00" * 12 + minter + token_id + amount
-
-        msg = Message(addr, addr, gas=5, data=data)
-        state = State()
-        result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
-        self.assertListEqual([result, gas_remained], [0, 0])
-        self.assertEqual(len(ret), 0)
-
-        balance = state.get_balance(minter, int.from_bytes(token_id, byteorder="big"))
-        self.assertEqual(balance, 0)
+            if expect_success:
+                self.assertListEqual([result, gas_remained], [1, 5 - 3])
+                self.assertEqual(len(ret), 32)
+                self.assertEqual(int.from_bytes(ret, byteorder="big"), 1)
+                self.assertEqual(balance, int.from_bytes(amount, byteorder="big"))
+            else:
+                self.assertListEqual([result, gas_remained], [0, 0])
+                self.assertEqual(len(ret), 0)
+                self.assertEqual(balance, 0)
