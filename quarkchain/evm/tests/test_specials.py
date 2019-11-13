@@ -4,6 +4,7 @@ from quarkchain.evm.specials import proc_current_mnt_id, proc_mint_mnt
 from quarkchain.evm.state import State
 from quarkchain.evm.vm import Message, VmExtBase
 from quarkchain.evm.utils import decode_hex
+from quarkchain.core import Address
 
 
 class TestPrecompiledContracts(unittest.TestCase):
@@ -39,3 +40,19 @@ class TestPrecompiledContracts(unittest.TestCase):
 
         balance = state.get_balance(minter, int.from_bytes(token_id, byteorder="big"))
         self.assertEqual(balance, int.from_bytes(amount, byteorder="big"))
+
+    def test_proc_mint_mnt_invalid_user(self):
+        addr = Address.create_random_account().recipient
+        minter = b"\x00" * 19 + b"\x34"
+        token_id = b"\x00" * 28 + b"\x11" * 4
+        amount = b"\x00" * 30 + b"\x22" * 2
+        data = b"\x00" * 12 + minter + token_id + amount
+
+        msg = Message(addr, addr, gas=5, data=data)
+        state = State()
+        result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
+        self.assertListEqual([result, gas_remained], [0, 0])
+        self.assertEqual(len(ret), 0)
+
+        balance = state.get_balance(minter, int.from_bytes(token_id, byteorder="big"))
+        self.assertEqual(balance, 0)
