@@ -286,7 +286,7 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
 
 # 3 inputs: (minter, token ID, amount)
 def proc_mint_mnt(ext, msg):
-    gascost = 3
+    gascost = opcodes.GCALLVALUETRANSFER
     if msg.gas < gascost:
         return 0, 0, []
 
