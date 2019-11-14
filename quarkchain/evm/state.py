@@ -111,7 +111,7 @@ class TokenBalances:
                 self.token_root = data[1:]
                 self.token_trie = SecureTrie(Trie(db, data[1:]))
             else:
-                raise Exception("Unknown enum byte in token_balances")
+                raise ValueError("Unknown enum byte in token_balances")
 
     def commit(self):
         self._committed = True
@@ -129,9 +129,9 @@ class TokenBalances:
                 self.token_trie.update(k, rlp.encode(bal))
             else:
                 self.token_trie.delete(k)
-                keys_to_del.append(k)
-        for k in keys_to_del:
-            del self._balances[k]
+                keys_to_del.append(token_id)
+        for token_id in keys_to_del:
+            del self._balances[token_id]
 
         self.token_root = self.token_trie.root_hash
 
@@ -146,13 +146,11 @@ class TokenBalances:
         # Serialize in-memory balance representation as an array
         if len(self._balances) == 0:
             return b""
-        ret = b"\x00"
         # Don't serialize 0 balance
         ls = [TokenBalancePair(k, v) for k, v in self._balances.items() if v > 0]
         # Sort by token id to make token balances serialization deterministic
         ls.sort(key=lambda b: b.token_id)
-        ret += rlp.encode(ls)
-        return ret
+        return b"\x00" + rlp.encode(ls)
 
     def balance(self, token_id):
         if token_id in self._balances:
@@ -172,19 +170,26 @@ class TokenBalances:
             self._committed = False
             journal.append(lambda: setattr(self, "_committed", True))
 
-    def is_empty(self):
-        if not all(v == 0 for v in self._balances.values()):
-            return False
-        return not self.token_trie or self.token_trie.root_hash == BLANK_ROOT
+    def is_blank(self):
+        return not self.token_trie and self._balances == {}
 
     def to_dict(self):
         if not self.token_trie:
             return self._balances
+
         trie_dict = self.token_trie.to_dict()
-        return {
+        ret = {
             utils.big_endian_to_int(k): utils.big_endian_to_int(rlp.decode(v))
             for k, v in trie_dict.items()
         }
+        # Get latest update if not committed
+        if not self._committed:
+            for k, v in self._balances.items():
+                if v == 0:
+                    ret.pop(k, None)
+                else:
+                    ret[k] = v
+        return ret
 
     def reset(self, journal):
         pre_balance = self._balances
@@ -289,15 +294,9 @@ class Account:
     def is_blank(self):
         return (
             self.nonce == 0
-            and self.token_balances.is_empty()
+            and self.token_balances.is_blank()
             and self.code_hash == BLANK_HASH
         )
-
-    @property
-    def exists(self):
-        if self.is_blank():
-            return self.touched or (self.existent_at_start and not self.deleted)
-        return True
 
     def to_dict(self):
         odict = self.storage_trie.to_dict()
@@ -451,14 +450,10 @@ class State:
 
     def reset_balances(self, address):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        if acct.token_balances.is_empty():
+        if acct.token_balances.is_blank():
             self.set_and_journal(acct, "touched", True)
-            return
-        acct.token_balances.reset(self.journal)
-
-    def balance_empty(self, address):
-        acct = self.get_and_cache_account(utils.normalize_address(address))
-        return acct.token_balances.is_empty()
+        else:
+            acct.token_balances.reset(self.journal)
 
     def set_code(self, address, value):
         # assert is_string(value)

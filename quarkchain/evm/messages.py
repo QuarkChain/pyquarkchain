@@ -259,7 +259,6 @@ def apply_transaction_message(
     suicides = state.suicides
     state.suicides = []
     for s in suicides:
-        state.reset_balances(s)
         state.del_account(s)
 
     # Construct a receipt
@@ -519,7 +518,6 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_state_token = state.shard_config.default_chain_token
-        self.balance_empty = state.balance_empty
 
 
 def apply_msg(ext, msg):
@@ -644,8 +642,7 @@ def create_contract(ext, msg, contract_recipient=b"", salt=None):
         log_msg.debug("CREATING CONTRACT ON TOP OF EXISTING CONTRACT")
         return 0, 0, b""
 
-    balance_empty = ext.balance_empty(msg.to)
-    if not balance_empty:
+    if ext.account_exists(msg.to):
         ext.set_nonce(msg.to, 0)
         ext.set_code(msg.to, b"")
         ext.reset_storage(msg.to)
