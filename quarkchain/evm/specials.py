@@ -258,19 +258,19 @@ def proc_transfer_mnt(ext, msg):
     return apply_msg(ext, new_msg)
 
 
-def proc_deploy_root_chain_staking_contract(ext, msg):
-    contract = SystemContract.ROOT_CHAIN_POSW
-    return _deploy_system_contract(ext, msg, contract)
-
-
-def _deploy_system_contract(ext, msg, contract):
+def proc_deploy_system_contract(ext, msg):
     from quarkchain.evm.messages import create_contract
 
     gascost = 3
     if msg.gas < gascost:
         return 0, 0, []
 
-    target_addr, bytecode = _system_contracts[contract]
+    data = msg.data.extract32(0)
+    contract_index = data if data else 1
+    if contract_index not in [e.value for e in SystemContract]:
+        return 0, 0, []
+
+    target_addr, bytecode = _system_contracts[SystemContract(contract_index)]
     new_msg = vm.Message(
         msg.to,  # current special address
         b"",
@@ -299,10 +299,7 @@ specials = {
         b"0000000000000000000000000000000000000008": (proc_ecpairing, 0),
         b"000000000000000000000000000000514b430001": (proc_current_mnt_id, 0),
         b"000000000000000000000000000000514b430002": (proc_transfer_mnt, 0),
-        b"000000000000000000000000000000514b430003": (
-            proc_deploy_root_chain_staking_contract,
-            0,
-        ),
+        b"000000000000000000000000000000514b430003": (proc_deploy_system_contract, 0),
     }.items()
 }
 
