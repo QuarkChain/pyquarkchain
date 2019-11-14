@@ -336,7 +336,7 @@ def configure_special_contract_ts(specials_dict, addr, ts):
 
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
-    MINT_MULTI_NATIVE_TOKEN = 2
+    NON_RESERVED_NATIVE_TOKEN = 2
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
