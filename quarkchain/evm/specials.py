@@ -4,7 +4,10 @@ from enum import Enum
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 
-from quarkchain.constants import ROOT_CHAIN_POSW_CONTRACT_BYTECODE
+from quarkchain.constants import (
+    ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    MULTI_NATIVE_TOKEN_GAS_UTILITY_CONTRACT_BYTECODE,
+)
 from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
@@ -281,6 +284,31 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     return create_contract(ext, new_msg, target_addr)
 
 
+def proc_deploy_multi_native_gas_utility_contract(ext, msg):
+    from quarkchain.evm.messages import create_contract
+
+    gascost = 3
+    if msg.gas < gascost:
+        return 0, 0, []
+
+    target_addr, bytecode = _system_contracts[
+        SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY
+    ]
+    new_msg = vm.Message(
+        msg.to,  # current special address
+        b"",
+        0,
+        msg.gas - gascost,
+        bytecode,
+        msg.depth + 1,
+        to_full_shard_key=msg.to_full_shard_key,
+        transfer_token_id=msg.transfer_token_id,
+        gas_token_id=msg.gas_token_id,
+    )
+    # Use predetermined contract address
+    return create_contract(ext, new_msg, target_addr)
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -298,6 +326,10 @@ specials = {
             proc_deploy_root_chain_staking_contract,
             0,
         ),
+        b"000000000000000000000000000000514b430005": (
+            proc_deploy_multi_native_gas_utility_contract,
+            0,
+        ),
     }.items()
 }
 
@@ -311,6 +343,7 @@ def configure_special_contract_ts(specials_dict, addr, ts):
 
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
+    MULTI_NATIVE_TOKEN_GAS_UTILITY = 3
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
@@ -322,7 +355,11 @@ _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
-    )
+    ),
+    SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY: (
+        decode_hex(b"514b430000000000000000000000000000000003"),
+        MULTI_NATIVE_TOKEN_GAS_UTILITY_CONTRACT_BYTECODE,
+    ),
 }
 
 if __name__ == "__main__":
