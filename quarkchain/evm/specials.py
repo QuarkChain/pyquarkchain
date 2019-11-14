@@ -260,10 +260,10 @@ def proc_transfer_mnt(ext, msg):
 
 def proc_deploy_root_chain_staking_contract(ext, msg):
     contract = SystemContract.ROOT_CHAIN_POSW
-    return _deploy_root_chain_staking_contract(ext, msg, contract)
+    return _deploy_system_contract(ext, msg, contract)
 
 
-def _deploy_root_chain_staking_contract(ext, msg, contract):
+def _deploy_system_contract(ext, msg, contract):
     from quarkchain.evm.messages import create_contract
 
     gascost = 3
