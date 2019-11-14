@@ -311,6 +311,13 @@ def configure_special_contract_ts(specials_dict, addr, ts):
     specials_dict[addr] = proc, ts
 
 
+def configure_system_contract_ts(system_contract_dict, contract, ts):
+    assert contract in SystemContract
+    addr, bytecode, _ = system_contract_dict[contract]
+    # Replace timestamp.
+    system_contract_dict[contract] = addr, bytecode, ts
+
+
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
 
@@ -324,6 +331,7 @@ _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+        0,
     )
 }
 

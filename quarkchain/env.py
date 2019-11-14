@@ -3,7 +3,13 @@ from quarkchain.constants import PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.evm.specials import specials, configure_special_contract_ts
+from quarkchain.evm.specials import (
+    specials,
+    _system_contracts,
+    SystemContract,
+    configure_special_contract_ts,
+    configure_system_contract_ts,
+)
 
 
 class Env:
@@ -35,6 +41,10 @@ class Env:
             for addr in PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED:
                 configure_special_contract_ts(
                     specials, addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
+                )
+            for contract in SystemContract:
+                configure_system_contract_ts(
+                    _system_contracts, contract, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
                 )
 
     def copy(self):
