@@ -904,7 +904,6 @@ def vm_execute(ext, msg, code):
 class VmExtBase:
     def __init__(self):
         self.get_code = lambda addr: b""
-        self.get_balance = lambda addr: 0
         self.set_balance = lambda addr, balance: 0
         self.set_storage_data = lambda addr, key, value: 0
         self.get_storage_data = lambda addr, key: 0

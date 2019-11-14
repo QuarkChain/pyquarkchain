@@ -475,7 +475,6 @@ class VMExt:
         self._state = state
         self.get_code = state.get_code
         self.set_code = state.set_code
-        self.get_balances = state.get_balances  # gets token balances dict
         self.get_balance = (
             state.get_balance
         )  # gets default_chain_token balance if no token_id is passed in

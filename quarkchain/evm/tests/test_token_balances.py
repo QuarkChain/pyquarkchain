@@ -9,6 +9,7 @@ def test_blank_account():
     b = TokenBalances(b"", InMemoryDb())
     assert b._balances == {}
     assert b.serialize() == b""
+    assert b.is_blank()
 
 
 @pytest.mark.parametrize(
@@ -112,7 +113,7 @@ def test_encode_zero_balance(encoding, mapping):
         assert b1.serialize() == b""
 
 
-def test_encoding_singularity():
+def test_encoding_order_of_balance():
     b0 = TokenBalances(b"", InMemoryDb())
     b0._balances[0] = 100
     b0._balances[1] = 100
@@ -135,10 +136,10 @@ def test_encoding_in_trie():
     # starting from blank account
     b0 = TokenBalances(b"", db)
     b0._balances = mapping.copy()
+    b0.commit()
     assert b0.serialize() == encoding
 
     # check internal states
-    assert b0._committed
     assert b0.token_trie is not None
 
     # starting from RLP encoding
@@ -147,12 +148,22 @@ def test_encoding_in_trie():
     assert b1.serialize() == encoding
 
     # check internal states
-    assert b1._balances == {}  # not populated
+    assert b1._balances == {}
     assert b1.token_trie is not None
     assert not b1.is_blank()
     assert b1.balance(token_id_encode("QC")) == mapping[token_id_encode("QC")]
     # underlying balance map populated
     assert len(b1._balances) == 1
+
+    # serialize without commit should fail
+    try:
+        b1.serialize()
+        pytest.fail()
+    except AssertionError:
+        pass
+    # otherwise should succeed
+    b1.commit()
+    b1.serialize()
 
 
 def test_encoding_change_from_dict_to_trie():
@@ -161,41 +172,36 @@ def test_encoding_change_from_dict_to_trie():
     # start with 16 entries - right below the threshold
     mapping = {token_id_encode("Q" + chr(65 + i)): int(i * 1e3) + 42 for i in range(16)}
     b._balances = mapping.copy()
+    b.commit()
     assert b.serialize().startswith(b"\x00")
     assert b.token_trie is None
-    assert b._committed
 
     # add one more entry and expect changes
     journal = []
     new_token = token_id_encode("QKC")
     b.set_balance(journal, new_token, 123)
     assert b.balance(new_token) == 123
-    assert not b._committed
     b.commit()
-    assert b._committed
     assert b.token_trie is not None
     assert b.serialize().startswith(b"\x01")
-    root1 = b.token_root
+    root1 = b.token_trie.root_hash
 
     # clear all balances except QKC
     for k in mapping:
         b.set_balance(journal, k, 0)
     # still have those token keys in balance map
-    assert len(b._balances) == 17
     assert b.balance(token_id_encode("QA")) == 0
-    assert not b._committed
     assert b.to_dict() == {new_token: 123}
     # trie hash should change after serialization
+    b.commit()
     serialized = b.serialize()
-    assert b._committed
-    root2 = b.token_root
+    root2 = b.token_trie.root_hash
     assert serialized == b"\x01" + root2
     assert root1 != root2
     # balance map truncated, but accessing will bring it back to map with val 0
-    assert len(b._balances) == 1
-    assert b.balance(new_token) == 123
+    assert b._balances == {}
     assert b.balance(token_id_encode("QB")) == 0
-    assert len(b._balances) == 2
+    assert len(b._balances) == 1
     assert b.to_dict() == {new_token: 123}
     assert not b.is_blank()
 
@@ -203,5 +209,24 @@ def test_encoding_change_from_dict_to_trie():
     b.set_balance(journal, new_token, 0)
     assert b.to_dict() == {}
     b.commit()
-    assert b.token_root == BLANK_ROOT
+    assert b.token_trie.root_hash == BLANK_ROOT
     assert b._balances == {}
+
+
+def test_reset_balance_in_trie_and_revert():
+    db = InMemoryDb()
+    b = TokenBalances(b"", db)
+    mapping = {token_id_encode("Q" + chr(65 + i)): int(i * 1e3) + 42 for i in range(17)}
+    b._balances = mapping.copy()
+    b.commit()
+
+    journal = []
+    b.set_balance(journal, 999, 999)
+    assert b.balance(999) == 999
+    b.reset(journal)
+    assert b.is_blank()
+    assert b.to_dict() == {}
+    for op in journal:
+        op()
+    assert not b.is_blank()
+    assert b.to_dict() == mapping

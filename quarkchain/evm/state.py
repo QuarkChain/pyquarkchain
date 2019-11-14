@@ -10,10 +10,8 @@ from quarkchain.evm.utils import (
     trie_root,
     big_endian_int,
     encode_hex,
-    big_endian_to_int,
     parse_as_bin,
     parse_as_int,
-    decode_hex,
     sha3,
     is_string,
     is_numeric,
@@ -25,8 +23,7 @@ from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
 from quarkchain.evm.common import FakeHeader
-from quarkchain.utils import token_id_encode
-
+from quarkchain.utils import token_id_encode, check
 
 BLANK_HASH = utils.sha3(b"")
 BLANK_ROOT = utils.sha3rlp(b"")
@@ -96,11 +93,9 @@ class TokenBalances:
 
     def __init__(self, data: bytes, db):
         self.token_trie = None
-        self.token_root = None
         # We don't want outside world to know this
         self._balances = {}
         self._db = db
-        self._committed = False
 
         if len(data) != 0:
             enum = data[:1]
@@ -108,40 +103,41 @@ class TokenBalances:
                 for p in rlp.decode(data[1:], CountableList(TokenBalancePair)):
                     self._balances[p.token_id] = p.balance
             elif enum == b"\x01":
-                self.token_root = data[1:]
                 self.token_trie = SecureTrie(Trie(db, data[1:]))
             else:
                 raise ValueError("Unknown enum byte in token_balances")
 
     def commit(self):
-        self._committed = True
         # No-op if not using trie and token size is small
-        if not self.token_trie and self._non_zero_entries <= TOKEN_TRIE_THRESHOLD:
+        if self._not_using_trie:
             return
-        # Use trie if size exceeds threshold
+        # Init trie if not already done so
         if not self.token_trie:
             self.token_trie = SecureTrie(Trie(self._db))
 
-        keys_to_del = []
         for token_id, bal in self._balances.items():
             k = utils.encode_int32(token_id)
             if bal:
                 self.token_trie.update(k, rlp.encode(bal))
             else:
                 self.token_trie.delete(k)
-                keys_to_del.append(token_id)
-        for token_id in keys_to_del:
-            del self._balances[token_id]
 
-        self.token_root = self.token_trie.root_hash
+        self._balances = {}
+
+    @property
+    def _not_using_trie(self):
+        return (
+            not self.token_trie
+            and self._non_zero_entries_in_balance_cache <= TOKEN_TRIE_THRESHOLD
+        )
 
     def serialize(self):
-        if not self._committed:
-            self.commit()
+        # Make sure is committed
+        check(self._not_using_trie or (self.token_trie and self._balances == {}))
 
-        # Fast path, since already committed
+        # Return trie hash if possible
         if self.token_trie:
-            return b"\x01" + self.token_root
+            return b"\x01" + self.token_trie.root_hash
 
         # Serialize in-memory balance representation as an array
         if len(self._balances) == 0:
@@ -166,12 +162,9 @@ class TokenBalances:
         preval = self.balance(token_id)
         self._balances[token_id] = value
         journal.append(lambda: self._balances.__setitem__(token_id, preval))
-        if self._committed:
-            self._committed = False
-            journal.append(lambda: setattr(self, "_committed", True))
 
     def is_blank(self):
-        return not self.token_trie and self._balances == {}
+        return not self.token_trie and self._non_zero_entries_in_balance_cache == 0
 
     def to_dict(self):
         if not self.token_trie:
@@ -182,13 +175,12 @@ class TokenBalances:
             utils.big_endian_to_int(k): utils.big_endian_to_int(rlp.decode(v))
             for k, v in trie_dict.items()
         }
-        # Get latest update if not committed
-        if not self._committed:
-            for k, v in self._balances.items():
-                if v == 0:
-                    ret.pop(k, None)
-                else:
-                    ret[k] = v
+        # Get latest update
+        for k, v in self._balances.items():
+            if v == 0:
+                ret.pop(k, None)
+            else:
+                ret[k] = v
         return ret
 
     def reset(self, journal):
@@ -198,13 +190,9 @@ class TokenBalances:
         pre_token_trie = self.token_trie
         self.token_trie = None
         journal.append(lambda: setattr(self, "token_trie", pre_token_trie))
-        pre_token_root = self.token_root
-        self.token_root = None
-        journal.append(lambda: setattr(self, "token_root", pre_token_root))
-        self._committed = False
 
     @property
-    def _non_zero_entries(self):
+    def _non_zero_entries_in_balance_cache(self):
         return sum(1 for bal in self._balances.values() if bal > 0)
 
 
@@ -450,10 +438,7 @@ class State:
 
     def reset_balances(self, address):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        if acct.token_balances.is_blank():
-            self.set_and_journal(acct, "touched", True)
-        else:
-            acct.token_balances.reset(self.journal)
+        acct.token_balances.reset(self.journal)
 
     def set_code(self, address, value):
         # assert is_string(value)
