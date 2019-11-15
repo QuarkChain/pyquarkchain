@@ -270,7 +270,10 @@ def proc_deploy_system_contract(ext, msg):
     if contract_index not in [e.value for e in SystemContract]:
         return 0, 0, []
 
-    target_addr, bytecode, _ = _system_contracts[SystemContract(contract_index)]
+    target_addr, bytecode, enable_ts = _system_contracts[SystemContract(contract_index)]
+    if ext.block_timestamp < enable_ts:
+        return 0, 0, []
+
     new_msg = vm.Message(
         msg.to,  # current special address
         b"",
