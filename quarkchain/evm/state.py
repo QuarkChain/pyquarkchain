@@ -164,12 +164,16 @@ class TokenBalances:
         journal.append(lambda: self._balances.__setitem__(token_id, preval))
 
     def is_blank(self):
+        # If token tris exists, means either a) has non-zero balance or b) has non-zero nonce
+        # Besides, account receiving 0 coins should still be regarded as blank
         return not self.token_trie and self._non_zero_entries_in_balance_cache == 0
 
     def to_dict(self):
         if not self.token_trie:
             return self._balances
 
+        # Iterating trie is costly. It's only for JSONRPC querying account information, which
+        # can be improved later
         trie_dict = self.token_trie.to_dict()
         ret = {
             utils.big_endian_to_int(k): utils.big_endian_to_int(rlp.decode(v))
