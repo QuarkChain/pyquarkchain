@@ -35,7 +35,7 @@ class TestPrecompiledContracts(unittest.TestCase):
         data = b"\x00" * 12 + minter + token_id + amount
 
         for addr, expect_success in testcases:
-            msg = Message(addr, addr, gas=9100, data=data)
+            msg = Message(addr, addr, gas=34001, data=data)
             state = State()
             result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
             balance = state.get_balance(
@@ -43,7 +43,7 @@ class TestPrecompiledContracts(unittest.TestCase):
             )
 
             if expect_success:
-                self.assertListEqual([result, gas_remained], [1, 9100 - 9000])
+                self.assertListEqual([result, gas_remained], [1, 34001 - 34000])
                 self.assertEqual(len(ret), 32)
                 self.assertEqual(int.from_bytes(ret, byteorder="big"), 1)
                 self.assertEqual(balance, int.from_bytes(amount, byteorder="big"))
