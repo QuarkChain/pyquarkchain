@@ -236,12 +236,18 @@ def proc_transfer_mnt(ext, msg):
     # Data must be >= 96 bytes
     if msg.data.size < 96:
         return 0, 0, []
+
     gascost = 3
+    to = utils.int_to_addr(msg.data.extract32(0))
+    value = msg.data.extract32(64)
+    if not ext.account_exists(to) and (value > 0):
+        gascost += opcodes.GCALLNEWACCOUNT
+    if value > 0:
+        gascost += opcodes.GCALLVALUETRANSFER
+
     if msg.gas < gascost:
         return 0, 0, []
-    to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
-    value = msg.data.extract32(64)
     data = msg.data.extract_all(96)
     new_msg = vm.Message(
         msg.sender,
