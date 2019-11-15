@@ -16,6 +16,7 @@ from quarkchain.config import get_default_evm_config
 from quarkchain.evm.exceptions import InvalidTransaction
 import quarkchain.evm.transactions as transactions
 from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.specials import specials, configure_special_contract_ts
 import copy
 import os
 from quarkchain.db import InMemoryDb
@@ -163,6 +164,15 @@ def init_state(env, pre, is_qkc_state, qkc_env=None):
         # If testing QuarkChain states, should not use mock account
         use_mock_evm_account=not is_qkc_state,
     )
+
+    if "overrides" in env:
+        if "specialContractTimestamp" in env["overrides"]:
+            for overrides in env["overrides"]["specialContractTimestamp"]:
+                configure_special_contract_ts(
+                    specials,
+                    bytes.fromhex(overrides["address"]),
+                    overrides["timestamp"],
+                )
 
     seen_token_ids = set()
     # Fill up pre

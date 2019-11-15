@@ -4,7 +4,10 @@ from enum import Enum
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 
-from quarkchain.constants import ROOT_CHAIN_POSW_CONTRACT_BYTECODE
+from quarkchain.constants import (
+    ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
+)
 from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
@@ -281,6 +284,30 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
     return create_contract(ext, new_msg, target_addr)
 
 
+# 3 inputs: (minter, token ID, amount)
+def proc_mint_mnt(ext, msg):
+    minter = msg.data.extract32(0)
+    token_id = msg.data.extract32(32)
+    amount = msg.data.extract32(64)
+    if amount == 0:
+        return 0, 0, []
+
+    gascost = opcodes.GCALLVALUETRANSFER
+    if not ext.account_exists(minter):
+        gascost += opcodes.GCALLNEWACCOUNT
+
+    if msg.gas < gascost:
+        return 0, 0, []
+
+    allowed_sender, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
+    # Only system contract has access to minting new token
+    if allowed_sender != msg.sender:
+        return 0, 0, []
+
+    ext._state.delta_token_balance(minter, token_id, amount)
+    return 1, msg.gas - gascost, [0] * 31 + [1]
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -298,6 +325,10 @@ specials = {
             proc_deploy_root_chain_staking_contract,
             0,
         ),
+        b"000000000000000000000000000000514b430004": (
+            proc_mint_mnt,
+            99999999999999999999,
+        ),
     }.items()
 }
 
@@ -311,6 +342,7 @@ def configure_special_contract_ts(specials_dict, addr, ts):
 
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
+    NON_RESERVED_NATIVE_TOKEN = 2
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
@@ -322,7 +354,11 @@ _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
-    )
+    ),
+    SystemContract.NON_RESERVED_NATIVE_TOKEN: (
+        decode_hex(b"514b430000000000000000000000000000000002"),
+        NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
+    ),
 }
 
 if __name__ == "__main__":
