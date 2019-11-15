@@ -47,6 +47,16 @@ class TestPrecompiledContracts(unittest.TestCase):
                 self.assertEqual(len(ret), 32)
                 self.assertEqual(int.from_bytes(ret, byteorder="big"), 1)
                 self.assertEqual(balance, int.from_bytes(amount, byteorder="big"))
+
+                # Mint again with exactly the same parameters
+                result, gas_remained, ret = proc_mint_mnt(VmExtBase(state), msg)
+                balance = state.get_balance(
+                    minter, int.from_bytes(token_id, byteorder="big")
+                )
+                self.assertListEqual([result, gas_remained], [1, 34001 - 9000])
+                self.assertEqual(len(ret), 32)
+                self.assertEqual(int.from_bytes(ret, byteorder="big"), 1)
+                self.assertEqual(balance, 2 * int.from_bytes(amount, byteorder="big"))
             else:
                 self.assertListEqual([result, gas_remained], [0, 0])
                 self.assertEqual(len(ret), 0)

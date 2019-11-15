@@ -924,3 +924,4 @@ class VmExtBase:
         self.call = lambda msg: 0, 0, 0
         self.sendmsg = lambda msg: 0, 0, 0
         self._state = state  # this field is only for mocking purpose
+        self.account_exists = state.account_exists if state else None

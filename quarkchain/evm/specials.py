@@ -293,7 +293,7 @@ def proc_mint_mnt(ext, msg):
         return 0, 0, []
 
     gascost = opcodes.GCALLVALUETRANSFER
-    if not ext._state.account_exists(minter):
+    if not ext.account_exists(minter):
         gascost += opcodes.GCALLNEWACCOUNT
 
     if msg.gas < gascost:
