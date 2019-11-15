@@ -286,7 +286,16 @@ def proc_deploy_root_chain_staking_contract(ext, msg):
 
 # 3 inputs: (minter, token ID, amount)
 def proc_mint_mnt(ext, msg):
+    minter = msg.data.extract32(0)
+    token_id = msg.data.extract32(32)
+    amount = msg.data.extract32(64)
+    if amount == 0:
+        return 0, 0, []
+
     gascost = opcodes.GCALLVALUETRANSFER
+    if not ext.account_exists(minter):
+        gascost += opcodes.GCALLNEWACCOUNT
+
     if msg.gas < gascost:
         return 0, 0, []
 
@@ -295,9 +304,6 @@ def proc_mint_mnt(ext, msg):
     if allowed_sender != msg.sender:
         return 0, 0, []
 
-    minter = msg.data.extract32(0)
-    token_id = msg.data.extract32(32)
-    amount = msg.data.extract32(64)
     ext._state.delta_token_balance(minter, token_id, amount)
     return 1, msg.gas - gascost, [0] * 31 + [1]
 
