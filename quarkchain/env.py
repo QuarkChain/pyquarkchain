@@ -42,10 +42,12 @@ class Env:
                 configure_special_contract_ts(
                     specials, addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
                 )
-            for contract in SystemContract:
-                configure_system_contract_ts(
-                    _system_contracts, contract, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
-                )
+        if c.QUARKCHAIN.ENABLE_MNT_AUCTION_TIMESTAMP is not None:
+            configure_system_contract_ts(
+                _system_contracts,
+                SystemContract.NON_RESERVED_NATIVE_TOKEN,
+                c.QUARKCHAIN.ENABLE_MNT_AUCTION_TIMESTAMP,
+            )
 
     def copy(self):
         ret = Env(self.db, dict(self.evm_config))

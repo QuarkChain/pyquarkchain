@@ -307,11 +307,9 @@ def proc_mint_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
-    allowed_sender, _, enable_ts = _system_contracts[
-        SystemContract.NON_RESERVED_NATIVE_TOKEN
-    ]
+    allowed_sender, _, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
     # Only system contract has access to minting new token
-    if allowed_sender != msg.sender or ext.block_timestamp < enable_ts:
+    if allowed_sender != msg.sender:
         return 0, 0, []
 
     ext._state.delta_token_balance(minter, token_id, amount)
