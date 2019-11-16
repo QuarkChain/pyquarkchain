@@ -371,7 +371,7 @@ _system_contracts = {
     SystemContract.NON_RESERVED_NATIVE_TOKEN: (
         decode_hex(b"514b430000000000000000000000000000000002"),
         NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
-        0,
+        99999999999999999999,
     ),
 }
 
