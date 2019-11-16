@@ -261,14 +261,22 @@ def proc_transfer_mnt(ext, msg):
     return apply_msg(ext, new_msg)
 
 
-def proc_deploy_root_chain_staking_contract(ext, msg):
+def proc_deploy_system_contract(ext, msg):
     from quarkchain.evm.messages import create_contract
 
     gascost = 3
     if msg.gas < gascost:
         return 0, 0, []
 
-    target_addr, bytecode = _system_contracts[SystemContract.ROOT_CHAIN_POSW]
+    data = msg.data.extract32(0)
+    contract_index = data if data else 1
+    if contract_index not in [e.value for e in SystemContract]:
+        return 0, 0, []
+
+    target_addr, bytecode, enable_ts = _system_contracts[SystemContract(contract_index)]
+    if ext.block_timestamp < enable_ts:
+        return 0, 0, []
+
     new_msg = vm.Message(
         msg.to,  # current special address
         b"",
@@ -299,7 +307,7 @@ def proc_mint_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
-    allowed_sender, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
+    allowed_sender, _, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
     # Only system contract has access to minting new token
     if allowed_sender != msg.sender:
         return 0, 0, []
@@ -321,10 +329,7 @@ specials = {
         b"0000000000000000000000000000000000000008": (proc_ecpairing, 0),
         b"000000000000000000000000000000514b430001": (proc_current_mnt_id, 0),
         b"000000000000000000000000000000514b430002": (proc_transfer_mnt, 0),
-        b"000000000000000000000000000000514b430003": (
-            proc_deploy_root_chain_staking_contract,
-            0,
-        ),
+        b"000000000000000000000000000000514b430003": (proc_deploy_system_contract, 0),
         b"000000000000000000000000000000514b430004": (
             proc_mint_mnt,
             99999999999999999999,
@@ -338,6 +343,13 @@ def configure_special_contract_ts(specials_dict, addr, ts):
     proc, _ = specials_dict[addr]
     # Replace timestamp.
     specials_dict[addr] = proc, ts
+
+
+def configure_system_contract_ts(system_contract_dict, contract, ts):
+    assert contract in SystemContract
+    addr, bytecode, _ = system_contract_dict[contract]
+    # Replace timestamp.
+    system_contract_dict[contract] = addr, bytecode, ts
 
 
 class SystemContract(Enum):
@@ -354,10 +366,12 @@ _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+        0,
     ),
     SystemContract.NON_RESERVED_NATIVE_TOKEN: (
         decode_hex(b"514b430000000000000000000000000000000002"),
         NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
+        99999999999999999999,
     ),
 }
 
