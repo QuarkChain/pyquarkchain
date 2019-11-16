@@ -4,7 +4,10 @@ from enum import Enum
 from py_ecc.secp256k1 import N as secp256k1n
 import hashlib
 
-from quarkchain.constants import ROOT_CHAIN_POSW_CONTRACT_BYTECODE
+from quarkchain.constants import (
+    ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
+)
 from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
@@ -289,6 +292,32 @@ def proc_deploy_system_contract(ext, msg):
     return create_contract(ext, new_msg, target_addr)
 
 
+# 3 inputs: (minter, token ID, amount)
+def proc_mint_mnt(ext, msg):
+    minter = msg.data.extract32(0)
+    token_id = msg.data.extract32(32)
+    amount = msg.data.extract32(64)
+    if amount == 0:
+        return 0, 0, []
+
+    gascost = opcodes.GCALLVALUETRANSFER
+    if not ext.account_exists(minter):
+        gascost += opcodes.GCALLNEWACCOUNT
+
+    if msg.gas < gascost:
+        return 0, 0, []
+
+    allowed_sender, _, enable_ts = _system_contracts[
+        SystemContract.NON_RESERVED_NATIVE_TOKEN
+    ]
+    # Only system contract has access to minting new token
+    if allowed_sender != msg.sender or ext.block_timestamp < enable_ts:
+        return 0, 0, []
+
+    ext._state.delta_token_balance(minter, token_id, amount)
+    return 1, msg.gas - gascost, [0] * 31 + [1]
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -303,6 +332,10 @@ specials = {
         b"000000000000000000000000000000514b430001": (proc_current_mnt_id, 0),
         b"000000000000000000000000000000514b430002": (proc_transfer_mnt, 0),
         b"000000000000000000000000000000514b430003": (proc_deploy_system_contract, 0),
+        b"000000000000000000000000000000514b430004": (
+            proc_mint_mnt,
+            99999999999999999999,
+        ),
     }.items()
 }
 
@@ -323,6 +356,7 @@ def configure_system_contract_ts(system_contract_dict, contract, ts):
 
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
+    NON_RESERVED_NATIVE_TOKEN = 2
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
@@ -335,7 +369,12 @@ _system_contracts = {
         decode_hex(b"514b430000000000000000000000000000000001"),
         ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
         0,
-    )
+    ),
+    SystemContract.NON_RESERVED_NATIVE_TOKEN: (
+        decode_hex(b"514b430000000000000000000000000000000002"),
+        NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
+        0,
+    ),
 }
 
 if __name__ == "__main__":

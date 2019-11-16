@@ -902,9 +902,8 @@ def vm_execute(ext, msg, code):
 # A stub that's mainly here to show what you would need to implement to
 # hook into the EVM
 class VmExtBase:
-    def __init__(self):
+    def __init__(self, state=None):
         self.get_code = lambda addr: b""
-        self.get_balance = lambda addr: 0
         self.set_balance = lambda addr, balance: 0
         self.set_storage_data = lambda addr, key, value: 0
         self.get_storage_data = lambda addr, key: 0
@@ -923,3 +922,5 @@ class VmExtBase:
         self.create = lambda msg: 0, 0, 0
         self.call = lambda msg: 0, 0, 0
         self.sendmsg = lambda msg: 0, 0, 0
+        self._state = state  # this field is only for mocking purpose
+        self.account_exists = state.account_exists if state else None

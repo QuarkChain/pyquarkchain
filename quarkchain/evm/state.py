@@ -10,10 +10,8 @@ from quarkchain.evm.utils import (
     trie_root,
     big_endian_int,
     encode_hex,
-    big_endian_to_int,
     parse_as_bin,
     parse_as_int,
-    decode_hex,
     sha3,
     is_string,
     is_numeric,
@@ -25,8 +23,7 @@ from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
 from quarkchain.evm.common import FakeHeader
-from quarkchain.utils import token_id_encode
-
+from quarkchain.utils import token_id_encode, check
 
 BLANK_HASH = utils.sha3(b"")
 BLANK_ROOT = utils.sha3rlp(b"")
@@ -92,49 +89,115 @@ class TokenBalancePair(rlp.Serializable):
 
 
 class TokenBalances:
-    """interface for token balances
-    TODODLL: store token balances in trie when TOKEN_TRIE_THRESHOLD is crossed
-    """
+    """Token balances including non-genesis native tokens."""
 
     def __init__(self, data: bytes, db):
-        self.token_trie = SecureTrie(Trie(db))
-        self.balances = {}
-        self.enum = b"\x00"
+        self.token_trie = None
+        # We don't want outside world to know this
+        self._balances = {}
+        self._db = db
+
         if len(data) != 0:
-            self.enum = data[:1]
-            if self.enum == b"\x00":
+            enum = data[:1]
+            if enum == b"\x00":
                 for p in rlp.decode(data[1:], CountableList(TokenBalancePair)):
-                    self.balances[p.token_id] = p.balance
-            elif self.enum == b"\x01":
-                raise Exception("Token balance trie is not yet implemented")
+                    self._balances[p.token_id] = p.balance
+            elif enum == b"\x01":
+                self.token_trie = SecureTrie(Trie(db, data[1:]))
             else:
-                raise Exception("Unknown enum byte in token_balances")
+                raise ValueError("Unknown enum byte in token_balances")
+
+    def commit(self):
+        # No-op if not using trie and token size is small
+        if self._not_using_trie:
+            return
+        # Init trie if not already done so
+        if not self.token_trie:
+            self.token_trie = SecureTrie(Trie(self._db))
+
+        for token_id, bal in self._balances.items():
+            k = utils.encode_int32(token_id)
+            if bal:
+                self.token_trie.update(k, rlp.encode(bal))
+            else:
+                self.token_trie.delete(k)
+
+        self._balances = {}
+
+    @property
+    def _not_using_trie(self):
+        return (
+            not self.token_trie
+            and self._non_zero_entries_in_balance_cache <= TOKEN_TRIE_THRESHOLD
+        )
 
     def serialize(self):
-        if len(self.balances) == 0:
+        # Make sure is committed
+        check(self._not_using_trie or (self.token_trie and self._balances == {}))
+
+        # Return trie hash if possible
+        if self.token_trie:
+            return b"\x01" + self.token_trie.root_hash
+
+        # Serialize in-memory balance representation as an array
+        if len(self._balances) == 0:
             return b""
-        retv = self.enum
-        if self.enum == b"\x00":
-            l = []
-            for k, v in self.balances.items():
-                # Don't serialize 0 balance
-                if v == 0:
-                    continue
-                l.append(TokenBalancePair(k, v))
-            # sort by token id to make token balances serialization deterministic
-            l.sort(key=lambda b: b.token_id)
-            retv = retv + rlp.encode(l)
-        elif self.enum == b"\x01":
-            raise Exception("Token balance trie is not yet implemented")
-        else:
-            raise Exception("Unknown enum byte in token_balances")
-        return retv
+        # Don't serialize 0 balance
+        ls = [TokenBalancePair(k, v) for k, v in self._balances.items() if v > 0]
+        # Sort by token id to make token balances serialization deterministic
+        ls.sort(key=lambda b: b.token_id)
+        return b"\x00" + rlp.encode(ls)
 
     def balance(self, token_id):
-        return self.balances.get(token_id, 0)
+        if token_id in self._balances:
+            return self._balances[token_id]
+        if self.token_trie:
+            v = self.token_trie.get(utils.encode_int32(token_id))
+            ret = utils.big_endian_to_int(rlp.decode(v)) if v else 0
+            self._balances[token_id] = ret
+            return ret
+        return 0
 
-    def is_empty(self):
-        return all(v == 0 for v in self.balances.values())
+    def set_balance(self, journal, token_id, value):
+        preval = self.balance(token_id)
+        self._balances[token_id] = value
+        journal.append(lambda: self._balances.__setitem__(token_id, preval))
+
+    def is_blank(self):
+        # If token tris exists, means either a) has non-zero balance or b) has non-zero nonce
+        # Besides, account receiving 0 coins should still be regarded as blank
+        return not self.token_trie and self._non_zero_entries_in_balance_cache == 0
+
+    def to_dict(self):
+        if not self.token_trie:
+            return self._balances
+
+        # Iterating trie is costly. It's only for JSONRPC querying account information, which
+        # can be improved later
+        trie_dict = self.token_trie.to_dict()
+        ret = {
+            utils.big_endian_to_int(k): utils.big_endian_to_int(rlp.decode(v))
+            for k, v in trie_dict.items()
+        }
+        # Get latest update
+        for k, v in self._balances.items():
+            if v == 0:
+                ret.pop(k, None)
+            else:
+                ret[k] = v
+        return ret
+
+    def reset(self, journal):
+        pre_balance = self._balances
+        self._balances = {}
+        journal.append(lambda: setattr(self, "_balance", pre_balance))
+        pre_token_trie = self.token_trie
+        self.token_trie = None
+        journal.append(lambda: setattr(self, "token_trie", pre_token_trie))
+
+    @property
+    def _non_zero_entries_in_balance_cache(self):
+        return sum(1 for bal in self._balances.values() if bal > 0)
 
 
 class Account:
@@ -177,6 +240,7 @@ class Account:
                 self.storage_trie.delete(utils.encode_int32(k))
         self.storage_cache = {}
         self.storage = self.storage_trie.root_hash
+        self.token_balances.commit()
 
     @property
     def code(self):
@@ -222,22 +286,16 @@ class Account:
     def is_blank(self):
         return (
             self.nonce == 0
-            and self.token_balances.is_empty()
+            and self.token_balances.is_blank()
             and self.code_hash == BLANK_HASH
         )
-
-    @property
-    def exists(self):
-        if self.is_blank():
-            return self.touched or (self.existent_at_start and not self.deleted)
-        return True
 
     def to_dict(self):
         odict = self.storage_trie.to_dict()
         for k, v in self.storage_cache.items():
             odict[utils.encode_int(k)] = rlp.encode(utils.encode_int(v))
         return {
-            "token_balances": str(self.token_balances.balances),
+            "token_balances": self.token_balances.to_dict(),
             "nonce": str(self.nonce),
             "code": "0x" + encode_hex(self.code),
             "storage": {
@@ -323,7 +381,7 @@ class State:
             if self.use_mock_evm_account:
                 o = rlp.decode(rlpdata, _MockAccount)
                 raw_token_balances = TokenBalances(b"", self.db)
-                raw_token_balances.balances = {token_id_encode("QKC"): o.balance}
+                raw_token_balances._balances = {token_id_encode("QKC"): o.balance}
                 token_balances = raw_token_balances.serialize()
                 full_shard_key = self.full_shard_key
             else:
@@ -356,7 +414,7 @@ class State:
     def get_balances(self, address) -> dict:
         return self.get_and_cache_account(
             utils.normalize_address(address)
-        ).token_balances.balances
+        ).token_balances.to_dict()
 
     def get_balance(self, address, token_id=None):
         if token_id is None:
@@ -382,13 +440,9 @@ class State:
         self.journal.append(lambda: setattr(acct, param, preval))
         setattr(acct, param, val)
 
-    def set_balances(self, address, token_balances: dict):
+    def reset_balances(self, address):
         acct = self.get_and_cache_account(utils.normalize_address(address))
-        if self.get_balances(address) == token_balances:
-            self.set_and_journal(acct, "touched", True)
-            return
-        self.set_and_journal(acct.token_balances, "balances", token_balances)
-        self.set_and_journal(acct, "touched", True)
+        acct.token_balances.reset(self.journal)
 
     def set_code(self, address, value):
         # assert is_string(value)
@@ -417,14 +471,7 @@ class State:
     def _set_token_balance_and_journal(self, acct, token_id, val):
         """if token_id was not set, journal will erase token_id when reverted
         """
-        preval = acct.token_balances.balances.get(token_id, None)
-        if preval == None:
-            self.journal.append(lambda: acct.token_balances.balances.pop(token_id))
-        else:
-            self.journal.append(
-                lambda: acct.token_balances.balances.__setitem__(token_id, preval)
-            )
-        acct.token_balances.balances[token_id] = val
+        acct.token_balances.set_balance(self.journal, token_id, val)
 
     def delta_token_balance(self, address, token_id, value):
         address = utils.normalize_address(address)
@@ -541,7 +588,7 @@ class State:
                 self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
                     if self.use_mock_evm_account:
-                        assert len(acct.token_balances.balances) <= 1, "QKC only"
+                        assert len(acct.token_balances._balances) <= 1, "QKC only"
                         _acct = _MockAccount(
                             acct.nonce,
                             acct.token_balances.balance(token_id_encode("QKC")),
@@ -578,7 +625,7 @@ class State:
         return {encode_hex(addr): acct.to_dict() for addr, acct in self.cache.items()}
 
     def del_account(self, address):
-        self.set_balances(address, {})
+        self.reset_balances(address)
         self.set_nonce(address, 0)
         self.set_code(address, b"")
         self.reset_storage(address)
@@ -604,15 +651,9 @@ class State:
         acct.storage_trie.root_hash = BLANK_ROOT
 
     # Creates a snapshot from a state
-    def to_snapshot(self, root_only=False, no_prevblocks=False):
-        snapshot = {}
-        if root_only:
-            # Smaller snapshot format that only includes the state root
-            # (requires original DB to re-initialize)
-            snapshot["state_root"] = "0x" + encode_hex(self.trie.root_hash)
-        else:
-            # "Full" snapshot
-            snapshot["alloc"] = self.to_dict()
+    def to_snapshot(self, no_prevblocks=False):
+        snapshot = dict()
+        snapshot["state_root"] = "0x" + encode_hex(self.trie.root_hash)
         # Save non-state-root variables
         for k, default in STATE_DEFAULTS.items():
             default = copy.copy(default)
@@ -637,27 +678,7 @@ class State:
     @classmethod
     def from_snapshot(cls, snapshot_data, env, executing_on_head=False):
         state = State(env=env)
-        if "alloc" in snapshot_data:
-            for addr, data in snapshot_data["alloc"].items():
-                if len(addr) == 40:
-                    addr = decode_hex(addr)
-                assert len(addr) == 20
-                if "wei" in data:
-                    state.set_balances(addr, eval(data["wei"]))
-                if "token_balances" in data:
-                    state.set_balances(addr, eval(data["token_balances"]))
-                if "code" in data:
-                    state.set_code(addr, parse_as_bin(data["code"]))
-                if "nonce" in data:
-                    state.set_nonce(addr, parse_as_int(data["nonce"]))
-                if "storage" in data:
-                    for k, v in data["storage"].items():
-                        state.set_storage_data(
-                            addr,
-                            big_endian_to_int(parse_as_bin(k)),
-                            big_endian_to_int(parse_as_bin(v)),
-                        )
-        elif "state_root" in snapshot_data:
+        if "state_root" in snapshot_data:
             state.trie.root_hash = parse_as_bin(snapshot_data["state_root"])
         else:
             raise Exception("Must specify either alloc or state root parameter")
@@ -691,7 +712,7 @@ class State:
         return state
 
     def ephemeral_clone(self):
-        snapshot = self.to_snapshot(root_only=True, no_prevblocks=True)
+        snapshot = self.to_snapshot(no_prevblocks=True)
         env2 = Env(OverlayDb(self.db), self.env.config)
         s = State.from_snapshot(snapshot, env2)
         for param in STATE_DEFAULTS:
