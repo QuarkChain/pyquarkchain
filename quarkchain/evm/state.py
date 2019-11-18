@@ -23,7 +23,10 @@ from quarkchain.evm.trie import Trie
 from quarkchain.evm.securetrie import SecureTrie
 from quarkchain.evm.config import Env
 from quarkchain.evm.common import FakeHeader
-from quarkchain.utils import token_id_encode, check
+from quarkchain.utils import token_id_encode, check, sha3_256
+from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.evm.messages import apply_transaction
+from quarkchain.evm.specials import SystemContract
 
 BLANK_HASH = utils.sha3(b"")
 BLANK_ROOT = utils.sha3rlp(b"")
@@ -726,6 +729,81 @@ class State:
         s.qkc_config = self.qkc_config
         s.sender_disallow_map = self.sender_disallow_map
         return s
+
+    def get_gas_utility_info(
+        self, token_id: int, gas_price: int, evm_state
+    ) -> (int, int):
+        check(evm_state is not None)
+        contract_addr = SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY.addr()
+        code = evm_state.get_code(contract_addr)
+        if not code:
+            return 0, 0
+        # To be done. Check the code
+        mock_sender = contract_addr
+        # Call the calculateGasPrice function
+        data = (
+            bytes.fromhex("ce9e8c47")
+            + token_id.to_bytes(32, byteorder="big")
+            + gas_price.to_bytes(32, byteorder="big")
+        )
+        evm_tx = EvmTransaction(
+            evm_state.get_nonce(mock_sender),
+            0,
+            1000000,
+            contract_addr,
+            0,
+            data,
+            gas_token_id=self.shard_config.default_chain_token,
+            transfer_token_id=self.shard_config.default_chain_token,
+        )
+        evm_tx.set_quark_chain_config(self.qkc_config)
+        evm_tx.sender = mock_sender
+        success, output = apply_transaction(
+            evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+        )
+        if not success or not output:
+            return 0, 0
+        refund_rate = int.from_bytes(output[:32], byteorder="big")
+        gas_price = int.from_bytes(output[64:], byteorder="big")
+        return refund_rate, gas_price
+
+    def pay_as_gas(
+        self, token_id: int, gas: int, gas_price: int, evm_state
+    ) -> (int, int):
+        check(evm_state is not None)
+        contract_addr = SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY.addr()
+        code = evm_state.get_code(contract_addr)
+        if not code:
+            return 0, 0
+        # To be done. Check the code
+        mock_sender = contract_addr
+        # Call the gayAsGas function
+        data = (
+            bytes.fromhex("5ae8f7f1")
+            + token_id.to_bytes(32, byteorder="big")
+            + gas.to_bytes(32, byteorder="big")
+            + gas_price.to_bytes(32, byteorder="big")
+        )
+        evm_tx = EvmTransaction(
+            evm_state.get_nonce(mock_sender),
+            0,
+            1000000,
+            contract_addr,
+            0,
+            data,
+            gas_token_id=self.shard_config.default_chain_token,
+            transfer_token_id=self.shard_config.default_chain_token,
+        )
+        evm_tx.set_quark_chain_config(self.qkc_config)
+        evm_tx.sender = mock_sender
+        success, output = apply_transaction(
+            evm_state, evm_tx, tx_wrapper_hash=bytes(32)
+        )
+        if not success or not output:
+            return 0, 0
+        refund_rate = int.from_bytes(output[:32], byteorder="big")
+        gas_price = int.from_bytes(output[32:], byteorder="big")
+        return refund_rate, gas_price
 
 
 def prev_header_to_dict(h):
