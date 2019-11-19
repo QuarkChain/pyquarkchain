@@ -701,9 +701,6 @@ def _call_general_native_token_manager(state, data: bytes) -> (int, int):
         1000000,  # Mock gas to guarantee msg will be applied
         data,
         code_address=contract_addr,
-        # from_full_shard_key=deposit.from_address.full_shard_key,
-        # to_full_shard_key=deposit.to_address.full_shard_key,
-        # tx_hash=deposit.tx_hash,
         gas_token_id=state.shard_config.default_chain_token,
         transfer_token_id=state.shard_config.default_chain_token,
     )
@@ -731,7 +728,7 @@ def get_gas_utility_info(
 def pay_native_token_as_gas(
     state, token_id: int, gas: int, gas_price_in_native_token: int
 ) -> (int, int):
-    # Call the `gayAsGas` function
+    # Call the `payAsGas` function
     data = (
         bytes.fromhex("5ae8f7f1")
         + token_id.to_bytes(32, byteorder="big")

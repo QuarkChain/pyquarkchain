@@ -3013,7 +3013,6 @@ class TestShardState(unittest.TestCase):
 
         runtime_bytecode = ROOT_CHAIN_POSW_CONTRACT_BYTECODE
         runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
-        # get rid of the constructor argument
         runtime_bytecode = runtime_bytecode[runtime_start:]
         env.quark_chain_config.ROOT_CHAIN_POSW_CONTRACT_BYTECODE_HASH = sha3_256(
             runtime_bytecode
