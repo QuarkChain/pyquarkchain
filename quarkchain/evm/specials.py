@@ -7,7 +7,7 @@ import hashlib
 from quarkchain.constants import (
     ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
     NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
-    MULTI_NATIVE_TOKEN_GAS_UTILITY_CONTRACT_BYTECODE,
+    GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE,
 )
 from quarkchain.rlp.utils import ascii_chr
 
@@ -356,7 +356,7 @@ def configure_system_contract_ts(system_contract_dict, contract, ts):
 class SystemContract(Enum):
     ROOT_CHAIN_POSW = 1
     NON_RESERVED_NATIVE_TOKEN = 2
-    MULTI_NATIVE_TOKEN_GAS_UTILITY = 3
+    GENERAL_NATIVE_TOKEN = 3
 
     def addr(self) -> bytes:
         ret = _system_contracts[self][0]
@@ -375,9 +375,9 @@ _system_contracts = {
         NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
         99999999999999999999,
     ),
-    SystemContract.MULTI_NATIVE_TOKEN_GAS_UTILITY: (
+    SystemContract.GENERAL_NATIVE_TOKEN: (
         decode_hex(b"514b430000000000000000000000000000000003"),
-        MULTI_NATIVE_TOKEN_GAS_UTILITY_CONTRACT_BYTECODE,
+        GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE,
         99999999999999999999,
     ),
 }
