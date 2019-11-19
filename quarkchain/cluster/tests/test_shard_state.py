@@ -3028,7 +3028,10 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(stakes, 0)
         self.assertEqual(signer, acc1.recipient)
 
-        def tx_gen(nonce, value, data: str):
+        nonce = 0
+
+        def tx_gen(value, data: str):
+            nonlocal nonce
             ret = create_transfer_transaction(
                 nonce=nonce,
                 shard_state=state,
@@ -3040,23 +3043,24 @@ class TestShardState(unittest.TestCase):
                 gas_price=0,
                 data=bytes.fromhex(data),
             ).tx.to_evm_tx()
+            nonce += 1
             ret.set_quark_chain_config(env.quark_chain_config)
             return ret
 
-        add_stake_tx = lambda n, v: tx_gen(n, v, "")
-        set_signer_tx = lambda n, v, a: tx_gen(
-            n, v, "6c19e783000000000000000000000000" + a.recipient.hex()
+        add_stake_tx = lambda v: tx_gen(v, "")
+        set_signer_tx = lambda v, a: tx_gen(
+            v, "6c19e783000000000000000000000000" + a.recipient.hex()
         )
-        withdraw_tx = lambda n: tx_gen(n, 0, "853828b6")
-        unlock_tx = lambda n: tx_gen(n, 0, "a69df4b5")
-        lock_tx = lambda n, v: tx_gen(n, v, "f83d08ba")
+        withdraw_tx = lambda: tx_gen(0, "853828b6")
+        unlock_tx = lambda: tx_gen(0, "a69df4b5")
+        lock_tx = lambda v: tx_gen(v, "f83d08ba")
 
         # add stakes and set signer
-        tx0 = add_stake_tx(0, 1234)
+        tx0 = add_stake_tx(1234)
         success, _ = apply_transaction(evm_state, tx0, bytes(32))
         self.assertTrue(success)
         random_signer = Address.create_random_account()
-        tx1 = set_signer_tx(1, 4321, random_signer)
+        tx1 = set_signer_tx(4321, random_signer)
         success, _ = apply_transaction(evm_state, tx1, bytes(32))
         self.assertTrue(success)
 
@@ -3068,23 +3072,23 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(signer, random_signer.recipient)
 
         # can't withdraw during locking
-        tx2 = withdraw_tx(2)
+        tx2 = withdraw_tx()
         success, _ = apply_transaction(evm_state, tx2, bytes(32))
         self.assertFalse(success)
 
         # unlock should succeed
-        tx3 = unlock_tx(3)
+        tx3 = unlock_tx()
         success, _ = apply_transaction(evm_state, tx3, bytes(32))
         self.assertTrue(success)
         # but still can't withdraw
-        tx4 = withdraw_tx(4)
+        tx4 = withdraw_tx()
         success, _ = apply_transaction(evm_state, tx4, bytes(32))
         self.assertFalse(success)
         # and can't add stakes or set signer either
-        tx5 = add_stake_tx(5, 100)
+        tx5 = add_stake_tx(100)
         success, _ = apply_transaction(evm_state, tx5, bytes(32))
         self.assertFalse(success)
-        tx6 = set_signer_tx(6, 0, acc1)
+        tx6 = set_signer_tx(0, acc1)
         success, _ = apply_transaction(evm_state, tx6, bytes(32))
         self.assertFalse(success)
 
@@ -3099,14 +3103,14 @@ class TestShardState(unittest.TestCase):
         # 4 days passed, should be able to withdraw
         evm_state.timestamp += 3600 * 24 * 4
         balance_before = evm_state.get_balance(acc1.recipient)
-        tx7 = withdraw_tx(7)
+        tx7 = withdraw_tx()
         success, _ = apply_transaction(evm_state, tx7, bytes(32))
         self.assertTrue(success)
         balance_after = evm_state.get_balance(acc1.recipient)
         self.assertEqual(balance_before + 5555, balance_after)
 
         # lock again
-        tx8 = lock_tx(8, 42)
+        tx8 = lock_tx(42)
         success, _ = apply_transaction(evm_state, tx8, bytes(32))
         self.assertTrue(success)
 
@@ -3225,12 +3229,12 @@ class TestShardState(unittest.TestCase):
         set_refund_rate = lambda: tx_gen(
             "6d27af8c" + parsed_hex(token_id) + parsed_hex(60)
         )
-        query_gas_reserve_balance = lambda addr: tx_gen(
-            "13dee215" + parsed_hex(token_id) + "0" * 24 + addr
+        query_gas_reserve_balance = lambda a: tx_gen(
+            "13dee215" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
         )
         # check the balance of native token
-        query_native_token_balance = lambda addr: tx_gen(
-            "21a2b36e" + parsed_hex(token_id) + "0" * 24 + addr
+        query_native_token_balance = lambda a: tx_gen(
+            "21a2b36e" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
         )
 
         # propose a new exchange rate
@@ -3250,12 +3254,12 @@ class TestShardState(unittest.TestCase):
         refund_percentage, gas_price = pay_native_token_as_gas(evm_state, 123, 1, 60000)
         self.assertEqual((refund_percentage, gas_price), (60, 2))
         # check the balance of the gas reserve. amount of native token (60000) * exchange rate (1 / 30000) = 2 QKC
-        tx3 = query_gas_reserve_balance(acc1.recipient.hex())
+        tx3 = query_gas_reserve_balance(acc1)
         success, output = apply_transaction(evm_state, tx3, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 9998)
         # check the balance of native token.
-        tx4 = query_native_token_balance(acc1.recipient.hex())
+        tx4 = query_native_token_balance(acc1)
         success, output = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 60000)
