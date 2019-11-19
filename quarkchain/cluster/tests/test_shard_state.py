@@ -3263,3 +3263,66 @@ class TestShardState(unittest.TestCase):
         success, output = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 60000)
+
+    def test_in_shard_transaction_pay_as_gas_utility(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_quarkash=10000000,
+            genesis_minor_token_balances={
+                "QKC": 100000000,
+                "QI": 100000000,
+                "BTC": 100000000,
+            },
+        )
+        state = create_default_shard_state(env=env)
+        evm_state = state.evm_state
+
+        qkc_token = token_id_encode("QKC")
+        qi_token = token_id_encode("QI")
+
+        def mock_pay_as_gas(token_id, gas, gas_price, evm_state):
+            return 50, gas_price * 2
+
+        def tx_gen(nonce, value, token_id, address, data: str):
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=address,
+                value=value,
+                gas=1000000,
+                gas_price=10,
+                data=bytes.fromhex(data),
+                gas_token_id=token_id,
+            ).tx.to_evm_tx()
+            ret.set_quark_chain_config(env.quark_chain_config)
+            return ret
+
+        evm_state.pay_as_gas = mock_pay_as_gas
+        pay_use_mnt = lambda n, v, i, a: tx_gen(n, v, i, a, "")
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
+        )
+
+        tx0 = pay_use_mnt(0, 1000, qi_token, acc2)
+        success, _ = apply_transaction(evm_state, tx0, bytes(32))
+        self.assertTrue(success)
+
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qi_token),
+            100000000 - 1000000 * 10,
+        )
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qkc_token),
+            100000000 - 1000 + 979000 * 10,
+        )
+        self.assertEqual(
+            evm_state.get_balance(bytes(20), token_id=qkc_token),
+            979000 * 10 + 21000 * 10,
+        )
