@@ -3171,7 +3171,8 @@ class TestShardState(unittest.TestCase):
 
         runtime_bytecode = NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE
         runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
-        runtime_bytecode = runtime_bytecode[runtime_start:-32]
+        # get rid of constructor arguments
+        runtime_bytecode = runtime_bytecode[runtime_start:-64]
         contract_addr = SystemContract.NON_RESERVED_NATIVE_TOKEN.addr()
         evm_state.set_code(contract_addr, runtime_bytecode)
         evm_state.set_storage_data(contract_addr, 0, acc1.recipient)
