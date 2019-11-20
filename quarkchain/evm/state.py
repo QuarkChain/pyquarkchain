@@ -727,6 +727,10 @@ class State:
         s.sender_disallow_map = self.sender_disallow_map
         return s
 
+    @property
+    def genesis_token(self):
+        return self.qkc_config.genesis_token
+
 
 def prev_header_to_dict(h):
     return {
