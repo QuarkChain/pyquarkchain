@@ -3172,9 +3172,6 @@ class TestShardState(unittest.TestCase):
         runtime_bytecode = NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE
         runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
         runtime_bytecode = runtime_bytecode[runtime_start:-32]
-        env.quark_chain_config.NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE_HASH = sha3_256(
-            runtime_bytecode
-        ).hex()
         contract_addr = SystemContract.NON_RESERVED_NATIVE_TOKEN.addr()
         evm_state.set_code(contract_addr, runtime_bytecode)
         evm_state.set_storage_data(contract_addr, 0, acc1.recipient)
@@ -3242,6 +3239,7 @@ class TestShardState(unittest.TestCase):
         success, output = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
         self.assertNotEqual(int.from_bytes(output[:32], byteorder="big"), 0)
+        self.assertEqual(output[44:64], acc1.recipient)
         self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), 0)
 
         tx5 = mint_new_token()
