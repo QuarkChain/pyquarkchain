@@ -3231,24 +3231,29 @@ class TestShardState(unittest.TestCase):
         success, _ = apply_transaction(evm_state, tx2, bytes(32))
         self.assertTrue(success)
 
-        # 7 days passed, this round of auction ends
-        evm_state.timestamp += 3600 * 24 * 7
+        # End before ending time, should fail
         tx3 = end_auction()
         success, _ = apply_transaction(evm_state, tx3, bytes(32))
+        self.assertFalse(success)
+
+        # 7 days passed, this round of auction ends
+        evm_state.timestamp += 3600 * 24 * 7
+        tx4 = end_auction()
+        success, _ = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
 
-        tx4 = get_native_token_info()
-        success, output = apply_transaction(evm_state, tx4, bytes(32))
+        tx5 = get_native_token_info()
+        success, output = apply_transaction(evm_state, tx5, bytes(32))
         self.assertTrue(success)
         self.assertNotEqual(int.from_bytes(output[:32], byteorder="big"), 0)
         self.assertEqual(output[44:64], acc1.recipient)
         self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), 0)
 
-        tx5 = mint_new_token()
-        success, _ = apply_transaction(evm_state, tx5, bytes(32))
+        tx6 = mint_new_token()
+        success, _ = apply_transaction(evm_state, tx6, bytes(32))
         self.assertTrue(success)
 
-        tx6 = get_native_token_info()
-        success, output = apply_transaction(evm_state, tx6, bytes(32))
+        tx7 = get_native_token_info()
+        success, output = apply_transaction(evm_state, tx7, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), amount)
