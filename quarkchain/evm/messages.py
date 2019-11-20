@@ -432,8 +432,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                         tx.to_full_shard_key,
                     ),
                     value=tx.value,
+                    # convert to genesis token and use converted gas price
+                    gas_token_id=state.genesis_token,
                     gas_price=gasprice,
-                    gas_token_id=tx.gas_token_id,
                     transfer_token_id=tx.transfer_token_id,
                     message_data=tx.data,
                     create_contract=True,
@@ -457,8 +458,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
                     ),
                     to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
                     value=tx.value,
+                    # convert to genesis token and use converted gas price
+                    gas_token_id=state.genesis_token,
                     gas_price=gasprice,
-                    gas_token_id=tx.gas_token_id,
                     transfer_token_id=tx.transfer_token_id,
                     message_data=tx.data,
                     create_contract=False,
