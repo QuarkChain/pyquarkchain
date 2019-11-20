@@ -3201,6 +3201,7 @@ class TestShardState(unittest.TestCase):
         token_id = 9999999  # token id to bid and win
         amount = 1000
         parsed_hex = lambda i: i.to_bytes(32, byteorder="big").hex()
+        # set auction parameters: minimum bid price: 20 QKC, minimum increment: 5%, duration: one week
         set_auction_params = lambda: tx_gen(
             "3c69e3d2" + parsed_hex(20) + parsed_hex(5) + parsed_hex(3600 * 24 * 7)
         )
