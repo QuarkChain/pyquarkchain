@@ -626,7 +626,7 @@ def _apply_msg(ext, msg, code):
     if (
         res == 1
         and code != b""
-        and msg.transfer_token_id != ext.default_state_token
+        and msg.transfer_token_id != ext.default_chain_token
         and not msg.token_id_queried
         and msg.value != 0
     ):
@@ -657,7 +657,7 @@ def mk_contract_address2(sender, salt: bytes, init_code_hash: bytes):
 def create_contract(ext, msg, contract_recipient=b"", salt=None):
     log_msg.debug("CONTRACT CREATION")
 
-    if msg.transfer_token_id != ext.default_state_token:
+    if msg.transfer_token_id != ext.default_chain_token:
         # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 0, msg.gas, b""
 

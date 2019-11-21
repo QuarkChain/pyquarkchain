@@ -48,6 +48,24 @@ def create_default_shard_state(
     return shard_state
 
 
+def mock_pay_native_token_as_gas(mock_pay=None):
+    # default mock: refund rate 100%, gas price unchanged
+    mock_pay = mock_pay or (lambda *x: (100, x[-1]))
+
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            import quarkchain.evm.messages as m
+
+            m.pay_native_token_as_gas = mock_pay
+            ret = f(*args, **kwargs)
+            m.pay_native_token_as_gas = pay_native_token_as_gas
+            return ret
+
+        return wrapper
+
+    return decorator
+
+
 class TestShardState(unittest.TestCase):
     def setUp(self):
         super().setUp()
@@ -123,6 +141,7 @@ class TestShardState(unittest.TestCase):
         shard_block.header.version = 0
         state.finalize_and_add_block(shard_block)
 
+    @mock_pay_native_token_as_gas
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
@@ -3172,7 +3191,7 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b0)
         self.assertEqual(len(state.tx_queue), 0)
 
-    def test_pay_as_gas_utility(self):
+    def test_pay_native_token_as_gas_contract_api(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
@@ -3264,7 +3283,11 @@ class TestShardState(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 60000)
 
-    def test_in_shard_transaction_pay_as_gas_utility(self):
+    # mock refund rate 50% with 2x gas price
+    @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
+    def test_native_token_as_gas_in_shard(self):
+        # import quarkchain.evm.messages
+
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3273,11 +3296,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(
             genesis_account=acc1,
             genesis_minor_quarkash=10000000,
-            genesis_minor_token_balances={
-                "QKC": 100000000,
-                "QI": 100000000,
-                "BTC": 100000000,
-            },
+            genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
         )
         state = create_default_shard_state(env=env)
         evm_state = state.evm_state
@@ -3285,32 +3304,31 @@ class TestShardState(unittest.TestCase):
         qkc_token = token_id_encode("QKC")
         qi_token = token_id_encode("QI")
 
-        def mock_pay_as_gas(token_id, gas, gas_price, evm_state):
-            return 50, gas_price * 2
+        nonce = 0
 
-        def tx_gen(nonce, value, token_id, address, data: str):
+        def tx_gen(value, token_id, to):
+            nonlocal nonce
             ret = create_transfer_transaction(
                 nonce=nonce,
                 shard_state=state,
                 key=id1.get_key(),
                 from_address=acc1,
-                to_address=address,
+                to_address=to,
                 value=value,
                 gas=1000000,
                 gas_price=10,
-                data=bytes.fromhex(data),
+                data=b"",
                 gas_token_id=token_id,
             ).tx.to_evm_tx()
+            nonce += 1
             ret.set_quark_chain_config(env.quark_chain_config)
             return ret
 
-        evm_state.pay_as_gas = mock_pay_as_gas
-        pay_use_mnt = lambda n, v, i, a: tx_gen(n, v, i, a, "")
         self.assertEqual(
             evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
         )
 
-        tx0 = pay_use_mnt(0, 1000, qi_token, acc2)
+        tx0 = tx_gen(1000, qi_token, acc2)
         success, _ = apply_transaction(evm_state, tx0, bytes(32))
         self.assertTrue(success)
 
