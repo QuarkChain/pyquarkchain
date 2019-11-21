@@ -9,6 +9,7 @@ from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     create_contract_creation_transaction,
     contract_creation_tx,
+    mock_pay_native_token_as_gas,
 )
 from quarkchain.config import ConsensusType
 from quarkchain.constants import (
@@ -46,24 +47,6 @@ def create_default_shard_state(
     shard_state = ShardState(env=env, full_shard_id=full_shard_id, diff_calc=diff_calc)
     shard_state.init_genesis_state(genesis_manager.create_root_block())
     return shard_state
-
-
-def mock_pay_native_token_as_gas(mock_pay=None):
-    # default mock: refund rate 100%, gas price unchanged
-    mock_pay = mock_pay or (lambda *x: (100, x[-1]))
-
-    def decorator(f):
-        def wrapper(*args, **kwargs):
-            import quarkchain.evm.messages as m
-
-            m.pay_native_token_as_gas = mock_pay
-            ret = f(*args, **kwargs)
-            m.pay_native_token_as_gas = pay_native_token_as_gas
-            return ret
-
-        return wrapper
-
-    return decorator
 
 
 class TestShardState(unittest.TestCase):

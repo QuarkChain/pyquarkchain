@@ -5,6 +5,7 @@ from quarkchain.cluster.tests.test_utils import (
     get_test_env,
     create_transfer_transaction,
     contract_creation_tx,
+    mock_pay_native_token_as_gas,
 )
 from quarkchain.core import Identity, Address
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
@@ -172,6 +173,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
         self.assertFalse(state.add_tx(tx1))
 
+    @mock_pay_native_token_as_gas
     def test_native_token_gas(self):
         """in-shard transfer QETH using native token as gas
         """
@@ -401,6 +403,7 @@ class TestNativeTokenShardState(unittest.TestCase):
             state0.evm_state.xshard_receive_gas_used, opcodes.GTXXSHARDCOST
         )
 
+    @mock_pay_native_token_as_gas
     def test_xshard_native_token_gas_sent(self):
         """x-shard transfer QETH using QETH as gas
         """
@@ -475,6 +478,7 @@ class TestNativeTokenShardState(unittest.TestCase):
             self.get_after_tax_reward(opcodes.GTXCOST),
         )
 
+    @mock_pay_native_token_as_gas
     def test_xshard_native_token_gas_received(self):
         QETH = token_id_encode("QETHXX")
         id1 = Identity.create_random_identity()
