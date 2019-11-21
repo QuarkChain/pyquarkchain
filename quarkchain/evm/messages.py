@@ -131,19 +131,14 @@ def validate_transaction(state, tx):
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
 
-    bal_transfer = state.get_balance(tx.sender, tx.transfer_token_id)
-    bal_gas = (
-        bal_transfer
-        if tx.transfer_token_id == tx.gas_token_id
-        else state.get_balance(tx.sender, tx.gas_token_id)
-    )
+    default_chain_token = state.shard_config.default_chain_token
+    bal = {tx.transfer_token_id: state.get_balance(tx.sender, tx.transfer_token_id)}
+    if tx.transfer_token_id != tx.gas_token_id:
+        bal[tx.gas_token_id] = state.get_balance(tx.sender, tx.gas_token_id)
 
     # (4) requires non-zero balance for transfer_token_id and gas_token_id if non-default
-    for token_id, bal in [
-        (tx.transfer_token_id, bal_transfer),
-        (tx.gas_token_id, bal_gas),
-    ]:
-        if token_id != state.shard_config.default_chain_token and bal == 0:
+    for token_id in [tx.transfer_token_id, tx.gas_token_id]:
+        if token_id != default_chain_token and bal[token_id] == 0:
             raise InvalidNativeToken(
                 "{}: non-default token {} has zero balance".format(
                     tx.__repr__(), token_id_decode(token_id)
@@ -154,8 +149,6 @@ def validate_transaction(state, tx):
     cost = Counter({tx.transfer_token_id: tx.value}) + Counter(
         {tx.gas_token_id: tx.gasprice * tx.startgas}
     )
-    # key will override if the same
-    bal = Counter({tx.transfer_token_id: bal_transfer, tx.gas_token_id: bal_gas})
     for token_id, b in bal.items():
         if b < cost[token_id]:
             raise InsufficientBalance(
@@ -163,7 +156,7 @@ def validate_transaction(state, tx):
             )
 
     # (6) if gas token non default, need to check system contract for gas conversion
-    if tx.gas_token_id != state.shard_config.default_chain_token:
+    if tx.gas_token_id != default_chain_token:
         _, genesis_token_gas_price = get_gas_utility_info(
             state, tx.gas_token_id, tx.gasprice
         )
