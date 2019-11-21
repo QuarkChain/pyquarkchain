@@ -374,10 +374,10 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         assert converted_genesis_token_gas_price > 0
         gasprice = converted_genesis_token_gas_price
         contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
-        # assert (
-        #    state.get_balance(contract_addr, token_id=state.genesis_token)
-        #    >= tx.startgas * converted_genesis_token_gas_price
-        # )
+        assert (
+            state.get_balance(contract_addr, token_id=state.genesis_token)
+            >= tx.startgas * converted_genesis_token_gas_price
+        )
         state.delta_token_balance(
             contract_addr,
             state.genesis_token,
