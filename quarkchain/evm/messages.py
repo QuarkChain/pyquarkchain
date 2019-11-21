@@ -143,21 +143,19 @@ def validate_transaction(state, tx):
         (tx.transfer_token_id, bal_transfer),
         (tx.gas_token_id, bal_gas),
     ]:
-        if token_id != state.shard_config.default_chain_token:
-            if bal == 0:
-                raise InvalidNativeToken(
-                    "{}: non-default token {} has zero balance".format(
-                        tx.__repr__(), token_id_decode(token_id)
-                    )
+        if token_id != state.shard_config.default_chain_token and bal == 0:
+            raise InvalidNativeToken(
+                "{}: non-default token {} has zero balance".format(
+                    tx.__repr__(), token_id_decode(token_id)
                 )
+            )
 
     # (5) the sender account balance contains at least the cost required in up-front payment
     cost = Counter({tx.transfer_token_id: tx.value}) + Counter(
         {tx.gas_token_id: tx.gasprice * tx.startgas}
     )
-    bal = Counter({tx.transfer_token_id: bal_transfer}) + Counter(
-        {tx.gas_token_id: bal_gas}
-    )
+    # key will override if the same
+    bal = Counter({tx.transfer_token_id: bal_transfer, tx.gas_token_id: bal_gas})
     for token_id, b in bal.items():
         if b < cost[token_id]:
             raise InsufficientBalance(
