@@ -152,17 +152,22 @@ def validate_transaction(state, tx):
     for token_id, b in bal.items():
         if b < cost[token_id]:
             raise InsufficientBalance(
-                rp(tx, "token %d balance" % token_id, b, cost[token_id])
+                rp(
+                    tx,
+                    "token %s balance" % token_id_decode(token_id),
+                    b,
+                    cost[token_id],
+                )
             )
 
-    # (6) if gas token non default, need to check system contract for gas conversion
+    # (6) if gas token non-default, need to check system contract for gas conversion
     if tx.gas_token_id != default_chain_token:
         _, genesis_token_gas_price = get_gas_utility_info(
             state, tx.gas_token_id, tx.gasprice
         )
         if genesis_token_gas_price == 0:
             raise InvalidNativeToken(
-                "{}: non-default gas token not ready for being used to pay gas".format(
+                "{}: non-default gas token {} not ready for being used to pay gas".format(
                     tx.__repr__(), token_id_decode(tx.gas_token_id)
                 )
             )
@@ -171,7 +176,7 @@ def validate_transaction(state, tx):
         )
         if bal_gas_reserve < genesis_token_gas_price * tx.startgas:
             raise InvalidNativeToken(
-                "{}: non-default gas token doesn't have enough balance in reserve for conversion".format(
+                "{}: non-default gas token {} not enough reserve balance for conversion".format(
                     tx.__repr__(), token_id_decode(tx.gas_token_id)
                 )
             )
