@@ -24,7 +24,7 @@ from quarkchain.core import (
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
-from quarkchain.evm.messages import pay_native_token_as_gas
+from quarkchain.evm.messages import pay_native_token_as_gas, get_gas_utility_info
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check, is_p2
@@ -482,16 +482,18 @@ class ClusterContext(ContextDecorator):
         shutdown_clusters(self.cluster_list)
 
 
-def mock_pay_native_token_as_gas(mock_pay=None):
+def mock_pay_native_token_as_gas(mock=None):
     # default mock: refund rate 100%, gas price unchanged
-    mock_pay = mock_pay or (lambda *x: (100, x[-1]))
+    mock = mock or (lambda *x: (100, x[-1]))
 
     def decorator(f):
         def wrapper(*args, **kwargs):
             import quarkchain.evm.messages as m
 
-            m.pay_native_token_as_gas = mock_pay
+            m.get_gas_utility_info = mock
+            m.pay_native_token_as_gas = mock
             ret = f(*args, **kwargs)
+            m.get_gas_utility_info = get_gas_utility_info
             m.pay_native_token_as_gas = pay_native_token_as_gas
             return ret
 

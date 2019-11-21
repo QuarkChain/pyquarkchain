@@ -114,26 +114,7 @@ class TestNativeTokenShardState(unittest.TestCase):
             gas_token_id=self.genesis_token,
             transfer_token_id=MALICIOUS0,
         )
-        self.assertTrue(state.add_tx(tx))
-
-        b1 = state.create_block_to_mine(address=acc3)
-        self.assertEqual(len(b1.tx_list), 1)
-        state.finalize_and_add_block(b1)
-        self.assertEqual(state.header_tip, b1.header)
-        self.assertEqual(
-            state.get_token_balance(id1.recipient, self.genesis_token),
-            10000000 - opcodes.GTXCOST,
-        )
-        self.assertEqual(state.get_token_balance(acc1.recipient, MALICIOUS0), 0)
-        # MALICIOUS0 shall not be in the dict
-        self.assertNotEqual(
-            state.get_balances(acc1.recipient),
-            {self.genesis_token: 10000000 - opcodes.GTXCOST, MALICIOUS0: 0},
-        )
-        self.assertEqual(
-            state.get_balances(acc1.recipient),
-            {self.genesis_token: 10000000 - opcodes.GTXCOST},
-        )
+        self.assertFalse(state.add_tx(tx))
 
     def test_disallowed_unknown_token(self):
         """do not allow tx with unknown token id

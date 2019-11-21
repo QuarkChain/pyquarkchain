@@ -3269,8 +3269,6 @@ class TestShardState(unittest.TestCase):
     # mock refund rate 50% with 2x gas price
     @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
     def test_native_token_as_gas_in_shard(self):
-        # import quarkchain.evm.messages
-
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3286,6 +3284,11 @@ class TestShardState(unittest.TestCase):
 
         qkc_token = token_id_encode("QKC")
         qi_token = token_id_encode("QI")
+
+        # need to give gas reserve enough QKC to pay for gas conversion
+        evm_state.delta_token_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
+        )
 
         nonce = 0
 
