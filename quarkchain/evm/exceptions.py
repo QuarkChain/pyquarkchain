@@ -32,3 +32,7 @@ class BlockGasLimitReached(InvalidTransaction):
 
 class GasPriceTooLow(InvalidTransaction):
     pass
+
+
+class InvalidNativeToken(InvalidTransaction):
+    pass
