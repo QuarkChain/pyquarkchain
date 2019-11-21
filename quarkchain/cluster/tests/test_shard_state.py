@@ -20,10 +20,12 @@ from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionL
 from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
+from quarkchain.evm.exceptions import InvalidNativeToken
 from quarkchain.evm.messages import (
     apply_transaction,
     get_gas_utility_info,
     pay_native_token_as_gas,
+    validate_transaction,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -3285,14 +3287,9 @@ class TestShardState(unittest.TestCase):
         qkc_token = token_id_encode("QKC")
         qi_token = token_id_encode("QI")
 
-        # need to give gas reserve enough QKC to pay for gas conversion
-        evm_state.delta_token_balance(
-            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
-        )
-
         nonce = 0
 
-        def tx_gen(value, token_id, to):
+        def tx_gen(value, token_id, to, increment_nonce=True):
             nonlocal nonce
             ret = create_transfer_transaction(
                 nonce=nonce,
@@ -3306,12 +3303,23 @@ class TestShardState(unittest.TestCase):
                 data=b"",
                 gas_token_id=token_id,
             ).tx.to_evm_tx()
-            nonce += 1
+            if increment_nonce:
+                nonce += 1
             ret.set_quark_chain_config(env.quark_chain_config)
             return ret
 
         self.assertEqual(
             evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
+        )
+
+        # fail because gas reserve doesn't have QKC
+        failed_tx = tx_gen(1000, qi_token, acc2, increment_nonce=False)
+        with self.assertRaises(InvalidNativeToken):
+            validate_transaction(evm_state, failed_tx)
+
+        # need to give gas reserve enough QKC to pay for gas conversion
+        evm_state.delta_token_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
         )
 
         tx0 = tx_gen(1000, qi_token, acc2)

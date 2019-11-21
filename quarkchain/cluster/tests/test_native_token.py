@@ -94,7 +94,6 @@ class TestNativeTokenShardState(unittest.TestCase):
         MALICIOUS0 = token_id_encode("MALICIOUS0")
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1,
@@ -123,7 +122,6 @@ class TestNativeTokenShardState(unittest.TestCase):
         MALICIOUS1 = token_id_encode("MALICIOUS1")
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc3 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(
             genesis_account=acc1,
