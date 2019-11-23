@@ -1179,7 +1179,7 @@ class CrossShardTransactionListV0(Serializable):
 
     def __init__(self, tx_list, version=0):
         self.tx_list = tx_list
-        self.version = version
+        self.version = 0  # force the version
 
 
 class CrossShardTransactionList(Serializable):
@@ -1190,7 +1190,7 @@ class CrossShardTransactionList(Serializable):
 
     def __init__(self, tx_list, version=1):
         self.tx_list = tx_list
-        self.version = version
+        self.version = 1  # force the version
 
     @staticmethod
     def get_version(data, size) -> int:
@@ -1233,12 +1233,14 @@ class CrossShardTransactionList(Serializable):
             )
 
         if version == 0:
-            ret = CrossShardTransactionListV0.deserialize(data)
+            v0_list = CrossShardTransactionListV0.deserialize(data)
+            v1_list = []
             # magic!
-            for tx in ret.tx_list:
+            for tx in v0_list.tx_list:
                 tx.__class__ = CrossShardTransactionDeposit
                 tx.refund_rate = 100
-            return ret
+                v1_list.append(tx)
+            return cls(v1_list)
 
         raise RuntimeError("Unrecognizable cross shard transaction list version")
 

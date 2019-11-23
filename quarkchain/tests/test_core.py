@@ -26,6 +26,12 @@ from quarkchain.core import (
     SerializedEvmTransaction,
     calculate_merkle_root,
     sha3_256,
+    CrossShardTransactionDepositDeprecated,
+    CrossShardTransactionDeposit,
+    CrossShardTransactionDepositV0,
+    CrossShardTransactionListV0,
+    CrossShardTransactionList,
+    CrossShardTransactionDeprecatedList,
 )
 from quarkchain.utils import check, p2_roundup, SHARD_KEY_MAX, TOKEN_ID_MAX
 from quarkchain.evm.transactions import Transaction as EvmTransaction
@@ -371,3 +377,35 @@ class TestCalculateMerkleTree(unittest.TestCase):
             hash0 = calculate_merkle_root(item_list)
             hash1 = calculate_merkle_root1(item_list)
             self.assertEqual(hash0, hash1)
+
+
+class TestCrossShardDepositList(unittest.TestCase):
+    def test_serialization_and_deserialization(self):
+        cstor_params = {
+            "tx_hash": bytes(32),
+            "from_address": Address.create_random_account(1),
+            "to_address": Address.create_random_account(1),
+            "value": 123,
+            "gas_price": 456,
+            "gas_token_id": 789,
+            "transfer_token_id": 101,
+        }
+        deposit_deprecated = CrossShardTransactionDepositDeprecated(**cstor_params)
+        deposit_v0 = CrossShardTransactionDepositV0(**cstor_params)
+        deposit_v1 = CrossShardTransactionDeposit(**cstor_params)
+
+        testcases = [
+            CrossShardTransactionDeprecatedList([deposit_deprecated]),
+            CrossShardTransactionListV0([deposit_v0]),
+        ]
+        for ls in testcases:
+            deserialized = CrossShardTransactionList.from_data(ls.serialize())
+            self.assertIsInstance(deserialized, CrossShardTransactionList)
+            self.assertEqual(len(deserialized.tx_list), 1)
+            self.assertIsInstance(deserialized.tx_list[0], CrossShardTransactionDeposit)
+            self.assertEqual(deserialized.tx_list[0].refund_rate, 100)
+
+        deposit_v1.refund_rate = 50
+        ls = CrossShardTransactionList([deposit_v1])
+        deserialized = CrossShardTransactionList.from_data(ls.serialize())
+        self.assertEqual(deserialized.tx_list[0].refund_rate, 50)
