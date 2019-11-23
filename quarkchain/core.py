@@ -1102,7 +1102,7 @@ class CrossShardTransactionDepositDeprecated(Serializable):
         self.is_from_root_chain = is_from_root_chain
 
 
-class CrossShardTransactionDeposit(Serializable):
+class CrossShardTransactionDepositV0(Serializable):
     """ Destination of x-shard tx
     """
 
@@ -1118,7 +1118,6 @@ class CrossShardTransactionDeposit(Serializable):
         ("message_data", PrependedSizeBytesSerializer(4)),
         ("create_contract", boolean),
         ("is_from_root_chain", boolean),
-        ("refund_rate", uint8),  # in percent
     ]
 
     def __init__(
@@ -1134,7 +1133,6 @@ class CrossShardTransactionDeposit(Serializable):
         message_data=b"",
         create_contract=False,
         is_from_root_chain=False,
-        refund_rate=100,
     ):
         self.tx_hash = tx_hash
         self.from_address = from_address
@@ -1147,6 +1145,17 @@ class CrossShardTransactionDeposit(Serializable):
         self.message_data = message_data
         self.create_contract = create_contract
         self.is_from_root_chain = is_from_root_chain
+
+
+class CrossShardTransactionDeposit(CrossShardTransactionDepositV0):
+
+    FIELDS = CrossShardTransactionDepositV0.FIELDS + [
+        ("refund_rate", uint8)  # in percent
+    ]
+
+    def __init__(self, *args, **kwargs):
+        refund_rate = kwargs.pop("refund_rate", 100)
+        super().__init__(*args, **kwargs)
         self.refund_rate = refund_rate
 
 
@@ -1162,9 +1171,9 @@ class CrossShardTransactionDeprecatedList(Serializable):
         self.tx_list = tx_list
 
 
-class CrossShardTransactionList(Serializable):
+class CrossShardTransactionListV0(Serializable):
     FIELDS = [
-        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDeposit)),
+        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDepositV0)),
         ("version", uint32),
     ]
 
@@ -1172,39 +1181,66 @@ class CrossShardTransactionList(Serializable):
         self.tx_list = tx_list
         self.version = version
 
-    @staticmethod
-    def is_old_list(data):
-        bb = ByteBuffer(data)
-        size = bb.get_uint(4)
-        if size == 0:
-            return True
-        return (len(data) - 4) == CROSS_SHARD_TRANSACTION_DEPOSIT_DEPRECATED_SIZE * size
+
+class CrossShardTransactionList(Serializable):
+    FIELDS = [
+        ("tx_list", PrependedSizeListSerializer(4, CrossShardTransactionDeposit)),
+        ("version", uint32),
+    ]
+
+    def __init__(self, tx_list, version=1):
+        self.tx_list = tx_list
+        self.version = version
 
     @staticmethod
-    def from_data(data):
-        if not CrossShardTransactionList.is_old_list(data):
-            return CrossShardTransactionList.deserialize(data)
+    def get_version(data, size) -> int:
+        """-1 for deprecated list without version."""
+        if (
+            size == 0
+            or (len(data) - 4) == CROSS_SHARD_TRANSACTION_DEPOSIT_DEPRECATED_SIZE * size
+        ):
+            return -1
+        return int.from_bytes(data[-4:], byteorder="big")
 
-        old_list = CrossShardTransactionDeprecatedList.deserialize(data)
-        return CrossShardTransactionList(
-            [
-                CrossShardTransactionDeposit(
-                    tx_hash=tx.tx_hash,
-                    from_address=tx.from_address,
-                    to_address=tx.to_address,
-                    value=tx.value,
-                    gas_price=tx.gas_price,
-                    gas_token_id=tx.gas_token_id,
-                    transfer_token_id=tx.transfer_token_id,
-                    gas_remained=0,
-                    message_data=b"",
-                    create_contract=False,
-                    is_from_root_chain=tx.is_from_root_chain,
-                    refund_rate=100,
-                )
-                for tx in old_list.tx_list
-            ]
-        )
+    @classmethod
+    def from_data(cls, data):
+        size = ByteBuffer(data).get_uint(4)
+        version = cls.get_version(data, size)
+
+        if version == 1:
+            return cls.deserialize(data)
+
+        if version == -1:
+            old_list = CrossShardTransactionDeprecatedList.deserialize(data)
+            return cls(
+                [
+                    CrossShardTransactionDeposit(
+                        tx_hash=tx.tx_hash,
+                        from_address=tx.from_address,
+                        to_address=tx.to_address,
+                        value=tx.value,
+                        gas_price=tx.gas_price,
+                        gas_token_id=tx.gas_token_id,
+                        transfer_token_id=tx.transfer_token_id,
+                        gas_remained=0,
+                        message_data=b"",
+                        create_contract=False,
+                        is_from_root_chain=tx.is_from_root_chain,
+                        refund_rate=100,
+                    )
+                    for tx in old_list.tx_list
+                ]
+            )
+
+        if version == 0:
+            ret = CrossShardTransactionListV0.deserialize(data)
+            # magic!
+            for tx in ret.tx_list:
+                tx.__class__ = CrossShardTransactionDeposit
+                tx.refund_rate = 100
+            return ret
+
+        raise RuntimeError("Unrecognizable cross shard transaction list version")
 
 
 class Log(Serializable):
