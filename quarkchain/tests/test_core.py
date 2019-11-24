@@ -408,4 +408,5 @@ class TestCrossShardDepositList(unittest.TestCase):
         deposit_v1.refund_rate = 50
         ls = CrossShardTransactionList([deposit_v1])
         deserialized = CrossShardTransactionList.from_data(ls.serialize())
+        self.assertIsInstance(deserialized.tx_list[0], CrossShardTransactionDeposit)
         self.assertEqual(deserialized.tx_list[0].refund_rate, 50)

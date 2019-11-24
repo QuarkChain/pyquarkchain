@@ -1234,13 +1234,11 @@ class CrossShardTransactionList(Serializable):
 
         if version == 0:
             v0_list = CrossShardTransactionListV0.deserialize(data)
-            v1_list = []
             # magic!
             for tx in v0_list.tx_list:
                 tx.__class__ = CrossShardTransactionDeposit
                 tx.refund_rate = 100
-                v1_list.append(tx)
-            return cls(v1_list)
+            return cls(v0_list.tx_list)
 
         raise RuntimeError("Unrecognizable cross shard transaction list version")
 
