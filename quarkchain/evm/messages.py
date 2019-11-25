@@ -161,16 +161,19 @@ def validate_transaction(state, tx):
             )
 
     # (6) if gas token non-default, need to check system contract for gas conversion
-    if tx.gas_token_id != default_chain_token:
-        _, genesis_token_gas_price = get_gas_utility_info(
-            state, tx.gas_token_id, tx.gasprice
+    if tx.gasprice != 0 and tx.gas_token_id != default_chain_token:
+        snapshot = state.snapshot()
+        _, genesis_token_gas_price = pay_native_token_as_gas(
+            state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
+        state.revert(snapshot)
         if genesis_token_gas_price == 0:
             raise InvalidNativeToken(
                 "{}: non-default gas token {} not ready for being used to pay gas".format(
                     tx.__repr__(), token_id_decode(tx.gas_token_id)
                 )
             )
+        # should be guaranteed by previous check. check added to make sure
         bal_gas_reserve = state.get_balance(
             SystemContract.GENERAL_NATIVE_TOKEN.addr(), state.genesis_token
         )
@@ -367,7 +370,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
     gasprice, refund_rate = tx.gasprice, 100
     # convert gas if using non-genesis native token
-    if tx.gas_token_id != state.genesis_token:
+    if gasprice != 0 and tx.gas_token_id != state.genesis_token:
         refund_rate, converted_genesis_token_gas_price = pay_native_token_as_gas(
             state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
