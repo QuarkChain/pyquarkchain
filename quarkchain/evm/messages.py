@@ -371,9 +371,11 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         refund_rate, converted_genesis_token_gas_price = pay_native_token_as_gas(
             state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
+        # guaranteed by validation
         assert converted_genesis_token_gas_price > 0
         gasprice = converted_genesis_token_gas_price
         contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
+        # guaranteed by validation
         assert (
             state.get_balance(contract_addr, token_id=state.genesis_token)
             >= tx.startgas * converted_genesis_token_gas_price
