@@ -1193,8 +1193,9 @@ class CrossShardTransactionList(Serializable):
         self.version = 1  # force the version
 
     @staticmethod
-    def get_version(data, size) -> int:
+    def get_version(data) -> int:
         """-1 for deprecated list without version."""
+        size = ByteBuffer(data).get_uint(4)
         if (
             size == 0
             or (len(data) - 4) == CROSS_SHARD_TRANSACTION_DEPOSIT_DEPRECATED_SIZE * size
@@ -1204,8 +1205,7 @@ class CrossShardTransactionList(Serializable):
 
     @classmethod
     def from_data(cls, data):
-        size = ByteBuffer(data).get_uint(4)
-        version = cls.get_version(data, size)
+        version = cls.get_version(data)
 
         if version == 1:
             return cls.deserialize(data)
