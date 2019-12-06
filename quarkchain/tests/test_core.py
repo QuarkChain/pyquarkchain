@@ -395,18 +395,27 @@ class TestCrossShardDepositList(unittest.TestCase):
         deposit_v1 = CrossShardTransactionDeposit(**cstor_params)
 
         testcases = [
-            CrossShardTransactionDeprecatedList([deposit_deprecated]),
-            CrossShardTransactionListV0([deposit_v0]),
+            (CrossShardTransactionDeprecatedList([deposit_deprecated]), None),
+            (CrossShardTransactionListV0([deposit_v0]), None),
+            (CrossShardTransactionList([deposit_v1]), 55),
         ]
-        for ls in testcases:
+        for ls, refund_rate_update in testcases:
+            if refund_rate_update:
+                ls.tx_list[0].refund_rate = refund_rate_update
+            else:
+                refund_rate_update = 100  # default refund rate, for comparison
+
             deserialized = CrossShardTransactionList.from_data(ls.serialize())
             self.assertIsInstance(deserialized, CrossShardTransactionList)
             self.assertEqual(len(deserialized.tx_list), 1)
-            self.assertIsInstance(deserialized.tx_list[0], CrossShardTransactionDeposit)
-            self.assertEqual(deserialized.tx_list[0].refund_rate, 100)
-
-        deposit_v1.refund_rate = 50
-        ls = CrossShardTransactionList([deposit_v1])
-        deserialized = CrossShardTransactionList.from_data(ls.serialize())
-        self.assertIsInstance(deserialized.tx_list[0], CrossShardTransactionDeposit)
-        self.assertEqual(deserialized.tx_list[0].refund_rate, 50)
+            deposit = deserialized.tx_list[0]
+            self.assertIsInstance(deposit, CrossShardTransactionDeposit)
+            self.assertEqual(deposit.refund_rate, refund_rate_update)
+            # serialize and deserialize again
+            deposit_deserialized_again = CrossShardTransactionDeposit.deserialize(
+                deposit.serialize()
+            )
+            self.assertIsInstance(
+                deposit_deserialized_again, CrossShardTransactionDeposit
+            )
+            self.assertEqual(deposit_deserialized_again.refund_rate, refund_rate_update)
