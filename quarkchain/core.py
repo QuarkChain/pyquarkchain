@@ -1158,6 +1158,42 @@ class CrossShardTransactionDeposit(CrossShardTransactionDepositV0):
         super().__init__(*args, **kwargs)
         self.refund_rate = refund_rate
 
+    @classmethod
+    def from_deprecated(
+        cls, deprecated_deposit: CrossShardTransactionDepositDeprecated
+    ):
+        return CrossShardTransactionDeposit(
+            tx_hash=deprecated_deposit.tx_hash,
+            from_address=deprecated_deposit.from_address,
+            to_address=deprecated_deposit.to_address,
+            value=deprecated_deposit.value,
+            gas_price=deprecated_deposit.gas_price,
+            gas_token_id=deprecated_deposit.gas_token_id,
+            transfer_token_id=deprecated_deposit.transfer_token_id,
+            gas_remained=0,
+            message_data=b"",
+            create_contract=False,
+            is_from_root_chain=deprecated_deposit.is_from_root_chain,
+            refund_rate=100,
+        )
+
+    @classmethod
+    def from_v0(cls, v0_deposit: CrossShardTransactionDepositV0):
+        return CrossShardTransactionDeposit(
+            tx_hash=v0_deposit.tx_hash,
+            from_address=v0_deposit.from_address,
+            to_address=v0_deposit.to_address,
+            value=v0_deposit.value,
+            gas_price=v0_deposit.gas_price,
+            gas_token_id=v0_deposit.gas_token_id,
+            transfer_token_id=v0_deposit.transfer_token_id,
+            gas_remained=v0_deposit.gas_remained,
+            message_data=v0_deposit.message_data,
+            create_contract=v0_deposit.create_contract,
+            is_from_root_chain=v0_deposit.is_from_root_chain,
+            refund_rate=100,
+        )
+
 
 class CrossShardTransactionDeprecatedList(Serializable):
     FIELDS = [
@@ -1188,6 +1224,14 @@ class CrossShardTransactionList(Serializable):
         ("version", uint32),
     ]
 
+    version_deserialize_map = {
+        -1: (
+            CrossShardTransactionDeprecatedList,
+            CrossShardTransactionDeposit.from_deprecated,
+        ),
+        0: (CrossShardTransactionListV0, CrossShardTransactionDeposit.from_v0),
+    }
+
     def __init__(self, tx_list, version=1):
         self.tx_list = tx_list
         self.version = 1  # force the version
@@ -1210,37 +1254,10 @@ class CrossShardTransactionList(Serializable):
         if version == 1:
             return cls.deserialize(data)
 
-        if version == -1:
-            old_list = CrossShardTransactionDeprecatedList.deserialize(data)
-            return cls(
-                [
-                    CrossShardTransactionDeposit(
-                        tx_hash=tx.tx_hash,
-                        from_address=tx.from_address,
-                        to_address=tx.to_address,
-                        value=tx.value,
-                        gas_price=tx.gas_price,
-                        gas_token_id=tx.gas_token_id,
-                        transfer_token_id=tx.transfer_token_id,
-                        gas_remained=0,
-                        message_data=b"",
-                        create_contract=False,
-                        is_from_root_chain=tx.is_from_root_chain,
-                        refund_rate=100,
-                    )
-                    for tx in old_list.tx_list
-                ]
-            )
-
-        if version == 0:
-            v0_list = CrossShardTransactionListV0.deserialize(data)
-            # magic!
-            for tx in v0_list.tx_list:
-                tx.__class__ = CrossShardTransactionDeposit
-                tx.refund_rate = 100
-            return cls(v0_list.tx_list)
-
-        raise RuntimeError("Unrecognizable cross shard transaction list version")
+        # the map returns previous class type and corresponding conversion method
+        prev_version_cls, factory = cls.version_deserialize_map[version]
+        ls = prev_version_cls.deserialize(data)
+        return cls([factory(tx) for tx in ls.tx_list])
 
 
 class Log(Serializable):
