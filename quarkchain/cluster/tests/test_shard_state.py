@@ -126,7 +126,7 @@ class TestShardState(unittest.TestCase):
         shard_block.header.version = 0
         state.finalize_and_add_block(shard_block)
 
-    @mock_pay_native_token_as_gas
+    @mock_pay_native_token_as_gas()
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
@@ -138,6 +138,7 @@ class TestShardState(unittest.TestCase):
                 "QI": 100000000,
                 "BTC": 100000000,
             },
+            charge_gas_reserve=True,
         )
 
         qkc_token = token_id_encode("QKC")
@@ -210,9 +211,9 @@ class TestShardState(unittest.TestCase):
         gas_price = state.gas_price(token_id=btc_token)
         self.assertEqual(gas_price, 0)
 
-        # unrecognized token id
+        # unrecognized token id should return 0
         gas_price = state.gas_price(token_id=1)
-        self.assertIsNone(gas_price)
+        self.assertEqual(gas_price, 0)
 
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
