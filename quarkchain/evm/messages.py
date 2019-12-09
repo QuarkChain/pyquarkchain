@@ -15,7 +15,7 @@ from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
 from quarkchain.evm import opcodes
 from quarkchain.evm import vm
-from quarkchain.evm.specials import specials as default_specials
+from quarkchain.evm.specials import specials as default_specials, SystemContract
 from quarkchain.evm.exceptions import (
     InvalidNonce,
     InsufficientStartGas,
@@ -684,3 +684,55 @@ def create_contract(ext, msg, contract_recipient=b"", salt=None):
     else:
         ext.revert(snapshot)
         return 0, gas, dat
+
+
+def _call_general_native_token_manager(state, data: bytes) -> (int, int):
+    contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
+    code = state.get_code(contract_addr)
+    if not code:
+        return 0, 0
+    # Only contract itself can invoke payment
+    sender = contract_addr
+    # Call the `calculateGasPrice` function
+    message = vm.Message(
+        sender,
+        contract_addr,
+        0,
+        1000000,  # Mock gas to guarantee msg will be applied
+        data,
+        code_address=contract_addr,
+        gas_token_id=state.shard_config.default_chain_token,
+        transfer_token_id=state.shard_config.default_chain_token,
+    )
+    ext = VMExt(state, sender, gas_price=0)
+    result, _, output = apply_msg(ext, message)
+    if not result:
+        return 0, 0
+    refund_rate = int.from_bytes(output[:32], byteorder="big")
+    converted_gas_price = int.from_bytes(output[32:64], byteorder="big")
+    return refund_rate, converted_gas_price
+
+
+def get_gas_utility_info(
+    state, token_id: int, gas_price_in_native_token: int
+) -> (int, int):
+    # Call the `calculateGasPrice` function
+    data = (
+        bytes.fromhex("ce9e8c47")
+        + token_id.to_bytes(32, byteorder="big")
+        + gas_price_in_native_token.to_bytes(32, byteorder="big")
+    )
+    return _call_general_native_token_manager(state, data)
+
+
+def pay_native_token_as_gas(
+    state, token_id: int, gas: int, gas_price_in_native_token: int
+) -> (int, int):
+    # Call the `payAsGas` function
+    data = (
+        bytes.fromhex("5ae8f7f1")
+        + token_id.to_bytes(32, byteorder="big")
+        + gas.to_bytes(32, byteorder="big")
+        + gas_price_in_native_token.to_bytes(32, byteorder="big")
+    )
+    return _call_general_native_token_manager(state, data)
