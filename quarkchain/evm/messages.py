@@ -327,6 +327,7 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
         state, sender=deposit.from_address.recipient, gas_price=deposit.gas_price
     )
 
+    contract = deposit.to_address.recipient if deposit.create_contract else b""
     return apply_transaction_message(
         state,
         message,
@@ -334,9 +335,7 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
         should_create_contract=deposit.create_contract,
         gas_used_start=gas_used_start,
         is_cross_shard=True,
-        contract_address=deposit.to_address.recipient
-        if deposit.create_contract
-        else b"",
+        contract_address=contract,
         refund_rate=deposit.refund_rate,
     )
 
@@ -414,102 +413,95 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     ext = VMExt(state, tx.sender, gasprice)
 
     contract_address = b""
-    if tx.is_cross_shard:
-        local_gas_used = intrinsic_gas
-        remote_gas_reserved = 0
-        if transfer_failure_by_posw_balance_check(ext, message):
-            success = 0
-            # Currently, burn all gas
-            local_gas_used = tx.startgas
-        elif tx.to == b"":
-            state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            remote_gas_reserved = tx.startgas - intrinsic_gas
-            ext.add_cross_shard_transaction_deposit(
-                quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=tx_wrapper_hash,
-                    from_address=quarkchain.core.Address(
-                        tx.sender, tx.from_full_shard_key
-                    ),
-                    to_address=quarkchain.core.Address(
-                        mk_contract_address(
-                            tx.sender,
-                            state.get_nonce(tx.sender),
-                            tx.from_full_shard_key,
-                        ),
-                        tx.to_full_shard_key,
-                    ),
-                    value=tx.value,
-                    # convert to genesis token and use converted gas price
-                    gas_token_id=state.genesis_token,
-                    gas_price=gasprice,
-                    transfer_token_id=tx.transfer_token_id,
-                    message_data=tx.data,
-                    create_contract=True,
-                    gas_remained=remote_gas_reserved,
-                    refund_rate=refund_rate,
-                )
-            )
-            success = 1
-        else:
-            state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            if (
-                state.qkc_config.ENABLE_EVM_TIMESTAMP is None
-                or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
-            ):
-                remote_gas_reserved = tx.startgas - intrinsic_gas
-            ext.add_cross_shard_transaction_deposit(
-                quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=tx_wrapper_hash,
-                    from_address=quarkchain.core.Address(
-                        tx.sender, tx.from_full_shard_key
-                    ),
-                    to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
-                    value=tx.value,
-                    # convert to genesis token and use converted gas price
-                    gas_token_id=state.genesis_token,
-                    gas_price=gasprice,
-                    transfer_token_id=tx.transfer_token_id,
-                    message_data=tx.data,
-                    create_contract=False,
-                    gas_remained=remote_gas_reserved,
-                    refund_rate=refund_rate,
-                )
-            )
-            success = 1
-        gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
-
-        _refund(state, message, ext.tx_gasprice * gas_remained, refund_rate)
-
-        # if x-shard, reserve part of the gas for the target shard miner for fee
-        fee = (
-            ext.tx_gasprice
-            * (local_gas_used - (opcodes.GTXXSHARDCOST if success else 0))
-            * local_fee_rate.numerator
-            // local_fee_rate.denominator
+    if not tx.is_cross_shard:
+        return apply_transaction_message(
+            state, message, ext, tx.to == b"", intrinsic_gas, refund_rate=refund_rate
         )
-        state.delta_token_balance(state.block_coinbase, state.genesis_token, fee)
-        add_dict(state.block_fee_tokens, {state.genesis_token: fee})
 
-        output = []
-
-        state.gas_used += local_gas_used
+    # handle xshard
+    local_gas_used = intrinsic_gas
+    remote_gas_reserved = 0
+    if transfer_failure_by_posw_balance_check(ext, message):
+        success = 0
+        # Currently, burn all gas
+        local_gas_used = tx.startgas
+    elif tx.to == b"":
+        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        remote_gas_reserved = tx.startgas - intrinsic_gas
+        ext.add_cross_shard_transaction_deposit(
+            quarkchain.core.CrossShardTransactionDeposit(
+                tx_hash=tx_wrapper_hash,
+                from_address=quarkchain.core.Address(tx.sender, tx.from_full_shard_key),
+                to_address=quarkchain.core.Address(
+                    mk_contract_address(
+                        tx.sender, state.get_nonce(tx.sender), tx.from_full_shard_key
+                    ),
+                    tx.to_full_shard_key,
+                ),
+                value=tx.value,
+                # convert to genesis token and use converted gas price
+                gas_token_id=state.genesis_token,
+                gas_price=gasprice,
+                transfer_token_id=tx.transfer_token_id,
+                message_data=tx.data,
+                create_contract=True,
+                gas_remained=remote_gas_reserved,
+                refund_rate=refund_rate,
+            )
+        )
+        success = 1
+    else:
+        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
         if (
             state.qkc_config.ENABLE_EVM_TIMESTAMP is None
             or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
         ):
-            state.gas_used -= opcodes.GTXXSHARDCOST if success else 0
-
-        # Construct a receipt
-        r = mk_receipt(
-            state, success, state.logs, contract_address, state.full_shard_key
+            remote_gas_reserved = tx.startgas - intrinsic_gas
+        ext.add_cross_shard_transaction_deposit(
+            quarkchain.core.CrossShardTransactionDeposit(
+                tx_hash=tx_wrapper_hash,
+                from_address=quarkchain.core.Address(tx.sender, tx.from_full_shard_key),
+                to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
+                value=tx.value,
+                # convert to genesis token and use converted gas price
+                gas_token_id=state.genesis_token,
+                gas_price=gasprice,
+                transfer_token_id=tx.transfer_token_id,
+                message_data=tx.data,
+                create_contract=False,
+                gas_remained=remote_gas_reserved,
+                refund_rate=refund_rate,
+            )
         )
-        state.logs = []
-        state.add_receipt(r)
-        return success, output
+        success = 1
+    gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
 
-    return apply_transaction_message(
-        state, message, ext, tx.to == b"", intrinsic_gas, refund_rate=refund_rate
+    _refund(state, message, ext.tx_gasprice * gas_remained, refund_rate)
+
+    # if x-shard, reserve part of the gas for the target shard miner for fee
+    fee = (
+        ext.tx_gasprice
+        * (local_gas_used - (opcodes.GTXXSHARDCOST if success else 0))
+        * local_fee_rate.numerator
+        // local_fee_rate.denominator
     )
+    state.delta_token_balance(state.block_coinbase, state.genesis_token, fee)
+    add_dict(state.block_fee_tokens, {state.genesis_token: fee})
+
+    output = []
+
+    state.gas_used += local_gas_used
+    if (
+        state.qkc_config.ENABLE_EVM_TIMESTAMP is None
+        or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
+    ):
+        state.gas_used -= opcodes.GTXXSHARDCOST if success else 0
+
+    # Construct a receipt
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
+    state.logs = []
+    state.add_receipt(r)
+    return success, output
 
 
 # VM interface
