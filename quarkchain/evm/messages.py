@@ -16,7 +16,7 @@ from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
 from quarkchain.evm import opcodes
 from quarkchain.evm import vm
-from quarkchain.evm.specials import specials as default_specials
+from quarkchain.evm.specials import specials as default_specials, SystemContract
 from quarkchain.evm.exceptions import (
     InvalidNonce,
     InsufficientStartGas,

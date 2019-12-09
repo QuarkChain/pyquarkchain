@@ -1,4 +1,5 @@
 import random
+import time
 import unittest
 from fractions import Fraction
 from typing import Optional
@@ -15,6 +16,7 @@ from quarkchain.config import ConsensusType
 from quarkchain.constants import (
     GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE,
     ROOT_CHAIN_POSW_CONTRACT_BYTECODE,
+    NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE,
 )
 from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionList
 from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
@@ -3176,6 +3178,102 @@ class TestShardState(unittest.TestCase):
 
         state.finalize_and_add_block(b0)
         self.assertEqual(len(state.tx_queue), 0)
+
+    def test_mint_new_native_token(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10 ** 20)
+        state = create_default_shard_state(env=env)
+        evm_state = state.evm_state  # type: EvmState
+
+        runtime_bytecode = NON_RESERVED_NATIVE_TOKEN_CONTRACT_BYTECODE
+        runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
+        # get rid of constructor arguments
+        runtime_bytecode = runtime_bytecode[runtime_start:-64]
+        contract_addr = SystemContract.NON_RESERVED_NATIVE_TOKEN.addr()
+        evm_state.set_code(contract_addr, runtime_bytecode)
+        evm_state.set_storage_data(contract_addr, 0, acc1.recipient)
+        evm_state.timestamp = int(time.time())  # to make sure start_time not 0
+        evm_state.commit()
+
+        nonce = 0
+
+        def tx_gen(data: str, value: Optional[int] = 0):
+            nonlocal nonce
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=Address(contract_addr, 0),
+                value=value,
+                gas=1000000,
+                gas_price=0,
+                data=bytes.fromhex(data),
+            ).tx.to_evm_tx()
+            nonce += 1
+            ret.set_quark_chain_config(env.quark_chain_config)
+            return ret
+
+        token_id = 9999999  # token id to bid and win
+        amount = 1000
+        parsed_hex = lambda i: i.to_bytes(32, byteorder="big").hex()
+        # set auction parameters: minimum bid price: 20 QKC, minimum increment: 5%, duration: one week
+        set_auction_params = lambda: tx_gen(
+            "3c69e3d2" + parsed_hex(20) + parsed_hex(5) + parsed_hex(3600 * 24 * 7)
+        )
+        resume_auction = lambda: tx_gen("32353fbd")
+        bid_new_token = lambda v: tx_gen(
+            "6aecd9d7"
+            + parsed_hex(token_id)
+            + parsed_hex(25 * 10 ** 18)
+            + parsed_hex(0),
+            v,
+        )
+        end_auction = lambda: tx_gen("fe67a54b")
+        mint_new_token = lambda: tx_gen(
+            "0f2dc31a" + parsed_hex(token_id) + parsed_hex(amount)
+        )
+        get_native_token_info = lambda: tx_gen("9ea41be7" + parsed_hex(token_id))
+
+        tx0 = set_auction_params()
+        success, _ = apply_transaction(evm_state, tx0, bytes(32))
+        self.assertTrue(success)
+
+        tx1 = resume_auction()
+        success, _ = apply_transaction(evm_state, tx1, bytes(32))
+        self.assertTrue(success)
+
+        tx2 = bid_new_token(26 * 10 ** 18)
+        success, _ = apply_transaction(evm_state, tx2, bytes(32))
+        self.assertTrue(success)
+
+        # End before ending time, should fail
+        tx3 = end_auction()
+        success, _ = apply_transaction(evm_state, tx3, bytes(32))
+        self.assertFalse(success)
+
+        # 7 days passed, this round of auction ends
+        evm_state.timestamp += 3600 * 24 * 7
+        tx4 = end_auction()
+        success, _ = apply_transaction(evm_state, tx4, bytes(32))
+        self.assertTrue(success)
+
+        tx5 = get_native_token_info()
+        success, output = apply_transaction(evm_state, tx5, bytes(32))
+        self.assertTrue(success)
+        self.assertNotEqual(int.from_bytes(output[:32], byteorder="big"), 0)
+        self.assertEqual(output[44:64], acc1.recipient)
+        self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), 0)
+
+        tx6 = mint_new_token()
+        success, _ = apply_transaction(evm_state, tx6, bytes(32))
+        self.assertTrue(success)
+
+        tx7 = get_native_token_info()
+        success, output = apply_transaction(evm_state, tx7, bytes(32))
+        self.assertTrue(success)
+        self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), amount)
 
     @staticmethod
     def __prepare_gas_reserve_contract(evm_state, supervisor) -> bytes:
