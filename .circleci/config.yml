@@ -103,7 +103,7 @@ jobs:
   check-db:
     docker:
       - image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    parallelism: 5
+    parallelism: 4
     working_directory: /code/pyquarkchain
 
     steps:
