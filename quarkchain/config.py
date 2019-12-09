@@ -351,8 +351,6 @@ class QuarkChainConfig(BaseConfig):
         self.init_and_validate()
 
         self._genesis_token = None  # genesis token id
-        self._allowed_token_ids = None  # set of allowed token ids based on config
-
         self._tx_whitelist_senders = None
 
     def init_and_validate(self):
@@ -540,32 +538,6 @@ class QuarkChainConfig(BaseConfig):
         if self._genesis_token is None:
             self._genesis_token = token_id_encode(self.GENESIS_TOKEN)
         return self._genesis_token
-
-    @property
-    def allowed_token_ids(self):
-        if self._allowed_token_ids is None:
-            self._allowed_token_ids = {self.genesis_token}
-            for _, shard in self.shards.items():
-                for _, alloc_data in shard.GENESIS.ALLOC.items():
-                    # genesis config is backward compatible:
-                    # v1: {addr: {QKC: 1234}}
-                    # v2: {addr: {balances: {QKC: 1234}, code: 0x, storage: {0x12: 0x34}}}
-                    balances = alloc_data
-                    if "balances" in alloc_data:
-                        balances = alloc_data["balances"]
-                    for k in balances:
-                        if k in ("code", "storage"):
-                            continue
-                        self._allowed_token_ids.add(token_id_encode(k))
-        return self._allowed_token_ids
-
-    @property
-    def allowed_transfer_token_ids(self):
-        return self.allowed_token_ids
-
-    @property
-    def allowed_gas_token_ids(self):
-        return self.allowed_token_ids
 
     @property
     def tx_whitelist_senders(self):

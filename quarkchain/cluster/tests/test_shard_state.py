@@ -20,10 +20,12 @@ from quarkchain.core import CrossShardTransactionDeposit, CrossShardTransactionL
 from quarkchain.core import Identity, Address, TokenBalanceMap, MinorBlock
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.evm import opcodes
+from quarkchain.evm.exceptions import InvalidNativeToken
 from quarkchain.evm.messages import (
     apply_transaction,
     get_gas_utility_info,
     pay_native_token_as_gas,
+    validate_transaction,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -124,7 +126,7 @@ class TestShardState(unittest.TestCase):
         shard_block.header.version = 0
         state.finalize_and_add_block(shard_block)
 
-    @mock_pay_native_token_as_gas
+    @mock_pay_native_token_as_gas()
     def test_gas_price(self):
         id_list = [Identity.create_random_identity() for _ in range(5)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
@@ -136,6 +138,7 @@ class TestShardState(unittest.TestCase):
                 "QI": 100000000,
                 "BTC": 100000000,
             },
+            charge_gas_reserve=True,
         )
 
         qkc_token = token_id_encode("QKC")
@@ -208,9 +211,9 @@ class TestShardState(unittest.TestCase):
         gas_price = state.gas_price(token_id=btc_token)
         self.assertEqual(gas_price, 0)
 
-        # unrecognized token id
+        # unrecognized token id should return 0
         gas_price = state.gas_price(token_id=1)
-        self.assertIsNone(gas_price)
+        self.assertEqual(gas_price, 0)
 
     def test_estimate_gas(self):
         id1 = Identity.create_random_identity()
@@ -3174,6 +3177,26 @@ class TestShardState(unittest.TestCase):
         state.finalize_and_add_block(b0)
         self.assertEqual(len(state.tx_queue), 0)
 
+    @staticmethod
+    def __prepare_gas_reserve_contract(evm_state, supervisor) -> bytes:
+        runtime_bytecode = GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE
+        runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
+        # get rid of the constructor argument
+        runtime_bytecode = runtime_bytecode[runtime_start:-32]
+
+        contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
+        evm_state.set_code(contract_addr, runtime_bytecode)
+        # Set caller
+        evm_state.set_storage_data(contract_addr, 0, contract_addr)
+        # Set supervisor
+        evm_state.set_storage_data(contract_addr, 1, supervisor)
+        # Set min gas reserve for maintenance
+        evm_state.set_storage_data(contract_addr, 3, 30000)
+        # Set min starting gas for use as gas
+        evm_state.set_storage_data(contract_addr, 4, 1)
+        evm_state.commit()
+        return contract_addr
+
     def test_pay_native_token_as_gas_contract_api(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3185,22 +3208,7 @@ class TestShardState(unittest.TestCase):
         refund_percentage, gas_price = get_gas_utility_info(evm_state, 123, 1)
         self.assertEqual((refund_percentage, gas_price), (0, 0))
 
-        runtime_bytecode = GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE
-        runtime_start = runtime_bytecode.find(bytes.fromhex("608060405260"), 1)
-        # get rid of the constructor argument
-        runtime_bytecode = runtime_bytecode[runtime_start:-32]
-
-        contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
-        evm_state.set_code(contract_addr, runtime_bytecode)
-        # Set caller
-        evm_state.set_storage_data(contract_addr, 0, contract_addr)
-        # Set supervisor
-        evm_state.set_storage_data(contract_addr, 1, acc1.recipient)
-        # Set min gas reserve for maintenance
-        evm_state.set_storage_data(contract_addr, 3, 1)
-        # Set min starting gas for use as gas
-        evm_state.set_storage_data(contract_addr, 4, 1)
-        evm_state.commit()
+        contract_addr = self.__prepare_gas_reserve_contract(evm_state, acc1.recipient)
 
         nonce = 0
 
@@ -3240,26 +3248,27 @@ class TestShardState(unittest.TestCase):
         )
 
         # propose a new exchange rate
-        tx1 = propose_new_exchange_rate(10000)
+        tx1 = propose_new_exchange_rate(100000)
         success, _ = apply_transaction(evm_state, tx1, bytes(32))
         self.assertTrue(success)
         # set the refund rate
         tx2 = set_refund_rate()
         success, _ = apply_transaction(evm_state, tx2, bytes(32))
-        # should be able to use the gas utility
-        evm_state.commit()
+        self.assertTrue(success)
 
         # get the gas utility information by calling the get_gas_utility_info function
-        refund_percentage, gas_price = get_gas_utility_info(evm_state, 123, 60000)
+        refund_percentage, gas_price = get_gas_utility_info(evm_state, token_id, 60000)
         self.assertEqual((refund_percentage, gas_price), (60, 2))
         # exchange the Qkc with the native token
-        refund_percentage, gas_price = pay_native_token_as_gas(evm_state, 123, 1, 60000)
+        refund_percentage, gas_price = pay_native_token_as_gas(
+            evm_state, token_id, 1, 60000
+        )
         self.assertEqual((refund_percentage, gas_price), (60, 2))
         # check the balance of the gas reserve. amount of native token (60000) * exchange rate (1 / 30000) = 2 QKC
         tx3 = query_gas_reserve_balance(acc1)
         success, output = apply_transaction(evm_state, tx3, bytes(32))
         self.assertTrue(success)
-        self.assertEqual(int.from_bytes(output, byteorder="big"), 9998)
+        self.assertEqual(int.from_bytes(output, byteorder="big"), 99998)
         # check the balance of native token.
         tx4 = query_native_token_balance(acc1)
         success, output = apply_transaction(evm_state, tx4, bytes(32))
@@ -3269,8 +3278,6 @@ class TestShardState(unittest.TestCase):
     # mock refund rate 50% with 2x gas price
     @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
     def test_native_token_as_gas_in_shard(self):
-        # import quarkchain.evm.messages
-
         id1 = Identity.create_random_identity()
         id2 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3278,7 +3285,6 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(
             genesis_account=acc1,
-            genesis_minor_quarkash=10000000,
             genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
         )
         state = create_default_shard_state(env=env)
@@ -3289,7 +3295,7 @@ class TestShardState(unittest.TestCase):
 
         nonce = 0
 
-        def tx_gen(value, token_id, to):
+        def tx_gen(value, token_id, to, increment_nonce=True):
             nonlocal nonce
             ret = create_transfer_transaction(
                 nonce=nonce,
@@ -3303,12 +3309,23 @@ class TestShardState(unittest.TestCase):
                 data=b"",
                 gas_token_id=token_id,
             ).tx.to_evm_tx()
-            nonce += 1
+            if increment_nonce:
+                nonce += 1
             ret.set_quark_chain_config(env.quark_chain_config)
             return ret
 
         self.assertEqual(
             evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
+        )
+
+        # fail because gas reserve doesn't have QKC
+        failed_tx = tx_gen(1000, qi_token, acc2, increment_nonce=False)
+        with self.assertRaises(InvalidNativeToken):
+            validate_transaction(evm_state, failed_tx)
+
+        # need to give gas reserve enough QKC to pay for gas conversion
+        evm_state.delta_token_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
         )
 
         tx0 = tx_gen(1000, qi_token, acc2)
@@ -3327,3 +3344,124 @@ class TestShardState(unittest.TestCase):
             evm_state.get_balance(bytes(20), token_id=qkc_token),
             979000 * 10 + 21000 * 10,
         )
+
+    def test_pay_native_token_as_gas_end_to_end(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        # genesis balance: 100 ether for both QKC and QI
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={"QKC": int(1e20), "QI": int(1e20)},
+        )
+        state = create_default_shard_state(env=env)
+        evm_state = state.evm_state
+        evm_state.block_coinbase = Address.create_random_account(0).recipient
+
+        contract_addr = self.__prepare_gas_reserve_contract(evm_state, acc1.recipient)
+
+        nonce = 0
+        token_id = token_id_encode("QI")
+        gaslimit = 1000000
+
+        def tx_gen(
+            data: str,
+            value: Optional[int] = None,
+            addr: bytes = contract_addr,
+            use_native_token: bool = False,
+            gas_price: int = 0,
+            increment_nonce=True,
+        ):
+            nonlocal nonce
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=Address(addr, 0),
+                value=value or 0,
+                gas=gaslimit,
+                gas_price=gas_price,
+                data=bytes.fromhex(data),
+                gas_token_id=token_id if use_native_token else None,
+            ).tx.to_evm_tx()
+            if increment_nonce:
+                nonce += 1
+            ret.set_quark_chain_config(env.quark_chain_config)
+            return ret
+
+        # propose a new exchange rate for native token with ratio 1 / 2
+        parsed_hex = lambda i: i.to_bytes(32, byteorder="big").hex()
+        propose_new_exchange_rate = lambda v: tx_gen(
+            "735e0e19" + parsed_hex(token_id) + parsed_hex(1) + parsed_hex(2), v
+        )
+        # set the refund rate to 80
+        set_refund_rate = lambda: tx_gen(
+            "6d27af8c" + parsed_hex(token_id) + parsed_hex(80)
+        )
+        query_gas_reserve_balance = lambda a: tx_gen(
+            "13dee215" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
+        )
+        query_native_token_balance = lambda a: tx_gen(
+            "21a2b36e" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
+        )
+
+        # propose a new exchange rate with 1 ether of QKC as reserve
+        tx = propose_new_exchange_rate(int(1e18))
+        success, _ = apply_transaction(evm_state, tx, bytes(32))
+        self.assertTrue(success)
+        # set the refund rate
+        tx = set_refund_rate()
+        success, _ = apply_transaction(evm_state, tx, bytes(32))
+        self.assertTrue(success)
+        evm_state.commit()
+
+        # 1) craft a tx using native token for gas, with gas price as 10
+        tx_w_native_token = tx_gen(
+            "", 0, acc1.recipient, use_native_token=True, gas_price=10
+        )
+        success, _ = apply_transaction(evm_state, tx_w_native_token, bytes(32))
+        self.assertTrue(success)
+
+        # native token balance should update accordingly
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id), int(1e20) - gaslimit * 10
+        )
+        self.assertEqual(evm_state.get_balance(contract_addr, token_id), gaslimit * 10)
+        query_tx = query_native_token_balance(acc1)
+        success, output = apply_transaction(evm_state, query_tx, bytes(32))
+        self.assertTrue(success)
+        self.assertEqual(int.from_bytes(output, byteorder="big"), gaslimit * 10)
+        # qkc balance should update accordingly:
+        # should have 100 ether - 1 ether + refund
+        sender_balance = (
+            int(1e20) - int(1e18) + (gaslimit - 21000) * (10 // 2) * 8 // 10
+        )
+        self.assertEqual(evm_state.get_balance(acc1.recipient), sender_balance)
+        contract_remaining_qkc = int(1e18) - gaslimit * 10 // 2
+        self.assertEqual(evm_state.get_balance(contract_addr), contract_remaining_qkc)
+        query_tx = query_gas_reserve_balance(acc1)
+        success, output = apply_transaction(evm_state, query_tx, bytes(32))
+        self.assertTrue(success)
+        self.assertEqual(
+            int.from_bytes(output, byteorder="big"), contract_remaining_qkc
+        )
+        # burned QKC for gas conversion
+        self.assertEqual(
+            evm_state.get_balance(bytes(20)), (gaslimit - 21000) * (10 // 2) * 2 // 10
+        )
+        # miner fee with 50% tax
+        self.assertEqual(
+            evm_state.get_balance(evm_state.block_coinbase), 21000 * (10 // 2) // 2
+        )
+
+        # 2) craft a tx that will use up gas reserve, should fail validation
+        tx_use_up_reserve = tx_gen(
+            "",
+            0,
+            acc1.recipient,
+            use_native_token=True,
+            gas_price=int(1e12) * 2,
+            increment_nonce=False,
+        )
+        with self.assertRaises(InvalidNativeToken):
+            apply_transaction(evm_state, tx_use_up_reserve, bytes(32))

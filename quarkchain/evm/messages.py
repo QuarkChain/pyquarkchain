@@ -1,4 +1,5 @@
 # Modified from pyethereum under MIT license
+from collections import Counter
 from fractions import Fraction
 
 import rlp
@@ -15,13 +16,14 @@ from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
 from quarkchain.evm import opcodes
 from quarkchain.evm import vm
-from quarkchain.evm.specials import specials as default_specials, SystemContract
+from quarkchain.evm.specials import specials as default_specials
 from quarkchain.evm.exceptions import (
     InvalidNonce,
     InsufficientStartGas,
     UnsignedTransaction,
     BlockGasLimitReached,
     InsufficientBalance,
+    InvalidNativeToken,
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
@@ -129,57 +131,60 @@ def validate_transaction(state, tx):
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
 
-    # (4.0) require transfer_token_id and gas_token_id to be in allowed list
-    if tx.transfer_token_id not in state.qkc_config.allowed_transfer_token_ids:
-        raise InsufficientBalance(
-            "{}: token {} is not in allowed transfer_token list".format(
-                tx.__repr__(), token_id_decode(tx.transfer_token_id)
+    default_chain_token = state.shard_config.default_chain_token
+    bal = {tx.transfer_token_id: state.get_balance(tx.sender, tx.transfer_token_id)}
+    if tx.transfer_token_id != tx.gas_token_id:
+        bal[tx.gas_token_id] = state.get_balance(tx.sender, tx.gas_token_id)
+
+    # (4) requires non-zero balance for transfer_token_id and gas_token_id if non-default
+    for token_id in [tx.transfer_token_id, tx.gas_token_id]:
+        if token_id != default_chain_token and bal[token_id] == 0:
+            raise InvalidNativeToken(
+                "{}: non-default token {} has zero balance".format(
+                    tx.__repr__(), token_id_decode(token_id)
+                )
             )
+
+    # (5) the sender account balance contains at least the cost required in up-front payment
+    cost = Counter({tx.transfer_token_id: tx.value}) + Counter(
+        {tx.gas_token_id: tx.gasprice * tx.startgas}
+    )
+    for token_id, b in bal.items():
+        if b < cost[token_id]:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %s balance" % token_id_decode(token_id),
+                    b,
+                    cost[token_id],
+                )
+            )
+
+    # (6) if gas token non-default, need to check system contract for gas conversion
+    if tx.gasprice != 0 and tx.gas_token_id != default_chain_token:
+        snapshot = state.snapshot()
+        _, genesis_token_gas_price = pay_native_token_as_gas(
+            state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
-    # if tx.gas_token_id not in state.qkc_config.allowed_gas_token_ids:
-    #    raise InsufficientBalance(
-    #        "{}: token {} is not in allowed gas_token list".format(
-    #            tx.__repr__(), token_id_decode(tx.gas_token_id)
-    #        )
-    #    )
-
-    # (4) the sender account balance contains at least the
-    # cost, v0, required in up-front payment.
-    if tx.transfer_token_id == tx.gas_token_id:
-        total_cost = tx.value + tx.gasprice * tx.startgas
-        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < total_cost:
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.transfer_token_id,
-                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
-                    total_cost,
+        state.revert(snapshot)
+        if genesis_token_gas_price == 0:
+            raise InvalidNativeToken(
+                "{}: non-default gas token {} not ready for being used to pay gas".format(
+                    tx.__repr__(), token_id_decode(tx.gas_token_id)
                 )
             )
-    else:
-        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < tx.value:
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.transfer_token_id,
-                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
-                    tx.value,
-                )
-            )
-        if (
-            state.get_balance(tx.sender, token_id=tx.gas_token_id)
-            < tx.gasprice * tx.startgas
-        ):
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.gas_token_id,
-                    state.get_balance(tx.sender, token_id=tx.gas_token_id),
-                    tx.gasprice * tx.startgas,
+        # should be guaranteed by previous check. check added to make sure
+        bal_gas_reserve = state.get_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), state.genesis_token
+        )
+        if bal_gas_reserve < genesis_token_gas_price * tx.startgas:
+            raise InvalidNativeToken(
+                "{}: non-default gas token {} not enough reserve balance for conversion".format(
+                    tx.__repr__(), token_id_decode(tx.gas_token_id)
                 )
             )
 
-    # check block gas limit
+    # (7) check block gas limit
     if state.gas_used + tx.startgas > state.gas_limit:
         raise BlockGasLimitReached(
             rp(tx, "gaslimit", state.gas_used + tx.startgas, state.gas_limit)
@@ -365,17 +370,19 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
     gasprice, refund_rate = tx.gasprice, 100
     # convert gas if using non-genesis native token
-    if tx.gas_token_id != state.genesis_token:
+    if gasprice != 0 and tx.gas_token_id != state.genesis_token:
         refund_rate, converted_genesis_token_gas_price = pay_native_token_as_gas(
             state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
+        # guaranteed by validation
         assert converted_genesis_token_gas_price > 0
         gasprice = converted_genesis_token_gas_price
         contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
-        # assert (
-        #    state.get_balance(contract_addr, token_id=state.genesis_token)
-        #    >= tx.startgas * converted_genesis_token_gas_price
-        # )
+        # guaranteed by validation
+        assert (
+            state.get_balance(contract_addr, token_id=state.genesis_token)
+            >= tx.startgas * converted_genesis_token_gas_price
+        )
         state.delta_token_balance(
             contract_addr,
             state.genesis_token,
@@ -740,8 +747,6 @@ def _call_general_native_token_manager(state, data: bytes) -> (int, int):
         1000000,  # Mock gas to guarantee msg will be applied
         data,
         code_address=contract_addr,
-        gas_token_id=state.shard_config.default_chain_token,
-        transfer_token_id=state.shard_config.default_chain_token,
     )
     ext = VMExt(state, sender, gas_price=0)
     result, _, output = apply_msg(ext, message)
