@@ -3205,6 +3205,7 @@ class TestShardState(unittest.TestCase):
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
         evm_state = state.evm_state
+        evm_state.timestamp = int(time.time())
 
         # contract not deployed yet
         refund_percentage, gas_price = get_gas_utility_info(evm_state, 123, 1)
@@ -3248,6 +3249,8 @@ class TestShardState(unittest.TestCase):
         query_native_token_balance = lambda a: tx_gen(
             "21a2b36e" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
         )
+        # withdraw native tokens
+        withdraw_native_token = lambda: tx_gen("f9c94eb7" + parsed_hex(token_id))
 
         # propose a new exchange rate
         tx1 = propose_new_exchange_rate(100000)
@@ -3276,6 +3279,18 @@ class TestShardState(unittest.TestCase):
         success, output = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 60000)
+        # give the contract real native token and withdrawing should work
+        evm_state.delta_token_balance(contract_addr, token_id, 60000)
+        tx5 = withdraw_native_token()
+        success, _ = apply_transaction(evm_state, tx5, bytes(32))
+        self.assertTrue(success)
+        self.assertEqual(evm_state.get_balance(acc1.recipient, token_id), 60000)
+        self.assertEqual(evm_state.get_balance(contract_addr, token_id), 0)
+        # check again the balance of native token.
+        tx6 = query_native_token_balance(acc1)
+        success, output = apply_transaction(evm_state, tx6, bytes(32))
+        self.assertTrue(success)
+        self.assertEqual(int.from_bytes(output, byteorder="big"), 0)
 
     @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
     def test_native_token_as_gas_in_shard(self):
