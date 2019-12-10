@@ -1,4 +1,5 @@
 # Modified from pyethereum under MIT license
+from collections import Counter
 from fractions import Fraction
 
 import rlp
@@ -22,9 +23,11 @@ from quarkchain.evm.exceptions import (
     UnsignedTransaction,
     BlockGasLimitReached,
     InsufficientBalance,
+    InvalidNativeToken,
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode
+from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
 log_tx = get_logger("eth.pb.tx")
@@ -128,63 +131,76 @@ def validate_transaction(state, tx):
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
 
-    # (4.0) require transfer_token_id and gas_token_id to be in allowed list
-    if tx.transfer_token_id not in state.qkc_config.allowed_transfer_token_ids:
-        raise InsufficientBalance(
-            "{}: token {} is not in allowed transfer_token list".format(
-                tx.__repr__(), token_id_decode(tx.transfer_token_id)
-            )
-        )
-    if tx.gas_token_id not in state.qkc_config.allowed_gas_token_ids:
-        raise InsufficientBalance(
-            "{}: token {} is not in allowed gas_token list".format(
-                tx.__repr__(), token_id_decode(tx.gas_token_id)
-            )
-        )
+    default_chain_token = state.shard_config.default_chain_token
+    bal = {tx.transfer_token_id: state.get_balance(tx.sender, tx.transfer_token_id)}
+    if tx.transfer_token_id != tx.gas_token_id:
+        bal[tx.gas_token_id] = state.get_balance(tx.sender, tx.gas_token_id)
 
-    # (4) the sender account balance contains at least the
-    # cost, v0, required in up-front payment.
-    if tx.transfer_token_id == tx.gas_token_id:
-        total_cost = tx.value + tx.gasprice * tx.startgas
-        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < total_cost:
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.transfer_token_id,
-                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
-                    total_cost,
-                )
-            )
-    else:
-        if state.get_balance(tx.sender, token_id=tx.transfer_token_id) < tx.value:
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.transfer_token_id,
-                    state.get_balance(tx.sender, token_id=tx.transfer_token_id),
-                    tx.value,
-                )
-            )
-        if (
-            state.get_balance(tx.sender, token_id=tx.gas_token_id)
-            < tx.gasprice * tx.startgas
-        ):
-            raise InsufficientBalance(
-                rp(
-                    tx,
-                    "token %d balance" % tx.gas_token_id,
-                    state.get_balance(tx.sender, token_id=tx.gas_token_id),
-                    tx.gasprice * tx.startgas,
+    # (4) requires non-zero balance for transfer_token_id and gas_token_id if non-default
+    for token_id in [tx.transfer_token_id, tx.gas_token_id]:
+        if token_id != default_chain_token and bal[token_id] == 0:
+            raise InvalidNativeToken(
+                "{}: non-default token {} has zero balance".format(
+                    tx.__repr__(), token_id_decode(token_id)
                 )
             )
 
-    # check block gas limit
+    # (5) the sender account balance contains at least the cost required in up-front payment
+    cost = Counter({tx.transfer_token_id: tx.value}) + Counter(
+        {tx.gas_token_id: tx.gasprice * tx.startgas}
+    )
+    for token_id, b in bal.items():
+        if b < cost[token_id]:
+            raise InsufficientBalance(
+                rp(
+                    tx,
+                    "token %s balance" % token_id_decode(token_id),
+                    b,
+                    cost[token_id],
+                )
+            )
+
+    # (6) if gas token non-default, need to check system contract for gas conversion
+    if tx.gasprice != 0 and tx.gas_token_id != default_chain_token:
+        snapshot = state.snapshot()
+        _, genesis_token_gas_price = pay_native_token_as_gas(
+            state, tx.gas_token_id, tx.startgas, tx.gasprice
+        )
+        state.revert(snapshot)
+        if genesis_token_gas_price == 0:
+            raise InvalidNativeToken(
+                "{}: non-default gas token {} not ready for being used to pay gas".format(
+                    tx.__repr__(), token_id_decode(tx.gas_token_id)
+                )
+            )
+        # should be guaranteed by previous check. check added to make sure
+        bal_gas_reserve = state.get_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), state.genesis_token
+        )
+        if bal_gas_reserve < genesis_token_gas_price * tx.startgas:
+            raise InvalidNativeToken(
+                "{}: non-default gas token {} not enough reserve balance for conversion".format(
+                    tx.__repr__(), token_id_decode(tx.gas_token_id)
+                )
+            )
+
+    # (7) check block gas limit
     if state.gas_used + tx.startgas > state.gas_limit:
         raise BlockGasLimitReached(
             rp(tx, "gaslimit", state.gas_used + tx.startgas, state.gas_limit)
         )
 
     return True
+
+
+def _refund(state, message, total, refund_percent):
+    to_refund = total * refund_percent // 100
+    to_burn = total - to_refund
+    state.delta_token_balance(message.sender, message.gas_token_id, to_refund)
+
+    # burn
+    if to_burn:
+        state.delta_token_balance(bytes(20), message.gas_token_id, to_burn)
 
 
 def apply_transaction_message(
@@ -195,7 +211,10 @@ def apply_transaction_message(
     gas_used_start,
     is_cross_shard=False,
     contract_address=b"",
+    refund_rate=100,
 ):
+    # gas token should always be converted to genesis token
+    assert message.gas_token_id == state.genesis_token
 
     local_fee_rate = (
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
@@ -240,10 +259,8 @@ def apply_transaction_message(
             output = data
         success = 1
 
-    # sell remaining gas
-    state.delta_token_balance(
-        message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
-    )
+    _refund(state, message, ext.tx_gasprice * gas_remained, refund_rate)
+
     fee = (
         ext.tx_gasprice
         * gas_used
@@ -310,6 +327,7 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
         state, sender=deposit.from_address.recipient, gas_price=deposit.gas_price
     )
 
+    contract = deposit.to_address.recipient if deposit.create_contract else b""
     return apply_transaction_message(
         state,
         message,
@@ -317,9 +335,8 @@ def apply_xshard_deposit(state, deposit, gas_used_start):
         should_create_contract=deposit.create_contract,
         gas_used_start=gas_used_start,
         is_cross_shard=True,
-        contract_address=deposit.to_address.recipient
-        if deposit.create_contract
-        else b"",
+        contract_address=contract,
+        refund_rate=deposit.refund_rate,
     )
 
 
@@ -350,6 +367,30 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         state.get_balance(tx.sender, token_id=tx.gas_token_id)
         >= tx.startgas * tx.gasprice
     )
+    gasprice, refund_rate = tx.gasprice, 100
+    # convert gas if using non-genesis native token
+    if gasprice != 0 and tx.gas_token_id != state.genesis_token:
+        refund_rate, converted_genesis_token_gas_price = pay_native_token_as_gas(
+            state, tx.gas_token_id, tx.startgas, tx.gasprice
+        )
+        # guaranteed by validation
+        assert converted_genesis_token_gas_price > 0
+        gasprice = converted_genesis_token_gas_price
+        contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
+        # guaranteed by validation
+        assert (
+            state.get_balance(contract_addr, token_id=state.genesis_token)
+            >= tx.startgas * converted_genesis_token_gas_price
+        )
+        state.delta_token_balance(
+            contract_addr,
+            state.genesis_token,
+            -tx.startgas * converted_genesis_token_gas_price,
+        )
+        state.delta_token_balance(
+            contract_addr, tx.gas_token_id, tx.startgas * tx.gasprice
+        )
+
     state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
@@ -364,106 +405,103 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         to_full_shard_key=tx.to_full_shard_key if not tx.is_testing else None,
         tx_hash=tx_wrapper_hash,
         transfer_token_id=tx.transfer_token_id,
-        gas_token_id=tx.gas_token_id,
+        # always genesis token for gas token
+        gas_token_id=state.genesis_token,
     )
 
     # MESSAGE
-    ext = VMExt(state, tx.sender, tx.gasprice)
+    ext = VMExt(state, tx.sender, gasprice)
 
     contract_address = b""
-    if tx.is_cross_shard:
-        local_gas_used = intrinsic_gas
-        remote_gas_reserved = 0
-        if transfer_failure_by_posw_balance_check(ext, message):
-            success = 0
-            # Currently, burn all gas
-            local_gas_used = tx.startgas
-        elif tx.to == b"":
-            state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            remote_gas_reserved = tx.startgas - intrinsic_gas
-            ext.add_cross_shard_transaction_deposit(
-                quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=tx_wrapper_hash,
-                    from_address=quarkchain.core.Address(
-                        tx.sender, tx.from_full_shard_key
-                    ),
-                    to_address=quarkchain.core.Address(
-                        mk_contract_address(
-                            tx.sender,
-                            state.get_nonce(tx.sender),
-                            tx.from_full_shard_key,
-                        ),
-                        tx.to_full_shard_key,
-                    ),
-                    value=tx.value,
-                    gas_price=tx.gasprice,
-                    gas_token_id=tx.gas_token_id,
-                    transfer_token_id=tx.transfer_token_id,
-                    message_data=tx.data,
-                    create_contract=True,
-                    gas_remained=remote_gas_reserved,
-                )
-            )
-            success = 1
-        else:
-            state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
-            if (
-                state.qkc_config.ENABLE_EVM_TIMESTAMP is None
-                or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
-            ):
-                remote_gas_reserved = tx.startgas - intrinsic_gas
-            ext.add_cross_shard_transaction_deposit(
-                quarkchain.core.CrossShardTransactionDeposit(
-                    tx_hash=tx_wrapper_hash,
-                    from_address=quarkchain.core.Address(
-                        tx.sender, tx.from_full_shard_key
-                    ),
-                    to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
-                    value=tx.value,
-                    gas_price=tx.gasprice,
-                    gas_token_id=tx.gas_token_id,
-                    transfer_token_id=tx.transfer_token_id,
-                    message_data=tx.data,
-                    create_contract=False,
-                    gas_remained=remote_gas_reserved,
-                )
-            )
-            success = 1
-        gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
-
-        # Refund
-        state.delta_token_balance(
-            message.sender, message.gas_token_id, ext.tx_gasprice * gas_remained
+    if not tx.is_cross_shard:
+        return apply_transaction_message(
+            state, message, ext, tx.to == b"", intrinsic_gas, refund_rate=refund_rate
         )
 
-        # if x-shard, reserve part of the gas for the target shard miner for fee
-        fee = (
-            tx.gasprice
-            * (local_gas_used - (opcodes.GTXXSHARDCOST if success else 0))
-            * local_fee_rate.numerator
-            // local_fee_rate.denominator
+    # handle xshard
+    local_gas_used = intrinsic_gas
+    remote_gas_reserved = 0
+    if transfer_failure_by_posw_balance_check(ext, message):
+        success = 0
+        # Currently, burn all gas
+        local_gas_used = tx.startgas
+    elif tx.to == b"":
+        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        remote_gas_reserved = tx.startgas - intrinsic_gas
+        ext.add_cross_shard_transaction_deposit(
+            quarkchain.core.CrossShardTransactionDeposit(
+                tx_hash=tx_wrapper_hash,
+                from_address=quarkchain.core.Address(tx.sender, tx.from_full_shard_key),
+                to_address=quarkchain.core.Address(
+                    mk_contract_address(
+                        tx.sender, state.get_nonce(tx.sender), tx.from_full_shard_key
+                    ),
+                    tx.to_full_shard_key,
+                ),
+                value=tx.value,
+                # convert to genesis token and use converted gas price
+                gas_token_id=state.genesis_token,
+                gas_price=gasprice,
+                transfer_token_id=tx.transfer_token_id,
+                message_data=tx.data,
+                create_contract=True,
+                gas_remained=remote_gas_reserved,
+                refund_rate=refund_rate,
+            )
         )
-        state.delta_token_balance(state.block_coinbase, tx.gas_token_id, fee)
-        add_dict(state.block_fee_tokens, {message.gas_token_id: fee})
-
-        output = []
-
-        state.gas_used += local_gas_used
+        success = 1
+    else:
+        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
         if (
             state.qkc_config.ENABLE_EVM_TIMESTAMP is None
             or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
         ):
-            state.gas_used -= opcodes.GTXXSHARDCOST if success else 0
-
-        # Construct a receipt
-        r = mk_receipt(
-            state, success, state.logs, contract_address, state.full_shard_key
+            remote_gas_reserved = tx.startgas - intrinsic_gas
+        ext.add_cross_shard_transaction_deposit(
+            quarkchain.core.CrossShardTransactionDeposit(
+                tx_hash=tx_wrapper_hash,
+                from_address=quarkchain.core.Address(tx.sender, tx.from_full_shard_key),
+                to_address=quarkchain.core.Address(tx.to, tx.to_full_shard_key),
+                value=tx.value,
+                # convert to genesis token and use converted gas price
+                gas_token_id=state.genesis_token,
+                gas_price=gasprice,
+                transfer_token_id=tx.transfer_token_id,
+                message_data=tx.data,
+                create_contract=False,
+                gas_remained=remote_gas_reserved,
+                refund_rate=refund_rate,
+            )
         )
-        state.logs = []
-        state.add_receipt(r)
-        return success, output
+        success = 1
+    gas_remained = tx.startgas - local_gas_used - remote_gas_reserved
 
-    return apply_transaction_message(state, message, ext, tx.to == b"", intrinsic_gas)
+    _refund(state, message, ext.tx_gasprice * gas_remained, refund_rate)
+
+    # if x-shard, reserve part of the gas for the target shard miner for fee
+    fee = (
+        ext.tx_gasprice
+        * (local_gas_used - (opcodes.GTXXSHARDCOST if success else 0))
+        * local_fee_rate.numerator
+        // local_fee_rate.denominator
+    )
+    state.delta_token_balance(state.block_coinbase, state.genesis_token, fee)
+    add_dict(state.block_fee_tokens, {state.genesis_token: fee})
+
+    output = []
+
+    state.gas_used += local_gas_used
+    if (
+        state.qkc_config.ENABLE_EVM_TIMESTAMP is None
+        or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
+    ):
+        state.gas_used -= opcodes.GTXXSHARDCOST if success else 0
+
+    # Construct a receipt
+    r = mk_receipt(state, success, state.logs, contract_address, state.full_shard_key)
+    state.logs = []
+    state.add_receipt(r)
+    return success, output
 
 
 # VM interface
@@ -516,7 +554,7 @@ class VMExt:
         self.tx_origin = sender
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
-        self.default_state_token = state.shard_config.default_chain_token
+        self.default_chain_token = state.shard_config.default_chain_token
 
 
 def apply_msg(ext, msg):
@@ -587,7 +625,7 @@ def _apply_msg(ext, msg, code):
     if (
         res == 1
         and code != b""
-        and msg.transfer_token_id != ext.default_state_token
+        and msg.transfer_token_id != ext.default_chain_token
         and not msg.token_id_queried
         and msg.value != 0
     ):
@@ -618,7 +656,7 @@ def mk_contract_address2(sender, salt: bytes, init_code_hash: bytes):
 def create_contract(ext, msg, contract_recipient=b"", salt=None):
     log_msg.debug("CONTRACT CREATION")
 
-    if msg.transfer_token_id != ext.default_state_token:
+    if msg.transfer_token_id != ext.default_chain_token:
         # TODODLL calling smart contract with non QKC transfer_token_id is not supported
         return 0, msg.gas, b""
 
@@ -701,8 +739,6 @@ def _call_general_native_token_manager(state, data: bytes) -> (int, int):
         1000000,  # Mock gas to guarantee msg will be applied
         data,
         code_address=contract_addr,
-        gas_token_id=state.shard_config.default_chain_token,
-        transfer_token_id=state.shard_config.default_chain_token,
     )
     ext = VMExt(state, sender, gas_price=0)
     result, _, output = apply_msg(ext, message)

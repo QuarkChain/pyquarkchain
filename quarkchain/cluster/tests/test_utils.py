@@ -24,6 +24,8 @@ from quarkchain.core import (
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
+from quarkchain.evm.messages import pay_native_token_as_gas, get_gas_utility_info
+from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
 from quarkchain.utils import call_async, check, is_p2
@@ -37,6 +39,7 @@ def get_test_env(
     genesis_root_heights=None,  # dict(full_shard_id, genesis_root_height)
     remote_mining=False,
     genesis_minor_token_balances=None,
+    charge_gas_reserve=False,
 ):
     check(is_p2(shard_size))
     env = DEFAULT_ENV.copy()
@@ -75,6 +78,13 @@ def get_test_env(
         else:
             shard.GENESIS.ALLOC[addr] = {
                 env.quark_chain_config.GENESIS_TOKEN: genesis_minor_quarkash
+            }
+        if charge_gas_reserve:
+            gas_reserve_addr = (
+                SystemContract.GENERAL_NATIVE_TOKEN.addr().hex() + addr[-8:]
+            )
+            shard.GENESIS.ALLOC[gas_reserve_addr] = {
+                env.quark_chain_config.GENESIS_TOKEN: int(1e18)
             }
         shard.CONSENSUS_CONFIG.REMOTE_MINE = remote_mining
         shard.DIFFICULTY_ADJUSTMENT_CUTOFF_TIME = 7
@@ -479,3 +489,23 @@ class ClusterContext(ContextDecorator):
 
     def __exit__(self, exc_type, exc_val, traceback):
         shutdown_clusters(self.cluster_list)
+
+
+def mock_pay_native_token_as_gas(mock=None):
+    # default mock: refund rate 100%, gas price unchanged
+    mock = mock or (lambda *x: (100, x[-1]))
+
+    def decorator(f):
+        def wrapper(*args, **kwargs):
+            import quarkchain.evm.messages as m
+
+            m.get_gas_utility_info = mock
+            m.pay_native_token_as_gas = mock
+            ret = f(*args, **kwargs)
+            m.get_gas_utility_info = get_gas_utility_info
+            m.pay_native_token_as_gas = pay_native_token_as_gas
+            return ret
+
+        return wrapper
+
+    return decorator
