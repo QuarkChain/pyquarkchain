@@ -94,7 +94,7 @@ jobs:
             curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
             tar xvfz data.tar.gz
             rm data.tar.gz && mv data workspace/
-          no_output_timeout: 1h
+          no_output_timeout: 2h
       - save_cache:
           paths:
             - /tmp/workspace/data
