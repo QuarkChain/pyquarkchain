@@ -3215,7 +3215,7 @@ class TestShardState(unittest.TestCase):
 
         nonce = 0
 
-        def tx_gen(data: str, value: Optional[int] = None):
+        def tx_gen(data: str, value=None, transfer_token_id=None):
             nonlocal nonce
             ret = create_transfer_transaction(
                 nonce=nonce,
@@ -3227,6 +3227,7 @@ class TestShardState(unittest.TestCase):
                 gas=1000000,
                 gas_price=0,
                 data=bytes.fromhex(data),
+                transfer_token_id=transfer_token_id,
             ).tx.to_evm_tx()
             nonce += 1
             ret.set_quark_chain_config(env.quark_chain_config)
@@ -3235,6 +3236,7 @@ class TestShardState(unittest.TestCase):
         # propose a new exchange rate for token id 123 with ratio 1 / 30000
         token_id = 123
         parsed_hex = lambda i: i.to_bytes(32, byteorder="big").hex()
+        register = lambda: tx_gen("bf03314a", value=1, transfer_token_id=token_id)
         propose_new_exchange_rate = lambda v: tx_gen(
             "735e0e19" + parsed_hex(token_id) + parsed_hex(1) + parsed_hex(30000), v
         )
@@ -3252,9 +3254,17 @@ class TestShardState(unittest.TestCase):
         # withdraw native tokens
         withdraw_native_token = lambda: tx_gen("f9c94eb7" + parsed_hex(token_id))
 
-        # propose a new exchange rate
+        # propose a new exchange rate, which will fail because no registration
         tx1 = propose_new_exchange_rate(100000)
         success, _ = apply_transaction(evm_state, tx1, bytes(32))
+        self.assertFalse(success)
+        # register and re-propose, should succeed
+        evm_state.delta_token_balance(acc1.recipient, token_id, 1)
+        register_tx = register()
+        success, _ = apply_transaction(evm_state, register_tx, bytes(32))
+        self.assertTrue(success)
+        tx1_redo = propose_new_exchange_rate(100000)
+        success, _ = apply_transaction(evm_state, tx1_redo, bytes(32))
         self.assertTrue(success)
         # set the refund rate
         tx2 = set_refund_rate()
@@ -3278,13 +3288,14 @@ class TestShardState(unittest.TestCase):
         tx4 = query_native_token_balance(acc1)
         success, output = apply_transaction(evm_state, tx4, bytes(32))
         self.assertTrue(success)
-        self.assertEqual(int.from_bytes(output, byteorder="big"), 60000)
+        # 1 token from registration
+        self.assertEqual(int.from_bytes(output, byteorder="big"), 60000 + 1)
         # give the contract real native token and withdrawing should work
         evm_state.delta_token_balance(contract_addr, token_id, 60000)
         tx5 = withdraw_native_token()
         success, _ = apply_transaction(evm_state, tx5, bytes(32))
         self.assertTrue(success)
-        self.assertEqual(evm_state.get_balance(acc1.recipient, token_id), 60000)
+        self.assertEqual(evm_state.get_balance(acc1.recipient, token_id), 60000 + 1)
         self.assertEqual(evm_state.get_balance(contract_addr, token_id), 0)
         # check again the balance of native token.
         tx6 = query_native_token_balance(acc1)
@@ -3361,7 +3372,6 @@ class TestShardState(unittest.TestCase):
             979000 * 10 + 21000 * 10,
         )
 
-    # mock refund rate 50% with 2x gas price
     def test_pay_native_token_as_gas_end_to_end(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3411,6 +3421,7 @@ class TestShardState(unittest.TestCase):
         propose_new_exchange_rate = lambda v: tx_gen(
             "735e0e19" + parsed_hex(token_id) + parsed_hex(1) + parsed_hex(2), v
         )
+        unrequire_registered_token = lambda: tx_gen("764a27ef" + parsed_hex(0))
         # set the refund rate to 80
         set_refund_rate = lambda: tx_gen(
             "6d27af8c" + parsed_hex(token_id) + parsed_hex(80)
@@ -3422,6 +3433,9 @@ class TestShardState(unittest.TestCase):
             "21a2b36e" + parsed_hex(token_id) + "0" * 24 + a.recipient.hex()
         )
 
+        tx = unrequire_registered_token()
+        success, _ = apply_transaction(evm_state, tx, bytes(32))
+        self.assertTrue(success)
         # propose a new exchange rate with 1 ether of QKC as reserve
         tx = propose_new_exchange_rate(int(1e18))
         success, _ = apply_transaction(evm_state, tx, bytes(32))
