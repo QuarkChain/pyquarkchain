@@ -271,10 +271,15 @@ def proc_deploy_system_contract(ext, msg):
 
     data = msg.data.extract32(0)
     contract_index = data if data else 1
-    if contract_index not in [e.value for e in SystemContract]:
+
+    try:
+        target_addr, bytecode, enable_ts = _system_contracts[
+            SystemContract(contract_index)
+        ]
+    except (ValueError, KeyError) as e:
+        # Not a valid `SystemContract` or the dict doesn't contain its info
         return 0, 0, []
 
-    target_addr, bytecode, enable_ts = _system_contracts[SystemContract(contract_index)]
     if ext.block_timestamp < enable_ts:
         return 0, 0, []
 

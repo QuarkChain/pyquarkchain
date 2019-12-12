@@ -3303,75 +3303,6 @@ class TestShardState(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output, byteorder="big"), 0)
 
-    @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
-    def test_native_token_as_gas_in_shard(self):
-        id1 = Identity.create_random_identity()
-        id2 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id2, full_shard_key=0)
-
-        env = get_test_env(
-            genesis_account=acc1,
-            genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
-        )
-        state = create_default_shard_state(env=env)
-        evm_state = state.evm_state
-
-        qkc_token = token_id_encode("QKC")
-        qi_token = token_id_encode("QI")
-
-        nonce = 0
-
-        def tx_gen(value, token_id, to, increment_nonce=True):
-            nonlocal nonce
-            ret = create_transfer_transaction(
-                nonce=nonce,
-                shard_state=state,
-                key=id1.get_key(),
-                from_address=acc1,
-                to_address=to,
-                value=value,
-                gas=1000000,
-                gas_price=10,
-                data=b"",
-                gas_token_id=token_id,
-            ).tx.to_evm_tx()
-            if increment_nonce:
-                nonce += 1
-            ret.set_quark_chain_config(env.quark_chain_config)
-            return ret
-
-        self.assertEqual(
-            evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
-        )
-
-        # fail because gas reserve doesn't have QKC
-        failed_tx = tx_gen(1000, qi_token, acc2, increment_nonce=False)
-        with self.assertRaises(InvalidNativeToken):
-            validate_transaction(evm_state, failed_tx)
-
-        # need to give gas reserve enough QKC to pay for gas conversion
-        evm_state.delta_token_balance(
-            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
-        )
-
-        tx0 = tx_gen(1000, qi_token, acc2)
-        success, _ = apply_transaction(evm_state, tx0, bytes(32))
-        self.assertTrue(success)
-
-        self.assertEqual(
-            evm_state.get_balance(acc1.recipient, token_id=qi_token),
-            100000000 - 1000000 * 10,
-        )
-        self.assertEqual(
-            evm_state.get_balance(acc1.recipient, token_id=qkc_token),
-            100000000 - 1000 + 979000 * 10,
-        )
-        self.assertEqual(
-            evm_state.get_balance(bytes(20), token_id=qkc_token),
-            979000 * 10 + 21000 * 10,
-        )
-
     def test_pay_native_token_as_gas_end_to_end(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -3592,3 +3523,203 @@ class TestShardState(unittest.TestCase):
         success, output = apply_transaction(evm_state, tx7, bytes(32))
         self.assertTrue(success)
         self.assertEqual(int.from_bytes(output[64:96], byteorder="big"), amount)
+
+    @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] * 2))
+    def test_native_token_as_gas_in_shard(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id2, full_shard_key=0)
+
+        env = get_test_env(
+            genesis_account=acc1,
+            genesis_minor_token_balances={"QKC": 100000000, "QI": 100000000},
+        )
+        state = create_default_shard_state(env=env)
+        evm_state = state.evm_state
+
+        qkc_token = token_id_encode("QKC")
+        qi_token = token_id_encode("QI")
+
+        nonce = 0
+
+        def tx_gen(value, token_id, to, increment_nonce=True):
+            nonlocal nonce
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=to,
+                value=value,
+                gas=1000000,
+                gas_price=10,
+                data=b"",
+                gas_token_id=token_id,
+            ).tx.to_evm_tx()
+            if increment_nonce:
+                nonce += 1
+            ret.set_quark_chain_config(env.quark_chain_config)
+            return ret
+
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qi_token), 100000000
+        )
+
+        # fail because gas reserve doesn't have QKC
+        failed_tx = tx_gen(1000, qi_token, acc2, increment_nonce=False)
+        with self.assertRaises(InvalidNativeToken):
+            validate_transaction(evm_state, failed_tx)
+
+        # need to give gas reserve enough QKC to pay for gas conversion
+        evm_state.delta_token_balance(
+            SystemContract.GENERAL_NATIVE_TOKEN.addr(), qkc_token, int(1e18)
+        )
+
+        tx0 = tx_gen(1000, qi_token, acc2)
+        success, _ = apply_transaction(evm_state, tx0, bytes(32))
+        self.assertTrue(success)
+
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qi_token),
+            100000000 - 1000000 * 10,
+        )
+        self.assertEqual(
+            evm_state.get_balance(acc1.recipient, token_id=qkc_token),
+            100000000 - 1000 + 979000 * 10,
+        )
+        self.assertEqual(
+            evm_state.get_balance(bytes(20), token_id=qkc_token),
+            979000 * 10 + 21000 * 10,
+        )
+
+    # 10% refund rate, triple the gas price
+    @mock_pay_native_token_as_gas(lambda *x: (10, x[-1] * 3))
+    def test_native_token_as_gas_cross_shard(self):
+        id1 = Identity.create_random_identity()
+        id2 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        # cross-shard
+        acc2 = Address.create_from_identity(id2, full_shard_key=1)
+        miner = Address.create_random_account(full_shard_key=0)
+
+        envs = [
+            get_test_env(
+                genesis_account=acc1,
+                genesis_minor_token_balances={"QI": 100000000},
+                charge_gas_reserve=True,
+            )
+            for _ in range(2)
+        ]
+        state = create_default_shard_state(env=envs[0])
+        state_to = create_default_shard_state(env=envs[1], shard_id=1)
+
+        qi_token = token_id_encode("QI")
+        gas_price, gas_limit = 10, 1000000
+        nonce = 0
+
+        # add a root block to allow xshard tx
+        rb = (
+            state.root_tip.create_block_to_append()
+            .add_minor_block_header(state.header_tip)
+            .add_minor_block_header(state_to.header_tip)
+            .finalize()
+        )
+        state.add_root_block(rb)
+        state_to.add_root_block(rb)
+
+        def tx_gen(to):
+            nonlocal nonce
+            ret = create_transfer_transaction(
+                nonce=nonce,
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=to,
+                value=0,
+                gas=gas_limit,
+                gas_price=gas_price,
+                data=b"",
+                gas_token_id=qi_token,
+            )
+            nonce += 1
+            return ret
+
+        tx = tx_gen(acc2)
+        self.assertTrue(state.add_tx(tx))
+        b = state.create_block_to_mine(address=miner)
+        self.assertEqual(len(b.tx_list), 1)
+        self.assertEqual(state.evm_state.gas_used, 0)
+
+        state.finalize_and_add_block(b)
+        self.assertEqual(len(state.evm_state.xshard_list), 1)
+        self.assertEqual(
+            state.evm_state.xshard_list[0],
+            CrossShardTransactionDeposit(
+                tx_hash=tx.get_hash(),
+                from_address=acc1,
+                to_address=acc2,
+                value=0,
+                gas_remained=gas_limit - opcodes.GTXXSHARDCOST - opcodes.GTXCOST,
+                # gas token should be converted to QKC
+                gas_token_id=self.genesis_token,
+                transfer_token_id=self.genesis_token,
+                # those two fields should reflect the mock
+                gas_price=gas_price * 3,
+                refund_rate=10,
+            ),
+        )
+
+        # local shard state check
+        self.assertEqual(
+            state.get_token_balance(acc1.recipient, token_id=qi_token),
+            100000000 - gas_price * gas_limit,
+        )
+        self.assertEqual(
+            state.get_token_balance(miner.recipient, token_id=self.genesis_token),
+            self.get_after_tax_reward(self.shard_coinbase + 21000 * gas_price * 3),
+        )
+        # native token as gas sent to system contract
+        sys_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
+        self.assertEqual(
+            state.get_token_balance(sys_addr, token_id=qi_token), gas_price * gas_limit
+        )
+        # while its QKC reserve has been deducted
+        self.assertEqual(
+            state.get_token_balance(sys_addr, token_id=self.genesis_token),
+            int(1e18) - gas_limit * gas_price * 3,
+        )
+
+        # let the target get the xshard tx
+        state_to.add_cross_shard_tx_list_by_minor_block_hash(
+            h=b.header.get_hash(),
+            tx_list=CrossShardTransactionList(tx_list=state.evm_state.xshard_list),
+        )
+        rb = (
+            state_to.root_tip.create_block_to_append()
+            .add_minor_block_header(b.header)
+            .finalize()
+        )
+        state_to.add_root_block(rb)
+        # process a shard block to catch up xshard deposits
+        b_to = state_to.create_block_to_mine(address=miner.address_in_shard(1))
+        state_to.finalize_and_add_block(b_to)
+        # no change to native token
+        self.assertEqual(
+            state_to.get_token_balance(acc1.recipient, token_id=qi_token), 100000000
+        )
+        # QKC should have been partially refunded
+        self.assertEqual(
+            state_to.get_token_balance(acc1.recipient, token_id=self.genesis_token),
+            (3 * gas_price) * (gas_limit - 30000) // 10,
+        )
+        # another part of QKC is burnt
+        self.assertEqual(
+            state_to.get_token_balance(bytes(20), token_id=self.genesis_token),
+            (3 * gas_price) * (gas_limit - 30000) // 10 * 9,
+        )
+        # and miners
+        self.assertEqual(
+            state_to.get_token_balance(miner.recipient, token_id=self.genesis_token),
+            self.get_after_tax_reward(self.shard_coinbase + (3 * gas_price) * 9000),
+        )
