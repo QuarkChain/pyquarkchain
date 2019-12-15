@@ -33,7 +33,7 @@
       "CONSENSUS_TYPE": "POW_SIMULATE",
       "CONSENSUS_CONFIG": {
         "TARGET_BLOCK_TIME": 60,
-        "REMOTE_MINE": true
+        "REMOTE_MINE": false
       },
       "GENESIS": {
         "VERSION": 0,
@@ -50,7 +50,7 @@
       "DIFFICULTY_ADJUSTMENT_FACTOR": 1024,
       "EPOCH_INTERVAL": 525600,
       "POSW_CONFIG": {
-        "ENABLED": true,
+        "ENABLED": false,
         "ENABLE_TIMESTAMP": 1568226600,
         "DIFF_DIVIDER": 1000,
         "WINDOW_SIZE": 256,
