@@ -310,7 +310,7 @@ class QuarkChainConfig(BaseConfig):
     TX_WHITELIST_SENDERS = []
     ENABLE_EVM_TIMESTAMP = None
     ENABLE_QKCHASHX_HEIGHT = None
-    ENABLE_MNT_AUCTION_TIMESTAMP = None
+    ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = None
 
     MIN_TX_POOL_GAS_PRICE = 10 ** 9  # lowest gas price to accept, default 1 Gwei
