@@ -276,7 +276,7 @@ def proc_deploy_system_contract(ext, msg):
         target_addr, bytecode, enable_ts = _system_contracts[
             SystemContract(contract_index)
         ]
-    except (ValueError, KeyError) as e:
+    except (ValueError, KeyError):
         # Not a valid `SystemContract` or the dict doesn't contain its info
         return 0, 0, []
 
