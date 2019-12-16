@@ -42,11 +42,17 @@ class Env:
                 configure_special_contract_ts(
                     specials, addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
                 )
-        if c.QUARKCHAIN.ENABLE_MNT_AUCTION_TIMESTAMP is not None:
+        if c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP is not None:
             configure_system_contract_ts(
                 _system_contracts,
                 SystemContract.NON_RESERVED_NATIVE_TOKEN,
-                c.QUARKCHAIN.ENABLE_MNT_AUCTION_TIMESTAMP,
+                c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP,
+            )
+        if c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP is not None:
+            configure_system_contract_ts(
+                _system_contracts,
+                SystemContract.GENERAL_NATIVE_TOKEN,
+                c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP,
             )
 
     def copy(self):
