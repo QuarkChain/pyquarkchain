@@ -352,7 +352,7 @@
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
           "TARGET_BLOCK_TIME": 10,
-          "REMOTE_MINE": true
+          "REMOTE_MINE": false
         },
         "GENESIS": {
           "ROOT_HEIGHT": 0,
