@@ -1,10 +1,10 @@
 {
   "P2P_PORT": 38291,
   "JSON_RPC_PORT": 38391,
-  "JSON_RPC_HOST": "127.0.0.1",
+  "JSON_RPC_HOST": "0.0.0.0",
   "PRIVATE_JSON_RPC_PORT": 38491,
-  "PRIVATE_JSON_RPC_HOST": "127.0.0.1",
-  "ENABLE_TRANSACTION_HISTORY": false,
+  "PRIVATE_JSON_RPC_HOST": "0.0.0.0",
+  "ENABLE_TRANSACTION_HISTORY": true,
   "DB_PATH_ROOT": "./qkc-data/testnet32",
   "LOG_LEVEL": "info",
   "START_SIMULATED_MINING": true,
@@ -352,7 +352,7 @@
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
           "TARGET_BLOCK_TIME": 10,
-          "REMOTE_MINE": true
+          "REMOTE_MINE": false
         },
         "GENESIS": {
           "ROOT_HEIGHT": 0,
