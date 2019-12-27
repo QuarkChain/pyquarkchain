@@ -1,5 +1,8 @@
 from quarkchain.config import get_default_evm_config
-from quarkchain.constants import PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED
+from quarkchain.constants import (
+    PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED,
+    PRECOMPILED_CONTRACT_MINT_MNT,
+)
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -46,6 +49,11 @@ class Env:
             configure_system_contract_ts(
                 _system_contracts,
                 SystemContract.NON_RESERVED_NATIVE_TOKEN,
+                c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP,
+            )
+            configure_special_contract_ts(
+                specials,
+                PRECOMPILED_CONTRACT_MINT_MNT,
                 c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP,
             )
         if c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP is not None:
