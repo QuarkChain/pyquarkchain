@@ -1,9 +1,9 @@
 import unittest
 
-from quarkchain.evm.specials import proc_current_mnt_id, proc_mint_mnt
+from quarkchain.evm.specials import proc_current_mnt_id, proc_mint_mnt, proc_balance_mnt
 from quarkchain.evm.state import State
 from quarkchain.evm.vm import Message, VmExtBase
-from quarkchain.evm.utils import decode_hex
+from quarkchain.evm.utils import decode_hex, encode_int32
 from quarkchain.core import Address
 
 
@@ -61,3 +61,40 @@ class TestPrecompiledContracts(unittest.TestCase):
                 self.assertListEqual([result, gas_remained], [0, 0])
                 self.assertEqual(len(ret), 0)
                 self.assertEqual(balance, 0)
+
+    @staticmethod
+    def __mint(state, minter, token, amount):
+        sys_contract_addr = decode_hex(b"514b430000000000000000000000000000000002")
+        data = b"\x00" * 12 + minter + token + amount
+        msg = Message(sys_contract_addr, bytes(20), gas=34000, data=data)
+        return proc_mint_mnt(VmExtBase(state), msg)
+
+    def test_proc_balance_mnt(self):
+        addr = b"\x00" * 19 + b"\x34"
+        token_id = 1234567
+        token_id_bytes = token_id.to_bytes(32, byteorder="big")
+        state = State()
+
+        self.__mint(state, addr, token_id_bytes, encode_int32(2020))
+        balance = state.get_balance(addr, token_id)
+        self.assertEqual(balance, 2020)
+
+        data = b"\x00" * 12 + addr + token_id_bytes
+        # Gas not enough
+        msg = Message(addr, addr, gas=399, data=data)
+        ret_tuple = proc_balance_mnt(VmExtBase(state), msg)
+        self.assertEqual(ret_tuple, (0, 0, []))
+
+        # Success case
+        testcases = [
+            (token_id, 2020),  # Balance already set
+            (54321, 0),  # Non-existent token
+        ]
+        for tid, bal in testcases:
+            data = b"\x00" * 12 + addr + tid.to_bytes(32, byteorder="big")
+            msg = Message(addr, addr, gas=500, data=data)
+            result, gas_remained, ret = proc_balance_mnt(VmExtBase(state), msg)
+            ret_int = int.from_bytes(ret, byteorder="big")
+            self.assertEqual(result, 1)
+            self.assertEqual(gas_remained, 500 - 400)
+            self.assertEqual(ret_int, bal)
