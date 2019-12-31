@@ -198,10 +198,10 @@ def test_encoding_change_from_dict_to_trie():
     root2 = b.token_trie.root_hash
     assert serialized == b"\x01" + root2
     assert root1 != root2
-    # balance map truncated, but accessing will bring it back to map with val 0
+    # balance map truncated, entries with 0 value will be ignored
     assert b._balances == {}
     assert b.balance(token_id_encode("QB")) == 0
-    assert len(b._balances) == 1
+    assert len(b._balances) == 0
     assert b.to_dict() == {new_token: 123}
     assert not b.is_blank()
 
