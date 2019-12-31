@@ -70,27 +70,28 @@ class TestPrecompiledContracts(unittest.TestCase):
         return proc_mint_mnt(VmExtBase(state), msg)
 
     def test_proc_balance_mnt(self):
-        addr = b"\x00" * 19 + b"\x34"
+        default_addr = b"\x00" * 19 + b"\x34"
         token_id = 1234567
         token_id_bytes = token_id.to_bytes(32, byteorder="big")
         state = State()
 
-        self.__mint(state, addr, token_id_bytes, encode_int32(2020))
-        balance = state.get_balance(addr, token_id)
+        self.__mint(state, default_addr, token_id_bytes, encode_int32(2020))
+        balance = state.get_balance(default_addr, token_id)
         self.assertEqual(balance, 2020)
 
-        data = b"\x00" * 12 + addr + token_id_bytes
+        data = b"\x00" * 12 + default_addr + token_id_bytes
         # Gas not enough
-        msg = Message(addr, addr, gas=399, data=data)
+        msg = Message(default_addr, default_addr, gas=399, data=data)
         ret_tuple = proc_balance_mnt(VmExtBase(state), msg)
         self.assertEqual(ret_tuple, (0, 0, []))
 
         # Success case
         testcases = [
-            (token_id, 2020),  # Balance already set
-            (54321, 0),  # Non-existent token
+            (default_addr, token_id, 2020),  # Balance already set
+            (default_addr, 54321, 0),  # Non-existent token
+            (Address.create_random_account(0).recipient, token_id, 0),  # Blank
         ]
-        for tid, bal in testcases:
+        for addr, tid, bal in testcases:
             data = b"\x00" * 12 + addr + tid.to_bytes(32, byteorder="big")
             msg = Message(addr, addr, gas=500, data=data)
             result, gas_remained, ret = proc_balance_mnt(VmExtBase(state), msg)
