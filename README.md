@@ -126,7 +126,7 @@ pypy3 cluster.py --p2p --privkey=$BOOTSTRAP_PRIV_KEY
 
 Then start other clusters and provide the bootnode.
 ```bash
-BOOTSTRAP_NODE=enode://$BOOTSTRAP_PUB_KEY@$BOOTSTRAP_IP:$BOOTSTRAP_DISCOVERY_PORT
+BOOTSTRAP_ENODE=enode://$BOOTSTRAP_PUB_KEY@$BOOTSTRAP_IP:$BOOTSTRAP_DISCOVERY_PORT
 pypy3 cluster.py --p2p --bootnodes=$BOOTSTRAP_ENODE
 ```
 
