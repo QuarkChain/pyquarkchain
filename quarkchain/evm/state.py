@@ -154,7 +154,8 @@ class TokenBalances:
         if self.token_trie:
             v = self.token_trie.get(utils.encode_int32(token_id))
             ret = utils.big_endian_to_int(rlp.decode(v)) if v else 0
-            self._balances[token_id] = ret
+            if ret:  # Only cache when non-zero
+                self._balances[token_id] = ret
             return ret
         return 0
 

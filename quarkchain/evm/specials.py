@@ -322,6 +322,18 @@ def proc_mint_mnt(ext, msg):
     return 1, msg.gas - gascost, [0] * 31 + [1]
 
 
+def proc_balance_mnt(ext, msg):
+    address = msg.data.extract32(0)
+    token_id = msg.data.extract32(32)
+    # Should increase gas cost if having too many tokens
+    gascost = 400
+    if msg.gas < gascost:
+        return 0, 0, []
+
+    balance = ext._state.get_balance(address, token_id)
+    return 1, msg.gas - gascost, encode_int32(balance)
+
+
 specials = {
     decode_hex(k): v
     for k, v in {
@@ -338,6 +350,10 @@ specials = {
         b"000000000000000000000000000000514b430003": (proc_deploy_system_contract, 0),
         b"000000000000000000000000000000514b430004": (
             proc_mint_mnt,
+            99999999999999999999,
+        ),
+        b"000000000000000000000000000000514b430005": (
+            proc_balance_mnt,
             99999999999999999999,
         ),
     }.items()
