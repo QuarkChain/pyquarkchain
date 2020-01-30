@@ -146,18 +146,3 @@ workflows:
       - test:
           requires:
             - build
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 3 * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - build
-      - download-snapshot
-      - check-db:
-          requires:
-            - build
-            - download-snapshot
