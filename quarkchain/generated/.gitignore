@@ -1,0 +1,3 @@
+# skip generated files in the repository
+*pb2.py
+*pb2_grpc.py

@@ -32,3 +32,8 @@ rlp>=1.0.0,<2.0.0
 
 # pyethapp/accounts.py dependency
 pbkdf2
+
+# gRPC_client
+grpcio==1.26.0	
+grpcio-testing==1.26.0	
+grpcio-tools==1.26.0	
