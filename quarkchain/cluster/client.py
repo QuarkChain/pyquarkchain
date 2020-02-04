@@ -2,6 +2,8 @@ import logging
 import sys
 import grpc
 
+sys.path.append("quarkchain/cluster")
+
 import grpc_client_pb2_grpc
 import grpc_client_pb2
 

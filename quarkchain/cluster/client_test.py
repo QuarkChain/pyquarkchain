@@ -1,10 +1,13 @@
 import unittest
-import time
 import grpc
 import grpc_testing
+from grpc.framework.foundation import logging_pool
+
+import sys
+
+sys.path.append("quarkchain/cluster")
 import client
 import grpc_client_pb2
-from grpc.framework.foundation import logging_pool
 
 
 class TestClient(unittest.TestCase):
