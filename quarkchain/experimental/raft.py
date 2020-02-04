@@ -1,16 +1,26 @@
 import asyncio
 import event_driven_simulator
 import random
+import time
 
 
 RPC_TIMEOUT_MS = 10000  # 10 seconds
 ELECTION_TIMEOUT_MAX_MS = 1000
+HEART_BEAT_TIMEOUT_MS = 200
 
 
 class NodeState:
     LEADER = 0
     FOLLOWER = 1
     CANDIDATE = 2
+
+    @classmethod
+    def to_string(cls, state):
+        return {
+            cls.LEADER: "LEADER",
+            cls.FOLLOWER: "FOLLOWER",
+            cls.CANDIDATE: "CANDIDATE",
+        }[state]
 
 
 class RequestVoteRequest:
@@ -45,6 +55,8 @@ class Node:
         self.state = NodeState.CANDIDATE
         self.connectionList = []
         self.electionTimeoutMsGenerator = electionTimeoutMsGenerator
+        self.heartBeatTimetoutMs = HEART_BEAT_TIMEOUT_MS
+        self.lastHeartBeatReceived = None
 
     def addConnection(self, conn):
         self.connectionList.append(conn)
@@ -89,13 +101,19 @@ class Node:
     async def start(self):
         print("Node {}: Starting".format(self.nodeId))
         while True:
-            if self.state == NodeState.CANDIDATE and await self.electForLeader():
-                print(
-                    "Node {}: Elected as leader for term {}".format(
-                        self.nodeId, self.currentTerm
-                    )
-                )
+            print(
+                "Node {}: State {}".format(self.nodeId, NodeState.to_string(self.state))
+            )
+            if self.state == NodeState.CANDIDATE:
+                await self.electForLeader()
+            elif self.state == NodeState.LEADER:
                 await self.proposeLog()
+            elif self.state == NodeState.FOLLOWER:
+                await self.waitForHeartBeatTimeout()
+                # HB timed out.  Elect for leader.
+                self.state = NodeState.CANDIDATE
+            else:
+                assert false
 
     def __majority(self):
         return (1 + len(self.connectionList) + 2) // 2
@@ -118,7 +136,12 @@ class Node:
         except asyncio.TimeoutError:
             pass
 
-        return self.state == NodeState.LEADER
+        if self.state == NodeState.LEADER:
+            print(
+                "Node {}: Elected as leader for term {}".format(
+                    self.nodeId, self.currentTerm
+                )
+            )
 
     async def collectVotes(self):
         # Self vote
@@ -153,13 +176,25 @@ class Node:
         # Even we know that the node is not leader,
         # we will wait until timeout and move to next election
         while True:
-            await asyncio.sleep(1000)
+            await asyncio.sleep(1)
         return False
 
     async def proposeLog(self):
         assert self.state == NodeState.LEADER
+        while self.state == NodeState.LEADER:
+            print("Node {}: Proposing log".format(self.nodeId))
+            await asyncio.sleep(1)
+
+    async def waitForHeartBeatTimeout(self):
         while True:
-            await asyncio.sleep(1000)
+            now = time.monotonic()
+            if self.lastHeartBeatReceived is None:
+                self.lastHeartBeatReceived = now
+            if now >= self.lastHeartBeatReceived + self.heartBeatTimetoutMs / 1000:
+                return
+            await asyncio.sleep(
+                self.lastHeartBeatReceived + self.heartBeatTimetoutMs / 1000 - now
+            )
 
 
 class Connection:
