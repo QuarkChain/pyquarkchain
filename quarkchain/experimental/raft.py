@@ -1,8 +1,10 @@
 import asyncio
 import event_driven_simulator
+import random
 
 
 RPC_TIMEOUT_MS = 10000  # 10 seconds
+ELECTION_TIMEOUT_MAX_MS = 1000
 
 
 class NodeState:
@@ -25,14 +27,24 @@ class RequestVoteResponse:
         self.voteGranted = voteGranted
 
 
+class LogEntry:
+    def __init__(self, term):
+        self.term = term
+
+
 class Node:
-    def __init__(self, nodeId):
+    def __init__(
+        self,
+        nodeId,
+        electionTimeoutMsGenerator=lambda: random.randint(1, ELECTION_TIMEOUT_MAX_MS),
+    ):
         self.nodeId = nodeId
         self.currentTerm = 0
         self.voteFor = None
         self.log = []
         self.state = NodeState.CANDIDATE
         self.connectionList = []
+        self.electionTimeoutMsGenerator = electionTimeoutMsGenerator
 
     def addConnection(self, conn):
         self.connectionList.append(conn)
@@ -43,21 +55,111 @@ class Node:
     def handleAppendEntriesRequest(self, request):
         pass
 
+    def hasAtLeastUpdatedLog(self, lastLogTerm, lastLogIndex):
+        if len(self.log) == 0:
+            return True
+
+        if self.log[-1].term > lastLogTerm:
+            return False
+
+        if self.log[-1].term < lastLogTerm:
+            return True
+
+        if len(self.log) <= lastLogIndex:
+            return True
+
+        return False
+
     def handleRequestVoteRequest(self, request):
-        # if request.term < self.currentTerm:
-        #     return RequestVoteResponse(self.currentTerm, False)
+        if request.term < self.currentTerm:
+            return RequestVoteResponse(self.currentTerm, False)
 
-        # if self.voteFor is None or
-        pass
+        if request.term > self.currentTerm:
+            self.state = NodeState.FOLLOWER
+            self.voteFor = None
+            self.currentTerm = request.term
 
-    async def __broadcastAppendEntriesRequest(self):
-        request = None
-        for conn in connectionList:
-            await conn.appendEntriesAsync(request)
+        if (
+            self.voteFor is None or self.voteFor == request.candidateId
+        ) and self.hasAtLeastUpdatedLog(request.lastLogTerm, request.lastLogIndex):
+            self.voteFor = request.candidateId
+            return RequestVoteResponse(self.currentTerm, True)
+        return RequestVoteResponse(self.currentTerm, False)
 
     async def start(self):
-        # self.electForLeader()
-        pass
+        print("Node {}: Starting".format(self.nodeId))
+        while True:
+            if self.state == NodeState.CANDIDATE and await self.electForLeader():
+                print(
+                    "Node {}: Elected as leader for term {}".format(
+                        self.nodeId, self.currentTerm
+                    )
+                )
+                await self.proposeLog()
+
+    def __majority(self):
+        return (1 + len(self.connectionList) + 2) // 2
+
+    async def electForLeader(self):
+        assert self.state == NodeState.CANDIDATE
+        self.currentTerm += 1
+        self.voteFor = self.nodeId
+        print(
+            "Node {}: Electing for leader for term {}".format(
+                self.nodeId, self.currentTerm
+            )
+        )
+
+        timeoutMs = self.electionTimeoutMsGenerator()
+
+        print("Election timeout", timeoutMs)
+        try:
+            await asyncio.wait_for(self.collectVotes(), timeout=timeoutMs / 1000)
+        except asyncio.TimeoutError:
+            pass
+
+        return self.state == NodeState.LEADER
+
+    async def collectVotes(self):
+        # Self vote
+        votes = 1
+
+        # Perform RPCs and collect returns
+        request = RequestVoteRequest(
+            self.currentTerm,
+            self.nodeId,
+            len(self.log),
+            0 if len(self.log) == 0 else log[-1].term,
+        )
+        pending = [conn.requestVoteAsync(request) for conn in self.connectionList]
+
+        while len(pending) != 0:
+            try:
+                done, pending = await asyncio.wait(
+                    pending, return_when=asyncio.FIRST_COMPLETED
+                )
+            except asyncio.TimeoutError:
+                return False
+            # The node may move to follower state, stop election immediately.
+            if self.state != NodeState.CANDIDATE:
+                break
+            for d in done:
+                if d.exception() is None and d.result().voteGranted:
+                    votes += 1
+                if votes >= self.__majority():
+                    self.state = NodeState.LEADER
+                    return True
+
+        # Even we know that the node is not leader,
+        # we will wait until timeout and move to next election
+        while True:
+            await asyncio.sleep(1000)
+        return False
+
+    async def proposeLog(self):
+        assert self.state == NodeState.LEADER
+        while True:
+            await asyncio.sleep(1000)
 
 
 class Connection:
@@ -81,35 +183,34 @@ class Connection:
 
         if latencyMs0 >= self.timeoutMs:
             # We don't cancel the RPC, while the response will be discarded
-            asyncio.create_task(
-                await asyncio.sleep(self.latencyMs0 / 1000), callFunc(request)
-            )
+            asyncio.get_event_loop().call_later(latencyMs0 / 1000, callFunc)
 
             await asyncio.sleep(self.timeoutMs / 1000)
             raise TimeoutError()
 
-        await asyncio.sleep(self.timeoutMs / 1000)
-        resp = callFunc(request)
-
         latencyMs1 = self.networkDelayGenerator()
+        await asyncio.sleep(latencyMs0 / 1000)
+        resp = callFunc()
+
         if latencyMs0 + latencyMs1 >= self.timeoutMs:
             await asyncio.sleep((self.timeoutMs - latencyMs0) / 1000)
             raise TimeoutError()
 
+        await asyncio.sleep(latencyMs1 / 1000)
         return resp
 
     async def appendEntriesAsync(self, request):
         return await self.callWithDelayOrTimeout(
-            lambda: destination.handleAppendEntriesRequest(request)
+            lambda: self.destination.handleAppendEntriesRequest(request)
         )
 
     async def requestVoteAsync(self, request):
         return await self.callWithDelayOrTimeout(
-            lambda: destination.handleAppendEntriesRequest(request)
+            lambda: self.destination.handleRequestVoteRequest(request)
         )
 
 
-N = 5
+N = 3
 nodeList = [Node(i) for i in range(N)]
 connectionMap = {}
 for i in range(N):
@@ -119,6 +220,10 @@ for i in range(N):
         source = nodeList[i]
         dest = nodeList[j]
         source.addConnection(Connection(source, dest))
+
+for i in range(N):
+    asyncio.get_event_loop().create_task(nodeList[i].start())
+
 
 try:
     asyncio.get_event_loop().run_forever()
