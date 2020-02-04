@@ -50,30 +50,6 @@ class TestClient(unittest.TestCase):
         )
         self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
 
-    def test_fake_set_root_chain_confirmed_block(self):
-        self.execution_thread.submit(client.run, self.fake_channel)
-        if grpc_client_pb2.DESCRIPTOR.services_by_name.get("ClusterSlave") == None:
-            service_descriptor = "Service is None!"
-            methods_descriptor = "Method is None!"
-        else:
-            service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name[
-                "ClusterSlave"
-            ]
-            methods_descriptor = service_descriptor.methods_by_name[
-                "SetRootChainConfirmedBlock"
-            ]
-        invocation_metadata, request, rpc = self.fake_channel.take_unary_unary(
-            methods_descriptor
-        )
-        rpc.send_initial_metadata(())
-        rpc.terminate(
-            grpc_client_pb2.SetRootChainConfirmedBlockResponse(),
-            (),
-            grpc.StatusCode.OK,
-            "",
-        )
-        self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
-
 
 if __name__ == "__main__":
     unittest.main()
