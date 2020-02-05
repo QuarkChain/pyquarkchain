@@ -18,11 +18,10 @@ class GrpcClient(object):
             self.channel = grpc.insecure_channel(
                 "localhost:50051"
             )  # set default value for channel.
-        else:
 
-            request = (
-                grpc_client_pb2.SetRootChainConfirmedBlockRequest()
-            )  # more parameters to be added
+        request = (
+            grpc_client_pb2.SetRootChainConfirmedBlockRequest()
+        )  # more parameters to be added
 
         try:
             response = self.stub.SetRootChainConfirmedBlock(request)
