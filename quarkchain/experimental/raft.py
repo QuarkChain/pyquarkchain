@@ -6,7 +6,8 @@ import time
 
 RPC_TIMEOUT_MS = 10000  # 10 seconds
 ELECTION_TIMEOUT_MAX_MS = 1000
-HEART_BEAT_TIMEOUT_MS = 200
+HEART_BEAT_TIMEOUT_MS = 4000
+HEART_BEAT_INTERVAL_MS = 1000
 
 
 class NodeState:
@@ -37,9 +38,31 @@ class RequestVoteResponse:
         self.voteGranted = voteGranted
 
 
+class AppendEntriesRequest:
+    def __init__(
+        self, term, leaderId, prevLogIndex, prevLogTerm, entries, leaderCommit
+    ):
+        self.term = term
+        self.leaderId = leaderId
+        self.prevLogIndex = prevLogIndex
+        self.prevLogTerm = prevLogTerm
+        self.entries = entries
+        self.leaderCommit = leaderCommit
+
+
+class AppendEntriesResponse:
+    def __init__(self, term, success):
+        self.term = term
+        self.success = success
+
+
 class LogEntry:
     def __init__(self, term):
         self.term = term
+
+    @staticmethod
+    def create_genesis_log():
+        return LogEntry(0)
 
 
 class Node:
@@ -48,15 +71,26 @@ class Node:
         nodeId,
         electionTimeoutMsGenerator=lambda: random.randint(1, ELECTION_TIMEOUT_MAX_MS),
     ):
+        # Constant
+        self.electionTimeoutMsGenerator = electionTimeoutMsGenerator
+        self.heartBeatTimetoutMs = HEART_BEAT_TIMEOUT_MS
+
+        # Persisted data
         self.nodeId = nodeId
         self.currentTerm = 0
         self.voteFor = None
-        self.log = []
-        self.state = NodeState.CANDIDATE
+        self.log = [LogEntry.create_genesis_log()]
+
+        # The simulation assumes the connections are constant (no membership feature)
         self.connectionList = []
-        self.electionTimeoutMsGenerator = electionTimeoutMsGenerator
-        self.heartBeatTimetoutMs = HEART_BEAT_TIMEOUT_MS
+
+        # Volatile (reinitialized after restart)
+        self.state = NodeState.CANDIDATE
         self.lastHeartBeatReceived = None
+        self.commitIndex = 0
+        self.lastApplied = 0
+        self.nextIndexMap = {}
+        self.matchIndexMap = {}
 
     def addConnection(self, conn):
         self.connectionList.append(conn)
@@ -65,12 +99,59 @@ class Node:
         pass
 
     def handleAppendEntriesRequest(self, request):
-        pass
+        if request.term < self.currentTerm:
+            return AppendEntriesResponse(self.currentTerm, False)
+
+        # Any append entries are treated as HB.
+        self.lastHeartBeatReceived = time.monotonic()
+
+        # Detect if there is a state change
+        if self.state == NodeState.CANDIDATE:
+            if self.currentTerm <= request.term:
+                # Find a concurrent leader with majority votes, switch to follower immediately
+                # TODO: Interrupt current election RPC waits
+                self.state = NodeState.FOLLOWER
+        elif self.state == NodeState.LEADER:
+            # We will never enter a network state that two nodes are leaders of the same term
+            assert self.currentTerm < request.term
+            # TODO: Interrupt current log append loop
+            self.state = NodeState.FOLLOWER
+        else:
+            assert self.state == NodeState.FOLLOWER
+        self.currentTerm = max(request.term, self.currentTerm)
+
+        # Reorg detected.  Asked for previous logs to find the ancestor
+        if (
+            len(self.log) < request.prevLogIndex
+            or self.log[request.prevLogIndex].term != request.prevLogTerm
+        ):
+            return AppendEntriesResponse(self.currentTerm, False)
+
+        # Append entries
+        for i in range(len(request.entries)):
+            appendIdx = i + request.prevLogIndex + 1
+            if appendIdx >= len(self.log):
+                self.log.append(request.entries)
+            elif request.entries[i].term != self.log[appendIdx].term:
+                # Reorg detected.  Rewrite the terms.
+                # The reorg should not touch commited logs
+                assert self.appendIdex < self.commitIndex
+                del self.log[appendIdx:-1]
+                self.log.append(request.entries)
+
+        # It is possible that leaderCommit < commitIndex?
+        if request.leaderCommit > self.commitIndex:
+            self.commitIndex = min(
+                request.leaderCommit, len(request.entries) + request.prevLogIndex
+            )
+
+        if self.commitIndex > self.lastApplied:
+            # TODO: Apply logs to state machine
+            self.lastApplied = self.commitIndex
+
+        return AppendEntriesResponse(self.currentTerm, True)
 
     def hasAtLeastUpdatedLog(self, lastLogTerm, lastLogIndex):
-        if len(self.log) == 0:
-            return True
-
         if self.log[-1].term > lastLogTerm:
             return False
 
@@ -107,7 +188,7 @@ class Node:
             if self.state == NodeState.CANDIDATE:
                 await self.electForLeader()
             elif self.state == NodeState.LEADER:
-                await self.proposeLog()
+                await self.proposeLogAndHeartBeat()
             elif self.state == NodeState.FOLLOWER:
                 await self.waitForHeartBeatTimeout()
                 # HB timed out.  Elect for leader.
@@ -149,10 +230,7 @@ class Node:
 
         # Perform RPCs and collect returns
         request = RequestVoteRequest(
-            self.currentTerm,
-            self.nodeId,
-            len(self.log),
-            0 if len(self.log) == 0 else log[-1].term,
+            self.currentTerm, self.nodeId, len(self.log), self.log[-1].term
         )
         pending = [conn.requestVoteAsync(request) for conn in self.connectionList]
 
@@ -163,7 +241,7 @@ class Node:
                 )
             except asyncio.TimeoutError:
                 return False
-            # The node may move to follower state, stop election immediately.
+            # The node may move to follower/leader state, stop election immediately.
             if self.state != NodeState.CANDIDATE:
                 break
             for d in done:
@@ -175,15 +253,36 @@ class Node:
 
         # Even we know that the node is not leader,
         # we will wait until timeout and move to next election
-        while True:
+        while self.state == NodeState.CANDIDATE:
             await asyncio.sleep(1)
         return False
 
-    async def proposeLog(self):
+    async def proposeLogAndHeartBeat(self):
         assert self.state == NodeState.LEADER
+        # Initialize leader variables
+        self.nextLogIndex = {
+            conn.getDestinationId(): len(self.log) for conn in self.connectionList
+        }
+        self.matchIndexMap = {
+            conn.getDestinationId(): 0 for conn in self.connectionList
+        }
         while self.state == NodeState.LEADER:
-            print("Node {}: Proposing log".format(self.nodeId))
-            await asyncio.sleep(1)
+            print("Node {}: Send heart beat".format(self.nodeId))
+            pending = []
+            for conn in self.connectionList:
+                req = AppendEntriesRequest(
+                    term=self.currentTerm,
+                    leaderId=self.nodeId,
+                    prevLogIndex=self.nextLogIndex[conn.getDestinationId()] - 1,
+                    prevLogTerm=self.log[
+                        self.nextLogIndex[conn.getDestinationId()] - 1
+                    ].term,
+                    entries=[],
+                    leaderCommit=self.commitIndex,
+                )
+                pending = [await conn.appendEntriesAsync(req)]
+
+            await asyncio.sleep(HEART_BEAT_INTERVAL_MS / 1000)
 
     async def waitForHeartBeatTimeout(self):
         while True:
@@ -243,6 +342,9 @@ class Connection:
         return await self.callWithDelayOrTimeout(
             lambda: self.destination.handleRequestVoteRequest(request)
         )
+
+    def getDestinationId(self):
+        return self.destination.nodeId
 
 
 N = 3
