@@ -10,14 +10,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install Project Dependencies
-      - run: |
-        pip3 install -e .
-
     - name: Build qkchash lib
       - run: |
         cd qkchash && make clean && make && cd -
 
+    - name: Install Project Dependencies
+      - run: |
+        pip3 install -e .
+        
     - name: Run py.test tests excluding integration test
       - run: |
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
