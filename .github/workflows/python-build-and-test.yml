@@ -1,0 +1,21 @@
+name: Python unit tests
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build qkchash
+      run: |
+        cd qkchash && make clean && make && cd -
+    - name: Install Project Dependencies
+      run: |
+        pip3 install -e .
+    - name: Test with pytest
+      run: |
+        python3 -m pytest quarkchain/cluster/tests/test_cluster.py
