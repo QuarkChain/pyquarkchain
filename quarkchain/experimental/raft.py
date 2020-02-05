@@ -84,12 +84,11 @@ class Node:
         # The simulation assumes the connections are constant (no membership feature)
         self.connectionList = []
 
-        self.isCrashed = False
-
         # Volatile (reinitialized after restart)
         self.initializeVolatileVariables()
 
     def initializeVolatileVariables(self):
+        # Raft-specific variables
         self.state = NodeState.FOLLOWER
         self.lastHeartBeatReceived = None
         self.commitIndex = 0
@@ -97,11 +96,26 @@ class Node:
         self.nextIndexMap = {}
         self.matchIndexMap = {}
 
+        # System-level variables
+        self.currentTask = None
+        self.isCrashing = False
+        self.crashedFuture = None
+
     def addConnection(self, conn):
         self.connectionList.append(conn)
 
-    def crash():
-        self.isCrashed = True
+    def shutdown():
+        self.isCrashing = True
+        self.crashedFuture = asyncio.create_future()
+        self.currentTask.cancel()
+        return self.crashedFuture
+
+    def changeStateAndCancelCurrenTask(self, newState):
+        assert self.state != newState
+        self.state = newState
+        if self.currentTask is not None:
+            self.currentTask.cancel()
+            self.currentTask = None
 
     def handleAppendEntriesRequest(self, request):
         if request.term < self.currentTerm:
@@ -114,13 +128,11 @@ class Node:
         if self.state == NodeState.CANDIDATE:
             if self.currentTerm <= request.term:
                 # Find a concurrent leader with majority votes, switch to follower immediately
-                # TODO: Interrupt current election RPC waits
-                self.state = NodeState.FOLLOWER
+                self.changeStateAndCancelCurrenTask(NodeState.FOLLOWER)
         elif self.state == NodeState.LEADER:
             # We will never enter a network state that two nodes are leaders of the same term
             assert self.currentTerm < request.term
-            # TODO: Interrupt current log append loop
-            self.state = NodeState.FOLLOWER
+            self.changeStateAndCancelCurrenTask(NodeState.FOLLOWER)
         else:
             assert self.state == NodeState.FOLLOWER
         self.currentTerm = max(request.term, self.currentTerm)
@@ -185,7 +197,6 @@ class Node:
         return RequestVoteResponse(self.currentTerm, False)
 
     async def start(self):
-        self.isCrashed = False
         self.initializeVolatileVariables()
 
         print(
@@ -194,7 +205,7 @@ class Node:
             )
         )
         prevState = self.state
-        while True:
+        while not self.isCrashing:
             if prevState != self.state:
                 print(
                     "Node {}: State {} => {}".format(
@@ -205,21 +216,34 @@ class Node:
                 )
                 prevState = self.state
             if self.state == NodeState.CANDIDATE:
-                await self.electForLeader()
+                currentTask = asyncio.get_event_loop().create_task(
+                    self.electForLeader()
+                )
+                await currentTask
             elif self.state == NodeState.LEADER:
-                await self.proposeLogAndHeartBeat()
+                currentTask = asyncio.get_event_loop().create_task(
+                    self.proposeLogAndHeartBeat()
+                )
+                await currentTask
             elif self.state == NodeState.FOLLOWER:
-                await self.waitForHeartBeatTimeout()
+                currentTask = asyncio.get_event_loop().create_task(
+                    self.waitForHeartBeatTimeout()
+                )
+                await currentTask
                 # HB timed out.  Elect for leader.
                 self.state = NodeState.CANDIDATE
             else:
                 assert false
+        if self.crashedFuture is not None:
+            self.crashedFuture.set()
 
     def __majority(self):
         return (1 + len(self.connectionList) + 2) // 2
 
     async def electForLeader(self):
-        assert self.state == NodeState.CANDIDATE
+        if self.state != NodeState.CANDIDATE:
+            return
+
         self.currentTerm += 1
         self.voteFor = self.nodeId
         timeoutMs = self.electionTimeoutMsGenerator()
@@ -232,6 +256,10 @@ class Node:
         try:
             await asyncio.wait_for(self.collectVotes(), timeout=timeoutMs / 1000)
         except asyncio.TimeoutError:
+            # Election timeout.  Will try another election if no leader is found.
+            pass
+        except asyncio.CancelError:
+            # The election is canceled because a leader is found
             pass
 
         if self.state == NodeState.LEADER:
@@ -257,7 +285,13 @@ class Node:
                     pending, return_when=asyncio.FIRST_COMPLETED
                 )
             except asyncio.TimeoutError:
-                return False
+                # RPC timeout
+                continue
+            except asyncio.CancelError:
+                # The vote collection of the election is canceled.
+                # This can be caused either by election timeout or a leader is found.
+                return
+
             # The node may move to follower/leader state, stop election immediately.
             if self.state != NodeState.CANDIDATE:
                 break
@@ -269,13 +303,11 @@ class Node:
                     return True
 
         # Even we know that the node is not leader,
-        # we will wait until timeout and move to next election
+        # we will wait until timeout and move to next election (randomized restart)
         while self.state == NodeState.CANDIDATE:
             await asyncio.sleep(1)
-        return False
 
     async def proposeLogAndHeartBeat(self):
-        assert self.state == NodeState.LEADER
         # Initialize leader variables
         self.nextLogIndex = {
             conn.getDestinationId(): len(self.log) for conn in self.connectionList
@@ -341,7 +373,7 @@ class Connection:
 
         latencyMs1 = self.networkDelayGenerator()
         await asyncio.sleep(latencyMs0 / 1000)
-        if self.destination.isCrashed:
+        if self.destination.isCrashing:
             await asyncio.sleep((self.timeoutMs - latencyMs0) / 1000)
             raise TimeoutError()
 
