@@ -19,3 +19,33 @@ jobs:
     - name: Test with pytest
       run: |
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
+    - name: Run py.test tests excluding integration test
+      run: |
+        python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
+    - name: Run py.test tests only on integration test
+      run: |
+        python3 -m pytest quarkchain/cluster/tests/test_cluster.py
+    - name: Run EVM tests
+      run: |
+        python3 quarkchain/evm/tests/test_state.py
+    - name: Download DB snapshot
+      run: |
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
+        tar xvfz data.tar.gz
+        rm data.tar.gz && mv data workspace/
+    - name: Move data
+      run: |
+        mkdir -p quarkchain/cluster/qkc-data
+        cd /tmp/workspace && mv data mainnet && cd -
+          mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
+    - name: Build qkchash lib
+      run: |
+        cd qkchash && make clean && make && cd -
+    - name: Check DB
+      run: |
+        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+        lo=$(( height / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
+        hi=$(( height / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
+        echo "checking: $hi -> $lo"
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
