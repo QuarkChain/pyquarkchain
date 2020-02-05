@@ -75,9 +75,12 @@ class Pong(Command):
     _cmd_id = 3
 
 
-__client_version__ = (
-    subprocess.check_output("git describe --tags", shell=True).decode().strip()
-)
+try:
+    __client_version__ = (
+        subprocess.check_output("git describe --tags", shell=True).decode().strip()
+    )
+except:
+    __client_version__ = "unknown"
 
 
 def construct_quark_chain_client_identifier() -> str:
