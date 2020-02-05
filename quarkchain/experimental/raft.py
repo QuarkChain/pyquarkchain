@@ -90,7 +90,7 @@ class Node:
         self.initializeVolatileVariables()
 
     def initializeVolatileVariables(self):
-        self.state = NodeState.CANDIDATE
+        self.state = NodeState.FOLLOWER
         self.lastHeartBeatReceived = None
         self.commitIndex = 0
         self.lastApplied = 0
@@ -188,11 +188,22 @@ class Node:
         self.isCrashed = False
         self.initializeVolatileVariables()
 
-        print("Node {}: Starting".format(self.nodeId))
-        while True:
-            print(
-                "Node {}: State {}".format(self.nodeId, NodeState.to_string(self.state))
+        print(
+            "Node {}: Starting as {}".format(
+                self.nodeId, NodeState.to_string(self.state)
             )
+        )
+        prevState = self.state
+        while True:
+            if prevState != self.state:
+                print(
+                    "Node {}: State {} => {}".format(
+                        self.nodeId,
+                        NodeState.to_string(prevState),
+                        NodeState.to_string(self.state),
+                    )
+                )
+                prevState = self.state
             if self.state == NodeState.CANDIDATE:
                 await self.electForLeader()
             elif self.state == NodeState.LEADER:
@@ -211,15 +222,13 @@ class Node:
         assert self.state == NodeState.CANDIDATE
         self.currentTerm += 1
         self.voteFor = self.nodeId
+        timeoutMs = self.electionTimeoutMsGenerator()
         print(
-            "Node {}: Electing for leader for term {}".format(
-                self.nodeId, self.currentTerm
+            "Node {}: Electing for leader for term {} with timeout {}".format(
+                self.nodeId, self.currentTerm, timeoutMs
             )
         )
 
-        timeoutMs = self.electionTimeoutMsGenerator()
-
-        print("Election timeout", timeoutMs)
         try:
             await asyncio.wait_for(self.collectVotes(), timeout=timeoutMs / 1000)
         except asyncio.TimeoutError:
