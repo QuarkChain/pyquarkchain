@@ -104,9 +104,10 @@ class Node:
     def addConnection(self, conn):
         self.connectionList.append(conn)
 
-    def shutdown():
+    def crash(self):
         self.isCrashing = True
-        self.crashedFuture = asyncio.create_future()
+        self.crashedFuture = asyncio.get_event_loop().create_future()
+        # if self.currentTask is not None:
         self.currentTask.cancel()
         return self.crashedFuture
 
@@ -137,7 +138,7 @@ class Node:
             assert self.state == NodeState.FOLLOWER
         self.currentTerm = max(request.term, self.currentTerm)
 
-        # Reorg detected.  Asked for previous logs to find the ancestor
+        # Reorg detected.  Asked for previous logs to find the ancestor.
         if (
             len(self.log) < request.prevLogIndex
             or self.log[request.prevLogIndex].term != request.prevLogTerm
@@ -216,26 +217,26 @@ class Node:
                 )
                 prevState = self.state
             if self.state == NodeState.CANDIDATE:
-                currentTask = asyncio.get_event_loop().create_task(
+                self.currentTask = asyncio.get_event_loop().create_task(
                     self.electForLeader()
                 )
-                await currentTask
+                await self.currentTask
             elif self.state == NodeState.LEADER:
-                currentTask = asyncio.get_event_loop().create_task(
+                self.currentTask = asyncio.get_event_loop().create_task(
                     self.proposeLogAndHeartBeat()
                 )
-                await currentTask
+                await self.currentTask
             elif self.state == NodeState.FOLLOWER:
-                currentTask = asyncio.get_event_loop().create_task(
+                self.currentTask = asyncio.get_event_loop().create_task(
                     self.waitForHeartBeatTimeout()
                 )
-                await currentTask
+                await self.currentTask
                 # HB timed out.  Elect for leader.
                 self.state = NodeState.CANDIDATE
             else:
                 assert false
         if self.crashedFuture is not None:
-            self.crashedFuture.set()
+            self.crashedFuture.set_result(None)
 
     def __majority(self):
         return (1 + len(self.connectionList) + 2) // 2
@@ -258,7 +259,7 @@ class Node:
         except asyncio.TimeoutError:
             # Election timeout.  Will try another election if no leader is found.
             pass
-        except asyncio.CancelError:
+        except asyncio.CancelledError:
             # The election is canceled because a leader is found
             pass
 
@@ -270,6 +271,9 @@ class Node:
             )
 
     async def collectVotes(self):
+        if self.state != NodeState.CANDIDATE:
+            return
+
         # Self vote
         votes = 1
 
@@ -287,9 +291,11 @@ class Node:
             except asyncio.TimeoutError:
                 # RPC timeout
                 continue
-            except asyncio.CancelError:
+            except asyncio.CancelledError:
                 # The vote collection of the election is canceled.
                 # This can be caused either by election timeout or a leader is found.
+                for p in pending:
+                    p.cancel()
                 return
 
             # The node may move to follower/leader state, stop election immediately.
@@ -318,6 +324,8 @@ class Node:
         while self.state == NodeState.LEADER:
             print("Node {}: Send heart beat".format(self.nodeId))
             pending = []
+            pendingMap = {}
+            entries = []
             for conn in self.connectionList:
                 req = AppendEntriesRequest(
                     term=self.currentTerm,
@@ -326,12 +334,61 @@ class Node:
                     prevLogTerm=self.log[
                         self.nextLogIndex[conn.getDestinationId()] - 1
                     ].term,
-                    entries=[],
+                    entries=entries,
                     leaderCommit=self.commitIndex,
                 )
-                pending = [await conn.appendEntriesAsync(req)]
+                p = asyncio.get_event_loop().create_task(conn.appendEntriesAsync(req))
+                pending = [p]
+                pendingMap[p] = conn.getDestinationId()
 
-            await asyncio.sleep(HEART_BEAT_INTERVAL_MS / 1000)
+            while len(pending) != 0:
+                try:
+                    done, pending = await asyncio.wait(
+                        pending, return_when=asyncio.FIRST_COMPLETED
+                    )
+                except asyncio.TimeoutError:
+                    # RPC timeout
+                    continue
+                except asyncio.CancelledError:
+                    for p in pending:
+                        p.cancel()
+                    return
+
+                # The node may move to follower state, stop immediately.
+                if self.state != NodeState.LEADER:
+                    return
+
+                for d in done:
+                    if d.exception() is not None:
+                        continue
+                    if not d.result().success and d.result().term > self.currentTerm:
+                        # The follower has a leader with greater term.
+                        # TODO: Move to FOLLOWER?
+                        continue
+                    if not d.result().success:
+                        # TODO: Need to actively retry the RPC to find the ancestor
+                        # Right now, rely on heart beat
+                        self.nextLogIndex[pendingMap[d]] -= 1
+                    else:
+                        self.nextLogIndex[pendingMap[d]] += len(entries)
+                        self.matchIndexMap[pendingMap[d]] = self.nextLogIndex[
+                            pendingMap[d]
+                        ]
+
+            # Determine the commitIndex that majority have
+            replicatedIndexList = [v for v in self.matchIndexMap.values()]
+            replicatedIndexList.sort()
+            newCommitIndex = replicatedIndexList[self.__majority() - 1]
+            assert newCommitIndex >= self.commitIndex
+            if newCommitIndex > self.commitIndex:
+                self.commitIndex = newCommitIndex
+                # Apply the log to state machine
+                self.lastApplied = self.commitIndex
+
+            try:
+                await asyncio.sleep(HEART_BEAT_INTERVAL_MS / 1000)
+            except asyncio.CancelledError:
+                return
 
     async def waitForHeartBeatTimeout(self):
         while True:
@@ -402,13 +459,21 @@ class Connection:
 
 async def random_crash(nodeList):
     while True:
-        asyncio.sleep(2500)
+        await asyncio.sleep(8)
+        nodeToCrash = None
         for node in nodeList:
             if node.state == NodeState.LEADER:
-                node.crash()
+                nodeToCrash = node
+                break
 
-        asyncio.sleep(1000)
-        asyncio.get_event_loop().create_task(nodeList[i].start())
+        if nodeToCrash is None:
+            continue
+
+        print("Node {}: Crashing".format(nodeToCrash.nodeId))
+        await nodeToCrash.crash()
+        print("Node {}: Crashed".format(nodeToCrash.nodeId))
+        await asyncio.sleep(2)
+        asyncio.get_event_loop().create_task(nodeToCrash.start())
 
 
 N = 3
@@ -424,6 +489,8 @@ for i in range(N):
 
 for i in range(N):
     asyncio.get_event_loop().create_task(nodeList[i].start())
+
+asyncio.get_event_loop().create_task(random_crash(nodeList))
 
 
 try:
