@@ -84,7 +84,12 @@ class Node:
         # The simulation assumes the connections are constant (no membership feature)
         self.connectionList = []
 
+        self.isCrashed = False
+
         # Volatile (reinitialized after restart)
+        self.initializeVolatileVariables()
+
+    def initializeVolatileVariables(self):
         self.state = NodeState.CANDIDATE
         self.lastHeartBeatReceived = None
         self.commitIndex = 0
@@ -96,7 +101,7 @@ class Node:
         self.connectionList.append(conn)
 
     def crash():
-        pass
+        self.isCrashed = True
 
     def handleAppendEntriesRequest(self, request):
         if request.term < self.currentTerm:
@@ -180,6 +185,9 @@ class Node:
         return RequestVoteResponse(self.currentTerm, False)
 
     async def start(self):
+        self.isCrashed = False
+        self.initializeVolatileVariables()
+
         print("Node {}: Starting".format(self.nodeId))
         while True:
             print(
@@ -324,6 +332,10 @@ class Connection:
 
         latencyMs1 = self.networkDelayGenerator()
         await asyncio.sleep(latencyMs0 / 1000)
+        if self.destination.isCrashed:
+            await asyncio.sleep((self.timeoutMs - latencyMs0) / 1000)
+            raise TimeoutError()
+
         resp = callFunc()
 
         if latencyMs0 + latencyMs1 >= self.timeoutMs:
@@ -345,6 +357,17 @@ class Connection:
 
     def getDestinationId(self):
         return self.destination.nodeId
+
+
+async def random_crash(nodeList):
+    while True:
+        asyncio.sleep(2500)
+        for node in nodeList:
+            if node.state == NodeState.LEADER:
+                node.crash()
+
+        asyncio.sleep(1000)
+        asyncio.get_event_loop().create_task(nodeList[i].start())
 
 
 N = 3
