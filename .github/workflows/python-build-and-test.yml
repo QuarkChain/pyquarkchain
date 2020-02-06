@@ -2,6 +2,9 @@ name: Python unit tests
 
 on: [push]
 
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   build:
 
@@ -18,25 +21,30 @@ jobs:
     - name: Build qkchash lib
       run: |
         cd qkchash && make clean && make && cd -
-      working-directory: /code/pyquarkchain
+
 
     - name: Install Project Dependencies
       run: |
         pip3 install -e .
-      working-directory: /code/pyquarkchain
+
 
     - name: Run py.test tests excluding integration test
       run: |
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
-      working-directory: /code/pyquarkchain
+
 
     - name: Run py.test tests only on integration test
       run: |
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
-      working-directory: /code/pyquarkchain
+
+
+    - name: Run EVM tests
+      run: |
+        python3 quarkchain/evm/tests/test_state.py fixtures/GeneralStateTests/
+
 
     - name: Run QuarkChain-specific EVM tests
       run: |
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
-      working-directory: /code/pyquarkchain
+
       
