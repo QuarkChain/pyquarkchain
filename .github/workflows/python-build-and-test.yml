@@ -3,7 +3,7 @@ name: Python unit tests
 on: [push]
 
 env:
-      PYTHONPATH: ${{ github.workspace }}
+  PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   build:
