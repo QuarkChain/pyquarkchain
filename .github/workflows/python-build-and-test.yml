@@ -17,7 +17,8 @@ jobs:
         cd qkchash && make clean && make && cd -
 
     - name: Install Project Dependencies
-      env: /code/pyquarkchain
+      env: 
+        PYTHONPATH: /code/pyquarkchain
       run: |
         pip3 install -e .
 
