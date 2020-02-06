@@ -6,8 +6,9 @@ import time
 
 RPC_TIMEOUT_MS = 10000  # 10 seconds
 ELECTION_TIMEOUT_MAX_MS = 1000
-HEART_BEAT_TIMEOUT_MS = 4000
-HEART_BEAT_INTERVAL_MS = 1000
+HEART_BEAT_TIMEOUT_MS = 1000
+HEART_BEAT_INTERVAL_MS = 200
+DATA_WRITE_MAX_MS = 1000
 
 
 class NodeState:
@@ -149,13 +150,13 @@ class Node:
         for i in range(len(request.entries)):
             appendIdx = i + request.prevLogIndex + 1
             if appendIdx >= len(self.log):
-                self.log.append(request.entries)
+                self.log.append(request.entries[i])
             elif request.entries[i].term != self.log[appendIdx].term:
                 # Reorg detected.  Rewrite the terms.
                 # The reorg should not touch commited logs
-                assert self.appendIdex < self.commitIndex
-                del self.log[appendIdx:-1]
-                self.log.append(request.entries)
+                assert appendIdx > self.commitIndex
+                del self.log[appendIdx:]
+                self.log.append(request.entries[i])
 
         # It is possible that leaderCommit < commitIndex?
         if request.leaderCommit > self.commitIndex:
@@ -322,24 +323,26 @@ class Node:
             conn.getDestinationId(): 0 for conn in self.connectionList
         }
         while self.state == NodeState.LEADER:
-            print("Node {}: Send heart beat".format(self.nodeId))
+            print(
+                "Node {}: Send data/heart beat, logs {}".format(
+                    self.nodeId, len(self.log)
+                )
+            )
             pending = []
             pendingMap = {}
-            entries = []
             for conn in self.connectionList:
+                did = conn.getDestinationId()
                 req = AppendEntriesRequest(
                     term=self.currentTerm,
                     leaderId=self.nodeId,
-                    prevLogIndex=self.nextLogIndex[conn.getDestinationId()] - 1,
-                    prevLogTerm=self.log[
-                        self.nextLogIndex[conn.getDestinationId()] - 1
-                    ].term,
-                    entries=entries,
+                    prevLogIndex=self.nextLogIndex[did] - 1,
+                    prevLogTerm=self.log[self.nextLogIndex[did] - 1].term,
+                    entries=self.log[self.nextLogIndex[did] :],
                     leaderCommit=self.commitIndex,
                 )
                 p = asyncio.get_event_loop().create_task(conn.appendEntriesAsync(req))
-                pending = [p]
-                pendingMap[p] = conn.getDestinationId()
+                pending.append(p)
+                pendingMap[p] = (req, conn.getDestinationId())
 
             while len(pending) != 0:
                 try:
@@ -365,15 +368,19 @@ class Node:
                         # The follower has a leader with greater term.
                         # TODO: Move to FOLLOWER?
                         continue
+                    req, did = pendingMap[d]
                     if not d.result().success:
                         # TODO: Need to actively retry the RPC to find the ancestor
                         # Right now, rely on heart beat
-                        self.nextLogIndex[pendingMap[d]] -= 1
+                        self.nextLogIndex[did] -= 1
                     else:
-                        self.nextLogIndex[pendingMap[d]] += len(entries)
-                        self.matchIndexMap[pendingMap[d]] = self.nextLogIndex[
-                            pendingMap[d]
-                        ]
+                        self.nextLogIndex[did] += len(req.entries)
+                        self.matchIndexMap[did] = self.nextLogIndex[did]
+
+            # for k, v in self.nextLogIndex.items():
+            #     print(k, v)
+            # for k, v in self.matchIndexMap.items():
+            #     print(k, v)
 
             # Determine the commitIndex that majority have
             replicatedIndexList = [v for v in self.matchIndexMap.values()]
@@ -384,6 +391,7 @@ class Node:
                 self.commitIndex = newCommitIndex
                 # Apply the log to state machine
                 self.lastApplied = self.commitIndex
+                print("Node {}: commitIndex {}".format(self.nodeId, self.commitIndex))
 
             try:
                 await asyncio.sleep(HEART_BEAT_INTERVAL_MS / 1000)
@@ -400,6 +408,10 @@ class Node:
             await asyncio.sleep(
                 self.lastHeartBeatReceived + self.heartBeatTimetoutMs / 1000 - now
             )
+
+    def write(self, data):
+        assert self.state == NodeState.LEADER
+        self.log.append(LogEntry(self.currentTerm))
 
 
 class Connection:
@@ -459,7 +471,7 @@ class Connection:
 
 async def random_crash(nodeList):
     while True:
-        await asyncio.sleep(8)
+        await asyncio.sleep(3)
         nodeToCrash = None
         for node in nodeList:
             if node.state == NodeState.LEADER:
@@ -472,8 +484,21 @@ async def random_crash(nodeList):
         print("Node {}: Crashing".format(nodeToCrash.nodeId))
         await nodeToCrash.crash()
         print("Node {}: Crashed".format(nodeToCrash.nodeId))
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         asyncio.get_event_loop().create_task(nodeToCrash.start())
+
+
+async def random_write(nodeList):
+    while True:
+        await asyncio.sleep(random.randint(1, DATA_WRITE_MAX_MS) / 1000)
+        leader = None
+        for node in nodeList:
+            if node.state == NodeState.LEADER:
+                leader = node
+                break
+
+        if leader is not None:
+            leader.write(123)
 
 
 N = 3
@@ -491,6 +516,7 @@ for i in range(N):
     asyncio.get_event_loop().create_task(nodeList[i].start())
 
 asyncio.get_event_loop().create_task(random_crash(nodeList))
+asyncio.get_event_loop().create_task(random_write(nodeList))
 
 
 try:
