@@ -6,7 +6,11 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    env:
+      working-directory: /code/pyquarkchain
+
+    container: 
+      image: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
@@ -38,4 +42,4 @@ jobs:
 
     - name: Run EVM tests
       run: |
-        python3 quarkchain/evm/tests/test_state.py
+        python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
