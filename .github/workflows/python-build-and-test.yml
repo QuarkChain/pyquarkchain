@@ -2,15 +2,13 @@ name: Python unit tests
 
 on: [push]
 
+env:
+      PYTHONPATH: ${{ github.workspace }}
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
-    env:
-      working-directory: /code/pyquarkchain
-
-    container: 
-      image: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
@@ -19,6 +17,7 @@ jobs:
         cd qkchash && make clean && make && cd -
 
     - name: Install Project Dependencies
+      env: /code/pyquarkchain
       run: |
         pip3 install -e .
 
