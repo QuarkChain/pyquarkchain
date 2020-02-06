@@ -4,7 +4,7 @@ import random
 import time
 
 
-RPC_TIMEOUT_MS = 10000  # 10 seconds
+RPC_TIMEOUT_MS = 100
 ELECTION_TIMEOUT_MAX_MS = 1000
 HEART_BEAT_TIMEOUT_MS = 1000
 HEART_BEAT_INTERVAL_MS = 200
@@ -141,7 +141,7 @@ class Node:
 
         # Reorg detected.  Asked for previous logs to find the ancestor.
         if (
-            len(self.log) < request.prevLogIndex
+            len(self.log) <= request.prevLogIndex
             or self.log[request.prevLogIndex].term != request.prevLogTerm
         ):
             return AppendEntriesResponse(self.currentTerm, False)
@@ -289,9 +289,6 @@ class Node:
                 done, pending = await asyncio.wait(
                     pending, return_when=asyncio.FIRST_COMPLETED
                 )
-            except asyncio.TimeoutError:
-                # RPC timeout
-                continue
             except asyncio.CancelledError:
                 # The vote collection of the election is canceled.
                 # This can be caused either by election timeout or a leader is found.
@@ -301,15 +298,22 @@ class Node:
 
             # The node may move to follower/leader state, stop election immediately.
             if self.state != NodeState.CANDIDATE:
+                # Touch d.exception to prevent warning
+                for d in done:
+                    d.exception()
+                for p in pending:
+                    p.cancel()
                 break
             for d in done:
                 if d.exception() is None and d.result().voteGranted:
                     votes += 1
                 if votes >= self.__majority():
                     self.state = NodeState.LEADER
+                    for p in pending:
+                        p.cancel()
                     return True
 
-        # Even we know that the node is not leader,
+        # Even we know that the node is not leader for the election,
         # we will wait until timeout and move to next election (randomized restart)
         while self.state == NodeState.CANDIDATE:
             await asyncio.sleep(1)
@@ -349,9 +353,6 @@ class Node:
                     done, pending = await asyncio.wait(
                         pending, return_when=asyncio.FIRST_COMPLETED
                     )
-                except asyncio.TimeoutError:
-                    # RPC timeout
-                    continue
                 except asyncio.CancelledError:
                     for p in pending:
                         p.cancel()
@@ -359,6 +360,11 @@ class Node:
 
                 # The node may move to follower state, stop immediately.
                 if self.state != NodeState.LEADER:
+                    # Touch d.exception to prevent warning
+                    for d in done:
+                        d.exception()
+                    for p in pending:
+                        p.cancel()
                     return
 
                 for d in done:
@@ -377,21 +383,22 @@ class Node:
                         self.nextLogIndex[did] += len(req.entries)
                         self.matchIndexMap[did] = self.nextLogIndex[did]
 
-            # for k, v in self.nextLogIndex.items():
-            #     print(k, v)
-            # for k, v in self.matchIndexMap.items():
-            #     print(k, v)
-
             # Determine the commitIndex that majority have
             replicatedIndexList = [v for v in self.matchIndexMap.values()]
-            replicatedIndexList.sort()
+            replicatedIndexList.sort(reverse=True)
             newCommitIndex = replicatedIndexList[self.__majority() - 1]
             assert newCommitIndex >= self.commitIndex
             if newCommitIndex > self.commitIndex:
                 self.commitIndex = newCommitIndex
                 # Apply the log to state machine
                 self.lastApplied = self.commitIndex
-                print("Node {}: commitIndex {}".format(self.nodeId, self.commitIndex))
+                print(
+                    "Node {}: commitIndex {}, commitedSize {}".format(
+                        self.nodeId,
+                        self.commitIndex,
+                        len([v for v in replicatedIndexList if v >= newCommitIndex]),
+                    )
+                )
 
             try:
                 await asyncio.sleep(HEART_BEAT_INTERVAL_MS / 1000)
@@ -471,7 +478,7 @@ class Connection:
 
 async def random_crash(nodeList):
     while True:
-        await asyncio.sleep(3)
+        await asyncio.sleep(5)
         nodeToCrash = None
         for node in nodeList:
             if node.state == NodeState.LEADER:
@@ -484,7 +491,7 @@ async def random_crash(nodeList):
         print("Node {}: Crashing".format(nodeToCrash.nodeId))
         await nodeToCrash.crash()
         print("Node {}: Crashed".format(nodeToCrash.nodeId))
-        await asyncio.sleep(1)
+        await asyncio.sleep(3)
         asyncio.get_event_loop().create_task(nodeToCrash.start())
 
 
