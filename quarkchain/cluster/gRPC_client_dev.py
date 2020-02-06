@@ -18,14 +18,11 @@ class GrpcClient:
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
         except Exception as e:
-            print("Error reading command:\n {}".format(e))
             return False
 
-        # Set RootChain confirmed block response
         if response.status.code == 0:
             return True
         else:
-            print(response.status.code, response.status.message)
             return False
 
 
