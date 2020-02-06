@@ -30,6 +30,10 @@ jobs:
       run: |
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
+    - name: Run QuarkChain EVM tests
+      run: |
+        python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
+
     - name: Run EVM tests - runner 1
       run: |
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && \
@@ -40,6 +44,4 @@ jobs:
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && \
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
 
-    - name: Run EVM tests
-      run: |
-        python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
+    
