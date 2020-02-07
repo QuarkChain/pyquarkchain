@@ -5,13 +5,11 @@ on: [push]
 env:
   PYTHONPATH: ${{ github.workspace }}
 
-container:
-  image: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
 jobs:
   build1:
 
     runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     
     steps:
     - uses: actions/checkout@v2
@@ -35,7 +33,8 @@ jobs:
       
   build2:
     runs-on: ubuntu-latest
-    
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
@@ -52,7 +51,8 @@ jobs:
 
   build3:
     runs-on: ubuntu-latest
-    
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
@@ -70,6 +70,7 @@ jobs:
   
   build4:
     runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     
     steps:
     - uses: actions/checkout@v2
