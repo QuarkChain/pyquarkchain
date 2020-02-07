@@ -6,43 +6,79 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  build:
+  build 1:
 
     runs-on: ubuntu-latest
-
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
+    
     steps:
     - uses: actions/checkout@v2
-    - name: Build qkchash
-      run: |
-        cd qkchash && make clean && make && cd -
 
     - name: Install Project Dependencies
-      env: 
+      env:
         PYTHONPATH: /code/pyquarkchain
       run: |
         pip3 install -e .
 
-    - name: Test with pytest
+    - name: Run py.test tests only on integration test
       run: |
+        cd qkchash && make clean && make && cd -
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
+
+      - name: Run QuarkChain EVM tests
+      run: |
+        cd qkchash && make clean && make && cd -
+        python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
+
+      
+  build 2:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Project Dependencies
+      env:
+        PYTHONPATH: /code/pyquarkchain
+      run: |
+        pip3 install -e .
 
     - name: Run py.test tests excluding integration test
       run: |
+        cd qkchash && make clean && make && cd -
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
-    - name: Run QuarkChain EVM tests
+
+  build 3:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Project Dependencies
+      env:
+        PYTHONPATH: /code/pyquarkchain
       run: |
-        python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
+        pip3 install -e .
 
     - name: Run EVM tests - runner 1
       run: |
+        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && \
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
+    
+  
+  build 4:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install Project Dependencies
+      env:
+        PYTHONPATH: /code/pyquarkchain
+      run: |
+        pip3 install -e .
 
     - name: Run EVM tests - runner 2
       run: |
+        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && \
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
 
