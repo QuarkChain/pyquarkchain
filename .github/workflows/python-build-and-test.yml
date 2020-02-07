@@ -5,6 +5,9 @@ on: [push]
 env:
   PYTHONPATH: ${{ github.workspace }}
 
+container:
+  image: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
 jobs:
   build1:
 
