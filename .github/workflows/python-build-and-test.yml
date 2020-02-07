@@ -28,7 +28,7 @@ jobs:
       run: |
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
       
-  excliuding-integration-test:
+  excluding-integration-test:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
