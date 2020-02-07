@@ -6,7 +6,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  build 1:
+  build1:
 
     runs-on: ubuntu-latest
     
@@ -30,7 +30,7 @@ jobs:
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
 
       
-  build 2:
+  build2:
     runs-on: ubuntu-latest
     
     steps:
@@ -47,7 +47,7 @@ jobs:
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
 
-  build 3:
+  build3:
     runs-on: ubuntu-latest
     
     steps:
@@ -65,7 +65,7 @@ jobs:
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
     
   
-  build 4:
+  build4:
     runs-on: ubuntu-latest
     
     steps:
