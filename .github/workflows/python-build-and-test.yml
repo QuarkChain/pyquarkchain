@@ -6,7 +6,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  build1:
+  integration-and-evm-test:
 
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
@@ -14,48 +14,46 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install Project Dependencies
+    - name: Setup - install dependencies and build qkchashlib
       env:
         PYTHONPATH: /code/pyquarkchain
       run: |
         pip3 install -e .
+        cd qkchash && make clean && make
 
     - name: Run py.test tests only on integration test
       run: |
-        cd qkchash && make clean && make && cd -
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
-
     - name: Run QuarkChain EVM tests
       run: |
-        cd qkchash && make clean && make && cd -
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
-
       
-  build2:
+  excliuding-integration-test:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install Project Dependencies
+
+    - name: Setup - install dependencies and build qkchashlib
       env:
         PYTHONPATH: /code/pyquarkchain
       run: |
         pip3 install -e .
+        cd qkchash && make clean && make
 
     - name: Run py.test tests excluding integration test
       run: |
-        cd qkchash && make clean && make && cd -
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
-
-
-  build3:
+  
+  evm-test-runner1:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
-    - name: Install Project Dependencies
+    
+    - name: Setup - install dependencies and build qkchashlib
       env:
         PYTHONPATH: /code/pyquarkchain
       run: |
@@ -63,18 +61,17 @@ jobs:
 
     - name: Run EVM tests - runner 1
       run: |
-        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && \
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
     
   
-  build4:
+  evm-test-runner2:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     
     steps:
     - uses: actions/checkout@v2
-    - name: Install Project Dependencies
+    - name: Setup - install dependencies and build qkchashlib
       env:
         PYTHONPATH: /code/pyquarkchain
       run: |
@@ -82,8 +79,5 @@ jobs:
 
     - name: Run EVM tests - runner 2
       run: |
-        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && \
         python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null
-
-    

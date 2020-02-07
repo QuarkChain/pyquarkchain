@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+syntax = "proto3";
+package cluster;
+message SetRootChainConfirmedBlockRequest {
+}
+message ClusterSlaveStatus {
+  int32 code = 1;
+  string message = 2;
+}
+message SetRootChainConfirmedBlockResponse {
+  ClusterSlaveStatus status = 1;
+}
+// -----------------------------------------------------------------------------
+// ---------------- Service definition
+// -----------------------------------------------------------------------------
+service ClusterSlave {
+  // Master's command for setting rootchain-confirmed block.
+  rpc SetRootChainConfirmedBlock(SetRootChainConfirmedBlockRequest)
+      returns (SetRootChainConfirmedBlockResponse) {}
+}
