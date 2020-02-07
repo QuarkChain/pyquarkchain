@@ -24,7 +24,7 @@ jobs:
         cd qkchash && make clean && make && cd -
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
 
-      - name: Run QuarkChain EVM tests
+    - name: Run QuarkChain EVM tests
       run: |
         cd qkchash && make clean && make && cd -
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
