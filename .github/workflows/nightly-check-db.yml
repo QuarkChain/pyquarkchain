@@ -33,11 +33,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Setup - install dependencies and build qkchashlib
-      env:
-        PYTHONPATH: /code/pyquarkchain
 
     - name: Move data
+      env:
+        PYTHONPATH: /code/pyquarkchain
       run: |
         mkdir -p quarkchain/cluster/qkc-data
         cd /tmp/workspace && mv data mainnet && cd -
