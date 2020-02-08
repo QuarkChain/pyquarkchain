@@ -83,7 +83,7 @@ jobs:
       uses: actions/upload-artifact@v1
       with:
         name: db
-        path: ~/tmp/workspace/data
+        path: tmp/workspace/data
       timeout-minutes: 120
 
   check-db:
@@ -97,7 +97,7 @@ jobs:
       uses: actions/download-artifact@v1
       with:
         name: db
-        path: ~/tmp/workspace/data
+        path: tmp/workspace/data
 
     - name: Move data
       run: |
