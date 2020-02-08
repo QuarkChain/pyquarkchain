@@ -67,19 +67,17 @@ jobs:
   download-snapshot:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    env:
-      working-directory: /tmp
 
     steps:
     - uses: actions/checkout@v2
     - name: create workspace
-      run: mkdir -p workspace
+      run: mkdir -p tmp/workspace
 
     - name: Download DB snapshot
       run: |
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
-        rm data.tar.gz && mv data workspace/
+        rm data.tar.gz && mv data tmp/workspace/
 
     - name: Save cache
       uses: actions/upload-artifact@v1
@@ -89,6 +87,7 @@ jobs:
       timeout-minutes: 120
 
   check-db:
+    needs: download-snapshot
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
