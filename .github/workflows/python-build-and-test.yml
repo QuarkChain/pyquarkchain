@@ -71,6 +71,7 @@ jobs:
       working-directory: /tmp
 
     steps:
+    - name: create workspace
       run: mkdir -p workspace
 
     - name: Download DB snapshot
