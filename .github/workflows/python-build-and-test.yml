@@ -6,64 +6,54 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  build-and-test-1:
+  test-without-integration:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
-      env:
-        PYTHONPATH: /code/pyquarkchain
-      run: pip3 install -e .
+      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run py.test tests excluding integration test
       run: |
         cd qkchash && make clean && make && cd -
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
-  build-and-test-2:
+  EVM-tests-runner-1:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
-      env:
-        PYTHONPATH: /code/pyquarkchain
-      run: pip3 install -e .
+      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run EVM tests - runner 1
       run: |
-        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null;
 
-  build-and-test-3:
+  EVM-tests-runner-2:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
-      env:
-        PYTHONPATH: /code/pyquarkchain
-      run: pip3 install -e .
+      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run EVM tests - runner 2
       run: |
-        cd qkchash && make clean && make && cd -
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null;
 
-  build-and-test-4:
+  test-with-integration-and-specific:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
-      env:
-        PYTHONPATH: /code/pyquarkchain
-      run: pip3 install -e .
+      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run py.test tests only on integration test
       run: |
@@ -74,5 +64,45 @@ jobs:
       run: |
         python3 quarkchain/evm/tests/test_state.py fixtures/QuarkChainStateTests/
 
+  download-snapshot:
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    env:
+      working-directory: /tmp
 
-      
+    steps:
+      run: mkdir -p workspace
+
+    - name: Download DB snapshot
+      run: |
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
+        tar xcfz data.tar.gz
+        rm data.tar.gz && mv data workspace/
+
+      timeout-minutes: 120
+
+    - name: save_cache
+      uses: actions/cache@v1
+      with:
+        path: /tmp/workspace/data
+        key: snapshot-{{epoch}}
+
+  check-db:
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    env:
+      PYTHONPATH: /code/pyquarkchain
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: restore_cache
+      uses: actions/cache@v1
+      with:
+        path: ~/tmp/workspace/data
+        key: snapshot-{{epoch}}
+
+    - name: Move data
+      run: |
+        mkdir -p quarkchain/cluster/qkc-data
+        cd /tmp/workspace && mv data mainnet && cd -
+        mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
