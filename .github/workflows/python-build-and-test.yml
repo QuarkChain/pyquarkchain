@@ -102,5 +102,5 @@ jobs:
     - name: Move data
       run: |
         mkdir -p quarkchain/cluster/qkc-data
-        cd /tmp/workspace && mv data mainnet && cd -
-        mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
+        cd tmp/workspace && mv data mainnet && cd -
+        mv tmp/workspace/mainnet quarkchain/cluster/qkc-data/
