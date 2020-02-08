@@ -1,8 +1,6 @@
 name: Nightly check db
 
-on: 
-  schedule:
-    - cron: '0 0 * * *'
+on: [push]
 
 env:
   PYTHONPATH: ${{ github.workspace }}
