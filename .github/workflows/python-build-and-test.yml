@@ -68,11 +68,18 @@ jobs:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     env:
+      PYTHONPATH: /code/pyquarkchain
       working-directory: /tmp
 
     steps:
     - name: create workspace
       run: mkdir -p workspace
+
+    - name: save_cache
+      uses: actions/cache@v1
+      with:
+        path: ~/tmp/workspace/data
+        key: snapshot-{{epoch}}
 
     - name: Download DB snapshot
       run: |
@@ -81,12 +88,6 @@ jobs:
         rm data.tar.gz && mv data workspace/
 
       timeout-minutes: 120
-
-    - name: save_cache
-      uses: actions/cache@v1
-      with:
-        path: /tmp/workspace/data
-        key: snapshot-{{epoch}}
 
   check-db:
     runs-on: ubuntu-latest
