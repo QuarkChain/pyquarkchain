@@ -108,6 +108,7 @@ jobs:
     - name: Check DB
       run: |
         cd qkchash && make clean && make && cd -
+        PYTHONPATH=/code/pyquarkchain
         height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
         lo=$(( height / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
         hi=$(( height / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
