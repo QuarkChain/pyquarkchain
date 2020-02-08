@@ -91,6 +91,7 @@ jobs:
   check-db:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    needs: download-snapshot
     env:
       PYTHONPATH: /code/pyquarkchain
 
