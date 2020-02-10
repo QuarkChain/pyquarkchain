@@ -16,8 +16,10 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+    - name: Install Dependencies and Build
+      run: |
+        PYTHONPATH=/code/pyquarkchain pip3 install -e .
+        cd qkchash && make clean && make
 
     - name: Download DB snapshot
       run: |
@@ -29,11 +31,15 @@ jobs:
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
-    - name: check DB
+    - name: Check DB
       run: |
-        cd qkchash && make clean && make && cd -
-        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
         lo=0
+        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
         hi=$height
         echo "checking: $hi -> $lo"
-        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh \
+          --check_db=True \
+          --check_db_rblock_batch=100 \
+          --check_db_rblock_from=$hi \
+          --check_db_rblock_to=$lo \
+          --cluster_config `pwd`/mainnet/singularity/cluster_config_template_8nodes.json
