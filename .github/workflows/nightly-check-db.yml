@@ -8,7 +8,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  download-snapshaot:
+  download-snapshaot-move-data-check-db
 
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
@@ -25,47 +25,11 @@ jobs:
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data workspace/
 
-    - name: Save cache
-      uses: actions/upload-artifact@v1
-      with: 
-        name: Save data 
-        path: /tmp/workspace/data
-
-  move-data:
-    needs: download-snapshaot
-    runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    
-    steps:
-    - uses: actions/checkout@v2
-    - name: Restore cache
-      uses: actions/upload-artifact@v1
-      with: 
-        name: Restore data
-        path: /tmp/workspace/data
-
     - name: Move data
       run: |
         mkdir -p quarkchain/cluster/qkc-data
         cd /tmp/workspace && mv data mainnet && cd -
         mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
-        
-      
-  check-db:
-
-    needs: [download-snapshaot, move-data]
-    runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Setup - install dependencies and build qkchashlib
-      env:
-        PYTHONPATH: /code/pyquarkchain
-      run: |
-        pip3 install -e .
-        cd qkchash && make clean && make
 
     - name: check db
       run: |
