@@ -32,7 +32,6 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Move data
-      env: /code/pyquarkchain
       run: |
         mkdir -p quarkchain/cluster/qkc-data
         cd /tmp/workspace && mv data mainnet && cd -
