@@ -17,8 +17,7 @@ jobs:
     - uses: actions/checkout@v2
 
     - name: Download db snapshot
-      env:
-        PYTHONPATH: /tmp
+      working-directory: /temp
       run: |
         mkdir -p workspace
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
