@@ -1,4 +1,4 @@
-name: Python unit tests
+name: commit-build-test-workflow
 
 on: [push]
 
@@ -46,7 +46,7 @@ jobs:
       run: |
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null;
 
-  test-with-integration-and-specific:
+  integration-test-and-quarkchain-specific-state-test:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
