@@ -1,0 +1,56 @@
+name: Nightly-check-db
+
+on: [push]
+
+jobs:
+  download-snapshot:
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: create workspace
+      run: mkdir -p tmp/workspace
+
+    - name: Download DB snapshot
+      run: |
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
+        tar xvfz data.tar.gz
+        rm data.tar.gz && mv data tmp/workspace/
+
+    - name: Save cache
+      uses: actions/upload-artifact@v1
+      with:
+        name: db
+        path: tmp/workspace/data
+      timeout-minutes: 120
+
+  check-db:
+    needs: download-snapshot
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: restore cache
+      uses: actions/download-artifact@v1
+      with:
+        name: db
+        path: tmp/workspace/data
+
+    - name: Move data
+      run: |
+        mkdir -p quarkchain/cluster/qkc-data
+        cd tmp/workspace && mv data mainnet && cd -
+        mv tmp/workspace/mainnet quarkchain/cluster/qkc-data/
+
+    - name: Check DB
+      env:
+        PYTHONPATH: /code/pyquarkchain
+      run: |
+        cd qkchash && make clean && make && cd -
+        height=$(python quarkchain/tools/db_browser.py --cluster_config=mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+        lo=$(( height / ${{strategy.job-total}} * ${{strategy.job-index}} ))
+        hi=$(( height / ${{strategy.job-total}} * (${{strategy.job-index}} + 1) + 4))
+        echo "checking: $hi -> $lo"
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
