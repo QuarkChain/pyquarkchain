@@ -25,7 +25,7 @@ jobs:
       run: |
         mkdir -p quarkchain/cluster/qkc-data
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
-        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/'cat LATEST'.tar.gz --output data.tar.gz
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/
 
