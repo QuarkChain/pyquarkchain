@@ -33,7 +33,7 @@ jobs:
     - name: check db
       run: |
         height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
-        lo=$(( height / CIRCLE_NODE_TOTAL * CIRCLE_NODE_INDEX ))
-        hi=$(( height / CIRCLE_NODE_TOTAL * (CIRCLE_NODE_INDEX + 1) + 4 ))
+        lo='0'
+        hi=height
         echo "checking: $hi -> $lo"
         QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
