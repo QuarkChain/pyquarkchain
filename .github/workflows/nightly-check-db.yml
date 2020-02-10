@@ -2,7 +2,7 @@ name: nightly-check-db
 
 on:
   schedule:
-    - cron: '2 14 * * *'
+    - cron: '5 14 * * *'
 
 env:
   PYTHONPATH: ${{ github.workspace }}
@@ -27,6 +27,9 @@ jobs:
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/'cat LATEST'.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/
+
+  - name: check DB
+      run: |
         cd qkchash && make clean && make && cd -
         height=$(python quarkchain/tools/db_browser.py --cluster_config=mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
         lo=$(( height / ${{strategy.job-total}} * ${{strategy.job-index}} ))
