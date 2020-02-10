@@ -2,7 +2,7 @@ name: nightly-check-db
 
 on:
   schedule:
-    - cron: '2 14 * * * *'
+    - cron: '2 14 * * *'
 
 env:
   PYTHONPATH: ${{ github.workspace }}
