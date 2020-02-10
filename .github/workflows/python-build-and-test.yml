@@ -21,7 +21,7 @@ jobs:
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
   EVM-tests-runner-1:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
@@ -34,7 +34,7 @@ jobs:
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'n;p' | xargs cp --parents -t /tmp/ && python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null;
 
   EVM-tests-runner-2:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
@@ -47,7 +47,7 @@ jobs:
         find fixtures/GeneralStateTests -name "*.json" | sort | sed -n 'p;n' | xargs cp --parents -t /tmp/ && python3 quarkchain/evm/tests/test_state.py /tmp/fixtures/GeneralStateTests > /dev/null;
 
   integration-test-and-quarkchain-specific-state-test:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
