@@ -1,4 +1,4 @@
-name: commit-build-test-workflow
+name: commit-build-test
 
 on: [push]
 
@@ -7,7 +7,7 @@ env:
 
 jobs:
   test-without-integration:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
