@@ -40,7 +40,7 @@ jobs:
       
   Check-DB:
 
-    needs: Download-snapshaot Move-data
+    needs: [Download-snapshaot, Move-data]
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
