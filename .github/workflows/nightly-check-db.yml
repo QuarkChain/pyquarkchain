@@ -26,8 +26,11 @@ jobs:
         cd /tmp/workspace && mv data mainnet && cd -
         mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
 
-    - name: Build qkchash lib
+    - name: Setup - install dependencies and build qkchashlib
+      env:
+        PYTHONPATH: /code/pyquarkchain
       run: |
+        pip3 install -e .
         cd qkchash && make clean && make && cd -
 
     - name: check db
