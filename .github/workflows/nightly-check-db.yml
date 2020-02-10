@@ -16,16 +16,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Download db snapshot
-      working-directory: /temp
+    - name: Download db snapshot and move data
       run: |
-        mkdir -p workspace
+        mkdir -p /tmp/workspace &&  cd /tmp
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data workspace/ && cd -
-
-    - name: Move data
-      run: |
         mkdir -p quarkchain/cluster/qkc-data
         cd /tmp/workspace && mv data mainnet && cd -
         mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
