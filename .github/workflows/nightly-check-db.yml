@@ -24,8 +24,10 @@ jobs:
     - name: Download DB snapshot
       run: |
         mkdir -p quarkchain/cluster/qkc-data
-        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
-        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
+        # curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
+        # curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
+        # curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/
 
@@ -33,7 +35,7 @@ jobs:
       run: |
         cd qkchash && make clean && make && cd -
         height=$(python quarkchain/tools/db_browser.py --cluster_config=mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
-        lo='0'
-        hi=height
+        lo=0
+        hi=$height
         echo "checking: $hi -> $lo"
         QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo --cluster_config mainnet/singularity/cluster_config_template_8nodes.json
