@@ -8,7 +8,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  download-snapshaot-move-data-check-db
+  download-snapshaot-move-data-check-db:
 
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
