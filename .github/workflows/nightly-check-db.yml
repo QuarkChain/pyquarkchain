@@ -1,15 +1,16 @@
 name: nightly-check-db
 
-on:
-  schedule:
-    - cron: '15 14 * * *'
+on: [push]
+# on:
+  # schedule:
+    # - cron: '15 14 * * *'
 
 env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
   download-snapshot:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
     steps:
@@ -19,7 +20,7 @@ jobs:
 
     - name: Install Project Dependencies
       run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
-      
+
     - name: Download DB snapshot
       run: |
         mkdir -p quarkchain/cluster/qkc-data
@@ -35,4 +36,4 @@ jobs:
         lo='0'
         hi=height
         echo "checking: $hi -> $lo"
-        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo --cluster_config mainnet/singularity/cluster_config_template_8nodes.json
