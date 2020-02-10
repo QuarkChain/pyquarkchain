@@ -6,7 +6,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  download-snapshaot:
+  Download-snapshaot:
 
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
@@ -25,23 +25,22 @@ jobs:
 
   Move-data:
 
+    needs: Download-snapshaot
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     
     steps:
     - uses: actions/checkout@v2
-
-
     - name: Move data
       run: |
         mkdir -p quarkchain/cluster/qkc-data
-        mkdir /tmp/workspace
         cd /tmp/workspace && mv data mainnet && cd -
         mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
         
       
   Check-DB:
 
+    needs: Download-snapshaot Move-data
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
