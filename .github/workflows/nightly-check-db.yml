@@ -36,4 +36,4 @@ jobs:
         lo=0
         hi=$height
         echo "checking: $hi -> $lo"
-        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo --cluster_config `pwd`/mainnet/singularity/cluster_config_template_8nodes.json
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
