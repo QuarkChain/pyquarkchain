@@ -6,7 +6,7 @@ env:
   PYTHONPATH: ${{ github.workspace }}
 
 jobs:
-  Download-snapshaot:
+  download-snapshaot:
 
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
@@ -14,7 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Download DB snapshot
+    - name: Download db snapshot
       env: 
         PYTHONPATH: /tmp
       run: |
@@ -23,14 +23,25 @@ jobs:
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data workspace/
 
-  Move-data:
+    - name: Save cache
+      uses: actions/upload-artifact@v1
+      with: 
+        name: Save data 
+        path: /tmp/workspace/data
 
-    needs: Download-snapshaot
+  move-data:
+    needs: download-snapshaot
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
     
     steps:
     - uses: actions/checkout@v2
+    - name: Restore cache
+      uses: actions/upload-artifact@v1
+      with: 
+        name: Restore data
+        path: /tmp/workspace/data
+
     - name: Move data
       run: |
         mkdir -p quarkchain/cluster/qkc-data
@@ -38,9 +49,9 @@ jobs:
         mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
         
       
-  Check-DB:
+  check-db:
 
-    needs: [Download-snapshaot, Move-data]
+    needs: [download-snapshaot, move-data]
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
 
@@ -54,7 +65,7 @@ jobs:
         pip3 install -e .
         cd qkchash && make clean && make
 
-    - name: Check DB
+    - name: check db
       run: |
         height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
         lo=0
