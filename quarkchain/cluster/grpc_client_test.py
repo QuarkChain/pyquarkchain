@@ -79,8 +79,8 @@ class TestClient(unittest.TestCase):
             "",
         )
         self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
-        self.assertIs(True, stub_future.result())
-        print(stub_future.result())
+        self.assertIs(False, stub_future.result())
+        # print(stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
         stub = GrpcClient(self.test_channel)
@@ -107,9 +107,13 @@ class TestClient(unittest.TestCase):
         rpc.terminate(
             fake_response, (), grpc.StatusCode.UNKNOWN, "",
         )
-        self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
-        self.assertEqual(True, stub_future.result())
-        print(stub_future.result())
+        self.assertEqual(
+            grpc_client_pb2.SetRootChainConfirmedBlockRequest(),
+            request,
+            msg="request not equal",
+        )
+        self.assertIs(False, stub_future.result(), msg="result is not true")
+        # print(stub_future.result())
 
 
 if __name__ == "__main__":
