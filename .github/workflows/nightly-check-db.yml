@@ -1,0 +1,36 @@
+name: nightly-check-db
+
+on: [push]
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  download-snapshot:
+    runs-on: ubuntu-latest
+    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: create workspace
+      run: mkdir -p tmp/workspace
+
+    - name: Install Project Dependencies
+      run: |
+        PYTHONPATH=/code/pyquarkchain pip3 install -e .
+        cd qkchash && make clean && make && cd -
+
+    - name: Download DB snapshot
+      run: |
+        mkdir -p quarkchain/cluster/qkc-data
+        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
+        tar xvfz data.tar.gz
+        rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
+
+    - name: check DB
+      run: |
+        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+        lo=0
+        hi=$height
+        echo "checking: $hi -> $lo"
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh --check_db=True --check_db_rblock_batch=100 --check_db_rblock_from=$hi --check_db_rblock_to=$lo
