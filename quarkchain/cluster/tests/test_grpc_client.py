@@ -3,8 +3,8 @@ import grpc_testing
 import unittest
 
 from concurrent import futures
-from quarkchain.cluster import grpc_pb2
-from quarkchain.cluster import grpc_pb2_grpc
+from quarkchain.generated import grpc_pb2
+from quarkchain.generated import grpc_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
 from grpc.framework.foundation import logging_pool
 
