@@ -2,8 +2,8 @@ import logging
 import argparse
 import grpc
 
-from quarkchain.cluster import grpc_pb2
-from quarkchain.cluster import grpc_pb2_grpc
+from quarkchain.generated import grpc_pb2
+from quarkchain.generated import grpc_pb2_grpc
 
 HOST = "localhost"
 PORT = "50051"
