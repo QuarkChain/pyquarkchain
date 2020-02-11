@@ -9,11 +9,12 @@ jobs:
   test-without-integration:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
+    env:
+      PYTHONPATH: /code/pyquarkchain
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run: pip3 install -e .
 
     - name: Run py.test tests excluding integration test
       run: |
