@@ -2,8 +2,8 @@ import logging
 import argparse
 import grpc
 
-from quarkchain.cluster import gRPC_pb2
-from quarkchain.cluster import gRPC_pb2_grpc
+from quarkchain.cluster import grpc_pb2
+from quarkchain.cluster import grpc_pb2_grpc
 
 HOST = "localhost"
 PORT = "50051"
@@ -11,10 +11,10 @@ PORT = "50051"
 
 class GrpcClient:
     def __init__(self, channel):
-        self.client = gRPC_pb2_grpc.ClusterSlaveStub(channel)
+        self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
     def set_rootchain_confirmed_block(self) -> bool:
-        request = gRPC_pb2.SetRootChainConfirmedBlockRequest()
+        request = grpc_pb2.SetRootChainConfirmedBlockRequest()
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
         except Exception as e:
