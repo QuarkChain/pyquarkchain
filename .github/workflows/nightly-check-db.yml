@@ -18,13 +18,11 @@ jobs:
 
     - name: Download db snapshot and move data
       run: |
-        mkdir -p /tmp/workspace &&  cd /tmp
+        mkdir -p quarkchain/cluster/qkc-data
+        cd quarkchain/cluster/qkc-data
         curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/sample-data.tar.gz --output data.tar.gz
         tar xvfz data.tar.gz
-        rm data.tar.gz && mv data workspace/ && cd -
-        mkdir -p quarkchain/cluster/qkc-data
-        cd /tmp/workspace && mv data mainnet && cd -
-        mv /tmp/workspace/mainnet quarkchain/cluster/qkc-data/
+        rm data.tar.gz && mv data mainnet
 
     - name: Setup - install dependencies and build qkchashlib
       env:
