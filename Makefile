@@ -2,7 +2,7 @@
 all: grpc
 
 grpc: grpc.proto
-	python -m grpc_tools.protoc --proto_path=quarkchain/cluster --python_out=quarkchain/cluster --grpc_python_out=quarkchain/cluster  grpc.proto
+	python -m grpc_tools.protoc --proto_path=`pwd`/quarkchain/cluster --python_out=`pwd`/quarkchain/cluster --grpc_python_out=`pwd`/quarkchain/cluster  grpc.proto
 
 	$(MAKE) -C qkchash
 
