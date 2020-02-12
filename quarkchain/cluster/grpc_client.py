@@ -10,20 +10,24 @@ PORT = "50051"
 
 
 class GrpcClient:
-    def __init__(self, channel):
+    def __init__(self, host, port):
+        channel = grpc.insecure_channel("{}:{}".format(host, port))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
     def set_rootchain_confirmed_block(self) -> bool:
         request = grpc_pb2.SetRootChainConfirmedBlockRequest()
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
-        except Exception as e:
+        except Exception:
             return False
 
         if response.status.code == 0:
             return True
         else:
             return False
+
+    def set_client(self, channel):
+        self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
 
 if __name__ == "__main__":
@@ -36,5 +40,5 @@ if __name__ == "__main__":
     HOST = args.host
     PORT = args.port
 
-    client = GrpcClient(grpc.insecure_channel("{}:{}".format(HOST, PORT)))
+    client = GrpcClient(HOST, PORT)
     client.set_rootchain_confirmed_block()

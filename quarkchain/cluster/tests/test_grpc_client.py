@@ -34,9 +34,19 @@ class TestGrpcClient(unittest.TestCase):
     def shutDown(self):
         self.execution_thread.shutdown(wait=True)
 
+    def build_test_server(self, statuscode, port):
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(statuscode(), server)
+        server.add_insecure_port("[::]:" + port)
+        return server
+
     def test_grpc_client(self):
+        host = "localhost"
+        port = "50051"
+        client = GrpcClient(host, port)
+        client.set_client(self.real_time_test_channel)
         client_future = self.execution_thread.submit(
-            GrpcClient(self.real_time_test_channel).set_rootchain_confirmed_block
+            client.set_rootchain_confirmed_block
         )
         (
             invocation_metadata,
@@ -56,34 +66,37 @@ class TestGrpcClient(unittest.TestCase):
 
         client_future_value = client_future.result()
         self.assertEqual(grpc_pb2.SetRootChainConfirmedBlockRequest(), request)
-        self.assertIs(client_future_value, True)
+        self.assertTrue(client_future_value)
 
     def test_exception_error(self):
+        server_port = "50051"
+        server = self.build_test_server(StatusCode0, server_port)
+        server.start()
+
+        client_host = "localhost"
+        client_port = "50011"
         client_future = GrpcClient(
-            grpc.insecure_channel("localhost:50011")
+            client_host, client_port
         ).set_rootchain_confirmed_block()
-        self.assertIs(client_future, False)
+        self.assertFalse(client_future)
+
+        server.stop(None)
 
     def test_status_code(self):
-        server0 = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(StatusCode0(), server0)
-        server0.add_insecure_port("[::]:50051")
+        client_host = "localhost"
+        both_port1 = "50041"
+        both_port2 = "50061"
+        server0 = self.build_test_server(StatusCode0, both_port1)
         server0.start()
 
-        client_future0 = GrpcClient(
-            grpc.insecure_channel("localhost:50051")
-        ).set_rootchain_confirmed_block()
-        self.assertTrue(client_future0)
+        rsp0 = GrpcClient(client_host, both_port1).set_rootchain_confirmed_block()
+        self.assertTrue(rsp0)
 
-        server1 = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(StatusCode1(), server1)
-        server1.add_insecure_port("[::]:50061")
+        server1 = self.build_test_server(StatusCode1, both_port2)
         server1.start()
 
-        client_future1 = GrpcClient(
-            grpc.insecure_channel("localhost:50061")
-        ).set_rootchain_confirmed_block()
-        self.assertFalse(client_future1)
+        rsp1 = GrpcClient(client_host, both_port2).set_rootchain_confirmed_block()
+        self.assertFalse(rsp1)
 
         server0.stop(None)
         server1.stop(None)

@@ -1,7 +1,10 @@
-all: grpc
+all: grpc qkchash
 
-grpc:
+grpc: quarkchain/proto/grpc.proto
 	python -m grpc_tools.protoc --proto_path=quarkchain/proto --python_out=quarkchain/generated --grpc_python_out=quarkchain/generated grpc.proto
+
+.PHONY: qkchash
+qkchash:
 	$(MAKE) -C qkchash
 
 clean:

@@ -1,2 +1,2 @@
-# python file
+# skip generated pb2.py file
 *.py
