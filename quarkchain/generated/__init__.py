@@ -1,3 +1,3 @@
 import sys
 
-sys.path.append("./generated")
+sys.path.append("quarkchain/generated")
