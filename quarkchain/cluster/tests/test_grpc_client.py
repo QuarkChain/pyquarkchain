@@ -70,23 +70,20 @@ class TestGrpcClient(unittest.TestCase):
         server0.add_insecure_port("[::]:50051")
         server0.start()
 
-        client_future0 = GrpcClient(grpc.insecure_channel("localhost:50051"))
-        response0 = client_future0.client.SetRootChainConfirmedBlock(
-            grpc_pb2.SetRootChainConfirmedBlockRequest()
-        )
-        self.assertIs(response0.status.code == 0, True)
+        client_future0 = GrpcClient(
+            grpc.insecure_channel("localhost:50051")
+        ).set_rootchain_confirmed_block()
+        self.assertTrue(client_future0)
 
         server1 = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(StatusCode1(), server1)
         server1.add_insecure_port("[::]:50061")
         server1.start()
 
-        client_future1 = GrpcClient(grpc.insecure_channel("localhost:50061"))
-        response1 = client_future1.client.SetRootChainConfirmedBlock(
-            grpc_pb2.SetRootChainConfirmedBlockRequest()
-        )
-
-        self.assertIs(response1.status.code == 0, False)
+        client_future1 = GrpcClient(
+            grpc.insecure_channel("localhost:50061")
+        ).set_rootchain_confirmed_block()
+        self.assertFalse(client_future1)
 
         server0.stop(None)
         server1.stop(None)
