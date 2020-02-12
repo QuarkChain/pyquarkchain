@@ -4,7 +4,7 @@ import grpc_testing
 from grpc.framework.foundation import logging_pool
 
 from quarkchain.cluster.grpc_client import GrpcClient
-from quarkchain.cluster import grpc_client_pb2
+from quarkchain.generated import grpc_client_pb2
 
 
 class TestClient(unittest.TestCase):

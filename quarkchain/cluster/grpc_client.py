@@ -2,8 +2,8 @@ import logging
 import sys
 import grpc
 
-from quarkchain.cluster import grpc_client_pb2_grpc
-from quarkchain.cluster import grpc_client_pb2
+from quarkchain.generated import grpc_client_pb2_grpc
+from quarkchain.generatedg import grpc_client_pb2
 
 
 class GrpcClient(object):
