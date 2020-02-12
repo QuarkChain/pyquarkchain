@@ -8,5 +8,5 @@ qkchash:
 	$(MAKE) -C qkchash
 
 clean:
-	rm -f quarkchain/generated/*.py
+	rm -f quarkchain/generated/grpc_client_pb2.py quarkchain/generated/grpc_client_pb2_grpc.py 
 	$(MAKE) -C qkchash clean
