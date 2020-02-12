@@ -1,7 +1,9 @@
-all: generate
+all: generate qkchash
 
 generate:
 	python -m grpc_tools.protoc --proto_path=./quarkchain/cluster --python_out=./quarkchain/generated --grpc_python_out=./quarkchain/generated grpc_client.proto
+
+qkchash:
 	$(MAKE) -C qkchash
 
 clean:
