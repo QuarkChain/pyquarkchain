@@ -16,7 +16,7 @@ jobs:
 
     - name: Run py.test tests excluding integration test
       run: |
-        make clean && make && cd -
+        make clean && make
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
   evm-tests-runner-1:
@@ -56,7 +56,7 @@ jobs:
 
     - name: Run py.test tests only on integration test
       run: |
-        make clean && make && cd -
+        make clean && make
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
 
     - name: Run QuarkChain-specific EVM tests
