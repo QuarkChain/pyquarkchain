@@ -75,7 +75,6 @@ class TestClient(unittest.TestCase):
         )
         self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
         self.assertIs(False, stub_future.result())
-        # print(stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
         stub = GrpcClient(self.test_channel)
