@@ -1,15 +1,9 @@
-QKCDIR = `pwd`/qkchash
-GRPCDIR = `pwd`/quarkchain/cluster
-MAKE = make
-
-all: generate subsystem
+all: generate
 
 generate:
-	python -m grpc_tools.protoc --proto_path=$(GRPCDIR) --python_out=$(GRPCDIR) --grpc_python_out=$(GRPCDIR) grpc_client.proto
-
-subsystem:
-	cd $(QKCDIR) && $(MAKE)
+	python -m grpc_tools.protoc --proto_path=./quarkchain/cluster --python_out=./quarkchain/generated --grpc_python_out=./quarkchain/cluster grpc_client.proto
+	$(MAKE) -C qkchash
 
 clean:
-	rm -f $(QKCDIR)/qkchash libqkchash.so qkchash_llrb
-	rm -f $(GRPCDIR)/grpc_client_pb2.py grpc_client_pb2_grpc.py
+	rm -f ./quarkchain/generated/grpc_client_pb2.py ./quarkchain/generated/grpc_client_pb2_grpc.py
+	$(MAKE) -C qkchash clean
