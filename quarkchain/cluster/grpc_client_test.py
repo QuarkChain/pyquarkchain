@@ -20,11 +20,6 @@ class TestClient(unittest.TestCase):
         self.execution_thread.shutdown(wait=False)
 
     def test_set_root_chain_confirmed_block(self):
-        # stub = grpc_client.GrpcClient(self.test_channel)
-        # result = self.execution_thread.submit(stub.set_root_chain_confirmed_block).result()
-        # result = stub.set_root_chain_confirmed_block()
-        # print("result is", result)
-
         stub = GrpcClient(self.test_channel)
         stub_future = self.execution_thread.submit(stub.set_root_chain_confirmed_block)
 
@@ -113,7 +108,6 @@ class TestClient(unittest.TestCase):
             msg="request not equal",
         )
         self.assertIs(False, stub_future.result(), msg="result is not true")
-        # print(stub_future.result())
 
 
 if __name__ == "__main__":
