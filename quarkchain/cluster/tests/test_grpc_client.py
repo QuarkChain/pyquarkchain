@@ -29,16 +29,11 @@ class TestGrpcClient(unittest.TestCase):
         return server
 
     def test_exception_error(self):
-        server_port = 50051
-        server = self.build_test_server(NormalServer, server_port)
-        server.start()
-
+        # This test is used to check connection exception, if there is no server or inconsistent ports, return False
         client_host = "localhost"
         client_port = 50011
         resp = GrpcClient(client_host, client_port).set_rootchain_confirmed_block()
         self.assertFalse(resp)
-
-        server.stop(None)
 
     def test_status_code(self):
         client_host = "localhost"
