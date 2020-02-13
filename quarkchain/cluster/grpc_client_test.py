@@ -19,94 +19,68 @@ class TestClient(unittest.TestCase):
     def tearDown(self):
         self.execution_thread.shutdown(wait=False)
 
-    def test_set_root_chain_confirmed_block(self):
-        stub = GrpcClient(self.test_channel)
-        stub_future = self.execution_thread.submit(stub.set_root_chain_confirmed_block)
-
-        if grpc_client_pb2.DESCRIPTOR.services_by_name.get("ClusterSlave") == None:
-            service_descriptor = "Service is None!"
-            methods_descriptor = "Method is None!"
-        else:
-            service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name[
-                "ClusterSlave"
-            ]
-            methods_descriptor = service_descriptor.methods_by_name[
-                "SetRootChainConfirmedBlock"
-            ]
-
+    def build_stub_and_rpc(self):
+        host = None
+        port = None
+        # just to get a GrpcClient object
+        grpc_object = GrpcClient(host, port)
+        grpc_object.set_stub(self.test_channel)
+        service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
+        methods_descriptor = service_descriptor.methods_by_name[
+            "SetRootChainConfirmedBlock"
+        ]
         invocation_metadata, request, rpc = self.test_channel.take_unary_unary(
             methods_descriptor
         )
-        rpc.send_initial_metadata(())
+        return (
+            self.execution_thread.submit(grpc_object.set_root_chain_confirmed_block),
+            rpc,
+        )
 
+    def test_normal(self):
+        stub_future, rpc = self.build_stub()
+        rpc.send_initial_metadata(())
+        # Corresponding to the condition of response stats code = 0 in grpc client. Success.
         rpc.terminate(
             grpc_client_pb2.SetRootChainConfirmedBlockResponse(),
             (),
             grpc.StatusCode.OK,
             "",
         )
-        self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
         self.assertIs(True, stub_future.result())
 
     def test_network_error(self):
-        stub = GrpcClient(self.test_channel)
-        stub_future = self.execution_thread.submit(stub.set_root_chain_confirmed_block)
-
-        if grpc_client_pb2.DESCRIPTOR.services_by_name.get("ClusterSlave") == None:
-            service_descriptor = "Service is None!"
-            methods_descriptor = "Method is None!"
-        else:
-            service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name[
-                "ClusterSlave"
-            ]
-            methods_descriptor = service_descriptor.methods_by_name[
-                "SetRootChainConfirmedBlock"
-            ]
-
-        invocation_metadata, request, rpc = self.test_channel.take_unary_unary(
-            methods_descriptor
-        )
+        stub_future, rpc = self.build_stub()
         rpc.send_initial_metadata(())
+
+        # Corresponding to exception in grpc client.
+        # Server side application throws an exception (or does something other than returning a Status code to terminate an RPC)
         rpc.terminate(
             grpc_client_pb2.SetRootChainConfirmedBlockResponse(),
             (),
             grpc.StatusCode.UNKNOWN,
             "",
         )
-        self.assertEqual(grpc_client_pb2.SetRootChainConfirmedBlockRequest(), request)
         self.assertIs(False, stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
-        stub = GrpcClient(self.test_channel)
-        stub_future = self.execution_thread.submit(stub.set_root_chain_confirmed_block)
-
-        if grpc_client_pb2.DESCRIPTOR.services_by_name.get("ClusterSlave") == None:
-            service_descriptor = "Service is None!"
-            methods_descriptor = "Method is None!"
-        else:
-            service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name[
-                "ClusterSlave"
-            ]
-            methods_descriptor = service_descriptor.methods_by_name[
-                "SetRootChainConfirmedBlock"
-            ]
-
+        stub_future = self.build_stub()
+        service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
+        methods_descriptor = service_descriptor.methods_by_name[
+            "SetRootChainConfirmedBlock"
+        ]
         invocation_metadata, request, rpc = self.test_channel.take_unary_unary(
             methods_descriptor
         )
         rpc.send_initial_metadata(())
+        # Corresponding to the condition that the connection succeeds, but the returned result has an error.
         fake_response = grpc_client_pb2.SetRootChainConfirmedBlockResponse(
             status=grpc_client_pb2.ClusterSlaveStatus(code=1, message="not received")
         )
         rpc.terminate(
-            fake_response, (), grpc.StatusCode.UNKNOWN, "",
+            fake_response, (), grpc.StatusCode.OK, "",
         )
-        self.assertEqual(
-            grpc_client_pb2.SetRootChainConfirmedBlockRequest(),
-            request,
-            msg="request not equal",
-        )
-        self.assertIs(False, stub_future.result(), msg="result is not true")
+        self.assertIs(False, stub_future.result())
 
 
 if __name__ == "__main__":
