@@ -38,7 +38,7 @@ class TestClient(unittest.TestCase):
         )
 
     def test_normal(self):
-        stub_future, rpc = self.build_stub()
+        stub_future, rpc = self.build_stub_and_rpc()
         rpc.send_initial_metadata(())
         # Corresponding to the condition of response stats code = 0 in grpc client. Success.
         rpc.terminate(
@@ -50,7 +50,7 @@ class TestClient(unittest.TestCase):
         self.assertIs(True, stub_future.result())
 
     def test_network_error(self):
-        stub_future, rpc = self.build_stub()
+        stub_future, rpc = self.build_stub_and_rpc()
         rpc.send_initial_metadata(())
 
         # Corresponding to exception in grpc client.
@@ -64,7 +64,7 @@ class TestClient(unittest.TestCase):
         self.assertIs(False, stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
-        stub_future = self.build_stub()
+        stub_future, rpc = self.build_stub_and_rpc()
         service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
         methods_descriptor = service_descriptor.methods_by_name[
             "SetRootChainConfirmedBlock"
