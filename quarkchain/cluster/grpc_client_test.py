@@ -19,12 +19,17 @@ class TestClient(unittest.TestCase):
     def tearDown(self):
         self.execution_thread.shutdown(wait=False)
 
-    def build_stub_and_rpc(self):
+    def build_stub(self):
         host = None
         port = None
         # just to get a GrpcClient object
         grpc_object = GrpcClient(host, port)
         grpc_object.set_stub(self.test_channel)
+
+        return self.execution_thread.submit(grpc_object.set_root_chain_confirmed_block)
+
+    def test_normal(self):
+        stub_future = self.build_stub()
         service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
         methods_descriptor = service_descriptor.methods_by_name[
             "SetRootChainConfirmedBlock"
@@ -32,13 +37,6 @@ class TestClient(unittest.TestCase):
         invocation_metadata, request, rpc = self.test_channel.take_unary_unary(
             methods_descriptor
         )
-        return (
-            self.execution_thread.submit(grpc_object.set_root_chain_confirmed_block),
-            rpc,
-        )
-
-    def test_normal(self):
-        stub_future, rpc = self.build_stub_and_rpc()
         rpc.send_initial_metadata(())
         # Corresponding to the condition of response stats code = 0 in grpc client. Success.
         rpc.terminate(
@@ -50,7 +48,14 @@ class TestClient(unittest.TestCase):
         self.assertIs(True, stub_future.result())
 
     def test_network_error(self):
-        stub_future, rpc = self.build_stub_and_rpc()
+        stub_future = self.build_stub()
+        service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
+        methods_descriptor = service_descriptor.methods_by_name[
+            "SetRootChainConfirmedBlock"
+        ]
+        invocation_metadata, request, rpc = self.test_channel.take_unary_unary(
+            methods_descriptor
+        )
         rpc.send_initial_metadata(())
 
         # Corresponding to exception in grpc client.
@@ -64,7 +69,7 @@ class TestClient(unittest.TestCase):
         self.assertIs(False, stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
-        stub_future, rpc = self.build_stub_and_rpc()
+        stub_future = self.build_stub()
         service_descriptor = grpc_client_pb2.DESCRIPTOR.services_by_name["ClusterSlave"]
         methods_descriptor = service_descriptor.methods_by_name[
             "SetRootChainConfirmedBlock"
