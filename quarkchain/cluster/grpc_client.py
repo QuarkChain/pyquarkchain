@@ -6,12 +6,12 @@ from quarkchain.generated import grpc_pb2
 from quarkchain.generated import grpc_pb2_grpc
 
 HOST = "localhost"
-PORT = "50051"
+PORT = 50051
 
 
 class GrpcClient:
-    def __init__(self, host, port):
-        channel = grpc.insecure_channel("{}:{}".format(host, port))
+    def __init__(self, host: str, port: int):
+        channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
     def set_rootchain_confirmed_block(self) -> bool:
@@ -25,9 +25,6 @@ class GrpcClient:
             return True
         else:
             return False
-
-    def set_client(self, channel):
-        self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
 
 if __name__ == "__main__":

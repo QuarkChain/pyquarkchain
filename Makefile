@@ -1,5 +1,6 @@
 all: grpc qkchash
 
+
 grpc: quarkchain/proto/grpc.proto
 	python -m grpc_tools.protoc --proto_path=quarkchain/proto --python_out=quarkchain/generated --grpc_python_out=quarkchain/generated grpc.proto
 
