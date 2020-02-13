@@ -9,7 +9,6 @@ jobs:
   test-without-integration:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies
@@ -17,7 +16,7 @@ jobs:
 
     - name: Run py.test tests excluding integration test
       run: |
-        cd qkchash && make clean && make && cd -
+        make clean && make
         python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
   evm-tests-runner-1:
@@ -57,7 +56,7 @@ jobs:
 
     - name: Run py.test tests only on integration test
       run: |
-        cd qkchash && make clean && make && cd -
+        make clean && make
         python3 -m pytest quarkchain/cluster/tests/test_cluster.py
 
     - name: Run QuarkChain-specific EVM tests
