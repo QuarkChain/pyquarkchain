@@ -45,7 +45,7 @@ class TestClient(unittest.TestCase):
             grpc.StatusCode.OK,
             "",
         )
-        self.assertIs(True, stub_future.result())
+        self.assertTrue(stub_future.result())
 
     def test_network_error(self):
         stub_future = self.build_stub()
@@ -66,7 +66,7 @@ class TestClient(unittest.TestCase):
             grpc.StatusCode.UNKNOWN,
             "",
         )
-        self.assertIs(False, stub_future.result())
+        self.assertFalse(stub_future.result())
 
     def test_result_error(self):  # case 2: server not response properly
         stub_future = self.build_stub()
@@ -85,8 +85,4 @@ class TestClient(unittest.TestCase):
         rpc.terminate(
             fake_response, (), grpc.StatusCode.OK, "",
         )
-        self.assertIs(False, stub_future.result())
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertFalse(stub_future.result())
