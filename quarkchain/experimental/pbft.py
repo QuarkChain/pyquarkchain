@@ -122,6 +122,7 @@ class Node:
         )
 
         self.pre_prepare_msg_map[msg.seq_num] = msg
+        self.prepare_msg_map.setdefault(msg.seq_num, set()).add(self.node_id)
 
         prepareMsg = PrepareMsg(
             msg.view, msg.seq_num, msg.digest, self.node_id, self.node_id
@@ -243,6 +244,9 @@ for i in range(N):
 
 for i in range(N):
     asyncio.get_event_loop().create_task(nodeList[i].start())
+
+nodeList[-1].isCrashing = True
+# nodeList[-2].isCrashing = True
 
 nodeList[0].sendClientRequest(ClientRequest(b""))
 
