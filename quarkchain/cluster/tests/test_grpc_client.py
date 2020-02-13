@@ -35,32 +35,25 @@ class TestGrpcClient(unittest.TestCase):
 
         client_host = "localhost"
         client_port = 50011
-        client_future = GrpcClient(
-            client_host, client_port
-        ).set_rootchain_confirmed_block()
-        self.assertFalse(client_future)
+        resp = GrpcClient(client_host, client_port).set_rootchain_confirmed_block()
+        self.assertFalse(resp)
 
         server.stop(None)
 
     def test_status_code(self):
         client_host = "localhost"
-        both_port1 = 50041
-        both_port2 = 50061
-        server0 = self.build_test_server(NormalServer, both_port1)
+        server_port1 = 50041
+        server_port2 = 50061
+        server0 = self.build_test_server(NormalServer, server_port1)
         server0.start()
 
-        rsp0 = GrpcClient(client_host, both_port1).set_rootchain_confirmed_block()
-        self.assertTrue(rsp0)
+        resp0 = GrpcClient(client_host, server_port1).set_rootchain_confirmed_block()
+        self.assertTrue(resp0)
+        server0.stop(None)
 
-        server1 = self.build_test_server(ErrorServer, both_port2)
+        server1 = self.build_test_server(ErrorServer, server_port2)
         server1.start()
 
-        rsp1 = GrpcClient(client_host, both_port2).set_rootchain_confirmed_block()
-        self.assertFalse(rsp1)
-
-        server0.stop(None)
+        resp1 = GrpcClient(client_host, server_port2).set_rootchain_confirmed_block()
+        self.assertFalse(resp1)
         server1.stop(None)
-
-
-if __name__ == "__main__":
-    unittest.main()

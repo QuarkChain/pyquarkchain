@@ -2,15 +2,14 @@ import logging
 import argparse
 import grpc
 
-from quarkchain.generated import grpc_pb2
-from quarkchain.generated import grpc_pb2_grpc
+from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 
 HOST = "localhost"
 PORT = 50051
 
 
 class GrpcClient:
-    def __init__(self, host: str, port: int):
+    def __init__(self, host: str = HOST, port: int = PORT):
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
@@ -30,8 +29,8 @@ class GrpcClient:
 if __name__ == "__main__":
     logging.basicConfig()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default=HOST, help="recipient to query")
-    parser.add_argument("--port", type=str, default=PORT, help="recipient to query")
+    parser.add_argument("--host", type=str, default=HOST, help="server host")
+    parser.add_argument("--port", type=int, default=PORT, help="server port")
 
     args = parser.parse_args()
     HOST = args.host
