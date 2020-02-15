@@ -60,15 +60,17 @@ class Node:
         self.view = view
         self.connectionList = []
         self.isCrashing = False
+        self.state = b""
 
         # TODO
         self.h = 0
         self.H = 10000
         self.seq_num = 0
 
+        # Received messages. all should be persisted
+        # Could be removed after checkpoint
         self.pre_prepare_msg_map = dict()
         self.prepare_msg_map = dict()
-        self.commit_sent_set = set()
         self.commit_msg_map = dict()
         self.committed_set = set()
 
@@ -76,7 +78,7 @@ class Node:
         self.connectionList.append(conn)
 
     def __get_seq_num(self):
-        # TODO
+        # TODO: H check
         self.seq_num += 1
         return self.seq_num
 
@@ -134,6 +136,9 @@ class Node:
         f = (len(self.connectionList) + 1 - 1) // 3
         return 2 * f
 
+    def __is_prepared(self, seq_num):
+        return len(self.prepare_msg_map.get(seq_num, set())) >= self.__num_2f()
+
     def handlePrepareMsg(self, msg):
         if self.view != msg.view:
             return
@@ -152,14 +157,11 @@ class Node:
             )
         )
 
+        is_prepared_before = self.__is_prepared(msg.seq_num)
         self.prepare_msg_map.setdefault(msg.seq_num, set()).add(msg.node_id)
 
-        if (
-            len(self.prepare_msg_map[msg.seq_num]) >= self.__num_2f()
-            and msg.seq_num not in self.commit_sent_set
-        ):
+        if not is_prepared_before and self.__is_prepared(msg.seq_num):
             # Broadcast commit
-            self.commit_sent_set.add(msg.seq_num)
             self.commit_msg_map.setdefault(msg.seq_num, set()).add(self.node_id)
 
             commitMsg = CommitMsg(
@@ -196,11 +198,20 @@ class Node:
             len(self.commit_msg_map[msg.seq_num]) >= self.__num_2f() + 1
             and msg.seq_num not in self.committed_set
         ):
+            # Message is irreversible/finalized.
+            # May discard all logs of the message,
+            # but current view-change protocol needs prepare messages.
             # May replace with the digest as key
             self.committed_set.add(msg.seq_num)
+
+            # Simple state execution
+            s = hashlib.sha256()
+            s.update(self.state)
+            s.update(pre_prepare_msg.m.digest())
+            self.state = s.digest()
             print(
-                "Node {}: msg with digest {} commited".format(
-                    self.node_id, msg.digest.hex()
+                "Node {}: msg with digest {} commited, state {}".format(
+                    self.node_id, msg.digest.hex(), self.state.hex()
                 )
             )
 
@@ -245,7 +256,7 @@ for i in range(N):
 for i in range(N):
     asyncio.get_event_loop().create_task(nodeList[i].start())
 
-nodeList[-1].isCrashing = True
+# nodeList[-1].isCrashing = True
 # nodeList[-2].isCrashing = True
 
 nodeList[0].sendClientRequest(ClientRequest(b""))
