@@ -51,6 +51,13 @@ class CommitMsg:
         self.sig = sig
 
 
+class CheckpointMsg:
+    def __init__(self, seq_num, state_digest, sign):
+        self.seq_num = seq_num
+        self.state_digest = state_digest
+        self.sign = sign
+
+
 class Node:
     def __init__(self, node_id, view, is_primary=False):
         self.node_id = node_id
@@ -58,7 +65,7 @@ class Node:
         # TODO
         self.primary_node_id = 0
         self.view = view
-        self.connectionList = []
+        self.connection_list = []
         self.isCrashing = False
         self.state = b""
 
@@ -75,7 +82,7 @@ class Node:
         self.committed_set = set()
 
     def addConnection(self, conn):
-        self.connectionList.append(conn)
+        self.connection_list.append(conn)
 
     def __get_seq_num(self):
         # TODO: H check
@@ -100,7 +107,7 @@ class Node:
                 self.node_id, msg.seq_num, msg.digest.hex()
             )
         )
-        for conn in self.connectionList:
+        for conn in self.connection_list:
             asyncio.ensure_future(conn.sendPrePrepareMsgAsync(msg))
 
     # RPC handling
@@ -126,14 +133,14 @@ class Node:
         self.pre_prepare_msg_map[msg.seq_num] = msg
         self.prepare_msg_map.setdefault(msg.seq_num, set()).add(self.node_id)
 
-        prepareMsg = PrepareMsg(
+        prepare_msg = PrepareMsg(
             msg.view, msg.seq_num, msg.digest, self.node_id, self.node_id
         )
-        for conn in self.connectionList:
-            asyncio.ensure_future(conn.sendPrepareMsgAsync(prepareMsg))
+        for conn in self.connection_list:
+            asyncio.ensure_future(conn.sendPrepareMsgAsync(prepare_msg))
 
     def __num_2f(self):
-        f = (len(self.connectionList) + 1 - 1) // 3
+        f = (len(self.connection_list) + 1 - 1) // 3
         return 2 * f
 
     def __is_prepared(self, seq_num):
@@ -164,7 +171,7 @@ class Node:
             # Broadcast commit
             self.commit_msg_map.setdefault(msg.seq_num, set()).add(self.node_id)
 
-            commitMsg = CommitMsg(
+            commit_msg = CommitMsg(
                 msg.view, msg.seq_num, msg.digest, self.node_id, self.node_id
             )
             print(
@@ -172,8 +179,8 @@ class Node:
                     self.node_id, msg.seq_num, msg.digest.hex()
                 )
             )
-            for conn in self.connectionList:
-                asyncio.ensure_future(conn.sendCommitMsgAsync(commitMsg))
+            for conn in self.connection_list:
+                asyncio.ensure_future(conn.sendCommitMsgAsync(commit_msg))
 
     def handleCommitMsg(self, msg):
         if self.view != msg.view:
@@ -198,6 +205,7 @@ class Node:
             len(self.commit_msg_map[msg.seq_num]) >= self.__num_2f() + 1
             and msg.seq_num not in self.committed_set
         ):
+            # TODO: Check the requests with lower sequences are executed (finalized)
             # Message is irreversible/finalized.
             # May discard all logs of the message,
             # but current view-change protocol needs prepare messages.
@@ -214,6 +222,13 @@ class Node:
                     self.node_id, msg.digest.hex(), self.state.hex()
                 )
             )
+
+            checkpoint_msg = CheckpointMsg(msg.seq_num, self.state, self.node_id)
+            for conn in self.connection_list:
+                asyncio.ensure_future(conn.sendCheckpointMsgAsync(checkpoint_msg))
+
+    def handleCheckpointMsg(self, msg):
+        pass
 
 
 class PbftConnection(Connection):
@@ -239,6 +254,11 @@ class PbftConnection(Connection):
     async def sendCommitMsgAsync(self, request):
         return await self.callWithDelayOrTimeout(
             lambda: self.destination.handleCommitMsg(request)
+        )
+
+    async def sendCheckpointMsgAsync(self, request):
+        return await self.callWithDelayOrTimeout(
+            lambda: self.destination.handleCheckpointMsg(request)
         )
 
 
