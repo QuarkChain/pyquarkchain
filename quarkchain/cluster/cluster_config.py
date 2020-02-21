@@ -92,6 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
+    TYPE = ""
 
     def to_dict(self):
         ret = super().to_dict()
@@ -172,6 +173,7 @@ class ClusterConfig(BaseConfig):
         slave_config.PORT = 38000
         slave_config.ID = "S0"
         slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
+        slave_config.TYPE = "QKC"
         self.SLAVE_LIST.append(slave_config)
 
         fd, self.json_filepath = tempfile.mkstemp()
@@ -182,7 +184,9 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
+                SlaveInfo(
+                    slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST, slave.TYPE
+                )
             )
         return results
 
@@ -415,7 +419,10 @@ class ClusterConfig(BaseConfig):
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
-
+                if i < 2:
+                    slave_config.TYPE = "QKC"
+                else:
+                    slave_config.TYPE = "LIBRA"
                 config.SLAVE_LIST.append(slave_config)
 
             fd, config.json_filepath = tempfile.mkstemp()

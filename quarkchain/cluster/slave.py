@@ -480,9 +480,10 @@ class MasterConnection(ClusterConnection):
                     )
 
                 # Step 2: Check if the blocks are valid
-                add_block_success, coinbase_amount_list = await self.slave_server.add_block_list_for_sync(
-                    block_chain
-                )
+                (
+                    add_block_success,
+                    coinbase_amount_list,
+                ) = await self.slave_server.add_block_list_for_sync(block_chain)
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
@@ -683,7 +684,15 @@ MASTER_OP_RPC_MAP = {
 
 class SlaveConnection(Connection):
     def __init__(
-        self, env, reader, writer, slave_server, slave_id, chain_mask_list, name=None
+        self,
+        env,
+        reader,
+        writer,
+        slave_server,
+        slave_id,
+        chain_mask_list,
+        type,
+        name=None,
     ):
         super().__init__(
             env,
@@ -698,7 +707,7 @@ class SlaveConnection(Connection):
         self.id = slave_id
         self.chain_mask_list = chain_mask_list
         self.shards = self.slave_server.shards
-
+        self.type = type
         self.ping_received_future = asyncio.get_event_loop().create_future()
 
         asyncio.ensure_future(self.active_and_loop_forever())
@@ -817,6 +826,7 @@ class SlaveConnectionManager:
             self.slave_server,
             None,  # slave id
             None,  # chain_mask_list
+            None,  # type
         )
         await slave_conn.wait_until_ping_received()
         slave_conn.name = "{}<->{}".format(
@@ -849,6 +859,7 @@ class SlaveConnectionManager:
             self.slave_server,
             slave_info.id,
             slave_info.chain_mask_list,
+            slave_info.type,
             conn_name,
         )
         await slave.wait_until_active()
@@ -874,7 +885,7 @@ class SlaveServer:
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.chain_mask_list = self.env.slave_config.CHAIN_MASK_LIST
-
+        self.type = bytes(self.env.slave_config.TYPE, "ascii")
         # shard id -> a list of slave running the shard
         self.slave_connection_manager = SlaveConnectionManager(env, self)
 

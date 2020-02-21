@@ -1,7 +1,7 @@
 import logging
 import argparse
 import grpc
-
+from quarkchain.utils import Logger
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 
 HOST = "localhost"
@@ -21,6 +21,7 @@ class GrpcClient:
             return False
 
         if response.status.code == 0:
+            Logger.info(response.status)
             return True
         else:
             return False
