@@ -154,7 +154,7 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
-    LIBRA_SLAVES = None
+    LIBRA_SLAVES = ""
     SIMPLE_NETWORK = None
     P2P = None
     MONITORING = None
