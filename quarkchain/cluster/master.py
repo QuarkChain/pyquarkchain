@@ -10,6 +10,7 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -1337,11 +1338,16 @@ class MasterServer:
         """
         future_list = []
         for slave_conn in self.slave_pool:
-            future_list.append(
-                slave_conn.write_rpc_request(
-                    op=op, cmd=req, metadata=ClusterMetadata(ROOT_BRANCH, 0)
+            slave_id = slave_conn.id.decode("ascii")[1:]
+            if slave_id not in self.env.cluster_config.LIBRA_SLAVES:
+                future_list.append(
+                    slave_conn.write_rpc_request(
+                        op=op, cmd=req, metadata=ClusterMetadata(ROOT_BRANCH, 0)
+                    )
                 )
-            )
+            else:
+                print("LIBRA")
+                GrpcClient("localhost", 50051).set_rootchain_confirmed_block()
         return future_list
 
     # ------------------------------ Cluster Peer Connection Management --------------
@@ -1829,7 +1835,6 @@ def main():
     loop = asyncio.get_event_loop()
     root_state = RootState(env)
     master = MasterServer(env, root_state)
-
     if env.arguments.check_db:
         master.start()
         master.wait_until_cluster_active()

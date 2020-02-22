@@ -92,7 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
-    TYPE = ""
+    TYPE = "QKC"
 
     def to_dict(self):
         ret = super().to_dict()
@@ -151,13 +151,12 @@ class ClusterConfig(BaseConfig):
     START_SIMULATED_MINING = False
     CLEAN = False
     GENESIS_DIR = None
-
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
+    LIBRA_SLAVES = None
     SIMPLE_NETWORK = None
     P2P = None
-
     MONITORING = None
 
     def __init__(self):
@@ -168,12 +167,10 @@ class ClusterConfig(BaseConfig):
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
-
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
         slave_config.ID = "S0"
         slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
-        slave_config.TYPE = "QKC"
         self.SLAVE_LIST.append(slave_config)
 
         fd, self.json_filepath = tempfile.mkstemp()
@@ -184,9 +181,7 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(
-                    slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST, slave.TYPE
-                )
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
             )
         return results
 
@@ -356,6 +351,10 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
+        parser.add_argument(
+            "--libra_slaves", default=ClusterConfig.LIBRA_SLAVES, type=str
+        )
+
     @classmethod
     def create_from_args(cls, args):
         """ Create ClusterConfig either from the JSON file or cmd flags.
@@ -413,15 +412,14 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
+            config.LIBRA_SLAVES = args.libra_slaves.split(",")
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
-                if i < 2:
-                    slave_config.TYPE = "QKC"
-                else:
+                if str(i) in args.libra_slaves:
                     slave_config.TYPE = "LIBRA"
                 config.SLAVE_LIST.append(slave_config)
 
