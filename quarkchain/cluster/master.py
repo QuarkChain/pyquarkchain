@@ -1348,8 +1348,6 @@ class MasterServer:
         """
         future_list = []
         for slave_conn in self.slave_pool:
-            #            slave_id = slave_conn.id.decode("ascii")[1:]
-            #            if slave_id not in self.env.cluster_config.LIBRA_SLAVES:
             if slave_conn.type == "QKCRPC":
                 future_list.append(
                     slave_conn.write_rpc_request(
@@ -1357,7 +1355,6 @@ class MasterServer:
                     )
                 )
             else:
-                print("LIBRA")
                 GrpcClient("localhost", 50051).set_rootchain_confirmed_block()
         return future_list
 
