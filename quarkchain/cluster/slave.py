@@ -874,6 +874,7 @@ class SlaveServer:
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.chain_mask_list = self.env.slave_config.CHAIN_MASK_LIST
+        # self.type = bytes(self.env.slave_config.TYPE, "ascii")
         # shard id -> a list of slave running the shard
         self.slave_connection_manager = SlaveConnectionManager(env, self)
 

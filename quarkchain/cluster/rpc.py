@@ -76,13 +76,15 @@ class SlaveInfo(Serializable):
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
         ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("type", PrependedSizeBytesSerializer(4)),
     ]
 
-    def __init__(self, id, host, port, chain_mask_list):
+    def __init__(self, id, host, port, chain_mask_list, type):
         self.id = id if isinstance(id, bytes) else bytes(id, "ascii")
         self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
         self.chain_mask_list = chain_mask_list
+        self.type = type if isinstance(type, bytes) else bytes(type, "ascii")
 
 
 class ConnectToSlavesRequest(Serializable):

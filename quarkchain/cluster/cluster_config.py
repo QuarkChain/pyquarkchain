@@ -92,7 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
-    TYPE = "QKC"
+    TYPE = "QKCRPC"
 
     def to_dict(self):
         ret = super().to_dict()
@@ -154,7 +154,6 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
-    LIBRA_SLAVES = ""
     SIMPLE_NETWORK = None
     P2P = None
     MONITORING = None
@@ -181,7 +180,9 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
+                SlaveInfo(
+                    slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST, slave.TYPE
+                )
             )
         return results
 
@@ -351,9 +352,9 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
-        parser.add_argument(
-            "--libra_slaves", default=ClusterConfig.LIBRA_SLAVES, type=str
-        )
+    #        parser.add_argument(
+    #            "--libra_slaves", default=ClusterConfig.LIBRA_SLAVES, nargs='+', type=int
+    #        )
 
     @classmethod
     def create_from_args(cls, args):
@@ -412,15 +413,12 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
-            config.LIBRA_SLAVES = args.libra_slaves.split(",")
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
-                if str(i) in args.libra_slaves:
-                    slave_config.TYPE = "LIBRA"
                 config.SLAVE_LIST.append(slave_config)
 
             fd, config.json_filepath = tempfile.mkstemp()
