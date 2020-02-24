@@ -434,7 +434,15 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
+        self,
+        env,
+        reader,
+        writer,
+        master_server,
+        slave_id,
+        chain_mask_list,
+        type,
+        name=None,
     ):
         super().__init__(
             env,
@@ -448,6 +456,7 @@ class SlaveConnection(ClusterConnection):
         self.master_server = master_server
         self.id = slave_id
         self.chain_mask_list = chain_mask_list
+        self.type = type
         check(len(chain_mask_list) > 0)
 
         asyncio.ensure_future(self.active_and_loop_forever())
@@ -862,6 +871,7 @@ class MasterServer:
                 self,
                 slave_info.id,
                 slave_info.chain_mask_list,
+                slave_info.type.decode("ascii"),
                 name="{}_slave_{}".format(self.name, slave_info.id),
             )
             await slave.wait_until_active()
@@ -1338,8 +1348,9 @@ class MasterServer:
         """
         future_list = []
         for slave_conn in self.slave_pool:
-            slave_id = slave_conn.id.decode("ascii")[1:]
-            if slave_id not in self.env.cluster_config.LIBRA_SLAVES:
+            #            slave_id = slave_conn.id.decode("ascii")[1:]
+            #            if slave_id not in self.env.cluster_config.LIBRA_SLAVES:
+            if slave_conn.type == "QKCRPC":
                 future_list.append(
                     slave_conn.write_rpc_request(
                         op=op, cmd=req, metadata=ClusterMetadata(ROOT_BRANCH, 0)
