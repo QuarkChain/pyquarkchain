@@ -155,7 +155,7 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
-    GRPC_LIST = None
+    GRPC_SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
 
@@ -165,7 +165,7 @@ class ClusterConfig(BaseConfig):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []  # type: List[SlaveConfig]
-        self.GRPC_LIST = []  # type: List[SlaveConfig]
+        self.GRPC_SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -443,8 +443,10 @@ class ClusterConfig(BaseConfig):
         ret["QUARKCHAIN"] = self.QUARKCHAIN.to_dict()
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
-        ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
-        ret["GRPC_LIST"] = [s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "GRPC"]
+        ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "QKCRPC"]
+        ret["GRPC_SLAVE_LIST"] = [
+            s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "GRPC"
+        ]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
             del ret["SIMPLE_NETWORK"]
@@ -459,8 +461,12 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
-        config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
-        config.GRPC_LIST = [s for s in config.SLAVE_LIST if s.TYPE == "GRPC"]
+        config.SLAVE_LIST = [
+            SlaveConfig.from_dict(s)
+            for s in config.SLAVE_LIST
+            if SlaveConfig.from_dict(s).TYPE == "QKCRPC"
+        ]
+        config.GRPC_SLAVE_LIST = [s for s in config.SLAVE_LIST if s.TYPE == "GRPC"]
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])
