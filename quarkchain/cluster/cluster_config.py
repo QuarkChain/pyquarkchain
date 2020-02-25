@@ -92,7 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
-    TYPE = "GRPC"
+    TYPE = "QKCRPC"
 
     def to_dict(self):
         ret = super().to_dict()
