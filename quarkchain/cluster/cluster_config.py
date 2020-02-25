@@ -92,7 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     CHAIN_MASK_LIST = None
-    TYPE = "QKCRPC"
+    TYPE = "GRPC"
 
     def to_dict(self):
         ret = super().to_dict()
@@ -154,6 +154,7 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
+    GRPC_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
     MONITORING = None
@@ -162,6 +163,7 @@ class ClusterConfig(BaseConfig):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []  # type: List[SlaveConfig]
+        self.GRPC_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -171,7 +173,6 @@ class ClusterConfig(BaseConfig):
         slave_config.ID = "S0"
         slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         self.SLAVE_LIST.append(slave_config)
-
         fd, self.json_filepath = tempfile.mkstemp()
         with os.fdopen(fd, "w") as tmp:
             tmp.write(self.to_json())
@@ -180,10 +181,9 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(
-                    slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST, slave.TYPE
-                )
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
             )
+
         return results
 
     def get_slave_config(self, id):
@@ -352,10 +352,6 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
-    #        parser.add_argument(
-    #            "--libra_slaves", default=ClusterConfig.LIBRA_SLAVES, nargs='+', type=int
-    #        )
-
     @classmethod
     def create_from_args(cls, args):
         """ Create ClusterConfig either from the JSON file or cmd flags.
@@ -430,8 +426,10 @@ class ClusterConfig(BaseConfig):
             with open(args.cluster_config) as f:
                 config = cls.from_json(f.read())
                 config.json_filepath = args.cluster_config
+
         else:
             config = __create_from_args_internal()
+
         config.apply_env()
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
@@ -444,6 +442,7 @@ class ClusterConfig(BaseConfig):
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
+        ret["GRPC_LIST"] = [s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "GRPC"]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
             del ret["SIMPLE_NETWORK"]
@@ -459,7 +458,7 @@ class ClusterConfig(BaseConfig):
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
-
+        config.GRPC_LIST = [s for s in config.SLAVE_LIST if s.TYPE == "GRPC"]
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])
         else:
