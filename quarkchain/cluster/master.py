@@ -1289,7 +1289,7 @@ class MasterServer:
         )
 
         for _ in self.cluster_config.GRPC_LIST:
-            future_list.append(GrpcClient().set_rootchain_confirmed_block())
+            GrpcClient().set_rootchain_confirmed_block()
 
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
