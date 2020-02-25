@@ -699,6 +699,7 @@ class SlaveConnection(Connection):
         self.id = slave_id
         self.chain_mask_list = chain_mask_list
         self.shards = self.slave_server.shards
+
         self.ping_received_future = asyncio.get_event_loop().create_future()
 
         asyncio.ensure_future(self.active_and_loop_forever())
@@ -874,6 +875,7 @@ class SlaveServer:
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.chain_mask_list = self.env.slave_config.CHAIN_MASK_LIST
+
         # shard id -> a list of slave running the shard
         self.slave_connection_manager = SlaveConnectionManager(env, self)
 
