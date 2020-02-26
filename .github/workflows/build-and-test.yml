@@ -9,7 +9,6 @@ jobs:
   test-without-integration:
     runs-on: ubuntu-latest
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-
     steps:
     - uses: actions/checkout@v2
     - name: Install Project Dependencies

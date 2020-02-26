@@ -1,24 +1,23 @@
 import logging
-import sys
+import argparse
 import grpc
 
-from quarkchain.generated import grpc_client_pb2_grpc
-from quarkchain.generated import grpc_client_pb2
+from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
+
+HOST = "localhost"
+PORT = 50051
 
 
-class GrpcClient(object):
-    def __init__(self, host, port):
-        self.channel = grpc.insecure_channel("{:}:{:}".format(host, port))
-        self.stub = grpc_client_pb2_grpc.ClusterSlaveStub(channel=self.channel)
+class GrpcClient:
+    def __init__(self, host: str = HOST, port: int = PORT):
+        channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
+        self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
-    def set_stub(self, channel):  # create stub according to desired channel.
-        self.stub = grpc_client_pb2_grpc.ClusterSlaveStub(channel=channel)
-
-    def set_root_chain_confirmed_block(self) -> bool:
-        request = grpc_client_pb2.SetRootChainConfirmedBlockRequest()
-
+    def set_rootchain_confirmed_block(self) -> bool:
+        request = grpc_pb2.SetRootChainConfirmedBlockRequest()
         try:
-            response = self.stub.SetRootChainConfirmedBlock(request)
+            response = self.client.SetRootChainConfirmedBlock(request)
+
         except Exception:
             return False
 
@@ -27,17 +26,15 @@ class GrpcClient(object):
         else:
             return False
 
-
-def main():
-    logging.basicConfig()
-    if len(sys.argv) < 3:
-        print("Usage--python grpc_client.py host port")
-    else:
-        host = sys.argv[1]
-        port = sys.argv[2]
-    client = GrpcClient(host, port)
-    client.set_root_chain_confirmed_block()
-
-
 if __name__ == "__main__":
-    main()
+    logging.basicConfig()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--host", type=str, default=HOST, help="server host")
+    parser.add_argument("--port", type=int, default=PORT, help="server port")
+
+    args = parser.parse_args()
+    HOST = args.host
+    PORT = args.port
+
+    client = GrpcClient(HOST, PORT)
+    client.set_rootchain_confirmed_block()
