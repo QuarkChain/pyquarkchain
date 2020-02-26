@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 syntax = "proto3";
 package cluster;
+
 message RootBlockHeader {
   bytes id = 1;
   uint32 height = 2;
-  bytes prev_hash = 3;
-  bytes merkle_hash = 4;
-  bytes evm_hash = 5;
-  bytes mix_hash = 6;
-  bytes sig = 7;
+  bytes prev_id = 3;
 }
 message MinorBlockHeader {
   bytes id = 1;
   uint32 full_shard_id = 2;
-  bytes hash_prev_minor_block = 3;
-  bytes hash_prev_root_block = 4;
-  bytes mix_hash = 5;
 }
-message SetRootChainConfirmedBlockRequest {
+message AddRootBlockRequest {
   RootBlockHeader root_block_header = 1;
   repeated MinorBlockHeader minor_block_headers = 2;
 }
@@ -25,7 +19,7 @@ message ClusterSlaveStatus {
   int32 code = 1;
   string message = 2;
 }
-message SetRootChainConfirmedBlockResponse {
+message AddRootBlockResponse {
   ClusterSlaveStatus status = 1;
 }
 // -----------------------------------------------------------------------------
@@ -33,6 +27,6 @@ message SetRootChainConfirmedBlockResponse {
 // -----------------------------------------------------------------------------
 service ClusterSlave {
   // Master's command for setting rootchain-confirmed block.
-  rpc SetRootChainConfirmedBlock(SetRootChainConfirmedBlockRequest)
-      returns (SetRootChainConfirmedBlockResponse) {}
+  rpc AddRootBlock(AddRootBlockRequest)
+      returns (AddRootBlockResponse) {}
 }
