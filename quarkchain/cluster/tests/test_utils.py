@@ -376,7 +376,6 @@ def create_test_clusters(
 
         if connect_grpc:
             env.cluster_config.GRPC_SLAVE_LIST = []
-            check(is_p2(num_grpc_slaves))
             for j in range(num_grpc_slaves):
                 grpc_slave_config = SlaveConfig()
                 grpc_slave_config.ID = "GS{}".format(j)

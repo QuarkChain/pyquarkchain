@@ -171,6 +171,12 @@ class ClusterConfig(BaseConfig):
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
 
+        slave_config = SlaveConfig()
+        slave_config.PORT = 38000
+        slave_config.ID = "S0"
+        slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
+        self.SLAVE_LIST.append(slave_config)
+
         fd, self.json_filepath = tempfile.mkstemp()
         with os.fdopen(fd, "w") as tmp:
             tmp.write(self.to_json())
