@@ -27,14 +27,18 @@ class GrpcClient:
 
     def add_root_block(self, root_block) -> bool:
         id, prev_id, height = (
-            root_block.header.id,
-            root_block.header.prev_id,
+            b"rblock_" + root_block.header.get_hash(),
+            b"rblock_" + root_block.header.hash_prev_block,
             root_block.header.height,
         )
         minor_block_header_list = []
         for m_header in root_block.minor_block_header_list:
+            m_full_shard_id = m_header.branch.get_full_shard_id()
+            m_block_id = m_header.get_hash() + m_full_shard_id.to_bytes(
+                4, byteorder="big"
+            )
             minor_block_header = grpc_pb2.MinorBlockHeader(
-                id=m_header.id, full_shard_id=m_header.full_shard_id
+                id=b"m_r_" + m_block_id.id, full_shard_id=m_full_shard_id,
             )
             minor_block_header_list.append(minor_block_header)
 
