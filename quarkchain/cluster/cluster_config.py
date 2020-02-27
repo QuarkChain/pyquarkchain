@@ -171,12 +171,6 @@ class ClusterConfig(BaseConfig):
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
 
-        slave_config = SlaveConfig()
-        slave_config.PORT = 38000
-        slave_config.ID = "S0"
-        slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
-        self.SLAVE_LIST.append(slave_config)
-
         fd, self.json_filepath = tempfile.mkstemp()
         with os.fdopen(fd, "w") as tmp:
             tmp.write(self.to_json())
@@ -418,7 +412,6 @@ class ClusterConfig(BaseConfig):
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
                 slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
-
                 config.SLAVE_LIST.append(slave_config)
 
             fd, config.json_filepath = tempfile.mkstemp()
@@ -443,10 +436,8 @@ class ClusterConfig(BaseConfig):
         ret["QUARKCHAIN"] = self.QUARKCHAIN.to_dict()
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
-        ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "QKCRPC"]
-        ret["GRPC_SLAVE_LIST"] = [
-            s.to_dict() for s in self.SLAVE_LIST if s.TYPE == "GRPC"
-        ]
+        ret["GRPC_SLAVE_LIST"] = [s.to_dict() for s in self.GRPC_SLAVE_LIST]
+        ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
             del ret["SIMPLE_NETWORK"]
@@ -461,12 +452,22 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
-        config.SLAVE_LIST = [
-            SlaveConfig.from_dict(s)
-            for s in config.SLAVE_LIST
-            if SlaveConfig.from_dict(s).TYPE == "QKCRPC"
-        ]
-        config.GRPC_SLAVE_LIST = [s for s in config.SLAVE_LIST if s.TYPE == "GRPC"]
+        temp_GRPC_SLAVE_LIST = []
+        for s in config.GRPC_SLAVE_LIST:
+            slave = SlaveConfig.from_dict(s)
+            temp_GRPC_SLAVE_LIST.append(slave)
+        config.GRPC_SLAVE_LIST = temp_GRPC_SLAVE_LIST
+
+        temp_QKCRPC_SLAVE_LIST = []
+        for s in config.SLAVE_LIST:
+            slave = SlaveConfig.from_dict(s)
+            if slave.TYPE == "GRPC":
+                config.GRPC_SLAVE_LIST.append(slave)
+            elif slave.TYPE == "QKCRPC":
+                temp_QKCRPC_SLAVE_LIST.append(slave)
+            else:
+                raise ValueError("unrecognize slave type: %s" % slave.TYPE)
+        config.SLAVE_LIST = temp_QKCRPC_SLAVE_LIST
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])

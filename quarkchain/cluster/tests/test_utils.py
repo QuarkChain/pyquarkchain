@@ -317,12 +317,14 @@ def create_test_clusters(
     chain_size,
     shard_size,
     num_slaves,
+    num_grpc_slaves,
     genesis_root_heights,
     genesis_minor_quarkash,
     remote_mining=False,
     small_coinbase=False,
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
+    connect_grpc=False,
     should_set_gas_price_limit=False,
     mblock_coinbase_amount=None,
 ):
@@ -371,6 +373,16 @@ def create_test_clusters(
             slave_config.PORT = get_next_port()
             slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
+
+        if connect_grpc:
+            env.cluster_config.GRPC_SLAVE_LIST = []
+            check(is_p2(num_grpc_slaves))
+            for j in range(num_grpc_slaves):
+                grpc_slave_config = SlaveConfig()
+                grpc_slave_config.ID = "GS{}".format(j)
+                grpc_slave_config.HOST = "localhost"
+                grpc_slave_config.PORT = 50051 + j
+                env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
 
         slave_server_list = []
         for j in range(num_slaves):
@@ -443,11 +455,13 @@ class ClusterContext(ContextDecorator):
         chain_size=2,
         shard_size=2,
         num_slaves=None,
+        num_grpc_slaves=None,
         genesis_root_heights=None,
         remote_mining=False,
         small_coinbase=False,
         loadtest_accounts=None,
         connect=True,
+        connect_grpc=False,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
         genesis_minor_quarkash=1000000,
@@ -457,11 +471,13 @@ class ClusterContext(ContextDecorator):
         self.chain_size = chain_size
         self.shard_size = shard_size
         self.num_slaves = num_slaves if num_slaves else chain_size
+        self.num_grpc_slaves = num_grpc_slaves if num_grpc_slaves else 1
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
+        self.connect_grpc = connect_grpc
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
         self.genesis_minor_quarkash = genesis_minor_quarkash
@@ -476,12 +492,14 @@ class ClusterContext(ContextDecorator):
             self.chain_size,
             self.shard_size,
             self.num_slaves,
+            self.num_grpc_slaves,
             self.genesis_root_heights,
             genesis_minor_quarkash=self.genesis_minor_quarkash,
             remote_mining=self.remote_mining,
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
+            connect_grpc=self.connect_grpc,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
             mblock_coinbase_amount=self.mblock_coinbase_amount,
         )

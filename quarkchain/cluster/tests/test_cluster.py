@@ -1,4 +1,5 @@
 import unittest
+import grpc
 
 from eth_keys.datatypes import PrivateKey
 
@@ -24,6 +25,9 @@ from quarkchain.core import (
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
+from quarkchain.generated import grpc_pb2
+from quarkchain.generated import grpc_pb2_grpc
+from concurrent import futures
 
 
 def _tip_gen(shard_state):
@@ -43,7 +47,27 @@ def _tip_gen(shard_state):
     return b
 
 
+class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
+    def SetRootChainConfirmedBlock(self, request, context):
+        return grpc_pb2.SetRootChainConfirmedBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+        )
+
+
+class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
+    def SetRootChainConfirmedBlock(self, request, context):
+        return grpc_pb2.SetRootChainConfirmedBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
+        )
+
+
 class TestCluster(unittest.TestCase):
+    def build_test_server(self, test_server, port: int):
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server(), server)
+        server.add_insecure_port("localhost:" + str(port))
+        return server
+
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -2430,3 +2454,61 @@ class TestCluster(unittest.TestCase):
             # fail again, because quota used up
             with self.assertRaises(ValueError):
                 add_root_block(staker_addr, sign=True)
+
+    def test_grpc_slave(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+            block_header_list = [clusters[0].get_shard_state(2 | 0).header_tip]
+            shard_state0 = clusters[0].get_shard_state(0b10)
+            for i in range(7):
+                b1 = _tip_gen(shard_state0)
+                add_result = call_async(
+                    clusters[0].master.add_raw_minor_block(
+                        b1.header.branch, b1.serialize()
+                    )
+                )
+                self.assertTrue(add_result)
+                block_header_list.append(b1.header)
+
+            block_header_list.append(clusters[0].get_shard_state(2 | 1).header_tip)
+            shard_state0 = clusters[0].get_shard_state(0b11)
+            b2 = _tip_gen(shard_state0)
+            add_result = call_async(
+                clusters[0].master.add_raw_minor_block(b2.header.branch, b2.serialize())
+            )
+            self.assertTrue(add_result)
+            block_header_list.append(b2.header)
+
+            root_block = clusters[0].master.root_state.create_block_to_mine(
+                block_header_list, acc1
+            )
+            # Test Case 1 ###################################################
+            # This case tests the correct connection, return True
+            server = self.build_test_server(NormalServer, 50051)
+            server.start()
+
+            call_async(clusters[0].master.add_root_block(root_block))
+            self.assertTrue(all(clusters[0].master.grpc_result))
+            clusters[0].master.grpc_result = []
+            server.stop(None)
+
+            # Test Case 2 ###################################################
+            # This case tests the connection with wrong port number, return False
+            server = self.build_test_server(NormalServer, 50053)
+            server.start()
+
+            call_async(clusters[0].master.add_root_block(root_block))
+            self.assertTrue(not any(clusters[0].master.grpc_result))
+            clusters[0].master.grpc_result = []
+            server.stop(None)
+
+            # Test Case 3 ###################################################
+            # This case tests the connection with wrong server, even if the host and port number are correct.
+            server = self.build_test_server(ErrorServer, 50051)
+            server.start()
+
+            call_async(clusters[0].master.add_root_block(root_block))
+            self.assertTrue(not any(clusters[0].master.grpc_result))
+            server.stop(None)
