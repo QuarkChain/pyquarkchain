@@ -13,10 +13,28 @@ class GrpcClient:
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
-    def set_rootchain_confirmed_block(self) -> bool:
-        request = grpc_pb2.SetRootChainConfirmedBlockRequest()
+    def add_root_block(self, libra_root_block) -> bool:
+        id, height, prev_id = (
+            libra_root_block.header.id,
+            libra_root_block.header.height,
+            libra_root_block.header.prev_id,
+        )
+        root_block_header = grpc_pb2.RootBlockHeader(
+            id=id, height=height, prev_id=prev_id
+        )
+        minor_block_header_list = []
+        for m_header in libra_root_block.minor_block_header_list:
+            minor_block_header = grpc_pb2.MinorBlockHeader(
+                id=m_header.id, full_shard_id=m_header.full_shard_id
+            )
+            minor_block_header_list.append(minor_block_header)
+
+        request = grpc_pb2.AddRootBlock(
+            root_block_header=root_block_header,
+            minor_block_headers=minor_block_header_list,
+        )
         try:
-            response = self.client.SetRootChainConfirmedBlock(request)
+            response = self.client.AddRootBlock(request)
         except Exception:
             return False
 
@@ -37,4 +55,4 @@ if __name__ == "__main__":
     PORT = args.port
 
     client = GrpcClient(HOST, PORT)
-    client.set_rootchain_confirmed_block()
+    client.add_root_block()
