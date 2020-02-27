@@ -13,12 +13,28 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
 
+    def SetRootChainConfirmedBlock(self, request, context):
+        return grpc_pb2.SetRootChainConfirmedBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+        )
+
+    # def FinalizeMinorBlock(self, request, context):
+    #     return grpc_pb2.FinalizeMinorBlockResponse()
+
 
 class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def AddRootBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
         )
+
+    def SetRootChainConfirmedBlock(self, request, context):
+        return grpc_pb2.AddRootBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
+        )
+
+    # def FinalizeMinorBlock(self, request, context):
+    #     return grpc_pb2.FinalizeMinorBlockResponse()
 
 
 class TestGrpcClient(unittest.TestCase):

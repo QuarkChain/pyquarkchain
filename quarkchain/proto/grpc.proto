@@ -1,32 +1,57 @@
 // SPDX-License-Identifier: Apache-2.0
+
 syntax = "proto3";
+
 package cluster;
 
-message RootBlockHeader {
-  bytes id = 1;
-  uint32 height = 2;
-  bytes prev_id = 3;
+
+message SetRootChainConfirmedBlockRequest {
 }
-message MinorBlockHeader {
-  bytes id = 1;
-  uint32 full_shard_id = 2;
+
+message FinalizeMinorBlockRequest {
 }
-message AddRootBlockRequest {
-  RootBlockHeader root_block_header = 1;
-  repeated MinorBlockHeader minor_block_headers = 2;
-}
+
 message ClusterSlaveStatus {
   int32 code = 1;
   string message = 2;
 }
+
+message MinorBlockHeader {
+    bytes id = 1;
+    uint32 full_shard_id = 2;
+}
+
+message AddRootBlockRequest {
+  bytes id = 1;
+  bytes prev_id = 2;
+  uint64 height = 3;
+  repeated MinorBlockHeader minor_block_headers = 4;
+}
+
+
+message SetRootChainConfirmedBlockResponse {
+  ClusterSlaveStatus status = 1;
+}
+
+message FinalizeMinorBlockResponse {
+}
+
 message AddRootBlockResponse {
   ClusterSlaveStatus status = 1;
 }
+
 // -----------------------------------------------------------------------------
 // ---------------- Service definition
 // -----------------------------------------------------------------------------
 service ClusterSlave {
   // Master's command for setting rootchain-confirmed block.
+  rpc SetRootChainConfirmedBlock(SetRootChainConfirmedBlockRequest)
+      returns (SetRootChainConfirmedBlockResponse) {}
+
+  // Commit a minor block from root chain.
+  rpc FinalizeMinorBlock(FinalizeMinorBlockRequest)
+      returns (FinalizeMinorBlockResponse) {}
+
   rpc AddRootBlock(AddRootBlockRequest)
       returns (AddRootBlockResponse) {}
 }
