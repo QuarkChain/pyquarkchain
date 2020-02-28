@@ -419,6 +419,7 @@ class ClusterConfig(BaseConfig):
             shard_id_list = [
                 i for i in range(args.num_shards_per_chain)
             ] * args.num_chains
+
             shard_index = 0
 
             for i in range(args.num_slaves):
@@ -429,8 +430,8 @@ class ClusterConfig(BaseConfig):
 
                 shard_list = []
                 for j in range(shard_index, shard_index + num_shards_per_slave):
-                    shard_id = shard_id_list[shard_index]
-                    chain_id = shard_index // num_shards_per_slave
+                    shard_id = shard_id_list[j]
+                    chain_id = j // num_shards_per_slave
                     shard_list.append(
                         chain_id << 16 | args.num_shards_per_chain | shard_id
                     )
