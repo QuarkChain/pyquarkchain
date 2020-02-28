@@ -41,33 +41,35 @@ from quarkchain.core import (
 class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask)),
+        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
         ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
-    def __init__(self, id, chain_mask_list, root_tip):
+    def __init__(self, id, full_shard_id_list, root_tip):
         """ Empty chain_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.chain_mask_list = chain_mask_list
+        self.full_shard_id_list = full_shard_id_list
         self.root_tip = root_tip
 
 
 class Pong(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask)),
+        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
-    def __init__(self, id, chain_mask_list):
+    def __init__(self, id, full_shard_id_list):
         """ Empty slave_id and chain_mask_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
             self.id = bytes(id, "ascii")
-        self.chain_mask_list = chain_mask_list
+        self.full_shard_id_list = full_shard_id_list
 
 
 class SlaveInfo(Serializable):
@@ -75,14 +77,16 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
-        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask))
+        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
-    def __init__(self, id, host, port, chain_mask_list):
+    def __init__(self, id, host, port, full_shard_id_list):
         self.id = id if isinstance(id, bytes) else bytes(id, "ascii")
         self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
-        self.chain_mask_list = chain_mask_list
+        self.full_shard_id_list = full_shard_id_list
+        # self.chain_mask_list = chain_mask_list
 
 
 class ConnectToSlavesRequest(Serializable):
