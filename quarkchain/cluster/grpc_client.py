@@ -15,7 +15,7 @@ class GrpcClient:
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
     def set_root_chain_confirmed_block(self) -> bool:
-        request = grpc_pb2.SetRootChainConfirmedBlock()
+        request = grpc_pb2_grpc.SetRootChainConfirmedBlock()
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
         except Exception:
