@@ -317,7 +317,6 @@ def create_test_clusters(
     chain_size,
     shard_size,
     num_slaves,
-    num_grpc_slaves,
     genesis_root_heights,
     genesis_minor_quarkash,
     remote_mining=False,
@@ -376,11 +375,11 @@ def create_test_clusters(
 
         if connect_grpc:
             env.cluster_config.GRPC_SLAVE_LIST = []
-            for j in range(num_grpc_slaves):
+            for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
                 grpc_slave_config.ID = "GS{}".format(j)
                 grpc_slave_config.HOST = "localhost"
-                grpc_slave_config.PORT = 50051 + j
+                grpc_slave_config.PORT = get_next_port()
                 env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
 
         slave_server_list = []
@@ -454,7 +453,6 @@ class ClusterContext(ContextDecorator):
         chain_size=2,
         shard_size=2,
         num_slaves=None,
-        num_grpc_slaves=None,
         genesis_root_heights=None,
         remote_mining=False,
         small_coinbase=False,
@@ -470,7 +468,6 @@ class ClusterContext(ContextDecorator):
         self.chain_size = chain_size
         self.shard_size = shard_size
         self.num_slaves = num_slaves if num_slaves else chain_size
-        self.num_grpc_slaves = num_grpc_slaves if num_grpc_slaves else 1
         self.genesis_root_heights = genesis_root_heights
         self.remote_mining = remote_mining
         self.small_coinbase = small_coinbase
@@ -491,7 +488,6 @@ class ClusterContext(ContextDecorator):
             self.chain_size,
             self.shard_size,
             self.num_slaves,
-            self.num_grpc_slaves,
             self.genesis_root_heights,
             genesis_minor_quarkash=self.genesis_minor_quarkash,
             remote_mining=self.remote_mining,

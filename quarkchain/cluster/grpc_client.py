@@ -13,15 +13,14 @@ class GrpcClient:
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
-    def set_rootchain_confirmed_block(self) -> bool:
-        request = grpc_pb2.SetRootChainConfirmedBlockRequest()
+    def set_rootchain_confirmed_block(self, block) -> bool:
+        request = grpc_pb2.SetRootChainConfirmedBlockRequest(message=block)
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
         except Exception:
             return False
 
         if response.status.code == 0:
-            Logger.info(response.status)
             return True
         else:
             return False
