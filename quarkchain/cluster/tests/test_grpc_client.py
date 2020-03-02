@@ -43,7 +43,7 @@ class TestGrpcClient(unittest.TestCase):
         # This test is used to check connection exception, if there is no server or inconsistent ports, return False
         client_host = "localhost"
         client_port = 50011
-        resp = GrpcClient(client_host, client_port).set_root_chain_confirmed_block()
+        resp = GrpcClient(client_host, client_port).set_rootchain_confirmed_block()
         self.assertFalse(resp)
 
     def test_status_code(self):
@@ -58,8 +58,9 @@ class TestGrpcClient(unittest.TestCase):
             tracking_data="{}".encode("utf-8"),
         )
 
-        resp0 = GrpcClient(client_host, server_port1).set_root_chain_confirmed_block()
-        resp1 = GrpcClient(client_host, server_port1).add_root_block(root_block=block)
+        client1 = GrpcClient(client_host, server_port1)
+        resp0 = client1.set_rootchain_confirmed_block()
+        resp1 = client1.add_root_block(root_block=block)
         self.assertTrue(resp0)
         self.assertTrue(resp1)
         server0.stop(None)
@@ -67,8 +68,9 @@ class TestGrpcClient(unittest.TestCase):
         server1 = self.build_test_server(ErrorServer, server_port2)
         server1.start()
 
-        resp2 = GrpcClient(client_host, server_port2).set_root_chain_confirmed_block()
-        resp3 = GrpcClient(client_host, server_port2).add_root_block(root_block=block)
+        client2 = GrpcClient(client_host, server_port2)
+        resp2 = client2.set_rootchain_confirmed_block()
+        resp3 = client2.add_root_block(root_block=block)
         self.assertFalse(resp2)
         self.assertFalse(resp3)
         server1.stop(None)

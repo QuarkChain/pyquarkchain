@@ -14,7 +14,7 @@ class GrpcClient:
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
         self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
 
-    def set_root_chain_confirmed_block(self) -> bool:
+    def set_rootchain_confirmed_block(self) -> bool:
         request = grpc_pb2.SetRootChainConfirmedBlockRequest()
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
@@ -32,13 +32,12 @@ class GrpcClient:
             root_block.header.hash_prev_block,
             root_block.header.height,
         )
-        minor_block_header_list = []
-        for m_header in root_block.minor_block_header_list:
-            m_full_shard_id = m_header.branch.get_full_shard_id()
-            minor_block_header = grpc_pb2.MinorBlockHeader(
-                id=m_header.get_hash(), full_shard_id=m_full_shard_id,
+        minor_block_header_list = [
+            grpc_pb2.MinorBlockHeader(
+                id=mh.get_hash(), full_shard_id=mh.get_full_shard_id()
             )
-            minor_block_header_list.append(minor_block_header)
+            for mh in root_block.minor_block_header_list
+        ]
 
         request = grpc_pb2.AddRootBlockRequest(
             id=id,
