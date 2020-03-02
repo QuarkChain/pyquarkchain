@@ -760,7 +760,6 @@ class MasterServer:
         self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
         self.grpc_slave_pool = []
-        self.grpc_result = []
 
         self.cluster_active_future = self.loop.create_future()
         self.shutdown_future = self.loop.create_future()
@@ -1294,9 +1293,10 @@ class MasterServer:
             op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
         )
 
-        for grpc_client in self.grpc_slave_pool:
-            result = grpc_client.set_rootchain_confirmed_block()
-            self.grpc_result.append(result)
+        for i, grpc_client in enumerate(self.grpc_slave_pool):
+            grpc_client.set_rootchain_confirmed_block(
+                self.cluster_config.GRPC_SLAVE_LIST[i].ID
+            )
 
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
