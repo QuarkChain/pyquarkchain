@@ -380,6 +380,7 @@ def create_test_clusters(
                 grpc_slave_config.ID = "GS{}".format(j)
                 grpc_slave_config.HOST = "localhost"
                 grpc_slave_config.PORT = get_next_port()
+                grpc_slave_config.TYPE = "GRPC"
                 env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
 
         slave_server_list = []

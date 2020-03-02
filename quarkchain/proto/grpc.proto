@@ -5,7 +5,6 @@ syntax = "proto3";
 package cluster;
 
 message SetRootChainConfirmedBlockRequest {
-  string message = 1;
 }
 
 message ClusterSlaveStatus {
