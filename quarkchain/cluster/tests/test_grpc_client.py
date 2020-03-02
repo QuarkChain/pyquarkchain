@@ -5,12 +5,13 @@ from concurrent import futures
 from quarkchain.generated import grpc_pb2
 from quarkchain.generated import grpc_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
+from quarkchain.core import RootBlockHeader, RootBlock
 
 
 class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def AddRootBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Added")
         )
 
     def SetRootChainConfirmedBlock(self, request, context):
@@ -18,23 +19,17 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
 
-    # def FinalizeMinorBlock(self, request, context):
-    #     return grpc_pb2.FinalizeMinorBlockResponse()
-
 
 class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def AddRootBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
+            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Added")
         )
 
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
         )
-
-    # def FinalizeMinorBlock(self, request, context):
-    #     return grpc_pb2.FinalizeMinorBlockResponse()
 
 
 class TestGrpcClient(unittest.TestCase):
@@ -48,7 +43,7 @@ class TestGrpcClient(unittest.TestCase):
         # This test is used to check connection exception, if there is no server or inconsistent ports, return False
         client_host = "localhost"
         client_port = 50011
-        resp = GrpcClient(client_host, client_port).add_root_block()
+        resp = GrpcClient(client_host, client_port).set_root_chain_confirmed_block()
         self.assertFalse(resp)
 
     def test_status_code(self):
@@ -58,13 +53,22 @@ class TestGrpcClient(unittest.TestCase):
         server0 = self.build_test_server(NormalServer, server_port1)
         server0.start()
 
-        resp0 = GrpcClient(client_host, server_port1).add_root_block()
+        block = RootBlock(
+            RootBlockHeader(create_time=42, difficulty=5),
+            tracking_data="{}".encode("utf-8"),
+        )
+
+        resp0 = GrpcClient(client_host, server_port1).set_root_chain_confirmed_block()
+        resp1 = GrpcClient(client_host, server_port1).add_root_block(root_block=block)
         self.assertTrue(resp0)
+        self.assertTrue(resp1)
         server0.stop(None)
 
         server1 = self.build_test_server(ErrorServer, server_port2)
         server1.start()
 
-        resp1 = GrpcClient(client_host, server_port2).add_root_block()
-        self.assertFalse(resp1)
+        resp2 = GrpcClient(client_host, server_port2).set_root_chain_confirmed_block()
+        resp3 = GrpcClient(client_host, server_port2).add_root_block(root_block=block)
+        self.assertFalse(resp2)
+        self.assertFalse(resp3)
         server1.stop(None)

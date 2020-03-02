@@ -3,6 +3,7 @@ import argparse
 import grpc
 
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
+from quarkchain.core import RootBlock, RootBlockHeader
 
 HOST = "localhost"
 PORT = 50051
@@ -25,7 +26,7 @@ class GrpcClient:
         else:
             return False
 
-    def add_root_block(self, root_block) -> bool:
+    def add_root_block(self, root_block: RootBlock) -> bool:
         id, prev_id, height = (
             root_block.header.get_hash(),
             root_block.header.hash_prev_block,
@@ -34,11 +35,8 @@ class GrpcClient:
         minor_block_header_list = []
         for m_header in root_block.minor_block_header_list:
             m_full_shard_id = m_header.branch.get_full_shard_id()
-            m_block_id = m_header.get_hash() + m_full_shard_id.to_bytes(
-                4, byteorder="big"
-            )
             minor_block_header = grpc_pb2.MinorBlockHeader(
-                id=m_block_id.id, full_shard_id=m_full_shard_id,
+                id=m_header.get_hash(), full_shard_id=m_full_shard_id,
             )
             minor_block_header_list.append(minor_block_header)
 
@@ -58,16 +56,6 @@ class GrpcClient:
         else:
             return False
 
-    def finalize_minor_block(self):
-        request = grpc_pb2.FinalizeMinorBlock()
-        try:
-            response = self.client.AddRootBlock(request)
-        except Exception:
-            return False
-
-        # more details of reponse will be added later.
-        return True
-
 
 if __name__ == "__main__":
     logging.basicConfig()
@@ -80,4 +68,9 @@ if __name__ == "__main__":
     PORT = args.port
 
     client = GrpcClient(HOST, PORT)
-    client.add_root_block()
+
+    block = RootBlock(
+        RootBlockHeader(create_time=42, difficulty=5),
+        tracking_data="{}".encode("utf-8"),
+    )
+    client.add_root_block(block)
