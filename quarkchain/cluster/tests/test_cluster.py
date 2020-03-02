@@ -55,14 +55,6 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
         )
 
 
-class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
-    def SetRootChainConfirmedBlock(self, request, context):
-        unittest.TestCase.assertTrue(self, expr=request.message)
-        return grpc_pb2.SetRootChainConfirmedBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message=request.message)
-        )
-
-
 class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, port: int):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
@@ -2528,27 +2520,3 @@ class TestCluster(unittest.TestCase):
                 port_number2
                 != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT
             )
-
-            # Test Case 3 ###################################################
-            # This case tests the connection with wrong server, even if the host and port number are correct.
-            server1, port_number1 = self.build_test_server(
-                ErrorServer,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT,
-            )
-            server1.start()
-            server2, port_number2 = self.build_test_server(
-                ErrorServer,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT,
-            )
-            server2.start()
-            self.assertEqual(
-                port_number1,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT,
-            )
-            self.assertEqual(
-                port_number2,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT,
-            )
-            call_async(clusters[0].master.add_root_block(root_block))
-            server1.stop(None)
-            server2.stop(None)
