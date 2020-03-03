@@ -3,7 +3,7 @@ import argparse
 import grpc
 
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
-from quarkchain.core import RootBlock, RootBlockHeader
+from quarkchain.core import RootBlock, RootBlockHeader, MinorBlockHeader
 
 HOST = "localhost"
 PORT = 50051
@@ -34,7 +34,7 @@ class GrpcClient:
         )
         minor_block_header_list = [
             grpc_pb2.MinorBlockHeader(
-                id=mh.get_hash(), full_shard_id=mh.get_full_shard_id()
+                id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
             )
             for mh in root_block.minor_block_header_list
         ]
@@ -67,9 +67,13 @@ if __name__ == "__main__":
     PORT = args.port
 
     client = GrpcClient(HOST, PORT)
-
+    minor_header_list = [
+        MinorBlockHeader(height=0, difficulty=5),
+        MinorBlockHeader(height=1, difficulty=5),
+    ]
     block = RootBlock(
         RootBlockHeader(create_time=42, difficulty=5),
         tracking_data="{}".encode("utf-8"),
+        minor_header_list=minor_header_list,
     )
     client.add_root_block(block)
