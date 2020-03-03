@@ -47,7 +47,7 @@ def _tip_gen(shard_state):
     return b
 
 
-class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
+class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def __init__(self):
         self.request_num = 0
 
@@ -62,8 +62,8 @@ class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, host: str, port: int):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
-        port_number = server.add_insecure_port("{}:{}".format(host, str(port)))
-        return server, port_number
+        server.add_insecure_port("{}:{}".format(host, str(port)))
+        return server
 
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
@@ -2457,85 +2457,26 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(1, acc1, connect_grpc=True) as clusters:
-            block_header_list = [clusters[0].get_shard_state(2 | 0).header_tip]
-            shard_state0 = clusters[0].get_shard_state(0b10)
-            for i in range(7):
-                b1 = _tip_gen(shard_state0)
-                add_result = call_async(
-                    clusters[0].master.add_raw_minor_block(
-                        b1.header.branch, b1.serialize()
-                    )
-                )
-                self.assertTrue(add_result)
-                block_header_list.append(b1.header)
-
-            block_header_list.append(clusters[0].get_shard_state(2 | 1).header_tip)
-            shard_state0 = clusters[0].get_shard_state(0b11)
-            b2 = _tip_gen(shard_state0)
-            add_result = call_async(
-                clusters[0].master.add_raw_minor_block(b2.header.branch, b2.serialize())
-            )
-            self.assertTrue(add_result)
-            block_header_list.append(b2.header)
-
-            root_block = clusters[0].master.root_state.create_block_to_mine(
-                block_header_list, acc1
-            )
             # Test Case 1 ###################################################
             # This case tests the correct connection
-            normalserver1 = NormalServer()
-            server1, port_number1 = self.build_test_server(
+            root_block = clusters[0].master.root_state.create_block_to_mine([])
+            normalserver1 = MockGrpcServer()
+            server1 = self.build_test_server(
                 normalserver1,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT,
             )
             server1.start()
-            server2, port_number2 = self.build_test_server(
+            server2 = self.build_test_server(
                 normalserver1,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT,
             )
             server2.start()
-            self.assertEqual(
-                port_number1,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT,
-            )
-            self.assertEqual(
-                port_number2,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT,
-            )
             call_async(clusters[0].master.add_root_block(root_block))
             self.assertEqual(
                 normalserver1.request_num,
                 len(clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST),
             )
-            server1.stop(0)
-            server2.stop(0)
-
-            # Test Case 2 ###################################################
-            # This case tests the connection with wrong port number
-            normalserver2 = NormalServer()
-            server1, port_number1 = self.build_test_server(
-                normalserver2,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT + 2,
-            )
-            server1.start()
-            self.assertTrue(
-                port_number1
-                != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT
-            )
-            server2, port_number2 = self.build_test_server(
-                normalserver2,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT + 2,
-            )
-            server2.start()
-            self.assertTrue(
-                port_number2
-                != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT
-            )
-            call_async(clusters[0].master.add_root_block(root_block))
-            self.assertEqual(normalserver2.request_num, 0)
             server1.stop(0)
             server2.stop(0)
