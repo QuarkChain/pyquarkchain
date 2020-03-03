@@ -2518,7 +2518,7 @@ class TestCluster(unittest.TestCase):
             server1, port_number1 = self.build_test_server(
                 normalserver2,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT + 10,
+                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT + 2,
             )
             server1.start()
             self.assertTrue(
@@ -2528,7 +2528,7 @@ class TestCluster(unittest.TestCase):
             server2, port_number2 = self.build_test_server(
                 normalserver2,
                 clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT + 10,
+                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT + 2,
             )
             server2.start()
             self.assertTrue(
