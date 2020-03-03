@@ -2514,23 +2514,23 @@ class TestCluster(unittest.TestCase):
 
             # Test Case 2 ###################################################
             # This case tests the connection with wrong port number
-            server1, port_number1 = self.build_test_server(
-                NormalServer,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT + 1,
-            )
-            self.assertTrue(
-                port_number1
-                != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT
-            )
-            server2, port_number2 = self.build_test_server(
-                NormalServer,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT + 1,
-            )
-            self.assertTrue(
-                port_number2
-                != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT
-            )
-            server1.stop(0)
-            server2.stop(0)
+            # server1, port_number1 = self.build_test_server(
+            #     NormalServer,
+            #     clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
+            #     clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT + 1,
+            # )
+            # self.assertTrue(
+            #     port_number1
+            #     != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT
+            # )
+            # server2, port_number2 = self.build_test_server(
+            #     NormalServer,
+            #     clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
+            #     clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT + 1,
+            # )
+            # self.assertTrue(
+            #     port_number2
+            #     != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT
+            # )
+            # server1.stop(0)
+            # server2.stop(0)
