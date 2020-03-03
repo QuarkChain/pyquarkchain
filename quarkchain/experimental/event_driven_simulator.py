@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import asyncio
 import enum
 import heap
 
@@ -61,3 +62,39 @@ class Scheduler:
             assert task.ts >= self.ts
             self.ts = task.ts
             task.run()
+
+
+class Connection:
+    def __init__(self, source, destination, timeoutMs, networkDelayGenerator):
+        self.source = source
+        self.destination = destination
+        self.timeoutMs = timeoutMs
+        self.networkDelayGenerator = networkDelayGenerator
+
+    async def callWithDelayOrTimeout(self, callFunc):
+        """ Simulate a RPC with network delay (round trip).
+        Raise TimeoutError if the round-trip delay is greater than timeout
+        """
+        latencyMs0 = self.networkDelayGenerator()
+
+        if latencyMs0 >= self.timeoutMs:
+            # We don't cancel the RPC, while the response will be discarded
+            asyncio.get_event_loop().call_later(latencyMs0 / 1000, callFunc)
+
+            await asyncio.sleep(self.timeoutMs / 1000)
+            raise TimeoutError()
+
+        latencyMs1 = self.networkDelayGenerator()
+        await asyncio.sleep(latencyMs0 / 1000)
+        if self.destination.isCrashing:
+            await asyncio.sleep((self.timeoutMs - latencyMs0) / 1000)
+            raise TimeoutError()
+
+        resp = callFunc()
+
+        if latencyMs0 + latencyMs1 >= self.timeoutMs:
+            await asyncio.sleep((self.timeoutMs - latencyMs0) / 1000)
+            raise TimeoutError()
+
+        await asyncio.sleep(latencyMs1 / 1000)
+        return resp

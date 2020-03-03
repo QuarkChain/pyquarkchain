@@ -1,7 +1,8 @@
 import asyncio
-import event_driven_simulator
 import random
 import time
+
+from event_driven_simulator import Connection
 
 
 RPC_TIMEOUT_MS = 100
@@ -386,8 +387,13 @@ class Node:
             # Determine the commitIndex that majority have
             replicatedIndexList = [v for v in self.matchIndexMap.values()]
             replicatedIndexList.sort(reverse=True)
-            newCommitIndex = replicatedIndexList[self.__majority() - 1]
-            assert newCommitIndex >= self.commitIndex
+            # Majority contains the node itself
+            newCommitIndex = replicatedIndexList[self.__majority() - 1 - 1]
+            assert (
+                newCommitIndex >= self.commitIndex
+            ), "newCommitIndex {} < commitIndex {}".format(
+                newCommitIndex, self.commitIndex
+            )
             if newCommitIndex > self.commitIndex:
                 self.commitIndex = newCommitIndex
                 # Apply the log to state machine
@@ -421,7 +427,7 @@ class Node:
         self.log.append(LogEntry(self.currentTerm))
 
 
-class Connection:
+class RaftConnection(Connection):
     def __init__(
         self,
         source,
@@ -429,10 +435,7 @@ class Connection:
         timeoutMs=RPC_TIMEOUT_MS,
         networkDelayGenerator=lambda: 0,
     ):
-        self.source = source
-        self.destination = destination
-        self.timeoutMs = timeoutMs
-        self.networkDelayGenerator = networkDelayGenerator
+        super().__init__(source, destination, timeoutMs, networkDelayGenerator)
 
     async def callWithDelayOrTimeout(self, callFunc):
         """ Simulate a RPC with network delay (round trip).
@@ -517,7 +520,7 @@ for i in range(N):
             continue
         source = nodeList[i]
         dest = nodeList[j]
-        source.addConnection(Connection(source, dest))
+        source.addConnection(RaftConnection(source, dest))
 
 for i in range(N):
     asyncio.get_event_loop().create_task(nodeList[i].start())

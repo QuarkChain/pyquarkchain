@@ -5,9 +5,22 @@ from concurrent import futures
 from quarkchain.generated import grpc_pb2
 from quarkchain.generated import grpc_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
+from quarkchain.core import RootBlockHeader, RootBlock, MinorBlockHeader
 
 
 class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
+    def AddRootBlock(self, request, context):
+        grpc_request = grpc_pb2.AddRootBlockRequest(
+            id=request.id,
+            prev_id=request.prev_id,
+            height=request.height,
+            minor_block_headers=request.minor_block_headers,
+        )
+        if request.minor_block_headers == grpc_request.minor_block_headers:
+            return grpc_pb2.AddRootBlockResponse(
+                status=grpc_pb2.ClusterSlaveStatus(code=0, message="Added")
+            )
+
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
@@ -15,8 +28,20 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
 
 
 class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
+    def AddRootBlock(self, request, context):
+        grpc_request = grpc_pb2.AddRootBlockRequest(
+            id=request.id,
+            prev_id=request.prev_id,
+            height=request.height,
+            minor_block_headers=request.minor_block_headers,
+        )
+        if request.minor_block_headers != grpc_request.minor_block_headers:
+            return grpc_pb2.AddRootBlockResponse(
+                status=grpc_pb2.ClusterSlaveStatus(code=1, message="Added")
+            )
+
     def SetRootChainConfirmedBlock(self, request, context):
-        return grpc_pb2.SetRootChainConfirmedBlockResponse(
+        return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
         )
 
@@ -42,13 +67,29 @@ class TestGrpcClient(unittest.TestCase):
         server0 = self.build_test_server(NormalServer, server_port1)
         server0.start()
 
-        resp0 = GrpcClient(client_host, server_port1).set_rootchain_confirmed_block()
+        minor_header_list = [
+            MinorBlockHeader(height=0, difficulty=5),
+            MinorBlockHeader(height=1, difficulty=5),
+        ]
+        block = RootBlock(
+            RootBlockHeader(create_time=42, difficulty=5),
+            tracking_data="{}".encode("utf-8"),
+            minor_block_header_list=minor_header_list,
+        )
+
+        client1 = GrpcClient(client_host, server_port1)
+        resp0 = client1.set_rootchain_confirmed_block()
         self.assertTrue(resp0)
+        resp1 = client1.add_root_block(root_block=block)
+        self.assertTrue(resp1)
         server0.stop(None)
 
         server1 = self.build_test_server(ErrorServer, server_port2)
         server1.start()
 
-        resp1 = GrpcClient(client_host, server_port2).set_rootchain_confirmed_block()
-        self.assertFalse(resp1)
+        client2 = GrpcClient(client_host, server_port2)
+        resp2 = client2.set_rootchain_confirmed_block()
+        self.assertFalse(resp2)
+        resp3 = client2.add_root_block(root_block=block)
+        self.assertFalse(resp3)
         server1.stop(None)
