@@ -10,14 +10,14 @@ from quarkchain.cluster.grpc_client import GrpcClient
 class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
 
 class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
+            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Test")
         )
 
 
