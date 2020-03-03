@@ -2460,23 +2460,19 @@ class TestCluster(unittest.TestCase):
             # Test Case 1 ###################################################
             # This case tests the correct connection
             root_block = clusters[0].master.root_state.create_block_to_mine([])
-            normalserver1 = MockGrpcServer()
-            server1 = self.build_test_server(
-                normalserver1,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[0].PORT,
+            grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
+            server = MockGrpcServer()
+            grpc_server1 = self.build_test_server(
+                server, grpc_slaves[0].HOST, grpc_slaves[0].PORT,
             )
-            server1.start()
-            server2 = self.build_test_server(
-                normalserver1,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].HOST,
-                clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT,
+            grpc_server1.start()
+            grpc_server2 = self.build_test_server(
+                server, grpc_slaves[1].HOST, grpc_slaves[1].PORT,
             )
-            server2.start()
+            grpc_server2.start()
             call_async(clusters[0].master.add_root_block(root_block))
             self.assertEqual(
-                normalserver1.request_num,
-                len(clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST),
+                server.request_num, len(grpc_slaves),
             )
-            server1.stop(0)
-            server2.stop(0)
+            grpc_server1.stop(0)
+            grpc_server2.stop(0)
