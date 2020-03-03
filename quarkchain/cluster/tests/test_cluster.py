@@ -2532,3 +2532,5 @@ class TestCluster(unittest.TestCase):
                 port_number2
                 != clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST[1].PORT
             )
+            server1.stop(0)
+            server2.stop(0)
