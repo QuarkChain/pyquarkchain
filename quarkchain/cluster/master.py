@@ -759,7 +759,9 @@ class MasterServer:
         # branch value -> a list of slave running the shard
         self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
-        self.grpc_slave_pool = []
+        self.grpc_slave_pool = [
+            GrpcClient(s.HOST, s.PORT) for s in self.cluster_config.GRPC_SLAVE_LIST
+        ]
 
         self.cluster_active_future = self.loop.create_future()
         self.shutdown_future = self.loop.create_future()
@@ -892,10 +894,6 @@ class MasterServer:
             for full_shard_id in full_shard_ids:
                 if slave.has_shard(full_shard_id):
                     self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
-
-        for grpc_slave in self.cluster_config.GRPC_SLAVE_LIST:
-            grpc_client = GrpcClient(grpc_slave.HOST, grpc_slave.PORT)
-            self.grpc_slave_pool.append(grpc_client)
 
     async def __setup_slave_to_slave_connections(self):
         """ Make slaves connect to other slaves.

@@ -378,7 +378,6 @@ def create_test_clusters(
             for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
                 grpc_slave_config.ID = "GS{}".format(j)
-                grpc_slave_config.HOST = "localhost"
                 grpc_slave_config.PORT = get_next_port()
                 grpc_slave_config.TYPE = "GRPC"
                 env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
