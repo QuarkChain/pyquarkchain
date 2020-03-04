@@ -51,7 +51,9 @@ class GrpcClient:
             return False
 
         if response.status.code == 0:
-            if response.status.message == str(minor_block_header_list):
+            if str(root_block.minor_block_header_list) == str(
+                request.minor_block_headers
+            ):
                 return True
             else:
                 return False

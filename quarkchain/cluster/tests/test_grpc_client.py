@@ -25,30 +25,12 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
 class ErrorServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def AddRootBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message=str(""))
+            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
         )
 
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=1, message="Confirmed")
-        )
-
-
-class TamperServer(grpc_pb2_grpc.ClusterSlaveServicer):
-    """
-    This server will succeed in connection but will not receive the same rootblock as sent from the client.
-    """
-
-    def AddRootBlock(self, request, context):
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(
-                code=0, message=str(request.minor_block_headers + 1)
-            )
-        )
-
-    def SetRootChainConfirmedBlock(self, request, context):
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
 
 
@@ -70,7 +52,6 @@ class TestGrpcClient(unittest.TestCase):
         client_host = "localhost"
         server_port1 = 50041
         server_port2 = 50061
-        server_port3 = 50071
 
         minor_header_list = [
             MinorBlockHeader(height=0, difficulty=5),
@@ -89,7 +70,7 @@ class TestGrpcClient(unittest.TestCase):
         resp0 = client0.set_rootchain_confirmed_block()
         self.assertTrue(resp0)
         resp1 = client0.add_root_block(root_block=block)
-        self.assertTrue(resp1)
+        self.assertFalse(resp1)
         server0.stop(None)
 
         server1 = self.build_test_server(ErrorServer, server_port2)
@@ -101,13 +82,3 @@ class TestGrpcClient(unittest.TestCase):
         resp3 = client1.add_root_block(root_block=block)
         self.assertFalse(resp3)
         server1.stop(None)
-
-        server2 = self.build_test_server(TamperServer, server_port3)
-        server2.start()
-
-        client2 = GrpcClient(client_host, server_port3)
-        resp4 = client2.set_rootchain_confirmed_block()
-        self.assertTrue(resp4)
-        resp5 = client2.add_root_block(root_block=block)
-        self.assertFalse(resp5)
-        server2.stop(None)
