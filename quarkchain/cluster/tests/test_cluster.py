@@ -1,4 +1,5 @@
 import unittest
+import grpc
 
 from eth_keys.datatypes import PrivateKey
 
@@ -24,6 +25,9 @@ from quarkchain.core import (
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
+from quarkchain.generated import grpc_pb2
+from quarkchain.generated import grpc_pb2_grpc
+from concurrent import futures
 
 
 def _tip_gen(shard_state):
@@ -43,7 +47,24 @@ def _tip_gen(shard_state):
     return b
 
 
+class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
+    def __init__(self):
+        self.request_num = 0
+
+    def SetRootChainConfirmedBlock(self, request, context):
+        self.request_num += 1
+        return grpc_pb2.SetRootChainConfirmedBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        )
+
+
 class TestCluster(unittest.TestCase):
+    def build_test_server(self, test_server, host: str, port: int):
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
+        server.add_insecure_port("{}:{}".format(host, str(port)))
+        return server
+
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -2430,3 +2451,28 @@ class TestCluster(unittest.TestCase):
             # fail again, because quota used up
             with self.assertRaises(ValueError):
                 add_root_block(staker_addr, sign=True)
+
+    def test_grpc_slave(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+            # Test Case 1 ###################################################
+            # This case tests the correct connection
+            root_block = clusters[0].master.root_state.create_block_to_mine([])
+            grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
+            server = MockGrpcServer()
+            grpc_server1 = self.build_test_server(
+                server, grpc_slaves[0].HOST, grpc_slaves[0].PORT,
+            )
+            grpc_server1.start()
+            grpc_server2 = self.build_test_server(
+                server, grpc_slaves[1].HOST, grpc_slaves[1].PORT,
+            )
+            grpc_server2.start()
+            call_async(clusters[0].master.add_root_block(root_block))
+            self.assertEqual(
+                server.request_num, len(grpc_slaves),
+            )
+            grpc_server1.stop(0)
+            grpc_server2.stop(0)
