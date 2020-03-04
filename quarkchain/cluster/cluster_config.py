@@ -91,8 +91,11 @@ class SlaveConfig(BaseConfig):
     PORT = 38392
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
-    # CHAIN_MASK_LIST = None
+
     FULL_SHARD_ID_LIST = []
+
+    TYPE = "QKCRPC"
+
 
     # def to_dict(self):
     #     ret = super().to_dict()
@@ -155,6 +158,7 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
+    GRPC_SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
 
@@ -164,6 +168,7 @@ class ClusterConfig(BaseConfig):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []  # type: List[SlaveConfig]
+        self.GRPC_SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -426,6 +431,7 @@ class ClusterConfig(BaseConfig):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
+
                 # slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
                 shard_list = []
@@ -438,6 +444,7 @@ class ClusterConfig(BaseConfig):
 
                 shard_index += num_shards_per_slave
                 slave_config.FULL_SHARD_ID_LIST = shard_list
+
                 config.SLAVE_LIST.append(slave_config)
 
             fd, config.json_filepath = tempfile.mkstemp()
@@ -462,6 +469,7 @@ class ClusterConfig(BaseConfig):
         ret["QUARKCHAIN"] = self.QUARKCHAIN.to_dict()
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
+        ret["GRPC_SLAVE_LIST"] = [s.to_dict() for s in self.GRPC_SLAVE_LIST]
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
@@ -478,6 +486,9 @@ class ClusterConfig(BaseConfig):
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
+        config.GRPC_SLAVE_LIST = [
+            SlaveConfig.from_dict(s) for s in config.GRPC_SLAVE_LIST
+        ]
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])

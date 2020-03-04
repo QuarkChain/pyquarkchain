@@ -10,6 +10,7 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -768,6 +769,9 @@ class MasterServer:
         # branch value -> a list of slave running the shard
         self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
+        self.grpc_slave_pool = [
+            GrpcClient(s.HOST, s.PORT) for s in self.cluster_config.GRPC_SLAVE_LIST
+        ]
 
         self.cluster_active_future = self.loop.create_future()
         self.shutdown_future = self.loop.create_future()
@@ -1299,6 +1303,10 @@ class MasterServer:
         future_list = self.broadcast_rpc(
             op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
         )
+
+        for grpc_client in self.grpc_slave_pool:
+            grpc_client.set_rootchain_confirmed_block()
+
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
         self.root_state.clear_committing_hash()
@@ -1842,7 +1850,6 @@ def main():
     loop = asyncio.get_event_loop()
     root_state = RootState(env)
     master = MasterServer(env, root_state)
-
     if env.arguments.check_db:
         master.start()
         master.wait_until_cluster_active()
