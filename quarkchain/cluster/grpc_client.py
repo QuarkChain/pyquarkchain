@@ -51,7 +51,10 @@ class GrpcClient:
             return False
 
         if response.status.code == 0:
-            return True
+            if response.status.message == str(minor_block_header_list):
+                return True
+            else:
+                return False
         else:
             return False
 
@@ -74,6 +77,6 @@ if __name__ == "__main__":
     block = RootBlock(
         RootBlockHeader(create_time=42, difficulty=5),
         tracking_data="{}".encode("utf-8"),
-        minor_header_list=minor_header_list,
+        minor_block_header_list=minor_header_list,
     )
     client.add_root_block(block)
