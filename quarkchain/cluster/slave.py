@@ -480,9 +480,10 @@ class MasterConnection(ClusterConnection):
                     )
 
                 # Step 2: Check if the blocks are valid
-                add_block_success, coinbase_amount_list = await self.slave_server.add_block_list_for_sync(
-                    block_chain
-                )
+                (
+                    add_block_success,
+                    coinbase_amount_list,
+                ) = await self.slave_server.add_block_list_for_sync(block_chain)
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
@@ -683,7 +684,7 @@ MASTER_OP_RPC_MAP = {
 
 class SlaveConnection(Connection):
     def __init__(
-        self, env, reader, writer, slave_server, slave_id, chain_mask_list, name=None
+        self, env, reader, writer, slave_server, slave_id, chain_mask_list, name=None,
     ):
         super().__init__(
             env,
