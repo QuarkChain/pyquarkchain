@@ -323,6 +323,7 @@ def create_test_clusters(
     small_coinbase=False,
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
+    connect_grpc=False,
     should_set_gas_price_limit=False,
     mblock_coinbase_amount=None,
 ):
@@ -371,6 +372,15 @@ def create_test_clusters(
             slave_config.PORT = get_next_port()
             slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
+
+        if connect_grpc:
+            env.cluster_config.GRPC_SLAVE_LIST = []
+            for j in range(num_slaves):
+                grpc_slave_config = SlaveConfig()
+                grpc_slave_config.ID = "GS{}".format(j)
+                grpc_slave_config.PORT = get_next_port()
+                grpc_slave_config.TYPE = "GRPC"
+                env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
 
         slave_server_list = []
         for j in range(num_slaves):
@@ -448,6 +458,7 @@ class ClusterContext(ContextDecorator):
         small_coinbase=False,
         loadtest_accounts=None,
         connect=True,
+        connect_grpc=False,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
         genesis_minor_quarkash=1000000,
@@ -462,6 +473,7 @@ class ClusterContext(ContextDecorator):
         self.small_coinbase = small_coinbase
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
+        self.connect_grpc = connect_grpc
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
         self.genesis_minor_quarkash = genesis_minor_quarkash
@@ -482,6 +494,7 @@ class ClusterContext(ContextDecorator):
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
+            connect_grpc=self.connect_grpc,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
             mblock_coinbase_amount=self.mblock_coinbase_amount,
         )
