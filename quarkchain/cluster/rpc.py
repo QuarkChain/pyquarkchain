@@ -76,7 +76,6 @@ class SlaveInfo(Serializable):
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
         ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
-        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
     def __init__(self, id, host, port, full_shard_id_list):
