@@ -543,6 +543,20 @@ class ChainMask(Serializable):
         return masks_have_overlap(self.value, chain_mask.value)
 
 
+class FullShardId(Serializable):
+    FIELDS = [("chain_id", uint16), ("shard_id", uint16), ("shard_size", uint16)]
+
+    def __init__(self, chain_id, shard_id, shard_size):
+        check(shard_id != 0)
+        self.shar_id = shard_id
+        self.chain_id = chain_id
+        self.shard_size = shard_size
+
+    def get_full_shard_id(self):
+        full_shard_id = self.chain_id << 16 | self.shard_size | self.shard_id
+        return full_shard_id
+
+
 class TransactionType:
     SERIALIZED_EVM = 0
 

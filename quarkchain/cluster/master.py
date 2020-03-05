@@ -75,6 +75,7 @@ from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
     ChainMask,
+    FullShardId,
     Log,
     Address,
     RootBlock,
@@ -440,8 +441,7 @@ class SlaveConnection(ClusterConnection):
         master_server,
         slave_id,
         full_shard_id_list,
-        name=None
-        # self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
+        name=None,
     ):
         super().__init__(
             env,
@@ -456,8 +456,6 @@ class SlaveConnection(ClusterConnection):
         self.id = slave_id
         self.full_shard_id_list = full_shard_id_list
         check(len(full_shard_id_list) > 0)
-        # self.chain_mask_list = chain_mask_list
-        # check(len(chain_mask_list) > 0)
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
@@ -477,17 +475,17 @@ class SlaveConnection(ClusterConnection):
     def validate_connection(self, connection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
 
-    # def has_shard(self, full_shard_id: int):
-    #     for chain_mask in self.chain_mask_list:
-    #         if chain_mask.contain_full_shard_id(full_shard_id):
-    #             return True
-    #     return False
-    #
-    # def has_overlap(self, chain_mask: ChainMask):
-    #     for local_chain_mask in self.chain_mask_list:
-    #         if local_chain_mask.has_overlap(chain_mask):
-    #             return True
-    #     return False
+    def has_shard(self, full_shard_id: int):
+        for chain_mask in self.chain_mask_list:
+            if chain_mask.contain_full_shard_id(full_shard_id):
+                return True
+        return False
+
+    def has_overlap(self, chain_mask: ChainMask):
+        for local_chain_mask in self.chain_mask_list:
+            if local_chain_mask.has_overlap(chain_mask):
+                return True
+        return False
 
     async def send_ping(self, initialize_shard_state=False):
         root_block = (
@@ -871,7 +869,6 @@ class MasterServer:
                 self,
                 slave_info.id,
                 slave_info.full_shard_id_list,
-                # slave_info.chain_mask_list,
                 name="{}_slave_{}".format(self.name, slave_info.id),
             )
             await slave.wait_until_active()
@@ -884,16 +881,10 @@ class MasterServer:
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
             id, full_shard_id_list = result
+            # id, full_shard_id_list = result
             if id != slave.id:
                 Logger.error(
                     "Slave id does not match. expect {} got {}".format(slave.id, id)
-                )
-                self.shutdown()
-            if full_shard_id_list != slave.full_shard_id_list:
-                Logger.error(
-                    "Slave {} shard mask list does not match. expect {} got {}".format(
-                        slave.id, slave.full_shard_id_list, full_shard_id_list
-                    )
                 )
                 self.shutdown()
 
@@ -901,8 +892,6 @@ class MasterServer:
             for full_shard_id in full_shard_ids:
                 if full_shard_id in slave.full_shard_id_list:
                     self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
-                # if slave.has_shard(full_shard_id):
-                #     self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
 
     async def __setup_slave_to_slave_connections(self):
         """ Make slaves connect to other slaves.

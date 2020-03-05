@@ -20,7 +20,7 @@ from quarkchain.core import (
     Serializable,
     Address,
     Branch,
-    ChainMask,
+    FullShardId,
     TokenBalanceMap,
     PrependedSizeMapSerializer,
 )
@@ -41,8 +41,7 @@ from quarkchain.core import (
 class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask)),
-        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
         ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
@@ -59,8 +58,7 @@ class Ping(Serializable):
 class Pong(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask)),
-        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
     ]
 
     def __init__(self, id, full_shard_id_list):
@@ -77,8 +75,8 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, ChainMask))
-        # ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
+        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
+        ("chain_mask_list", PrependedSizeListSerializer(4, ChainMask)),
     ]
 
     def __init__(self, id, host, port, full_shard_id_list):
@@ -86,7 +84,6 @@ class SlaveInfo(Serializable):
         self.host = host if isinstance(host, bytes) else bytes(host, "ascii")
         self.port = port
         self.full_shard_id_list = full_shard_id_list
-        # self.chain_mask_list = chain_mask_list
 
 
 class ConnectToSlavesRequest(Serializable):

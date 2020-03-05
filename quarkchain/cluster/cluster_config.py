@@ -9,7 +9,7 @@ from typing import List
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
-from quarkchain.core import Address, ChainMask
+from quarkchain.core import Address, ChainMask, FullShardId
 from quarkchain.utils import Logger, check, is_p2
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
@@ -91,19 +91,23 @@ class SlaveConfig(BaseConfig):
     PORT = 38392
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
-    # CHAIN_MASK_LIST = None
+    CHAIN_MASK_LIST = None
     FULL_SHARD_ID_LIST = []
 
-    # def to_dict(self):
-    #     ret = super().to_dict()
-    #     ret["CHAIN_MASK_LIST"] = [m.value for m in self.CHAIN_MASK_LIST]
-    #     return ret
-    #
-    # @classmethod
-    # def from_dict(cls, d):
-    #     config = super().from_dict(d)
-    #     config.CHAIN_MASK_LIST = [ChainMask(v) for v in config.CHAIN_MASK_LIST]
-    #     return config
+    def to_dict(self):
+        ret = super().to_dict()
+        ret["FULL_SHARD_ID_LIST"] = [
+            (f.chain_id.f.shard_id, f.shard_size) for f in self.FULL_SHARD_ID_LIST
+        ]
+        return ret
+
+    @classmethod
+    def from_dict(cls, d):
+        config = super().from_dict(d)
+        config.FULL_SHARD_ID_LIST.append(
+            f.get_full_shard_id() for f in config.FULL_SHARD_ID_LIST
+        )
+        return config
 
 
 class SimpleNetworkConfig(BaseConfig):
@@ -172,7 +176,6 @@ class ClusterConfig(BaseConfig):
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
         slave_config.ID = "S0"
-        # slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
         slave_config.FULL_SHARD_ID_LIST = []
         self.SLAVE_LIST.append(slave_config)
 
@@ -414,7 +417,7 @@ class ClusterConfig(BaseConfig):
             config.SLAVE_LIST = []
 
             num_shards_per_slave = (
-                args.num_chains * args.num_shards_per_chain / args.num_slaves
+                args.num_chains * args.num_shards_per_chain // args.num_slaves
             )
             shard_id_list = [
                 i for i in range(args.num_shards_per_chain)
@@ -426,18 +429,18 @@ class ClusterConfig(BaseConfig):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
-                # slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
 
-                shard_list = []
+                slave_config.FULL_SHARD_ID_LIST = []
                 for j in range(shard_index, shard_index + num_shards_per_slave):
                     shard_id = shard_id_list[j]
                     chain_id = j // num_shards_per_slave
-                    shard_list.append(
-                        chain_id << 16 | args.num_shards_per_chain | shard_id
+                    slave_config.FULL_SHARD_ID_LIST.append(
+                        FullShardId(
+                            chain_id, shard_id, args.num_shards_per_chain
+                        ).get_full_shard_id()
                     )
 
                 shard_index += num_shards_per_slave
-                slave_config.FULL_SHARD_ID_LIST = shard_list
                 config.SLAVE_LIST.append(slave_config)
 
             fd, config.json_filepath = tempfile.mkstemp()
