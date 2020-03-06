@@ -1,7 +1,6 @@
 import logging
 import argparse
 import grpc
-
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from quarkchain.core import RootBlock, RootBlockHeader, MinorBlockHeader
 
@@ -54,26 +53,3 @@ class GrpcClient:
             return True
         else:
             return False
-
-
-if __name__ == "__main__":
-    logging.basicConfig()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--host", type=str, default=HOST, help="server host")
-    parser.add_argument("--port", type=int, default=PORT, help="server port")
-
-    args = parser.parse_args()
-    HOST = args.host
-    PORT = args.port
-
-    client = GrpcClient(HOST, PORT)
-    minor_header_list = [
-        MinorBlockHeader(height=0, difficulty=5),
-        MinorBlockHeader(height=1, difficulty=5),
-    ]
-    block = RootBlock(
-        RootBlockHeader(create_time=42, difficulty=5),
-        tracking_data="{}".encode("utf-8"),
-        minor_header_list=minor_header_list,
-    )
-    client.add_root_block(block)
