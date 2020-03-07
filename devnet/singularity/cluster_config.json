@@ -381,7 +381,7 @@
       "PORT": 38000,
       "ID": "S0",
       "FULL_SHARD_ID_LIST": [
-        1, 262145
+        "0x1", "0x40001"
       ]
     },
     {
@@ -390,7 +390,7 @@
       "WEBSOCKET_JSON_RPC_PORT": 38591,
       "ID": "S1",
       "FULL_SHARD_ID_LIST": [
-        65537, 327681
+        "0x10001", "0x50001"
       ]
     },
     {
@@ -399,7 +399,7 @@
       "WEBSOCKET_JSON_RPC_PORT": 38592,
       "ID": "S2",
       "FULL_SHARD_ID_LIST": [
-        131073, 393217
+        "0x20001", "0x60001"
       ]
     },
     {
@@ -408,7 +408,7 @@
       "WEBSOCKET_JSON_RPC_PORT": 38593,
       "ID": "S3",
       "FULL_SHARD_ID_LIST": [
-        196609, 458753
+        "0x30001", "0x70001"
       ]
     }
   ],

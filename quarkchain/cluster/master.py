@@ -872,12 +872,17 @@ class MasterServer:
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
             id, full_shard_id_list = result
-            # id, full_shard_id_list = result
             if id != slave.id:
                 Logger.error(
                     "Slave id does not match. expect {} got {}".format(slave.id, id)
                 )
                 self.shutdown()
+            if full_shard_id_list != slave.full_shard_id_list:
+                Logger.error(
+                    "Slave full shard id list does not match. expect {} got {}".format(
+                        slave.full_shard_id_list, full_shard_id_list
+                    )
+                )
 
             self.slave_pool.add(slave)
             for full_shard_id in full_shard_ids:

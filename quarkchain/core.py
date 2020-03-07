@@ -517,46 +517,6 @@ class Branch(Serializable):
         return "{}/{}".format(self.get_chain_id(), self.get_shard_id())
 
 
-class ChainMask(Serializable):
-    """ Represent a mask of chains, basically matches all the bits from the right until the leftmost bit is hit.
-    E.g.,
-    mask = 1, matches *
-    mask = 0b10, matches *0
-    mask = 0b101, matches *01
-    """
-
-    FIELDS = [("value", uint16)]
-
-    def __init__(self, value):
-        check(value != 0)
-        self.value = value
-
-    def contain_full_shard_id(self, full_shard_id: int):
-        chain_id = full_shard_id >> 16
-        bit_mask = (1 << (int_left_most_bit(self.value) - 1)) - 1
-        return (bit_mask & chain_id) == (self.value & bit_mask)
-
-    def contain_branch(self, branch: Branch):
-        return self.contain_full_shard_id(branch.get_full_shard_id())
-
-    def has_overlap(self, chain_mask):
-        return masks_have_overlap(self.value, chain_mask.value)
-
-
-class FullShardId(Serializable):
-    FIELDS = [("chain_id", uint16), ("shard_id", uint16), ("shard_size", uint16)]
-
-    def __init__(self, chain_id, shard_id, shard_size):
-        check(shard_id != 0)
-        self.shar_id = shard_id
-        self.chain_id = chain_id
-        self.shard_size = shard_size
-
-    def get_full_shard_id(self):
-        full_shard_id = self.chain_id << 16 | self.shard_size | self.shard_id
-        return full_shard_id
-
-
 class TransactionType:
     SERIALIZED_EVM = 0
 

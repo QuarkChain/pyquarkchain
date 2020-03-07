@@ -9,7 +9,7 @@ from typing import List
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
-from quarkchain.core import Address, ChainMask
+from quarkchain.core import Address
 from quarkchain.utils import Logger, check, is_p2
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
@@ -444,6 +444,12 @@ class ClusterConfig(BaseConfig):
         else:
             config = __create_from_args_internal()
         config.apply_env()
+
+        for slave in config.SLAVE_LIST:
+            for i in range(len(slave.FULL_SHARD_ID_LIST)):
+                int_id = int(slave.FULL_SHARD_ID_LIST[i], 16)
+                slave.FULL_SHARD_ID_LIST[i] = int_id
+
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
         update_genesis_alloc(config)

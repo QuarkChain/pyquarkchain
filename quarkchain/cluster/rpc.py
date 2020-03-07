@@ -20,7 +20,6 @@ from quarkchain.core import (
     Serializable,
     Address,
     Branch,
-    FullShardId,
     TokenBalanceMap,
     PrependedSizeMapSerializer,
 )
@@ -41,7 +40,7 @@ from quarkchain.core import (
 class Ping(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
+        ("full_shard_id_list", [uint32]),
         ("root_tip", Optional(RootBlock)),  # Initialize ShardState if not None
     ]
 
@@ -58,7 +57,7 @@ class Ping(Serializable):
 class Pong(Serializable):
     FIELDS = [
         ("id", PrependedSizeBytesSerializer(4)),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
+        ("full_shard_id_list", [uint32]),
     ]
 
     def __init__(self, id, full_shard_id_list):
@@ -75,7 +74,7 @@ class SlaveInfo(Serializable):
         ("id", PrependedSizeBytesSerializer(4)),
         ("host", PrependedSizeBytesSerializer(4)),
         ("port", uint16),
-        ("full_shard_id_list", PrependedSizeListSerializer(4, FullShardId)),
+        ("full_shard_id_list", [uint32]),
     ]
 
     def __init__(self, id, host, port, full_shard_id_list):
