@@ -65,6 +65,11 @@ class TestCluster(unittest.TestCase):
         server.add_insecure_port("{}:{}".format(host, str(port)))
         return server
 
+    def build_test_client(self, host: str, port: int):
+        channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
+        client = grpc_pb2_grpc.ClusterMasterStub(channel)
+        return client
+
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -2476,3 +2481,37 @@ class TestCluster(unittest.TestCase):
             )
             grpc_server1.stop(0)
             grpc_server2.stop(0)
+
+    def test_grpc_server(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+            # Test Case 1 ###################################################
+            # grpc server successfully received request, and send response back to client
+            grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
+            count = 0
+            request = grpc_pb2.AddMinorBlockHeaderRequest()
+            grpc_client = [
+                self.build_test_client(grpc_slaves[i].HOST, grpc_slaves[i].PORT)
+                for i in range(len(grpc_slaves))
+            ]
+            for client in grpc_client:
+                if client.AddMinorBlockHeader(request):
+                    count += 1
+
+            self.assertEqual(count, len(grpc_slaves))
+
+            # Test Case 2 ###################################################
+            # grpc server save minor block info into Rootdb
+            shard_state = clusters[0].get_shard_state(0b10)
+            b1 = _tip_gen(shard_state)
+
+            request = grpc_pb2.AddMinorBlockHeaderRequest(id=b1.header.get_hash())
+            grpc_client[0].AddMinorBlockHeader(request)
+
+            self.assertTrue(
+                clusters[0].master.root_state.db.contain_minor_block_by_hash(
+                    b1.header.get_hash()
+                )
+            )

@@ -374,6 +374,7 @@ def create_test_clusters(
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         if connect_grpc:
+            env.cluster_config.ENABLE_GRPC_SERVER = True
             env.cluster_config.GRPC_SLAVE_LIST = []
             for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
