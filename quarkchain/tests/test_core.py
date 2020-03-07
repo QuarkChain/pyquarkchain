@@ -12,7 +12,6 @@ from quarkchain.core import (
     RootBlockHeader,
     MinorBlockHeader,
     MinorBlockMeta,
-    ChainMask,
     Optional,
     Serializable,
     uint32,
@@ -106,26 +105,6 @@ class TestIdentity(unittest.TestCase):
         id2 = id1.create_from_key(id1.get_key())
         self.assertEqual(id1.get_recipient(), id2.get_recipient())
         self.assertEqual(id1.get_key(), id2.get_key())
-
-
-class TestChainMask(unittest.TestCase):
-    def test_chain_mask(self):
-        sm0 = ChainMask(0b1)
-        self.assertTrue(sm0.contain_full_shard_id(0))
-        self.assertTrue(sm0.contain_full_shard_id(1 << 16))
-        self.assertTrue(sm0.contain_full_shard_id(0b1111111))
-
-        sm1 = ChainMask(0b101)
-        self.assertFalse(sm1.contain_full_shard_id(0))
-        self.assertTrue(sm1.contain_full_shard_id(0b1 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b10 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b11 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b100 << 16))
-        self.assertTrue(sm1.contain_full_shard_id(0b101 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b110 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b111 << 16))
-        self.assertFalse(sm1.contain_full_shard_id(0b1000 << 16))
-        self.assertTrue(sm1.contain_full_shard_id(0b1001 << 16))
 
 
 class Uint32Optional(Serializable):

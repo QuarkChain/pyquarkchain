@@ -75,7 +75,6 @@ from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
-    ChainMask,
     Log,
     Address,
     RootBlock,
