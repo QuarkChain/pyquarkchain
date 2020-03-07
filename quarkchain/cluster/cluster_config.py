@@ -144,6 +144,7 @@ class ClusterConfig(BaseConfig):
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
+    ENABLE_GRPC_SERVER = False
 
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
@@ -304,6 +305,9 @@ class ClusterConfig(BaseConfig):
             default=False,
             dest="enable_transaction_history",
         )
+        parser.add_argument(
+            "--enable_grpc_server", action="store_true", default=False,
+        )
 
         parser.add_argument(
             "--simple_network_bootstrap_host",
@@ -380,6 +384,7 @@ class ClusterConfig(BaseConfig):
             config.CLEAN = args.clean
             config.START_SIMULATED_MINING = args.start_simulated_mining
             config.ENABLE_TRANSACTION_HISTORY = args.enable_transaction_history
+            config.ENABLE_GRPC_SERVER = args.enable_grpc_server
 
             config.QUARKCHAIN.update(
                 args.num_chains,
