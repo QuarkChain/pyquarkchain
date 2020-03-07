@@ -76,7 +76,6 @@ from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
     ChainMask,
-    FullShardId,
     Log,
     Address,
     RootBlock,
@@ -475,18 +474,6 @@ class SlaveConnection(ClusterConnection):
 
     def validate_connection(self, connection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
-
-    def has_shard(self, full_shard_id: int):
-        for chain_mask in self.chain_mask_list:
-            if chain_mask.contain_full_shard_id(full_shard_id):
-                return True
-        return False
-
-    def has_overlap(self, chain_mask: ChainMask):
-        for local_chain_mask in self.chain_mask_list:
-            if local_chain_mask.has_overlap(chain_mask):
-                return True
-        return False
 
     async def send_ping(self, initialize_shard_state=False):
         root_block = (

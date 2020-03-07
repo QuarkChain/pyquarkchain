@@ -707,12 +707,6 @@ class SlaveConnection(Connection):
     async def wait_until_ping_received(self):
         await self.ping_received_future
 
-    def has_shard(self, full_shard_id: int):
-        for chain_mask in self.chain_mask_list:
-            if chain_mask.contain_full_shard_id(full_shard_id):
-                return True
-        return False
-
     def close_with_error(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
         return super().close_with_error(error)
@@ -720,10 +714,7 @@ class SlaveConnection(Connection):
     async def send_ping(self):
         # TODO: Send real root tip and allow shards to confirm each other
         req = Ping(
-            self.slave_server.id,
-            # self.full_shard_id_list,
-            self.slave_server.chain_mask_list,
-            RootBlock(RootBlockHeader()),
+            self.slave_server.id, self.full_shard_id_list, RootBlock(RootBlockHeader()),
         )
         op, resp, rpc_id = await self.write_rpc_request(ClusterOp.PING, req)
         return (resp.id, resp.full_shard_id_list)
@@ -742,7 +733,7 @@ class SlaveConnection(Connection):
 
         self.ping_received_future.set_result(None)
 
-        return Pong(self.slave_server.id, self.slave_server.chain_mask_list)
+        return Pong(self.slave_server.id, self.slave_server.full_shard_id_list)
 
     # Blockchain RPC handlers
 
@@ -806,7 +797,7 @@ class SlaveConnectionManager:
         self.slave_ids.add(slave.id)
         self.slave_connections.add(slave)
         for full_shard_id in self.env.quark_chain_config.get_full_shard_ids():
-            if slave.has_shard(full_shard_id):
+            if full_shard_id in slave.full_shard_id_list:
                 self.full_shard_id_to_slaves[full_shard_id].append(slave)
 
     async def handle_new_connection(self, reader, writer):
@@ -851,18 +842,17 @@ class SlaveConnectionManager:
             self.slave_server,
             slave_info.id,
             slave_info.full_shard_id_list,
-            slave_info.chain_mask_list,
             conn_name,
         )
         await slave.wait_until_active()
         # Tell the remote slave who I am
-        id, chain_mask_list = await slave.send_ping()
+        id, full_shard_id_list = await slave.send_ping()
         # Verify that remote slave indeed has the id and shard mask list advertised by the master
         if id != slave.id:
             return "id does not match. expect {} got {}".format(slave.id, id)
-        if chain_mask_list != slave.chain_mask_list:
+        if full_shard_id_list != slave.full_shard_id_list:
             return "shard list does not match. expect {} got {}".format(
-                slave.chain_mask_list, chain_mask_list
+                slave.full_shard_id_list, full_shard_id_list
             )
 
         self._add_slave_connection(slave)
@@ -876,7 +866,6 @@ class SlaveServer:
         self.loop = asyncio.get_event_loop()
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
-        self.chain_mask_list = self.env.slave_config.CHAIN_MASK_LIST
         self.full_shard_id_list = self.env.slave_config.FULL_SHARD_ID_LIST
 
         # shard id -> a list of slave running the shard
@@ -900,13 +889,9 @@ class SlaveServer:
 
     def __cover_shard_id(self, full_shard_id):
         """ Does the shard belong to this slave? """
-        for chain_mask in self.chain_mask_list:
-            if chain_mask.contain_full_shard_id(full_shard_id):
-                return True
+        if full_shard_id in self.full_shard_id_list:
+            return True
         return False
-        # if full_shard_id in self.full_shard_id_list:
-        #     return True
-        # return False
 
     def add_cluster_peer_id(self, cluster_peer_id):
         self.cluster_peer_ids.add(cluster_peer_id)
