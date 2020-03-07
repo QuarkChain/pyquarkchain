@@ -2479,8 +2479,8 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 server.request_num, len(grpc_slaves),
             )
-            grpc_server1.stop(0)
-            grpc_server2.stop(0)
+            grpc_server1.stop(None)
+            grpc_server2.stop(None)
 
     def test_grpc_server(self):
         id1 = Identity.create_random_identity()
@@ -2515,3 +2515,5 @@ class TestCluster(unittest.TestCase):
                     b1.header.get_hash()
                 )
             )
+
+            clusters[0].master.grpc_server.stop(None)

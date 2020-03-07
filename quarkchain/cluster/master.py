@@ -798,7 +798,7 @@ class MasterServer:
         self.__init_root_miner()
 
     def init_grpc_server(self):
-        grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
         servicer = ClusterMaster(self)
         grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
         for s in self.cluster_config.GRPC_SLAVE_LIST:
