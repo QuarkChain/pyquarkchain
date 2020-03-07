@@ -17,7 +17,6 @@ from quarkchain.config import ConsensusType
 from quarkchain.core import (
     Address,
     Branch,
-    ChainMask,
     SerializedEvmTransaction,
     TypedTransaction,
 )
@@ -366,11 +365,23 @@ def create_test_clusters(
 
         env.cluster_config.SLAVE_LIST = []
         check(is_p2(num_slaves))
+
+        shard_id_list = [i for i in range(shard_size)] * chain_size
+        full_shard_id_dict = {}
+        for i in range(num_slaves):
+            full_shard_id_dict[i] = []
+        for i in range(len(shard_id_list)):
+            index = i % num_slaves
+            shard_id = shard_id_list[index]
+            chain_id = i // shard_size
+            fu_id = chain_id << 16 | shard_size | shard_id
+            full_shard_id_dict[index].append(fu_id)
+
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
-            slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
+            slave_config.FULL_SHARD_ID_LIST = full_shard_id_dict[j]
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         if connect_grpc:
