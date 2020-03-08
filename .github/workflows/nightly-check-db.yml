@@ -34,7 +34,8 @@ jobs:
     - name: Check DB
       run: |
         height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
-        end=$(( height - 100000 ))
+        day_of_week=`date +%u`
+        end=$(( day_of_week == 7 ? 0 : height - 100000 ))  # run whole dataset on Sunday
         echo "Checking: $height -> $end"
         QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh \
           --check_db=True \
