@@ -64,9 +64,11 @@ service ClusterSlave {
 
   rpc AddRootBlock(AddRootBlockRequest)
       returns (AddRootBlockResponse) {}
+
 }
 
 service ClusterMaster {
   rpc AddMinorBlockHeader(AddMinorBlockHeaderRequest)
       returns (AddMinorBlockHeaderResponse) {}
+
 }
