@@ -48,13 +48,30 @@ def _tip_gen(shard_state):
 
 
 class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
-    def __init__(self):
+    def __init__(self, expected_minor_block_headers):
         self.request_num = 0
+        self.expected_minor_block_headers = (
+            expected_minor_block_headers
+        )  # type: List[MinorBlockHeader]
 
     def SetRootChainConfirmedBlock(self, request, context):
         self.request_num += 1
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        )
+
+    def AddRootBlock(self, request, context):
+        assert len(self.expected_minor_block_headers) == len(
+            request.minor_block_headers
+        )
+        for expected_mh, mh in zip(
+            self.expected_minor_block_headers, request.minor_block_headers
+        ):
+            assert expected_mh.get_hash() == mh.id
+            assert expected_mh.branch.get_full_shard_id() == mh.full_shard_id
+
+        return grpc_pb2.AddRootBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
 
 
@@ -2461,7 +2478,7 @@ class TestCluster(unittest.TestCase):
             # This case tests the correct connection
             root_block = clusters[0].master.root_state.create_block_to_mine([])
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
-            server = MockGrpcServer()
+            server = MockGrpcServer(root_block.minor_block_header_list)
             grpc_server1 = self.build_test_server(
                 server, grpc_slaves[0].HOST, grpc_slaves[0].PORT,
             )
