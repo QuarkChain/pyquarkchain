@@ -738,7 +738,7 @@ class SlaveConnection(Connection):
     # Blockchain RPC handlers
 
     async def handle_add_xshard_tx_list_request(self, req):
-        if req.branch not in self.shards:
+        if req.branch.value not in self.full_shard_id_list:
             Logger.error(
                 "cannot find shard id {} locally".format(req.branch.get_full_shard_id())
             )
