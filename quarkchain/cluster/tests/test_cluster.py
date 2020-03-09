@@ -2465,6 +2465,8 @@ class TestCluster(unittest.TestCase):
             # Test Case 1 ###################################################
             # This case tests the correct connection
             root_block = clusters[0].master.root_state.create_block_to_mine([])
+            clusters[0].master.grpc_server.stop(None)
+
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             server = MockGrpcServer()
             grpc_server1 = self.build_test_server(
