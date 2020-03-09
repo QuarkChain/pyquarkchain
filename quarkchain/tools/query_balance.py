@@ -32,6 +32,12 @@ def parse_args():
         type=int,
         help="query balance at specific minor block height",
     )
+    parser.add_argument(
+        "--print_addr",
+        default=False,
+        action="store_true",
+        help="show address instead of key",
+    )
     ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
@@ -48,7 +54,7 @@ def parse_args():
     return env, args
 
 
-def print_shard_balance(env, rb, full_shard_id):
+def print_shard_balance(env, rb, full_shard_id, args):
     shard = Shard(env, full_shard_id, None)
     state = shard.state
     state.init_from_root_block(rb)
@@ -61,22 +67,30 @@ def print_shard_balance(env, rb, full_shard_id):
 
     key = trie.next(bytes(32))
     total = 0
+    accounts = 0
     while key is not None:
         rlpdata = trie.get(key)
         o = rlp.decode(rlpdata, _Account)
         tb = TokenBalances(o.token_balances, state.raw_db)
         balance = tb.balance(token_id_encode("QKC"))
-        print("Key: %s, Balance: %s" % (key.hex(), balance))
+        if args.print_addr:
+            addr = state.raw_db.get(key)
+            print("Addr: %s, Balance: %s" % (addr.hex(), balance))
+        else:
+            print("Key: %s, Balance: %s" % (key.hex(), balance))
+
         total += balance
+        accounts += 1
 
         key = trie.next(key)
 
-    print("Total balance in shard: %d" % total)
-    return total, state.header_tip.height
+    print("Total balance in shard: %d, accounts: %d" % (total, accounts))
+    return total, state.header_tip.height, accounts
 
 
 def print_all_shard_balances(env, rb, args):
     total = 0
+    accounts = 0
 
     if args.recipient:
         for full_shard_id in env.quark_chain_config.shards:
@@ -89,16 +103,23 @@ def print_all_shard_balances(env, rb, args):
     else:
         balance_list = []
         for full_shard_id in env.quark_chain_config.shards:
-            balance_list.append(print_shard_balance(env, rb, full_shard_id))
+            balance_list.append(print_shard_balance(env, rb, full_shard_id, args))
             total += balance_list[-1][0]
+            accounts += balance_list[-1][2]
         print("Summary:")
         print("Root block height: %d" % rb.header.height)
         for idx, full_shard_id in enumerate(env.quark_chain_config.shards):
             print(
-                "Shard id: %d, height: %d, balance: %d"
-                % (full_shard_id, balance_list[idx][1], balance_list[idx][0])
+                "Shard id: %d, height: %d, balance: %d, accounts: %d"
+                % (
+                    full_shard_id,
+                    balance_list[idx][1],
+                    balance_list[idx][0],
+                    balance_list[idx][2],
+                )
             )
-        print("\nTotal balance in network: %d" % total)
+        print("\nTotal accounts in network: %d" % accounts)
+        print("Total balance in network: %d" % total)
 
 
 def print_recipient_balance(env, rb, args):
@@ -119,12 +140,12 @@ def print_recipient_balance(env, rb, args):
 
 def print_balance_by_block_height(env, rb, minor_block_height):
     for full_shard_id in env.quark_chain_config.shards:
-        balance, height = print_shard_balance(env, rb, full_shard_id)
+        balance, height, accounts = print_shard_balance(env, rb, full_shard_id, args)
         if height == minor_block_height:
             print("-" * 30)
             print(
-                "Total balance in shard %d at height %d: %d"
-                % (full_shard_id, minor_block_height, balance)
+                "Total balance in shard %d at height %d: %d, accounts: %d"
+                % (full_shard_id, minor_block_height, balance, accounts)
             )
             return balance
     print("-" * 30)
@@ -145,7 +166,7 @@ def main():
     elif args.recipient:
         print_recipient_balance(env, rb, args)
     elif args.full_shard_id:
-        print_shard_balance(env, rb, args.full_shard_id)
+        print_shard_balance(env, rb, args.full_shard_id, args)
     elif args.minor_block_height:
         print_balance_by_block_height(env, rb, args.minor_block_height)
 
