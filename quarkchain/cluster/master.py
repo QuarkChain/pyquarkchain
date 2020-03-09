@@ -102,11 +102,11 @@ from quarkchain.constants import (
 
 
 class ClusterMaster(grpc_pb2_grpc.ClusterMasterServicer):
-    def __init__(self, master_server):
-        self.master_server = master_server
+    def __init__(self, root_state):
+        self.root_state = root_state
 
     def AddMinorBlockHeader(self, request, context):
-        self.master_server.root_state.add_validated_minor_block_hash(request.id, {})
+        self.root_state.add_validated_minor_block_hash(request.id, {})
         return grpc_pb2.AddMinorBlockHeaderResponse()
 
 
@@ -799,10 +799,14 @@ class MasterServer:
 
     def init_grpc_server(self):
         grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
-        servicer = ClusterMaster(self)
+        servicer = ClusterMaster(self.root_state)
         grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
-        for s in self.cluster_config.GRPC_SLAVE_LIST:
-            grpc_server.add_insecure_port("{}:{}".format(s.HOST, str(s.PORT)))
+        grpc_server.add_insecure_port(
+            "{}:{}".format(
+                self.env.cluster_config.GRPC_SERVER.GRPC_SERVER_HOST,
+                str(self.env.cluster_config.GRPC_SERVER.GRPC_SERVER_PORT),
+            )
+        )
         grpc_server.start()
         return grpc_server
 

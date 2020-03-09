@@ -60,7 +60,7 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
 
 class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, host: str, port: int):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
         grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
         server.add_insecure_port("{}:{}".format(host, str(port)))
         return server
@@ -2492,11 +2492,14 @@ class TestCluster(unittest.TestCase):
             # Test Case 1 ###################################################
             # grpc server successfully received request, and send response back to client
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
+            grpc_server = clusters[0].master.env.cluster_config.GRPC_SERVER
             count = 0
             request = grpc_pb2.AddMinorBlockHeaderRequest()
             grpc_client = [
-                self.build_test_client(grpc_slaves[i].HOST, grpc_slaves[i].PORT)
-                for i in range(len(grpc_slaves))
+                self.build_test_client(
+                    grpc_server.GRPC_SERVER_HOST, grpc_server.GRPC_SERVER_PORT
+                )
+                for _ in range(len(grpc_slaves))
             ]
             for client in grpc_client:
                 if client.AddMinorBlockHeader(request):
@@ -2517,5 +2520,4 @@ class TestCluster(unittest.TestCase):
                     b1.header.get_hash()
                 )
             )
-
             clusters[0].master.grpc_server.stop(None)
