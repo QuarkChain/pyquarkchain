@@ -447,7 +447,7 @@ class ClusterConfig(BaseConfig):
 
         for slave in config.SLAVE_LIST:
             for i in range(len(slave.FULL_SHARD_ID_LIST)):
-                int_id = int(slave.FULL_SHARD_ID_LIST[i], 16)
+                int_id = int(str(slave.FULL_SHARD_ID_LIST[i]), 16)
                 slave.FULL_SHARD_ID_LIST[i] = int_id
 
         Logger.set_logging_level(config.LOG_LEVEL)
