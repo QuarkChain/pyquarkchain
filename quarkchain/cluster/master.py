@@ -771,9 +771,6 @@ class MasterServer:
         # branch value -> a list of slave running the shard
         self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
-        self.grpc_server = (
-            self.init_grpc_server() if self.cluster_config.ENABLE_GRPC_SERVER else None
-        )
         self.grpc_slave_pool = [
             GrpcClient(s.HOST, s.PORT) for s in self.cluster_config.GRPC_SLAVE_LIST
         ]
@@ -1866,6 +1863,9 @@ def main():
     root_state = RootState(env)
     master = MasterServer(env, root_state)
 
+    if env.cluster_config.ENABLE_GRPC_SERVER:
+        master.init_grpc_server()
+
     if env.arguments.check_db:
         master.start()
         master.wait_until_cluster_active()
@@ -1898,7 +1898,7 @@ def main():
     callbacks = [network.shutdown]
     if env.cluster_config.ENABLE_GRPC_SERVER:
         grpc_server = master.init_grpc_server()
-        callbacks.append(grpc_server.stop(0))
+        callbacks.append(grpc_server.stop(None))
 
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
         public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)

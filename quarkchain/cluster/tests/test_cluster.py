@@ -2465,7 +2465,6 @@ class TestCluster(unittest.TestCase):
             # Test Case 1 ###################################################
             # This case tests the correct connection
             root_block = clusters[0].master.root_state.create_block_to_mine([])
-            clusters[0].master.grpc_server.stop(None)
 
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             server = MockGrpcServer()
@@ -2493,6 +2492,7 @@ class TestCluster(unittest.TestCase):
             # grpc server successfully received request, and send response back to client
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             grpc_server = clusters[0].master.env.cluster_config.GRPC_SERVER
+            grpc_master_server = clusters[0].master.init_grpc_server()
             count = 0
             request = grpc_pb2.AddMinorBlockHeaderRequest()
             grpc_client = [
@@ -2520,4 +2520,4 @@ class TestCluster(unittest.TestCase):
                     b1.header.get_hash()
                 )
             )
-            clusters[0].master.grpc_server.stop(None)
+            grpc_master_server.stop(None)

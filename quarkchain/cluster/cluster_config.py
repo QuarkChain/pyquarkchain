@@ -432,8 +432,8 @@ class ClusterConfig(BaseConfig):
             if args.enable_grpc_server:
                 config.ENABLE_GRPC_SERVER = args.enable_grpc_server
                 config.GRPC_SERVER = GrpcServerConfig()
-                config.GRPC_SERVER.GRPC_SERVER_HOST = args.grpc_server.host
-                config.GRPC_SERVER.GRPC_SERVER_PORT = args.grpc_server.port
+                config.GRPC_SERVER.GRPC_SERVER_HOST = args.grpc_server_host
+                config.GRPC_SERVER.GRPC_SERVER_PORT = args.grpc_server_port
 
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
