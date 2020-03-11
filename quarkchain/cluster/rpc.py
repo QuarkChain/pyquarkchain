@@ -45,7 +45,7 @@ class Ping(Serializable):
     ]
 
     def __init__(self, id, full_shard_id_list, root_tip):
-        """ Empty chain_mask_list means root """
+        """ Empty full_shard_id_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:
@@ -61,7 +61,7 @@ class Pong(Serializable):
     ]
 
     def __init__(self, id, full_shard_id_list):
-        """ Empty slave_id and chain_mask_list means root """
+        """ Empty slave_id and full_shard_id_list means root """
         if isinstance(id, bytes):
             self.id = id
         else:

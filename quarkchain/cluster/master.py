@@ -878,8 +878,8 @@ class MasterServer:
                 self.shutdown()
             if full_shard_id_list != slave.full_shard_id_list:
                 Logger.error(
-                    "Slave full shard id list does not match. expect {} got {}".format(
-                        slave.full_shard_id_list, full_shard_id_list
+                    "Slave {} shard id list does not match. expect {} got {}".format(
+                        slave.id, slave.full_shard_id_list, full_shard_id_list
                     )
                 )
 

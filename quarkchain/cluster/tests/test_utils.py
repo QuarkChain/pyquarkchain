@@ -14,12 +14,7 @@ from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.cluster.slave import SlaveServer
 from quarkchain.config import ConsensusType
-from quarkchain.core import (
-    Address,
-    Branch,
-    SerializedEvmTransaction,
-    TypedTransaction,
-)
+from quarkchain.core import Address, Branch, SerializedEvmTransaction, TypedTransaction
 from quarkchain.db import InMemoryDb
 from quarkchain.diff import EthDifficultyCalculator
 from quarkchain.env import DEFAULT_ENV
@@ -366,23 +361,21 @@ def create_test_clusters(
         env.cluster_config.SLAVE_LIST = []
         check(is_p2(num_slaves))
 
-        shard_id_list = [i for i in range(shard_size)] * chain_size
-        full_shard_id_dict = {}
-        for i in range(num_slaves):
-            full_shard_id_dict[i] = []
-        for i in range(len(shard_id_list)):
-            index = i % num_slaves
-            shard_id = shard_id_list[index]
-            chain_id = i // shard_size
-            fu_id = chain_id << 16 | shard_size | shard_id
-            full_shard_id_dict[index].append(fu_id)
-
         for j in range(num_slaves):
             slave_config = SlaveConfig()
             slave_config.ID = "S{}".format(j)
             slave_config.PORT = get_next_port()
-            slave_config.FULL_SHARD_ID_LIST = full_shard_id_dict[j]
+            slave_config.FULL_SHARD_ID_LIST = []
             env.cluster_config.SLAVE_LIST.append(slave_config)
+
+        full_shard_ids = [
+            (i << 16) + shard_size + j
+            for i in range(chain_size)
+            for j in range(shard_size)
+        ]
+        for i, full_shard_id in enumerate(full_shard_ids):
+            slave = env.cluster_config.SLAVE_LIST[i % num_slaves]
+            slave.FULL_SHARD_ID_LIST.append(full_shard_id)
 
         if connect_grpc:
             env.cluster_config.GRPC_SLAVE_LIST = []

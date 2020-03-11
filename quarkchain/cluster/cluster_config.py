@@ -96,11 +96,17 @@ class SlaveConfig(BaseConfig):
 
     def to_dict(self):
         ret = super().to_dict()
+        # format to hex
+        ret["FULL_SHARD_ID_LIST"] = [
+            "0x{:08x}".format(i) for i in self.FULL_SHARD_ID_LIST
+        ]
         return ret
 
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
+        # parse from hex to int
+        config.FULL_SHARD_ID_LIST = [int(h, 16) for h in config.FULL_SHARD_ID_LIST]
         return config
 
 
@@ -111,7 +117,7 @@ class SimpleNetworkConfig(BaseConfig):
 
 class P2PConfig(BaseConfig):
     # *new p2p module*
-    BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
+    BOOT_NODES = ""  # comma separated enodes format: enode://PUBKEY@IP:PORT
     PRIV_KEY = ""
     MAX_PEERS = 25
     UPNP = False
@@ -411,26 +417,23 @@ class ClusterConfig(BaseConfig):
                 )
 
             config.SLAVE_LIST = []
-
-            shard_id_list = [
-                i for i in range(args.num_shards_per_chain)
-            ] * args.num_chains
-            full_shard_id_dict = {}
-            for i in range(args.num_slaves):
-                full_shard_id_dict[i] = []
-            for i in range(len(shard_id_list)):
-                index = i % args.num_slaves
-                shard_id = shard_id_list[index]
-                chain_id = i // args.num_shards_per_chain
-                fu_id = chain_id << 16 | args.num_shards_per_chain | shard_id
-                full_shard_id_dict[index].append(fu_id)
-
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
-                slave_config.FULL_SHARD_ID_LIST = full_shard_id_dict[i]
+                slave_config.FULL_SHARD_ID_LIST = []
                 config.SLAVE_LIST.append(slave_config)
+
+            # assign full shard IDs to each slave, using hex strings to write into JSON
+            # then read back as integers
+            full_shard_ids = [
+                (i << 16) + args.num_shards_per_chain + j
+                for i in range(args.num_chains)
+                for j in range(args.num_shards_per_chain)
+            ]
+            for i, full_shard_id in enumerate(full_shard_ids):
+                slave = config.SLAVE_LIST[i % args.num_slaves]
+                slave.FULL_SHARD_ID_LIST.append(full_shard_id)
 
             fd, config.json_filepath = tempfile.mkstemp()
             with os.fdopen(fd, "w") as tmp:
@@ -444,11 +447,6 @@ class ClusterConfig(BaseConfig):
         else:
             config = __create_from_args_internal()
         config.apply_env()
-
-        for slave in config.SLAVE_LIST:
-            for i in range(len(slave.FULL_SHARD_ID_LIST)):
-                int_id = int(str(slave.FULL_SHARD_ID_LIST[i]), 16)
-                slave.FULL_SHARD_ID_LIST[i] = int_id
 
         Logger.set_logging_level(config.LOG_LEVEL)
         Logger.set_kafka_logger(config.kafka_logger)
