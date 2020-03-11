@@ -425,7 +425,6 @@ class ClusterConfig(BaseConfig):
                 config.SLAVE_LIST.append(slave_config)
 
             # assign full shard IDs to each slave, using hex strings to write into JSON
-            # then read back as integers
             full_shard_ids = [
                 (i << 16) + args.num_shards_per_chain + j
                 for i in range(args.num_chains)
