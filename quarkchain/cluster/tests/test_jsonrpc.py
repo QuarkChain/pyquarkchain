@@ -569,7 +569,7 @@ class TestJSONRPCHttp(unittest.TestCase):
     def test_getTransactionReceipt_on_xshard_transfer_before_enabling_EVM(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+        acc2 = Address.create_from_identity(id1, full_shard_key=0x00010000)
 
         with ClusterContext(
             1, acc1, small_coinbase=True
@@ -586,7 +586,7 @@ class TestJSONRPCHttp(unittest.TestCase):
 
             s1, s2 = (
                 clusters[0].get_shard_state(2 | 0),
-                clusters[0].get_shard_state(2 | 1),
+                clusters[0].get_shard_state(0x00010002),
             )
             tx_gen = lambda s, f, t: create_transfer_transaction(
                 shard_state=s,
@@ -612,9 +612,9 @@ class TestJSONRPCHttp(unittest.TestCase):
             tx2 = tx_gen(s2, acc2, acc2)
             self.assertTrue(slaves[0].add_tx(tx2))
             b3 = call_async(
-                master.get_next_block_to_mine(address=acc2, branch_value=0b11)
+                master.get_next_block_to_mine(address=acc2, branch_value=0x00010002)
             )
-            self.assertTrue(call_async(clusters[0].get_shard(2 | 1).add_block(b3)))
+            self.assertTrue(call_async(clusters[0].get_shard(0x00010002).add_block(b3)))
 
             # in-shard tx 21000 + receiving x-shard tx 9000
             self.assertEqual(s2.evm_state.gas_used, 30000)
