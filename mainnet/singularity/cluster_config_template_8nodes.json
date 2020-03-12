@@ -461,64 +461,64 @@
       "HOST": "127.0.0.1",
       "PORT": 38000,
       "ID": "S0",
-      "CHAIN_MASK_LIST": [
-        8
+      "FULL_SHARD_ID_LIST": [
+        "0x1"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38001,
       "ID": "S1",
-      "CHAIN_MASK_LIST": [
-        9
+      "FULL_SHARD_ID_LIST": [
+        "0x00010001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38002,
       "ID": "S2",
-      "CHAIN_MASK_LIST": [
-        10
+      "FULL_SHARD_ID_LIST": [
+        "0x00020001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38003,
       "ID": "S3",
-      "CHAIN_MASK_LIST": [
-        11
+      "FULL_SHARD_ID_LIST": [
+        "0x00030001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38004,
       "ID": "S4",
-      "CHAIN_MASK_LIST": [
-        12
+      "FULL_SHARD_ID_LIST": [
+        "0x00040001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38005,
       "ID": "S5",
-      "CHAIN_MASK_LIST": [
-        13
+      "FULL_SHARD_ID_LIST": [
+        "0x00050001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38006,
       "ID": "S6",
-      "CHAIN_MASK_LIST": [
-        14
+      "FULL_SHARD_ID_LIST": [
+        "0x00060001"
       ]
     },
     {
       "HOST": "127.0.0.1",
       "PORT": 38007,
       "ID": "S7",
-      "CHAIN_MASK_LIST": [
-        15
+      "FULL_SHARD_ID_LIST": [
+        "0x00070001"
       ]
     }
   ],

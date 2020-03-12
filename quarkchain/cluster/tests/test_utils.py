@@ -376,15 +376,6 @@ def create_test_clusters(
             slave = env.cluster_config.SLAVE_LIST[i % num_slaves]
             slave.FULL_SHARD_ID_LIST.append(full_shard_id)
 
-        if connect_grpc:
-            env.cluster_config.GRPC_SLAVE_LIST = []
-            for j in range(num_slaves):
-                grpc_slave_config = SlaveConfig()
-                grpc_slave_config.ID = "GS{}".format(j)
-                grpc_slave_config.PORT = get_next_port()
-                grpc_slave_config.TYPE = "GRPC"
-                env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
-
         slave_server_list = []
         for j in range(num_slaves):
             slave_env = env.copy()
