@@ -50,28 +50,16 @@ def _tip_gen(shard_state):
 class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
     def __init__(self, expected_minor_block_headers):
         self.request_num = 0
-        self.expected_minor_block_headers = (
-            expected_minor_block_headers
-        )  # type: List[MinorBlockHeader]
 
     def SetRootChainConfirmedBlock(self, request, context):
-        self.request_num += 1
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
     def AddRootBlock(self, request, context):
-        assert len(self.expected_minor_block_headers) == len(
-            request.minor_block_headers
-        )
-        for expected_mh, mh in zip(
-            self.expected_minor_block_headers, request.minor_block_headers
-        ):
-            assert expected_mh.get_hash() == mh.id
-            assert expected_mh.branch.get_full_shard_id() == mh.full_shard_id
-
+        self.request_num += 1
         return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
 
