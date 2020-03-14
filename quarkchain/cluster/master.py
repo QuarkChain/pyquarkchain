@@ -794,19 +794,6 @@ class MasterServer:
 
         self.__init_root_miner()
 
-    def init_grpc_server(self):
-        grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
-        servicer = ClusterMaster(self.root_state)
-        grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
-        grpc_server.add_insecure_port(
-            "{}:{}".format(
-                self.env.cluster_config.GRPC_SERVER.GRPC_SERVER_HOST,
-                str(self.env.cluster_config.GRPC_SERVER.GRPC_SERVER_PORT),
-            )
-        )
-        grpc_server.start()
-        return grpc_server
-
     def __init_root_miner(self):
         async def __create_block(coinbase_addr: Address, retry=True):
             while True:
@@ -1853,6 +1840,22 @@ def parse_args():
     return env
 
 
+def start_grpc_server(env, master_server):
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+    servicer = ClusterMaster(master_server.root_state)
+    grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+    grpc_server.add_insecure_port(
+        "{}:{}".format(
+            env.cluster_config.GRPC_SERVER_HOST,
+            str(env.cluster_config.GRPC_SERVER_PORT),
+        )
+    )
+    try:
+        grpc_server.start()
+    except KeyboardInterrupt:
+        grpc_server.stop(0)
+
+
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
@@ -1864,7 +1867,7 @@ def main():
     master = MasterServer(env, root_state)
 
     if env.cluster_config.ENABLE_GRPC_SERVER:
-        master.init_grpc_server()
+        start_grpc_server(env, master)
 
     if env.arguments.check_db:
         master.start()
@@ -1896,9 +1899,6 @@ def main():
     network.start()
 
     callbacks = [network.shutdown]
-    if env.cluster_config.ENABLE_GRPC_SERVER:
-        grpc_server = master.init_grpc_server()
-        callbacks.append(grpc_server.stop(None))
 
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
         public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)

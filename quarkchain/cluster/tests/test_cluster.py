@@ -2487,25 +2487,24 @@ class TestCluster(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
-        with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+        with ClusterContext(1, acc1, enable_grpc_server=True) as clusters:
             # Test Case 1 ###################################################
             # grpc server successfully received request, and send response back to client
-            grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
-            grpc_server = clusters[0].master.env.cluster_config.GRPC_SERVER
-            grpc_master_server = clusters[0].master.init_grpc_server()
+            grpc_server = clusters[0].grpc_server
+            cluster_env = clusters[0].master.env.cluster_config
             count = 0
             request = grpc_pb2.AddMinorBlockHeaderRequest()
             grpc_client = [
                 self.build_test_client(
-                    grpc_server.GRPC_SERVER_HOST, grpc_server.GRPC_SERVER_PORT
+                    cluster_env.GRPC_SERVER_HOST, cluster_env.GRPC_SERVER_PORT
                 )
-                for _ in range(len(grpc_slaves))
+                for _ in range(2)
             ]
             for client in grpc_client:
                 if client.AddMinorBlockHeader(request):
                     count += 1
 
-            self.assertEqual(count, len(grpc_slaves))
+            self.assertEqual(count, 2)
 
             # Test Case 2 ###################################################
             # grpc server save minor block info into Rootdb
@@ -2520,4 +2519,4 @@ class TestCluster(unittest.TestCase):
                     b1.header.get_hash()
                 )
             )
-            grpc_master_server.stop(None)
+            grpc_server.stop(None)

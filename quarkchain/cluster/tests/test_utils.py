@@ -1,5 +1,8 @@
 import asyncio
 import os
+import grpc
+from concurrent import futures
+from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from contextlib import ContextDecorator
 
 from quarkchain.cluster.cluster_config import (
@@ -7,7 +10,7 @@ from quarkchain.cluster.cluster_config import (
     SimpleNetworkConfig,
     SlaveConfig,
 )
-from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.master import MasterServer, ClusterMaster
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
@@ -102,6 +105,20 @@ def get_test_env(
     check(env.cluster_config.use_mem_db())
 
     return env
+
+
+def get_grpc_server(env, master_server):
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+    servicer = ClusterMaster(master_server.root_state)
+    grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+    grpc_server.add_insecure_port(
+        "{}:{}".format(
+            env.cluster_config.GRPC_SERVER_HOST,
+            str(env.cluster_config.GRPC_SERVER_PORT),
+        )
+    )
+    grpc_server.start()
+    return grpc_server
 
 
 def create_transfer_transaction(
@@ -274,11 +291,12 @@ def contract_creation_tx(
 
 
 class Cluster:
-    def __init__(self, master, slave_list, network, peer):
+    def __init__(self, master, slave_list, network, peer, grpc_server):
         self.master = master
         self.slave_list = slave_list
         self.network = network
         self.peer = peer
+        self.grpc_server = grpc_server
 
     def get_shard(self, full_shard_id: int) -> Shard:
         branch = Branch(full_shard_id)
@@ -324,6 +342,7 @@ def create_test_clusters(
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
     connect_grpc=False,
+    enable_grpc_server=False,
     should_set_gas_price_limit=False,
     mblock_coinbase_amount=None,
 ):
@@ -373,8 +392,7 @@ def create_test_clusters(
             slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
-        if connect_grpc:
-            env.cluster_config.ENABLE_GRPC_SERVER = True
+        if connect_grpc == True:
             env.cluster_config.GRPC_SLAVE_LIST = []
             for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
@@ -398,6 +416,11 @@ def create_test_clusters(
         master_server = MasterServer(env, root_state, name="cluster{}_master".format(i))
         master_server.start()
 
+        if enable_grpc_server == True:
+            grpc_server = get_grpc_server(env, master_server)
+        else:
+            grpc_server = None
+
         # Wait until the cluster is ready
         loop.run_until_complete(master_server.cluster_active_future)
 
@@ -414,7 +437,9 @@ def create_test_clusters(
         else:
             peer = None
 
-        cluster_list.append(Cluster(master_server, slave_server_list, network, peer))
+        cluster_list.append(
+            Cluster(master_server, slave_server_list, network, peer, grpc_server)
+        )
 
     return cluster_list
 
@@ -460,6 +485,7 @@ class ClusterContext(ContextDecorator):
         loadtest_accounts=None,
         connect=True,
         connect_grpc=False,
+        enable_grpc_server=False,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
         genesis_minor_quarkash=1000000,
@@ -475,6 +501,7 @@ class ClusterContext(ContextDecorator):
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
         self.connect_grpc = connect_grpc
+        self.enable_grpc_server = enable_grpc_server
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
         self.genesis_minor_quarkash = genesis_minor_quarkash
@@ -496,6 +523,7 @@ class ClusterContext(ContextDecorator):
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
             connect_grpc=self.connect_grpc,
+            enable_grpc_server=self.enable_grpc_server,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
             mblock_coinbase_amount=self.mblock_coinbase_amount,
         )

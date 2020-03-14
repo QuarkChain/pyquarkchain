@@ -111,11 +111,6 @@ class SimpleNetworkConfig(BaseConfig):
     BOOTSTRAP_PORT = 38291
 
 
-class GrpcServerConfig(BaseConfig):
-    GRPC_SERVER_HOST = DEFAULT_HOST
-    GRPC_SERVER_PORT = 50051
-
-
 class P2PConfig(BaseConfig):
     # *new p2p module*
     BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
@@ -145,6 +140,8 @@ class ClusterConfig(BaseConfig):
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
+    GRPC_SERVER_HOST = "localhost"
+    GRPC_SERVER_PORT = 50051
     PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
@@ -164,7 +161,6 @@ class ClusterConfig(BaseConfig):
     GRPC_SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
-    GRPC_SERVER = None
 
     MONITORING = None
 
@@ -174,7 +170,6 @@ class ClusterConfig(BaseConfig):
         self.SLAVE_LIST = []  # type: List[SlaveConfig]
         self.GRPC_SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
-        self.GRPC_SERVER = GrpcServerConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
@@ -317,18 +312,20 @@ class ClusterConfig(BaseConfig):
         )
 
         parser.add_argument(
+            "--grpc_server_host", default=ClusterConfig.GRPC_SERVER_HOST, type=str,
+        )
+
+        parser.add_argument(
+            "--grpc_server_port", default=ClusterConfig.GRPC_SERVER_PORT, type=int,
+        )
+
+        parser.add_argument(
             "--simple_network_bootstrap_host",
             default=SimpleNetworkConfig.BOOTSTRAP_HOST,
         )
         parser.add_argument(
             "--simple_network_bootstrap_port",
             default=SimpleNetworkConfig.BOOTSTRAP_PORT,
-        )
-        parser.add_argument(
-            "--grpc_server_host", default=GrpcServerConfig.GRPC_SERVER_HOST,
-        )
-        parser.add_argument(
-            "--grpc_server_port", default=GrpcServerConfig.GRPC_SERVER_PORT,
         )
         # p2p module
         parser.add_argument(
@@ -429,11 +426,10 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
-            if args.enable_grpc_server:
+            if args.enable_grpc_server == True:
                 config.ENABLE_GRPC_SERVER = args.enable_grpc_server
-                config.GRPC_SERVER = GrpcServerConfig()
-                config.GRPC_SERVER.GRPC_SERVER_HOST = args.grpc_server_host
-                config.GRPC_SERVER.GRPC_SERVER_PORT = args.grpc_server_port
+                config.GRPC_SERVER_HOST = args.grpc_server_host
+                config.GRPC_SERVER_PORT = args.grpc_server_port
 
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
@@ -467,7 +463,6 @@ class ClusterConfig(BaseConfig):
         ret["MASTER"] = self.MASTER.to_dict()
         ret["GRPC_SLAVE_LIST"] = [s.to_dict() for s in self.GRPC_SLAVE_LIST]
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
-        ret["GRPC_SERVER"] = self.GRPC_SERVER.to_dict()
 
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
@@ -488,7 +483,6 @@ class ClusterConfig(BaseConfig):
         config.GRPC_SLAVE_LIST = [
             SlaveConfig.from_dict(s) for s in config.GRPC_SLAVE_LIST
         ]
-        config.GRPC_SERVER = GrpcServerConfig.from_dict(d["GRPC_SERVER"])
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])
