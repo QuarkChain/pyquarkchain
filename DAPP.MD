@@ -18,8 +18,8 @@ Note that the target EVM version is set to "Petersburg".
 
 
 ### Step 3: Get the ABI of the code
-Switch to MyToken contract and the save ABI json file.  This file will be used to access the contract.
-An example ABI of the code can be found [here](https://gist.github.com/qizhou/7a7753df36f50cb1f05e05ed18a59af7#file-mytoken_abi-json)
+Switch to MyToken contract and save the ABI json file.  This file will be used to access the contract.
+An example ABI of the code can be found [here](https://gist.github.com/qizhou/7a7753df36f50cb1f05e05ed18a59af7#file-mytoken_abi-json).  Note that you need to switch to MyToken contract again to get the ABI file if the code is re-compiled.
 ![Compile the code](resources/dapp/step3.png)
 
 ### Step 4: Deploy the code with totalSupply as constructor parameter
@@ -32,7 +32,7 @@ An example binary of the code can be found [here](https://gist.github.com/qizhou
 ![Get the code binary](resources/dapp/step5.png)
 
 ### Step 6: Deploy the code on QuarkChain mainnet
-Now, we are ready to deploy and run the code on QuarkChain mainnet.  First, we open the contract page on [QuarkChain explorer](http://http://mainnet.quarkchain.io/contract).
+Now, we are ready to deploy and run the code on QuarkChain mainnet.  First, open the contract page on [QuarkChain explorer](https://mainnet.quarkchain.io/contract).
 Switch to "Deploy" tab and paste the binary code in "Byte Code", and then sign and submit the deployment transaction.
 Note that the contract will be deployed on the chain of sender (e.g., chain 0 in the example).  If you wish to deploy on different chain, simply switch to the chain id in Account tab.
 ![Deploy the code binary to QKC mainnet](resources/dapp/step6.png)
@@ -45,7 +45,7 @@ From the figure, we could determine
 ![Deployment status](resources/dapp/step7.png)
 
 ### Step 8: Access the contract
-Now we are able to read/write the contract in the "Interact" tab in [QuarkChain explorer](http://mainnet.quarkchain.io/contract).
+Now we are able to read/write the contract in the "Interact" tab in [QuarkChain explorer](https://mainnet.quarkchain.io/contract).
 
 The tab will accept two parameters:
 1. The contract address after the successful deployment
