@@ -1292,7 +1292,7 @@ class MasterServer:
         )
 
         for grpc_client in self.grpc_slave_pool:
-            grpc_client.add_root_block(r_block)
+            check(grpc_client.add_root_block(r_block), "Fail to call GRPC slave")
 
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
