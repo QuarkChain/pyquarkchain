@@ -28,6 +28,8 @@ from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
 from quarkchain.generated import grpc_pb2
 from quarkchain.generated import grpc_pb2_grpc
 from concurrent import futures
+from quarkchain.cluster.root_state import RootState
+from quarkchain.cluster.tests.test_utils import get_test_env
 
 
 def _tip_gen(shard_state):
@@ -56,6 +58,15 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
+
+
+class RealGrpcServer(grpc_pb2_grpc.ClusterMasterServicer):
+    def __init__(self, root_state):
+        self.root_state = root_state
+
+    def AddMinorBlockHeader(self, request, context):
+        self.root_state.add_validated_minor_block_hash(request.id, {})
+        return grpc_pb2.AddMinorBlockHeaderResponse()
 
 
 class TestCluster(unittest.TestCase):
@@ -2490,8 +2501,20 @@ class TestCluster(unittest.TestCase):
         with ClusterContext(1, acc1, enable_grpc_server=True) as clusters:
             # Test Case 1 ###################################################
             # grpc server successfully received request, and send response back to client
-            grpc_server = clusters[0].grpc_server
-            cluster_env = clusters[0].master.env.cluster_config
+            env = clusters[0].master.env
+            root_state = RootState(env=env)
+            grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+            servicer = RealGrpcServer(root_state)
+            grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+            grpc_server.add_insecure_port(
+                "{}:{}".format(
+                    env.cluster_config.GRPC_SERVER_HOST,
+                    str(env.cluster_config.GRPC_SERVER_PORT),
+                )
+            )
+            grpc_server.start()
+
+            cluster_env = env.cluster_config
             count = 0
             request = grpc_pb2.AddMinorBlockHeaderRequest()
             grpc_client = [
@@ -2515,8 +2538,6 @@ class TestCluster(unittest.TestCase):
             grpc_client[0].AddMinorBlockHeader(request)
 
             self.assertTrue(
-                clusters[0].master.root_state.db.contain_minor_block_by_hash(
-                    b1.header.get_hash()
-                )
+                root_state.db.contain_minor_block_by_hash(b1.header.get_hash())
             )
             grpc_server.stop(None)

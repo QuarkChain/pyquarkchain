@@ -1850,10 +1850,8 @@ def start_grpc_server(env, master_server):
             str(env.cluster_config.GRPC_SERVER_PORT),
         )
     )
-    try:
-        grpc_server.start()
-    except KeyboardInterrupt:
-        grpc_server.stop(0)
+    grpc_server.start()
+    return grpc_server
 
 
 def main():
@@ -1895,9 +1893,6 @@ def main():
         network = SimpleNetwork(env, master, loop)
     network.start()
 
-    if env.cluster_config.ENABLE_GRPC_SERVER:
-        start_grpc_server(env, master)
-
     callbacks = [network.shutdown]
 
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
@@ -1907,6 +1902,10 @@ def main():
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
         private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
+
+    if env.cluster_config.ENABLE_GRPC_SERVER:
+        grpc_server = start_grpc_server(env, master)
+        callbacks.append(grpc_server.stop)
 
     master.do_loop(callbacks)
 

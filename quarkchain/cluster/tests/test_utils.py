@@ -107,20 +107,6 @@ def get_test_env(
     return env
 
 
-def get_grpc_server(env, master_server):
-    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
-    servicer = ClusterMaster(master_server.root_state)
-    grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
-    grpc_server.add_insecure_port(
-        "{}:{}".format(
-            env.cluster_config.GRPC_SERVER_HOST,
-            str(env.cluster_config.GRPC_SERVER_PORT),
-        )
-    )
-    grpc_server.start()
-    return grpc_server
-
-
 def create_transfer_transaction(
     shard_state,
     key,
@@ -291,12 +277,11 @@ def contract_creation_tx(
 
 
 class Cluster:
-    def __init__(self, master, slave_list, network, peer, grpc_server):
+    def __init__(self, master, slave_list, network, peer):
         self.master = master
         self.slave_list = slave_list
         self.network = network
         self.peer = peer
-        self.grpc_server = grpc_server
 
     def get_shard(self, full_shard_id: int) -> Shard:
         branch = Branch(full_shard_id)
@@ -366,6 +351,9 @@ def create_test_clusters(
         )
         env.cluster_config.P2P_PORT = bootstrap_port if i == 0 else get_next_port()
         env.cluster_config.JSON_RPC_PORT = get_next_port()
+        env.cluster_config.GRPC_SERVER_PORT = (
+            get_next_port() if enable_grpc_server else None
+        )
         env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
@@ -416,10 +404,6 @@ def create_test_clusters(
         master_server = MasterServer(env, root_state, name="cluster{}_master".format(i))
         master_server.start()
 
-        grpc_server = (
-            get_grpc_server(env, master_server) if enable_grpc_server else None
-        )
-
         # Wait until the cluster is ready
         loop.run_until_complete(master_server.cluster_active_future)
 
@@ -436,9 +420,7 @@ def create_test_clusters(
         else:
             peer = None
 
-        cluster_list.append(
-            Cluster(master_server, slave_server_list, network, peer, grpc_server)
-        )
+        cluster_list.append(Cluster(master_server, slave_server_list, network, peer))
 
     return cluster_list
 
