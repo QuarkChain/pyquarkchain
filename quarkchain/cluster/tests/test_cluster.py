@@ -28,8 +28,6 @@ from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
 from quarkchain.generated import grpc_pb2
 from quarkchain.generated import grpc_pb2_grpc
 from concurrent import futures
-from quarkchain.cluster.root_state import RootState
-from quarkchain.cluster.tests.test_utils import get_test_env
 
 
 def _tip_gen(shard_state):
@@ -60,26 +58,12 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
         )
 
 
-class RealGrpcServer(grpc_pb2_grpc.ClusterMasterServicer):
-    def __init__(self, root_state):
-        self.root_state = root_state
-
-    def AddMinorBlockHeader(self, request, context):
-        self.root_state.add_validated_minor_block_hash(request.id, {})
-        return grpc_pb2.AddMinorBlockHeaderResponse()
-
-
 class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, host: str, port: int):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
         grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
         server.add_insecure_port("{}:{}".format(host, str(port)))
         return server
-
-    def build_test_client(self, host: str, port: int):
-        channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
-        client = grpc_pb2_grpc.ClusterMasterStub(channel)
-        return client
 
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
@@ -2493,51 +2477,3 @@ class TestCluster(unittest.TestCase):
             )
             grpc_server1.stop(None)
             grpc_server2.stop(None)
-
-    def test_grpc_server(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-
-        with ClusterContext(1, acc1, enable_grpc_server=True) as clusters:
-            # Test Case 1 ###################################################
-            # grpc server successfully received request, and send response back to client
-            env = clusters[0].master.env
-            root_state = RootState(env=env)
-            grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
-            servicer = RealGrpcServer(root_state)
-            grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
-            grpc_server.add_insecure_port(
-                "{}:{}".format(
-                    env.cluster_config.GRPC_SERVER_HOST,
-                    str(env.cluster_config.GRPC_SERVER_PORT),
-                )
-            )
-            grpc_server.start()
-
-            cluster_env = env.cluster_config
-            count = 0
-            request = grpc_pb2.AddMinorBlockHeaderRequest()
-            grpc_client = [
-                self.build_test_client(
-                    cluster_env.GRPC_SERVER_HOST, cluster_env.GRPC_SERVER_PORT
-                )
-                for _ in range(2)
-            ]
-            for client in grpc_client:
-                if client.AddMinorBlockHeader(request):
-                    count += 1
-
-            self.assertEqual(count, 2)
-
-            # Test Case 2 ###################################################
-            # grpc server save minor block info into Rootdb
-            shard_state = clusters[0].get_shard_state(0b10)
-            b1 = _tip_gen(shard_state)
-
-            request = grpc_pb2.AddMinorBlockHeaderRequest(id=b1.header.get_hash())
-            grpc_client[0].AddMinorBlockHeader(request)
-
-            self.assertTrue(
-                root_state.db.contain_minor_block_by_hash(b1.header.get_hash())
-            )
-            grpc_server.stop(None)

@@ -327,7 +327,6 @@ def create_test_clusters(
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
     connect_grpc=False,
-    enable_grpc_server=False,
     should_set_gas_price_limit=False,
     mblock_coinbase_amount=None,
 ):
@@ -351,9 +350,6 @@ def create_test_clusters(
         )
         env.cluster_config.P2P_PORT = bootstrap_port if i == 0 else get_next_port()
         env.cluster_config.JSON_RPC_PORT = get_next_port()
-        env.cluster_config.GRPC_SERVER_PORT = (
-            get_next_port() if enable_grpc_server else None
-        )
         env.cluster_config.PRIVATE_JSON_RPC_PORT = get_next_port()
         env.cluster_config.SIMPLE_NETWORK = SimpleNetworkConfig()
         env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT = bootstrap_port
@@ -466,7 +462,6 @@ class ClusterContext(ContextDecorator):
         loadtest_accounts=None,
         connect=True,
         connect_grpc=False,
-        enable_grpc_server=False,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
         genesis_minor_quarkash=1000000,
@@ -482,7 +477,6 @@ class ClusterContext(ContextDecorator):
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
         self.connect_grpc = connect_grpc
-        self.enable_grpc_server = enable_grpc_server
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
         self.genesis_minor_quarkash = genesis_minor_quarkash
@@ -504,7 +498,6 @@ class ClusterContext(ContextDecorator):
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
             connect_grpc=self.connect_grpc,
-            enable_grpc_server=self.enable_grpc_server,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
             mblock_coinbase_amount=self.mblock_coinbase_amount,
         )
