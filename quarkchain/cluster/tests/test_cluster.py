@@ -52,8 +52,13 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
         self.request_num = 0
 
     def SetRootChainConfirmedBlock(self, request, context):
-        self.request_num += 1
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
+            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        )
+
+    def AddRootBlock(self, request, context):
+        self.request_num += 1
+        return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
