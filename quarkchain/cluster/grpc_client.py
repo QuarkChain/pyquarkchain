@@ -51,12 +51,12 @@ class GrpcClient:
             Logger.log_exception()
             return False
 
-        if response.status.code == 0:
-            return True
-        else:
-            Logger.warning(
+        if response.status.code != 0:
+            Logger.error(
                 "GRPC failure: {}, {}".format(
                     response.status.code, response.status.message
                 )
             )
             return False
+
+        return True
