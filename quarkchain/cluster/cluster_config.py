@@ -463,7 +463,6 @@ class ClusterConfig(BaseConfig):
         ret["MASTER"] = self.MASTER.to_dict()
         ret["GRPC_SLAVE_LIST"] = [s.to_dict() for s in self.GRPC_SLAVE_LIST]
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
-
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
             del ret["SIMPLE_NETWORK"]

@@ -1866,9 +1866,6 @@ def main():
     root_state = RootState(env)
     master = MasterServer(env, root_state)
 
-    if env.cluster_config.ENABLE_GRPC_SERVER:
-        start_grpc_server(env, master)
-
     if env.arguments.check_db:
         master.start()
         master.wait_until_cluster_active()
@@ -1897,6 +1894,9 @@ def main():
     else:
         network = SimpleNetwork(env, master, loop)
     network.start()
+
+    if env.cluster_config.ENABLE_GRPC_SERVER:
+        start_grpc_server(env, master)
 
     callbacks = [network.shutdown]
 

@@ -392,7 +392,7 @@ def create_test_clusters(
             slave_config.CHAIN_MASK_LIST = [ChainMask(num_slaves | j)]
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
-        if connect_grpc == True:
+        if connect_grpc:
             env.cluster_config.GRPC_SLAVE_LIST = []
             for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
@@ -416,10 +416,9 @@ def create_test_clusters(
         master_server = MasterServer(env, root_state, name="cluster{}_master".format(i))
         master_server.start()
 
-        if enable_grpc_server == True:
-            grpc_server = get_grpc_server(env, master_server)
-        else:
-            grpc_server = None
+        grpc_server = (
+            get_grpc_server(env, master_server) if enable_grpc_server else None
+        )
 
         # Wait until the cluster is ready
         loop.run_until_complete(master_server.cluster_active_future)
