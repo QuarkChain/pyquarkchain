@@ -60,3 +60,13 @@ class GrpcClient:
             return False
 
         return True
+
+    def get_unconfirmed_header(self):
+        request = grpc_pb2.GetUnconfirmedHeaderRequest()
+        try:
+            response = self.client.GetUnconfirmedHeader(request)
+        except grpc.RpcError:
+            Logger.log_exception()
+            return None
+
+        return response

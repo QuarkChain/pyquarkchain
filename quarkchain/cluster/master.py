@@ -1108,6 +1108,37 @@ class MasterServer:
         return self.shutdown_future
 
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
+        # TODO: implement gprc_get_unconfirmed_headers
+        if self.grpc_slave_pool:
+            for grpc_slave in self.grpc_slave_pool:
+                grpc_responses = [grpc_slave.get_unconfirmed_header()]
+
+            libra_full_shard_id_to_header_list = dict()
+            for grpc_response in grpc_responses:
+                if not grpc_response:
+                    return None
+                for libra_header in grpc_response.header_list:
+                    if not self.root_state.db.contain_minor_block_by_hash(
+                        libra_header.id
+                    ):
+                        break
+                    libra_full_shard_id_to_header_list.setdefault(
+                        libra_header.full_shard_id, []
+                    ).append(libra_header)
+
+            libra_header_list = []
+            libra_full_shard_id_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                self.root_state.tip.height + 1
+            )
+
+            for libra_full_shard_id in libra_full_shard_id_to_check:
+                libra_headers = libra_full_shard_id_to_header_list.get(
+                    libra_full_shard_id, []
+                )
+                libra_header_list.extend(libra_headers)
+
+            return self.root_state.create_block_to_mine(libra_header_list, address)
+
         futures = []
         for slave in self.slave_pool:
             request = GetUnconfirmedHeadersRequest()
@@ -1117,8 +1148,6 @@ class MasterServer:
                 )
             )
         responses = await asyncio.gather(*futures)
-
-        # TODO: implement gprc_get_unconfirmed_headers
 
         # Slaves may run multiple copies of the same branch
         # branch_value -> HeaderList

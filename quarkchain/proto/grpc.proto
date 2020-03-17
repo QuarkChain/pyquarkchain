@@ -50,6 +50,13 @@ message AddRootBlockResponse {
   ClusterSlaveStatus status = 1;
 }
 
+message GetUnconfirmedHeaderRequest {
+}
+
+message GetUnconfirmedHeaderResponse {
+  repeated MinorBlockHeader header_list = 1;
+}
+
 // -----------------------------------------------------------------------------
 // ---------------- Service definition
 // -----------------------------------------------------------------------------
@@ -64,6 +71,10 @@ service ClusterSlave {
 
   rpc AddRootBlock(AddRootBlockRequest)
       returns (AddRootBlockResponse) {}
+
+  // Get unconfirmed minor block header list from shard chain.
+  rpc GetUnconfirmedHeader(GetUnconfirmedHeaderRequest)
+      returns (GetUnconfirmedHeaderResponse) {}
 
 }
 
