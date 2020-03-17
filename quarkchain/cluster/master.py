@@ -1107,6 +1107,17 @@ class MasterServer:
     def get_shutdown_future(self):
         return self.shutdown_future
 
+    def get_unconfirmed_header_list(self, full_shard_id_to_header_list):
+        header_list = []
+        full_shard_id_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            self.root_state.tip.height + 1
+        )
+
+        for full_shard_id in full_shard_id_to_check:
+            headers = full_shard_id_to_header_list.get(full_shard_id, [])
+            header_list.extend(headers)
+        return header_list
+
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
         # TODO: implement gprc_get_unconfirmed_headers
         if self.grpc_slave_pool:
@@ -1126,16 +1137,9 @@ class MasterServer:
                         libra_header.full_shard_id, []
                     ).append(libra_header)
 
-            libra_header_list = []
-            libra_full_shard_id_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-                self.root_state.tip.height + 1
+            libra_header_list = self.get_unconfirmed_header_list(
+                libra_full_shard_id_to_header_list
             )
-
-            for libra_full_shard_id in libra_full_shard_id_to_check:
-                libra_headers = libra_full_shard_id_to_header_list.get(
-                    libra_full_shard_id, []
-                )
-                libra_header_list.extend(libra_headers)
 
             return self.root_state.create_block_to_mine(libra_header_list, address)
 
@@ -1172,13 +1176,7 @@ class MasterServer:
                         headers_info.branch.get_full_shard_id(), []
                     ).append(header)
 
-        header_list = []
-        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-            self.root_state.tip.height + 1
-        )
-        for full_shard_id in full_shard_ids_to_check:
-            headers = full_shard_id_to_header_list.get(full_shard_id, [])
-            header_list.extend(headers)
+        header_list = self.get_unconfirmed_header_list(full_shard_id_to_header_list)
 
         return self.root_state.create_block_to_mine(header_list, address)
 

@@ -338,13 +338,18 @@ class RootState:
             create_time=create_time, address=address, difficulty=difficulty
         )
 
-        # Filter out minor blocks with greater create_time
-        m_header_list = [h for h in m_header_list if h.create_time <= create_time]
-        block.minor_block_header_list = m_header_list
+        if self.env.cluster_config.GRPC_SLAVE_LIST:
+            coinbase_tokens = self._calculate_root_block_coinbase(
+                [header.id for header in m_header_list], block.header.height
+            )
+        else:
+            # Filter out minor blocks with greater create_time
+            m_header_list = [h for h in m_header_list if h.create_time <= create_time]
+            coinbase_tokens = self._calculate_root_block_coinbase(
+                [header.get_hash() for header in m_header_list], block.header.height
+            )
 
-        coinbase_tokens = self._calculate_root_block_coinbase(
-            [header.get_hash() for header in m_header_list], block.header.height
-        )
+        block.minor_block_header_list = m_header_list
 
         tracking_data["creation_ms"] = time_ms() - tracking_data["inception"]
         block.tracking_data = json.dumps(tracking_data).encode("utf-8")
