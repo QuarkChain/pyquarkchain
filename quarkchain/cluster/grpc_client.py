@@ -3,6 +3,7 @@ import argparse
 import grpc
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from quarkchain.core import RootBlock, RootBlockHeader, MinorBlockHeader
+from quarkchain.utils import Logger
 
 HOST = "localhost"
 PORT = 50051
@@ -46,10 +47,16 @@ class GrpcClient:
         )
         try:
             response = self.client.AddRootBlock(request)
-        except Exception:
+        except grpc.RpcError as e:
+            Logger.log_exception()
             return False
 
-        if response.status.code == 0:
-            return True
-        else:
+        if response.status.code != 0:
+            Logger.error(
+                "GRPC failure: {}, {}".format(
+                    response.status.code, response.status.message
+                )
+            )
             return False
+
+        return True

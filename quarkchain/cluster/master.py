@@ -10,6 +10,9 @@ import time
 from collections import deque
 from typing import Optional, List, Union, Dict, Tuple, Callable
 
+import grpc
+from concurrent import futures
+from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
@@ -96,6 +99,15 @@ from quarkchain.constants import (
     ROOT_BLOCK_BATCH_SIZE,
     ROOT_BLOCK_HEADER_LIST_LIMIT,
 )
+
+
+class ClusterMaster(grpc_pb2_grpc.ClusterMasterServicer):
+    def __init__(self, root_state):
+        self.root_state = root_state
+
+    def AddMinorBlockHeader(self, request, context):
+        self.root_state.add_validated_minor_block_hash(request.id, {})
+        return grpc_pb2.AddMinorBlockHeaderResponse()
 
 
 class SyncTask:
@@ -1294,7 +1306,7 @@ class MasterServer:
         )
 
         for grpc_client in self.grpc_slave_pool:
-            grpc_client.set_rootchain_confirmed_block()
+            check(grpc_client.add_root_block(r_block), "Fail to call GRPC slave")
 
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
@@ -1830,6 +1842,20 @@ def parse_args():
     return env
 
 
+def start_grpc_server(env, master_server):
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+    servicer = ClusterMaster(master_server.root_state)
+    grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+    grpc_server.add_insecure_port(
+        "{}:{}".format(
+            env.cluster_config.GRPC_SERVER_HOST,
+            str(env.cluster_config.GRPC_SERVER_PORT),
+        )
+    )
+    grpc_server.start()
+    return grpc_server
+
+
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
@@ -1839,6 +1865,7 @@ def main():
     loop = asyncio.get_event_loop()
     root_state = RootState(env)
     master = MasterServer(env, root_state)
+
     if env.arguments.check_db:
         master.start()
         master.wait_until_cluster_active()
@@ -1869,6 +1896,7 @@ def main():
     network.start()
 
     callbacks = [network.shutdown]
+
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
         public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
@@ -1876,6 +1904,10 @@ def main():
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
         private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
+
+    if env.cluster_config.ENABLE_GRPC_SERVER:
+        grpc_server = start_grpc_server(env, master)
+        callbacks.append(grpc_server.stop)
 
     master.do_loop(callbacks)
 
