@@ -1,5 +1,8 @@
 import asyncio
 import os
+import grpc
+from concurrent import futures
+from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from contextlib import ContextDecorator
 
 from quarkchain.cluster.cluster_config import (
@@ -7,7 +10,7 @@ from quarkchain.cluster.cluster_config import (
     SimpleNetworkConfig,
     SlaveConfig,
 )
-from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.master import MasterServer, ClusterMaster
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState

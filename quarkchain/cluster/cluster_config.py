@@ -140,10 +140,13 @@ class ClusterConfig(BaseConfig):
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
+    GRPC_SERVER_HOST = "localhost"
+    GRPC_SERVER_PORT = 50051
     PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
+    ENABLE_GRPC_SERVER = False
 
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
@@ -304,6 +307,17 @@ class ClusterConfig(BaseConfig):
             default=False,
             dest="enable_transaction_history",
         )
+        parser.add_argument(
+            "--enable_grpc_server", action="store_true", default=False,
+        )
+
+        parser.add_argument(
+            "--grpc_server_host", default=ClusterConfig.GRPC_SERVER_HOST, type=str,
+        )
+
+        parser.add_argument(
+            "--grpc_server_port", default=ClusterConfig.GRPC_SERVER_PORT, type=int,
+        )
 
         parser.add_argument(
             "--simple_network_bootstrap_host",
@@ -412,6 +426,11 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
+            if args.enable_grpc_server == True:
+                config.ENABLE_GRPC_SERVER = args.enable_grpc_server
+                config.GRPC_SERVER_HOST = args.grpc_server_host
+                config.GRPC_SERVER_PORT = args.grpc_server_port
+
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
@@ -450,6 +469,7 @@ class ClusterConfig(BaseConfig):
         else:
             ret["SIMPLE_NETWORK"] = self.SIMPLE_NETWORK.to_dict()
             del ret["P2P"]
+
         return ret
 
     @classmethod

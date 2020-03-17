@@ -65,7 +65,7 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
 
 class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, host: str, port: int):
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
         grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
         server.add_insecure_port("{}:{}".format(host, str(port)))
         return server
@@ -2465,6 +2465,7 @@ class TestCluster(unittest.TestCase):
             # Test Case 1 ###################################################
             # This case tests the correct connection
             root_block = clusters[0].master.root_state.create_block_to_mine([])
+
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             server = MockGrpcServer()
             grpc_server1 = self.build_test_server(
@@ -2479,5 +2480,5 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 server.request_num, len(grpc_slaves),
             )
-            grpc_server1.stop(0)
-            grpc_server2.stop(0)
+            grpc_server1.stop(None)
+            grpc_server2.stop(None)
