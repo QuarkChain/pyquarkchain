@@ -315,7 +315,6 @@ class State:
         root=BLANK_ROOT,
         env=Env(),
         qkc_config=None,
-        executing_on_head=False,
         db=None,
         use_mock_evm_account=False,
         **kwargs
@@ -331,8 +330,6 @@ class State:
         self.cache = {}
         self.log_listeners = []
         self.deletes = []
-        self.changed = {}
-        self.executing_on_head = executing_on_head
         self.qkc_config = qkc_config
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
@@ -371,13 +368,7 @@ class State:
     def get_and_cache_account(self, address):
         if address in self.cache:
             return self.cache[address]
-        if self.executing_on_head and False:
-            try:
-                rlpdata = self.db[b"address:" + address]
-            except KeyError:
-                rlpdata = b""
-        else:
-            rlpdata = self.trie.get(address)
+        rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
             if self.use_mock_evm_account:
                 o = rlp.decode(rlpdata, _MockAccount)
@@ -586,7 +577,6 @@ class State:
             if acct.touched or acct.deleted:
                 acct.commit()
                 self.deletes.extend(acct.storage_trie.deletes)
-                self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
                     if self.use_mock_evm_account:
                         assert len(acct.token_balances._balances) <= 1, "QKC only"
@@ -606,15 +596,8 @@ class State:
                             b"",
                         )
                     self.trie.update(addr, rlp.encode(_acct))
-                    if self.executing_on_head:
-                        self.db.put(b"address:" + addr, rlp.encode(_acct))
                 else:
                     self.trie.delete(addr)
-                    if self.executing_on_head:
-                        try:
-                            self.db.remove(b"address:" + addr)
-                        except KeyError:
-                            pass
         self.deletes.extend(self.trie.deletes)
         self.trie.deletes = []
         self.cache = {}
@@ -677,7 +660,7 @@ class State:
 
     # Creates a state from a snapshot
     @classmethod
-    def from_snapshot(cls, snapshot_data, env, executing_on_head=False):
+    def from_snapshot(cls, snapshot_data, env):
         state = State(env=env)
         if "state_root" in snapshot_data:
             state.trie.root_hash = parse_as_bin(snapshot_data["state_root"])
@@ -706,10 +689,7 @@ class State:
                 else:
                     uncles = default
                 setattr(state, k, uncles)
-        if executing_on_head:
-            state.executing_on_head = True
         state.commit()
-        state.changed = {}
         return state
 
     def ephemeral_clone(self):
