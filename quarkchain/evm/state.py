@@ -229,8 +229,6 @@ class Account:
         self.storage_trie = SecureTrie(Trie(self.db))
         self.storage_trie.root_hash = self.storage
         self.touched = False
-        self.existent_at_start = True
-        self._mutable = True
         self.deleted = False
 
     def commit(self):
@@ -281,7 +279,6 @@ class Account:
             address,
             db=db,
         )
-        o.existent_at_start = False
         return o
 
     def is_blank(self):
@@ -329,7 +326,6 @@ class State:
         self.journal = []
         self.cache = {}
         self.log_listeners = []
-        self.deletes = []
         self.qkc_config = qkc_config
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
@@ -399,8 +395,6 @@ class State:
                 db=self.db,
             )
         self.cache[address] = o
-        o._mutable = True
-        o._cached_rlp = None
         return o
 
     def get_balances(self, address) -> dict:
@@ -526,8 +520,6 @@ class State:
 
     def revert(self, snapshot):
         h, L, auxvars = snapshot
-        # Compatibility with weird geth+parity bug
-        three_touched = self.cache[THREE].touched if THREE in self.cache else False
         while len(self.journal) > L:
             try:
                 lastitem = self.journal.pop()
@@ -540,10 +532,6 @@ class State:
             self.cache = {}
         for k in STATE_DEFAULTS:
             setattr(self, k, copy.copy(auxvars[k]))
-        if (
-            three_touched and 2675000 < self.block_number < 2675200
-        ):  # Compatibility with weird geth+parity bug
-            self.delta_token_balance(THREE, self.shard_config.default_chain_token, 0)
 
     def set_param(self, k, v):
         preval = getattr(self, k)
@@ -576,7 +564,6 @@ class State:
         for addr, acct in self.cache.items():
             if acct.touched or acct.deleted:
                 acct.commit()
-                self.deletes.extend(acct.storage_trie.deletes)
                 if self.account_exists(addr) or allow_empties:
                     if self.use_mock_evm_account:
                         assert len(acct.token_balances._balances) <= 1, "QKC only"
@@ -598,7 +585,6 @@ class State:
                     self.trie.update(addr, rlp.encode(_acct))
                 else:
                     self.trie.delete(addr)
-        self.deletes.extend(self.trie.deletes)
         self.trie.deletes = []
         self.cache = {}
         self.journal = []
