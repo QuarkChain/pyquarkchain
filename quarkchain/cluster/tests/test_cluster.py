@@ -22,6 +22,7 @@ from quarkchain.core import (
     TokenBalanceMap,
     XshardTxCursorInfo,
     RootBlock,
+    MinorBlockHeader,
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
@@ -48,8 +49,9 @@ def _tip_gen(shard_state):
 
 
 class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
-    def __init__(self):
+    def __init__(self, expected_minor_block_headers):
         self.request_num = 0
+        self.mh = expected_minor_block_headers  # type: List[MinorBlockHeader]
 
     def SetRootChainConfirmedBlock(self, request, context):
         return grpc_pb2.SetRootChainConfirmedBlockResponse(
@@ -60,6 +62,17 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
         self.request_num += 1
         return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        )
+
+    def GetUnconfirmedHeader(self, request, context):
+        self.request_num += 1
+        return grpc_pb2.GetUnconfirmedHeaderResponse(
+            header_list=[
+                grpc_pb2.MinorBlockHeader(
+                    id=self.mh.get_hash(),
+                    full_shard_id=self.mh.branch.get_full_shard_id(),
+                )
+            ]
         )
 
 
@@ -2462,12 +2475,17 @@ class TestCluster(unittest.TestCase):
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
         with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+            shard_state = clusters[0].get_shard_state(0b10)
+            b1 = _tip_gen(shard_state)
+            call_async(
+                clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
+            )
             # Test Case 1 ###################################################
-            # This case tests the correct connection
+            # This case tests add_root_broadcast
             root_block = clusters[0].master.root_state.create_block_to_mine([])
 
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
-            server = MockGrpcServer()
+            server = MockGrpcServer(b1.header)
             grpc_server1 = self.build_test_server(
                 server, grpc_slaves[0].HOST, grpc_slaves[0].PORT,
             )
@@ -2480,5 +2498,15 @@ class TestCluster(unittest.TestCase):
             self.assertEqual(
                 server.request_num, len(grpc_slaves),
             )
-            grpc_server1.stop(None)
-            grpc_server2.stop(None)
+
+            # Test Case 2 ###################################################
+            # This case tests get_unconfirmed_header
+            grpc_responses = [
+                clusters[0].master.grpc_slave_pool[0].get_unconfirmed_header()
+            ]
+            header_list = clusters[0].master._parse_grpc_response(grpc_responses)
+            self.assertEqual(server.request_num, len(grpc_slaves) + 1)
+            self.assertEqual(
+                header_list[0].branch.get_full_shard_id(),
+                b1.header.branch.get_full_shard_id(),
+            )
