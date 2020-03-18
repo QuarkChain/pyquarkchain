@@ -330,7 +330,6 @@ class State:
         self.cache = {}
         self.log_listeners = []
         self.deletes = []
-        self.changed = {}
         self.qkc_config = qkc_config
         self.sender_disallow_map = dict()  # type: Dict[bytes, int]
         self.shard_config = ShardConfig(ChainConfig())
@@ -578,7 +577,6 @@ class State:
             if acct.touched or acct.deleted:
                 acct.commit()
                 self.deletes.extend(acct.storage_trie.deletes)
-                self.changed[addr] = True
                 if self.account_exists(addr) or allow_empties:
                     if self.use_mock_evm_account:
                         assert len(acct.token_balances._balances) <= 1, "QKC only"
@@ -692,7 +690,6 @@ class State:
                     uncles = default
                 setattr(state, k, uncles)
         state.commit()
-        state.changed = {}
         return state
 
     def ephemeral_clone(self):
