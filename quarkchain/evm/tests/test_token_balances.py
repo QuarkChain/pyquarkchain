@@ -185,6 +185,9 @@ def test_encoding_change_from_dict_to_trie():
     assert b.token_trie is not None
     assert b.serialize().startswith(b"\x01")
     root1 = b.token_trie.root_hash
+    copied_mapping = mapping.copy()
+    copied_mapping[new_token] = 123
+    assert b.to_dict() == copied_mapping
 
     # clear all balances except QKC
     for k in mapping:
@@ -219,10 +222,13 @@ def test_reset_balance_in_trie_and_revert():
     mapping = {token_id_encode("Q" + chr(65 + i)): int(i * 1e3) + 42 for i in range(17)}
     b._balances = mapping.copy()
     b.commit()
+    assert b._balances == {}
 
     journal = []
     b.set_balance(journal, 999, 999)
+    b.set_balance(journal, token_id_encode("Q" + chr(65 + 0)), 1)
     assert b.balance(999) == 999
+    assert b.balance(token_id_encode("Q" + chr(65 + 0))) == 1
     b.reset(journal)
     assert b.is_blank()
     assert b.to_dict() == {}
@@ -230,3 +236,4 @@ def test_reset_balance_in_trie_and_revert():
         op()
     assert not b.is_blank()
     assert b.to_dict() == mapping
+    assert b._balances != {}
