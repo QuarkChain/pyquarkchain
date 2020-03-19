@@ -339,7 +339,9 @@ class RootState:
         )
 
         if self.env.cluster_config.GRPC_SLAVE_LIST:
-            coinbase_tokens = []
+            coinbase_tokens = self._calculate_root_block_coinbase(
+                [header.hash_meta for header in m_header_list], block.header.height
+            )
         else:
             # Filter out minor blocks with greater create_time
             m_header_list = [h for h in m_header_list if h.create_time <= create_time]

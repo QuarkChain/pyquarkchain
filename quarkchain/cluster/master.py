@@ -1132,7 +1132,7 @@ class MasterServer:
                         break
                     header_full_shard_id = headers_info.branch.get_full_shard_id()
                     if header_full_shard_id in full_shard_ids_to_check:
-                        header_list.extend(header)
+                        header_list.append(header)
         return header_list
 
     def _parse_grpc_response(self, responses):
@@ -1146,10 +1146,12 @@ class MasterServer:
             for header in response.header_list:
                 if not self.root_state.db.contain_minor_block_by_hash(header.id):
                     break
-                libra_header = MinorBlockHeader(branch=Branch(header.full_shard_id))
+                libra_header = MinorBlockHeader(
+                    branch=Branch(header.full_shard_id), hash_meta=header.id
+                )
                 header_full_shard_id = header.full_shard_id
                 if header_full_shard_id in full_shard_ids_to_check:
-                    header_list.extend(libra_header)
+                    header_list.append(libra_header)
         return header_list
 
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
