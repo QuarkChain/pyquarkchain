@@ -1111,10 +1111,7 @@ class MasterServer:
     def _parse_qkcrpc_response(self, responses):
         # Slaves may run multiple copies of the same branch
         # branch_value -> HeaderList
-        header_list = []
-        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-            self.root_state.tip.height + 1
-        )
+        full_shard_id_to_header_list = dict()
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
@@ -1130,9 +1127,18 @@ class MasterServer:
                         header.get_hash()
                     ):
                         break
-                    header_full_shard_id = headers_info.branch.get_full_shard_id()
-                    if header_full_shard_id in full_shard_ids_to_check:
-                        header_list.append(header)
+                    full_shard_id_to_header_list.setdefault(
+                        headers_info.branch.get_full_shard_id(), []
+                    ).append(header)
+
+        header_list = []
+        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            self.root_state.tip.height + 1
+        )
+        for full_shard_id in full_shard_ids_to_check:
+            headers = full_shard_id_to_header_list.get(full_shard_id, [])
+            header_list.extend(headers)
+
         return header_list
 
     def _parse_grpc_response(self, responses):
