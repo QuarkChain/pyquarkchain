@@ -7,8 +7,8 @@ from fractions import Fraction
 
 import psutil
 import time
-from collections import deque
-from typing import Optional, List, Union, Dict, Tuple, Callable
+from collections import deque, defaultdict
+from typing import Any, Optional, List, Union, Dict, Tuple, Callable
 
 import grpc
 from concurrent import futures
@@ -447,7 +447,7 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None,
+        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
     ):
         super().__init__(
             env,
@@ -1108,16 +1108,21 @@ class MasterServer:
     def get_shutdown_future(self):
         return self.shutdown_future
 
-    def _parse_qkcrpc_response(self, responses):
+    def _parse_qkcrpc_response(self, responses) -> List[MinorBlockHeader]:
         # Slaves may run multiple copies of the same branch
-        # branch_value -> HeaderList
-        full_shard_id_to_header_list = dict()
+        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            self.root_state.tip.height + 1
+        )
+        shard_to_headers = defaultdict(list)
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                raise ValueError()
+                raise ValueError("failed to get unconfirmed headers from shards")
             for headers_info in response.headers_info_list:
                 height = 0
+                shard = headers_info.branch.get_full_shard_id()
+                if shard not in full_shard_ids_to_check:
+                    continue
                 for header in headers_info.header_list:
                     # check headers are ordered by height
                     check(height == 0 or height + 1 == header.height)
@@ -1127,60 +1132,57 @@ class MasterServer:
                         header.get_hash()
                     ):
                         break
-                    full_shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_full_shard_id(), []
-                    ).append(header)
+                    shard_to_headers[shard].append(header)
+        return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]
 
-        header_list = []
+    def _parse_grpc_response(
+        self, responses: List[Optional[List[Any]]]
+    ) -> List[MinorBlockHeader]:
         full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
             self.root_state.tip.height + 1
         )
-        for full_shard_id in full_shard_ids_to_check:
-            headers = full_shard_id_to_header_list.get(full_shard_id, [])
-            header_list.extend(headers)
-
-        return header_list
-
-    def _parse_grpc_response(self, responses):
-        header_list = []
-        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-            self.root_state.tip.height + 1
-        )
+        shard_to_headers = defaultdict(list)
         for response in responses:
             if not response:
-                raise ValueError()
-            for header in response.header_list:
+                raise ValueError("failed to get unconfirmed headers from shards")
+            for header in response:
                 if not self.root_state.db.contain_minor_block_by_hash(header.id):
                     break
-                libra_header = MinorBlockHeader(
-                    branch=Branch(header.full_shard_id), hash_meta=header.id
-                )
-                header_full_shard_id = header.full_shard_id
-                if header_full_shard_id in full_shard_ids_to_check:
-                    header_list.append(libra_header)
-        return header_list
+                # Filter out the ones unknown to the master
+                if header.full_shard_id in full_shard_ids_to_check:
+                    shard_to_headers[header.full_shard_id].append(
+                        MinorBlockHeader.new_with_fixed_hash(
+                            Branch(header.full_shard_id), header.id
+                        )
+                    )
+        return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]
 
     async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
-        if self.env.cluster_config.GRPC_SLAVE_LIST:
-            grpc_responses = [
-                grpc_slave.get_unconfirmed_header()
-                for grpc_slave in self.grpc_slave_pool
-            ]
-            header_list = self._parse_grpc_response(grpc_responses)
-
-        else:
-            futures = []
-            for slave in self.slave_pool:
-                request = GetUnconfirmedHeadersRequest()
-                futures.append(
-                    slave.write_rpc_request(
-                        ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
+        try:
+            if self.grpc_slave_pool:
+                grpc_responses = [
+                    grpc_slave.get_unconfirmed_header()
+                    for grpc_slave in self.grpc_slave_pool
+                ]
+                header_list = self._parse_grpc_response(grpc_responses)
+            else:
+                futures = []
+                for slave in self.slave_pool:
+                    request = GetUnconfirmedHeadersRequest()
+                    futures.append(
+                        slave.write_rpc_request(
+                            ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
+                        )
                     )
-                )
-            qkcrpc_responses = await asyncio.gather(*futures)
-            header_list = self._parse_qkcrpc_response(qkcrpc_responses)
+                qkcrpc_responses = await asyncio.gather(*futures)
+                header_list = self._parse_qkcrpc_response(qkcrpc_responses)
+        except Exception:
+            Logger.log_exception()
+            return None
 
-        return self.root_state.create_block_to_mine(header_list, address)
+        return self.root_state.create_block_to_mine(
+            header_list, address, grpc_setup=bool(self.grpc_slave_pool)
+        )
 
     async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(

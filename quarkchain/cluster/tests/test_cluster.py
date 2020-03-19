@@ -1,4 +1,6 @@
 import unittest
+from typing import List
+
 import grpc
 
 from eth_keys.datatypes import PrivateKey
@@ -49,29 +51,27 @@ def _tip_gen(shard_state):
 
 
 class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
-    def __init__(self, expected_minor_block_headers):
-        self.request_num = 0
-        self.mh = expected_minor_block_headers  # type: List[MinorBlockHeader]
-
-    def SetRootChainConfirmedBlock(self, request, context):
-        return grpc_pb2.SetRootChainConfirmedBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
-        )
+    def __init__(
+        self, expected_unconfirmed_minor_block_headers: List[MinorBlockHeader]
+    ):
+        self.add_rb_req = 0
+        self.get_unconfirmed_mh_req = 0
+        self.unconfirmed_minor_block_headers = expected_unconfirmed_minor_block_headers
 
     def AddRootBlock(self, request, context):
-        self.request_num += 1
+        self.add_rb_req += 1
         return grpc_pb2.AddRootBlockResponse(
             status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
     def GetUnconfirmedHeader(self, request, context):
-        self.request_num += 1
+        self.get_unconfirmed_mh_req += 1
         return grpc_pb2.GetUnconfirmedHeaderResponse(
             header_list=[
                 grpc_pb2.MinorBlockHeader(
-                    id=self.mh.get_hash(),
-                    full_shard_id=self.mh.branch.get_full_shard_id(),
+                    id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
                 )
+                for mh in self.unconfirmed_minor_block_headers
             ]
         )
 
@@ -2481,32 +2481,32 @@ class TestCluster(unittest.TestCase):
                 clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
             )
             # Test Case 1 ###################################################
-            # This case tests add_root_broadcast
+            # This case tests adding root blocks
             root_block = clusters[0].master.root_state.create_block_to_mine([])
 
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
-            server = MockGrpcServer(b1.header)
+            server = MockGrpcServer([b1.header])
             grpc_server1 = self.build_test_server(
-                server, grpc_slaves[0].HOST, grpc_slaves[0].PORT,
+                server, grpc_slaves[0].HOST, grpc_slaves[0].PORT
             )
             grpc_server1.start()
             grpc_server2 = self.build_test_server(
-                server, grpc_slaves[1].HOST, grpc_slaves[1].PORT,
+                server, grpc_slaves[1].HOST, grpc_slaves[1].PORT
             )
             grpc_server2.start()
             call_async(clusters[0].master.add_root_block(root_block))
-            self.assertEqual(
-                server.request_num, len(grpc_slaves),
-            )
+            self.assertEqual(server.add_rb_req, len(grpc_slaves))
 
             # Test Case 2 ###################################################
-            # This case tests get_unconfirmed_header
-            grpc_responses = [
-                clusters[0].master.grpc_slave_pool[0].get_unconfirmed_header()
-            ]
-            header_list = clusters[0].master._parse_grpc_response(grpc_responses)
-            self.assertEqual(server.request_num, len(grpc_slaves) + 1)
-            self.assertEqual(
-                header_list[0].branch.get_full_shard_id(),
-                b1.header.branch.get_full_shard_id(),
+            # This case tests getting unconfirmed headers when creating root blocks to mine
+            root_block = call_async(
+                # try getting the next root block
+                clusters[0].master.get_next_block_to_mine(
+                    address=None, branch_value=None
+                )
             )
+
+            self.assertEqual(server.get_unconfirmed_mh_req, len(grpc_slaves))
+            for mh in root_block.minor_block_header_list:
+                self.assertEqual(mh.get_hash(), b1.header.get_hash())
+                self.assertEqual(mh.branch, b1.header.branch)
