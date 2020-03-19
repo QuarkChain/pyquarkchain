@@ -1148,7 +1148,7 @@ class MasterServer:
             for header in response:
                 if not self.root_state.db.contain_minor_block_by_hash(header.id):
                     break
-                # Filter out the ones unknown to the master
+                # use new_with_fixed_hash(full_shard_id, id) to create a fake MinorBlockHeader with block hash = id
                 if header.full_shard_id in full_shard_ids_to_check:
                     shard_to_headers[header.full_shard_id].append(
                         MinorBlockHeader.new_with_fixed_hash(
