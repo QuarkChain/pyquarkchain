@@ -1,8 +1,8 @@
-import logging
-import argparse
 import grpc
+
+from typing import Any, List, Optional
 from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
-from quarkchain.core import RootBlock, RootBlockHeader, MinorBlockHeader
+from quarkchain.core import RootBlock
 from quarkchain.utils import Logger
 
 HOST = "localhost"
@@ -60,3 +60,13 @@ class GrpcClient:
             return False
 
         return True
+
+    def get_unconfirmed_header(self) -> Optional[List[Any]]:
+        request = grpc_pb2.GetUnconfirmedHeaderRequest()
+        try:
+            response = self.client.GetUnconfirmedHeader(request)
+        except grpc.RpcError:
+            Logger.log_exception()
+            return None
+
+        return response.header_list

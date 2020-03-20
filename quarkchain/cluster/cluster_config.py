@@ -307,16 +307,14 @@ class ClusterConfig(BaseConfig):
             default=False,
             dest="enable_transaction_history",
         )
+        parser.add_argument("--enable_grpc_server", action="store_true", default=False)
+
         parser.add_argument(
-            "--enable_grpc_server", action="store_true", default=False,
+            "--grpc_server_host", default=ClusterConfig.GRPC_SERVER_HOST, type=str
         )
 
         parser.add_argument(
-            "--grpc_server_host", default=ClusterConfig.GRPC_SERVER_HOST, type=str,
-        )
-
-        parser.add_argument(
-            "--grpc_server_port", default=ClusterConfig.GRPC_SERVER_PORT, type=int,
+            "--grpc_server_port", default=ClusterConfig.GRPC_SERVER_PORT, type=int
         )
 
         parser.add_argument(
@@ -478,6 +476,10 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
+        if config.SLAVE_LIST and config.GRPC_SLAVE_LIST:
+            raise ValueError(
+                "should not have qkc slave and grpc slave at the same time"
+            )
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
         config.GRPC_SLAVE_LIST = [
             SlaveConfig.from_dict(s) for s in config.GRPC_SLAVE_LIST
