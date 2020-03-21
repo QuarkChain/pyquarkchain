@@ -5,13 +5,13 @@ from concurrent import futures
 
 from typing import List
 
-from quarkchain.generated import grpc_pb2
-from quarkchain.generated import grpc_pb2_grpc
+from quarkchain.generated import cluster_pb2
+from quarkchain.generated import cluster_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.core import RootBlockHeader, RootBlock, MinorBlockHeader
 
 
-class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
+class NormalServer(cluster_pb2_grpc.ClusterSlaveServicer):
     def __init__(self, expected_minor_block_headers):
         self.expected_minor_block_headers = (
             expected_minor_block_headers
@@ -27,13 +27,13 @@ class NormalServer(grpc_pb2_grpc.ClusterSlaveServicer):
             assert expected_mh.get_hash() == mh.id
             assert expected_mh.branch.get_full_shard_id() == mh.full_shard_id
 
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+        return cluster_pb2.AddRootBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
 
     def SetRootChainConfirmedBlock(self, request, context):
-        return grpc_pb2.SetRootChainConfirmedBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        return cluster_pb2.SetRootChainConfirmedBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
 
@@ -47,20 +47,20 @@ class ErrorServer(NormalServer):
         ):
             assert expected_mh.get_hash() == mh.id
             assert expected_mh.branch.get_full_shard_id() == mh.full_shard_id
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Failed")
+        return cluster_pb2.AddRootBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=1, message="Failed")
         )
 
     def SetRootChainConfirmedBlock(self, request, context):
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=1, message="Failed")
+        return cluster_pb2.AddRootBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=1, message="Failed")
         )
 
 
 class TestGrpcClient(unittest.TestCase):
     def build_test_server(self, test_server, port: int):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
+        cluster_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
         server.add_insecure_port("[::]:" + str(port))
         return server
 

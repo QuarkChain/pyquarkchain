@@ -17,8 +17,8 @@ message ClusterSlaveStatus {
 }
 
 message MinorBlockHeader {
-    bytes id = 1;
-    uint32 full_shard_id = 2;
+  bytes id = 1;
+  uint32 full_shard_id = 2;
 }
 
 message AddRootBlockRequest {

@@ -12,7 +12,7 @@ from typing import Any, Optional, List, Union, Dict, Tuple, Callable
 
 import grpc
 from concurrent import futures
-from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
+from quarkchain.generated import cluster_pb2, cluster_pb2_grpc
 from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
@@ -102,13 +102,13 @@ from quarkchain.constants import (
 )
 
 
-class ClusterMaster(grpc_pb2_grpc.ClusterMasterServicer):
+class ClusterMaster(cluster_pb2_grpc.ClusterMasterServicer):
     def __init__(self, root_state):
         self.root_state = root_state
 
     def AddMinorBlockHeader(self, request, context):
         self.root_state.add_validated_minor_block_hash(request.id, {})
-        return grpc_pb2.AddMinorBlockHeaderResponse()
+        return cluster_pb2.AddMinorBlockHeaderResponse()
 
 
 class SyncTask:
@@ -1876,7 +1876,7 @@ def parse_args():
 def start_grpc_server(env, master_server):
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
     servicer = ClusterMaster(master_server.root_state)
-    grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+    cluster_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
     grpc_server.add_insecure_port(
         "{}:{}".format(
             env.cluster_config.GRPC_SERVER_HOST,

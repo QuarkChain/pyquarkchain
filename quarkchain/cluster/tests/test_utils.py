@@ -1,8 +1,5 @@
 import asyncio
 import os
-import grpc
-from concurrent import futures
-from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
 from contextlib import ContextDecorator
 
 from quarkchain.cluster.cluster_config import (
