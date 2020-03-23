@@ -237,16 +237,32 @@ def proc_current_mnt_id(ext, msg):
 def proc_transfer_mnt(ext, msg):
     from quarkchain.evm.messages import apply_msg
 
-    # Data must be >= 96 bytes
-    if msg.data.size < 96:
-        return 0, 0, []
-    gascost = 3
-    if msg.gas < gascost:
+    # Data must be >= 96 bytes and static call not allowed
+    if msg.data.size < 96 or msg.static:
         return 0, 0, []
     to = utils.int_to_addr(msg.data.extract32(0))
     mnt = msg.data.extract32(32)
     value = msg.data.extract32(64)
     data = msg.data.extract_all(96)
+
+    num_zero_bytes = data.count(ascii_chr(0))
+    num_non_zero_bytes = len(data) - num_zero_bytes
+    # Intrinsic gas
+    gascost = (
+        opcodes.GTXCOST
+        + opcodes.GTXDATAZERO * num_zero_bytes
+        + opcodes.GTXDATANONZERO * num_non_zero_bytes
+    )
+    if value > 0:
+        gascost += opcodes.GCALLVALUETRANSFER
+        if not ext.account_exists(to):
+            gascost += opcodes.GCALLNEWACCOUNT
+    # Out of gas
+    if msg.gas < gascost:
+        return 0, 0, []
+    # Handle insufficient balance or exceeding max call depth
+    if ext.get_balance(msg.sender, token_id=mnt) < value or msg.depth >= vm.MAX_DEPTH:
+        return 0, msg.gas - gascost, []
     new_msg = vm.Message(
         msg.sender,
         to,
@@ -255,7 +271,7 @@ def proc_transfer_mnt(ext, msg):
         data,
         msg.depth + 1,
         code_address=to,
-        static=msg.static,
+        static=False,
         transfer_token_id=mnt,
         gas_token_id=msg.gas_token_id,
     )
