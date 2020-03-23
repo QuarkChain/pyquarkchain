@@ -10,7 +10,7 @@ from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
 from quarkchain.core import Address
-from quarkchain.utils import Logger, check, is_p2
+from quarkchain.utils import Logger, check, is_p2, int_left_most_bit
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
@@ -93,6 +93,9 @@ class SlaveConfig(BaseConfig):
     ID = ""
     FULL_SHARD_ID_LIST = []
 
+    # private configurable variable to handle legacy CHAIN_MASK_LIST translation
+    _chains = None
+
     def to_dict(self):
         ret = super().to_dict()
         # format to hex
@@ -104,8 +107,33 @@ class SlaveConfig(BaseConfig):
     @classmethod
     def from_dict(cls, d):
         config = super().from_dict(d)
-        # parse from hex to int
-        config.FULL_SHARD_ID_LIST = [int(h, 16) for h in config.FULL_SHARD_ID_LIST]
+        # bail if both full shard ID list and chain mask list exist
+        shard_ids = getattr(config, "FULL_SHARD_ID_LIST", None)
+        chain_mask = getattr(config, "CHAIN_MASK_LIST", None)
+        if shard_ids and chain_mask:
+            raise ValueError(
+                "Can only have either FULL_SHARD_ID_LIST or CHAIN_MASK_LIST"
+            )
+        elif shard_ids:
+            # parse from hex to int
+            config.FULL_SHARD_ID_LIST = [int(h, 16) for h in config.FULL_SHARD_ID_LIST]
+        elif chain_mask:
+            # a simple way to be backward compatible with hard-coded shard ID
+            # e.g. chain mask 4 => 0x00000001, 0x00040001
+            # note that this only works if every chain has 1 shard only
+            check(all(chain.SHARD_SIZE == 1 for chain in cls._chains))
+            for m in chain_mask:
+                bit_mask = (1 << (int_left_most_bit(m) - 1)) - 1
+                config.FULL_SHARD_ID_LIST = [
+                    int("0x{:04x}0001".format(chain_id), 16)
+                    for chain_id in range(len(cls._chains))
+                    if chain_id & bit_mask == m & bit_mask
+                ]
+            delattr(config, "CHAIN_MASK_LIST")
+        else:
+            raise ValueError(
+                "Missing FULL_SHARD_ID_LIST (or CHAIN_MASK_LIST as legacy config)"
+            )
         return config
 
 
@@ -468,6 +496,8 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
+        # to handle legacy slave config fields CHAIN_MASK_LIST translation
+        SlaveConfig._chains = config.QUARKCHAIN.CHAINS
         config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
 
         if "P2P" in d:
