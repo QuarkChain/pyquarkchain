@@ -4,7 +4,7 @@ import unittest
 from concurrent import futures
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.tests.test_utils import get_test_env
-from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
+from quarkchain.generated import cluster_pb2, cluster_pb2_grpc
 from quarkchain.cluster.master import ClusterMaster
 from quarkchain.core import MinorBlockHeader
 
@@ -12,7 +12,7 @@ from quarkchain.core import MinorBlockHeader
 class TestGrpcServer(unittest.TestCase):
     def build_test_client(self, host: str, port: int):
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
-        client = grpc_pb2_grpc.ClusterMasterStub(channel)
+        client = cluster_pb2_grpc.ClusterMasterStub(channel)
         return client
 
     def test_store_minor_block(self):
@@ -20,7 +20,7 @@ class TestGrpcServer(unittest.TestCase):
         r_state = RootState(env=env)
         grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
         servicer = ClusterMaster(r_state)
-        grpc_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+        cluster_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
         grpc_server.add_insecure_port(
             "{}:{}".format(
                 env.cluster_config.GRPC_SERVER_HOST,
@@ -35,7 +35,7 @@ class TestGrpcServer(unittest.TestCase):
         )
 
         mb = MinorBlockHeader()
-        request = grpc_pb2.AddMinorBlockHeaderRequest(id=mb.get_hash())
+        request = cluster_pb2.AddMinorBlockHeaderRequest(id=mb.get_hash())
         grpc_client.AddMinorBlockHeader(request)
         self.assertTrue(r_state.db.contain_minor_block_by_hash(mb.get_hash()))
 

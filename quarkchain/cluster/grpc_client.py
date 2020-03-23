@@ -1,7 +1,7 @@
 import grpc
 
 from typing import Any, List, Optional
-from quarkchain.generated import grpc_pb2, grpc_pb2_grpc
+from quarkchain.generated import cluster_pb2, cluster_pb2_grpc
 from quarkchain.core import RootBlock
 from quarkchain.utils import Logger
 
@@ -12,10 +12,10 @@ PORT = 50051
 class GrpcClient:
     def __init__(self, host: str = HOST, port: int = PORT):
         channel = grpc.insecure_channel("{}:{}".format(host, str(port)))
-        self.client = grpc_pb2_grpc.ClusterSlaveStub(channel)
+        self.client = cluster_pb2_grpc.ClusterSlaveStub(channel)
 
     def set_rootchain_confirmed_block(self) -> bool:
-        request = grpc_pb2.SetRootChainConfirmedBlockRequest()
+        request = cluster_pb2.SetRootChainConfirmedBlockRequest()
         try:
             response = self.client.SetRootChainConfirmedBlock(request)
         except Exception:
@@ -33,13 +33,13 @@ class GrpcClient:
             root_block.header.height,
         )
         minor_block_header_list = [
-            grpc_pb2.MinorBlockHeader(
+            cluster_pb2.MinorBlockHeader(
                 id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
             )
             for mh in root_block.minor_block_header_list
         ]
 
-        request = grpc_pb2.AddRootBlockRequest(
+        request = cluster_pb2.AddRootBlockRequest(
             id=id,
             prev_id=prev_id,
             height=height,
@@ -62,7 +62,7 @@ class GrpcClient:
         return True
 
     def get_unconfirmed_header(self) -> Optional[List[Any]]:
-        request = grpc_pb2.GetUnconfirmedHeaderRequest()
+        request = cluster_pb2.GetUnconfirmedHeaderRequest()
         try:
             response = self.client.GetUnconfirmedHeader(request)
         except grpc.RpcError:

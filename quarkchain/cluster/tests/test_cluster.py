@@ -28,8 +28,8 @@ from quarkchain.core import (
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
-from quarkchain.generated import grpc_pb2
-from quarkchain.generated import grpc_pb2_grpc
+from quarkchain.generated import cluster_pb2
+from quarkchain.generated import cluster_pb2_grpc
 from concurrent import futures
 
 
@@ -50,7 +50,7 @@ def _tip_gen(shard_state):
     return b
 
 
-class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
+class MockGrpcServer(cluster_pb2_grpc.ClusterSlaveServicer):
     def __init__(
         self, expected_unconfirmed_minor_block_headers: List[MinorBlockHeader]
     ):
@@ -60,15 +60,15 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
 
     def AddRootBlock(self, request, context):
         self.add_rb_req += 1
-        return grpc_pb2.AddRootBlockResponse(
-            status=grpc_pb2.ClusterSlaveStatus(code=0, message="Test")
+        return cluster_pb2.AddRootBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Test")
         )
 
     def GetUnconfirmedHeader(self, request, context):
         self.get_unconfirmed_mh_req += 1
-        return grpc_pb2.GetUnconfirmedHeaderResponse(
+        return cluster_pb2.GetUnconfirmedHeaderResponse(
             header_list=[
-                grpc_pb2.MinorBlockHeader(
+                cluster_pb2.MinorBlockHeader(
                     id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
                 )
                 for mh in self.unconfirmed_minor_block_headers
@@ -79,7 +79,7 @@ class MockGrpcServer(grpc_pb2_grpc.ClusterSlaveServicer):
 class TestCluster(unittest.TestCase):
     def build_test_server(self, test_server, host: str, port: int):
         server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
-        grpc_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
+        cluster_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
         server.add_insecure_port("{}:{}".format(host, str(port)))
         return server
 
