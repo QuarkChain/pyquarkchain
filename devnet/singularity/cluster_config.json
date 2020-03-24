@@ -380,8 +380,8 @@
       "HOST": "127.0.0.1",
       "PORT": 38000,
       "ID": "S0",
-      "CHAIN_MASK_LIST": [
-        4
+      "FULL_SHARD_ID_LIST": [
+        "0x1", "0x00040001"
       ]
     },
     {
@@ -389,8 +389,8 @@
       "PORT": 38001,
       "WEBSOCKET_JSON_RPC_PORT": 38591,
       "ID": "S1",
-      "CHAIN_MASK_LIST": [
-        5
+      "FULL_SHARD_ID_LIST": [
+        "0x00010001", "0x00050001"
       ]
     },
     {
@@ -398,8 +398,8 @@
       "PORT": 38002,
       "WEBSOCKET_JSON_RPC_PORT": 38592,
       "ID": "S2",
-      "CHAIN_MASK_LIST": [
-        6
+      "FULL_SHARD_ID_LIST": [
+        "0x00020001", "0x00060001"
       ]
     },
     {
@@ -407,8 +407,8 @@
       "PORT": 38003,
       "WEBSOCKET_JSON_RPC_PORT": 38593,
       "ID": "S3",
-      "CHAIN_MASK_LIST": [
-        7
+      "FULL_SHARD_ID_LIST": [
+        "0x00030001", "0x00070001"
       ]
     }
   ],
