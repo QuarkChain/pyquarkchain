@@ -26,7 +26,7 @@ from quarkchain.evm.exceptions import (
     InvalidNativeToken,
 )
 from quarkchain.evm.slogging import get_logger
-from quarkchain.utils import token_id_decode
+from quarkchain.utils import token_id_decode, check
 from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
@@ -372,10 +372,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
 
     # buy startgas
-    assert (
-        state.get_balance(tx.sender, token_id=tx.gas_token_id)
-        >= tx.startgas * tx.gasprice
-    )
     gasprice, refund_rate = tx.gasprice, 100
     # convert gas if using non-genesis native token
     if gasprice != 0 and tx.gas_token_id != state.genesis_token:
@@ -383,24 +379,22 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
         # guaranteed by validation
-        assert converted_genesis_token_gas_price > 0
+        check(converted_genesis_token_gas_price > 0)
         gasprice = converted_genesis_token_gas_price
         contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
         # guaranteed by validation
-        assert (
-            state.get_balance(contract_addr, token_id=state.genesis_token)
-            >= tx.startgas * converted_genesis_token_gas_price
-        )
-        state.delta_token_balance(
-            contract_addr,
-            state.genesis_token,
-            -tx.startgas * converted_genesis_token_gas_price,
+        check(
+            state.deduct_value(
+                contract_addr,
+                state.genesis_token,
+                tx.startgas * converted_genesis_token_gas_price,
+            )
         )
         state.delta_token_balance(
             contract_addr, tx.gas_token_id, tx.startgas * tx.gasprice
         )
 
-    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
+    check(state.deduct_value(tx.sender, tx.gas_token_id, tx.startgas * tx.gasprice))
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -435,7 +429,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         # Currently, burn all gas
         local_gas_used = tx.startgas
     elif tx.to == b"":
-        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        check(state.deduct_value(tx.sender, tx.transfer_token_id, tx.value))
         remote_gas_reserved = tx.startgas - intrinsic_gas
         ext.add_cross_shard_transaction_deposit(
             quarkchain.core.CrossShardTransactionDeposit(
@@ -460,7 +454,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         )
         success = 1
     else:
-        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        check(state.deduct_value(tx.sender, tx.transfer_token_id, tx.value))
         if (
             state.qkc_config.ENABLE_EVM_TIMESTAMP is None
             or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
