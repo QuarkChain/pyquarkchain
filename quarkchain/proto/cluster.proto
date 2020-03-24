@@ -36,7 +36,7 @@ message AddMinorBlockHeaderRequest {
 }
 
 message AddMinorBlockHeaderResponse {
-
+  ClusterSlaveStatus status = 1;
 }
 
 message SetRootChainConfirmedBlockResponse {
