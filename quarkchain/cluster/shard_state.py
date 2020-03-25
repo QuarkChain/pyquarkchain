@@ -39,6 +39,7 @@ from quarkchain.evm.messages import (
     apply_transaction,
     validate_transaction,
     apply_xshard_deposit,
+    convert_to_default_chain_token_gasprice,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -538,6 +539,16 @@ class ShardState:
             evm_tx = self.__validate_tx(
                 tx, evm_state, xshard_gas_limit=xshard_gas_limit
             )
+
+            # Don't add the tx if the gasprice in QKC is too low.
+            # Note that this is not enforced by consensus,
+            # but miners will likely discard the tx if the gasprice is too low.
+            default_gasprice = convert_to_default_chain_token_gasprice(
+                evm_state, evm_tx.gas_token_id, evm_tx.gasprice
+            )
+            if default_gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
+                return False
+
             self.tx_queue.add_transaction(tx)
             asyncio.ensure_future(
                 self.subscription_manager.notify_new_pending_tx(
@@ -1189,12 +1200,14 @@ class ShardState:
                 break
 
             evm_tx = tx.tx.to_evm_tx()
-
-            # simply ignore tx with lower gas price than specified
-            if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
-                continue
-
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+
+            default_gasprice = convert_to_default_chain_token_gasprice(
+                evm_state, evm_tx.gas_token_id, evm_tx.gasprice
+            )
+            # simply ignore tx with lower gas price than specified
+            if default_gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
+                continue
 
             # check if TX is disabled
             if (

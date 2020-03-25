@@ -11,6 +11,7 @@ from quarkchain.cluster.p2p_commands import (
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     create_contract_with_storage2_transaction,
+    mock_pay_native_token_as_gas,
     ClusterContext,
 )
 from quarkchain.config import ConsensusType
@@ -257,6 +258,94 @@ class TestCluster(unittest.TestCase):
             actual_evm_tx = tx_queue.pop_transaction(
                 state1.get_transaction_count
             ).tx.to_evm_tx()
+            self.assertEqual(actual_evm_tx, expect_evm_tx2)
+
+    def test_add_transaction_with_invalid_mnt(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1)
+
+        with ClusterContext(2, acc1, should_set_gas_price_limit=True) as clusters:
+            master = clusters[0].master
+
+            root = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
+            call_async(master.add_root_block(root))
+
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b10),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+                gas_price=10,
+                gas_token_id=1,
+            )
+            self.assertFalse(call_async(master.add_transaction(tx1)))
+
+            tx2 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b11),
+                key=id1.get_key(),
+                from_address=acc2,
+                to_address=acc1,
+                value=12345,
+                gas=30000,
+                gas_price=10,
+                gas_token_id=1,
+            )
+            self.assertFalse(call_async(master.add_transaction(tx2)))
+
+    @mock_pay_native_token_as_gas(lambda *x: (50, x[-1] // 5))
+    def test_add_transaction_with_valid_mnt(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(2, acc1, should_set_gas_price_limit=True) as clusters:
+            master = clusters[0].master
+
+            root = call_async(master.get_next_block_to_mine(acc1, branch_value=None))
+            call_async(master.add_root_block(root))
+
+            # gasprice will be 9, which is smaller than 10 as required.
+            tx0 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b10),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+                gas_price=49,
+                gas_token_id=1,
+            )
+            self.assertFalse(call_async(master.add_transaction(tx0)))
+
+            # gasprice will be 10, but the balance will be insufficient.
+            tx1 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b10),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+                gas_price=50,
+                gas_token_id=1,
+            )
+            self.assertFalse(call_async(master.add_transaction(tx1)))
+
+            tx2 = create_transfer_transaction(
+                shard_state=clusters[0].get_shard_state(0b10),
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc1,
+                value=12345,
+                gas_price=50,
+                gas_token_id=1,
+                nonce=5,
+            )
+            self.assertTrue(call_async(master.add_transaction(tx2)))
+
+            # check the tx is received by the other cluster
+            state1 = clusters[1].get_shard_state(0b10)
+            tx_queue, expect_evm_tx2 = state1.tx_queue, tx2.tx.to_evm_tx()
+            assert_true_with_timeout(lambda: len(tx_queue) == 1)
+            actual_evm_tx = tx_queue.peek()[0].tx.tx.to_evm_tx()
             self.assertEqual(actual_evm_tx, expect_evm_tx2)
 
     def test_add_minor_block_request_list(self):

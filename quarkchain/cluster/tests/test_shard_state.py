@@ -28,6 +28,7 @@ from quarkchain.evm.messages import (
     get_gas_utility_info,
     pay_native_token_as_gas,
     validate_transaction,
+    convert_to_default_chain_token_gasprice,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -3274,6 +3275,9 @@ class TestShardState(unittest.TestCase):
         # get the gas utility information by calling the get_gas_utility_info function
         refund_percentage, gas_price = get_gas_utility_info(evm_state, token_id, 60000)
         self.assertEqual((refund_percentage, gas_price), (60, 2))
+        self.assertEqual(
+            convert_to_default_chain_token_gasprice(evm_state, token_id, 60000), 2
+        )
         # exchange the Qkc with the native token
         refund_percentage, gas_price = pay_native_token_as_gas(
             evm_state, token_id, 1, 60000

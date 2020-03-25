@@ -114,6 +114,15 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     return o
 
 
+def convert_to_default_chain_token_gasprice(state, token_id, gas_price):
+    if token_id == state.shard_config.default_chain_token:
+        return gas_price
+    snapshot = state.snapshot()
+    _, genesis_token_gas_price = get_gas_utility_info(state, token_id, gas_price)
+    state.revert(snapshot)
+    return genesis_token_gas_price
+
+
 def validate_transaction(state, tx):
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
