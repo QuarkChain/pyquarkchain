@@ -108,7 +108,9 @@ class ClusterMaster(cluster_pb2_grpc.ClusterMasterServicer):
 
     def AddMinorBlockHeader(self, request, context):
         self.root_state.add_validated_minor_block_hash(request.id, {})
-        return cluster_pb2.AddMinorBlockHeaderResponse()
+        return cluster_pb2.AddMinorBlockHeaderResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+        )
 
 
 class SyncTask:
