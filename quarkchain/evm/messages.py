@@ -114,7 +114,7 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     return o
 
 
-def get_genesis_gasprice(state, token_id, gas_price):
+def convert_to_default_chain_token_gasprice(state, token_id, gas_price):
     if token_id == state.shard_config.default_chain_token:
         return gas_price
     snapshot = state.snapshot()
