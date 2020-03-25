@@ -109,6 +109,7 @@ class TestPrecompiledContracts(unittest.TestCase):
 
     def test_proc_transfer_mnt(self):
         sender = b"\x00" * 19 + b"\x34"
+        precompiled = decode_hex(b"000000000000000000000000000000514b430002")
         token_id = 1234567
         token_id_bytes = token_id.to_bytes(32, byteorder="big")
         state = State()
@@ -127,24 +128,26 @@ class TestPrecompiledContracts(unittest.TestCase):
 
         new_addr = b"\x01" * 20
         testcases = [
-            # Format: (index, description, sender, value, gas, expected ret, post check)
-            (1, "intrinsic gas not enough", sender, 0, 20000, (0, 0, []), None),
-            (2, "no value transfer with min gas", sender, 0, 21000, (1, 0, []), None),
-            (3, "value transfer needs more gas", sender, 1, 29999, (0, 0, []), None),
-            (4, "value transfer needs more gas", sender, 1, 30000, (1, 0, []), None),
-            (5, "tx on new addr needs more gas", new_addr, 1, 54999, (0, 0, []), None),
+            # Format: (index, description, to, value, gas, expected ret, post check)
+            (1, "gas not enough", sender, 0, 699, (0, 0, []), None),
+            (2, "no value transfer with min gas", sender, 0, 700, (1, 0, []), None),
+            (3, "value transfer needs more gas", sender, 1, 9699, (0, 0, []), None),
+            # Should have stipend gas left
+            (4, "value transfer needs more gas", sender, 1, 9700, (1, 2300, []), None),
+            (5, "tx on new addr needs more gas", new_addr, 1, 34699, (0, 0, []), None),
             (
                 6,
                 "tx on new addr needs more gas",
                 new_addr,
                 42,
-                55000,
-                (1, 0, []),
+                34700,
+                (1, 2300, []),
                 lambda err_msg: self.assertEqual(
                     state.get_balance(new_addr, token_id), 42, err_msg
                 ),
             ),
-            (7, "insufficient balance", sender, 333, 30000, (0, 0, []), None),
+            (7, "insufficient balance", sender, 333, 9700, (0, 0, []), None),
+            (8, "target address is special", precompiled, 0, 9700, (0, 0, []), None),
         ]
         for i, desc, addr, value, gas, expected_ret, post_check in testcases:
             # Data = to address + token ID ++ value ++ (optional) msg data
@@ -159,15 +162,3 @@ class TestPrecompiledContracts(unittest.TestCase):
             self.assertEqual(ret, expected_ret, "%d: %s" % (i, desc))
             if callable(post_check):
                 post_check("%d: %s" % (i, desc))
-
-        # Success case with data, requires more gas
-        data = (
-            b"\x00" * 12
-            + sender
-            + token_id_bytes
-            + (1).to_bytes(32, byteorder="big")
-            + b"\x11\x11"
-        )
-        msg = Message(sender, sender, gas=22000 + 9000, data=data)
-        ret_tuple = proc_transfer_mnt(VMExt(state, sender, gas_price=1), msg)
-        self.assertEqual(ret_tuple, (1, 864, []))
