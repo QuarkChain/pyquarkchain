@@ -4,13 +4,13 @@ import json
 import os
 import socket
 import tempfile
-from typing import List
+from typing import List, Optional
 
 from quarkchain.cluster.monitoring import KafkaSampleLogger
 from quarkchain.cluster.rpc import SlaveInfo
 from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
-from quarkchain.core import Address, ChainMask
-from quarkchain.utils import Logger, check, is_p2
+from quarkchain.core import Address
+from quarkchain.utils import Logger, check, is_p2, int_left_most_bit
 
 DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
@@ -91,17 +91,50 @@ class SlaveConfig(BaseConfig):
     PORT = 38392
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
-    CHAIN_MASK_LIST = None
+    FULL_SHARD_ID_LIST = []
 
     def to_dict(self):
         ret = super().to_dict()
-        ret["CHAIN_MASK_LIST"] = [m.value for m in self.CHAIN_MASK_LIST]
+        # format to hex
+        ret["FULL_SHARD_ID_LIST"] = [
+            "0x{:08x}".format(i) for i in self.FULL_SHARD_ID_LIST
+        ]
         return ret
 
     @classmethod
-    def from_dict(cls, d):
+    def from_dict(cls, d, chains: Optional[List[ChainConfig]] = None):
         config = super().from_dict(d)
-        config.CHAIN_MASK_LIST = [ChainMask(v) for v in config.CHAIN_MASK_LIST]
+        # bail if both full shard ID list and chain mask list exist
+        shard_ids = getattr(config, "FULL_SHARD_ID_LIST", None)
+        chain_mask = getattr(config, "CHAIN_MASK_LIST", None)
+        if shard_ids and chain_mask:
+            raise ValueError(
+                "Can only have either FULL_SHARD_ID_LIST or CHAIN_MASK_LIST"
+            )
+        elif shard_ids:
+            # parse from hex to int
+            config.FULL_SHARD_ID_LIST = [int(h, 16) for h in config.FULL_SHARD_ID_LIST]
+        elif chain_mask:
+            if chains is None:
+                raise ValueError(
+                    "Can't handle legacy CHAIN_MASK_LIST without chain configs"
+                )
+            # a simple way to be backward compatible with hard-coded shard ID
+            # e.g. chain mask 4 => 0x00000001, 0x00040001
+            # note that this only works if every chain has 1 shard only
+            check(all(chain.SHARD_SIZE == 1 for chain in chains))
+            for m in chain_mask:
+                bit_mask = (1 << (int_left_most_bit(m) - 1)) - 1
+                config.FULL_SHARD_ID_LIST = [
+                    int("0x{:04x}0001".format(chain_id), 16)
+                    for chain_id in range(len(chains))
+                    if chain_id & bit_mask == m & bit_mask
+                ]
+            delattr(config, "CHAIN_MASK_LIST")
+        else:
+            raise ValueError(
+                "Missing FULL_SHARD_ID_LIST (or CHAIN_MASK_LIST as legacy config)"
+            )
         return config
 
 
@@ -112,7 +145,7 @@ class SimpleNetworkConfig(BaseConfig):
 
 class P2PConfig(BaseConfig):
     # *new p2p module*
-    BOOT_NODES = ""  # comma seperated enodes format: enode://PUBKEY@IP:PORT
+    BOOT_NODES = ""  # comma separated enodes format: enode://PUBKEY@IP:PORT
     PRIV_KEY = ""
     MAX_PEERS = 25
     UPNP = False
@@ -171,7 +204,7 @@ class ClusterConfig(BaseConfig):
         slave_config = SlaveConfig()
         slave_config.PORT = 38000
         slave_config.ID = "S0"
-        slave_config.CHAIN_MASK_LIST = [ChainMask(1)]
+        slave_config.FULL_SHARD_ID_LIST = [1]
         self.SLAVE_LIST.append(slave_config)
 
         fd, self.json_filepath = tempfile.mkstemp()
@@ -182,7 +215,7 @@ class ClusterConfig(BaseConfig):
         results = []
         for slave in self.SLAVE_LIST:
             results.append(
-                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.CHAIN_MASK_LIST)
+                SlaveInfo(slave.ID, slave.HOST, slave.PORT, slave.FULL_SHARD_ID_LIST)
             )
         return results
 
@@ -414,9 +447,18 @@ class ClusterConfig(BaseConfig):
                 slave_config = SlaveConfig()
                 slave_config.PORT = args.port_start + i
                 slave_config.ID = "S{}".format(i)
-                slave_config.CHAIN_MASK_LIST = [ChainMask(i | args.num_slaves)]
-
+                slave_config.FULL_SHARD_ID_LIST = []
                 config.SLAVE_LIST.append(slave_config)
+
+            # assign full shard IDs to each slave, using hex strings to write into JSON
+            full_shard_ids = [
+                (i << 16) + args.num_shards_per_chain + j
+                for i in range(args.num_chains)
+                for j in range(args.num_shards_per_chain)
+            ]
+            for i, full_shard_id in enumerate(full_shard_ids):
+                slave = config.SLAVE_LIST[i % args.num_slaves]
+                slave.FULL_SHARD_ID_LIST.append(full_shard_id)
 
             fd, config.json_filepath = tempfile.mkstemp()
             with os.fdopen(fd, "w") as tmp:
@@ -455,7 +497,10 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
-        config.SLAVE_LIST = [SlaveConfig.from_dict(s) for s in config.SLAVE_LIST]
+        config.SLAVE_LIST = [
+            SlaveConfig.from_dict(s, config.QUARKCHAIN.CHAINS)
+            for s in config.SLAVE_LIST
+        ]
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])

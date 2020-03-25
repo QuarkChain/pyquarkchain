@@ -46,6 +46,9 @@ def main():
     assert slave_num > 0 and (slave_num & (slave_num - 1) == 0)
 
     slave_servers, i = [], 0
+
+    raise ValueError("CHAIN_MASK_LIST deprecated, please update the code before using")
+
     for host, port_list in host_port_mapping.items():
         for port in port_list:
             s = {
