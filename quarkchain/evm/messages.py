@@ -33,7 +33,7 @@ from quarkchain.evm.exceptions import (
     InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
-from quarkchain.utils import token_id_decode, check
+from quarkchain.utils import token_id_decode, check, TOKEN_ID_MAX
 from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
@@ -46,6 +46,8 @@ CREATE_CONTRACT_ADDRESS = b""
 
 # DEV OPTIONS
 SKIP_MEDSTATES = False
+
+check(TOKEN_ID_MAX <= UINT128_MAX)
 
 
 def rp(tx, what, actual, target):
@@ -139,8 +141,8 @@ def validate_transaction(state, tx):
     if (
         tx.startgas > UINT128_MAX
         or tx.gasprice > UINT128_MAX
-        or tx.gas_token_id > UINT128_MAX
-        or tx.transfer_token_id > UINT128_MAX
+        or tx.gas_token_id > TOKEN_ID_MAX
+        or tx.transfer_token_id > TOKEN_ID_MAX
     ):
         raise InvalidTransaction("startgas, gasprice, and token_id must <= UINT128_MAX")
 
@@ -784,7 +786,7 @@ def pay_native_token_as_gas(
     state, token_id: int, gas: int, gas_price_in_native_token: int
 ) -> (int, int):
     # Call the `payAsGas` function
-    check(token_id <= UINT128_MAX)
+    check(token_id <= TOKEN_ID_MAX)
     check(gas <= UINT128_MAX)
     check(gas_price_in_native_token <= UINT128_MAX)
     data = (
