@@ -2482,7 +2482,9 @@ class TestCluster(unittest.TestCase):
             )
             # Test Case 1 ###################################################
             # This case tests adding root blocks
-            root_block = clusters[0].master.root_state.create_block_to_mine([])
+            root_block = clusters[0].master.root_state.create_block_to_mine(
+                [], grpc_setup=True
+            )
 
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             server = MockGrpcServer([b1.header])

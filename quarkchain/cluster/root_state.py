@@ -456,6 +456,10 @@ class RootState:
                 block.header.height,
             )
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
+
+            if self.env.cluster_config.GRPC_SLAVE_LIST:
+                expected_coinbase_amount = {}
+
             if expected_coinbase_amount != actual_coinbase_amount:
                 raise ValueError(
                     "Bad coinbase amount for root block {}. expect {} but got {}.".format(
@@ -485,13 +489,17 @@ class RootState:
                         m_header.create_time, block.header.create_time
                     )
                 )
-            if not self.is_same_chain(
-                self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
-            ):
-                raise ValueError(
-                    "minor block's prev root block must be in the same chain"
-                )
+
+            if self.env.cluster_config.SLAVE_LIST:
+                if not self.is_same_chain(
+                    self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
+                    self.db.get_root_block_header_by_hash(
+                        m_header.hash_prev_root_block
+                    ),
+                ):
+                    raise ValueError(
+                        "minor block's prev root block must be in the same chain"
+                    )
 
             if m_header.branch.get_full_shard_id() < full_shard_id:
                 raise ValueError("shard id must be ordered")
