@@ -7,7 +7,13 @@ import rlp
 # to bypass circular imports
 import quarkchain.core
 
-from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr, add_dict
+from quarkchain.evm.utils import (
+    int256,
+    safe_ord,
+    bytearray_to_bytestr,
+    add_dict,
+    UINT128_MAX,
+)
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.sedes.binary import Binary
 from quarkchain.rlp.utils import decode_hex, encode_hex
@@ -24,9 +30,10 @@ from quarkchain.evm.exceptions import (
     BlockGasLimitReached,
     InsufficientBalance,
     InvalidNativeToken,
+    InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
-from quarkchain.utils import token_id_decode, check
+from quarkchain.utils import token_id_decode, check, TOKEN_ID_MAX
 from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
@@ -39,6 +46,8 @@ CREATE_CONTRACT_ADDRESS = b""
 
 # DEV OPTIONS
 SKIP_MEDSTATES = False
+
+check(TOKEN_ID_MAX <= UINT128_MAX)
 
 
 def rp(tx, what, actual, target):
@@ -127,6 +136,15 @@ def validate_transaction(state, tx):
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
+
+    # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
+    if (
+        tx.startgas > UINT128_MAX
+        or tx.gasprice > UINT128_MAX
+        or tx.gas_token_id > TOKEN_ID_MAX
+        or tx.transfer_token_id > TOKEN_ID_MAX
+    ):
+        raise InvalidTransaction("startgas, gasprice, and token_id must <= UINT128_MAX")
 
     # (2) the transaction nonce is valid (equivalent to the
     #     sender account's current nonce);
@@ -768,6 +786,9 @@ def pay_native_token_as_gas(
     state, token_id: int, gas: int, gas_price_in_native_token: int
 ) -> (int, int):
     # Call the `payAsGas` function
+    check(token_id <= TOKEN_ID_MAX)
+    check(gas <= UINT128_MAX)
+    check(gas_price_in_native_token <= UINT128_MAX)
     data = (
         bytes.fromhex("5ae8f7f1")
         + token_id.to_bytes(32, byteorder="big")
