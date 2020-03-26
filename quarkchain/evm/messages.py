@@ -30,6 +30,7 @@ from quarkchain.evm.exceptions import (
     BlockGasLimitReached,
     InsufficientBalance,
     InvalidNativeToken,
+    InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
 from quarkchain.utils import token_id_decode, check
