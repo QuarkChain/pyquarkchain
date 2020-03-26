@@ -18,7 +18,7 @@
     "post": {
       "ConstantinopleFix": [
         {
-          "hash": "0x04552b08be30fc54a484bcbc46185fe45f31c773fbad689dfe37993fb0ee1907",
+          "hash": "0x6bfb634605adcbdc3f843980d190c0569674d5265f5a51e90dd67fc6475cf4d1",
           "indexes": {
             "data": 0,
             "gas": 0,
@@ -28,7 +28,7 @@
           "logs": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
         },
         {
-          "hash": "0x4a369a06c9c3cd90c7c97f5609e80eaf2f34e9ffa90ff6f567f93103b3dbfd0e",
+          "hash": "0x7920ff3aeafb50fd5eb3e18d93c69830ca1dbe494bd1ab949fd709e3973f4e3a",
           "indexes": {
             "data": 1,
             "gas": 0,

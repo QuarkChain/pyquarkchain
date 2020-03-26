@@ -253,7 +253,7 @@ def proc_transfer_mnt(ext, msg):
     if to == decode_hex(b"000000000000000000000000000000514b430002"):
         return 0, 0, []
 
-    gascost = 700  # gascost of CALL
+    gascost = 0
     if value > 0:
         gascost += opcodes.GCALLVALUETRANSFER
         if not ext.account_exists(to):
@@ -262,10 +262,7 @@ def proc_transfer_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
     # Handle insufficient balance or exceeding max call depth
-    if (
-        ext.get_balance(msg.sender, token_id=token_id) < value
-        or msg.depth >= vm.MAX_DEPTH
-    ):
+    if ext.get_balance(msg.sender, token_id) < value or msg.depth >= vm.MAX_DEPTH:
         return 0, msg.gas - gascost, []
     new_msg = vm.Message(
         msg.sender,
