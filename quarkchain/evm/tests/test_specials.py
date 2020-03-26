@@ -1,10 +1,17 @@
 import unittest
 
-from quarkchain.evm.specials import proc_current_mnt_id, proc_mint_mnt, proc_balance_mnt
+from quarkchain.evm.messages import VMExt
+from quarkchain.evm.specials import (
+    proc_current_mnt_id,
+    proc_mint_mnt,
+    proc_balance_mnt,
+    proc_transfer_mnt,
+)
 from quarkchain.evm.state import State
 from quarkchain.evm.vm import Message, VmExtBase
 from quarkchain.evm.utils import decode_hex, encode_int32
 from quarkchain.core import Address
+from quarkchain.utils import token_id_encode
 
 
 class TestPrecompiledContracts(unittest.TestCase):
@@ -99,3 +106,58 @@ class TestPrecompiledContracts(unittest.TestCase):
             self.assertEqual(result, 1)
             self.assertEqual(gas_remained, 500 - 400)
             self.assertEqual(ret_int, bal)
+
+    def test_proc_transfer_mnt(self):
+        sender = b"\x00" * 19 + b"\x34"
+        precompiled = decode_hex(b"000000000000000000000000000000514b430002")
+        token_id = 1234567
+        token_id_bytes = token_id.to_bytes(32, byteorder="big")
+        state = State()
+
+        self.__mint(
+            state,
+            sender,
+            token_id_encode("QKC").to_bytes(32, byteorder="big"),
+            encode_int32(30000),
+        )
+        self.__mint(state, sender, token_id_bytes, encode_int32(100))
+        balance = state.get_balance(sender, token_id)
+        self.assertEqual(balance, 100)
+        balance = state.get_balance(sender, token_id_encode("QKC"))
+        self.assertEqual(balance, 30000)
+
+        new_addr = b"\x01" * 20
+        testcases = [
+            # Format: (index, description, to, value, gas, expected ret, post check)
+            (1, "no value transfer", sender, 0, 0, (1, 0, []), None),
+            (2, "value transfer needs more gas", sender, 1, 8999, (0, 0, []), None),
+            # Should have stipend gas left
+            (3, "value transfer needs more gas", sender, 1, 9000, (1, 2300, []), None),
+            (4, "tx on new addr needs more gas", new_addr, 1, 33999, (0, 0, []), None),
+            (
+                5,
+                "tx on new addr needs more gas",
+                new_addr,
+                42,
+                34000,
+                (1, 2300, []),
+                lambda err_msg: self.assertEqual(
+                    state.get_balance(new_addr, token_id), 42, err_msg
+                ),
+            ),
+            (6, "insufficient balance", sender, 333, 9000, (0, 0, []), None),
+            (7, "target address is special", precompiled, 0, 9000, (0, 0, []), None),
+        ]
+        for i, desc, addr, value, gas, expected_ret, post_check in testcases:
+            # Data = to address + token ID ++ value ++ (optional) msg data
+            data = (
+                b"\x00" * 12
+                + addr
+                + token_id_bytes
+                + value.to_bytes(32, byteorder="big")
+            )
+            msg = Message(sender, sender, gas=gas, data=data)
+            ret = proc_transfer_mnt(VMExt(state, sender, gas_price=1), msg)
+            self.assertEqual(ret, expected_ret, "%d: %s" % (i, desc))
+            if callable(post_check):
+                post_check("%d: %s" % (i, desc))

@@ -13,7 +13,7 @@ from quarkchain.rlp.utils import ascii_chr
 
 from quarkchain.evm import utils, opcodes, vm
 from quarkchain.evm.utils import safe_ord, decode_hex, encode_int32
-from quarkchain.utils import check
+from quarkchain.utils import check, TOKEN_ID_MAX
 
 ZERO_PRIVKEY_ADDR = decode_hex("3f17f1962b36e491b30a40b2405849e597ba5fb5")
 
@@ -237,26 +237,43 @@ def proc_current_mnt_id(ext, msg):
 def proc_transfer_mnt(ext, msg):
     from quarkchain.evm.messages import apply_msg
 
-    # Data must be >= 96 bytes
-    if msg.data.size < 96:
-        return 0, 0, []
-    gascost = 3
-    if msg.gas < gascost:
+    # Data must be >= 96 bytes and static call not allowed
+    if msg.data.size < 96 or msg.static:
         return 0, 0, []
     to = utils.int_to_addr(msg.data.extract32(0))
-    mnt = msg.data.extract32(32)
+    token_id = msg.data.extract32(32)
     value = msg.data.extract32(64)
     data = msg.data.extract_all(96)
+
+    # Token ID should be within range
+    if token_id > TOKEN_ID_MAX:
+        return 0, 0, []
+
+    # Doesn't allow target address to be this precompiled contract itself
+    if to == decode_hex(b"000000000000000000000000000000514b430002"):
+        return 0, 0, []
+
+    gascost = 0
+    if value > 0:
+        gascost += opcodes.GCALLVALUETRANSFER
+        if not ext.account_exists(to):
+            gascost += opcodes.GCALLNEWACCOUNT
+    # Out of gas
+    if msg.gas < gascost:
+        return 0, 0, []
+    # Handle insufficient balance or exceeding max call depth
+    if ext.get_balance(msg.sender, token_id) < value or msg.depth >= vm.MAX_DEPTH:
+        return 0, msg.gas - gascost, []
     new_msg = vm.Message(
         msg.sender,
         to,
         value,
-        msg.gas - gascost,
+        msg.gas - gascost + opcodes.GSTIPEND * (value > 0),
         data,
         msg.depth + 1,
         code_address=to,
-        static=msg.static,
-        transfer_token_id=mnt,
+        static=False,
+        transfer_token_id=token_id,
         gas_token_id=msg.gas_token_id,
     )
     return apply_msg(ext, new_msg)
@@ -313,6 +330,9 @@ def proc_mint_mnt(ext, msg):
     if msg.gas < gascost:
         return 0, 0, []
 
+    if token_id > TOKEN_ID_MAX:
+        return 0, 0, []
+
     allowed_sender, _, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
     # Only system contract has access to minting new token
     if allowed_sender != msg.sender:
@@ -328,6 +348,9 @@ def proc_balance_mnt(ext, msg):
     # Should increase gas cost if having too many tokens
     gascost = 400
     if msg.gas < gascost:
+        return 0, 0, []
+
+    if token_id > TOKEN_ID_MAX:
         return 0, 0, []
 
     balance = ext._state.get_balance(address, token_id)
