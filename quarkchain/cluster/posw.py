@@ -64,6 +64,7 @@ def get_posw_info(
     header: Header,
     stake_func: Callable[[], int],
     block_cnt: Dict[bytes, int],
+    stake_per_block: Optional[int] = None,
     signer: Optional[bytes] = None,
 ) -> Optional[PoSWInfo]:
     if (
@@ -75,7 +76,9 @@ def get_posw_info(
     # evaluate stakes before the to-be-added block
     stakes = stake_func()
     coinbase_recipient = header.coinbase_address.recipient
-    block_threshold = min(config.WINDOW_SIZE, stakes // config.TOTAL_STAKE_PER_BLOCK)
+
+    required_stakes_per_block = stake_per_block or config.TOTAL_STAKE_PER_BLOCK
+    block_threshold = min(config.WINDOW_SIZE, stakes // required_stakes_per_block)
     cnt = block_cnt.get(coinbase_recipient, 0)
 
     diff = header.difficulty
