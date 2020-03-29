@@ -69,7 +69,9 @@ class MockGrpcServer(cluster_pb2_grpc.ClusterSlaveServicer):
         return cluster_pb2.GetUnconfirmedHeaderResponse(
             header_list=[
                 cluster_pb2.MinorBlockHeader(
-                    id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
+                    id=mh.get_hash(),
+                    prev_minor_block_id=mh.hash_prev_minor_block,
+                    full_shard_id=mh.branch.get_full_shard_id(),
                 )
                 for mh in self.unconfirmed_minor_block_headers
             ]
@@ -2512,3 +2514,6 @@ class TestCluster(unittest.TestCase):
             for mh in root_block.minor_block_header_list:
                 self.assertEqual(mh.get_hash(), b1.header.get_hash())
                 self.assertEqual(mh.branch, b1.header.branch)
+                self.assertEqual(
+                    mh.hash_prev_minor_block, b1.header.hash_prev_minor_block
+                )

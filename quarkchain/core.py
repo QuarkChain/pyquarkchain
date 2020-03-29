@@ -752,9 +752,9 @@ class MinorBlockHeader(Serializable):
         self._hash = None
 
     @classmethod
-    def new_with_fixed_hash(cls, branch: Branch, h: bytes):
+    def new_with_fixed_hash(cls, branch: Branch, prev_minor_block_id: bytes, h: bytes):
         """A hack to force setting block hash. Usually used for non-default block types."""
-        ret = cls(branch=branch)
+        ret = cls(branch=branch, hash_prev_minor_block=prev_minor_block_id)
         ret._hash = h
         return ret
 
