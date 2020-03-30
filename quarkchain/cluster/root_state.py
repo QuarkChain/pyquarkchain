@@ -430,7 +430,10 @@ class RootState:
         return header == shorter_block_header
 
     def validate_block(
-        self, block, adjusted_diff: int = None, skip_root_block_linkage: bool = False
+        self,
+        block,
+        adjusted_diff: int = None,
+        skip_check_root_block_linkage: bool = False,
     ):
         """Raise on validation errors """
 
@@ -489,7 +492,7 @@ class RootState:
                     )
                 )
 
-            if not skip_root_block_linkage:
+            if not skip_check_root_block_linkage:
                 if not self.is_same_chain(
                     self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
                     self.db.get_root_block_header_by_hash(
@@ -538,7 +541,7 @@ class RootState:
                     )
                 )
             prev_header_in_last_root_block = prev_header_map.get(full_shard_id, None)
-            if not prev_header_in_last_root_block or skip_root_block_linkage:
+            if not prev_header_in_last_root_block or skip_check_root_block_linkage:
                 # no header in previous root block then it must start with genesis block
                 if headers[0].height != 0:
                     raise ValueError(
@@ -580,7 +583,7 @@ class RootState:
         write_db=True,
         skip_if_too_old=True,
         adjusted_diff: int = None,
-        skip_root_block_linkage=False,
+        skip_check_root_block_linkage=False,
     ):
         """ Add new block.
         return True if a longest block is added, False otherwise
@@ -604,7 +607,7 @@ class RootState:
 
         start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(
-            block, adjusted_diff, skip_root_block_linkage
+            block, adjusted_diff, skip_check_root_block_linkage
         )
 
         if write_db:

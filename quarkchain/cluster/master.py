@@ -1326,7 +1326,7 @@ class MasterServer:
             update_tip = self.root_state.add_block(
                 r_block,
                 adjusted_diff=adjusted_diff,
-                skip_root_block_linkage=bool(self.grpc_slave_pool),
+                skip_check_root_block_linkage=bool(self.grpc_slave_pool),
             )
         except ValueError as e:
             Logger.log_exception()
