@@ -68,5 +68,7 @@ class GrpcClient:
         except grpc.RpcError:
             Logger.log_exception()
             return None
-
+        Logger.info(
+            "Length of unconfirmed headers: {}".format(len(response.header_list))
+        )
         return response.header_list
