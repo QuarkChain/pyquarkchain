@@ -45,6 +45,11 @@ class GrpcClient:
             height=height,
             minor_block_headers=minor_block_header_list,
         )
+        Logger.info(
+            "Root block sent, id: {}, height: {}, length of included minor block headers: {}".format(
+                request.id.hex(), request.height, len(request.minor_block_headers)
+            )
+        )
         try:
             response = self.client.AddRootBlock(request)
         except grpc.RpcError as e:
@@ -58,7 +63,6 @@ class GrpcClient:
                 )
             )
             return False
-
         return True
 
     def get_unconfirmed_header(self) -> Optional[List[Any]]:
@@ -68,5 +72,7 @@ class GrpcClient:
         except grpc.RpcError:
             Logger.log_exception()
             return None
-
+        Logger.info(
+            "Length of unconfirmed headers: {}".format(len(response.header_list))
+        )
         return response.header_list

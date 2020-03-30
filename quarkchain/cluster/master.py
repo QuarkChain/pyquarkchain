@@ -108,6 +108,7 @@ class ClusterMaster(cluster_pb2_grpc.ClusterMasterServicer):
 
     def AddMinorBlockHeader(self, request, context):
         self.root_state.add_validated_minor_block_hash(request.id, {})
+        Logger.info("Minor block received: {}".format(request.id.hex()))
         return cluster_pb2.AddMinorBlockHeaderResponse(
             status=cluster_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
         )
