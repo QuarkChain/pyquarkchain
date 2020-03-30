@@ -1843,7 +1843,7 @@ class ShardState:
                 self.env.quark_chain_config.genesis_token,
             ),
             block_cnt,
-            stake_per_block,
+            stake_per_block=stake_per_block,
         )
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
