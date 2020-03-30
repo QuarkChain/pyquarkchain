@@ -1024,22 +1024,13 @@ class ShardState:
         return evm_state.xshard_list, coinbase_amount_map
 
     def get_coinbase_amount_map(self, height) -> TokenBalanceMap:
-        epoch = (
-            height
-            // self.env.quark_chain_config.shards[self.full_shard_id].EPOCH_INTERVAL
-        )
-        decay_numerator = (
-            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
-        )
-        decay_denominator = (
-            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
-        )
         coinbase_amount = (
-            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
+            self.__decay_by_epoch(
+                self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT,
+                height,
+            )
             * self.local_fee_rate.numerator
-            * decay_numerator
             // self.local_fee_rate.denominator
-            // decay_denominator
         )
         # shard coinbase only in genesis_token
         return TokenBalanceMap(
@@ -1838,6 +1829,10 @@ class ShardState:
         if header.height == 0:  # genesis
             return None
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
+        # require stakes will decay as our mining rewards
+        stake_per_block = self.__decay_by_epoch(
+            self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK, header.height
+        )
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
             header,
@@ -1848,6 +1843,7 @@ class ShardState:
                 self.env.quark_chain_config.genesis_token,
             ),
             block_cnt,
+            stake_per_block=stake_per_block,
         )
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
@@ -1970,3 +1966,16 @@ class ShardState:
             config.ENABLE_QKCHASHX_HEIGHT is not None
             and header.height >= config.ENABLE_QKCHASHX_HEIGHT
         )
+
+    def __decay_by_epoch(self, value: int, block_height: int):
+        epoch = (
+            block_height
+            // self.env.quark_chain_config.shards[self.full_shard_id].EPOCH_INTERVAL
+        )
+        decay_numerator = (
+            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
+        )
+        decay_denominator = (
+            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
+        )
+        return value * decay_numerator // decay_denominator
