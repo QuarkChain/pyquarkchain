@@ -92,6 +92,7 @@ class SlaveConfig(BaseConfig):
     WEBSOCKET_JSON_RPC_PORT = None
     ID = ""
     FULL_SHARD_ID_LIST = []
+    TYPE = "QKCRPC"
 
     def to_dict(self):
         ret = super().to_dict()
@@ -172,10 +173,13 @@ class ClusterConfig(BaseConfig):
     JSON_RPC_PORT = 38391
     PRIVATE_JSON_RPC_PORT = 38491
     JSON_RPC_HOST = "localhost"
+    GRPC_SERVER_HOST = "localhost"
+    GRPC_SERVER_PORT = 50051
     PRIVATE_JSON_RPC_HOST = "localhost"
     ENABLE_PUBLIC_JSON_RPC = True
     ENABLE_PRIVATE_JSON_RPC = True
     ENABLE_TRANSACTION_HISTORY = False
+    ENABLE_GRPC_SERVER = False
 
     DB_PATH_ROOT = "./db"
     LOG_LEVEL = "info"
@@ -187,6 +191,7 @@ class ClusterConfig(BaseConfig):
     QUARKCHAIN = None
     MASTER = None
     SLAVE_LIST = None
+    GRPC_SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
 
@@ -196,6 +201,7 @@ class ClusterConfig(BaseConfig):
         self.QUARKCHAIN = QuarkChainConfig()
         self.MASTER = MasterConfig()
         self.SLAVE_LIST = []  # type: List[SlaveConfig]
+        self.GRPC_SLAVE_LIST = []  # type: List[SlaveConfig]
         self.SIMPLE_NETWORK = SimpleNetworkConfig()
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
@@ -334,6 +340,15 @@ class ClusterConfig(BaseConfig):
             default=False,
             dest="enable_transaction_history",
         )
+        parser.add_argument("--enable_grpc_server", action="store_true", default=False)
+
+        parser.add_argument(
+            "--grpc_server_host", default=ClusterConfig.GRPC_SERVER_HOST, type=str
+        )
+
+        parser.add_argument(
+            "--grpc_server_port", default=ClusterConfig.GRPC_SERVER_PORT, type=int
+        )
 
         parser.add_argument(
             "--simple_network_bootstrap_host",
@@ -442,6 +457,11 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
+            if args.enable_grpc_server == True:
+                config.ENABLE_GRPC_SERVER = args.enable_grpc_server
+                config.GRPC_SERVER_HOST = args.grpc_server_host
+                config.GRPC_SERVER_PORT = args.grpc_server_port
+
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
@@ -482,6 +502,7 @@ class ClusterConfig(BaseConfig):
         ret["QUARKCHAIN"] = self.QUARKCHAIN.to_dict()
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
+        ret["GRPC_SLAVE_LIST"] = [s.to_dict() for s in self.GRPC_SLAVE_LIST]
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
@@ -489,6 +510,7 @@ class ClusterConfig(BaseConfig):
         else:
             ret["SIMPLE_NETWORK"] = self.SIMPLE_NETWORK.to_dict()
             del ret["P2P"]
+
         return ret
 
     @classmethod
@@ -497,9 +519,15 @@ class ClusterConfig(BaseConfig):
         config.QUARKCHAIN = QuarkChainConfig.from_dict(config.QUARKCHAIN)
         config.MONITORING = MonitoringConfig.from_dict(config.MONITORING)
         config.MASTER = MasterConfig.from_dict(config.MASTER)
+        if config.SLAVE_LIST and config.GRPC_SLAVE_LIST:
+            raise ValueError(
+                "should not have qkc slave and grpc slave at the same time"
+            )
         config.SLAVE_LIST = [
             SlaveConfig.from_dict(s, config.QUARKCHAIN.CHAINS)
             for s in config.SLAVE_LIST
+        config.GRPC_SLAVE_LIST = [
+            SlaveConfig.from_dict(s) for s in config.GRPC_SLAVE_LIST
         ]
 
         if "P2P" in d:

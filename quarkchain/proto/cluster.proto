@@ -1,0 +1,85 @@
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package cluster;
+
+
+message SetRootChainConfirmedBlockRequest {
+}
+
+message FinalizeMinorBlockRequest {
+}
+
+message ClusterSlaveStatus {
+  int32 code = 1;
+  string message = 2;
+}
+
+message MinorBlockHeader {
+  bytes id = 1;
+  uint32 full_shard_id = 2;
+}
+
+message AddRootBlockRequest {
+  bytes id = 1;
+  bytes prev_id = 2;
+  uint64 height = 3;
+  repeated MinorBlockHeader minor_block_headers = 4;
+}
+
+message AddMinorBlockHeaderRequest {
+  bytes id = 1;
+  uint64 round = 2;
+  bytes prev_minor_block_id = 3;
+  bytes prev_root_block_id = 4;
+}
+
+message AddMinorBlockHeaderResponse {
+  ClusterSlaveStatus status = 1;
+}
+
+message SetRootChainConfirmedBlockResponse {
+  ClusterSlaveStatus status = 1;
+}
+
+message FinalizeMinorBlockResponse {
+}
+
+message AddRootBlockResponse {
+  ClusterSlaveStatus status = 1;
+}
+
+message GetUnconfirmedHeaderRequest {
+}
+
+message GetUnconfirmedHeaderResponse {
+  repeated MinorBlockHeader header_list = 1;
+}
+
+// -----------------------------------------------------------------------------
+// ---------------- Service definition
+// -----------------------------------------------------------------------------
+service ClusterSlave {
+  // Master's command for setting rootchain-confirmed block.
+  rpc SetRootChainConfirmedBlock(SetRootChainConfirmedBlockRequest)
+      returns (SetRootChainConfirmedBlockResponse) {}
+
+  // Commit a minor block from root chain.
+  rpc FinalizeMinorBlock(FinalizeMinorBlockRequest)
+      returns (FinalizeMinorBlockResponse) {}
+
+  rpc AddRootBlock(AddRootBlockRequest)
+      returns (AddRootBlockResponse) {}
+
+  // Get unconfirmed minor block header list from shard chain.
+  rpc GetUnconfirmedHeader(GetUnconfirmedHeaderRequest)
+      returns (GetUnconfirmedHeaderResponse) {}
+
+}
+
+service ClusterMaster {
+  rpc AddMinorBlockHeader(AddMinorBlockHeaderRequest)
+      returns (AddMinorBlockHeaderResponse) {}
+
+}

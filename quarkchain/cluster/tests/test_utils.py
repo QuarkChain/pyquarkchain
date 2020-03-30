@@ -7,7 +7,7 @@ from quarkchain.cluster.cluster_config import (
     SimpleNetworkConfig,
     SlaveConfig,
 )
-from quarkchain.cluster.master import MasterServer
+from quarkchain.cluster.master import MasterServer, ClusterMaster
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.shard_state import ShardState
@@ -317,6 +317,7 @@ def create_test_clusters(
     small_coinbase=False,
     loadtest_accounts=None,
     connect=True,  # connect the bootstrap node by default
+    connect_grpc=False,
     should_set_gas_price_limit=False,
     mblock_coinbase_amount=None,
 ):
@@ -375,6 +376,15 @@ def create_test_clusters(
         for i, full_shard_id in enumerate(full_shard_ids):
             slave = env.cluster_config.SLAVE_LIST[i % num_slaves]
             slave.FULL_SHARD_ID_LIST.append(full_shard_id)
+
+        if connect_grpc:
+            env.cluster_config.GRPC_SLAVE_LIST = []
+            for j in range(num_slaves):
+                grpc_slave_config = SlaveConfig()
+                grpc_slave_config.ID = "GS{}".format(j)
+                grpc_slave_config.PORT = get_next_port()
+                grpc_slave_config.TYPE = "GRPC"
+                env.cluster_config.GRPC_SLAVE_LIST.append(grpc_slave_config)
 
         slave_server_list = []
         for j in range(num_slaves):
@@ -452,6 +462,7 @@ class ClusterContext(ContextDecorator):
         small_coinbase=False,
         loadtest_accounts=None,
         connect=True,
+        connect_grpc=False,
         should_set_gas_price_limit=False,
         mblock_coinbase_amount=None,
         genesis_minor_quarkash=1000000,
@@ -466,6 +477,7 @@ class ClusterContext(ContextDecorator):
         self.small_coinbase = small_coinbase
         self.loadtest_accounts = loadtest_accounts
         self.connect = connect
+        self.connect_grpc = connect_grpc
         self.should_set_gas_price_limit = should_set_gas_price_limit
         self.mblock_coinbase_amount = mblock_coinbase_amount
         self.genesis_minor_quarkash = genesis_minor_quarkash
@@ -486,6 +498,7 @@ class ClusterContext(ContextDecorator):
             small_coinbase=self.small_coinbase,
             loadtest_accounts=self.loadtest_accounts,
             connect=self.connect,
+            connect_grpc=self.connect_grpc,
             should_set_gas_price_limit=self.should_set_gas_price_limit,
             mblock_coinbase_amount=self.mblock_coinbase_amount,
         )

@@ -723,9 +723,17 @@ class MinorBlockHeader(Serializable):
         self.bloom = bloom
         self.extra_data = extra_data
         self.mixhash = mixhash
+        self._hash = None
+
+    @classmethod
+    def new_with_fixed_hash(cls, branch: Branch, h: bytes):
+        """A hack to force setting block hash. Usually used for non-default block types."""
+        ret = cls(branch=branch)
+        ret._hash = h
+        return ret
 
     def get_hash(self):
-        return sha3_256(self.serialize())
+        return self._hash or sha3_256(self.serialize())
 
     def get_hash_for_mining(self):
         return sha3_256(self.serialize_without(["nonce", "mixhash"]))

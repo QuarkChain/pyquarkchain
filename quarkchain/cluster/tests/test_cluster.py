@@ -1,4 +1,7 @@
 import unittest
+from typing import List
+
+import grpc
 
 from eth_keys.datatypes import PrivateKey
 
@@ -22,9 +25,13 @@ from quarkchain.core import (
     TokenBalanceMap,
     XshardTxCursorInfo,
     RootBlock,
+    MinorBlockHeader,
 )
 from quarkchain.evm import opcodes
 from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
+from quarkchain.generated import cluster_pb2
+from quarkchain.generated import cluster_pb2_grpc
+from concurrent import futures
 
 
 def _tip_gen(shard_state):
@@ -44,7 +51,39 @@ def _tip_gen(shard_state):
     return b
 
 
+class MockGrpcServer(cluster_pb2_grpc.ClusterSlaveServicer):
+    def __init__(
+        self, expected_unconfirmed_minor_block_headers: List[MinorBlockHeader]
+    ):
+        self.add_rb_req = 0
+        self.get_unconfirmed_mh_req = 0
+        self.unconfirmed_minor_block_headers = expected_unconfirmed_minor_block_headers
+
+    def AddRootBlock(self, request, context):
+        self.add_rb_req += 1
+        return cluster_pb2.AddRootBlockResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Test")
+        )
+
+    def GetUnconfirmedHeader(self, request, context):
+        self.get_unconfirmed_mh_req += 1
+        return cluster_pb2.GetUnconfirmedHeaderResponse(
+            header_list=[
+                cluster_pb2.MinorBlockHeader(
+                    id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
+                )
+                for mh in self.unconfirmed_minor_block_headers
+            ]
+        )
+
+
 class TestCluster(unittest.TestCase):
+    def build_test_server(self, test_server, host: str, port: int):
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+        cluster_pb2_grpc.add_ClusterSlaveServicer_to_server(test_server, server)
+        server.add_insecure_port("{}:{}".format(host, str(port)))
+        return server
+
     def test_single_cluster(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -2519,3 +2558,44 @@ class TestCluster(unittest.TestCase):
             # fail again, because quota used up
             with self.assertRaises(ValueError):
                 add_root_block(staker_addr, sign=True)
+
+    def test_grpc_slave(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        with ClusterContext(1, acc1, connect_grpc=True) as clusters:
+            shard_state = clusters[0].get_shard_state(0b10)
+            b1 = _tip_gen(shard_state)
+            call_async(
+                clusters[0].master.add_raw_minor_block(b1.header.branch, b1.serialize())
+            )
+            # Test Case 1 ###################################################
+            # This case tests adding root blocks
+            root_block = clusters[0].master.root_state.create_block_to_mine([])
+
+            grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
+            server = MockGrpcServer([b1.header])
+            grpc_server1 = self.build_test_server(
+                server, grpc_slaves[0].HOST, grpc_slaves[0].PORT
+            )
+            grpc_server1.start()
+            grpc_server2 = self.build_test_server(
+                server, grpc_slaves[1].HOST, grpc_slaves[1].PORT
+            )
+            grpc_server2.start()
+            call_async(clusters[0].master.add_root_block(root_block))
+            self.assertEqual(server.add_rb_req, len(grpc_slaves))
+
+            # Test Case 2 ###################################################
+            # This case tests getting unconfirmed headers when creating root blocks to mine
+            root_block = call_async(
+                # try getting the next root block
+                clusters[0].master.get_next_block_to_mine(
+                    address=None, branch_value=None
+                )
+            )
+
+            self.assertEqual(server.get_unconfirmed_mh_req, len(grpc_slaves))
+            for mh in root_block.minor_block_header_list:
+                self.assertEqual(mh.get_hash(), b1.header.get_hash())
+                self.assertEqual(mh.branch, b1.header.branch)

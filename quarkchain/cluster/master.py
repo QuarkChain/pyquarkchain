@@ -7,9 +7,13 @@ from fractions import Fraction
 
 import psutil
 import time
-from collections import deque
-from typing import Optional, List, Union, Dict, Tuple, Callable
+from collections import deque, defaultdict
+from typing import Any, Optional, List, Union, Dict, Tuple, Callable
 
+import grpc
+from concurrent import futures
+from quarkchain.generated import cluster_pb2, cluster_pb2_grpc
+from quarkchain.cluster.grpc_client import GrpcClient
 from quarkchain.cluster.guardian import Guardian
 from quarkchain.cluster.miner import Miner, MiningWork
 from quarkchain.cluster.p2p_commands import (
@@ -81,6 +85,7 @@ from quarkchain.core import (
     TypedTransaction,
     MinorBlock,
     PoSWInfo,
+    MinorBlockHeader,
 )
 from quarkchain.db import PersistentDb
 from quarkchain.env import DEFAULT_ENV
@@ -94,6 +99,17 @@ from quarkchain.constants import (
     ROOT_BLOCK_BATCH_SIZE,
     ROOT_BLOCK_HEADER_LIST_LIMIT,
 )
+
+
+class ClusterMaster(cluster_pb2_grpc.ClusterMasterServicer):
+    def __init__(self, root_state):
+        self.root_state = root_state
+
+    def AddMinorBlockHeader(self, request, context):
+        self.root_state.add_validated_minor_block_hash(request.id, {})
+        return cluster_pb2.AddMinorBlockHeaderResponse(
+            status=cluster_pb2.ClusterSlaveStatus(code=0, message="Confirmed")
+        )
 
 
 class SyncTask:
@@ -752,6 +768,9 @@ class MasterServer:
         # branch value -> a list of slave running the shard
         self.branch_to_slaves = dict()  # type: Dict[int, List[SlaveConnection]]
         self.slave_pool = set()
+        self.grpc_slave_pool = [
+            GrpcClient(s.HOST, s.PORT) for s in self.cluster_config.GRPC_SLAVE_LIST
+        ]
 
         self.cluster_active_future = self.loop.create_future()
         self.shutdown_future = self.loop.create_future()
@@ -1084,49 +1103,81 @@ class MasterServer:
     def get_shutdown_future(self):
         return self.shutdown_future
 
-    async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
-        futures = []
-        for slave in self.slave_pool:
-            request = GetUnconfirmedHeadersRequest()
-            futures.append(
-                slave.write_rpc_request(
-                    ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
-                )
-            )
-        responses = await asyncio.gather(*futures)
-
+    def _parse_qkcrpc_response(self, responses) -> List[MinorBlockHeader]:
         # Slaves may run multiple copies of the same branch
-        # branch_value -> HeaderList
-        full_shard_id_to_header_list = dict()
+        full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+            self.root_state.tip.height + 1
+        )
+        shard_to_headers = defaultdict(list)
         for response in responses:
             _, response, _ = response
             if response.error_code != 0:
-                return None
+                raise ValueError("failed to get unconfirmed headers from shards")
             for headers_info in response.headers_info_list:
                 height = 0
+                shard = headers_info.branch.get_full_shard_id()
+                if shard not in full_shard_ids_to_check:
+                    continue
                 for header in headers_info.header_list:
                     # check headers are ordered by height
                     check(height == 0 or height + 1 == header.height)
                     height = header.height
-
                     # Filter out the ones unknown to the master
                     if not self.root_state.db.contain_minor_block_by_hash(
                         header.get_hash()
                     ):
                         break
-                    full_shard_id_to_header_list.setdefault(
-                        headers_info.branch.get_full_shard_id(), []
-                    ).append(header)
+                    shard_to_headers[shard].append(header)
+        return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]
 
-        header_list = []
+    def _parse_grpc_response(
+        self, responses: List[Optional[List[Any]]]
+    ) -> List[MinorBlockHeader]:
         full_shard_ids_to_check = self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
             self.root_state.tip.height + 1
         )
-        for full_shard_id in full_shard_ids_to_check:
-            headers = full_shard_id_to_header_list.get(full_shard_id, [])
-            header_list.extend(headers)
+        shard_to_headers = defaultdict(list)
+        for response in responses:
+            if not response:
+                raise ValueError("failed to get unconfirmed headers from shards")
+            for header in response:
+                if not self.root_state.db.contain_minor_block_by_hash(header.id):
+                    break
+                # use new_with_fixed_hash(full_shard_id, id) to create a fake MinorBlockHeader with block hash = id
+                if header.full_shard_id in full_shard_ids_to_check:
+                    shard_to_headers[header.full_shard_id].append(
+                        MinorBlockHeader.new_with_fixed_hash(
+                            Branch(header.full_shard_id), header.id
+                        )
+                    )
+        return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]
 
-        return self.root_state.create_block_to_mine(header_list, address)
+    async def __create_root_block_to_mine(self, address) -> Optional[RootBlock]:
+        try:
+            if self.grpc_slave_pool:
+                grpc_responses = [
+                    grpc_slave.get_unconfirmed_header()
+                    for grpc_slave in self.grpc_slave_pool
+                ]
+                header_list = self._parse_grpc_response(grpc_responses)
+            else:
+                futures = []
+                for slave in self.slave_pool:
+                    request = GetUnconfirmedHeadersRequest()
+                    futures.append(
+                        slave.write_rpc_request(
+                            ClusterOp.GET_UNCONFIRMED_HEADERS_REQUEST, request
+                        )
+                    )
+                qkcrpc_responses = await asyncio.gather(*futures)
+                header_list = self._parse_qkcrpc_response(qkcrpc_responses)
+        except Exception:
+            Logger.log_exception()
+            return None
+
+        return self.root_state.create_block_to_mine(
+            header_list, address, grpc_setup=bool(self.grpc_slave_pool)
+        )
 
     async def __get_minor_block_to_mine(self, branch, address):
         request = GetNextBlockToMineRequest(
@@ -1277,6 +1328,10 @@ class MasterServer:
         future_list = self.broadcast_rpc(
             op=ClusterOp.ADD_ROOT_BLOCK_REQUEST, req=AddRootBlockRequest(r_block, False)
         )
+
+        for grpc_client in self.grpc_slave_pool:
+            check(grpc_client.add_root_block(r_block), "Fail to call GRPC slave")
+
         result_list = await asyncio.gather(*future_list)
         check(all([resp.error_code == 0 for _, resp, _ in result_list]))
         self.root_state.clear_committing_hash()
@@ -1811,6 +1866,20 @@ def parse_args():
     return env
 
 
+def start_grpc_server(env, master_server):
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=None))
+    servicer = ClusterMaster(master_server.root_state)
+    cluster_pb2_grpc.add_ClusterMasterServicer_to_server(servicer, grpc_server)
+    grpc_server.add_insecure_port(
+        "{}:{}".format(
+            env.cluster_config.GRPC_SERVER_HOST,
+            str(env.cluster_config.GRPC_SERVER_PORT),
+        )
+    )
+    grpc_server.start()
+    return grpc_server
+
+
 def main():
     from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
@@ -1851,6 +1920,7 @@ def main():
     network.start()
 
     callbacks = [network.shutdown]
+
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
         public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
@@ -1858,6 +1928,10 @@ def main():
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
         private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
+
+    if env.cluster_config.ENABLE_GRPC_SERVER:
+        grpc_server = start_grpc_server(env, master)
+        callbacks.append(grpc_server.stop)
 
     master.do_loop(callbacks)
 
