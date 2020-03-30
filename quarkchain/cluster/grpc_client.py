@@ -58,7 +58,11 @@ class GrpcClient:
                 )
             )
             return False
-
+        Logger.info(
+            "Length of included minor block headers: {}".format(
+                len(request.minor_block_header_list)
+            )
+        )
         return True
 
     def get_unconfirmed_header(self) -> Optional[List[Any]]:

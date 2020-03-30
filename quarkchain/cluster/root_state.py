@@ -281,7 +281,6 @@ class RootState:
         return self.db.get_root_block_by_hash(self.tip.get_hash())
 
     def add_validated_minor_block_hash(self, hash: bytes, coinbase_tokens: Dict):
-        Logger.info("Minor block received: {}".format(hash.hex()))
         self.db.put_minor_block_coinbase(hash, coinbase_tokens)
 
     def get_next_block_difficulty(self, create_time=None):
