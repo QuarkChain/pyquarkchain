@@ -1,3 +1,5 @@
+import pathlib
 import sys
 
-sys.path.append("quarkchain/generated")
+cur = pathlib.Path(__file__).parent.absolute()
+sys.path.append(str(cur))
