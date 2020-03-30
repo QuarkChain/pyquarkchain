@@ -432,7 +432,7 @@ class Miner:
         full_shard_id = "R" if is_root else block.header.branch.get_full_shard_id()
         count = len(block.minor_block_header_list) if is_root else len(block.tx_list)
         elapsed = time.time() - block.header.create_time
-        Logger.info(
+        Logger.info_every_sec(
             "[{}] {} [{}] ({:.2f}) {}".format(
                 full_shard_id,
                 block.header.height,
@@ -440,6 +440,7 @@ class Miner:
                 elapsed,
                 block.header.get_hash().hex(),
             ),
+            60,
         )
 
     @staticmethod
