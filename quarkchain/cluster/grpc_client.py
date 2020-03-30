@@ -46,7 +46,7 @@ class GrpcClient:
             minor_block_headers=minor_block_header_list,
         )
         Logger.info(
-            "Sent root block id: {}, height: {}, length of included minor block headers: {}".format(
+            "Root block sent, id: {}, height: {}, length of included minor block headers: {}".format(
                 request.id.hex(), request.height, len(request.minor_block_headers)
             )
         )
