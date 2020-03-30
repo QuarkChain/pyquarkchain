@@ -1155,9 +1155,7 @@ class MasterServer:
                 if header.full_shard_id in full_shard_ids_to_check:
                     shard_to_headers[header.full_shard_id].append(
                         MinorBlockHeader.new_with_fixed_hash(
-                            Branch(header.full_shard_id),
-                            header.prev_minor_block_id,
-                            header.id,
+                            Branch(header.full_shard_id), header.prev_id, header.id
                         )
                     )
         return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]

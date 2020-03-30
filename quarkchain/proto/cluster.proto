@@ -18,7 +18,7 @@ message ClusterSlaveStatus {
 
 message MinorBlockHeader {
   bytes id = 1;
-  bytes prev_minor_block_id = 2;
+  bytes prev_id = 2;
   uint32 full_shard_id = 3;
 }
 
