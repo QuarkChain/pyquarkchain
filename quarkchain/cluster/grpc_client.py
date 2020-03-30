@@ -60,7 +60,7 @@ class GrpcClient:
             return False
         Logger.info(
             "Length of included minor block headers: {}".format(
-                len(request.minor_block_header_list)
+                len(request.minor_block_headers)
             )
         )
         return True
