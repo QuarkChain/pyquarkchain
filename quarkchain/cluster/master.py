@@ -1063,12 +1063,12 @@ class MasterServer:
 
     async def __init_cluster(self):
         await self.__connect_to_slaves()
-        self.__log_summary()
-        if self.slave_pool:
+        if not self.grpc_slave_pool:
+            self.__log_summary()
             if not self.__has_all_shards():
                 Logger.error("Missing some shards. Check cluster config file!")
                 return
-        await self.__setup_slave_to_slave_connections()
+            await self.__setup_slave_to_slave_connections()
         await self.__init_shards()
         await self.__rebroadcast_committing_root_block()
 
@@ -1323,7 +1323,11 @@ class MasterServer:
 
         adjusted_diff = await self.__adjust_diff(r_block)
         try:
-            update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
+            update_tip = self.root_state.add_block(
+                r_block,
+                adjusted_diff=adjusted_diff,
+                skip_root_block_linkage=bool(self.grpc_slave_pool),
+            )
         except ValueError as e:
             Logger.log_exception()
             raise e

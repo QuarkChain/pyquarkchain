@@ -70,7 +70,7 @@ class MockGrpcServer(cluster_pb2_grpc.ClusterSlaveServicer):
             header_list=[
                 cluster_pb2.MinorBlockHeader(
                     id=mh.get_hash(),
-                    prev_minor_block_id=mh.hash_prev_minor_block,
+                    prev_id=mh.hash_prev_minor_block,
                     full_shard_id=mh.branch.get_full_shard_id(),
                 )
                 for mh in self.unconfirmed_minor_block_headers

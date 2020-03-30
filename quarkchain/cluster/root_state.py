@@ -429,7 +429,9 @@ class RootState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def validate_block(self, block, adjusted_diff: int = None):
+    def validate_block(
+        self, block, adjusted_diff: int = None, skip_root_block_linkage: bool = False
+    ):
         """Raise on validation errors """
 
         block_hash = self.__validate_block_header(block.header, adjusted_diff)
@@ -456,9 +458,6 @@ class RootState:
                 block.header.height,
             )
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
-
-            if self.env.cluster_config.GRPC_SLAVE_LIST:
-                expected_coinbase_amount = {}
 
             if expected_coinbase_amount != actual_coinbase_amount:
                 raise ValueError(
@@ -490,7 +489,7 @@ class RootState:
                     )
                 )
 
-            if self.env.cluster_config.SLAVE_LIST:
+            if not skip_root_block_linkage:
                 if not self.is_same_chain(
                     self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
                     self.db.get_root_block_header_by_hash(
@@ -525,12 +524,12 @@ class RootState:
             check(len(headers) > 0)
 
             shard_config = self.env.quark_chain_config.shards[full_shard_id]
-            # if len(headers) > shard_config.max_blocks_per_shard_in_one_root_block:
-            #     raise ValueError(
-            #         "too many minor blocks in the root block for shard {}".format(
-            #             full_shard_id
-            #         )
-            #     )
+            if len(headers) > shard_config.max_blocks_per_shard_in_one_root_block:
+                raise ValueError(
+                    "too many minor blocks in the root block for shard {}".format(
+                        full_shard_id
+                    )
+                )
 
             if full_shard_id not in full_shard_ids_to_check_proof_of_progress:
                 raise ValueError(
@@ -539,7 +538,7 @@ class RootState:
                     )
                 )
             prev_header_in_last_root_block = prev_header_map.get(full_shard_id, None)
-            if not prev_header_in_last_root_block:
+            if not prev_header_in_last_root_block or skip_root_block_linkage:
                 # no header in previous root block then it must start with genesis block
                 if headers[0].height != 0:
                     raise ValueError(
@@ -550,10 +549,7 @@ class RootState:
             else:
                 headers = [prev_header_in_last_root_block] + headers
             for i in range(len(headers) - 1):
-                temp1 = headers[i + 1].hash_prev_minor_block
-                temp2 = headers[i].get_hash()
                 if headers[i + 1].hash_prev_minor_block != headers[i].get_hash():
-                    print("[", i, "] temp1 = ", temp1, "  temp2 = ", temp2)
                     raise ValueError(
                         "minor block {} does not link to previous block {}".format(
                             headers[i + 1].get_hash(), headers[i].get_hash()
@@ -579,7 +575,12 @@ class RootState:
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
     def add_block(
-        self, block, write_db=True, skip_if_too_old=True, adjusted_diff: int = None
+        self,
+        block,
+        write_db=True,
+        skip_if_too_old=True,
+        adjusted_diff: int = None,
+        skip_root_block_linkage=False,
     ):
         """ Add new block.
         return True if a longest block is added, False otherwise
@@ -603,7 +604,7 @@ class RootState:
 
         start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(
-            block, adjusted_diff
+            block, adjusted_diff, skip_root_block_linkage
         )
 
         if write_db:
