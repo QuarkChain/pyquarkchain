@@ -46,11 +46,8 @@ class GrpcClient:
             minor_block_headers=minor_block_header_list,
         )
         Logger.info(
-            "Sent root block: {}, height: {}".format(request.id.hex(), request.height)
-        )
-        Logger.info(
-            "Length of included minor block headers: {}".format(
-                len(request.minor_block_headers)
+            "Sent root block id: {}, height: {}, Length of included minor block headers: {}".format(
+                request.id.hex(), request.height, len(request.minor_block_headers)
             )
         )
         try:
