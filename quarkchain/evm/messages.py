@@ -7,7 +7,13 @@ import rlp
 # to bypass circular imports
 import quarkchain.core
 
-from quarkchain.evm.utils import int256, safe_ord, bytearray_to_bytestr, add_dict
+from quarkchain.evm.utils import (
+    int256,
+    safe_ord,
+    bytearray_to_bytestr,
+    add_dict,
+    UINT128_MAX,
+)
 from rlp.sedes import big_endian_int, binary, CountableList, BigEndianInt
 from rlp.sedes.binary import Binary
 from quarkchain.rlp.utils import decode_hex, encode_hex
@@ -16,7 +22,7 @@ from quarkchain.evm import bloom  # FIXME: use eth_bloom
 from quarkchain.evm import transactions
 from quarkchain.evm import opcodes
 from quarkchain.evm import vm
-from quarkchain.evm.specials import specials as default_specials, SystemContract
+from quarkchain.evm.specials import specials as default_specials
 from quarkchain.evm.exceptions import (
     InvalidNonce,
     InsufficientStartGas,
@@ -24,9 +30,10 @@ from quarkchain.evm.exceptions import (
     BlockGasLimitReached,
     InsufficientBalance,
     InvalidNativeToken,
+    InvalidTransaction,
 )
 from quarkchain.evm.slogging import get_logger
-from quarkchain.utils import token_id_decode
+from quarkchain.utils import token_id_decode, check, TOKEN_ID_MAX
 from quarkchain.evm.specials import SystemContract
 
 log = get_logger("eth.block")
@@ -39,6 +46,8 @@ CREATE_CONTRACT_ADDRESS = b""
 
 # DEV OPTIONS
 SKIP_MEDSTATES = False
+
+check(TOKEN_ID_MAX <= UINT128_MAX)
 
 
 def rp(tx, what, actual, target):
@@ -114,10 +123,28 @@ def mk_receipt(state, success, logs, contract_address, contract_full_shard_key):
     return o
 
 
+def convert_to_default_chain_token_gasprice(state, token_id, gas_price):
+    if token_id == state.shard_config.default_chain_token:
+        return gas_price
+    snapshot = state.snapshot()
+    _, genesis_token_gas_price = get_gas_utility_info(state, token_id, gas_price)
+    state.revert(snapshot)
+    return genesis_token_gas_price
+
+
 def validate_transaction(state, tx):
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
+
+    # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
+    if (
+        tx.startgas > UINT128_MAX
+        or tx.gasprice > UINT128_MAX
+        or tx.gas_token_id > TOKEN_ID_MAX
+        or tx.transfer_token_id > TOKEN_ID_MAX
+    ):
+        raise InvalidTransaction("startgas, gasprice, and token_id must <= UINT128_MAX")
 
     # (2) the transaction nonce is valid (equivalent to the
     #     sender account's current nonce);
@@ -363,10 +390,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     )
 
     # buy startgas
-    assert (
-        state.get_balance(tx.sender, token_id=tx.gas_token_id)
-        >= tx.startgas * tx.gasprice
-    )
     gasprice, refund_rate = tx.gasprice, 100
     # convert gas if using non-genesis native token
     if gasprice != 0 and tx.gas_token_id != state.genesis_token:
@@ -374,24 +397,22 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
             state, tx.gas_token_id, tx.startgas, tx.gasprice
         )
         # guaranteed by validation
-        assert converted_genesis_token_gas_price > 0
+        check(converted_genesis_token_gas_price > 0)
         gasprice = converted_genesis_token_gas_price
         contract_addr = SystemContract.GENERAL_NATIVE_TOKEN.addr()
         # guaranteed by validation
-        assert (
-            state.get_balance(contract_addr, token_id=state.genesis_token)
-            >= tx.startgas * converted_genesis_token_gas_price
-        )
-        state.delta_token_balance(
-            contract_addr,
-            state.genesis_token,
-            -tx.startgas * converted_genesis_token_gas_price,
+        check(
+            state.deduct_value(
+                contract_addr,
+                state.genesis_token,
+                tx.startgas * converted_genesis_token_gas_price,
+            )
         )
         state.delta_token_balance(
             contract_addr, tx.gas_token_id, tx.startgas * tx.gasprice
         )
 
-    state.delta_token_balance(tx.sender, tx.gas_token_id, -tx.startgas * tx.gasprice)
+    check(state.deduct_value(tx.sender, tx.gas_token_id, tx.startgas * tx.gasprice))
 
     message_data = vm.CallData([safe_ord(x) for x in tx.data], 0, len(tx.data))
     message = vm.Message(
@@ -426,7 +447,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         # Currently, burn all gas
         local_gas_used = tx.startgas
     elif tx.to == b"":
-        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        check(state.deduct_value(tx.sender, tx.transfer_token_id, tx.value))
         remote_gas_reserved = tx.startgas - intrinsic_gas
         ext.add_cross_shard_transaction_deposit(
             quarkchain.core.CrossShardTransactionDeposit(
@@ -451,7 +472,7 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         )
         success = 1
     else:
-        state.delta_token_balance(tx.sender, tx.transfer_token_id, -tx.value)
+        check(state.deduct_value(tx.sender, tx.transfer_token_id, tx.value))
         if (
             state.qkc_config.ENABLE_EVM_TIMESTAMP is None
             or state.timestamp >= state.qkc_config.ENABLE_EVM_TIMESTAMP
@@ -765,6 +786,9 @@ def pay_native_token_as_gas(
     state, token_id: int, gas: int, gas_price_in_native_token: int
 ) -> (int, int):
     # Call the `payAsGas` function
+    check(token_id <= TOKEN_ID_MAX)
+    check(gas <= UINT128_MAX)
+    check(gas_price_in_native_token <= UINT128_MAX)
     data = (
         bytes.fromhex("5ae8f7f1")
         + token_id.to_bytes(32, byteorder="big")

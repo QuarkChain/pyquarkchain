@@ -78,7 +78,6 @@ from quarkchain.cluster.simple_network import SimpleNetwork
 from quarkchain.config import RootConfig, POSWConfig
 from quarkchain.core import (
     Branch,
-    ChainMask,
     Log,
     Address,
     RootBlock,
@@ -450,7 +449,14 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-        self, env, reader, writer, master_server, slave_id, chain_mask_list, name=None
+        self,
+        env,
+        reader,
+        writer,
+        master_server,
+        slave_id,
+        full_shard_id_list,
+        name=None,
     ):
         super().__init__(
             env,
@@ -463,8 +469,8 @@ class SlaveConnection(ClusterConnection):
         )
         self.master_server = master_server
         self.id = slave_id
-        self.chain_mask_list = chain_mask_list
-        check(len(chain_mask_list) > 0)
+        self.full_shard_id_list = full_shard_id_list
+        check(len(full_shard_id_list) > 0)
 
         asyncio.ensure_future(self.active_and_loop_forever())
 
@@ -484,18 +490,6 @@ class SlaveConnection(ClusterConnection):
     def validate_connection(self, connection):
         return connection == NULL_CONNECTION or isinstance(connection, P2PConnection)
 
-    def has_shard(self, full_shard_id: int):
-        for chain_mask in self.chain_mask_list:
-            if chain_mask.contain_full_shard_id(full_shard_id):
-                return True
-        return False
-
-    def has_overlap(self, chain_mask: ChainMask):
-        for local_chain_mask in self.chain_mask_list:
-            if local_chain_mask.has_overlap(chain_mask):
-                return True
-        return False
-
     async def send_ping(self, initialize_shard_state=False):
         root_block = (
             self.master_server.root_state.get_tip_block()
@@ -510,7 +504,7 @@ class SlaveConnection(ClusterConnection):
                 branch=ROOT_BRANCH, cluster_peer_id=RESERVED_CLUSTER_PEER_ID
             ),
         )
-        return resp.id, resp.chain_mask_list
+        return resp.id, resp.full_shard_id_list
 
     async def send_connect_to_slaves(self, slave_info_list):
         """ Make slave connect to other slaves.
@@ -880,7 +874,7 @@ class MasterServer:
                 writer,
                 self,
                 slave_info.id,
-                slave_info.chain_mask_list,
+                slave_info.full_shard_id_list,
                 name="{}_slave_{}".format(self.name, slave_info.id),
             )
             await slave.wait_until_active()
@@ -892,23 +886,22 @@ class MasterServer:
         full_shard_ids = self.env.quark_chain_config.get_full_shard_ids()
         for slave, result in zip(slaves, results):
             # Verify the slave does have the same id and shard mask list as the config file
-            id, chain_mask_list = result
+            id, full_shard_id_list = result
             if id != slave.id:
                 Logger.error(
                     "Slave id does not match. expect {} got {}".format(slave.id, id)
                 )
                 self.shutdown()
-            if chain_mask_list != slave.chain_mask_list:
+            if full_shard_id_list != slave.full_shard_id_list:
                 Logger.error(
-                    "Slave {} shard mask list does not match. expect {} got {}".format(
-                        slave.id, slave.chain_mask_list, chain_mask_list
+                    "Slave {} shard id list does not match. expect {} got {}".format(
+                        slave.id, slave.full_shard_id_list, full_shard_id_list
                     )
                 )
-                self.shutdown()
 
             self.slave_pool.add(slave)
             for full_shard_id in full_shard_ids:
-                if slave.has_shard(full_shard_id):
+                if full_shard_id in slave.full_shard_id_list:
                     self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
 
     async def __setup_slave_to_slave_connections(self):
@@ -1265,8 +1258,6 @@ class MasterServer:
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
         """ Add transaction to the cluster and broadcast to peers """
         evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
-        if evm_tx.gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
-            return False
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         if branch.value not in self.branch_to_slaves:

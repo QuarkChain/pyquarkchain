@@ -28,6 +28,7 @@ from quarkchain.evm.messages import (
     get_gas_utility_info,
     pay_native_token_as_gas,
     validate_transaction,
+    convert_to_default_chain_token_gasprice,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -1531,9 +1532,6 @@ class TestShardState(unittest.TestCase):
         env1 = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
         )
-        env2 = get_test_env(
-            genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
-        )
         state0 = create_default_shard_state(env=env0, shard_id=0)
         state1 = create_default_shard_state(env=env1, shard_id=16)
         state2 = create_default_shard_state(env=env1, shard_id=8)
@@ -1678,10 +1676,9 @@ class TestShardState(unittest.TestCase):
             10000000 + 1000000 + 12345 + 888888 + 111111,
         )
 
-    def test_xshard_rootblock_coinbase(self):
+    def test_xshard_root_block_coinbase(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_from_identity(id1, full_shard_key=16)
 
         env0 = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
@@ -1737,7 +1734,6 @@ class TestShardState(unittest.TestCase):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
         acc2 = Address.create_from_identity(id1, full_shard_key=16)
-        acc3 = Address.create_random_account(full_shard_key=0)
 
         env0 = get_test_env(
             genesis_account=acc1, genesis_minor_quarkash=10000000, shard_size=64
@@ -2774,7 +2770,6 @@ class TestShardState(unittest.TestCase):
     def test_enable_evm_timestamp_with_contract_create(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -3274,6 +3269,9 @@ class TestShardState(unittest.TestCase):
         # get the gas utility information by calling the get_gas_utility_info function
         refund_percentage, gas_price = get_gas_utility_info(evm_state, token_id, 60000)
         self.assertEqual((refund_percentage, gas_price), (60, 2))
+        self.assertEqual(
+            convert_to_default_chain_token_gasprice(evm_state, token_id, 60000), 2
+        )
         # exchange the Qkc with the native token
         refund_percentage, gas_price = pay_native_token_as_gas(
             evm_state, token_id, 1, 60000
@@ -3723,3 +3721,22 @@ class TestShardState(unittest.TestCase):
             state_to.get_token_balance(miner.recipient, token_id=self.genesis_token),
             self.get_after_tax_reward(self.shard_coinbase + (3 * gas_price) * 9000),
         )
+
+    def test_posw_stake_by_block_decay_by_epoch(self):
+        acc = Address(b"\x01" * 20, full_shard_key=0)
+        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=200)
+        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
+
+        state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 100
+        state.shard_config.POSW_CONFIG.WINDOW_SIZE = 256
+
+        b1 = state.get_tip().create_block_to_append(address=acc)
+        posw_info = state._posw_info(b1)
+        # 200 qkc with 100 required per block, should equal 2 mineable blocks
+        self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
+
+        # decay (factor = 0.5) should kick in and double mineable blocks
+        b1.header.height = state.shard_config.EPOCH_INTERVAL
+        posw_info = state._posw_info(b1)
+        self.assertEqual(posw_info.posw_mineable_blocks, 200 / (100 / 2))

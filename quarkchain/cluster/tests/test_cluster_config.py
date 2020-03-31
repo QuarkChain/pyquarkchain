@@ -33,12 +33,29 @@ class TestClusterConfig(unittest.TestCase):
     def test_cluster_dict(self):
         parser = argparse.ArgumentParser()
         ClusterConfig.attach_arguments(parser)
-        args = parser.parse_args(["--num_shards=4", "--genesis_dir="])
+        args = parser.parse_args(["--num_shards=4"])
         cluster_config = ClusterConfig.create_from_args(args)
 
         args = parser.parse_args(["--cluster_config=" + cluster_config.json_filepath])
         deserialized = ClusterConfig.create_from_args(args)
 
+        self.assertTrue(cluster_config == deserialized)
+
+    def test_cluster_slave_config_legacy(self):
+        parser = argparse.ArgumentParser()
+        ClusterConfig.attach_arguments(parser)
+        args = parser.parse_args(
+            ["--num_chains=8", "--num_shards_per_chain=1", "--num_slaves=4"]
+        )
+        cluster_config = ClusterConfig.create_from_args(args)
+        # remove full shard list but use chain mask
+        d = cluster_config.to_dict()
+        for i, s in enumerate(d["SLAVE_LIST"]):
+            s["CHAIN_MASK_LIST"] = [i + 4]
+            del (s["FULL_SHARD_ID_LIST"])
+
+        deserialized = ClusterConfig.from_dict(d)
+        # chain mask translated config should equal previous full shard ID config
         self.assertTrue(cluster_config == deserialized)
 
     def test_cluster_config_no_grpc_and_qkcrpc_at_the_same_time(self):

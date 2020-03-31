@@ -39,6 +39,7 @@ from quarkchain.evm.messages import (
     apply_transaction,
     validate_transaction,
     apply_xshard_deposit,
+    convert_to_default_chain_token_gasprice,
 )
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.state import State as EvmState
@@ -538,6 +539,16 @@ class ShardState:
             evm_tx = self.__validate_tx(
                 tx, evm_state, xshard_gas_limit=xshard_gas_limit
             )
+
+            # Don't add the tx if the gasprice in QKC is too low.
+            # Note that this is not enforced by consensus,
+            # but miners will likely discard the tx if the gasprice is too low.
+            default_gasprice = convert_to_default_chain_token_gasprice(
+                evm_state, evm_tx.gas_token_id, evm_tx.gasprice
+            )
+            if default_gasprice < self.env.quark_chain_config.MIN_TX_POOL_GAS_PRICE:
+                return False
+
             self.tx_queue.add_transaction(tx)
             asyncio.ensure_future(
                 self.subscription_manager.notify_new_pending_tx(
@@ -1013,22 +1024,13 @@ class ShardState:
         return evm_state.xshard_list, coinbase_amount_map
 
     def get_coinbase_amount_map(self, height) -> TokenBalanceMap:
-        epoch = (
-            height
-            // self.env.quark_chain_config.shards[self.full_shard_id].EPOCH_INTERVAL
-        )
-        decay_numerator = (
-            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
-        )
-        decay_denominator = (
-            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
-        )
         coinbase_amount = (
-            self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT
+            self.__decay_by_epoch(
+                self.env.quark_chain_config.shards[self.full_shard_id].COINBASE_AMOUNT,
+                height,
+            )
             * self.local_fee_rate.numerator
-            * decay_numerator
             // self.local_fee_rate.denominator
-            // decay_denominator
         )
         # shard coinbase only in genesis_token
         return TokenBalanceMap(
@@ -1189,12 +1191,14 @@ class ShardState:
                 break
 
             evm_tx = tx.tx.to_evm_tx()
-
-            # simply ignore tx with lower gas price than specified
-            if evm_tx.gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
-                continue
-
             evm_tx.set_quark_chain_config(self.env.quark_chain_config)
+
+            default_gasprice = convert_to_default_chain_token_gasprice(
+                evm_state, evm_tx.gas_token_id, evm_tx.gasprice
+            )
+            # simply ignore tx with lower gas price than specified
+            if default_gasprice < self.env.quark_chain_config.MIN_MINING_GAS_PRICE:
+                continue
 
             # check if TX is disabled
             if (
@@ -1825,6 +1829,10 @@ class ShardState:
         if header.height == 0:  # genesis
             return None
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
+        # require stakes will decay as our mining rewards
+        stake_per_block = self.__decay_by_epoch(
+            self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK, header.height
+        )
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
             header,
@@ -1835,6 +1843,7 @@ class ShardState:
                 self.env.quark_chain_config.genesis_token,
             ),
             block_cnt,
+            stake_per_block=stake_per_block,
         )
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
@@ -1957,3 +1966,16 @@ class ShardState:
             config.ENABLE_QKCHASHX_HEIGHT is not None
             and header.height >= config.ENABLE_QKCHASHX_HEIGHT
         )
+
+    def __decay_by_epoch(self, value: int, block_height: int):
+        epoch = (
+            block_height
+            // self.env.quark_chain_config.shards[self.full_shard_id].EPOCH_INTERVAL
+        )
+        decay_numerator = (
+            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
+        )
+        decay_denominator = (
+            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
+        )
+        return value * decay_numerator // decay_denominator
