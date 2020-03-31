@@ -1063,13 +1063,14 @@ class MasterServer:
             )
 
     async def __init_cluster(self):
-        await self.__connect_to_slaves()
-        self.__log_summary()
-        if not self.__has_all_shards():
-            Logger.error("Missing some shards. Check cluster config file!")
-            return
-        await self.__setup_slave_to_slave_connections()
-        await self.__init_shards()
+        if self.cluster_config.get_slave_info_list():
+            await self.__connect_to_slaves()
+            self.__log_summary()
+            if not self.__has_all_shards():
+                Logger.error("Missing some shards. Check cluster config file!")
+                return
+            await self.__setup_slave_to_slave_connections()
+            await self.__init_shards()
         await self.__rebroadcast_committing_root_block()
 
         self.cluster_active_future.set_result(None)
@@ -1155,7 +1156,7 @@ class MasterServer:
                 if header.full_shard_id in full_shard_ids_to_check:
                     shard_to_headers[header.full_shard_id].append(
                         MinorBlockHeader.new_with_fixed_hash(
-                            Branch(header.full_shard_id), header.id
+                            Branch(header.full_shard_id), header.prev_id, header.id
                         )
                     )
         return [h for shard in full_shard_ids_to_check for h in shard_to_headers[shard]]
@@ -1323,7 +1324,11 @@ class MasterServer:
 
         adjusted_diff = await self.__adjust_diff(r_block)
         try:
-            update_tip = self.root_state.add_block(r_block, adjusted_diff=adjusted_diff)
+            update_tip = self.root_state.add_block(
+                r_block,
+                adjusted_diff=adjusted_diff,
+                skip_check_root_block_linkage=bool(self.grpc_slave_pool),
+            )
         except ValueError as e:
             Logger.log_exception()
             raise e

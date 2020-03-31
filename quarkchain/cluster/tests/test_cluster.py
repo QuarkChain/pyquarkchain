@@ -69,7 +69,9 @@ class MockGrpcServer(cluster_pb2_grpc.ClusterSlaveServicer):
         return cluster_pb2.GetUnconfirmedHeaderResponse(
             header_list=[
                 cluster_pb2.MinorBlockHeader(
-                    id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
+                    id=mh.get_hash(),
+                    prev_id=mh.hash_prev_minor_block,
+                    full_shard_id=mh.branch.get_full_shard_id(),
                 )
                 for mh in self.unconfirmed_minor_block_headers
             ]
@@ -2482,7 +2484,9 @@ class TestCluster(unittest.TestCase):
             )
             # Test Case 1 ###################################################
             # This case tests adding root blocks
-            root_block = clusters[0].master.root_state.create_block_to_mine([])
+            root_block = clusters[0].master.root_state.create_block_to_mine(
+                [], grpc_setup=True
+            )
 
             grpc_slaves = clusters[0].master.env.cluster_config.GRPC_SLAVE_LIST
             server = MockGrpcServer([b1.header])
@@ -2510,3 +2514,6 @@ class TestCluster(unittest.TestCase):
             for mh in root_block.minor_block_header_list:
                 self.assertEqual(mh.get_hash(), b1.header.get_hash())
                 self.assertEqual(mh.branch, b1.header.branch)
+                self.assertEqual(
+                    mh.hash_prev_minor_block, b1.header.hash_prev_minor_block
+                )

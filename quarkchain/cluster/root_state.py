@@ -429,7 +429,12 @@ class RootState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def validate_block(self, block, adjusted_diff: int = None):
+    def validate_block(
+        self,
+        block,
+        adjusted_diff: int = None,
+        skip_check_root_block_linkage: bool = False,
+    ):
         """Raise on validation errors """
 
         block_hash = self.__validate_block_header(block.header, adjusted_diff)
@@ -456,6 +461,7 @@ class RootState:
                 block.header.height,
             )
             actual_coinbase_amount = block.header.coinbase_amount_map.balance_map
+
             if expected_coinbase_amount != actual_coinbase_amount:
                 raise ValueError(
                     "Bad coinbase amount for root block {}. expect {} but got {}.".format(
@@ -485,13 +491,17 @@ class RootState:
                         m_header.create_time, block.header.create_time
                     )
                 )
-            if not self.is_same_chain(
-                self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
-                self.db.get_root_block_header_by_hash(m_header.hash_prev_root_block),
-            ):
-                raise ValueError(
-                    "minor block's prev root block must be in the same chain"
-                )
+
+            if not skip_check_root_block_linkage:
+                if not self.is_same_chain(
+                    self.db.get_root_block_header_by_hash(block.header.hash_prev_block),
+                    self.db.get_root_block_header_by_hash(
+                        m_header.hash_prev_root_block
+                    ),
+                ):
+                    raise ValueError(
+                        "minor block's prev root block must be in the same chain"
+                    )
 
             if m_header.branch.get_full_shard_id() < full_shard_id:
                 raise ValueError("shard id must be ordered")
@@ -531,7 +541,7 @@ class RootState:
                     )
                 )
             prev_header_in_last_root_block = prev_header_map.get(full_shard_id, None)
-            if not prev_header_in_last_root_block:
+            if not prev_header_in_last_root_block or skip_check_root_block_linkage:
                 # no header in previous root block then it must start with genesis block
                 if headers[0].height != 0:
                     raise ValueError(
@@ -568,7 +578,12 @@ class RootState:
             block = self.db.get_root_block_by_hash(block.header.hash_prev_block)
 
     def add_block(
-        self, block, write_db=True, skip_if_too_old=True, adjusted_diff: int = None
+        self,
+        block,
+        write_db=True,
+        skip_if_too_old=True,
+        adjusted_diff: int = None,
+        skip_check_root_block_linkage=False,
     ):
         """ Add new block.
         return True if a longest block is added, False otherwise
@@ -592,7 +607,7 @@ class RootState:
 
         start_ms = time_ms()
         block_hash, last_minor_block_header_list = self.validate_block(
-            block, adjusted_diff
+            block, adjusted_diff, skip_check_root_block_linkage
         )
 
         if write_db:

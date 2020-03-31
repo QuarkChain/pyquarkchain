@@ -34,7 +34,9 @@ class GrpcClient:
         )
         minor_block_header_list = [
             cluster_pb2.MinorBlockHeader(
-                id=mh.get_hash(), full_shard_id=mh.branch.get_full_shard_id()
+                id=mh.get_hash(),
+                prev_id=mh.hash_prev_minor_block,
+                full_shard_id=mh.branch.get_full_shard_id(),
             )
             for mh in root_block.minor_block_header_list
         ]

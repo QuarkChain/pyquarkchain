@@ -374,6 +374,7 @@ def create_test_clusters(
             env.cluster_config.SLAVE_LIST.append(slave_config)
 
         if connect_grpc:
+            env.quark_chain_config.SKIP_ROOT_COINBASE_CHECK = True
             env.cluster_config.GRPC_SLAVE_LIST = []
             for j in range(num_slaves):
                 grpc_slave_config = SlaveConfig()
