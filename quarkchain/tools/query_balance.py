@@ -38,6 +38,9 @@ def parse_args():
         action="store_true",
         help="show address instead of key",
     )
+    parser.add_argument(
+        "--token_name", default="QKC", type=str, help="token name to query"
+    )
     ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
@@ -72,7 +75,7 @@ def print_shard_balance(env, rb, full_shard_id, args):
         rlpdata = trie.get(key)
         o = rlp.decode(rlpdata, _Account)
         tb = TokenBalances(o.token_balances, state.raw_db)
-        balance = tb.balance(token_id_encode("QKC"))
+        balance = tb.balance(token_id_encode(args.token_name))
         if args.print_addr:
             addr = state.raw_db.get(key)
             print("Addr: %s, Balance: %s" % (addr.hex(), balance))
