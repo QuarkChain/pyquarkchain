@@ -1062,14 +1062,14 @@ class MasterServer:
             )
 
     async def __init_cluster(self):
-        await self.__connect_to_slaves()
-        if not self.grpc_slave_pool:
+        if self.cluster_config.get_slave_info_list():
+            await self.__connect_to_slaves()
             self.__log_summary()
             if not self.__has_all_shards():
                 Logger.error("Missing some shards. Check cluster config file!")
                 return
             await self.__setup_slave_to_slave_connections()
-        await self.__init_shards()
+            await self.__init_shards()
         await self.__rebroadcast_committing_root_block()
 
         self.cluster_active_future.set_result(None)
