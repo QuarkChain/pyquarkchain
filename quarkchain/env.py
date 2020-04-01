@@ -3,6 +3,8 @@ from quarkchain.constants import (
     PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED,
     PRECOMPILED_CONTRACT_MINT_MNT,
     PRECOMPILED_CONTRACT_QUERY_MNT_BALANCE,
+    MAINNET_ENABLE_NON_RESERVED_NATIVE_TOKEN_CONTRACT_TIMESTAMP,
+    MAINNET_ENABLE_GENERAL_NATIVE_TOKEN_CONTRACT_TIMESTAMP,
 )
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
@@ -46,6 +48,15 @@ class Env:
                 configure_special_contract_ts(
                     specials, addr, c.QUARKCHAIN.ENABLE_EVM_TIMESTAMP
                 )
+
+        # Apply mainnet default ts
+        if (
+            c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP is None
+            and c.QUARKCHAIN.NETWORK_ID == 1
+        ):
+            c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = (
+                MAINNET_ENABLE_NON_RESERVED_NATIVE_TOKEN_CONTRACT_TIMESTAMP
+            )
         if c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP is not None:
             configure_system_contract_ts(
                 _system_contracts,
@@ -61,6 +72,14 @@ class Env:
                     precompiled,
                     c.QUARKCHAIN.ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP,
                 )
+
+        if (
+            c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP is None
+            and c.QUARKCHAIN.NETWORK_ID == 1
+        ):
+            c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = (
+                MAINNET_ENABLE_GENERAL_NATIVE_TOKEN_CONTRACT_TIMESTAMP
+            )
         if c.QUARKCHAIN.ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP is not None:
             configure_system_contract_ts(
                 _system_contracts,
