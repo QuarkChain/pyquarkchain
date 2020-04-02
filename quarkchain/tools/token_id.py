@@ -13,13 +13,13 @@ def main():
 
     if args.name is not None:
         print(
-            "Token name %s to id: %d (0x%s)"
+            "Token name %s to id: %d (%s)"
             % (args.name, token_id_encode(args.name), hex(token_id_encode(args.name)))
         )
 
     if args.id is not None:
         print(
-            "Token id %d (0x%s) to id: %s"
+            "Token id %d (%s) to id: %s"
             % (args.id, hex(args.id), token_id_decode(args.id))
         )
 
