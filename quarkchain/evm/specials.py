@@ -297,6 +297,18 @@ def proc_deploy_system_contract(ext, msg):
         # Not a valid `SystemContract` or the dict doesn't contain its info
         return 0, 0, []
 
+    if (
+        SYSTEM_CONTRACT_SCOPE_MAP[SystemContract(contract_index)]
+        != SystemContractScope.GLOBAL
+    ):
+        assert (
+            SYSTEM_CONTRACT_SCOPE_MAP[SystemContract(contract_index)]
+            == SystemContractScope.LOCAL_CHAIN_0
+        )
+
+        if ext.chain_id != 0:
+            return 0, 0, []
+
     if ext.block_timestamp < enable_ts:
         return 0, 0, []
 
@@ -331,6 +343,10 @@ def proc_mint_mnt(ext, msg):
         return 0, 0, []
 
     if token_id > TOKEN_ID_MAX:
+        return 0, 0, []
+
+    # Token mint is only allowed on chain 0
+    if ext.chain_id != 0:
         return 0, 0, []
 
     allowed_sender, _, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
@@ -408,6 +424,11 @@ class SystemContract(Enum):
         return ret
 
 
+class SystemContractScope(Enum):
+    GLOBAL = 1
+    LOCAL_CHAIN_0 = 2
+
+
 _system_contracts = {
     SystemContract.ROOT_CHAIN_POSW: (
         decode_hex(b"514b430000000000000000000000000000000001"),
@@ -424,6 +445,13 @@ _system_contracts = {
         GENERAL_NATIVE_TOKEN_CONTRACT_BYTECODE,
         99999999999999999999,
     ),
+}
+
+SYSTEM_CONTRACT_SCOPE_MAP = {
+    # Should be LOCAL_CHAIN_0.  Use GLOBAL to maintain backward compatibility
+    SystemContract.ROOT_CHAIN_POSW: SystemContractScope.GLOBAL,
+    SystemContract.NON_RESERVED_NATIVE_TOKEN: SystemContractScope.LOCAL_CHAIN_0,
+    SystemContract.GENERAL_NATIVE_TOKEN: SystemContractScope.GLOBAL,
 }
 
 if __name__ == "__main__":

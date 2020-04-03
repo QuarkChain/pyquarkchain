@@ -576,6 +576,7 @@ class VMExt:
         self.tx_gasprice = gas_price
         self.sender_disallow_map = state.sender_disallow_map
         self.default_chain_token = state.shard_config.default_chain_token
+        self.chain_id = state.full_shard_key >> 16
 
 
 def apply_msg(ext, msg):
