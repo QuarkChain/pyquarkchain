@@ -389,7 +389,7 @@ class P2PManager(AbstractNetwork):
         else:
             preferred_nodes = []
 
-        if len(str(env.quark_chain_config.NETWORK_ID)) > 3:
+        if len(str(env.quark_chain_config.NETWORK_ID)) > 4:
             raise Exception("NETWORK_ID too long for discovery")
 
         self.server = QuarkServer(
