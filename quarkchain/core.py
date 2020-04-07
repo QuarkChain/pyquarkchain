@@ -587,6 +587,10 @@ class TokenBalanceMap(Serializable):
     def get_hash(self):
         return sha3_256(self.serialize())
 
+    def __eq__(self, other):
+        # TODO: Could implement in a more-efficient way, but make sure skip_func works.
+        return self.serialize() == other.serialize()
+
 
 def calculate_merkle_root(item_list):
     """ Using ETH2.0 SSZ style hash tree
