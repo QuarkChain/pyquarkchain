@@ -924,4 +924,5 @@ class VmExtBase:
         self.sendmsg = lambda msg: 0, 0, 0
         self._state = state  # this field is only for mocking purpose
         self.account_exists = state.account_exists if state else None
+        self.default_chain_token = 0
         self.chain_id = 0
