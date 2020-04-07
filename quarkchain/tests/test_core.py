@@ -320,6 +320,11 @@ class TestTokenBalanceMap(unittest.TestCase):
         m0.add(m2.balance_map)
         self.assertEqual(m0.balance_map, {0: 40, 1: 20, 2: 50})
 
+    def test_zero_balance(self):
+        m0 = TokenBalanceMap({3234: 10, 0: 0, 3567: 0})
+        m1 = TokenBalanceMap.deserialize(m0.serialize())
+        self.assertEqual(m0, m1)
+
 
 def calculate_merkle_root1(item_list):
     """ Same version as calculate_merkle_root(), but zpadding hashed vector to nearest p2
