@@ -349,6 +349,10 @@ def proc_mint_mnt(ext, msg):
     if ext.chain_id != 0:
         return 0, 0, []
 
+    # Default token is not mintable.
+    if token_id == ext.default_chain_token:
+        return 0, 0, []
+
     allowed_sender, _, _ = _system_contracts[SystemContract.NON_RESERVED_NATIVE_TOKEN]
     # Only system contract has access to minting new token
     if allowed_sender != msg.sender:
