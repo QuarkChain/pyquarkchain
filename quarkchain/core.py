@@ -589,6 +589,8 @@ class TokenBalanceMap(Serializable):
 
     def __eq__(self, other):
         # TODO: Could implement in a more-efficient way, but make sure skip_func works.
+        if not isinstance(other, TokenBalanceMap):
+            return False
         return self.serialize() == other.serialize()
 
 
