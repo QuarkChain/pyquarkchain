@@ -3723,20 +3723,22 @@ class TestShardState(unittest.TestCase):
         )
 
     def test_posw_stake_by_block_decay_by_epoch(self):
-        acc = Address(b"\x01" * 20, full_shard_key=0)
-        env = get_test_env(genesis_account=acc, genesis_minor_quarkash=200)
-        state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
+        # TODO: will bring back those tests after 1.4.1
+        pass
+        #  acc = Address(b"\x01" * 20, full_shard_key=0)
+        #  env = get_test_env(genesis_account=acc, genesis_minor_quarkash=200)
+        #  state = create_default_shard_state(env=env, shard_id=0, posw_override=True)
 
-        state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
-        state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 100
-        state.shard_config.POSW_CONFIG.WINDOW_SIZE = 256
+        #  state.shard_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+        #  state.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 100
+        #  state.shard_config.POSW_CONFIG.WINDOW_SIZE = 256
 
-        b1 = state.get_tip().create_block_to_append(address=acc)
-        posw_info = state._posw_info(b1)
-        # 200 qkc with 100 required per block, should equal 2 mineable blocks
-        self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
+        #  b1 = state.get_tip().create_block_to_append(address=acc)
+        #  posw_info = state._posw_info(b1)
+        #  # 200 qkc with 100 required per block, should equal 2 mineable blocks
+        #  self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
 
-        # decay (factor = 0.5) should kick in and double mineable blocks
-        b1.header.height = state.shard_config.EPOCH_INTERVAL
-        posw_info = state._posw_info(b1)
-        self.assertEqual(posw_info.posw_mineable_blocks, 200 / (100 / 2))
+        #  # decay (factor = 0.5) should kick in and double mineable blocks
+        #  b1.header.height = state.shard_config.EPOCH_INTERVAL
+        #  posw_info = state._posw_info(b1)
+        #  self.assertEqual(posw_info.posw_mineable_blocks, 200 / (100 / 2))
