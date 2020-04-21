@@ -1829,11 +1829,12 @@ class ShardState:
         if header.height == 0:  # genesis
             return None
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
-        # TODO: required stakes will decay as our mining rewards
-        #  stake_per_block = self.__decay_by_epoch(
-        #  self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK, header.height
-        #  )
         stake_per_block = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
+        enable_decay_ts = (
+            self.env.quark_chain_config.ENABLE_POSW_STAKING_DECAY_TIMESTAMP
+        )
+        if enable_decay_ts is not None and block.header.create_time > enable_decay_ts:
+            stake_per_block = self.__decay_by_epoch(stake_per_block, header.height)
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
             header,
