@@ -10,6 +10,7 @@ from asyncio import subprocess
 import psutil
 
 from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.env import DEFAULT_ENV
 
 
 PYTHON = "pypy3" if platform.python_implementation() == "PyPy" else "python3"
@@ -147,9 +148,7 @@ class Cluster:
         self.start_and_loop()
 
 
-def main():
-    logging.getLogger("asyncio").setLevel(logging.ERROR)
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+def parse_args():
     parser = argparse.ArgumentParser()
     ClusterConfig.attach_arguments(parser)
     parser.add_argument("--profile", default="", type=str)
@@ -158,7 +157,20 @@ def main():
     parser.add_argument("--check_db_rblock_batch", default=1, type=int)
     args = parser.parse_args()
 
-    config = ClusterConfig.create_from_args(args)
+    env = DEFAULT_ENV.copy()
+    env.cluster_config = ClusterConfig.create_from_args(args)
+    env.arguments = args
+
+    return env
+
+
+def main():
+    logging.getLogger("asyncio").setLevel(logging.ERROR)
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    env = parse_args()
+    config = env.cluster_config
+    args = env.arguments
+
     print("Cluster config file: {}".format(config.json_filepath))
     print(config.to_json())
 
