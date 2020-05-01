@@ -1,5 +1,4 @@
 import asyncio
-import copy
 import json
 import time
 from fractions import Fraction
@@ -1116,11 +1115,10 @@ class ShardState:
 
     def get_mining_info(self, recipient: bytes, token_balance: Dict[bytes, int]):
         if self._posw_enabled(self.header_tip):
-            h = copy.copy(self.header_tip)
-            h.coinbase_address = Address(recipient, self.full_shard_id)
+            coinbase_address = Address(recipient, self.full_shard_id)
             next_block = MinorBlock(
-                h, MinorBlockMeta(), [], b""
-            ).create_block_to_append()
+                self.header_tip, MinorBlockMeta(), [], b""
+            ).create_block_to_append(address=coinbase_address)
             stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
             posw_info = self._posw_info(next_block, stakes)
             if posw_info:
