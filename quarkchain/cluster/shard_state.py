@@ -1114,17 +1114,18 @@ class ShardState:
             return None
 
     def get_mining_info(self, recipient: bytes, token_balance: Dict[bytes, int]):
-        block_cnt = self._get_posw_coinbase_blockcnt(self.header_tip.get_hash())
-        cnt = block_cnt.get(recipient, 0)
-        if not self._posw_enabled(self.header_tip):
-            return cnt, 0
+        if self._posw_enabled(self.header_tip):
+            coinbase_address = Address(recipient, self.full_shard_id)
+            next_block = MinorBlock(
+                self.header_tip, MinorBlockMeta(), [], b""
+            ).create_block_to_append(address=coinbase_address)
+            stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
+            posw_info = self._posw_info(next_block, stakes)
+            if posw_info:
+                return posw_info.posw_mined_blocks - 1, posw_info.posw_mineable_blocks
 
-        posw_config = self.shard_config.POSW_CONFIG
-        stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
-        block_threshold = min(
-            posw_config.WINDOW_SIZE, stakes // posw_config.TOTAL_STAKE_PER_BLOCK
-        )
-        return cnt, block_threshold
+        block_cnt = self._get_posw_coinbase_blockcnt(self.header_tip.get_hash())
+        return block_cnt.get(recipient, 0), 0
 
     def get_next_block_difficulty(self, create_time=None):
         if not create_time:
@@ -1824,10 +1825,20 @@ class ShardState:
         posw_info = self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
 
-    def _posw_info(self, block: MinorBlock) -> Optional[PoSWInfo]:
+    def _posw_info(
+        self, block: MinorBlock, stakes: Optional[int] = None
+    ) -> Optional[PoSWInfo]:
         header = block.header
         if header.height == 0:  # genesis
             return None
+
+        if stakes is None:
+            stakes = self._get_evm_state_for_new_block(
+                block, ephemeral=True
+            ).get_balance(
+                header.coinbase_address.recipient,
+                self.env.quark_chain_config.genesis_token,
+            )
         block_cnt = self._get_posw_coinbase_blockcnt(header.hash_prev_minor_block)
         stake_per_block = self.shard_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK
         enable_decay_ts = (
@@ -1838,12 +1849,7 @@ class ShardState:
         return get_posw_info(
             self.shard_config.POSW_CONFIG,
             header,
-            lambda: self._get_evm_state_for_new_block(
-                block, ephemeral=True
-            ).get_balance(
-                header.coinbase_address.recipient,
-                self.env.quark_chain_config.genesis_token,
-            ),
+            stakes,
             block_cnt,
             stake_per_block=stake_per_block,
         )

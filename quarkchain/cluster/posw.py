@@ -62,7 +62,7 @@ def get_posw_coinbase_blockcnt(
 def get_posw_info(
     config: POSWConfig,
     header: Header,
-    stake_func: Callable[[], int],
+    stakes: int,
     block_cnt: Dict[bytes, int],
     stake_per_block: Optional[int] = None,
     signer: Optional[bytes] = None,
@@ -74,7 +74,6 @@ def get_posw_info(
         return None
 
     # evaluate stakes before the to-be-added block
-    stakes = stake_func()
     coinbase_recipient = header.coinbase_address.recipient
 
     required_stakes_per_block = stake_per_block or config.TOTAL_STAKE_PER_BLOCK
