@@ -1,8 +1,9 @@
 import asyncio
+import copy
 import json
 import time
 from fractions import Fraction
-from typing import Dict, List, Optional, Tuple, Union, Callable
+from typing import Dict, List, Optional, Tuple, Union
 
 from rlp import DecodingError
 
@@ -1115,8 +1116,10 @@ class ShardState:
 
     def get_mining_info(self, recipient: bytes, token_balance: Dict[bytes, int]):
         if self._posw_enabled(self.header_tip):
+            h = copy.copy(self.header_tip)
+            h.coinbase_address = Address(recipient, self.full_shard_id)
             next_block = MinorBlock(
-                self.header_tip, MinorBlockMeta(), [], b""
+                h, MinorBlockMeta(), [], b""
             ).create_block_to_append()
             stakes = token_balance.get(self.env.quark_chain_config.genesis_token, 0)
             posw_info = self._posw_info(next_block, stakes)
