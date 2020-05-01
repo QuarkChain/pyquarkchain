@@ -665,6 +665,4 @@ class RootState:
             block.header.hash_prev_block,
             self.db.get_root_block_header_by_hash,
         )
-        return get_posw_info(
-            config, block.header, lambda: stakes, block_cnt, signer=signer
-        )
+        return get_posw_info(config, block.header, stakes, block_cnt, signer=signer)
