@@ -41,6 +41,12 @@ def parse_args():
     parser.add_argument(
         "--token_name", default="QKC", type=str, help="token name to query"
     )
+    parser.add_argument(
+        "--root_block_height",
+        default=None,
+        type=int,
+        help="query balance at specific root block height",
+    )
     ClusterConfig.attach_arguments(parser)
     args = parser.parse_args()
 
@@ -161,7 +167,10 @@ def main():
     env, args = parse_args()
 
     rs = RootState(env)
-    rb = rs.get_tip_block()
+    if args.root_block_height is None:
+        rb = rs.get_tip_block()
+    else:
+        rb = rs.get_root_block_by_height(args.root_block_height)
     print("Root block height: %d" % rb.header.height)
 
     if args.all_shards:
