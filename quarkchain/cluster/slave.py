@@ -39,6 +39,8 @@ from quarkchain.cluster.rpc import (
     MinorBlockExtraInfo,
     GetRootChainStakesRequest,
     GetRootChainStakesResponse,
+    GetTotalBalanceRequest,
+    GetTotalBalanceResponse,
 )
 from quarkchain.cluster.rpc import (
     AddRootBlockResponse,
@@ -562,6 +564,14 @@ class MasterConnection(ClusterConnection):
         )
         return GetRootChainStakesResponse(0, stakes, signer)
 
+    async def handle_get_total_balance(
+        self, req: GetTotalBalanceRequest
+    ) -> GetTotalBalanceResponse:
+        total_balance, next_starter = self.slave_server.get_total_balance(
+            req.address, req.token_id, req.minor_block_hash, req.limit
+        )
+        return GetTotalBalanceResponse(0, total_balance, next_starter)
+
 
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
@@ -677,6 +687,10 @@ MASTER_OP_RPC_MAP = {
     ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: (
         ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE,
         MasterConnection.handle_get_root_chain_stakes,
+    ),
+    ClusterOp.GET_TOTAL_BALANCE_REQUEST: (
+        ClusterOp.GET_TOTAL_BALANCE_RESPONSE,
+        MasterConnection.handle_get_total_balance,
     ),
 }
 
@@ -1408,6 +1422,24 @@ class SlaveServer:
         shard = self.shards.get(branch, None)
         check(shard is not None)
         return shard.state.get_root_chain_stakes(address.recipient, block_hash)
+
+    def get_total_balance(
+        self, address: Address, token_id: int, block_hash: bytes, limit: int
+    ) -> Tuple[int, bytes]:
+        # for empty starter, the recipient of address should zero
+        branch = Branch(
+            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                address.full_shard_key
+            )
+        )
+        shard = self.shards.get(branch, None)
+        check(shard is not None)
+        return shard.state.get_total_balance(
+            token_id,
+            block_hash,
+            limit,
+            None if address.is_empty() else address.recipient,
+        )
 
 
 def parse_args():
