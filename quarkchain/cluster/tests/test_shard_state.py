@@ -80,6 +80,74 @@ class TestShardState(unittest.TestCase):
             {self.genesis_token: 2500000000000000000},
         )
 
+    def test_get_total_balance(self):
+        id_list = [Identity.create_random_identity() for _ in range(3)]
+        acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
+        env = get_test_env(
+            genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
+        )
+
+        qkc_token = token_id_encode("QKC")
+
+        state = create_default_shard_state(env=env)
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+        tx1 = create_transfer_transaction(
+            shard_state=state,
+            key=id_list[0].get_key(),
+            from_address=acc_list[0],
+            to_address=acc_list[1],
+            value=12345,
+            gas=50000,
+            transfer_token_id=qkc_token,
+            gas_price=0,
+        )
+        self.assertTrue(state.add_tx(tx1))
+        b1 = state.create_block_to_mine(address=acc_list[2])
+        state.finalize_and_add_block(b1)
+
+        tx2 = create_transfer_transaction(
+            shard_state=state,
+            key=id_list[0].get_key(),
+            from_address=acc_list[0],
+            to_address=acc_list[1],
+            value=2345,
+            gas=50000,
+            transfer_token_id=qkc_token,
+            gas_price=0,
+        )
+        self.assertTrue(state.add_tx(tx2))
+        b2 = state.create_block_to_mine(address=acc_list[2])
+        state.finalize_and_add_block(b2)
+
+        self.assertEqual(
+            state.get_token_balance(acc_list[0].recipient, self.genesis_token),
+            100000000 - 12345 - 2345,
+        )
+        print(state.get_token_balance(acc_list[0].recipient, self.genesis_token))
+        self.assertEqual(
+            state.get_token_balance(acc_list[1].recipient, self.genesis_token),
+            12345 + 2345,
+        )
+        # # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
+        self.assertEqual(
+            state.get_token_balance(acc_list[2].recipient, self.genesis_token),
+            self.get_after_tax_reward(self.shard_coinbase) * 2,
+        )
+
+        total1, key1 = state.get_total_balance(
+            qkc_token, state.header_tip.get_hash(), 1
+        )
+        total2, key2 = state.get_total_balance(
+            qkc_token, state.header_tip.get_hash(), 2, starter=key1
+        )
+
+        total, key = state.get_total_balance(qkc_token, state.header_tip.get_hash(), 3)
+        exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase) * 2
+        self.assertEqual(total, exp_balance)
+        self.assertEqual(total1 + total2, exp_balance)
+
     def test_init_genesis_state(self):
         env = get_test_env()
         state = create_default_shard_state(env)
@@ -2078,8 +2146,8 @@ class TestShardState(unittest.TestCase):
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.quark_chain_config.NETWORK_ID = (
-            1
-        )  # other network ids will skip difficulty check
+            1  # other network ids will skip difficulty check
+        )
         state = create_default_shard_state(env=env, shard_id=0, diff_calc=diff_calc)
 
         # Check new difficulty

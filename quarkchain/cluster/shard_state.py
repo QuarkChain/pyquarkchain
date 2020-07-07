@@ -744,9 +744,10 @@ class ShardState:
             x_shard_receive_tx_list = []
         if evm_state is None:
             evm_state = self._get_evm_state_for_new_block(block, ephemeral=False)
-        xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
-            evm_state=evm_state, mblock=block
-        )
+        (
+            xtx_list,
+            evm_state.xshard_tx_cursor_info,
+        ) = self.__run_cross_shard_tx_with_cursor(evm_state=evm_state, mblock=block)
         x_shard_receive_tx_list.extend(xtx_list)
 
         # Adjust inshard gas limit if xshard gas limit is not exhausted
@@ -1271,9 +1272,10 @@ class ShardState:
         # Cross-shard receive must be handled before including tx from tx_queue
         # This is part of consensus.
         block.header.hash_prev_root_block = self.root_tip.get_hash()
-        xtx_list, evm_state.xshard_tx_cursor_info = self.__run_cross_shard_tx_with_cursor(
-            evm_state=evm_state, mblock=block
-        )
+        (
+            xtx_list,
+            evm_state.xshard_tx_cursor_info,
+        ) = self.__run_cross_shard_tx_with_cursor(evm_state=evm_state, mblock=block)
 
         # Adjust inshard tx limit if xshard gas limit is not exhausted
         if evm_state.gas_used < xshard_gas_limit:
@@ -1866,6 +1868,24 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
+    def _get_evm_state_from_hash(self, block_hash: bytes) -> Optional[EvmState]:
+        if block_hash == self.header_tip.get_hash():
+            return self.evm_state
+
+        # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
+        # first get the current block then get next block through height
+        block = self.db.get_minor_block_by_hash(block_hash)
+        if not block:
+            Logger.error("Failed to get block with hash {}".format(block_hash.hex()))
+            return None
+        next_block = self.db.get_minor_block_by_height(block.header.height + 1)
+        if next_block.header.hash_prev_minor_block != block_hash:
+            Logger.error(
+                "Blocks not correctly linked at height {}".format(block.header.height)
+            )
+            return None
+        return self._get_evm_state_for_new_block(next_block)
+
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
@@ -1995,4 +2015,23 @@ class ShardState:
         limit: int,
         starter: Optional[bytes] = None,
     ) -> Tuple[int, bytes]:
-        return 42, b""
+        """
+        starter should be exclusive
+        """
+        evm_state = self._get_evm_state_from_hash(block_hash)
+
+        trie = evm_state.trie.trie
+        key = trie.next(bytes(32) if not starter else starter)
+        total = 0
+        ret = None
+        while limit > 0 and key is not None:
+            addr = evm_state.trie.db.get(key)
+            balance = evm_state.get_balance(addr, token_id, should_cache=False)
+            print(key.hex(), balance)
+            total += balance
+            ret = key
+            key = trie.next(key)
+            limit -= 1
+
+        # TODO: to decide whether to return the address form which is evm_state.trie.db.get(key)
+        return total, ret if key else bytes(32)

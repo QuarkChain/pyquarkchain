@@ -361,7 +361,7 @@ class State:
     def add_block_header(self, block_header):
         self.prev_headers = [block_header] + self.prev_headers
 
-    def get_and_cache_account(self, address):
+    def get_and_cache_account(self, address, should_cache=True):
         if address in self.cache:
             return self.cache[address]
         rlpdata = self.trie.get(address)
@@ -394,7 +394,8 @@ class State:
                 self.config["ACCOUNT_INITIAL_NONCE"],
                 db=self.db,
             )
-        self.cache[address] = o
+        if should_cache:
+            self.cache[address] = o
         return o
 
     def get_balances(self, address) -> dict:
@@ -402,11 +403,11 @@ class State:
             utils.normalize_address(address)
         ).token_balances.to_dict()
 
-    def get_balance(self, address, token_id=None):
+    def get_balance(self, address, token_id=None, should_cache=True):
         if token_id is None:
             token_id = self.shard_config.default_chain_token
         return self.get_and_cache_account(
-            utils.normalize_address(address)
+            utils.normalize_address(address), should_cache=should_cache
         ).token_balances.balance(token_id)
 
     def get_code(self, address):
