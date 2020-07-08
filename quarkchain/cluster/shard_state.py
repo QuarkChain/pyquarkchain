@@ -2016,22 +2016,24 @@ class ShardState:
         starter: Optional[bytes] = None,
     ) -> Tuple[int, bytes]:
         """
+        The starter address is exclusive in the iteration.
         starter should be exclusive
         """
         evm_state = self._get_evm_state_from_hash(block_hash)
-
-        trie = evm_state.trie.trie
-        key = trie.next(bytes(32) if not starter else starter)
+        # the secure trie stored the pair of hash to key
+        strie = evm_state.trie
+        # the trie stored the pair of hash to node
+        trie = strie.trie
+        # hash the address to get the paired key, then get next key for exclusive search
+        key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
         ret = None
         while limit > 0 and key is not None:
             addr = evm_state.trie.db.get(key)
             balance = evm_state.get_balance(addr, token_id, should_cache=False)
-            print(key.hex(), balance)
             total += balance
             ret = key
             key = trie.next(key)
             limit -= 1
 
-        # TODO: to decide whether to return the address form which is evm_state.trie.db.get(key)
-        return total, ret if key else bytes(32)
+        return total, strie.db.get(ret) if ret else bytes(32)
