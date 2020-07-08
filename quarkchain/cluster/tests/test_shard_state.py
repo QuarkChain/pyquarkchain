@@ -1,4 +1,5 @@
 import random
+import math
 import time
 import unittest
 from fractions import Fraction
@@ -81,8 +82,10 @@ class TestShardState(unittest.TestCase):
         )
 
     def test_get_total_balance(self):
-        id_list = [Identity.create_random_identity() for _ in range(3)]
+        id_list = [Identity.create_random_identity() for _ in range(11)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
+        random_acc_list = random.sample(range(1, len(acc_list)), len(acc_list) - 1)
+        batch_size = [1, 2, 3, 4, 5, 11]
         env = get_test_env(
             genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
         )
@@ -93,60 +96,48 @@ class TestShardState(unittest.TestCase):
         # Add a root block to have all the shards initialized
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
-        tx1 = create_transfer_transaction(
-            shard_state=state,
-            key=id_list[0].get_key(),
-            from_address=acc_list[0],
-            to_address=acc_list[1],
-            value=12345,
-            gas=50000,
-            transfer_token_id=qkc_token,
-            gas_price=0,
-        )
-        self.assertTrue(state.add_tx(tx1))
-        b1 = state.create_block_to_mine(address=acc_list[2])
-        state.finalize_and_add_block(b1)
+        for i in range(len(random_acc_list)):
+            tx = create_transfer_transaction(
+                shard_state=state,
+                key=id_list[0].get_key(),
+                from_address=acc_list[0],
+                to_address=acc_list[random_acc_list[i]],
+                value=100,
+                gas=50000,
+                transfer_token_id=qkc_token,
+                gas_price=0,
+                nonce=i,
+            )
+            i += 1
+            self.assertTrue(state.add_tx(tx))
 
-        tx2 = create_transfer_transaction(
-            shard_state=state,
-            key=id_list[0].get_key(),
-            from_address=acc_list[0],
-            to_address=acc_list[1],
-            value=2345,
-            gas=50000,
-            transfer_token_id=qkc_token,
-            gas_price=0,
-        )
-        self.assertTrue(state.add_tx(tx2))
-        b2 = state.create_block_to_mine(address=acc_list[2])
-        state.finalize_and_add_block(b2)
+        b1 = state.create_block_to_mine(address=acc_list[0])
+        state.finalize_and_add_block(b1)
 
         self.assertEqual(
             state.get_token_balance(acc_list[0].recipient, self.genesis_token),
-            100000000 - 12345 - 2345,
+            100000000 - 1000 + self.get_after_tax_reward(self.shard_coinbase),
         )
-        print(state.get_token_balance(acc_list[0].recipient, self.genesis_token))
         self.assertEqual(
-            state.get_token_balance(acc_list[1].recipient, self.genesis_token),
-            12345 + 2345,
-        )
-        # # shard miner only receives a percentage of reward because of REWARD_TAX_RATE
-        self.assertEqual(
-            state.get_token_balance(acc_list[2].recipient, self.genesis_token),
-            self.get_after_tax_reward(self.shard_coinbase) * 2,
+            state.get_token_balance(acc_list[1].recipient, self.genesis_token), 100,
         )
 
-        total1, key1 = state.get_total_balance(
-            qkc_token, state.header_tip.get_hash(), 1
-        )
-        total2, key2 = state.get_total_balance(
-            qkc_token, state.header_tip.get_hash(), 2, starter=key1
-        )
-
-        total, key = state.get_total_balance(qkc_token, state.header_tip.get_hash(), 3)
-        exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase) * 2
-        self.assertEqual(total, exp_balance)
-        self.assertEqual(total1 + total2, exp_balance)
+        exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase)
+        for j in batch_size:
+            num_of_calls = math.ceil(11.0 / j)
+            total = 0
+            addr_i = None
+            for i in range(num_of_calls):
+                total_i, addr_i = state.get_total_balance(
+                    qkc_token, state.header_tip.get_hash(), j, starter=addr_i
+                )
+                total += total_i
+            self.assertEqual(
+                exp_balance, total, "testcase with batch size %d failed" % j
+            )
+            self.assertEqual(
+                bytes(20), addr_i, "testcase with batch size %d failed" % j
+            )
 
     def test_init_genesis_state(self):
         env = get_test_env()

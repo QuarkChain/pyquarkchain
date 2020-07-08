@@ -2021,17 +2021,15 @@ class ShardState:
         evm_state = self._get_evm_state_from_hash(block_hash)
 
         trie = evm_state.trie.trie
-        key = trie.next(bytes(32) if not starter else starter)
+        key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
         ret = None
         while limit > 0 and key is not None:
             addr = evm_state.trie.db.get(key)
             balance = evm_state.get_balance(addr, token_id, should_cache=False)
-            print(key.hex(), balance)
             total += balance
             ret = key
             key = trie.next(key)
             limit -= 1
 
-        # TODO: to decide whether to return the address form which is evm_state.trie.db.get(key)
-        return total, ret if key else bytes(32)
+        return total, evm_state.trie.db.get(ret) if key else bytes(20)
