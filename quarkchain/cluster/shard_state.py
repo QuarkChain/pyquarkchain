@@ -2020,9 +2020,8 @@ class ShardState:
         """
         evm_state = self._get_evm_state_from_hash(block_hash)
         # the secure trie stored the pair of hash to key
-        strie = evm_state.trie
         # the trie stored the pair of hash to node
-        trie = strie.trie
+        trie = evm_state.trie.trie
         # hash the address to get the paired key, then get next key for exclusive search
         key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
