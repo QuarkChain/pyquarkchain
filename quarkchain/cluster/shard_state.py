@@ -2016,8 +2016,7 @@ class ShardState:
         starter: Optional[bytes] = None,
     ) -> Tuple[int, bytes]:
         """
-        The starter address is exclusive in the iteration.
-        starter should be exclusive
+        The starter address should be exclusive in the iteration.
         """
         evm_state = self._get_evm_state_from_hash(block_hash)
         # the secure trie stored the pair of hash to key
