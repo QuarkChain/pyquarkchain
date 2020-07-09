@@ -133,10 +133,14 @@ class TestShardState(unittest.TestCase):
                 )
                 total += total_i
             self.assertEqual(
-                exp_balance, total, "testcase with batch size %d failed" % j
+                exp_balance,
+                total,
+                "testcase with batch size %d return balance failed t" % j,
             )
             self.assertEqual(
-                bytes(20), addr_i, "testcase with batch size %d failed" % j
+                bytes(20),
+                addr_i,
+                "testcase with batch size %d return address failed" % j,
             )
 
     def test_init_genesis_state(self):
