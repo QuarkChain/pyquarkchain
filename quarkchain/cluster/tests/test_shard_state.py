@@ -82,10 +82,10 @@ class TestShardState(unittest.TestCase):
         )
 
     def test_get_total_balance(self):
-        id_list = [Identity.create_random_identity() for _ in range(11)]
+        id_list = [Identity.create_random_identity() for _ in range(66)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
         random_acc_list = random.sample(range(1, len(acc_list)), len(acc_list) - 1)
-        batch_size = [1, 2, 3, 4, 5, 11]
+        batch_size = [1, 2, 3, 4, 6, 66]
         env = get_test_env(
             genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
         )
@@ -96,6 +96,7 @@ class TestShardState(unittest.TestCase):
         # Add a root block to have all the shards initialized
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
+        nonce = 0
         for i in range(len(random_acc_list)):
             tx = create_transfer_transaction(
                 shard_state=state,
@@ -103,20 +104,19 @@ class TestShardState(unittest.TestCase):
                 from_address=acc_list[0],
                 to_address=acc_list[random_acc_list[i]],
                 value=100,
-                gas=50000,
                 transfer_token_id=qkc_token,
                 gas_price=0,
-                nonce=i,
+                nonce=nonce,
             )
-            i += 1
-            self.assertTrue(state.add_tx(tx))
+            self.assertTrue(state.add_tx(tx), "the %d tx fails to be added" % i)
+            nonce += 1
 
         b1 = state.create_block_to_mine(address=acc_list[0])
         state.finalize_and_add_block(b1)
 
         self.assertEqual(
             state.get_token_balance(acc_list[0].recipient, self.genesis_token),
-            100000000 - 1000 + self.get_after_tax_reward(self.shard_coinbase),
+            100000000 - 6500 + self.get_after_tax_reward(self.shard_coinbase),
         )
         self.assertEqual(
             state.get_token_balance(acc_list[1].recipient, self.genesis_token), 100,
@@ -124,7 +124,7 @@ class TestShardState(unittest.TestCase):
 
         exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase)
         for j in batch_size:
-            num_of_calls = math.ceil(11.0 / j)
+            num_of_calls = math.ceil(66.0 / j)
             total = 0
             addr_i = None
             for i in range(num_of_calls):
