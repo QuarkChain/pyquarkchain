@@ -1305,13 +1305,24 @@ class JSONRPCHttpServer:
         return quantity_encoder(total_supply) if total_supply else None
 
     @public_methods.add
-    async def getTotalBalance(self):
-        # TODO: this is a mock implementation. using fake arguments for now
-        result = await self.master.get_total_balance(Branch(0x1), bytes(32), 0, None)
-        if not result:
-            raise None
-        total_balance, next_starter = result
-        return {"totalBalance": total_balance, "next": next_starter.hex()}
+    async def getTotalBalance(
+        self, branch, block_hash, token_id, starter=bytes(20), limit=100
+    ):
+        try:
+            if type(starter) == str:
+                starter = bytes.fromhex(starter)
+            result = await self.master.get_total_balance(
+                Branch(int(branch, 16)),
+                bytes.fromhex(block_hash),
+                token_id,
+                starter,
+                limit,
+            )
+            total_balance, next_starter = result
+            return {"totalBalance": total_balance, "next": next_starter.hex()}
+        except Exception:
+            Logger.log_exception()
+            raise InvalidRequest
 
     @staticmethod
     def _convert_eth_call_data(data, shard):
