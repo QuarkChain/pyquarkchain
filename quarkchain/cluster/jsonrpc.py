@@ -1306,20 +1306,18 @@ class JSONRPCHttpServer:
 
     @public_methods.add
     async def getTotalBalance(
-        self, branch, block_hash, token_id, starter=bytes(20), limit=100
+        self, full_shard_id, block_hash, token_id, starter=bytes(20), limit=100
     ):
         try:
+            full_shard_id = shard_id_decoder(full_shard_id)
+            block_hash = hash_decoder(block_hash)
             if type(starter) == str:
-                starter = bytes.fromhex(starter)
+                starter = data_decoder(starter)
             result = await self.master.get_total_balance(
-                Branch(int(branch, 16)),
-                bytes.fromhex(block_hash),
-                token_id,
-                starter,
-                limit,
+                Branch(full_shard_id), block_hash, token_id, starter, limit,
             )
             total_balance, next_starter = result
-            return {"totalBalance": total_balance, "next": next_starter.hex()}
+            return {"totalBalance": total_balance, "next": "0x" + next_starter.hex()}
         except Exception:
             Logger.log_exception()
             raise InvalidRequest
