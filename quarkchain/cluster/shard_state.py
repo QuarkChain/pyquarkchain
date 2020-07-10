@@ -1987,3 +1987,12 @@ class ShardState:
             self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
         )
         return value * decay_numerator // decay_denominator
+
+    def get_total_balance(
+        self,
+        token_id: int,
+        block_hash: bytes,
+        limit: int,
+        starter: Optional[bytes] = None,
+    ) -> Tuple[int, bytes]:
+        return 42, b""

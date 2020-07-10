@@ -60,6 +60,7 @@ from quarkchain.cluster.rpc import (
     CheckMinorBlockRequest,
     GetAllTransactionsRequest,
     MinorBlockExtraInfo,
+    GetTotalBalanceRequest,
 )
 from quarkchain.cluster.rpc import (
     ConnectToSlavesRequest,
@@ -721,6 +722,17 @@ class SlaveConnection(ClusterConnection):
                 "adding {} mblock to db".format(minor_block_header.get_hash().hex())
             )
         return AddMinorBlockHeaderListResponse(error_code=0)
+
+    async def get_total_balance(
+        self, address: Address, minor_block_hash: bytes, token_id: int, limit: int
+    ) -> Optional[Tuple[int, bytes]]:
+        request = GetTotalBalanceRequest(address, token_id, limit, minor_block_hash)
+        _, resp, _ = await self.write_rpc_request(
+            ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
+        )
+        if resp.error_code != 0:
+            return None
+        return resp.total_balance, resp.next
 
 
 OP_RPC_MAP = {
@@ -1786,6 +1798,21 @@ class MasterServer:
         if need_extra_info:
             posw_info = await self._posw_info(block)
         return block, posw_info
+
+    async def get_total_balance(
+        self,
+        branch: Branch,
+        block_hash: bytes,
+        token_id: int,
+        starter: Optional[bytes],
+        limit: int = 100,
+    ) -> Optional[Tuple[int, bytes]]:
+        if branch.value not in self.branch_to_slaves:
+            return None
+
+        slave = self.branch_to_slaves[branch.value][0]
+        address = Address(starter if starter else bytes(20), branch.value)
+        return await slave.get_total_balance(address, block_hash, token_id, limit)
 
 
 def parse_args():

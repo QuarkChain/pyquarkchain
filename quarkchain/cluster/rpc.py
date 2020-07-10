@@ -988,6 +988,36 @@ class GetRootChainStakesResponse(Serializable):
         self.signer = signer
 
 
+class GetTotalBalanceRequest(Serializable):
+    FIELDS = [
+        ("address", Address),
+        ("token_id", uint64),  # TODO: double check max token ID
+        ("limit", uint32),
+        ("minor_block_hash", hash256),
+    ]
+
+    def __init__(
+        self, address: Address, token_id: int, limit: int, minor_block_hash: bytes
+    ):
+        self.address = address
+        self.token_id = token_id
+        self.limit = limit
+        self.minor_block_hash = minor_block_hash
+
+
+class GetTotalBalanceResponse(Serializable):
+    FIELDS = [
+        ("error_code", uint32),
+        ("total_balance", biguint),
+        ("next", PrependedSizeBytesSerializer(4)),
+    ]
+
+    def __init__(self, error_code: int, total_balance: int, next: bytes):
+        self.error_code = error_code
+        self.total_balance = total_balance
+        self.next = next
+
+
 CLUSTER_OP_BASE = 128
 
 
@@ -1059,6 +1089,8 @@ class ClusterOp:
     GET_ALL_TRANSACTIONS_RESPONSE = 64 + CLUSTER_OP_BASE
     GET_ROOT_CHAIN_STAKES_REQUEST = 65 + CLUSTER_OP_BASE
     GET_ROOT_CHAIN_STAKES_RESPONSE = 66 + CLUSTER_OP_BASE
+    GET_TOTAL_BALANCE_REQUEST = 67 + CLUSTER_OP_BASE
+    GET_TOTAL_BALANCE_RESPONSE = 68 + CLUSTER_OP_BASE
 
 
 CLUSTER_OP_SERIALIZER_MAP = {
@@ -1127,4 +1159,6 @@ CLUSTER_OP_SERIALIZER_MAP = {
     ClusterOp.GET_ALL_TRANSACTIONS_RESPONSE: GetAllTransactionsResponse,
     ClusterOp.GET_ROOT_CHAIN_STAKES_REQUEST: GetRootChainStakesRequest,
     ClusterOp.GET_ROOT_CHAIN_STAKES_RESPONSE: GetRootChainStakesResponse,
+    ClusterOp.GET_TOTAL_BALANCE_REQUEST: GetTotalBalanceRequest,
+    ClusterOp.GET_TOTAL_BALANCE_RESPONSE: GetTotalBalanceResponse,
 }
