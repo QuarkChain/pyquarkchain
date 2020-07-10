@@ -2022,15 +2022,17 @@ class ShardState:
         # the secure trie stored the pair of hash to key
         # the trie stored the pair of hash to node
         trie = evm_state.trie.trie
-        # hash the address to get the paired key, then get next key for exclusive search
+        if starter:
+            if not evm_state.db.get(utils.sha3_256(starter)):
+                raise RuntimeError("starter address {} is not in db.".format(starter))
         key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
         ret = None
         while limit > 0 and key is not None:
-            addr = evm_state.trie.db.get(key)
+            addr = evm_state.db.get(key)
             balance = evm_state.get_balance(addr, token_id, should_cache=False)
             total += balance
             ret = key
             key = trie.next(key)
             limit -= 1
-        return total, evm_state.trie.db.get(ret) if key else bytes(20)
+        return total, evm_state.db.get(ret) if key else bytes(20)

@@ -97,12 +97,12 @@ class TestShardState(unittest.TestCase):
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
         nonce = 0
-        for i in range(len(random_acc_list)):
+        for i in random_acc_list:
             tx = create_transfer_transaction(
                 shard_state=state,
                 key=id_list[0].get_key(),
                 from_address=acc_list[0],
-                to_address=acc_list[random_acc_list[i]],
+                to_address=acc_list[i],
                 value=100,
                 transfer_token_id=qkc_token,
                 gas_price=0,
@@ -141,6 +141,10 @@ class TestShardState(unittest.TestCase):
                 bytes(20),
                 addr_i,
                 "testcase with batch size %d return address failed" % j,
+            )
+        with self.assertRaises(RuntimeError):
+            state.get_total_balance(
+                qkc_token, state.header_tip.get_hash(), 4, starter=b"\x01"
             )
 
     def test_init_genesis_state(self):
