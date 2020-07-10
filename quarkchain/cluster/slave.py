@@ -1433,12 +1433,15 @@ class SlaveServer:
         )
         shard = self.shards.get(branch, None)
         check(shard is not None)
-        return shard.state.get_total_balance(
-            token_id,
-            block_hash,
-            limit,
-            None if address.is_empty() else address.recipient,
-        )
+        try:
+            return shard.state.get_total_balance(
+                token_id,
+                block_hash,
+                limit,
+                None if address.is_empty() else address.recipient,
+            )
+        except Exception:
+            Logger.log_exception()
 
 
 def parse_args():
