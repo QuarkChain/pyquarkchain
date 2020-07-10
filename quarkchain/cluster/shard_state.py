@@ -2018,7 +2018,6 @@ class ShardState:
         """
         The starter address should be exclusive in the iteration.
         """
-
         evm_state = self._get_evm_state_from_hash(block_hash)
         if not evm_state:
             # TBD, may do hash validation before
