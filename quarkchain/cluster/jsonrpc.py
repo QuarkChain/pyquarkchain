@@ -1307,6 +1307,15 @@ class JSONRPCHttpServer:
         total_supply = self.master.get_total_supply()
         return quantity_encoder(total_supply) if total_supply else None
 
+    @public_methods.add
+    async def getTotalBalance(self):
+        # TODO: this is a mock implementation. using fake arguments for now
+        result = await self.master.get_total_balance(Branch(0x1), bytes(32), 0, None)
+        if not result:
+            raise None
+        total_balance, next_starter = result
+        return {"totalBalance": total_balance, "next": next_starter.hex()}
+
     @staticmethod
     def _convert_eth_call_data(data, shard):
         to_address = Address.create_from(
