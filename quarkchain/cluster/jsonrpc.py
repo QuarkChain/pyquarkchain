@@ -440,7 +440,7 @@ def eth_address_to_quarkchain_address_decoder(hex_str):
 
 
 def _parse_log_request(
-        params: Dict, addr_decoder: Callable[[str], bytes]
+    params: Dict, addr_decoder: Callable[[str], bytes]
 ) -> (bytes, bytes):
     """Returns addresses and topics from a EVM log request."""
     addresses, topics = [], []
@@ -508,7 +508,7 @@ class JSONRPCHttpServer:
         return server
 
     def __init__(
-            self, env, master_server: MasterServer, port, host, methods: AsyncMethods
+        self, env, master_server: MasterServer, port, host, methods: AsyncMethods
     ):
         self.loop = asyncio.get_event_loop()
         self.port = port
@@ -677,7 +677,7 @@ class JSONRPCHttpServer:
             shards.append(data)
 
             if branch.get_full_shard_id() == self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                    address.full_shard_key
+                address.full_shard_key
             ):
                 primary = data.copy()
                 primary["minedBlocks"] = quantity_encoder(
@@ -795,7 +795,7 @@ class JSONRPCHttpServer:
     @decode_arg("include_transactions", bool_decoder)
     @decode_arg("need_extra_info", bool_decoder)
     async def getMinorBlockById(
-            self, block_id, include_transactions=False, need_extra_info=True
+        self, block_id, include_transactions=False, need_extra_info=True
     ):
         block_hash, full_shard_key = block_id
         try:
@@ -818,11 +818,11 @@ class JSONRPCHttpServer:
     @decode_arg("include_transactions", bool_decoder)
     @decode_arg("need_extra_info", bool_decoder)
     async def getMinorBlockByHeight(
-            self,
-            full_shard_key: int,
-            height=None,
-            include_transactions=False,
-            need_extra_info=True,
+        self,
+        full_shard_key: int,
+        height=None,
+        include_transactions=False,
+        need_extra_info=True,
     ):
         if height is not None:
             height = quantity_decoder(height)
@@ -946,7 +946,7 @@ class JSONRPCHttpServer:
     @decode_arg("limit", quantity_decoder)
     @decode_arg("transfer_token_id", quantity_decoder, allow_optional=True)
     async def getTransactionsByAddress(
-            self, address, start="0x", limit="0xa", transfer_token_id=None
+        self, address, start="0x", limit="0xa", transfer_token_id=None
     ):
         """ "start" should be the "next" in the response for fetching next page.
             "start" can also be "0x" to fetch from the beginning (i.e., latest).
@@ -995,7 +995,7 @@ class JSONRPCHttpServer:
     @decode_arg("mixhash", hash_decoder)
     @decode_arg("signature", signature_decoder)
     async def submitWork(
-            self, full_shard_key, header_hash, nonce, mixhash, signature=None
+        self, full_shard_key, header_hash, nonce, mixhash, signature=None
     ):
         branch = None  # `None` means getting work from root chain
         if full_shard_key is not None:
@@ -1305,12 +1305,10 @@ class JSONRPCHttpServer:
         return quantity_encoder(total_supply) if total_supply else None
 
     @public_methods.add
-    # async def getTotalBalance(self):
     async def getTotalBalance(self, branch, block_hash, token_id, starter, limit):
-        # TODO: this is a mock implementation. using fake arguments for now
-        bh = bytes.fromhex(block_hash)
-        br = int(branch, 16)
-        result = await self.master.get_total_balance(Branch(br), bh, token_id)
+        result = await self.master.get_total_balance(
+            Branch(int(branch, 16)), bytes.fromhex(block_hash), token_id, starter, limit
+        )
         if not result:
             return "Branch not found!"
         total_balance, next_starter = result
@@ -1432,7 +1430,7 @@ class JSONRPCWebsocketServer:
         return server
 
     def __init__(
-            self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
+        self, env, slave_server: SlaveServer, port, host, methods: AsyncMethods
     ):
         self.loop = asyncio.get_event_loop()
         self.port = port

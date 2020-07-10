@@ -391,8 +391,8 @@ class Synchronizer:
                 continue
 
             if (
-                    best_header is None
-                    or header.total_difficulty > best_header.total_difficulty
+                best_header is None
+                or header.total_difficulty > best_header.total_difficulty
             ):
                 best_header = header
                 best_peer = peer
@@ -433,14 +433,14 @@ class SlaveConnection(ClusterConnection):
     OP_NONRPC_MAP = {}
 
     def __init__(
-            self,
-            env,
-            reader,
-            writer,
-            master_server,
-            slave_id,
-            full_shard_id_list,
-            name=None,
+        self,
+        env,
+        reader,
+        writer,
+        master_server,
+        slave_id,
+        full_shard_id_list,
+        name=None,
     ):
         super().__init__(
             env,
@@ -529,7 +529,7 @@ class SlaveConnection(ClusterConnection):
         return resp.error_code == 0
 
     async def execute_transaction(
-            self, tx: TypedTransaction, from_address, block_height: Optional[int]
+        self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ):
         request = ExecuteTransactionRequest(tx, from_address, block_height)
         _, resp, _ = await self.write_rpc_request(
@@ -538,7 +538,7 @@ class SlaveConnection(ClusterConnection):
         return resp.result if resp.error_code == 0 else None
 
     async def get_minor_block_by_hash_or_height(
-            self, branch, need_extra_info, block_hash=None, height=None
+        self, branch, need_extra_info, block_hash=None, height=None
     ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
         request = GetMinorBlockRequest(branch, need_extra_info=need_extra_info)
         if block_hash is not None:
@@ -556,14 +556,14 @@ class SlaveConnection(ClusterConnection):
         return resp.minor_block, resp.extra_info
 
     async def get_minor_block_by_hash(
-            self, block_hash, branch, need_extra_info
+        self, block_hash, branch, need_extra_info
     ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
         return await self.get_minor_block_by_hash_or_height(
             branch, need_extra_info, block_hash
         )
 
     async def get_minor_block_by_height(
-            self, height, branch, need_extra_info
+        self, height, branch, need_extra_info
     ) -> Tuple[Optional[MinorBlock], Optional[MinorBlockExtraInfo]]:
         return await self.get_minor_block_by_hash_or_height(
             branch, need_extra_info, height=height
@@ -597,11 +597,11 @@ class SlaveConnection(ClusterConnection):
         return resp.tx_list, resp.next
 
     async def get_transactions_by_address(
-            self,
-            address: Address,
-            transfer_token_id: Optional[int],
-            start: bytes,
-            limit: int,
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
     ):
         request = GetTransactionListByAddressRequest(
             address, transfer_token_id, start, limit
@@ -614,12 +614,12 @@ class SlaveConnection(ClusterConnection):
         return resp.tx_list, resp.next
 
     async def get_logs(
-            self,
-            branch: Branch,
-            addresses: List[Address],
-            topics: List[List[bytes]],
-            start_block: int,
-            end_block: int,
+        self,
+        branch: Branch,
+        addresses: List[Address],
+        topics: List[List[bytes]],
+        start_block: int,
+        end_block: int,
     ) -> Optional[List[Log]]:
         request = GetLogRequest(branch, addresses, topics, start_block, end_block)
         _, resp, _ = await self.write_rpc_request(
@@ -628,7 +628,7 @@ class SlaveConnection(ClusterConnection):
         return resp.logs if resp.error_code == 0 else None
 
     async def estimate_gas(
-            self, tx: TypedTransaction, from_address: Address
+        self, tx: TypedTransaction, from_address: Address
     ) -> Optional[int]:
         request = EstimateGasRequest(tx, from_address)
         _, resp, _ = await self.write_rpc_request(
@@ -637,7 +637,7 @@ class SlaveConnection(ClusterConnection):
         return resp.result if resp.error_code == 0 else None
 
     async def get_storage_at(
-            self, address: Address, key: int, block_height: Optional[int]
+        self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
         request = GetStorageRequest(address, key, block_height)
         _, resp, _ = await self.write_rpc_request(
@@ -646,7 +646,7 @@ class SlaveConnection(ClusterConnection):
         return resp.result if resp.error_code == 0 else None
 
     async def get_code(
-            self, address: Address, block_height: Optional[int]
+        self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
         request = GetCodeRequest(address, block_height)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_CODE_REQUEST, request)
@@ -658,7 +658,7 @@ class SlaveConnection(ClusterConnection):
         return resp.result if resp.error_code == 0 else None
 
     async def get_work(
-            self, branch: Branch, coinbase_addr: Optional[Address]
+        self, branch: Branch, coinbase_addr: Optional[Address]
     ) -> Optional[MiningWork]:
         request = GetWorkRequest(branch, coinbase_addr)
         _, resp, _ = await self.write_rpc_request(ClusterOp.GET_WORK_REQUEST, request)
@@ -670,12 +670,12 @@ class SlaveConnection(ClusterConnection):
         )
 
     async def submit_work(
-            self,
-            branch: Branch,
-            header_hash: bytes,
-            nonce: int,
-            mixhash: bytes,
-            signature: Optional[bytes] = None,
+        self,
+        branch: Branch,
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = None,
     ) -> bool:
         request = SubmitWorkRequest(branch, header_hash, nonce, mixhash, signature)
         _, resp, _ = await self.write_rpc_request(
@@ -685,7 +685,7 @@ class SlaveConnection(ClusterConnection):
         return submit_work_resp.error_code == 0 and submit_work_resp.success
 
     async def get_root_chain_stakes(
-            self, address: Address, minor_block_hash: bytes
+        self, address: Address, minor_block_hash: bytes
     ) -> (int, bytes):
         request = GetRootChainStakesRequest(address, minor_block_hash)
         _, resp, _ = await self.write_rpc_request(
@@ -713,7 +713,7 @@ class SlaveConnection(ClusterConnection):
     async def handle_add_minor_block_header_list_request(self, req):
         check(len(req.minor_block_header_list) == len(req.coinbase_amount_map_list))
         for minor_block_header, coinbase_amount_map in zip(
-                req.minor_block_header_list, req.coinbase_amount_map_list
+            req.minor_block_header_list, req.coinbase_amount_map_list
         ):
             self.master_server.root_state.add_validated_minor_block_hash(
                 minor_block_header.get_hash(), coinbase_amount_map.balance_map
@@ -724,7 +724,7 @@ class SlaveConnection(ClusterConnection):
         return AddMinorBlockHeaderListResponse(error_code=0)
 
     async def get_total_balance(
-            self, address: Address, minor_block_hash: bytes, token_id: int, limit: int
+        self, address: Address, minor_block_hash: bytes, token_id: int, limit: int
     ) -> Optional[Tuple[int, bytes]]:
         request = GetTotalBalanceRequest(address, token_id, limit, minor_block_hash)
         _, resp, _ = await self.write_rpc_request(
@@ -1123,7 +1123,7 @@ class MasterServer:
 
                     # Filter out the ones unknown to the master
                     if not self.root_state.db.contain_minor_block_by_hash(
-                            header.get_hash()
+                        header.get_hash()
                     ):
                         break
                     full_shard_id_to_header_list.setdefault(
@@ -1153,7 +1153,7 @@ class MasterServer:
         return response.block if response.error_code == 0 else None
 
     async def get_next_block_to_mine(
-            self, address, branch_value: Optional[int]
+        self, address, branch_value: Optional[int]
     ) -> Optional[Union[RootBlock, MinorBlock]]:
         """Return root block if branch value provided is None."""
         # Mining old blocks is useless
@@ -1195,7 +1195,7 @@ class MasterServer:
         return branch_to_account_branch_data
 
     async def get_primary_account_data(
-            self, address: Address, block_height: Optional[int] = None
+        self, address: Address, block_height: Optional[int] = None
     ):
         # TODO: Only query the shard who has the address
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -1241,7 +1241,7 @@ class MasterServer:
         return True
 
     async def execute_transaction(
-            self, tx: TypedTransaction, from_address, block_height: Optional[int]
+        self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ) -> Optional[bytes]:
         """ Execute transaction without persistence """
         evm_tx = tx.tx.to_evm_tx()
@@ -1393,7 +1393,7 @@ class MasterServer:
             await self.stop_mining()
 
     async def create_transactions(
-            self, num_tx_per_shard, xshard_percent, tx: TypedTransaction
+        self, num_tx_per_shard, xshard_percent, tx: TypedTransaction
     ):
         """Create transactions and add to the network for load testing"""
         futures = []
@@ -1419,8 +1419,8 @@ class MasterServer:
             )
 
         while (
-                len(self.tx_count_history) > 0
-                and self.tx_count_history[0][0] < time.time() - 3600 * 12
+            len(self.tx_count_history) > 0
+            and self.tx_count_history[0][0] < time.time() - 3600 * 12
         ):
             self.tx_count_history.popleft()
 
@@ -1542,7 +1542,7 @@ class MasterServer:
         return await slave.get_minor_block_by_hash(block_hash, branch, need_extra_info)
 
     async def get_minor_block_by_height(
-            self, height: Optional[int], branch, need_extra_info
+        self, height: Optional[int], branch, need_extra_info
     ):
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1565,7 +1565,7 @@ class MasterServer:
         return await slave.get_transaction_by_hash(tx_hash, branch)
 
     async def get_transaction_receipt(
-            self, tx_hash, branch
+        self, tx_hash, branch
     ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1581,11 +1581,11 @@ class MasterServer:
         return await slave.get_all_transactions(branch, start, limit)
 
     async def get_transactions_by_address(
-            self,
-            address: Address,
-            transfer_token_id: Optional[int],
-            start: bytes,
-            limit: int,
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
     ):
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             address.full_shard_key
@@ -1596,12 +1596,12 @@ class MasterServer:
         )
 
     async def get_logs(
-            self,
-            addresses: List[Address],
-            topics: List[List[bytes]],
-            start_block: Optional[int],
-            end_block: Optional[int],
-            branch: Branch,
+        self,
+        addresses: List[Address],
+        topics: List[List[bytes]],
+        start_block: Optional[int],
+        end_block: Optional[int],
+        branch: Branch,
     ) -> Optional[List[Log]]:
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1615,7 +1615,7 @@ class MasterServer:
         return await slave.get_logs(branch, addresses, topics, start_block, end_block)
 
     async def estimate_gas(
-            self, tx: TypedTransaction, from_address: Address
+        self, tx: TypedTransaction, from_address: Address
     ) -> Optional[int]:
         evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
@@ -1634,7 +1634,7 @@ class MasterServer:
         return res + 9000 if res else None
 
     async def get_storage_at(
-            self, address: Address, key: int, block_height: Optional[int]
+        self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             address.full_shard_key
@@ -1646,7 +1646,7 @@ class MasterServer:
         return await slave.get_storage_at(address, key, block_height)
 
     async def get_code(
-            self, address: Address, block_height: Optional[int]
+        self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
         full_shard_id = self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             address.full_shard_key
@@ -1665,7 +1665,7 @@ class MasterServer:
         return await slave.gas_price(branch, token_id)
 
     async def get_work(
-            self, branch: Optional[Branch], recipient: Optional[bytes]
+        self, branch: Optional[Branch], recipient: Optional[bytes]
     ) -> Tuple[Optional[MiningWork], Optional[int]]:
         coinbase_addr = None
         if recipient is not None:
@@ -1686,12 +1686,12 @@ class MasterServer:
         return (await slave.get_work(branch, coinbase_addr)), None
 
     async def submit_work(
-            self,
-            branch: Optional[Branch],
-            header_hash: bytes,
-            nonce: int,
-            mixhash: bytes,
-            signature: Optional[bytes] = None,
+        self,
+        branch: Optional[Branch],
+        header_hash: bytes,
+        nonce: int,
+        mixhash: bytes,
+        signature: Optional[bytes] = None,
     ) -> bool:
         if not branch:  # submit root chain work
             return await self.root_miner.submit_work(
@@ -1785,7 +1785,7 @@ class MasterServer:
         return self.root_state.get_posw_info(block, stakes, signer)
 
     async def get_root_block_by_height_or_hash(
-            self, height=None, block_hash=None, need_extra_info=False
+        self, height=None, block_hash=None, need_extra_info=False
     ) -> Tuple[Optional[RootBlock], Optional[PoSWInfo]]:
         if block_hash is not None:
             block = self.root_state.db.get_root_block_by_hash(block_hash)
@@ -1800,12 +1800,12 @@ class MasterServer:
         return block, posw_info
 
     async def get_total_balance(
-            self,
-            branch: Branch,
-            block_hash: bytes,
-            token_id: int,
-            starter: Optional[bytes] = bytes(20),
-            limit: int = 100,
+        self,
+        branch: Branch,
+        block_hash: bytes,
+        token_id: int,
+        starter: Optional[bytes] = bytes(20),
+        limit: int = 100,
     ) -> Optional[Tuple[int, bytes]]:
         if branch.value not in self.branch_to_slaves:
             return None
@@ -1859,8 +1859,8 @@ def main():
     # p2p discovery mode will disable master-slave communication and JSONRPC
     p2p_config = env.cluster_config.P2P
     start_master = (
-            not p2p_config.DISCOVERY_ONLY
-            and not p2p_config.CRAWLING_ROUTING_TABLE_FILE_PATH
+        not p2p_config.DISCOVERY_ONLY
+        and not p2p_config.CRAWLING_ROUTING_TABLE_FILE_PATH
     )
 
     # only start the cluster if not in discovery-only mode

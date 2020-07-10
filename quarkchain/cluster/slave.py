@@ -121,8 +121,8 @@ class MasterConnection(ClusterConnection):
             return None
 
         if (
-                metadata.branch.get_full_shard_id()
-                not in self.env.quark_chain_config.get_full_shard_ids()
+            metadata.branch.get_full_shard_id()
+            not in self.env.quark_chain_config.get_full_shard_ids()
         ):
             self.close_with_error(
                 "incorrect forwarding branch {}".format(metadata.branch.to_str())
@@ -296,7 +296,7 @@ class MasterConnection(ClusterConnection):
         )
 
     async def handle_get_account_data_request(
-            self, req: GetAccountDataRequest
+        self, req: GetAccountDataRequest
     ) -> GetAccountDataResponse:
         account_branch_data_list = self.slave_server.get_account_data(
             req.address, req.block_height
@@ -310,7 +310,7 @@ class MasterConnection(ClusterConnection):
         return AddTransactionResponse(error_code=0 if success else 1)
 
     async def handle_execute_transaction(
-            self, req: ExecuteTransactionRequest
+        self, req: ExecuteTransactionRequest
     ) -> ExecuteTransactionResponse:
         res = self.slave_server.execute_tx(req.tx, req.from_address, req.block_height)
         fail = res is None
@@ -482,9 +482,10 @@ class MasterConnection(ClusterConnection):
                     )
 
                 # Step 2: Check if the blocks are valid
-                add_block_success, coinbase_amount_list = await self.slave_server.add_block_list_for_sync(
-                    block_chain
-                )
+                (
+                    add_block_success,
+                    coinbase_amount_list,
+                ) = await self.slave_server.add_block_list_for_sync(block_chain)
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
@@ -557,7 +558,7 @@ class MasterConnection(ClusterConnection):
         return SubmitWorkResponse(error_code=0, success=res)
 
     async def handle_get_root_chain_stakes(
-            self, req: GetRootChainStakesRequest
+        self, req: GetRootChainStakesRequest
     ) -> GetRootChainStakesResponse:
         stakes, signer = self.slave_server.get_root_chain_stakes(
             req.address, req.minor_block_hash
@@ -565,7 +566,7 @@ class MasterConnection(ClusterConnection):
         return GetRootChainStakesResponse(0, stakes, signer)
 
     async def handle_get_total_balance(
-            self, req: GetTotalBalanceRequest
+        self, req: GetTotalBalanceRequest
     ) -> GetTotalBalanceResponse:
         total_balance, next_starter = self.slave_server.get_total_balance(
             req.address, req.token_id, req.minor_block_hash, req.limit
@@ -696,7 +697,7 @@ MASTER_OP_RPC_MAP = {
 
 class SlaveConnection(Connection):
     def __init__(
-            self, env, reader, writer, slave_server, slave_id, full_shard_id_list, name=None
+        self, env, reader, writer, slave_server, slave_id, full_shard_id_list, name=None
     ):
         super().__init__(
             env,
@@ -954,7 +955,7 @@ class SlaveServer:
             shard.miner.start()
 
     def create_transactions(
-            self, num_tx_per_shard, x_shard_percent, tx: TypedTransaction
+        self, num_tx_per_shard, x_shard_percent, tx: TypedTransaction
     ):
         for shard in self.shards.values():
             shard.tx_generator.generate(num_tx_per_shard, x_shard_percent, tx)
@@ -1010,12 +1011,12 @@ class SlaveServer:
     # Cluster functions
 
     async def send_minor_block_header_to_master(
-            self,
-            minor_block_header,
-            tx_count,
-            x_shard_tx_count,
-            coinbase_amount_map: TokenBalanceMap,
-            shard_stats,
+        self,
+        minor_block_header,
+        tx_count,
+        x_shard_tx_count,
+        coinbase_amount_map: TokenBalanceMap,
+        shard_stats,
     ):
         """ Update master that a minor block has been appended successfully """
         request = AddMinorBlockHeaderRequest(
@@ -1032,7 +1033,7 @@ class SlaveServer:
         self.artificial_tx_config = resp.artificial_tx_config
 
     async def send_minor_block_header_list_to_master(
-            self, minor_block_header_list, coinbase_amount_map_list
+        self, minor_block_header_list, coinbase_amount_map_list
     ):
         request = AddMinorBlockHeaderListRequest(
             minor_block_header_list, coinbase_amount_map_list
@@ -1043,7 +1044,7 @@ class SlaveServer:
         check(resp.error_code == 0)
 
     def __get_branch_to_add_xshard_tx_list_request(
-            self, block_hash, xshard_tx_list, prev_root_height
+        self, block_hash, xshard_tx_list, prev_root_height
     ):
         xshard_map = dict()  # type: Dict[Branch, List[CrossShardTransactionDeposit]]
 
@@ -1084,13 +1085,13 @@ class SlaveServer:
         rpc_futures = []
         for branch, request in branch_to_add_xshard_tx_list_request.items():
             if branch == block.header.branch or not is_neighbor(
-                    block.header.branch,
-                    branch,
-                    len(
-                        self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-                            prev_root_height
-                        )
-                    ),
+                block.header.branch,
+                branch,
+                len(
+                    self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                        prev_root_height
+                    )
+                ),
             ):
                 check(
                     len(request.tx_list.tx_list) == 0,
@@ -1106,7 +1107,7 @@ class SlaveServer:
                 )
 
             for (
-                    slave_conn
+                slave_conn
             ) in self.slave_connection_manager.get_connections_by_full_shard_id(
                 branch.get_full_shard_id()
             ):
@@ -1118,14 +1119,14 @@ class SlaveServer:
         check(all([response.error_code == 0 for _, response, _ in responses]))
 
     async def batch_broadcast_xshard_tx_list(
-            self,
-            block_hash_to_xshard_list_and_prev_root_height: Dict[bytes, Tuple[List, int]],
-            source_branch: Branch,
+        self,
+        block_hash_to_xshard_list_and_prev_root_height: Dict[bytes, Tuple[List, int]],
+        source_branch: Branch,
     ):
         branch_to_add_xshard_tx_list_request_list = dict()
         for (
-                block_hash,
-                x_shard_list_and_prev_root_height,
+            block_hash,
+            x_shard_list_and_prev_root_height,
         ) in block_hash_to_xshard_list_and_prev_root_height.items():
             xshard_tx_list = x_shard_list_and_prev_root_height[0]
             prev_root_height = x_shard_list_and_prev_root_height[1]
@@ -1134,13 +1135,13 @@ class SlaveServer:
             )
             for branch, request in branch_to_add_xshard_tx_list_request.items():
                 if branch == source_branch or not is_neighbor(
-                        branch,
-                        source_branch,
-                        len(
-                            self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
-                                prev_root_height
-                            )
-                        ),
+                    branch,
+                    source_branch,
+                    len(
+                        self.env.quark_chain_config.get_initialized_full_shard_ids_before_root_height(
+                            prev_root_height
+                        )
+                    ),
                 ):
                     check(
                         len(request.tx_list.tx_list) == 0,
@@ -1166,7 +1167,7 @@ class SlaveServer:
 
             batch_request = BatchAddXshardTxListRequest(request_list)
             for (
-                    slave_conn
+                slave_conn
             ) in self.slave_connection_manager.get_connections_by_full_shard_id(
                 branch.get_full_shard_id()
             ):
@@ -1198,7 +1199,7 @@ class SlaveServer:
         return shard.add_tx(tx)
 
     def execute_tx(
-            self, tx: TypedTransaction, from_address: Address, height: Optional[int]
+        self, tx: TypedTransaction, from_address: Address, height: Optional[int]
     ) -> Optional[bytes]:
         evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
@@ -1242,7 +1243,7 @@ class SlaveServer:
         return shard.state.get_token_balance(address.recipient)
 
     def get_account_data(
-            self, address: Address, block_height: Optional[int]
+        self, address: Address, block_height: Optional[int]
     ) -> List[AccountBranchData]:
         results = []
         for branch, shard in self.shards.items():
@@ -1266,7 +1267,7 @@ class SlaveServer:
         return results
 
     def get_minor_block_by_hash(
-            self, block_hash, branch: Branch, need_extra_info
+        self, block_hash, branch: Branch, need_extra_info
     ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1274,7 +1275,7 @@ class SlaveServer:
         return shard.state.get_minor_block_by_hash(block_hash, need_extra_info)
 
     def get_minor_block_by_height(
-            self, height, branch, need_extra_info
+        self, height, branch, need_extra_info
     ) -> Tuple[Optional[MinorBlock], Optional[Dict]]:
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1288,7 +1289,7 @@ class SlaveServer:
         return shard.state.get_transaction_by_hash(tx_hash)
 
     def get_transaction_receipt(
-            self, tx_hash, branch
+        self, tx_hash, branch
     ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1302,11 +1303,11 @@ class SlaveServer:
         return shard.state.get_all_transactions(start, limit)
 
     def get_transaction_list_by_address(
-            self,
-            address: Address,
-            transfer_token_id: Optional[int],
-            start: bytes,
-            limit: int,
+        self,
+        address: Address,
+        transfer_token_id: Optional[int],
+        start: bytes,
+        limit: int,
     ):
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -1321,12 +1322,12 @@ class SlaveServer:
         )
 
     def get_logs(
-            self,
-            addresses: List[Address],
-            topics: List[Optional[Union[str, List[str]]]],
-            start_block: int,
-            end_block: int,
-            branch: Branch,
+        self,
+        addresses: List[Address],
+        topics: List[Optional[Union[str, List[str]]]],
+        start_block: int,
+        end_block: int,
+        branch: Branch,
     ) -> Optional[List[Log]]:
         shard = self.shards.get(branch, None)
         if not shard:
@@ -1345,7 +1346,7 @@ class SlaveServer:
         return shard.state.estimate_gas(tx, from_address)
 
     def get_storage_at(
-            self, address: Address, key: int, block_height: Optional[int]
+        self, address: Address, key: int, block_height: Optional[int]
     ) -> Optional[bytes]:
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -1358,7 +1359,7 @@ class SlaveServer:
         return shard.state.get_storage_at(address.recipient, key, block_height)
 
     def get_code(
-            self, address: Address, block_height: Optional[int]
+        self, address: Address, block_height: Optional[int]
     ) -> Optional[bytes]:
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -1377,7 +1378,7 @@ class SlaveServer:
         return shard.state.gas_price(token_id)
 
     async def get_work(
-            self, branch: Branch, coinbase_addr: Optional[Address] = None
+        self, branch: Branch, coinbase_addr: Optional[Address] = None
     ) -> Optional[MiningWork]:
         if branch not in self.shards:
             return None
@@ -1397,7 +1398,7 @@ class SlaveServer:
             return None
 
     async def submit_work(
-            self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
+        self, branch: Branch, header_hash: bytes, nonce: int, mixhash: bytes
     ) -> Optional[bool]:
         try:
             return await self.shards[branch].miner.submit_work(
@@ -1408,7 +1409,7 @@ class SlaveServer:
             return None
 
     def get_root_chain_stakes(
-            self, address: Address, block_hash: bytes
+        self, address: Address, block_hash: bytes
     ) -> (int, bytes):
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -1422,7 +1423,7 @@ class SlaveServer:
         return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
     def get_total_balance(
-            self, address: Address, token_id: int, block_hash: bytes, limit: int
+        self, address: Address, token_id: int, block_hash: bytes, limit: int
     ) -> Tuple[int, bytes]:
         # for empty starter, the recipient of address should zero
         # return 0, b"123"
