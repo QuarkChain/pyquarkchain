@@ -482,9 +482,10 @@ class MasterConnection(ClusterConnection):
                     )
 
                 # Step 2: Check if the blocks are valid
-                add_block_success, coinbase_amount_list = await self.slave_server.add_block_list_for_sync(
-                    block_chain
-                )
+                (
+                    add_block_success,
+                    coinbase_amount_list,
+                ) = await self.slave_server.add_block_list_for_sync(block_chain)
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
@@ -576,7 +577,6 @@ class MasterConnection(ClusterConnection):
 MASTER_OP_NONRPC_MAP = {
     ClusterOp.DESTROY_CLUSTER_PEER_CONNECTION_COMMAND: MasterConnection.handle_destroy_cluster_peer_connection_command
 }
-
 
 MASTER_OP_RPC_MAP = {
     ClusterOp.PING: (ClusterOp.PONG, MasterConnection.handle_ping),
@@ -773,7 +773,6 @@ class SlaveConnection(Connection):
 
 
 SLAVE_OP_NONRPC_MAP = {}
-
 
 SLAVE_OP_RPC_MAP = {
     ClusterOp.PING: (ClusterOp.PONG, SlaveConnection.handle_ping),
@@ -1427,6 +1426,7 @@ class SlaveServer:
         self, address: Address, token_id: int, block_hash: bytes, limit: int
     ) -> Tuple[int, bytes]:
         # for empty starter, the recipient of address should zero
+        # return 0, b"123"
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key

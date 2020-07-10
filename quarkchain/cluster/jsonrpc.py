@@ -43,11 +43,9 @@ from quarkchain.cluster.subscription import SUB_LOGS
 DEFAULT_STARTGAS = 100 * 1000
 DEFAULT_GASPRICE = 10 * denoms.gwei
 
-
 # Allow 16 MB request for submitting big blocks
 # TODO: revisit this parameter
 JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
-
 
 # Disable jsonrpcserver logging
 config.log_requests = False
@@ -239,7 +237,6 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
 
 
 def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
-
     d = {
         "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
         "height": quantity_encoder(header.height),
@@ -1308,11 +1305,12 @@ class JSONRPCHttpServer:
         return quantity_encoder(total_supply) if total_supply else None
 
     @public_methods.add
-    async def getTotalBalance(self):
-        # TODO: this is a mock implementation. using fake arguments for now
-        result = await self.master.get_total_balance(Branch(0x1), bytes(32), 0, None)
+    async def getTotalBalance(self, branch, block_hash, token_id, starter, limit):
+        result = await self.master.get_total_balance(
+            Branch(int(branch, 16)), bytes.fromhex(block_hash), token_id, starter, limit
+        )
         if not result:
-            raise None
+            return "Branch not found!"
         total_balance, next_starter = result
         return {"totalBalance": total_balance, "next": next_starter.hex()}
 
