@@ -1426,7 +1426,6 @@ class SlaveServer:
         self, address: Address, token_id: int, block_hash: bytes, limit: int
     ) -> Tuple[int, bytes]:
         # for empty starter, the recipient of address should zero
-        # return 0, b"123"
         branch = Branch(
             self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
                 address.full_shard_key

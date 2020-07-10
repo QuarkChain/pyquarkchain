@@ -1305,12 +1305,11 @@ class JSONRPCHttpServer:
         return quantity_encoder(total_supply) if total_supply else None
 
     @public_methods.add
-    async def getTotalBalance(self, branch, block_hash, token_id, starter, limit):
-        result = await self.master.get_total_balance(
-            Branch(int(branch, 16)), bytes.fromhex(block_hash), token_id, starter, limit
-        )
+    async def getTotalBalance(self):
+        # TODO: this is a mock implementation. using fake arguments for now
+        result = await self.master.get_total_balance(Branch(0x1), bytes(32), 0, None)
         if not result:
-            return "Branch not found!"
+            raise None
         total_balance, next_starter = result
         return {"totalBalance": total_balance, "next": next_starter.hex()}
 
