@@ -142,7 +142,7 @@ class TestShardState(unittest.TestCase):
                 addr_i,
                 "testcase with batch size %d return address failed" % j,
             )
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(Exception):
             state.get_total_balance(
                 qkc_token, state.header_tip.get_hash(), 4, starter=b"\x01"
             )

@@ -2028,7 +2028,9 @@ class ShardState:
         trie = evm_state.trie.trie
         if starter:
             if not evm_state.db.get(utils.sha3_256(starter)):
-                raise RuntimeError("starter address {} is not in db.".format(starter))
+                raise Exception(
+                    "key of starter address {} is not in db".format(starter)
+                )
         key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
         ret = None
