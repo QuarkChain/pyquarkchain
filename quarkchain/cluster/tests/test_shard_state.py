@@ -142,10 +142,12 @@ class TestShardState(unittest.TestCase):
             state.get_total_balance(
                 qkc_token, state.header_tip.get_hash(), 1, starter=b"\x01"
             )
-        random_acc = Address.create_random_account(1)
         with self.assertRaises(Exception):
             state.get_total_balance(
-                qkc_token, state.header_tip.get_hash(), 1, starter=random_acc.recipient
+                qkc_token,
+                state.header_tip.get_hash(),
+                1,
+                starter=Address.create_random_account(1),
             )
 
     def test_init_genesis_state(self):
