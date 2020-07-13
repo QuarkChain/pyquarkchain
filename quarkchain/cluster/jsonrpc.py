@@ -1274,6 +1274,30 @@ class JSONRPCHttpServer:
             root_block_time, minor_block_time
         )
 
+    @public_methods.add
+    @decode_arg("block_hash", hash_decoder)
+    @decode_arg("token_id", quantity_decoder)
+    @decode_arg("address", address_decoder)
+    async def getTotalBalance(self, block_hash, token_id, address, limit=100):
+        try:
+            starter = Address.create_from(address)
+            full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                starter.full_shard_key
+            )
+            result = await self.master.get_total_balance(
+                Branch(full_shard_id), block_hash, token_id, starter.recipient, limit,
+            )
+            total_balance, next_starter = result
+            return {
+                "totalBalance": quantity_encoder(total_balance),
+                "next_addr": data_encoder(
+                    next_starter + (starter.full_shard_key).to_bytes(4, byteorder="big")
+                ),
+            }
+        except Exception as e:
+            Logger.log_exception()
+            raise e
+
     @private_methods.add
     async def setMining(self, mining):
         """Turn on / off mining"""
@@ -1303,24 +1327,6 @@ class JSONRPCHttpServer:
     async def getTotalSupply(self):
         total_supply = self.master.get_total_supply()
         return quantity_encoder(total_supply) if total_supply else None
-
-    @public_methods.add
-    async def getTotalBalance(
-        self, full_shard_id, block_hash, token_id, starter=bytes(20), limit=100
-    ):
-        try:
-            full_shard_id = shard_id_decoder(full_shard_id)
-            block_hash = hash_decoder(block_hash)
-            if type(starter) == str:
-                starter = data_decoder(starter)
-            result = await self.master.get_total_balance(
-                Branch(full_shard_id), block_hash, token_id, starter, limit,
-            )
-            total_balance, next_starter = result
-            return {"totalBalance": total_balance, "next": "0x" + next_starter.hex()}
-        except Exception:
-            Logger.log_exception()
-            raise InvalidRequest
 
     @staticmethod
     def _convert_eth_call_data(data, shard):
