@@ -122,26 +122,23 @@ class TestShardState(unittest.TestCase):
         for j in batch_size:
             num_of_calls = math.ceil(66.0 / j)
             total = 0
-            addr_i = None
+            next_addr = None
             for i in range(num_of_calls):
-                total_i, addr_i = state.get_total_balance(
-                    qkc_token, state.header_tip.get_hash(), j, starter=addr_i
+                balance, next_addr = state.get_total_balance(
+                    qkc_token, state.header_tip.get_hash(), j, starter=next_addr
                 )
-                total += total_i
+                total += balance
             self.assertEqual(
                 exp_balance,
                 total,
-                "testcase with batch size %d return balance failed t" % j,
+                "testcase with batch size %d return balance failed" % j,
             )
             self.assertEqual(
                 bytes(20),
-                addr_i,
+                next_addr,
                 "testcase with batch size %d return address failed" % j,
             )
-        with self.assertRaises(Exception):
-            state.get_total_balance(
-                qkc_token, state.header_tip.get_hash(), 1, starter=b"\x01"
-            )
+
         with self.assertRaises(Exception):
             state.get_total_balance(
                 qkc_token,
