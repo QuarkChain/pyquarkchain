@@ -84,7 +84,7 @@ class TestShardState(unittest.TestCase):
     def test_get_total_balance(self):
         id_list = [Identity.create_random_identity() for _ in range(66)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
-        batch_size = [1, 2, 3, 4, 6, 66]
+        batches = [1, 2, 3, 4, 6, 66]
         env = get_test_env(
             genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
         )
@@ -119,7 +119,7 @@ class TestShardState(unittest.TestCase):
         )
 
         exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase)
-        for j in batch_size:
+        for j in batches:
             num_of_calls = math.ceil(66.0 / j)
             total = 0
             next_addr = None
