@@ -84,7 +84,7 @@ class TestShardState(unittest.TestCase):
     def test_get_total_balance(self):
         id_list = [Identity.create_random_identity() for _ in range(66)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
-        batches = [1, 2, 3, 4, 6, 66]
+        batch_size = [1, 2, 3, 4, 6, 66]
         env = get_test_env(
             genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
         )
@@ -119,24 +119,24 @@ class TestShardState(unittest.TestCase):
         )
 
         exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase)
-        for j in batches:
-            num_of_calls = math.ceil(66.0 / j)
+        for batch in batch_size:
+            num_of_calls = math.ceil(66.0 / batch)
             total = 0
             next_addr = None
             for i in range(num_of_calls):
                 balance, next_addr = state.get_total_balance(
-                    qkc_token, state.header_tip.get_hash(), j, starter=next_addr
+                    qkc_token, state.header_tip.get_hash(), batch, starter=next_addr
                 )
                 total += balance
             self.assertEqual(
                 exp_balance,
                 total,
-                "testcase with batch size %d return balance failed" % j,
+                "testcase with batch size %d return balance failed" % batch,
             )
             self.assertEqual(
                 bytes(20),
                 next_addr,
-                "testcase with batch size %d return address failed" % j,
+                "testcase with batch size %d return address failed" % batch,
             )
 
         with self.assertRaises(Exception):
