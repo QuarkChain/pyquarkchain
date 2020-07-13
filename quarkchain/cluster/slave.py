@@ -568,14 +568,13 @@ class MasterConnection(ClusterConnection):
     async def handle_get_total_balance(
         self, req: GetTotalBalanceRequest
     ) -> GetTotalBalanceResponse:
-        if not self.slave_server.get_total_balance(
-            req.address, req.token_id, req.minor_block_hash, req.limit
-        ):
+        try:
+            total_balance, next_starter = self.slave_server.get_total_balance(
+                req.address, req.token_id, req.minor_block_hash, req.limit
+            )
+            return GetTotalBalanceResponse(0, total_balance, next_starter)
+        except Exception:
             return GetTotalBalanceResponse(error_code=1)
-        total_balance, next_starter = self.slave_server.get_total_balance(
-            req.address, req.token_id, req.minor_block_hash, req.limit
-        )
-        return GetTotalBalanceResponse(0, total_balance, next_starter)
 
 
 MASTER_OP_NONRPC_MAP = {
@@ -1437,15 +1436,12 @@ class SlaveServer:
         )
         shard = self.shards.get(branch, None)
         check(shard is not None)
-        try:
-            return shard.state.get_total_balance(
-                token_id,
-                block_hash,
-                limit,
-                None if address.is_empty() else address.recipient,
-            )
-        except Exception:
-            Logger.log_exception()
+        return shard.state.get_total_balance(
+            token_id,
+            block_hash,
+            limit,
+            None if address.is_empty() else address.recipient,
+        )
 
 
 def parse_args():

@@ -84,32 +84,28 @@ class TestShardState(unittest.TestCase):
     def test_get_total_balance(self):
         id_list = [Identity.create_random_identity() for _ in range(66)]
         acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
-        random_acc_list = random.sample(range(1, len(acc_list)), len(acc_list) - 1)
         batch_size = [1, 2, 3, 4, 6, 66]
         env = get_test_env(
             genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
         )
 
         qkc_token = token_id_encode("QKC")
-
         state = create_default_shard_state(env=env)
         # Add a root block to have all the shards initialized
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
-        nonce = 0
-        for i in random_acc_list:
+        for nonce, acc in enumerate(acc_list[1:]):
             tx = create_transfer_transaction(
                 shard_state=state,
                 key=id_list[0].get_key(),
                 from_address=acc_list[0],
-                to_address=acc_list[i],
+                to_address=acc,
                 value=100,
                 transfer_token_id=qkc_token,
                 gas_price=0,
                 nonce=nonce,
             )
-            self.assertTrue(state.add_tx(tx), "the %d tx fails to be added" % i)
-            nonce += 1
+            self.assertTrue(state.add_tx(tx), "the %d tx fails to be added" % nonce)
 
         b1 = state.create_block_to_mine(address=acc_list[0])
         state.finalize_and_add_block(b1)
@@ -144,7 +140,12 @@ class TestShardState(unittest.TestCase):
             )
         with self.assertRaises(Exception):
             state.get_total_balance(
-                qkc_token, state.header_tip.get_hash(), 4, starter=b"\x01"
+                qkc_token, state.header_tip.get_hash(), 1, starter=b"\x01"
+            )
+        random_acc = Address.create_random_account(1)
+        with self.assertRaises(Exception):
+            state.get_total_balance(
+                qkc_token, state.header_tip.get_hash(), 1, starter=random_acc.recipient
             )
 
     def test_init_genesis_state(self):
