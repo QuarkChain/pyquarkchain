@@ -731,7 +731,7 @@ class SlaveConnection(ClusterConnection):
             ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
         )
         if resp.error_code != 0:
-            return None
+            raise Exception("invalid response")
         return resp.total_balance, resp.next
 
 
@@ -1812,7 +1812,10 @@ class MasterServer:
 
         slave = self.branch_to_slaves[branch.value][0]
         address = Address(starter, branch.value)
-        return await slave.get_total_balance(address, block_hash, token_id, limit)
+        try:
+            return await slave.get_total_balance(address, block_hash, token_id, limit)
+        except:
+            raise Exception
 
 
 def parse_args():
