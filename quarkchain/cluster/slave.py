@@ -568,15 +568,15 @@ class MasterConnection(ClusterConnection):
     async def handle_get_total_balance(
         self, req: GetTotalBalanceRequest
     ) -> GetTotalBalanceResponse:
+        error_code = 0
         try:
             total_balance, next_starter = self.slave_server.get_total_balance(
                 req.address, req.token_id, req.minor_block_hash, req.limit
             )
-            return GetTotalBalanceResponse(0, total_balance, next_starter)
+            return GetTotalBalanceResponse(error_code, total_balance, next_starter)
         except Exception:
-            return GetTotalBalanceResponse(
-                error_code=1, total_balance=0, next=bytes(24)
-            )
+            error_code = 1
+            return GetTotalBalanceResponse(error_code, 0, b"")
 
 
 MASTER_OP_NONRPC_MAP = {
