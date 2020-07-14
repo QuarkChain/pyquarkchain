@@ -11,7 +11,7 @@ from async_armor import armor
 from decorator import decorator
 from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
-from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
+from jsonrpcserver.exceptions import InvalidParams, InvalidRequest, ServerError
 
 from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.rpc import AccountBranchData
@@ -43,11 +43,9 @@ from quarkchain.cluster.subscription import SUB_LOGS
 DEFAULT_STARTGAS = 100 * 1000
 DEFAULT_GASPRICE = 10 * denoms.gwei
 
-
 # Allow 16 MB request for submitting big blocks
 # TODO: revisit this parameter
 JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
-
 
 # Disable jsonrpcserver logging
 config.log_requests = False
@@ -239,7 +237,6 @@ def minor_block_encoder(block, include_transactions=False, extra_info=None):
 
 
 def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
-
     d = {
         "id": id_encoder(header.get_hash(), header.branch.get_full_shard_id()),
         "height": quantity_encoder(header.height),
@@ -1277,6 +1274,32 @@ class JSONRPCHttpServer:
             root_block_time, minor_block_time
         )
 
+    @public_methods.add
+    @decode_arg("block_hash", hash_decoder)
+    @decode_arg("token_id", quantity_decoder)
+    @decode_arg("address", address_decoder)
+    @decode_arg("limit", quantity_decoder)
+    async def getTotalBalance(self, block_hash, token_id, address, limit="0x64"):
+        starter = Address.create_from(address)
+        full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            starter.full_shard_key
+        )
+        try:
+            result = await self.master.get_total_balance(
+                Branch(full_shard_id), block_hash, token_id, starter.recipient, limit,
+            )
+        except:
+            raise ServerError
+        if not result:
+            raise InvalidRequest
+        total_balance, next_starter = result
+        return {
+            "totalBalance": quantity_encoder(total_balance),
+            "next_addr": data_encoder(
+                next_starter + (starter.full_shard_key).to_bytes(4, byteorder="big")
+            ),
+        }
+
     @private_methods.add
     async def setMining(self, mining):
         """Turn on / off mining"""
@@ -1306,15 +1329,6 @@ class JSONRPCHttpServer:
     async def getTotalSupply(self):
         total_supply = self.master.get_total_supply()
         return quantity_encoder(total_supply) if total_supply else None
-
-    @public_methods.add
-    async def getTotalBalance(self):
-        # TODO: this is a mock implementation. using fake arguments for now
-        result = await self.master.get_total_balance(Branch(0x1), bytes(32), 0, None)
-        if not result:
-            raise None
-        total_balance, next_starter = result
-        return {"totalBalance": total_balance, "next": next_starter.hex()}
 
     @staticmethod
     def _convert_eth_call_data(data, shard):

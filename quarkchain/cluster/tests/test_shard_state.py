@@ -1,4 +1,5 @@
 import random
+import math
 import time
 import unittest
 from fractions import Fraction
@@ -79,6 +80,72 @@ class TestShardState(unittest.TestCase):
             state.header_tip.coinbase_amount_map.balance_map,
             {self.genesis_token: 2500000000000000000},
         )
+
+    def test_get_total_balance(self):
+        id_list = [Identity.create_random_identity() for _ in range(66)]
+        acc_list = [Address.create_from_identity(i, full_shard_key=0) for i in id_list]
+        batch_size = [1, 2, 3, 4, 6, 66]
+        env = get_test_env(
+            genesis_account=acc_list[0], genesis_minor_quarkash=100000000,
+        )
+
+        qkc_token = token_id_encode("QKC")
+        state = create_default_shard_state(env=env)
+        # Add a root block to have all the shards initialized
+        root_block = state.root_tip.create_block_to_append().finalize()
+        state.add_root_block(root_block)
+        for nonce, acc in enumerate(acc_list[1:]):
+            tx = create_transfer_transaction(
+                shard_state=state,
+                key=id_list[0].get_key(),
+                from_address=acc_list[0],
+                to_address=acc,
+                value=100,
+                transfer_token_id=qkc_token,
+                gas_price=0,
+                nonce=nonce,
+            )
+            self.assertTrue(state.add_tx(tx), "the %d tx fails to be added" % nonce)
+
+        b1 = state.create_block_to_mine(address=acc_list[0])
+        state.finalize_and_add_block(b1)
+
+        self.assertEqual(
+            state.get_token_balance(acc_list[0].recipient, self.genesis_token),
+            100000000 - 6500 + self.get_after_tax_reward(self.shard_coinbase),
+        )
+        self.assertEqual(
+            state.get_token_balance(acc_list[1].recipient, self.genesis_token), 100,
+        )
+
+        exp_balance = 100000000 + self.get_after_tax_reward(self.shard_coinbase)
+        for batch in batch_size:
+            num_of_calls = math.ceil(66.0 / batch)
+            total = 0
+            next_addr = None
+            for i in range(num_of_calls):
+                balance, next_addr = state.get_total_balance(
+                    qkc_token, state.header_tip.get_hash(), batch, starter=next_addr
+                )
+                total += balance
+            self.assertEqual(
+                exp_balance,
+                total,
+                "testcase with batch size %d return balance failed" % batch,
+            )
+            self.assertEqual(
+                bytes(20),
+                next_addr,
+                "testcase with batch size %d return address failed" % batch,
+            )
+
+        with self.assertRaises(Exception):
+            state.get_total_balance(
+                qkc_token,
+                state.header_tip.get_hash(),
+                1,
+                starter=Address.create_random_account(1),
+            )
 
     def test_init_genesis_state(self):
         env = get_test_env()
@@ -2078,8 +2145,8 @@ class TestShardState(unittest.TestCase):
         env.quark_chain_config.SKIP_MINOR_DIFFICULTY_CHECK = False
         diff_calc = EthDifficultyCalculator(cutoff=9, diff_factor=2048, minimum_diff=1)
         env.quark_chain_config.NETWORK_ID = (
-            1
-        )  # other network ids will skip difficulty check
+            1  # other network ids will skip difficulty check
+        )
         state = create_default_shard_state(env=env, shard_id=0, diff_calc=diff_calc)
 
         # Check new difficulty
