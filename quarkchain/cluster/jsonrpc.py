@@ -1281,7 +1281,7 @@ class JSONRPCHttpServer:
     @decode_arg("limit", quantity_decoder)
     async def getTotalBalance(self, block_hash, token_id, address, limit="0x64"):
         if limit > 10000:
-            raise InvalidParams
+            limit = 10000
         starter = Address.create_from(address)
         full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
             starter.full_shard_key
