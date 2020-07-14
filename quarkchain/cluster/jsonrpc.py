@@ -11,7 +11,7 @@ from async_armor import armor
 from decorator import decorator
 from jsonrpcserver import config
 from jsonrpcserver.async_methods import AsyncMethods
-from jsonrpcserver.exceptions import InvalidParams, InvalidRequest
+from jsonrpcserver.exceptions import InvalidParams, InvalidRequest, ServerError
 
 from quarkchain.cluster.master import MasterServer
 from quarkchain.cluster.rpc import AccountBranchData
@@ -1278,25 +1278,27 @@ class JSONRPCHttpServer:
     @decode_arg("block_hash", hash_decoder)
     @decode_arg("token_id", quantity_decoder)
     @decode_arg("address", address_decoder)
-    async def getTotalBalance(self, block_hash, token_id, address, limit=100):
+    @decode_arg("limit", quantity_decoder)
+    async def getTotalBalance(self, block_hash, token_id, address, limit="0x64"):
+        starter = Address.create_from(address)
+        full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+            starter.full_shard_key
+        )
         try:
-            starter = Address.create_from(address)
-            full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                starter.full_shard_key
-            )
             result = await self.master.get_total_balance(
                 Branch(full_shard_id), block_hash, token_id, starter.recipient, limit,
             )
-            total_balance, next_starter = result
-            return {
-                "totalBalance": quantity_encoder(total_balance),
-                "next_addr": data_encoder(
-                    next_starter + (starter.full_shard_key).to_bytes(4, byteorder="big")
-                ),
-            }
-        except Exception as e:
-            Logger.log_exception()
-            raise e
+        except:
+            raise ServerError
+        if not result:
+            raise InvalidRequest
+        total_balance, next_starter = result
+        return {
+            "totalBalance": quantity_encoder(total_balance),
+            "next_addr": data_encoder(
+                next_starter + (starter.full_shard_key).to_bytes(4, byteorder="big")
+            ),
+        }
 
     @private_methods.add
     async def setMining(self, mining):

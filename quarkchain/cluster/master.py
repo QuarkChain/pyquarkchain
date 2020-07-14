@@ -726,13 +726,17 @@ class SlaveConnection(ClusterConnection):
     async def get_total_balance(
         self, address: Address, minor_block_hash: bytes, token_id: int, limit: int
     ) -> Optional[Tuple[int, bytes]]:
-        request = GetTotalBalanceRequest(address, token_id, limit, minor_block_hash)
-        _, resp, _ = await self.write_rpc_request(
-            ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
-        )
-        if resp.error_code != 0:
-            raise Exception("invalid response")
-        return resp.total_balance, resp.next
+        try:
+            request = GetTotalBalanceRequest(address, token_id, limit, minor_block_hash)
+            _, resp, _ = await self.write_rpc_request(
+                ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
+            )
+            if resp.error_code != 0:
+                raise Exception("invalid response")
+            return resp.total_balance, resp.next
+
+        except RuntimeError:
+            print("You are wrong")
 
 
 OP_RPC_MAP = {
@@ -1808,14 +1812,11 @@ class MasterServer:
         limit: int,
     ) -> Optional[Tuple[int, bytes]]:
         if branch.value not in self.branch_to_slaves:
-            raise Exception("Branch not found")
-
+            # raise Exception("Branch not found")
+            return None
         slave = self.branch_to_slaves[branch.value][0]
         address = Address(starter, branch.value)
-        try:
-            return await slave.get_total_balance(address, block_hash, token_id, limit)
-        except:
-            raise Exception
+        return await slave.get_total_balance(address, block_hash, token_id, limit)
 
 
 def parse_args():
