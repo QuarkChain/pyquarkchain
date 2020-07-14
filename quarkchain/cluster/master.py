@@ -731,7 +731,7 @@ class SlaveConnection(ClusterConnection):
             ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
         )
         if resp.error_code != 0:
-            raise Exception("invalid response")
+            return None
         return resp.total_balance, resp.next
 
 
