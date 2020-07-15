@@ -2020,24 +2020,16 @@ class ShardState:
         """
         evm_state = self._get_evm_state_from_hash(block_hash)
         if not evm_state:
-            # TBD, may do hash validation before
-            raise Exception("invalid evm state")
-        # the secure trie stored the pair of hash to key
-        # the trie stored the pair of hash to node
+            raise Exception("block hash not found")
+        # the secure trie stored trie node hash to original key mapping
         trie = evm_state.trie.trie
-        if starter:
-            if not evm_state.db.get(utils.sha3_256(starter)):
-                raise Exception(
-                    "key of starter address {} is not in db".format(starter)
-                )
-        key = trie.next(bytes(32) if not starter else utils.sha3_256(starter))
         total = 0
-        ret = None
-        while limit > 0 and key is not None:
-            addr = evm_state.db.get(key)
-            balance = evm_state.get_balance(addr, token_id, should_cache=False)
-            total += balance
-            ret = key
+        key = bytes(32) if not starter else utils.sha3_256(starter)
+        while limit > 0:
             key = trie.next(key)
+            if not key:
+                break
+            addr = evm_state.db.get(key)
+            total += evm_state.get_balance(addr, token_id, should_cache=False)
             limit -= 1
-        return total, evm_state.db.get(ret) if key else bytes(20)
+        return total, evm_state.db.get(key) if key else bytes(20)
