@@ -1299,9 +1299,7 @@ class JSONRPCHttpServer:
         total_balance, next_starter = result
         return {
             "totalBalance": quantity_encoder(total_balance),
-            "next": data_encoder(
-                next_starter + full_shard_key.to_bytes(4, byteorder="big")
-            ),
+            "next": data_encoder(next_starter),
         }
 
     @private_methods.add
