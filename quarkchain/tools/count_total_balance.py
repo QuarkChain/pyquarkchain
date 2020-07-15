@@ -5,10 +5,13 @@ from typing import List, Tuple
 
 import jsonrpcclient
 
+logging.root.setLevel(logging.INFO)
+log_format = "%(asctime)s: %(message)s"
+logging.basicConfig(format=log_format, datefmt="%Y-%m-%d %H:%M:%S")
+
 # disable jsonrpcclient verbose logging
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
-
 
 TIMEOUT = 10
 
@@ -72,7 +75,7 @@ def main():
     root_block_height = args.rheight
     # TODO: handle cases if a shard is not included in queried root block.
     minor_block_ids = get_latest_minor_block_id_from_root_block(root_block_height)
-    print(
+    logging.info(
         "root block at height %d has minor block headers for %d shards"
         % (root_block_height, len(minor_block_ids))
     )
@@ -80,23 +83,27 @@ def main():
     total_balances = []
     for block_id in minor_block_ids:
         shard = "0x" + block_id[-8:]
-        print("querying total balance for shard %s" % shard)
+        logging.info("querying total balance for shard %s" % shard)
         total, starter, cnt = 0, None, 0
         while starter != "0x" + "0" * 40:
             balance, starter = count_total_balance(block_id, token_id, starter)
             total += balance
             cnt += 1
             if cnt % 10 == 0:
-                print(
+                logging.info(
                     "shard %s: iteration %d, total balance is %.2f"
                     % (shard, cnt, total / 1e18)
                 )
 
         total_balances.append(total)
-        print("shard %s: finished, total balance is %.2f" % (shard, total / 1e18))
-        print("======")
+        logging.info(
+            "shard %s: finished, total balance is %.2f" % (shard, total / 1e18)
+        )
+        logging.info("======")
 
-    print("counting finished, total balance is %.2f" % (sum(total_balances) / 1e18))
+    logging.info(
+        "counting finished, total balance is %.2f" % (sum(total_balances) / 1e18)
+    )
 
 
 if __name__ == "__main__":
