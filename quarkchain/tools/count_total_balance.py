@@ -33,7 +33,7 @@ def get_latest_minor_block_id_from_root_block(root_block_height: int) -> List[st
     if not res:
         raise RuntimeError("Failed to query root block at height" % root_block_height)
 
-    # Chain ID + shard ID unique determines a shard.
+    # Chain ID + shard ID uniquely determines a shard.
     shard_to_header = {}
     for mh in res["minorBlockHeaders"]:
         # Assumes minor blocks are sorted by shard and height.
@@ -73,7 +73,7 @@ def main():
     token_id = int(args.token, 16)
 
     root_block_height = args.rheight
-    # TODO: handle cases if a shard is not included in queried root block.
+    # TODO: handle cases if the root block doesn't contain all the shards.
     minor_block_ids = get_latest_minor_block_id_from_root_block(root_block_height)
     logging.info(
         "root block at height %d has minor block headers for %d shards"
