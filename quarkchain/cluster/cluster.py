@@ -167,10 +167,7 @@ def parse_args():
     parser.add_argument("--check_db_rblock_to", default=0, type=int)
     parser.add_argument("--check_db_rblock_batch", default=1, type=int)
     parser.add_argument(
-        "--prom",
-        default=False,
-        type=bool,
-        help="if true, will run prometheus client for monitoring",
+        "--prom", default=False, type=bool, help="if true, will run prometheus client",
     )
     args = parser.parse_args()
 
