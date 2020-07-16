@@ -167,6 +167,14 @@ class MonitoringConfig(BaseConfig):
     ERRORS = "error"
 
 
+class PrometheusConfig(BaseConfig):
+    TIMEOUT = 10
+    HOST = "http://localhost:38391"
+    GAP = 10
+    TOKEN = 0x8BB0
+    PORT = 8000
+
+
 class ClusterConfig(BaseConfig):
     P2P_PORT = 38291
     JSON_RPC_PORT = 38391

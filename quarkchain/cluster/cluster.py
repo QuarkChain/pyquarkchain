@@ -54,6 +54,12 @@ async def run_slave(config_file, id, profile):
     )
 
 
+async def run_prom():
+    # here kept one argument, others in PrometheusConfig, may change
+    cmd = "{} -u prom.py --rheight 1".format(PYTHON)
+    await asyncio.create_subprocess_exec(*cmd.split(" "))
+
+
 async def print_output(prefix, stream):
     while True:
         try:
@@ -111,6 +117,9 @@ class Cluster:
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
+    async def run_prom(self):
+        await run_prom()
+
     async def run(self):
         await self.run_master()
         # p2p discovery / crawling mode will disable slaves
@@ -119,7 +128,9 @@ class Cluster:
             or self.config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH
         ):
             await self.run_slaves()
-
+        #
+        if self.args.prom:
+            await self.run_prom()
         status_list = await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
         )
@@ -155,6 +166,12 @@ def parse_args():
     parser.add_argument("--check_db_rblock_from", default=-1, type=int)
     parser.add_argument("--check_db_rblock_to", default=0, type=int)
     parser.add_argument("--check_db_rblock_batch", default=1, type=int)
+    parser.add_argument(
+        "--prom",
+        default=False,
+        type=bool,
+        help="if true, will run prometheus client for monitoring",
+    )
     args = parser.parse_args()
 
     env = DEFAULT_ENV.copy()
