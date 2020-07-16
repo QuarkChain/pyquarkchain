@@ -1275,20 +1275,22 @@ class JSONRPCHttpServer:
         )
 
     @public_methods.add
-    @decode_arg("block_hash", hash_decoder)
-    @decode_arg("token_id", quantity_decoder)
-    @decode_arg("address", address_decoder)
+    @decode_arg("block_id", id_decoder)
+    @decode_arg("token_id", quantity_decoder)  # default: QKC
+    @decode_arg("recipient", recipient_decoder, allow_optional=True)
     @decode_arg("limit", quantity_decoder)
-    async def getTotalBalance(self, block_hash, token_id, address, limit="0x64"):
+    async def getTotalBalance(
+        self, block_id, token_id="0x8bb0", recipient=None, limit="0x64"
+    ):
         if limit > 10000:
             limit = 10000
-        starter = Address.create_from(address)
+        block_hash, full_shard_key = block_id
         full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-            starter.full_shard_key
+            full_shard_key
         )
         try:
             result = await self.master.get_total_balance(
-                Branch(full_shard_id), block_hash, token_id, starter.recipient, limit,
+                Branch(full_shard_id), block_hash, token_id, recipient, limit
             )
         except:
             raise ServerError
@@ -1297,9 +1299,7 @@ class JSONRPCHttpServer:
         total_balance, next_starter = result
         return {
             "totalBalance": quantity_encoder(total_balance),
-            "next": data_encoder(
-                next_starter + (starter.full_shard_key).to_bytes(4, byteorder="big")
-            ),
+            "next": data_encoder(next_starter),
         }
 
     @private_methods.add

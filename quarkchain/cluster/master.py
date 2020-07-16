@@ -1804,13 +1804,13 @@ class MasterServer:
         branch: Branch,
         block_hash: bytes,
         token_id: int,
-        starter: bytes,
+        starter: Optional[bytes],
         limit: int,
     ) -> Optional[Tuple[int, bytes]]:
         if branch.value not in self.branch_to_slaves:
             return None
         slave = self.branch_to_slaves[branch.value][0]
-        address = Address(starter, branch.value)
+        address = Address(starter or bytes(20), branch.value)
         return await slave.get_total_balance(address, block_hash, token_id, limit)
 
 
