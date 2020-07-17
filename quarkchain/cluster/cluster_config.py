@@ -391,6 +391,13 @@ class ClusterConfig(BaseConfig):
             type=bool,
             help="if true, will perform integrity check on db only",
         )
+        parser.add_argument(
+            "--prom",
+            action="store_true",
+            default=False,
+            dest="prom",
+            help="if true, will run prometheus monitor",
+        )
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
