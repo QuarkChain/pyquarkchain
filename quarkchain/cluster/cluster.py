@@ -55,8 +55,7 @@ async def run_slave(config_file, id, profile):
 
 
 async def run_prom():
-    # here kept one argument, others in PrometheusConfig, may change
-    cmd = "{} -u prom.py --rheight 1".format(PYTHON)
+    cmd = f"{PYTHON} -u prom.py"
     await asyncio.create_subprocess_exec(*cmd.split(" "))
 
 

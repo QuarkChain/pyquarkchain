@@ -170,9 +170,10 @@ class MonitoringConfig(BaseConfig):
 class PrometheusConfig(BaseConfig):
     TIMEOUT = 10
     HOST = "http://localhost:38391"
-    GAP = 10
+    GAP = 30
     TOKEN = 0x8BB0
     PORT = 8000
+    ROOTBLOCK_HEIGHT = 1
 
 
 class ClusterConfig(BaseConfig):

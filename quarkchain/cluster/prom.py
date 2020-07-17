@@ -1,4 +1,3 @@
-import argparse
 import functools
 import logging
 import time
@@ -70,21 +69,12 @@ def get_balance(root_block_height, token_id):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--rheight", type=int, help="root block height to query", required=True
-    )
-    # parser.add_argument("--token", type=str, help="token ID to query", default="0x8bb0")
-    # parser.add_argument("--host", type=str, help="host address of the cluster")
-    args = parser.parse_args()
-
     global host
     # Assumes http by default.
     if not host.startswith("http"):
         host = "http://" + host
 
-    root_block_height = args.rheight
-    # token_id = int(args.token, 16)
+    root_block_height = PrometheusConfig.ROOTBLOCK_HEIGHT
     token_id = int(PrometheusConfig.TOKEN)
 
     start_http_server(PrometheusConfig.PORT)
@@ -97,7 +87,7 @@ def main():
             # call when rpc server is ready
             total_balance = get_balance(root_block_height, token_id)
         except:
-            time.sleep(1)
+            time.sleep(5)
             continue
         QKC_TOTAL_BALANCE.set(sum(total_balance.values()))
         for shard, bal in total_balance.items():
