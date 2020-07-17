@@ -12,9 +12,9 @@ import jsonrpcclient
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
-TIMEOUT = 10
+TIMEOUT = PrometheusConfig.TIMEOUT
 
-host = "http://localhost:38391"
+host = PrometheusConfig.HOST
 
 
 @functools.lru_cache(maxsize=5)
@@ -79,7 +79,6 @@ def main():
     args = parser.parse_args()
 
     global host
-    host = PrometheusConfig.HOST
     # Assumes http by default.
     if not host.startswith("http"):
         host = "http://" + host
