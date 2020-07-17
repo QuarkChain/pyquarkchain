@@ -396,7 +396,7 @@ class ClusterConfig(BaseConfig):
             action="store_true",
             default=False,
             dest="prom",
-            help="if true, will run prometheus monitor",
+            help="enable prometheus client for monitoring",
         )
 
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
