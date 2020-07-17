@@ -1,6 +1,7 @@
 import functools
 import logging
 import time
+from quarkchain.utils import token_id_decode
 from typing import List, Tuple
 from prometheus_client import start_http_server, Gauge
 from quarkchain.cluster.cluster_config import PrometheusConfig
@@ -75,13 +76,16 @@ def main():
         host = "http://" + host
 
     root_block_height = PrometheusConfig.ROOTBLOCK_HEIGHT
-    token_id = int(PrometheusConfig.TOKEN)
+    token_id = PrometheusConfig.TOKEN
+    token_name = token_id_decode(token_id)
 
     start_http_server(PrometheusConfig.PORT)
     # Create a metric to track qkc total balance
-    QKC_TOTAL_BALANCE = Gauge("qkc_total_balance", "Total balance in current net")
+    TOKEN_TOTAL_BALANCE = Gauge(
+        f"{token_name}_total_balance", f"Total balance of {token_name}"
+    )
     # Use a dict to store gauge for each shard
-    QKC_SHARD_BALANCE = {}
+    TOKEN_SHARD_BALANCE = {}
     while True:
         try:
             # call when rpc server is ready
@@ -89,13 +93,14 @@ def main():
         except:
             time.sleep(5)
             continue
-        QKC_TOTAL_BALANCE.set(sum(total_balance.values()))
+        TOKEN_TOTAL_BALANCE.set(sum(total_balance.values()))
         for shard, bal in total_balance.items():
-            if shard not in QKC_SHARD_BALANCE:
-                QKC_SHARD_BALANCE[shard] = Gauge(
-                    f"qkc_shard_{shard}_balance", f"Total balance in shard {shard}"
+            if shard not in TOKEN_SHARD_BALANCE:
+                TOKEN_SHARD_BALANCE[shard] = Gauge(
+                    f"{token_name}_shard_{shard}_balance",
+                    f"{token_name} balance in shard {shard}",
                 )
-            QKC_SHARD_BALANCE[shard].set(bal)
+            TOKEN_SHARD_BALANCE[shard].set(bal)
         time.sleep(PrometheusConfig.GAP)
 
 

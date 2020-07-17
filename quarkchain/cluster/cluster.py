@@ -127,7 +127,6 @@ class Cluster:
             or self.config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH
         ):
             await self.run_slaves()
-        #
         if self.args.prom:
             await self.run_prom()
         status_list = await asyncio.gather(

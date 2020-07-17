@@ -170,9 +170,9 @@ class MonitoringConfig(BaseConfig):
 class PrometheusConfig(BaseConfig):
     TIMEOUT = 10
     HOST = "http://localhost:38391"
-    GAP = 30
+    GAP = 30  # Interval between two total_balance queries
     TOKEN = 0x8BB0
-    PORT = 8000
+    PORT = 8000  # Prometheus client expose port
     ROOTBLOCK_HEIGHT = 1
 
 
