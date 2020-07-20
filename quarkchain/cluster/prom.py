@@ -1,7 +1,7 @@
 import functools
 import logging
 import time
-from quarkchain.utils import token_id_decode
+from quarkchain.utils import token_id_decode, token_id_encode
 from typing import List, Tuple
 from prometheus_client import start_http_server, Gauge
 from quarkchain.cluster.cluster_config import PrometheusConfig
@@ -22,7 +22,9 @@ def get_jsonrpc_cli(jrpc_url):
     return jsonrpcclient.HTTPClient(jrpc_url)
 
 
-def get_latest_minor_block_id_from_root_block(root_block_height: int) -> List[str]:
+def get_latest_minor_block_id_from_root_block(
+    root_block_height: int,
+) -> Tuple[int, List[str]]:
     global host
     cli = get_jsonrpc_cli(host)
     res = cli.send(
@@ -38,7 +40,7 @@ def get_latest_minor_block_id_from_root_block(root_block_height: int) -> List[st
         # Assumes minor blocks are sorted by shard and height.
         shard_to_header[mh["chainId"] + mh["shardId"]] = mh["id"]
 
-    return list(shard_to_header.values())
+    return res["timestamp"], list(shard_to_header.values())
 
 
 def count_total_balance(block_id: str, token_id: int, starter: str) -> Tuple[int, str]:
@@ -55,7 +57,7 @@ def count_total_balance(block_id: str, token_id: int, starter: str) -> Tuple[int
 
 def get_balance(root_block_height, token_id):
     # TODO: handle cases if the root block doesn't contain all the shards.
-    minor_block_ids = get_latest_minor_block_id_from_root_block(root_block_height)
+    rbt, minor_block_ids = get_latest_minor_block_id_from_root_block(root_block_height)
 
     total_balances = {}
     for block_id in minor_block_ids:
@@ -65,8 +67,17 @@ def get_balance(root_block_height, token_id):
             balance, starter = count_total_balance(block_id, token_id, starter)
             total += balance
             cnt += 1
-        total_balances[shard] = total / 1e18
-    return total_balances
+        total_balances[shard] = total
+    return rbt, total_balances
+
+
+def get_highest():
+    global host
+    cli = get_jsonrpc_cli(host)
+    res = cli.send(jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT,)
+    if not res:
+        raise RuntimeError("Failed to get latest block height")
+    return res["height"]
 
 
 def main():
@@ -75,32 +86,43 @@ def main():
     if not host.startswith("http"):
         host = "http://" + host
 
-    root_block_height = PrometheusConfig.ROOTBLOCK_HEIGHT
-    token_id = PrometheusConfig.TOKEN
-    token_name = token_id_decode(token_id)
-
-    start_http_server(PrometheusConfig.PORT)
-    # Create a metric to track qkc total balance
-    TOKEN_TOTAL_BALANCE = Gauge(
-        f"{token_name}_total_balance", f"Total balance of {token_name}"
-    )
-    # Use a dict to store gauge for each shard
-    TOKEN_SHARD_BALANCE = {}
+    root_block_height = 1
+    # get latest height
     while True:
         try:
-            # call when rpc server is ready
-            total_balance = get_balance(root_block_height, token_id)
+            root_block_height = int(get_highest(), 16)
+            break
         except:
-            time.sleep(5)
+            time.sleep(3)
             continue
-        TOKEN_TOTAL_BALANCE.set(sum(total_balance.values()))
+    token_name = PrometheusConfig.TOKEN
+    token_id = token_id_encode(token_name)
+
+    start_http_server(PrometheusConfig.PORT)
+    # Create a metric to track token total balance
+    TOKEN_TOTAL_BALANCE = Gauge(
+        f"{token_name}_total_balance",
+        f"Total balance of {token_name}",
+        ("Root_block_height", "shard"),
+    )
+
+    # TODO: Need a for loop to fetch height from 1 to Highest and expose them
+    # expose highest
+    # TODO: Update highest block height
+    while True:
+        # TOKEN_TOTAL_BALANCE.labels(root_block_height, 'total').set(0)
+        try:
+            # call when rpc server is ready
+            # save timestamp as well, not used currently
+            rbt, total_balance = get_balance(root_block_height, token_id)
+        except:
+            time.sleep(3)
+            continue
+        TOKEN_TOTAL_BALANCE.labels(root_block_height, "total").set(
+            sum(total_balance.values())
+        )
         for shard, bal in total_balance.items():
-            if shard not in TOKEN_SHARD_BALANCE:
-                TOKEN_SHARD_BALANCE[shard] = Gauge(
-                    f"{token_name}_shard_{shard}_balance",
-                    f"{token_name} balance in shard {shard}",
-                )
-            TOKEN_SHARD_BALANCE[shard].set(bal)
+            TOKEN_TOTAL_BALANCE.labels(root_block_height, shard).set(bal)
         time.sleep(PrometheusConfig.GAP)
 
 
