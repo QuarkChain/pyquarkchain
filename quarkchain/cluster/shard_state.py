@@ -24,7 +24,6 @@ from quarkchain.core import (
     MinorBlockMeta,
     PoSWInfo,
     RootBlock,
-    SerializedEvmTransaction,
     TokenBalanceMap,
     TransactionReceipt,
     TypedTransaction,
@@ -1614,13 +1613,6 @@ class ShardState:
             receipt = TransactionReceipt.create_empty_receipt()
             receipt.success = b"\x01"
             return block, index, receipt
-
-        if receipt.contract_address != Address.create_empty_account(0):
-            address = receipt.contract_address
-            check(
-                address.full_shard_key
-                == self.evm_state.get_full_shard_key(address.recipient)
-            )
         return block, index, receipt
 
     def get_all_transactions(self, start: bytes, limit: int):
