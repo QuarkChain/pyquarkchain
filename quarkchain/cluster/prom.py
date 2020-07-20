@@ -1,7 +1,6 @@
-import functools
 import logging
 import time
-from quarkchain.utils import token_id_decode, token_id_encode
+from quarkchain.utils import token_id_encode
 from typing import List, Tuple
 from prometheus_client import start_http_server, Gauge
 from quarkchain.cluster.cluster_config import PrometheusConfig
@@ -16,13 +15,8 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 TIMEOUT = PrometheusConfig.TIMEOUT
 
 host = PrometheusConfig.HOST
-#
-#
-# @functools.lru_cache(maxsize=5)
-# def get_jsonrpc_cli(jrpc_url):
-#     return jsonrpcclient.HTTPClient(jrpc_url)
-#
-#
+
+
 def get_latest_minor_block_id_from_root_block(
     root_block_height: int,
 ) -> Tuple[int, List[str]]:
@@ -42,18 +36,6 @@ def get_latest_minor_block_id_from_root_block(
         shard_to_header[mh["chainId"] + mh["shardId"]] = mh["id"]
 
     return res["timestamp"], list(shard_to_header.values())
-
-
-# def count_total_balance(block_id: str, token_id: int, starter: str) -> Tuple[int, str]:
-#     global host
-#     cli = get_jsonrpc_cli(host)
-#     res = cli.send(
-#         jsonrpcclient.Request("getTotalBalance", block_id, hex(token_id), starter),
-#         timeout=TIMEOUT,
-#     )
-#     if not res:
-#         raise RuntimeError("Failed to count total balance")
-#     return int(res["totalBalance"], 16), res["next"]
 
 
 def get_balance(root_block_height, token_id):
