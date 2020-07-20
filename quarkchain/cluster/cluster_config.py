@@ -170,11 +170,9 @@ class MonitoringConfig(BaseConfig):
 class PrometheusConfig(BaseConfig):
     TIMEOUT = 10
     HOST = "http://localhost:38391"
-    GAP = 30  # Interval between two total_balance queries
-    # TOKEN = 0x8BB0
-    TOKEN = "QKC"
+    INTERVAL = 30  # Interval between two total_balance queries
+    TOKENS = ["QKC"]
     PORT = 8000  # Prometheus client expose port
-    # ROOTBLOCK_HEIGHT = 1
 
 
 class ClusterConfig(BaseConfig):
@@ -393,7 +391,7 @@ class ClusterConfig(BaseConfig):
             help="if true, will perform integrity check on db only",
         )
         parser.add_argument(
-            "--prom",
+            "--enable_prometheus",
             action="store_true",
             default=False,
             dest="prom",
