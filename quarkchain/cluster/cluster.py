@@ -54,8 +54,12 @@ async def run_slave(config_file, id, profile):
     )
 
 
-async def run_prom(config):
-    cmd = f"{PYTHON} -u prom.py --interval {config.INTERVAL} --tokens {config.TOKENS} --port {config.PORT}"
+async def run_prom(config, bal):
+    balance = " --balance" if bal else ""
+    cmd = (
+        f"{PYTHON} -u prom.py --interval {config.INTERVAL} --tokens {config.TOKENS} --port {config.PORT}"
+        + balance
+    )
     await asyncio.create_subprocess_exec(*cmd.split(" "))
 
 
@@ -117,7 +121,7 @@ class Cluster:
             self.procs.append((prefix, s))
 
     async def run_prom(self):
-        await run_prom(self.config.PROMETHEUS)
+        await run_prom(self.config.PROMETHEUS, self.args.bal)
 
     async def run(self):
         await self.run_master()
@@ -128,9 +132,7 @@ class Cluster:
         ):
             await self.run_slaves()
         if self.args.prom:
-            if self.args.bal:
-                await self.run_prom()
-            # may add other metrics other than args.bal
+            await self.run_prom()
         status_list = await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
         )

@@ -67,34 +67,11 @@ def get_highest():
     return res["height"]
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--interval", type=int, help="seconds between two queries", default=30
-    )
-    parser.add_argument(
-        "--tokens",
-        type=str,
-        default="QKC",
-        help="tokens to be monitored, separated by comma",
-    )
-    parser.add_argument("--host", type=str, help="host address of the cluster")
-    parser.add_argument("--port", type=int, help="prometheus expose port", default=8000)
-    args = parser.parse_args()
-    global host
-    # Assumes http by default
-    if args.host:
-        host = args.host
-        # Assumes http by default.
-        if not host.startswith("http"):
-            host = "http://" + host
-
+def promeBalance(args):
     tokens = {
         token_name: token_id_encode(token_name)
         for token_name in args.tokens.strip().split(sep=",")
     }
-
-    start_http_server(args.port)
     # Create a metric to track token total balance
     token_total_balance = Gauge(
         "token_total_balance",
@@ -125,6 +102,39 @@ def main():
                     latest_block_height, bal[0], shard_id, token_name
                 ).set(shard_bal)
         time.sleep(args.interval)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--balance",
+        default=False,
+        action="store_true",
+        help="enable monitoring balance",
+    )
+    parser.add_argument(
+        "--interval", type=int, help="seconds between two queries", default=30
+    )
+    parser.add_argument(
+        "--tokens",
+        type=str,
+        default="QKC",
+        help="tokens to be monitored, separated by comma",
+    )
+    parser.add_argument("--host", type=str, help="host address of the cluster")
+    parser.add_argument("--port", type=int, help="prometheus expose port", default=8000)
+    args = parser.parse_args()
+    global host
+    if args.host:
+        host = args.host
+        # Assumes http by default.
+        if not host.startswith("http"):
+            host = "http://" + host
+
+    start_http_server(args.port)
+    # balance counting costs a lot, so add extra switch here
+    if args.balance:
+        promeBalance(args)
 
 
 if __name__ == "__main__":
