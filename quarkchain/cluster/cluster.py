@@ -55,7 +55,7 @@ async def run_slave(config_file, id, profile):
 
 
 async def run_prom(config, bal):
-    balance = " --balance" if bal else ""
+    balance = " --enable_count_balance" if bal else ""
     cmd = (
         f"{PYTHON} -u prom.py --interval {config.INTERVAL} --tokens {config.TOKENS} --port {config.PORT}"
         + balance

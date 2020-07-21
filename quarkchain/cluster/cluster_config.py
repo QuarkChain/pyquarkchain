@@ -169,7 +169,7 @@ class MonitoringConfig(BaseConfig):
 
 class PrometheusConfig(BaseConfig):
     INTERVAL = 30  # Interval between two total_balance queries
-    TOKENS = "QKC"  # tokens to monitor
+    TOKENS = "QKC"  # comma-separated string of tokens
     PORT = 8000  # Prometheus client expose port
 
 
@@ -415,7 +415,7 @@ class ClusterConfig(BaseConfig):
             help="port for prometheus exposing",
         )
         parser.add_argument(
-            "--prom_total_balance",
+            "--enable_count_balance",
             action="store_true",
             default=False,
             dest="bal",
@@ -547,7 +547,7 @@ class ClusterConfig(BaseConfig):
             SlaveConfig.from_dict(s, config.QUARKCHAIN.CHAINS)
             for s in config.SLAVE_LIST
         ]
-        if d["PROMETHEUS"]:
+        if d.get("PROMETHEUS"):
             config.PROMETHEUS = PrometheusConfig.from_dict(d["PROMETHEUS"])
 
         if "P2P" in d:

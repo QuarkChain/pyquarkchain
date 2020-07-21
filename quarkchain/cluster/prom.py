@@ -38,7 +38,7 @@ def get_latest_minor_block_id_from_root_block(
     return res["timestamp"], list(shard_to_header.values())
 
 
-def get_time_and_balance(root_block_height, token_id):
+def get_time_and_balance(root_block_height: int, token_id: int) -> Tuple[int, dict]:
     # TODO: handle cases if the root block doesn't contain all the shards.
     time_stamp, minor_block_ids = get_latest_minor_block_id_from_root_block(
         root_block_height
@@ -53,21 +53,21 @@ def get_time_and_balance(root_block_height, token_id):
             # may add same gap here to slow down the query
             total += balance
             cnt += 1
-        # Can't suppress scientific notation in prometheus currently, using a suitable rate now
-        total_balances[shard] = total / 10 ** 23
+        # Balance exposed by Wei
+        total_balances[shard] = total
     return time_stamp, total_balances
 
 
-def get_highest():
+def get_highest() -> int:
     global host
     cli = get_jsonrpc_cli(host)
-    res = cli.send(jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT,)
+    res = cli.send(jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT)
     if not res:
         raise RuntimeError("Failed to get latest block height")
-    return res["height"]
+    return int(res["height"], 16)
 
 
-def promeBalance(args):
+def prometheus_balance(args):
     tokens = {
         token_name: token_id_encode(token_name)
         for token_name in args.tokens.strip().split(sep=",")
@@ -81,7 +81,7 @@ def promeBalance(args):
 
     while True:
         try:
-            latest_block_height = int(get_highest(), 16)
+            latest_block_height = get_highest()
             # call when rpc server is ready
             total_balance = {}
             for token_name, token_id in tokens.items():
@@ -107,10 +107,11 @@ def promeBalance(args):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--balance",
+        "--enable_count_balance",
         default=False,
+        dest="balance",
         action="store_true",
-        help="enable monitoring balance",
+        help="enable monitoring total balance",
     )
     parser.add_argument(
         "--interval", type=int, help="seconds between two queries", default=30
@@ -132,9 +133,8 @@ def main():
             host = "http://" + host
 
     start_http_server(args.port)
-    # balance counting costs a lot, so add extra switch here
     if args.balance:
-        promeBalance(args)
+        prometheus_balance(args)
 
 
 if __name__ == "__main__":
