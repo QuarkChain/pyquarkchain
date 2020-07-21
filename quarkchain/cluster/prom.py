@@ -8,7 +8,7 @@ from quarkchain.tools.count_total_balance import get_jsonrpc_cli, count_total_ba
 
 import jsonrpcclient
 
-# disable jsonrpcclient verbose logging
+# Disable jsonrpcclient verbose logging.
 logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
@@ -38,7 +38,9 @@ def get_latest_minor_block_id_from_root_block(
     return res["timestamp"], list(shard_to_header.values())
 
 
-def get_time_and_balance(root_block_height: int, token_id: int) -> Tuple[int, dict]:
+def get_time_and_balance(
+    root_block_height: int, token_id: int
+) -> Tuple[int, dict[str:int]]:
     # TODO: handle cases if the root block doesn't contain all the shards.
     time_stamp, minor_block_ids = get_latest_minor_block_id_from_root_block(
         root_block_height
@@ -50,10 +52,9 @@ def get_time_and_balance(root_block_height: int, token_id: int) -> Tuple[int, di
         total, starter, cnt = 0, None, 0
         while starter != "0x" + "0" * 40:
             balance, starter = count_total_balance(block_id, token_id, starter)
-            # may add same gap here to slow down the query
+            # TODO: add gap to avoid spam.
             total += balance
             cnt += 1
-        # Balance exposed by Wei
         total_balances[shard] = total
     return time_stamp, total_balances
 
@@ -72,8 +73,8 @@ def prometheus_balance(args):
         token_name: token_id_encode(token_name)
         for token_name in args.tokens.strip().split(sep=",")
     }
-    # Create a metric to track token total balance
-    token_total_balance = Gauge(
+    # Create a metric to track token total balance.
+    balance_gauge = Gauge(
         "token_total_balance",
         "Total balance of specified tokens",
         ("root_block_height", "timestamp", "shard", "token"),
@@ -81,26 +82,25 @@ def prometheus_balance(args):
 
     while True:
         try:
+            # Call when rpc server is ready.
             latest_block_height = get_highest()
-            # call when rpc server is ready
             total_balance = {}
             for token_name, token_id in tokens.items():
-                # each token maps to a tuple (time, balance)
                 total_balance[token_name] = get_time_and_balance(
                     latest_block_height, token_id
                 )
         except:
-            # rpc not ready, wait and try again
+            # Rpc not ready, wait and try again.
             time.sleep(3)
             continue
-        for token_name, bal in total_balance.items():
-            token_total_balance.labels(
-                latest_block_height, bal[0], "total", token_name
-            ).set(sum(bal[1].values()))
-            for shard_id, shard_bal in bal[1].items():
-                token_total_balance.labels(
-                    latest_block_height, bal[0], shard_id, token_name
-                ).set(shard_bal)
+        for token_name, (ts, balance_dict) in total_balance.items():
+            balance_gauge.labels(latest_block_height, ts, "total", token_name).set(
+                sum(balance_dict.values())
+            )
+            for shard_id, shard_bal in balance_dict.items():
+                balance_gauge.labels(latest_block_height, ts, shard_id, token_name).set(
+                    shard_bal
+                )
         time.sleep(args.interval)
 
 
