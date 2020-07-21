@@ -1616,7 +1616,7 @@ class ShardState:
 
         if receipt.contract_address != Address.create_empty_account(0):
             address = receipt.contract_address
-            if self.evm_state.account_exists(address):
+            if self.evm_state.account_exists(address.recipient):
                 check(
                     address.full_shard_key
                     == self.evm_state.get_full_shard_key(address.recipient)
