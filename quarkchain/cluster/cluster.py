@@ -54,6 +54,15 @@ async def run_slave(config_file, id, profile):
     )
 
 
+async def run_prom(config, bal):
+    balance = " --enable_count_balance" if bal else ""
+    cmd = (
+        f"{PYTHON} -u prom.py --interval {config.INTERVAL} --tokens {config.TOKENS} --port {config.PORT}"
+        + balance
+    )
+    await asyncio.create_subprocess_exec(*cmd.split(" "))
+
+
 async def print_output(prefix, stream):
     while True:
         try:
@@ -111,6 +120,9 @@ class Cluster:
             asyncio.ensure_future(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
+    async def run_prom(self):
+        await run_prom(self.config.PROMETHEUS, self.args.bal)
+
     async def run(self):
         await self.run_master()
         # p2p discovery / crawling mode will disable slaves
@@ -119,7 +131,8 @@ class Cluster:
             or self.config.P2P.CRAWLING_ROUTING_TABLE_FILE_PATH
         ):
             await self.run_slaves()
-
+        if self.args.prom:
+            await self.run_prom()
         status_list = await asyncio.gather(
             *[self.wait_and_shutdown(prefix, proc) for prefix, proc in self.procs]
         )
