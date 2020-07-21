@@ -2,7 +2,7 @@ import logging
 import argparse
 import time
 from quarkchain.utils import token_id_encode
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 from prometheus_client import start_http_server, Gauge
 from quarkchain.tools.count_total_balance import get_jsonrpc_cli, count_total_balance
 
@@ -40,7 +40,7 @@ def get_latest_minor_block_id_from_root_block(
 
 def get_time_and_balance(
     root_block_height: int, token_id: int
-) -> Tuple[int, dict[str:int]]:
+) -> Tuple[int, Dict[str, int]]:
     # TODO: handle cases if the root block doesn't contain all the shards.
     time_stamp, minor_block_ids = get_latest_minor_block_id_from_root_block(
         root_block_height
