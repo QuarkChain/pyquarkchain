@@ -168,10 +168,8 @@ class MonitoringConfig(BaseConfig):
 
 
 class PrometheusConfig(BaseConfig):
-    TIMEOUT = 10
-    HOST = "http://localhost:38391"
     INTERVAL = 30  # Interval between two total_balance queries
-    TOKENS = ["QKC"]
+    TOKENS = "QKC"  # tokens to monitor
     PORT = 8000  # Prometheus client expose port
 
 
@@ -197,6 +195,7 @@ class ClusterConfig(BaseConfig):
     SLAVE_LIST = None
     SIMPLE_NETWORK = None
     P2P = None
+    PROMETHEUS = None
 
     MONITORING = None
 
@@ -397,7 +396,31 @@ class ClusterConfig(BaseConfig):
             dest="prom",
             help="enable prometheus client for monitoring",
         )
-
+        parser.add_argument(
+            "--prom_interval",
+            default=PrometheusConfig.INTERVAL,
+            type=int,
+            help="intervals between prometheus queries",
+        )
+        parser.add_argument(
+            "--prom_tokens",
+            default=PrometheusConfig.TOKENS,
+            type=str,
+            help="tokens to be monitored by prometheus, separated by comma",
+        )
+        parser.add_argument(
+            "--prom_port",
+            default=PrometheusConfig.PORT,
+            type=int,
+            help="port for prometheus exposing",
+        )
+        parser.add_argument(
+            "--prom_total_balance",
+            action="store_true",
+            default=False,
+            dest="bal",
+            help="use prometheus to monitoring total balance",
+        )
         parser.add_argument("--monitoring_kafka_rest_address", default="", type=str)
 
     @classmethod
@@ -457,6 +480,12 @@ class ClusterConfig(BaseConfig):
                     args.simple_network_bootstrap_port
                 )
 
+            if args.prom:
+                config.PROMETHEUS = PrometheusConfig()
+                config.PROMETHEUS.INTERVAL = args.prom_interval
+                config.PROMETHEUS.TOKENS = args.prom_tokens
+                config.PROMETHEUS.PORT = args.prom_port
+
             config.SLAVE_LIST = []
             for i in range(args.num_slaves):
                 slave_config = SlaveConfig()
@@ -498,6 +527,8 @@ class ClusterConfig(BaseConfig):
         ret["MONITORING"] = self.MONITORING.to_dict()
         ret["MASTER"] = self.MASTER.to_dict()
         ret["SLAVE_LIST"] = [s.to_dict() for s in self.SLAVE_LIST]
+        if self.PROMETHEUS:
+            ret["PROMETHEUS"] = self.PROMETHEUS.to_dict()
         if self.P2P:
             ret["P2P"] = self.P2P.to_dict()
             del ret["SIMPLE_NETWORK"]
@@ -516,6 +547,8 @@ class ClusterConfig(BaseConfig):
             SlaveConfig.from_dict(s, config.QUARKCHAIN.CHAINS)
             for s in config.SLAVE_LIST
         ]
+        if d["PROMETHEUS"]:
+            config.PROMETHEUS = PrometheusConfig.from_dict(d["PROMETHEUS"])
 
         if "P2P" in d:
             config.P2P = P2PConfig.from_dict(d["P2P"])
