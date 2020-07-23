@@ -254,7 +254,7 @@ def apply_transaction_message(
     else:  # CREATE
         result, gas_remained, data = create_contract(ext, message, contract_address)
         contract_address = (
-            data if data else b""
+            data if (data and result) else b""
         )  # data could be [] when vm failed execution
 
     assert gas_remained >= 0
