@@ -2967,19 +2967,16 @@ class TestShardState(unittest.TestCase):
         )
         state = create_default_shard_state(env=env)
         # Create failed contract with revert operation
-        contract_creation_with_revert_bytecode = (
-            "6080604052348015600f57600080fd5b50600080fdfe"
-        )
+        contract_creation_with_revert_bytecode = "6080604052348015600f57600080fd5b506040517f08c379a00000000000000000000000000000000000000000000000000000000081526004018080602001828103825260028152602001807f686900000000000000000000000000000000000000000000000000000000000081525060200191505060405180910390fdfe"
         """
         pragma solidity ^0.5.1;
         contract RevertContract {
             constructor() public {
-                revert();
+                revert("hi");
             }
         }
         """
         # This transaction cost is calculated by remix, which is different than the opcodes.GTXCOST due to revert.
-        FAILED_TRANSACTION_COST = 54416
         tx = contract_creation_tx(
             shard_state=state,
             key=id1.get_key(),
@@ -3000,23 +2997,25 @@ class TestShardState(unittest.TestCase):
         # Check receipts and make sure the transaction is failed
         self.assertEqual(len(state.evm_state.receipts), 1)
         self.assertEqual(state.evm_state.receipts[0].state_root, b"")
-        self.assertEqual(state.evm_state.receipts[0].gas_used, FAILED_TRANSACTION_COST)
+
+        failed_gas_cost = 58025
+        self.assertEqual(state.evm_state.receipts[0].gas_used, failed_gas_cost)
 
         # Make sure the FAILED_TRANSACTION_COST is consumed by the sender
         self.assertEqual(
             state.get_token_balance(id1.recipient, self.genesis_token),
-            200 * 10 ** 18 - FAILED_TRANSACTION_COST,
+            200 * 10 ** 18 - failed_gas_cost,
         )
         # Make sure the accurate gas fee is obtained by the miner
         self.assertEqual(
             state.get_token_balance(acc2.recipient, self.genesis_token),
-            self.get_after_tax_reward(FAILED_TRANSACTION_COST + self.shard_coinbase),
+            self.get_after_tax_reward(failed_gas_cost + self.shard_coinbase),
         )
         self.assertEqual(
             b1.header.coinbase_amount_map.balance_map,
             {
                 env.quark_chain_config.genesis_token: self.get_after_tax_reward(
-                    FAILED_TRANSACTION_COST + self.shard_coinbase
+                    failed_gas_cost + self.shard_coinbase
                 )
             },
         )
