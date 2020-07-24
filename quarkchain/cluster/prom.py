@@ -2,12 +2,8 @@ import logging
 import argparse
 import time
 from quarkchain.utils import token_id_encode
-from typing import List, Tuple, Dict
-from quarkchain.tools.count_total_balance import (
-    Fetcher,
-    get_jsonrpc_cli,
-    count_total_balance,
-)
+from typing import Tuple, Dict
+from quarkchain.tools.count_total_balance import Fetcher
 
 try:
     # Custom dependencies. Required if the user needs to set up a prometheus client.
@@ -29,13 +25,15 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 TIMEOUT = 10
 
 host = "http://localhost:38391"
-fetcher = Fetcher()
+fetcher = None
 
 
 def get_time_and_balance(
     root_block_height: int, token_id: int
 ) -> Tuple[int, Dict[str, int]]:
     global fetcher
+    assert isinstance(fetcher, Fetcher)
+
     rb, minor_block_ids = fetcher.get_latest_minor_block_id_from_root_block(
         root_block_height
     )
@@ -44,20 +42,22 @@ def get_time_and_balance(
     total_balances = {}
     for block_id in minor_block_ids:
         shard = "0x" + block_id[-8:]
-        total, starter, cnt = 0, None, 0
+        total, starter = 0, None
         while starter != "0x" + "0" * 40:
-            balance, starter = count_total_balance(block_id, token_id, starter)
+            balance, starter = fetcher.count_total_balance(block_id, token_id, starter)
             # TODO: add gap to avoid spam.
             total += balance
-            cnt += 1
         total_balances[shard] = total
     return timestamp, total_balances
 
 
 def get_highest() -> int:
-    global host
-    cli = get_jsonrpc_cli(host)
-    res = cli.send(jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT)
+    global fetcher
+    assert isinstance(fetcher, Fetcher)
+
+    res = fetcher.cli.send(
+        jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT
+    )
     if not res:
         raise RuntimeError("Failed to get latest block height")
     return int(res["height"], 16)
@@ -84,7 +84,8 @@ def prometheus_balance(args):
                 total_balance[token_name] = get_time_and_balance(
                     latest_block_height, token_id
                 )
-        except:
+        except Exception as e:
+            print("failed to get latest root block height", e)
             # Rpc not ready, wait and try again.
             time.sleep(3)
             continue
@@ -127,7 +128,12 @@ def main():
         if not host.startswith("http"):
             host = "http://" + host
 
+    # Local prometheus server.
     start_http_server(args.port)
+
+    global fetcher
+    fetcher = Fetcher(host, TIMEOUT)
+
     if args.balance:
         prometheus_balance(args)
 

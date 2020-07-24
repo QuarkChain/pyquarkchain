@@ -16,8 +16,6 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 TIMEOUT = 10
 TOTAL_SHARD = 8
 
-host = "http://localhost:38391"
-
 
 @functools.lru_cache(maxsize=5)
 def get_jsonrpc_cli(jrpc_url):
@@ -25,15 +23,15 @@ def get_jsonrpc_cli(jrpc_url):
 
 
 class Fetcher(object):
-    def __init__(self):
-        global host
+    def __init__(self, host: str, timeout: int):
         self.cli = get_jsonrpc_cli(host)
+        self.timeout = timeout
         self.shard_to_latest_id = {}
 
     def _get_root_block(self, root_block_height: int) -> Dict[str, Any]:
         res = self.cli.send(
             jsonrpcclient.Request("getRootBlockByHeight", hex(root_block_height)),
-            timeout=TIMEOUT,
+            timeout=self.timeout,
         )
         if not res:
             raise RuntimeError(
@@ -61,17 +59,16 @@ class Fetcher(object):
 
         return latest_rb, list(self.shard_to_latest_id.values())
 
-
-def count_total_balance(block_id: str, token_id: int, starter: str) -> Tuple[int, str]:
-    global host
-    cli = get_jsonrpc_cli(host)
-    res = cli.send(
-        jsonrpcclient.Request("getTotalBalance", block_id, hex(token_id), starter),
-        timeout=TIMEOUT,
-    )
-    if not res:
-        raise RuntimeError("Failed to count total balance")
-    return int(res["totalBalance"], 16), res["next"]
+    def count_total_balance(
+        self, block_id: str, token_id: int, starter: str
+    ) -> Tuple[int, str]:
+        res = self.cli.send(
+            jsonrpcclient.Request("getTotalBalance", block_id, hex(token_id), starter),
+            timeout=self.timeout,
+        )
+        if not res:
+            raise RuntimeError("Failed to count total balance")
+        return int(res["totalBalance"], 16), res["next"]
 
 
 def main():
@@ -83,7 +80,7 @@ def main():
     parser.add_argument("--host", type=str, help="host address of the cluster")
     args = parser.parse_args()
 
-    global host
+    host = "http://localhost:38391"
     if args.host:
         host = args.host
         # Assumes http by default.
@@ -93,7 +90,7 @@ def main():
     token_id = int(args.token, 16)
 
     root_block_height = args.rheight
-    fetcher = Fetcher()
+    fetcher = Fetcher(host, TIMEOUT)
     _, minor_block_ids = fetcher.get_latest_minor_block_id_from_root_block(
         root_block_height
     )
@@ -108,7 +105,7 @@ def main():
         logging.info("querying total balance for shard %s" % shard)
         total, starter, cnt = 0, None, 0
         while starter != "0x" + "0" * 40:
-            balance, starter = count_total_balance(block_id, token_id, starter)
+            balance, starter = fetcher.count_total_balance(block_id, token_id, starter)
             total += balance
             cnt += 1
             if cnt % 10 == 0:
