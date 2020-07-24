@@ -1,7 +1,7 @@
 import argparse
 import functools
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
 import jsonrpcclient
 
@@ -14,6 +14,7 @@ logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 TIMEOUT = 10
+TOTAL_SHARD = 8
 
 host = "http://localhost:38391"
 
@@ -23,23 +24,42 @@ def get_jsonrpc_cli(jrpc_url):
     return jsonrpcclient.HTTPClient(jrpc_url)
 
 
-def get_latest_minor_block_id_from_root_block(root_block_height: int) -> List[str]:
-    global host
-    cli = get_jsonrpc_cli(host)
-    res = cli.send(
-        jsonrpcclient.Request("getRootBlockByHeight", hex(root_block_height)),
-        timeout=TIMEOUT,
-    )
-    if not res:
-        raise RuntimeError("Failed to query root block at height" % root_block_height)
+class Fetcher(object):
+    def __init__(self):
+        global host
+        self.cli = get_jsonrpc_cli(host)
+        self.shard_to_latest_id = {}
 
-    # Chain ID + shard ID uniquely determines a shard.
-    shard_to_header = {}
-    for mh in res["minorBlockHeaders"]:
-        # Assumes minor blocks are sorted by shard and height.
-        shard_to_header[mh["chainId"] + mh["shardId"]] = mh["id"]
+    def _get_root_block(self, root_block_height: int) -> Dict[str, Any]:
+        res = self.cli.send(
+            jsonrpcclient.Request("getRootBlockByHeight", hex(root_block_height)),
+            timeout=TIMEOUT,
+        )
+        if not res:
+            raise RuntimeError(
+                "Failed to query root block at height" % root_block_height
+            )
+        return res
 
-    return list(shard_to_header.values())
+    def get_latest_minor_block_id_from_root_block(
+        self, root_block_height: int
+    ) -> Tuple[Dict[str, Any], List[str]]:
+        rb = self._get_root_block(root_block_height)
+        # Chain ID + shard ID uniquely determines a shard.
+        for mh in rb["minorBlockHeaders"]:
+            # Assumes minor blocks are sorted by shard and height.
+            self.shard_to_latest_id[mh["chainId"] + mh["shardId"]] = mh["id"]
+        latest_rb = rb
+
+        # Loop until all shards' latest IDs have been fetched. Should be done at the very first time.
+        while len(self.shard_to_latest_id) < TOTAL_SHARD:
+            rb = self._get_root_block(root_block_height - 1)
+            for mh in rb["minorBlockHeaders"]:
+                key = mh["chainId"] + mh["shardId"]
+                if key not in self.shard_to_latest_id:
+                    self.shard_to_latest_id[key] = mh["id"]
+
+        return latest_rb, list(self.shard_to_latest_id.values())
 
 
 def count_total_balance(block_id: str, token_id: int, starter: str) -> Tuple[int, str]:
@@ -73,8 +93,10 @@ def main():
     token_id = int(args.token, 16)
 
     root_block_height = args.rheight
-    # TODO: handle cases if the root block doesn't contain all the shards.
-    minor_block_ids = get_latest_minor_block_id_from_root_block(root_block_height)
+    fetcher = Fetcher()
+    _, minor_block_ids = fetcher.get_latest_minor_block_id_from_root_block(
+        root_block_height
+    )
     logging.info(
         "root block at height %d has minor block headers for %d shards"
         % (root_block_height, len(minor_block_ids))

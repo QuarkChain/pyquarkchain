@@ -3,8 +3,22 @@ import argparse
 import time
 from quarkchain.utils import token_id_encode
 from typing import List, Tuple, Dict
-from prometheus_client import start_http_server, Gauge
-from quarkchain.tools.count_total_balance import get_jsonrpc_cli, count_total_balance
+from quarkchain.tools.count_total_balance import (
+    Fetcher,
+    get_jsonrpc_cli,
+    count_total_balance,
+)
+
+try:
+    # Custom dependencies. Required if the user needs to set up a prometheus client.
+    from prometheus_client import start_http_server, Gauge
+except Exception as e:
+    print("======")
+    print(
+        "Dependency for prometheus client is not met. Don't run cluster in this mode."
+    )
+    print("======")
+    raise e
 
 import jsonrpcclient
 
@@ -15,36 +29,17 @@ logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 TIMEOUT = 10
 
 host = "http://localhost:38391"
-
-
-def get_latest_minor_block_id_from_root_block(
-    root_block_height: int,
-) -> Tuple[int, List[str]]:
-    global host
-    cli = get_jsonrpc_cli(host)
-    res = cli.send(
-        jsonrpcclient.Request("getRootBlockByHeight", hex(root_block_height)),
-        timeout=TIMEOUT,
-    )
-    if not res:
-        raise RuntimeError("Failed to query root block at height" % root_block_height)
-
-    # Chain ID + shard ID uniquely determines a shard.
-    shard_to_header = {}
-    for mh in res["minorBlockHeaders"]:
-        # Assumes minor blocks are sorted by shard and height.
-        shard_to_header[mh["chainId"] + mh["shardId"]] = mh["id"]
-
-    return res["timestamp"], list(shard_to_header.values())
+fetcher = Fetcher()
 
 
 def get_time_and_balance(
     root_block_height: int, token_id: int
 ) -> Tuple[int, Dict[str, int]]:
-    # TODO: handle cases if the root block doesn't contain all the shards.
-    time_stamp, minor_block_ids = get_latest_minor_block_id_from_root_block(
+    global fetcher
+    rb, minor_block_ids = fetcher.get_latest_minor_block_id_from_root_block(
         root_block_height
     )
+    timestamp = rb["timestamp"]
 
     total_balances = {}
     for block_id in minor_block_ids:
@@ -56,7 +51,7 @@ def get_time_and_balance(
             total += balance
             cnt += 1
         total_balances[shard] = total
-    return time_stamp, total_balances
+    return timestamp, total_balances
 
 
 def get_highest() -> int:
