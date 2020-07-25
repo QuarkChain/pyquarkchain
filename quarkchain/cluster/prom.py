@@ -87,9 +87,9 @@ def prometheus_balance(args):
             # Rpc not ready, wait and try again.
             time.sleep(3)
             continue
+        block_height_gauge.set(latest_block_height)
         for token_name, (_, balance_dict) in total_balance.items():
             balance_gauge.labels("total", token_name).set(sum(balance_dict.values()))
-            block_height_gauge.set(latest_block_height)
             for shard_id, shard_bal in balance_dict.items():
                 balance_gauge.labels(shard_id, token_name).set(shard_bal)
         time.sleep(args.interval)
