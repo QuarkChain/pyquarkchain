@@ -10,9 +10,8 @@ try:
     from prometheus_client import start_http_server, Gauge
 except Exception as e:
     print("======")
-    print(
-        "Dependency for prometheus client is not met. Don't run cluster in this mode."
-    )
+    print("Dependency requirement for prometheus client is not met.")
+    print("Don't run cluster in this mode.")
     print("======")
     raise e
 
@@ -23,8 +22,6 @@ logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
 logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 TIMEOUT = 10
-
-host = "http://localhost:38391"
 fetcher = None
 
 
@@ -121,7 +118,8 @@ def main():
     parser.add_argument("--host", type=str, help="host address of the cluster")
     parser.add_argument("--port", type=int, help="prometheus expose port", default=8000)
     args = parser.parse_args()
-    global host
+
+    host = "http://localhost:38391"
     if args.host:
         host = args.host
         # Assumes http by default.
