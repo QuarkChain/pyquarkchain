@@ -67,10 +67,11 @@ def prometheus_balance(args):
     }
     # Create a metric to track token total balance.
     balance_gauge = Gauge(
-        "token_total_balance",
-        "Total balance of specified tokens",
-        ("root_block_height", "timestamp", "shard", "token"),
+        "token_total_balance", "Total balance of specified tokens", ("shard", "token")
     )
+    # A meta gauge to track block height, because if things go wrong, we want
+    # to know which root block has the wrong balance.
+    block_height_gauge = Gauge("block_height", "Height for root block and minor block")
 
     while True:
         try:
@@ -86,14 +87,11 @@ def prometheus_balance(args):
             # Rpc not ready, wait and try again.
             time.sleep(3)
             continue
-        for token_name, (time_stamp, balance_dict) in total_balance.items():
-            balance_gauge.labels(
-                latest_block_height, time_stamp, "total", token_name
-            ).set(sum(balance_dict.values()))
+        block_height_gauge.set(latest_block_height)
+        for token_name, (_, balance_dict) in total_balance.items():
+            balance_gauge.labels("total", token_name).set(sum(balance_dict.values()))
             for shard_id, shard_bal in balance_dict.items():
-                balance_gauge.labels(
-                    latest_block_height, time_stamp, shard_id, token_name
-                ).set(shard_bal)
+                balance_gauge.labels(shard_id, token_name).set(shard_bal)
         time.sleep(args.interval)
 
 
