@@ -3,6 +3,7 @@ import math
 import time
 import unittest
 from fractions import Fraction
+from os import urandom
 from typing import Optional
 
 from quarkchain.cluster.shard_state import ShardState
@@ -125,10 +126,10 @@ class TestShardState(unittest.TestCase):
         for batch in batch_size:
             num_of_calls = math.ceil(float(acc_size + 1) / batch)
             total = 0
-            next_addr = None
+            next_start = None
             for _ in range(num_of_calls):
-                balance, next_addr = state.get_total_balance(
-                    qkc_token, state.header_tip.get_hash(), batch, starter=next_addr
+                balance, next_start = state.get_total_balance(
+                    qkc_token, state.header_tip.get_hash(), batch, next_start
                 )
                 total += balance
             self.assertEqual(
@@ -137,17 +138,14 @@ class TestShardState(unittest.TestCase):
                 "testcase with batch size %d return balance failed" % batch,
             )
             self.assertEqual(
-                bytes(20),
-                next_addr,
-                "testcase with batch size %d return address failed" % batch,
+                bytes(32),
+                next_start,
+                "testcase with batch size %d return start failed" % batch,
             )
 
-        # Random starter should also succeed
+        # Random start should also succeed
         state.get_total_balance(
-            qkc_token,
-            state.header_tip.get_hash(),
-            1,
-            starter=Address.create_random_account(1).recipient,
+            qkc_token, state.header_tip.get_hash(), 1, start=urandom(32)
         )
 
     def test_init_genesis_state(self):
