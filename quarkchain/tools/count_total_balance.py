@@ -102,11 +102,6 @@ def main():
     total_balances = []
     for block_id in minor_block_ids:
         shard = "0x" + block_id[-8:]
-
-        # DEBUG
-        if shard != "0x00000001":
-            continue
-
         logging.info("querying total balance for shard %s" % shard)
         total, start, cnt = 0, None, 0
         while start != "0x" + "0" * 64:
