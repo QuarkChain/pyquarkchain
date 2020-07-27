@@ -60,10 +60,10 @@ class Fetcher(object):
         return latest_rb, list(self.shard_to_latest_id.values())
 
     def count_total_balance(
-        self, block_id: str, token_id: int, starter: str
+        self, block_id: str, token_id: int, start: str
     ) -> Tuple[int, str]:
         res = self.cli.send(
-            jsonrpcclient.Request("getTotalBalance", block_id, hex(token_id), starter),
+            jsonrpcclient.Request("getTotalBalance", block_id, hex(token_id), start),
             timeout=self.timeout,
         )
         if not res:
@@ -103,9 +103,9 @@ def main():
     for block_id in minor_block_ids:
         shard = "0x" + block_id[-8:]
         logging.info("querying total balance for shard %s" % shard)
-        total, starter, cnt = 0, None, 0
-        while starter != "0x" + "0" * 40:
-            balance, starter = fetcher.count_total_balance(block_id, token_id, starter)
+        total, start, cnt = 0, None, 0
+        while start != "0x" + "0" * 64:
+            balance, start = fetcher.count_total_balance(block_id, token_id, start)
             total += balance
             cnt += 1
             if cnt % 10 == 0:

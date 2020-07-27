@@ -570,10 +570,10 @@ class MasterConnection(ClusterConnection):
     ) -> GetTotalBalanceResponse:
         error_code = 0
         try:
-            total_balance, next_starter = self.slave_server.get_total_balance(
-                req.address, req.token_id, req.minor_block_hash, req.limit
+            total_balance, next_start = self.slave_server.get_total_balance(
+                req.branch, req.start, req.token_id, req.minor_block_hash, req.limit
             )
-            return GetTotalBalanceResponse(error_code, total_balance, next_starter)
+            return GetTotalBalanceResponse(error_code, total_balance, next_start)
         except Exception:
             error_code = 1
             return GetTotalBalanceResponse(error_code, 0, b"")
@@ -1428,22 +1428,16 @@ class SlaveServer:
         return shard.state.get_root_chain_stakes(address.recipient, block_hash)
 
     def get_total_balance(
-        self, address: Address, token_id: int, block_hash: bytes, limit: int
+        self,
+        branch: Branch,
+        start: Optional[bytes],
+        token_id: int,
+        block_hash: bytes,
+        limit: int,
     ) -> Tuple[int, bytes]:
-        # for empty starter, the recipient of address should zero
-        branch = Branch(
-            self.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-                address.full_shard_key
-            )
-        )
         shard = self.shards.get(branch, None)
         check(shard is not None)
-        return shard.state.get_total_balance(
-            token_id,
-            block_hash,
-            limit,
-            None if address.is_empty() else address.recipient,
-        )
+        return shard.state.get_total_balance(token_id, block_hash, limit, start)
 
 
 def parse_args():

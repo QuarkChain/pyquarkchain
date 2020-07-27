@@ -990,16 +990,23 @@ class GetRootChainStakesResponse(Serializable):
 
 class GetTotalBalanceRequest(Serializable):
     FIELDS = [
-        ("address", Address),
+        ("branch", Branch),
+        ("start", Optional(hash256)),
         ("token_id", uint64),  # TODO: double check max token ID
         ("limit", uint32),
         ("minor_block_hash", hash256),
     ]
 
     def __init__(
-        self, address: Address, token_id: int, limit: int, minor_block_hash: bytes
+        self,
+        branch: Branch,
+        start: typing.Optional[bytes],
+        token_id: int,
+        limit: int,
+        minor_block_hash: bytes,
     ):
-        self.address = address
+        self.branch = branch
+        self.start = start
         self.token_id = token_id
         self.limit = limit
         self.minor_block_hash = minor_block_hash
