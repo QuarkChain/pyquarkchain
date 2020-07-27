@@ -724,9 +724,16 @@ class SlaveConnection(ClusterConnection):
         return AddMinorBlockHeaderListResponse(error_code=0)
 
     async def get_total_balance(
-        self, address: Address, minor_block_hash: bytes, token_id: int, limit: int
+        self,
+        branch: Branch,
+        start: Optional[bytes],
+        minor_block_hash: bytes,
+        token_id: int,
+        limit: int,
     ) -> Optional[Tuple[int, bytes]]:
-        request = GetTotalBalanceRequest(address, token_id, limit, minor_block_hash)
+        request = GetTotalBalanceRequest(
+            branch, start, token_id, limit, minor_block_hash
+        )
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
         )
@@ -1804,14 +1811,13 @@ class MasterServer:
         branch: Branch,
         block_hash: bytes,
         token_id: int,
-        starter: Optional[bytes],
+        start: Optional[bytes],
         limit: int,
     ) -> Optional[Tuple[int, bytes]]:
         if branch.value not in self.branch_to_slaves:
             return None
         slave = self.branch_to_slaves[branch.value][0]
-        address = Address(starter or bytes(20), branch.value)
-        return await slave.get_total_balance(address, block_hash, token_id, limit)
+        return await slave.get_total_balance(branch, start, block_hash, token_id, limit)
 
 
 def parse_args():

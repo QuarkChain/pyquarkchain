@@ -74,8 +74,10 @@ def quantity_encoder(i):
     return hex(i)
 
 
-def data_decoder(hex_str):
+def data_decoder(hex_str, allow_optional=False):
     """Decode `hexStr` representing unformatted hex_str."""
+    if allow_optional and hex_str is None:
+        return None
     if not hex_str.startswith("0x"):
         raise InvalidParams("Invalid hex_str encoding")
     try:
@@ -1277,10 +1279,10 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("block_id", id_decoder)
     @decode_arg("token_id", quantity_decoder)  # default: QKC
-    @decode_arg("recipient", recipient_decoder, allow_optional=True)
+    @decode_arg("start", data_decoder, allow_optional=True)
     @decode_arg("limit", quantity_decoder)
     async def getTotalBalance(
-        self, block_id, token_id="0x8bb0", recipient=None, limit="0x64"
+        self, block_id, token_id="0x8bb0", start=None, limit="0x64"
     ):
         if limit > 10000:
             limit = 10000
@@ -1290,16 +1292,16 @@ class JSONRPCHttpServer:
         )
         try:
             result = await self.master.get_total_balance(
-                Branch(full_shard_id), block_hash, token_id, recipient, limit
+                Branch(full_shard_id), block_hash, token_id, start, limit
             )
         except:
             raise ServerError
         if not result:
             raise InvalidRequest
-        total_balance, next_starter = result
+        total_balance, next_start = result
         return {
             "totalBalance": quantity_encoder(total_balance),
-            "next": data_encoder(next_starter),
+            "next": data_encoder(next_start),
         }
 
     @private_methods.add

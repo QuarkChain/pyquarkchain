@@ -1960,7 +1960,7 @@ class ShardState:
         ):
             return 0, bytes(20)
 
-        #  call the contract's 'getLockedStakes' function
+        # call the contract's 'getLockedStakes' function
         mock_sender = bytes(20)  # empty address
         data = bytes.fromhex("fd8c4646000000000000000000000000") + recipient
         evm_tx = EvmTransaction(
@@ -2013,18 +2013,17 @@ class ShardState:
         token_id: int,
         block_hash: bytes,
         limit: int,
-        starter: Optional[bytes] = None,
+        start: Optional[bytes] = None,
     ) -> Tuple[int, bytes]:
         """
-        The starter address should be exclusive in the iteration.
+        Start should be exclusive during the iteration.
         """
         evm_state = self._get_evm_state_from_hash(block_hash)
         if not evm_state:
             raise Exception("block hash not found")
-        # the secure trie stored trie node hash to original key mapping
         trie = evm_state.trie.trie
         total = 0
-        key = bytes(32) if not starter else utils.sha3_256(starter)
+        key = start or bytes(32)  # convert None to empty bytes
         while limit > 0:
             key = trie.next(key)
             if not key:
@@ -2032,4 +2031,4 @@ class ShardState:
             addr = evm_state.db.get(key)
             total += evm_state.get_balance(addr, token_id, should_cache=False)
             limit -= 1
-        return total, evm_state.db.get(key) if key else bytes(20)
+        return total, key or bytes(32)

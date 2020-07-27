@@ -39,9 +39,9 @@ def get_time_and_balance(
     total_balances = {}
     for block_id in minor_block_ids:
         shard = "0x" + block_id[-8:]
-        total, starter = 0, None
-        while starter != "0x" + "0" * 40:
-            balance, starter = fetcher.count_total_balance(block_id, token_id, starter)
+        total, start = 0, None
+        while start != "0x" + "0" * 64:
+            balance, start = fetcher.count_total_balance(block_id, token_id, start)
             # TODO: add gap to avoid spam.
             total += balance
         total_balances[shard] = total
