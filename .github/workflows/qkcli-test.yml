@@ -1,7 +1,9 @@
 name: qkcli-integration-test
 
-# TODO: only run on master push, here's for testing
-on: [push]
+on:
+  push:
+    branches:
+      - master
 
 jobs:
   mnt-test-using-qkcli:
