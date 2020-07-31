@@ -33,7 +33,7 @@
       "MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF": 22500,
       "CONSENSUS_TYPE": "POW_SIMULATE",
       "CONSENSUS_CONFIG": {
-        "TARGET_BLOCK_TIME": 60,
+        "TARGET_BLOCK_TIME": 6,
         "REMOTE_MINE": false
       },
       "GENESIS": {
@@ -126,7 +126,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -162,7 +162,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -198,7 +198,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -234,7 +234,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -270,7 +270,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -306,7 +306,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
@@ -342,7 +342,7 @@
         "DEFAULT_CHAIN_TOKEN": "QKC",
         "CONSENSUS_TYPE": "POW_SIMULATE",
         "CONSENSUS_CONFIG": {
-          "TARGET_BLOCK_TIME": 10,
+          "TARGET_BLOCK_TIME": 1,
           "REMOTE_MINE": false
         },
         "GENESIS": {
