@@ -12,6 +12,7 @@ jobs:
           # In the future, add it as a submodule
           repository: QuarkChain/qkcli
           ref: master
+          token: ${{ secrets.QKCLI_PAT }}
           path: qkcli
       - uses: actions/setup-go@v2
         with:
