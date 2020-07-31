@@ -1,0 +1,19 @@
+name: qkcli-integration-test
+
+# TODO: only run on master push, here's for testing
+on: [push]
+
+jobs:
+  mnt-test-using-qkcli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          # In the future, add it as a submodule
+          repository: QuarkChain/qkcli
+          path: qkcli
+      - uses: actions/setup-go@v2
+        with:
+          go-version: "~1.14.4"
+      - run: go version
+      - run: cd qkcli && go build && go install && cd tester && bash parallel_executor.sh
