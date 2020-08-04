@@ -350,7 +350,7 @@ class ShardState:
             state.timestamp = timestamp
         # iterate until reaches genesis or header list reaches 256
         # since most headers are in LRU cache, this should not affect performance too much
-        while len(state.prev_headers) < 256:
+        while block_hash and len(state.prev_headers) < 256:
             h = self.db.get_minor_block_header_by_hash(block_hash)
             if not h:
                 break
