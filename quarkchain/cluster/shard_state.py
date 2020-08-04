@@ -575,9 +575,6 @@ class ShardState:
             state = state.ephemeral_clone()
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
-        state.recent_uncles[
-            state.block_number
-        ] = []  # TODO [x.hash for x in block.uncles]
         # TODO: create a account with shard info if the account is not created
         # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = coinbase_recipient
