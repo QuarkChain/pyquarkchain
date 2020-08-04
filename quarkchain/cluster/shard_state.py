@@ -317,7 +317,10 @@ class ShardState:
         self.confirmed_header_tip = confirmed_header_tip
         sender_disallow_map = self._get_sender_disallow_map(header_tip)
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, sender_disallow_map, int(time.time())
+            self.meta_tip.hash_evm_state_root,
+            sender_disallow_map,
+            int(time.time()),
+            self.header_tip.get_hash(),
         )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(header_tip_hash)
@@ -333,6 +336,7 @@ class ShardState:
         trie_root_hash: Optional[bytes],
         sender_disallow_map: Dict[bytes, int],
         timestamp: Optional[int] = None,
+        block_hash: Optional[bytes] = None,
     ):
         """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
@@ -344,6 +348,12 @@ class ShardState:
         state.sender_disallow_map = sender_disallow_map
         if timestamp:
             state.timestamp = timestamp
+        # iterate until reaches genesis or header list reaches 256
+        # since most headers are in LRU cache, this should not affect performance too much
+        while block_hash and len(state.prev_headers) < 256:
+            state.prev_headers.append(block_hash)
+            prev = self.db.get_minor_block_header_by_hash(block_hash)
+            block_hash = prev and prev.hash_prev_minor_block
         return state
 
     def init_genesis_state(self, root_block):
@@ -569,18 +579,15 @@ class ShardState:
         )
 
         state = self.__create_evm_state(
-            root_hash, sender_disallow_map, block.header.create_time
+            root_hash, sender_disallow_map, block.header.create_time, prev_minor_hash
         )
         if ephemeral:
             state = state.ephemeral_clone()
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
-        # TODO: create a account with shard info if the account is not created
-        # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = coinbase_recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
-        state.prev_headers = []  # TODO: state.add_block_header(block.header)
         return state
 
     def __is_same_minor_chain(self, longer_block_header, shorter_block_header):
@@ -1481,7 +1488,10 @@ class ShardState:
             b = self.db.get_minor_block_by_hash(h)
             sender_disallow_map = self._get_sender_disallow_map(b.header)
             evm_state = self.__create_evm_state(
-                b.meta.hash_evm_state_root, sender_disallow_map, int(time.time())
+                b.meta.hash_evm_state_root,
+                sender_disallow_map,
+                int(time.time()),
+                b.header.get_hash(),
             )
             self.__update_tip(b, evm_state)
             Logger.info(
