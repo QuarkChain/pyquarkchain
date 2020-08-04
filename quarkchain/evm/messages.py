@@ -547,11 +547,7 @@ class VMExt:
         self.log_storage = lambda x: state.account_to_dict(x)
         self.add_suicide = lambda x: state.add_suicide(x)
         self.add_refund = lambda x: state.set_param("refunds", state.refunds + x)
-        self.block_hash = (
-            lambda x: state.get_block_hash(state.block_number - x - 1)
-            if (1 <= state.block_number - x <= 256 and x <= state.block_number)
-            else b""
-        )
+        self.block_hash = lambda x: state.get_block_hash(state.block_number - x - 1)
         self.block_coinbase = state.block_coinbase
         self.block_timestamp = state.timestamp
         self.block_number = state.block_number

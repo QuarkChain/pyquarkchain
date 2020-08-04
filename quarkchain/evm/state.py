@@ -347,15 +347,10 @@ class State:
         return bloom
 
     def get_block_hash(self, n):
-        if self.block_number < n or n > 256 or n < 0:
-            o = b"\x00" * 32
-        else:
-            o = (
-                self.prev_headers[n].get_hash()
-                if self.prev_headers[n]
-                else b"\x00" * 32
-            )
-        return o
+        # invariant: len(self.prev_headers) is between 0 and 255 inclusive
+        if 0 <= n < min(256, len(self.prev_headers)):
+            return self.prev_headers[n].get_hash()
+        return b"\x00" * 32
 
     def add_block_header(self, block_header):
         self.prev_headers = [block_header] + self.prev_headers
