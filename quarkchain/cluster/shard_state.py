@@ -350,10 +350,12 @@ class ShardState:
             state.timestamp = timestamp
         # iterate until reaches genesis or header list reaches 256
         # since most headers are in LRU cache, this should not affect performance too much
-        while block_hash and len(state.prev_headers) < 256:
-            state.prev_headers.append(block_hash)
-            prev = self.db.get_minor_block_header_by_hash(block_hash)
-            block_hash = prev and prev.hash_prev_minor_block
+        while len(state.prev_headers) < 256:
+            h = self.db.get_minor_block_header_by_hash(block_hash)
+            if not h:
+                break
+            state.prev_headers.append(h)
+            block_hash = h.hash_prev_minor_block
         return state
 
     def init_genesis_state(self, root_block):
