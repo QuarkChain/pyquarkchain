@@ -3821,10 +3821,9 @@ class TestShardState(unittest.TestCase):
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10 ** 18)
         state = create_default_shard_state(env=env)
-        self.assertEqual(
-            len(state.evm_state.prev_headers), 1
-        )  # only has genesis header
-        # Create failed contract with revert operation
+        # Only has genesis header
+        self.assertEqual(len(state.evm_state.prev_headers), 1)
+
         contract_bytecode = "6080604052348015600f57600080fd5b5060ae8061001e6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c806307310fae14602d575b600080fd5b605660048036036020811015604157600080fd5b8101908080359060200190929190505050606c565b6040518082815260200191505060405180910390f35b600081430340905091905056fea265627a7a723158205df0e0c36db38808e196b2d7cf91b07c71a980d1b6e4bb80ae42537db54c061f64736f6c63430005110032"
         """
         pragma solidity >=0.4.22 <0.6.0;
@@ -3865,13 +3864,11 @@ class TestShardState(unittest.TestCase):
         )
 
         self.assertEqual(state.header_tip.height, 1)
-        self.assertEqual(
-            len(state.evm_state.prev_headers), 2
-        )  # genesis + height 1 block
+        # State has genesis + height 1 block
+        self.assertEqual(len(state.evm_state.prev_headers), 2)
         bh = query(0)
-        self.assertEqual(
-            bh, b"\x00" * 32
-        )  # doesn't support querying current block hash
+        # Doesn't support querying current block hash
+        self.assertEqual(bh, b"\x00" * 32)
         bh = query(1)
         self.assertEqual(bh, state.header_tip.get_hash())
         bh = query(2)
