@@ -3814,3 +3814,76 @@ class TestShardState(unittest.TestCase):
         b1.header.create_time = 99
         posw_info = state._posw_info(b1)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
+
+    def test_blockhash_in_evm(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10 ** 18)
+        state = create_default_shard_state(env=env)
+        self.assertEqual(
+            len(state.evm_state.prev_headers), 1
+        )  # only has genesis header
+        # Create failed contract with revert operation
+        contract_bytecode = "6080604052348015600f57600080fd5b5060ae8061001e6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c806307310fae14602d575b600080fd5b605660048036036020811015604157600080fd5b8101908080359060200190929190505050606c565b6040518082815260200191505060405180910390f35b600081430340905091905056fea265627a7a723158205df0e0c36db38808e196b2d7cf91b07c71a980d1b6e4bb80ae42537db54c061f64736f6c63430005110032"
+        """
+        pragma solidity >=0.4.22 <0.6.0;
+        contract C {
+            function bh(uint256 offset) public view returns (bytes32) {
+                return blockhash(block.number - offset);
+            }
+        }       
+        """
+        tx = contract_creation_tx(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_full_shard_key=acc1.full_shard_key,
+            bytecode=contract_bytecode,
+            gas=1000000,
+        )
+
+        self.assertTrue(state.add_tx(tx))
+        b = state.create_block_to_mine(address=acc1)
+        state.finalize_and_add_block(b)
+        self.assertEqual(state.header_tip, b.header)
+
+        self.assertEqual(len(state.evm_state.receipts), 1)
+        contract_addr = state.evm_state.receipts[0].contract_address
+
+        tx_gen = lambda data: create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address(contract_addr, 0),
+            value=0,
+            data=data,
+            gas=100000,
+        )
+        query = lambda n: state.execute_tx(
+            tx_gen(bytes.fromhex("07310fae") + n.to_bytes(32, byteorder="big")), acc1
+        )
+
+        self.assertEqual(state.header_tip.height, 1)
+        self.assertEqual(
+            len(state.evm_state.prev_headers), 2
+        )  # genesis + height 1 block
+        bh = query(0)
+        self.assertEqual(
+            bh, b"\x00" * 32
+        )  # doesn't support querying current block hash
+        bh = query(1)
+        self.assertEqual(bh, state.header_tip.get_hash())
+        bh = query(2)
+        self.assertEqual(bh, b"\x00" * 32)  # invalid query
+
+        # Try inserting more blocks
+        for _ in range(300):
+            b = state.create_block_to_mine(address=acc1)
+            state.finalize_and_add_block(b, validate_time=False)
+        self.assertEqual(len(state.evm_state.prev_headers), 256)
+
+        bh = query(256)
+        self.assertNotEqual(bh, b"\x00" * 32)
+        bh = query(257)
+        self.assertEqual(bh, b"\x00" * 32)

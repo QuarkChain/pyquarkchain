@@ -1,5 +1,7 @@
 # Modified based on pyethereum under MIT license
 import copy
+from collections import deque
+
 import rlp
 from rlp.sedes.lists import CountableList
 from rlp.sedes import binary
@@ -53,7 +55,7 @@ STATE_DEFAULTS = {
     "receipts": [],
     "xshard_deposit_receipts": [],
     "suicides": [],
-    "prev_headers": [],
+    "prev_headers": deque(),
     "refunds": 0,
     "xshard_list": [],
     "full_shard_key": 0,  # should be updated before applying each tx
@@ -353,7 +355,9 @@ class State:
         return b"\x00" * 32
 
     def add_block_header(self, block_header):
-        self.prev_headers = [block_header] + self.prev_headers
+        self.prev_headers.appendleft(block_header)
+        while len(self.prev_headers) > 256:
+            self.prev_headers.pop()
 
     def get_and_cache_account(self, address, should_cache=True):
         if address in self.cache:
