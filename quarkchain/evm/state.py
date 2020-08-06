@@ -1,5 +1,7 @@
 # Modified based on pyethereum under MIT license
 import copy
+from collections import deque
+
 import rlp
 from rlp.sedes.lists import CountableList
 from rlp.sedes import binary
@@ -53,8 +55,7 @@ STATE_DEFAULTS = {
     "receipts": [],
     "xshard_deposit_receipts": [],
     "suicides": [],
-    "recent_uncles": {},
-    "prev_headers": [],
+    "prev_headers": deque(),
     "refunds": 0,
     "xshard_list": [],
     "full_shard_key": 0,  # should be updated before applying each tx
@@ -348,18 +349,15 @@ class State:
         return bloom
 
     def get_block_hash(self, n):
-        if self.block_number < n or n > 256 or n < 0:
-            o = b"\x00" * 32
-        else:
-            o = (
-                self.prev_headers[n].get_hash()
-                if self.prev_headers[n]
-                else b"\x00" * 32
-            )
-        return o
+        # invariant: len(self.prev_headers) is between 0 and 255 inclusive
+        if 0 <= n < min(256, len(self.prev_headers)):
+            return self.prev_headers[n].get_hash()
+        return b"\x00" * 32
 
     def add_block_header(self, block_header):
-        self.prev_headers = [block_header] + self.prev_headers
+        self.prev_headers.appendleft(block_header)
+        while len(self.prev_headers) > 256:
+            self.prev_headers.pop()
 
     def get_and_cache_account(self, address, should_cache=True):
         if address in self.cache:
@@ -638,11 +636,6 @@ class State:
                     prev_header_to_dict(h)
                     for h in v[: self.config["PREV_HEADER_DEPTH"]]
                 ]
-            elif k == "recent_uncles" and not no_prevblocks:
-                snapshot[k] = {
-                    str(n): ["0x" + encode_hex(h) for h in headers]
-                    for n, headers in v.items()
-                }
         return snapshot
 
     # Creates a state from a snapshot
@@ -666,16 +659,6 @@ class State:
                 else:
                     headers = default
                 setattr(state, k, headers)
-            elif k == "recent_uncles":
-                if k in snapshot_data:
-                    uncles = {}
-                    for height, _uncles in v.items():
-                        uncles[int(height)] = []
-                        for uncle in _uncles:
-                            uncles[int(height)].append(parse_as_bin(uncle))
-                else:
-                    uncles = default
-                setattr(state, k, uncles)
         state.commit()
         return state
 
@@ -685,7 +668,6 @@ class State:
         s = State.from_snapshot(snapshot, env2)
         for param in STATE_DEFAULTS:
             setattr(s, param, getattr(self, param))
-        s.recent_uncles = self.recent_uncles
         s.prev_headers = self.prev_headers
         for acct in self.cache.values():
             assert not acct.touched or not acct.deleted
