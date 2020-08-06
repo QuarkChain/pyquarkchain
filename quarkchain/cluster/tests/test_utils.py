@@ -1,6 +1,6 @@
 import asyncio
-import os
-from contextlib import ContextDecorator
+import socket
+from contextlib import ContextDecorator, closing
 
 from quarkchain.cluster.cluster_config import (
     ClusterConfig,
@@ -288,21 +288,11 @@ class Cluster:
         return shard.state
 
 
-# server.close() does not release the port sometimes even after server.wait_closed() is awaited.
-# we have to use unique ports for each test as a workaround.
-# also check if in CircleCI to avoid port collision
-if "CIRCLE_NODE_INDEX" in os.environ:
-    # max parallelism is 4
-    PORT_START = (int(os.environ["CIRCLE_NODE_INDEX"]) + 1) * 10000
-else:
-    PORT_START = 50000
-
-
 def get_next_port():
-    global PORT_START
-    port = PORT_START
-    PORT_START += 1
-    return port
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 
 def create_test_clusters(
