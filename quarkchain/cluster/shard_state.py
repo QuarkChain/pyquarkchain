@@ -317,7 +317,10 @@ class ShardState:
         self.confirmed_header_tip = confirmed_header_tip
         sender_disallow_map = self._get_sender_disallow_map(header_tip)
         self.evm_state = self.__create_evm_state(
-            self.meta_tip.hash_evm_state_root, sender_disallow_map, int(time.time())
+            self.meta_tip.hash_evm_state_root,
+            sender_disallow_map,
+            int(time.time()),
+            self.header_tip.get_hash(),
         )
         check(
             self.db.get_minor_block_evm_root_hash_by_hash(header_tip_hash)
@@ -333,6 +336,7 @@ class ShardState:
         trie_root_hash: Optional[bytes],
         sender_disallow_map: Dict[bytes, int],
         timestamp: Optional[int] = None,
+        block_hash: Optional[bytes] = None,
     ):
         """EVM state with given root hash and block hash AFTER which being evaluated."""
         state = EvmState(
@@ -344,6 +348,14 @@ class ShardState:
         state.sender_disallow_map = sender_disallow_map
         if timestamp:
             state.timestamp = timestamp
+        # iterate until reaches genesis or header list reaches 256
+        # since most headers are in LRU cache, this should not affect performance too much
+        while block_hash and len(state.prev_headers) < 256:
+            h = self.db.get_minor_block_header_by_hash(block_hash)
+            if not h:
+                break
+            state.prev_headers.append(h)
+            block_hash = h.hash_prev_minor_block
         return state
 
     def init_genesis_state(self, root_block):
@@ -382,7 +394,9 @@ class ShardState:
         self.header_tip = genesis_block.header
         self.meta_tip = genesis_block.meta
         self.evm_state = self.__create_evm_state(
-            genesis_block.meta.hash_evm_state_root, sender_disallow_map={}
+            genesis_block.meta.hash_evm_state_root,
+            sender_disallow_map={},
+            block_hash=genesis_block.header.get_hash(),
         )
 
         Logger.info(
@@ -569,21 +583,15 @@ class ShardState:
         )
 
         state = self.__create_evm_state(
-            root_hash, sender_disallow_map, block.header.create_time
+            root_hash, sender_disallow_map, block.header.create_time, prev_minor_hash
         )
         if ephemeral:
             state = state.ephemeral_clone()
         state.gas_limit = block.header.evm_gas_limit
         state.block_number = block.header.height
-        state.recent_uncles[
-            state.block_number
-        ] = []  # TODO [x.hash for x in block.uncles]
-        # TODO: create a account with shard info if the account is not created
-        # Right now the full_shard_key for coinbase actually comes from the first tx that got applied
         state.block_coinbase = coinbase_recipient
         state.block_difficulty = block.header.difficulty
         state.block_reward = 0
-        state.prev_headers = []  # TODO: state.add_block_header(block.header)
         return state
 
     def __is_same_minor_chain(self, longer_block_header, shorter_block_header):
@@ -606,7 +614,13 @@ class ShardState:
             header = self.db.get_root_block_header_by_hash(header.hash_prev_block)
         return header == shorter_block_header
 
-    def validate_block(self, block: MinorBlock, gas_limit=None, xshard_gas_limit=None):
+    def validate_block(
+        self,
+        block: MinorBlock,
+        gas_limit=None,
+        xshard_gas_limit=None,
+        validate_time=True,
+    ):
         """ Validate a block before running evm transactions
         """
         if block.header.version != 0:
@@ -635,13 +649,13 @@ class ShardState:
         if block.header.branch != self.branch:
             raise ValueError("branch mismatch")
 
-        if (
+        if validate_time and (
             block.header.create_time
             > time_ms() // 1000 + ALLOWED_FUTURE_BLOCKS_TIME_VALIDATION
         ):
             raise ValueError("block too far into future")
 
-        if block.header.create_time <= prev_header.create_time:
+        if validate_time and block.header.create_time <= prev_header.create_time:
             raise ValueError(
                 "incorrect create time tip time {}, new block time {}".format(
                     block.header.create_time, self.chain[-1].create_time
@@ -738,11 +752,10 @@ class ShardState:
             if diff != curr_header.difficulty:
                 raise ValueError("incorrect difficulty")
 
-    def run_block(self, block, evm_state=None, x_shard_receive_tx_list=None):
+    def run_block(self, block, x_shard_receive_tx_list=None):
         if x_shard_receive_tx_list is None:
             x_shard_receive_tx_list = []
-        if evm_state is None:
-            evm_state = self._get_evm_state_for_new_block(block, ephemeral=False)
+        evm_state = self._get_evm_state_for_new_block(block, ephemeral=False)
         (
             xtx_list,
             evm_state.xshard_tx_cursor_info,
@@ -774,6 +787,7 @@ class ShardState:
         for k, v in pure_coinbase_amount.balance_map.items():
             evm_state.delta_token_balance(evm_state.block_coinbase, k, v)
 
+        evm_state.add_block_header(block.header)
         # Update actual root hash
         evm_state.commit()
         return evm_state
@@ -868,6 +882,7 @@ class ShardState:
         xshard_gas_limit=None,
         force=False,
         write_db=True,
+        validate_time=True,
     ):
         """  Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
@@ -904,7 +919,10 @@ class ShardState:
         x_shard_receive_tx_list = []
         # Throw exception if fail to run
         self.validate_block(
-            block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit
+            block,
+            gas_limit=gas_limit,
+            xshard_gas_limit=xshard_gas_limit,
+            validate_time=validate_time,
         )
         evm_state = self.run_block(
             block, x_shard_receive_tx_list=x_shard_receive_tx_list
@@ -1040,7 +1058,9 @@ class ShardState:
     def get_tip(self) -> MinorBlock:
         return self.db.get_minor_block_by_hash(self.header_tip.get_hash())
 
-    def finalize_and_add_block(self, block, gas_limit=None, xshard_gas_limit=None):
+    def finalize_and_add_block(
+        self, block, gas_limit=None, xshard_gas_limit=None, validate_time=True
+    ):
         """ Finalize the block by filling post-tx data including tx fee collected
         gas_limit and xshard_gas_limit is used to verify customized gas limits and they are for test purpose only
         """
@@ -1048,7 +1068,12 @@ class ShardState:
         coinbase_amount_map = self.get_coinbase_amount_map(block.header.height)
         coinbase_amount_map.add(evm_state.block_fee_tokens)
         block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
-        self.add_block(block, gas_limit=gas_limit, xshard_gas_limit=xshard_gas_limit)
+        self.add_block(
+            block,
+            gas_limit=gas_limit,
+            xshard_gas_limit=xshard_gas_limit,
+            validate_time=validate_time,
+        )
 
     def get_token_balance(
         self, recipient: bytes, token_id: int, height: Optional[int] = None
@@ -1484,7 +1509,10 @@ class ShardState:
             b = self.db.get_minor_block_by_hash(h)
             sender_disallow_map = self._get_sender_disallow_map(b.header)
             evm_state = self.__create_evm_state(
-                b.meta.hash_evm_state_root, sender_disallow_map, int(time.time())
+                b.meta.hash_evm_state_root,
+                sender_disallow_map,
+                int(time.time()),
+                b.header.get_hash(),
             )
             self.__update_tip(b, evm_state)
             Logger.info(
