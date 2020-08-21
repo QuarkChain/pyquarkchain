@@ -211,6 +211,7 @@ class TransactionHistoryMixin:
                     tx_list.append(
                         TransactionDetail(
                             tx.tx_hash,
+                            0,
                             tx.from_address,
                             tx.to_address,
                             tx.value,
@@ -236,6 +237,7 @@ class TransactionHistoryMixin:
                     tx_list.append(
                         TransactionDetail(
                             tx_hash,
+                            evm_tx.nonce,
                             Address(evm_tx.sender, evm_tx.from_full_shard_key),
                             Address(evm_tx.to, evm_tx.to_full_shard_key)
                             if evm_tx.to

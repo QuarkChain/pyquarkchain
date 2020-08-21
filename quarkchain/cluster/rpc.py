@@ -316,6 +316,7 @@ class GetTransactionListByAddressRequest(Serializable):
 class TransactionDetail(Serializable):
     FIELDS = [
         ("tx_hash", hash256),
+        ("nonce", uint64),
         ("from_address", Address),
         ("to_address", Optional(Address)),
         ("value", uint256),
@@ -330,6 +331,7 @@ class TransactionDetail(Serializable):
     def __init__(
         self,
         tx_hash,
+        nonce,
         from_address,
         to_address,
         value,
@@ -341,6 +343,7 @@ class TransactionDetail(Serializable):
         is_from_root_chain,
     ):
         self.tx_hash = tx_hash
+        self.nonce = nonce
         self.from_address = from_address
         self.to_address = to_address
         self.value = value

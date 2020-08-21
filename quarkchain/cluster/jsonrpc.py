@@ -317,6 +317,7 @@ def tx_detail_encoder(tx):
         "timestamp": quantity_encoder(tx.timestamp),
         "success": tx.success,
         "isFromRootChain": tx.is_from_root_chain,
+        "nonce": quantity_encoder(tx.nonce),
     }
 
 

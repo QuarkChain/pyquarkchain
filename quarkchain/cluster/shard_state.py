@@ -1682,6 +1682,7 @@ class ShardState:
                     tx_list.append(
                         TransactionDetail(
                             tx.get_hash(),
+                            evm_tx.nonce,
                             Address(evm_tx.sender, evm_tx.from_full_shard_key),
                             Address(evm_tx.to, evm_tx.to_full_shard_key)
                             if evm_tx.to
