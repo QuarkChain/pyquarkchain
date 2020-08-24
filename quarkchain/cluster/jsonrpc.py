@@ -720,10 +720,10 @@ class JSONRPCHttpServer:
         )
 
         gas_token_id = get_data_default(
-            "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
+            "gasTokenId", quantity_decoder, self.env.quark_chain_config.genesis_token
         )
         transfer_token_id = get_data_default(
-            "transfer_token_id",
+            "transferTokenId",
             quantity_decoder,
             self.env.quark_chain_config.genesis_token,
         )
