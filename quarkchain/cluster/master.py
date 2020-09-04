@@ -728,11 +728,12 @@ class SlaveConnection(ClusterConnection):
         branch: Branch,
         start: Optional[bytes],
         minor_block_hash: bytes,
+        root_block_hash: Optional[bytes],
         token_id: int,
         limit: int,
     ) -> Optional[Tuple[int, bytes]]:
         request = GetTotalBalanceRequest(
-            branch, start, token_id, limit, minor_block_hash
+            branch, start, token_id, limit, minor_block_hash, root_block_hash
         )
         _, resp, _ = await self.write_rpc_request(
             ClusterOp.GET_TOTAL_BALANCE_REQUEST, request
@@ -1810,6 +1811,7 @@ class MasterServer:
         self,
         branch: Branch,
         block_hash: bytes,
+        root_block_hash: Optional[bytes],
         token_id: int,
         start: Optional[bytes],
         limit: int,
@@ -1817,7 +1819,9 @@ class MasterServer:
         if branch.value not in self.branch_to_slaves:
             return None
         slave = self.branch_to_slaves[branch.value][0]
-        return await slave.get_total_balance(branch, start, block_hash, token_id, limit)
+        return await slave.get_total_balance(
+            branch, start, block_hash, root_block_hash, token_id, limit
+        )
 
 
 def parse_args():

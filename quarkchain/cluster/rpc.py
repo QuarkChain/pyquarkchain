@@ -998,6 +998,7 @@ class GetTotalBalanceRequest(Serializable):
         ("token_id", uint64),  # TODO: double check max token ID
         ("limit", uint32),
         ("minor_block_hash", hash256),
+        ("root_block_hash", Optional(hash256)),
     ]
 
     def __init__(
@@ -1007,12 +1008,14 @@ class GetTotalBalanceRequest(Serializable):
         token_id: int,
         limit: int,
         minor_block_hash: bytes,
+        root_block_hash: typing.Optional[bytes],
     ):
         self.branch = branch
         self.start = start
         self.token_id = token_id
         self.limit = limit
         self.minor_block_hash = minor_block_hash
+        self.root_block_hash = root_block_hash
 
 
 class GetTotalBalanceResponse(Serializable):

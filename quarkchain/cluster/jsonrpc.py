@@ -1279,11 +1279,12 @@ class JSONRPCHttpServer:
 
     @public_methods.add
     @decode_arg("block_id", id_decoder)
+    @decode_arg("root_block_id", data_decoder, allow_optional=True)
     @decode_arg("token_id", quantity_decoder)  # default: QKC
     @decode_arg("start", data_decoder, allow_optional=True)
     @decode_arg("limit", quantity_decoder)
     async def getTotalBalance(
-        self, block_id, token_id="0x8bb0", start=None, limit="0x64"
+        self, block_id, root_block_id=None, token_id="0x8bb0", start=None, limit="0x64"
     ):
         if limit > 10000:
             limit = 10000
@@ -1293,7 +1294,7 @@ class JSONRPCHttpServer:
         )
         try:
             result = await self.master.get_total_balance(
-                Branch(full_shard_id), block_hash, token_id, start, limit
+                Branch(full_shard_id), block_hash, root_block_id, token_id, start, limit
             )
         except:
             raise ServerError

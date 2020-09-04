@@ -24,7 +24,12 @@ from quarkchain.core import (
     RootBlock,
 )
 from quarkchain.evm import opcodes
-from quarkchain.utils import call_async, assert_true_with_timeout, sha3_256
+from quarkchain.utils import (
+    call_async,
+    assert_true_with_timeout,
+    sha3_256,
+    token_id_encode,
+)
 
 
 def _tip_gen(shard_state):
@@ -2519,3 +2524,98 @@ class TestCluster(unittest.TestCase):
             # fail again, because quota used up
             with self.assertRaises(ValueError):
                 add_root_block(staker_addr, sign=True)
+
+    def test_total_balance_handle_xshard_deposit(self):
+        """ Test the cross shard transactions are broadcasted to the destination shards """
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_from_identity(id1, full_shard_key=1 << 16)
+        qkc_token = token_id_encode("QKC")
+        init_coinbase = 1000000
+
+        with ClusterContext(
+            1,
+            acc1,
+            chain_size=2,
+            shard_size=1,
+            small_coinbase=True,
+            mblock_coinbase_amount=0,
+        ) as clusters:
+            master = clusters[0].master
+            slaves = clusters[0].slave_list
+            state1 = clusters[0].get_shard_state(1)
+            state2 = clusters[0].get_shard_state((1 << 16) + 1)
+            state2.env.cluster_config.PROMETHEUS.MONITOR_XSHARD_DEPOSIT = True
+
+            # add a root block first so that later minor blocks referring to this root
+            # can be broadcasted to other shards
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            balance, _ = state2.get_total_balance(
+                qkc_token,
+                state2.header_tip.get_hash(),
+                root_block.header.get_hash(),
+                100,
+                None,
+            )
+            self.assertEqual(balance, init_coinbase)  # no input
+
+            tx = create_transfer_transaction(
+                shard_state=state1,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=acc2,
+                value=100,
+                gas=30000,
+                gas_price=0,
+            )
+            self.assertTrue(slaves[0].add_tx(tx))
+
+            b1 = state1.create_block_to_mine(address=acc1)
+            call_async(clusters[0].get_shard(1).add_block(b1))
+            b2 = state2.create_block_to_mine(address=acc2)
+            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
+
+            # add a root block so the xshard tx can be recorded
+            root_block = call_async(
+                master.get_next_block_to_mine(
+                    Address.create_empty_account(), branch_value=None
+                )
+            )
+            call_async(master.add_root_block(root_block))
+
+            # check source shard
+            balance, _ = state1.get_total_balance(
+                qkc_token, state1.header_tip.get_hash(), None, 100, None
+            )
+            # minus value plus root block coinbase
+            self.assertEqual(balance, init_coinbase - 100 + 5)
+
+            # check target shard. should be updated after making a new block
+            b2 = state2.create_block_to_mine(address=acc2)
+            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
+            # query with root block, should include xshard deposit
+            balance, _ = state2.get_total_balance(
+                qkc_token,
+                state2.header_tip.hash_prev_minor_block,
+                root_block.header.get_hash(),
+                100,
+                None,
+            )
+            self.assertEqual(balance, init_coinbase + 100)
+            # query without root block hash, exclude xshard deposit
+            balance, _ = state2.get_total_balance(
+                qkc_token, state2.header_tip.hash_prev_minor_block, None, 100, None
+            )
+            self.assertEqual(balance, init_coinbase)
+            # query latest header, deposit should be executed, regardless of root block
+            for rh in [None, root_block.header.get_hash()]:
+                balance, _ = state2.get_total_balance(
+                    qkc_token, state2.header_tip.get_hash(), rh, 100, None
+                )
+                self.assertEqual(balance, init_coinbase + 100)

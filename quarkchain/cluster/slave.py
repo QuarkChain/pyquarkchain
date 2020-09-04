@@ -571,7 +571,12 @@ class MasterConnection(ClusterConnection):
         error_code = 0
         try:
             total_balance, next_start = self.slave_server.get_total_balance(
-                req.branch, req.start, req.token_id, req.minor_block_hash, req.limit
+                req.branch,
+                req.start,
+                req.token_id,
+                req.minor_block_hash,
+                req.root_block_hash,
+                req.limit,
             )
             return GetTotalBalanceResponse(error_code, total_balance, next_start)
         except Exception:
@@ -1433,11 +1438,14 @@ class SlaveServer:
         start: Optional[bytes],
         token_id: int,
         block_hash: bytes,
+        root_block_hash: Optional[bytes],
         limit: int,
     ) -> Tuple[int, bytes]:
         shard = self.shards.get(branch, None)
         check(shard is not None)
-        return shard.state.get_total_balance(token_id, block_hash, limit, start)
+        return shard.state.get_total_balance(
+            token_id, block_hash, root_block_hash, limit, start
+        )
 
 
 def parse_args():
