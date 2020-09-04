@@ -2072,14 +2072,14 @@ class ShardState:
             self.env.cluster_config.PROMETHEUS.MONITOR_XSHARD_DEPOSIT
             and start is None  # only calculate for first iteration
             and root_block_hash is not None  # only if root block is provided
-            # only can get the correct cursor info
+            # only when can get the correct cursor info
             # note this may yield false results, e.g. quering latest minor block
             # but should be acceptable for stats purposes
             and next_block is not None
         ):
-            # get the cursor AFTER executing this block
             rh = self.get_root_block_header_by_hash(root_block_hash)
-            if rh and next_block.header.height > 0:  # ignore genesis
+            if rh:
+                # get the cursor AFTER executing this block
                 cursor = XshardTxCursor(self, next_block.header)
                 # sum up all xshard deposit value until passing current root block
                 while True:

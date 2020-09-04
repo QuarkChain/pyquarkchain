@@ -148,47 +148,6 @@ class TestShardState(unittest.TestCase):
             qkc_token, state.header_tip.get_hash(), None, 1, start=urandom(32)
         )
 
-    def test_get_total_balance_xshard_deposit(self):
-        id1 = Identity.create_random_identity()
-        acc1 = Address.create_from_identity(id1, full_shard_key=0)
-        acc2 = Address.create_random_account(full_shard_key=1)
-        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=100000000)
-
-        qkc_token = token_id_encode("QKC")
-        state1 = create_default_shard_state(env=env)
-        state2 = create_default_shard_state(env=env, shard_id=1)
-
-        # Add a root block to have all the shards initialized
-        root_block = state1.root_tip.create_block_to_append().finalize()
-        state1.add_root_block(root_block)
-        state2.add_root_block(root_block)
-
-        tx = create_transfer_transaction(
-            shard_state=state1,
-            key=id1.get_key(),
-            from_address=acc1,
-            to_address=acc2,
-            value=100,
-            transfer_token_id=qkc_token,
-            gas=30000,
-            gas_price=0,
-        )
-        self.assertTrue(state1.add_tx(tx))
-        b1 = state1.create_block_to_mine(address=acc1)
-        state1.finalize_and_add_block(b1)
-
-        # Source shard should have deducted xshard value
-        balance, _ = state1.get_total_balance(
-            qkc_token, state1.header_tip.get_hash(), None, 100, None
-        )
-        self.assertEqual(
-            balance, 100000000 - 100 + self.get_after_tax_reward(self.shard_coinbase)
-        )
-
-        # self.assertEqual(
-        #     state1.get_token_balance(acc_list[1].recipient, self.genesis_token), 100
-        # )
-
     def test_init_genesis_state(self):
         env = get_test_env()
         state = create_default_shard_state(env)
