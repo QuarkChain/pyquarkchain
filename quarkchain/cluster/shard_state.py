@@ -73,20 +73,21 @@ class XshardTxCursor:
     # - EOF
     # - A valid x-shard transaction deposit
 
-    def __init__(self, shard_state, mblock_header):
+    def __init__(
+        self, shard_state, mblock_header, end_rblock_hash: Optional[bytes] = None
+    ):
         self.shard_state = shard_state
-        self.db = shard_state.db
+        self.db = shard_state.db  # type: ShardDbOperator
 
         cursor_info = self.db.get_minor_block_meta_by_hash(
             mblock_header.hash_prev_minor_block
         ).xshard_tx_cursor_info
 
+        max_rblock_hash = end_rblock_hash or mblock_header.hash_prev_root_block
+        self.max_rblock_header = self.db.get_root_block_header_by_hash(max_rblock_hash)
         # Recover cursor
-        self.max_rblock_header = self.db.get_root_block_header_by_hash(
-            mblock_header.hash_prev_root_block
-        )
         rblock_header = self.db.get_root_block_header_by_height(
-            mblock_header.hash_prev_root_block, cursor_info.root_block_height
+            max_rblock_hash, cursor_info.root_block_height
         )
         self.mblock_index = cursor_info.minor_block_index
         self.xshard_deposit_index = cursor_info.xshard_deposit_index
@@ -2080,15 +2081,14 @@ class ShardState:
             rh = self.get_root_block_header_by_hash(root_block_hash)
             if rh:
                 # get the cursor AFTER executing this block
-                cursor = XshardTxCursor(self, next_block.header)
+                cursor = XshardTxCursor(
+                    self, next_block.header, end_rblock_hash=root_block_hash
+                )
                 # sum up all xshard deposit value until passing current root block
                 while True:
                     xshard_deposit = cursor.get_next_tx()
                     # exit if running out of deposits or having gone over current root height
-                    if (
-                        xshard_deposit is None
-                        or cursor.rblock.header.height > rh.height
-                    ):
+                    if xshard_deposit is None:
                         break
                     total += xshard_deposit.value
         return total, key or bytes(32)

@@ -2578,14 +2578,16 @@ class TestCluster(unittest.TestCase):
 
             b1 = state1.create_block_to_mine(address=acc1)
             call_async(clusters[0].get_shard(1).add_block(b1))
-            b2 = state2.create_block_to_mine(address=acc2)
-            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
+            # add two blocks to shard 1, while only make the first included by root block
+            b2s = []
+            for _ in range(2):
+                b2 = state2.create_block_to_mine(address=acc2)
+                call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
+                b2s.append(b2)
 
             # add a root block so the xshard tx can be recorded
-            root_block = call_async(
-                master.get_next_block_to_mine(
-                    Address.create_empty_account(), branch_value=None
-                )
+            root_block = master.root_state.create_block_to_mine(
+                [b1.header, b2s[0].header], acc1
             )
             call_async(master.add_root_block(root_block))
 
@@ -2593,12 +2595,9 @@ class TestCluster(unittest.TestCase):
             balance, _ = state1.get_total_balance(
                 qkc_token, state1.header_tip.get_hash(), None, 100, None
             )
-            # minus value plus root block coinbase
+            # minus transfer value plus root block coinbase
             self.assertEqual(balance, init_coinbase - 100 + 5)
 
-            # check target shard. should be updated after making a new block
-            b2 = state2.create_block_to_mine(address=acc2)
-            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
             # query with root block, should include xshard deposit
             balance, _ = state2.get_total_balance(
                 qkc_token,
@@ -2608,12 +2607,15 @@ class TestCluster(unittest.TestCase):
                 None,
             )
             self.assertEqual(balance, init_coinbase + 100)
-            # query without root block hash, exclude xshard deposit
+            # query without root block hash, should exclude xshard deposit
             balance, _ = state2.get_total_balance(
                 qkc_token, state2.header_tip.hash_prev_minor_block, None, 100, None
             )
             self.assertEqual(balance, init_coinbase)
             # query latest header, deposit should be executed, regardless of root block
+            # once next block is available
+            b2 = state2.create_block_to_mine(address=acc2)
+            call_async(clusters[0].get_shard((1 << 16) + 1).add_block(b2))
             for rh in [None, root_block.header.get_hash()]:
                 balance, _ = state2.get_total_balance(
                     qkc_token, state2.header_tip.get_hash(), rh, 100, None
