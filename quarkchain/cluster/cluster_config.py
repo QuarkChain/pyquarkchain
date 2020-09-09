@@ -170,6 +170,7 @@ class MonitoringConfig(BaseConfig):
 class PrometheusConfig(BaseConfig):
     INTERVAL = 30  # Interval between two total_balance queries
     TOKENS = "QKC"  # comma-separated string of tokens
+    MONITOR_XSHARD_DEPOSIT = False
     PORT = 8000  # Prometheus client expose port
 
 
@@ -207,6 +208,7 @@ class ClusterConfig(BaseConfig):
         self._json_filepath = None
         self.MONITORING = MonitoringConfig()
         self.kafka_logger = KafkaSampleLogger(self)
+        self.PROMETHEUS = PrometheusConfig()
 
         slave_config = SlaveConfig()
         slave_config.PORT = 38000

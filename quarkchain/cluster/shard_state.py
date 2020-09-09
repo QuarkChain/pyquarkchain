@@ -73,16 +73,21 @@ class XshardTxCursor:
     # - EOF
     # - A valid x-shard transaction deposit
 
-    def __init__(self, shard_state, mblock_header, cursor_info):
+    def __init__(
+        self, shard_state, mblock_header, end_rblock_hash: Optional[bytes] = None
+    ):
         self.shard_state = shard_state
-        self.db = shard_state.db
+        self.db = shard_state.db  # type: ShardDbOperator
 
+        cursor_info = self.db.get_minor_block_meta_by_hash(
+            mblock_header.hash_prev_minor_block
+        ).xshard_tx_cursor_info
+
+        max_rblock_hash = end_rblock_hash or mblock_header.hash_prev_root_block
+        self.max_rblock_header = self.db.get_root_block_header_by_hash(max_rblock_hash)
         # Recover cursor
-        self.max_rblock_header = self.db.get_root_block_header_by_hash(
-            mblock_header.hash_prev_root_block
-        )
         rblock_header = self.db.get_root_block_header_by_height(
-            mblock_header.hash_prev_root_block, cursor_info.root_block_height
+            max_rblock_hash, cursor_info.root_block_height
         )
         self.mblock_index = cursor_info.minor_block_index
         self.xshard_deposit_index = cursor_info.xshard_deposit_index
@@ -104,8 +109,7 @@ class XshardTxCursor:
     def __get_current_tx(self):
         if self.mblock_index == 0:
             # 0 is reserved for EOF
-            check(self.xshard_deposit_index == 1 or self.xshard_deposit_index == 2)
-            # TODO: for single native token only
+            check(self.xshard_deposit_index in [1, 2])
             if self.xshard_deposit_index == 1:
                 coinbase_amount = 0
                 if self.shard_state.branch.is_in_branch(
@@ -1347,7 +1351,7 @@ class ShardState:
         The list should be validated by remote shard, however,
         it is better to diagnose some bugs in peer shard if we could check
         - x-shard gas limit exceeded
-        - it is a neighor of current shard following our routing rule
+        - it is a neighbor of current shard following our routing rule
         """
         self.db.put_minor_block_xshard_tx_list(h, tx_list)
         tx_hashes = [
@@ -1573,10 +1577,7 @@ class ShardState:
         check(evm_state.gas_used <= evm_state.gas_limit)
 
     def __run_cross_shard_tx_with_cursor(self, evm_state, mblock):
-        cursor_info = self.db.get_minor_block_meta_by_hash(
-            mblock.header.hash_prev_minor_block
-        ).xshard_tx_cursor_info
-        cursor = XshardTxCursor(self, mblock.header, cursor_info)
+        cursor = XshardTxCursor(self, mblock.header)
         tx_list = []
 
         while True:
@@ -1897,23 +1898,28 @@ class ShardState:
             return None
         return self._get_evm_state_for_new_block(block)
 
-    def _get_evm_state_from_hash(self, block_hash: bytes) -> Optional[EvmState]:
+    def _get_evm_state_from_hash(
+        self, block_hash: bytes
+    ) -> Tuple[Optional[EvmState], Optional[MinorBlock]]:
         if block_hash == self.header_tip.get_hash():
-            return self.evm_state
+            return (
+                self.evm_state,
+                self.db.get_minor_block_by_height(self.header_tip.height + 1),
+            )
 
         # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
         # first get the current block then get next block through height
         block = self.db.get_minor_block_by_hash(block_hash)
         if not block:
             Logger.error("Failed to get block with hash {}".format(block_hash.hex()))
-            return None
+            return None, None
         next_block = self.db.get_minor_block_by_height(block.header.height + 1)
         if next_block.header.hash_prev_minor_block != block_hash:
             Logger.error(
                 "Blocks not correctly linked at height {}".format(block.header.height)
             )
-            return None
-        return self._get_evm_state_for_new_block(next_block)
+            return None, None
+        return self._get_evm_state_for_new_block(next_block), next_block
 
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
         """ PoSW needed function: get coinbase addresses up until the given block
@@ -2041,13 +2047,14 @@ class ShardState:
         self,
         token_id: int,
         block_hash: bytes,
+        root_block_hash: Optional[bytes],
         limit: int,
         start: Optional[bytes] = None,
     ) -> Tuple[int, bytes]:
         """
         Start should be exclusive during the iteration.
         """
-        evm_state = self._get_evm_state_from_hash(block_hash)
+        evm_state, next_block = self._get_evm_state_from_hash(block_hash)
         if not evm_state:
             raise Exception("block hash not found")
         trie = evm_state.trie.trie
@@ -2060,4 +2067,28 @@ class ShardState:
             addr = evm_state.db.get(key)
             total += evm_state.get_balance(addr, token_id, should_cache=False)
             limit -= 1
+
+        # get xshard deposit towards the current shard
+        if (
+            self.env.cluster_config.PROMETHEUS.MONITOR_XSHARD_DEPOSIT
+            and start is None  # only calculate for first iteration
+            and root_block_hash is not None  # only if root block is provided
+            # only when can get the correct cursor info
+            # note this may yield false results, e.g. quering latest minor block
+            # but should be acceptable for stats purposes
+            and next_block is not None
+        ):
+            rh = self.get_root_block_header_by_hash(root_block_hash)
+            if rh:
+                # get the cursor AFTER executing this block
+                cursor = XshardTxCursor(
+                    self, next_block.header, end_rblock_hash=root_block_hash
+                )
+                # sum up all xshard deposit value until passing current root block
+                while True:
+                    xshard_deposit = cursor.get_next_tx()
+                    # exit if running out of deposits or having gone over current root height
+                    if xshard_deposit is None:
+                        break
+                    total += xshard_deposit.value
         return total, key or bytes(32)

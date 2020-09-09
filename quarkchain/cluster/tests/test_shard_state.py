@@ -129,7 +129,7 @@ class TestShardState(unittest.TestCase):
             next_start = None
             for _ in range(num_of_calls):
                 balance, next_start = state.get_total_balance(
-                    qkc_token, state.header_tip.get_hash(), batch, next_start
+                    qkc_token, state.header_tip.get_hash(), None, batch, next_start
                 )
                 total += balance
             self.assertEqual(
@@ -145,7 +145,7 @@ class TestShardState(unittest.TestCase):
 
         # Random start should also succeed
         state.get_total_balance(
-            qkc_token, state.header_tip.get_hash(), 1, start=urandom(32)
+            qkc_token, state.header_tip.get_hash(), None, 1, start=urandom(32)
         )
 
     def test_init_genesis_state(self):
