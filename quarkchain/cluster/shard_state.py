@@ -2090,5 +2090,6 @@ class ShardState:
                     # exit if running out of deposits or having gone over current root height
                     if xshard_deposit is None:
                         break
-                    total += xshard_deposit.value
+                    if xshard_deposit.transfer_token_id == token_id:
+                        total += xshard_deposit.value
         return total, key or bytes(32)
