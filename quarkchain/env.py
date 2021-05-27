@@ -6,6 +6,7 @@ from quarkchain.constants import (
     MAINNET_ENABLE_NON_RESERVED_NATIVE_TOKEN_CONTRACT_TIMESTAMP,
     MAINNET_ENABLE_GENERAL_NATIVE_TOKEN_CONTRACT_TIMESTAMP,
     MAINNET_ENABLE_POSW_STAKING_DECAY_TIMESTAMP,
+    MAINNET_ENABLE_EIP155_SIGNER_TIMESTAMP,
 )
 from quarkchain.evm.config import Env as EvmEnv
 from quarkchain.db import InMemoryDb
@@ -93,6 +94,13 @@ class Env:
         ):
             c.QUARKCHAIN.ENABLE_POSW_STAKING_DECAY_TIMESTAMP = (
                 MAINNET_ENABLE_POSW_STAKING_DECAY_TIMESTAMP
+            )
+        if (
+            c.QUARKCHAIN.ENABLE_EIP155_SIGNER_TIMESTAMP is None
+            and c.QUARKCHAIN.NETWORK_ID == 1
+        ):
+            c.QUARKCHAIN.ENABLE_EIP155_SIGNER_TIMESTAMP = (
+                MAINNET_ENABLE_EIP155_SIGNER_TIMESTAMP
             )
 
     def copy(self):

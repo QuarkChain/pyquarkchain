@@ -121,6 +121,7 @@ class POSWConfig(BaseConfig):
 
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
+    ETH_CHAIN_ID = 100000
     SHARD_SIZE = 2
     DEFAULT_CHAIN_TOKEN = "QKC"
 
@@ -193,7 +194,7 @@ class ShardConfig(ChainConfig):
 
     @property
     def root_config(self):
-        return self._root_config
+        return self._root_config2
 
     @root_config.setter
     def root_config(self, value):
@@ -310,6 +311,7 @@ class QuarkChainConfig(BaseConfig):
     TX_WHITELIST_SENDERS = []
     ENABLE_EVM_TIMESTAMP = None
     ENABLE_QKCHASHX_HEIGHT = None
+    EABLE_EIP155_SIGNER_TIMESTAMP = None
     ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_POSW_STAKING_DECAY_TIMESTAMP = None
@@ -411,17 +413,17 @@ class QuarkChainConfig(BaseConfig):
         return self._chain_id_to_shard_size[chain_id]
 
     def get_genesis_root_height(self, full_shard_id: int) -> int:
-        """ Return the root block height at which the shard shall be created"""
+        """Return the root block height at which the shard shall be created"""
         return self.shards[full_shard_id].GENESIS.ROOT_HEIGHT
 
     def get_full_shard_ids(self) -> List[int]:
-        """ Return a list of full_shard_ids found in the config"""
+        """Return a list of full_shard_ids found in the config"""
         return list(self.shards.keys())
 
     def get_initialized_full_shard_ids_before_root_height(
         self, root_height: int
     ) -> List[int]:
-        """ Return a list of ids of the shards that have been initialized before a certain root height"""
+        """Return a list of ids of the shards that have been initialized before a certain root height"""
         ids = []
         for full_shard_id, config in self.shards.items():
             if config.GENESIS.ROOT_HEIGHT < root_height:

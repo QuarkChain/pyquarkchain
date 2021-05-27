@@ -27,6 +27,7 @@
     "GENESIS_TOKEN": "QKC",
     "ENABLE_TX_TIMESTAMP": 0,
     "ENABLE_EVM_TIMESTAMP": 0,
+    "ENABLE_EIP155_SIGNER_TIMESTAMP": 0,
     "ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP": 0,
     "ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP": 0,
     "ROOT": {
@@ -55,6 +56,7 @@
     },
     "CHAINS": [
       {
+        "ETH_CHAIN_ID": 100001,
         "CHAIN_ID": 0,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -96,6 +98,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100002,
         "CHAIN_ID": 1,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -132,6 +135,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100003,
         "CHAIN_ID": 2,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -168,6 +172,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100004,
         "CHAIN_ID": 3,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -204,6 +209,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100005,
         "CHAIN_ID": 4,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -240,6 +246,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100006,
         "CHAIN_ID": 5,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -276,6 +283,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100007,
         "CHAIN_ID": 6,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -312,6 +320,7 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
+        "ETH_CHAIN_ID": 100008,
         "CHAIN_ID": 7,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",

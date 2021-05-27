@@ -137,6 +137,12 @@ def validate_transaction(state, tx):
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
 
+    if (
+        state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
+        and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+    ):
+        check(tx.version != 2, "EIP155 Signer has not enable yet.")
+
     # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
     if (
         tx.startgas > UINT128_MAX
@@ -389,6 +395,12 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
     )
 
+    if (
+        state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
+        and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+    ):
+        check(tx.version != 2, "EIP155 Signer has not enable yet.")
+
     # buy startgas
     gasprice, refund_rate = tx.gasprice, 100
     # convert gas if using non-genesis native token
@@ -564,8 +576,8 @@ class VMExt:
         self.revert = state.revert
         self.transfer_value = state.transfer_value
         self.deduct_value = state.deduct_value
-        self.add_cross_shard_transaction_deposit = lambda deposit: state.xshard_list.append(
-            deposit
+        self.add_cross_shard_transaction_deposit = (
+            lambda deposit: state.xshard_list.append(deposit)
         )
         self.reset_storage = state.reset_storage
         self.tx_origin = sender
@@ -580,10 +592,10 @@ def apply_msg(ext, msg):
 
 
 def transfer_failure_by_posw_balance_check(ext, msg):
-    return msg.sender in ext.sender_disallow_map and msg.value + ext.sender_disallow_map[
-        msg.sender
-    ] > ext.get_balance(
-        msg.sender
+    return (
+        msg.sender in ext.sender_disallow_map
+        and msg.value + ext.sender_disallow_map[msg.sender]
+        > ext.get_balance(msg.sender)
     )
 
 
