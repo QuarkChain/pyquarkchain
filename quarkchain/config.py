@@ -194,7 +194,7 @@ class ShardConfig(ChainConfig):
 
     @property
     def root_config(self):
-        return self._root_config2
+        return self._root_config
 
     @root_config.setter
     def root_config(self, value):
