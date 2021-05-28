@@ -16,7 +16,7 @@ DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
 
 
 def update_genesis_alloc(cluser_config):
-    """ Update ShardConfig.GENESIS.ALLOC """
+    """Update ShardConfig.GENESIS.ALLOC"""
     ALLOC_FILE_TEMPLATE = "alloc/{}.json"
     LOADTEST_FILE = "loadtest.json"
 
@@ -156,8 +156,7 @@ class P2PConfig(BaseConfig):
 
 
 class MonitoringConfig(BaseConfig):
-    """None of the configs here is available in commandline, so just set the json file to change defaults
-    """
+    """None of the configs here is available in commandline, so just set the json file to change defaults"""
 
     NETWORK_NAME = ""
     CLUSTER_ID = DEFAULT_HOST
@@ -289,6 +288,9 @@ class ClusterConfig(BaseConfig):
 
         parser.add_argument(
             "--num_chains", default=QuarkChainConfig.CHAIN_SIZE, type=int
+        )
+        parser.add_argument(
+            "--base_eth_chain_id", default=QuarkChainConfig.BASE_ETH_CHAIN_ID, type=int
         )
         parser.add_argument(
             "--num_shards_per_chain", default=ChainConfig.SHARD_SIZE, type=int
@@ -427,8 +429,7 @@ class ClusterConfig(BaseConfig):
 
     @classmethod
     def create_from_args(cls, args):
-        """ Create ClusterConfig either from the JSON file or cmd flags.
-        """
+        """Create ClusterConfig either from the JSON file or cmd flags."""
 
         def __create_from_args_internal():
             check(
@@ -457,6 +458,7 @@ class ClusterConfig(BaseConfig):
                 args.root_block_interval_sec,
                 args.minor_block_interval_sec,
                 args.default_token,
+                args.base_eth_chain_id,
             )
             config.QUARKCHAIN.NETWORK_ID = args.network_id
 

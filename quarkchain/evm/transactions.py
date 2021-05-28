@@ -134,6 +134,18 @@ class Transaction(rlp.Serializable):
                 pub = ecrecover_to_pub(self.hash_unsigned, self.v, self.r, self.s)
             if self.version == 1:
                 pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
+            if self.version == 2:
+                v = (
+                    35
+                    + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID
+                    * 2
+                )
+                if self.v < v:
+                    raise InvalidTransaction(
+                        "Invalid signature (wrong v with tx version = 2)"
+                    )
+                v = self.v - v
+                pub = ecrecover_to_pub(self.hash_unsigned, v, self.r, self.s)
             if pub == b"\x00" * 64:
                 raise InvalidTransaction("Invalid signature (zero privkey cannot sign)")
             self._sender = sha3_256(pub)[-20:]
@@ -153,8 +165,20 @@ class Transaction(rlp.Serializable):
         key = normalize_key(key)
 
         self._in_mutable_context = True
-        self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
-        self.version = 0
+
+        if self.version == 0:
+            self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
+        if self.version == 1:
+            self.v, self.r, self.s = ecsign(self.hash_typed, key)
+        if self.versioin == 2:
+            self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
+            self.v = (
+                self.v
+                + 35
+                + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID * 2
+            )
+        if self.version > 2:
+            raise InvalidTransaction("Invalid transaction version.")
         self._in_mutable_context = False
 
         self._sender = utils.privtoaddr(key)
@@ -166,6 +190,10 @@ class Transaction(rlp.Serializable):
 
     @property
     def hash_unsigned(self):
+        if self.version == 2:
+            return sha3_256(
+                rlp.encode(unsigned_eip155_tx_from_tx(self), UnsignedEIP155Transaction)
+            )
         return sha3_256(rlp.encode(unsigned_tx_from_tx(self), UnsignedTransaction))
 
     @property
@@ -280,4 +308,32 @@ def unsigned_tx_from_tx(tx):
         network_id=tx.network_id,
         gas_token_id=tx.gas_token_id,
         transfer_token_id=tx.transfer_token_id,
+    )
+
+
+class UnsignedEIP155Transaction(rlp.Serializable):
+    fields = [
+        ("nonce", big_endian_int),
+        ("gasprice", big_endian_int),
+        ("startgas", big_endian_int),
+        ("to", utils.address),
+        ("value", big_endian_int),
+        ("data", binary),
+        ("ethchainid", big_endian_int),
+        ("param1", big_endian_int),
+        ("param2", big_endian_int),
+    ]
+
+
+def unsigned_eip155_tx_from_tx(tx):
+    return UnsignedEIP155Transaction(
+        nonce=tx.nonce,
+        gasprice=tx.gasprice,
+        startgas=tx.startgas,
+        to=tx.to,
+        value=tx.value,
+        data=tx.data,
+        ethchainid=tx.from_full_shard_key,
+        param1=0,
+        param2=0,
     )

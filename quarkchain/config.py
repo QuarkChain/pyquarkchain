@@ -121,7 +121,7 @@ class POSWConfig(BaseConfig):
 
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
-    ETH_CHAIN_ID = 100000
+    ETH_CHAIN_ID = 110001
     SHARD_SIZE = 2
     DEFAULT_CHAIN_TOKEN = "QKC"
 
@@ -276,7 +276,7 @@ class RootConfig(BaseConfig):
 
 class QuarkChainConfig(BaseConfig):
     CHAIN_SIZE = 3
-
+    BASE_ETH_CHAIN_ID = 110000
     MAX_NEIGHBORS = 32
 
     NETWORK_ID = NetworkId.TESTNET_PORSCHE
@@ -340,6 +340,7 @@ class QuarkChainConfig(BaseConfig):
         for chain_id in range(self.CHAIN_SIZE):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = chain_id
+            chain_config.ETH_CHAIN_ID = self.BASE_ETH_CHAIN_ID + chain_id + 1
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             chain_config.CONSENSUS_CONFIG = POWConfig()
             chain_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
@@ -366,6 +367,7 @@ class QuarkChainConfig(BaseConfig):
             shard_id = shard_config.SHARD_ID
             check(full_shard_id == (chain_id << 16 | shard_size | shard_id))
             check(is_p2(shard_size))
+            check(shard_config.ETH_CHAIN_ID == self.BASE_ETH_CHAIN_ID + chain_id + 1)
             if chain_id in self._chain_id_to_shard_size:
                 check(shard_size == self._chain_id_to_shard_size[chain_id])
             else:
@@ -460,6 +462,7 @@ class QuarkChainConfig(BaseConfig):
         root_block_time,
         minor_block_time,
         default_token,
+        base_eth_chain_id=110000,
     ):
         self.CHAIN_SIZE = chain_size
 
@@ -474,6 +477,7 @@ class QuarkChainConfig(BaseConfig):
         for chain_id in range(chain_size):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = chain_id
+            chain_config.ETH_CHAIN_ID = base_eth_chain_id + chain_id + 1
             chain_config.SHARD_SIZE = shard_size_per_chain
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             chain_config.CONSENSUS_CONFIG = POWConfig()

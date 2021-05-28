@@ -14,6 +14,7 @@
     "MIN_TX_POOL_GAS_PRICE": 0,
     "MIN_MINING_GAS_PRICE": 0,
     "CHAIN_SIZE": 8,
+    "BASE_ETH_CHAIN_ID": 110000,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 255,
     "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
@@ -56,7 +57,6 @@
     },
     "CHAINS": [
       {
-        "ETH_CHAIN_ID": 100001,
         "CHAIN_ID": 0,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -98,7 +98,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100002,
         "CHAIN_ID": 1,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -135,7 +134,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100003,
         "CHAIN_ID": 2,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -172,7 +170,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100004,
         "CHAIN_ID": 3,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -209,7 +206,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100005,
         "CHAIN_ID": 4,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -246,7 +242,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100006,
         "CHAIN_ID": 5,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -283,7 +278,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100007,
         "CHAIN_ID": 6,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
@@ -320,7 +314,6 @@
         "EPOCH_INTERVAL": 3153600
       },
       {
-        "ETH_CHAIN_ID": 100008,
         "CHAIN_ID": 7,
         "SHARD_SIZE": 1,
         "DEFAULT_CHAIN_TOKEN": "QKC",
