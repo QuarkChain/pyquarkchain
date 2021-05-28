@@ -170,7 +170,7 @@ class Transaction(rlp.Serializable):
             self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
         if self.version == 1:
             self.v, self.r, self.s = ecsign(self.hash_typed, key)
-        if self.versioin == 2:
+        if self.version == 2:
             self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
             self.v = (
                 self.v
