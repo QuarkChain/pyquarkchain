@@ -28,6 +28,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         for i in range(config.CHAIN_SIZE):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = i
+            chain_config.ETH_CHAIN_ID = config.BASE_ETH_CHAIN_ID + 1 + i
             chain_config.SHARD_SIZE = 2
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             chain_config.CONSENSUS_CONFIG = POWConfig()
@@ -82,6 +83,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "CHAINS": [
         {
             "CHAIN_ID": 0,
+            "ETH_CHAIN_ID": 110001,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
@@ -119,6 +121,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         },
         {
             "CHAIN_ID": 1,
+            "ETH_CHAIN_ID": 110002,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
@@ -156,6 +159,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         },
         {
             "CHAIN_ID": 2,
+            "ETH_CHAIN_ID": 110003,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
