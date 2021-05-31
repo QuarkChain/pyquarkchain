@@ -511,6 +511,9 @@ class QuarkChainConfig(BaseConfig):
         shards = dict()
         for s in config.CHAINS:
             chain_config = ChainConfig.from_dict(s)
+            chain_config.ETH_CHAIN_ID = (
+                config.BASE_ETH_CHAIN_ID + chain_config.CHAIN_ID + 1
+            )
             chains.append(chain_config)
             for shard_id in range(chain_config.SHARD_SIZE):
                 shard_config = ShardConfig(chain_config)
