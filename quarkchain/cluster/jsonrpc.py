@@ -863,6 +863,7 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)
     async def call(self, data, block_height=None):
+        print("ccccccc")
         return await self._call_or_estimate_gas(
             is_call=True, block_height=block_height, **data
         )
@@ -1150,6 +1151,7 @@ class JSONRPCHttpServer:
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard=None):
         """ Returns the result of the transaction application without putting in block chain """
+        print("calll---2")
         data = self._convert_eth_call_data(data, shard)
         return await self.call(data)
 
