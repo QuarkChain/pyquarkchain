@@ -1146,10 +1146,13 @@ class ShardState:
         gas = evm_tx.startgas if evm_tx.startgas else state.gas_limit
 
         try:
+            print("validate")
             evm_tx = self.__validate_tx(tx, state, from_address, gas)
+            print("ready apply")
             success, output = apply_transaction(
                 state, evm_tx, tx_wrapper_hash=bytes(32)
             )
+            print("end apply",output)
             return output if success else None
         except Exception as e:
             Logger.warning_every_sec("Failed to apply transaction: {}".format(e), 1)
