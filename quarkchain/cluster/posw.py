@@ -49,9 +49,10 @@ def get_posw_coinbase_blockcnt(
     else:  # miss, iterating DB
         addrs = deque()
         for _ in range(length):
-            addrs.appendleft(header.coinbase_address.recipient)
             if header.height == 0:
                 break
+            addrs.appendleft(header.coinbase_address.recipient)
+
             header = header_func(header.hash_prev_block)
             check(header is not None, "mysteriously missing block")
     cache[header_hash] = addrs
