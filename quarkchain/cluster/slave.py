@@ -1215,8 +1215,10 @@ class SlaveServer:
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
         shard = self.shards.get(branch, None)
+        print("branch",branch.value)
         if not shard:
             return None
+        print("execute_tx")
         return shard.state.execute_tx(tx, from_address, height)
 
     def get_transaction_count(self, address):
