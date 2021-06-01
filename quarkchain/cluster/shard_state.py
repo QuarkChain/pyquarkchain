@@ -1916,7 +1916,7 @@ class ShardState:
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
-            print("1919")
+            print("1919",len(self.evm_state.sender_disallow_map),self.evm_state.sender_disallow_map)
             return self.evm_state
 
         # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
