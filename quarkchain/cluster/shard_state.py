@@ -599,6 +599,7 @@ class ShardState:
         sender_disallow_map = self._get_sender_disallow_map(
             prev_minor_header, recipient=coinbase_recipient
         )
+        print("LLLLLLLLLLL",len(sender_disallow_map))
 
         state = self.__create_evm_state(
             root_hash, sender_disallow_map, block.header.create_time, prev_minor_hash
