@@ -134,6 +134,7 @@ def create_transfer_transaction(
         transfer_token_id=transfer_token_id,
         version=version,
     )
+    evm_tx.set_quark_chain_config(shard_state.env.quark_chain_config)
     evm_tx.sign(key=key)
     return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
