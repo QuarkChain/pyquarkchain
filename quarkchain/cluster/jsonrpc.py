@@ -863,7 +863,6 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)
     async def call(self, data, block_height=None):
-        print("ccccccc")
         return await self._call_or_estimate_gas(
             is_call=True, block_height=block_height, **data
         )
@@ -1151,7 +1150,6 @@ class JSONRPCHttpServer:
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard=None):
         """ Returns the result of the transaction application without putting in block chain """
-        print("calll---2")
         data = self._convert_eth_call_data(data, shard)
         return await self.call(data)
 
@@ -1375,7 +1373,6 @@ class JSONRPCHttpServer:
         return loglist_encoder(logs)
 
     async def _call_or_estimate_gas(self, is_call: bool, **data):
-        print("callllll",is_call,data)
         """ Returns the result of the transaction application without putting in block chain """
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
@@ -1432,7 +1429,6 @@ class JSONRPCHttpServer:
             )
             if not is_same_shard:
                 raise InvalidParams("Call cross-shard tx not supported yet")
-            print("1432222222")
             res = await self.master.execute_transaction(
                 tx, sender_address, data["block_height"]
             )

@@ -255,7 +255,6 @@ def apply_transaction_message(
 
     evm_gas_start = message.gas
     if not should_create_contract:
-        print("apply_msg")
         result, gas_remained, data = apply_msg(ext, message)
         contract_address = b""
     else:  # CREATE
@@ -448,7 +447,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
 
     contract_address = b""
     if not tx.is_cross_shard:
-        print("apply_messapge")
         return apply_transaction_message(
             state, message, ext, tx.to == b"", intrinsic_gas, refund_rate=refund_rate
         )
@@ -621,13 +619,11 @@ def _apply_msg(ext, msg, code):
             transfer_token_id=msg.transfer_token_id,
         )
 
-    print("ccccccccccccccccccccc")
     # early exit if msg.sender is disallowed
     if transfer_failure_by_posw_balance_check(ext, msg):
-        print("sbsbsbsbsbsbsb")
         log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
         return 0, 0, []
-    print("not cccccccccc")
+
     # transfer value, quit if not enough
     snapshot = ext.snapshot()
     if msg.transfers_value:

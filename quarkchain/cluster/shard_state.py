@@ -599,7 +599,6 @@ class ShardState:
         sender_disallow_map = self._get_sender_disallow_map(
             prev_minor_header, recipient=coinbase_recipient
         )
-        print("LLLLLLLLLLL",len(sender_disallow_map))
 
         state = self.__create_evm_state(
             root_hash, sender_disallow_map, block.header.create_time, prev_minor_hash
@@ -1147,13 +1146,10 @@ class ShardState:
         gas = evm_tx.startgas if evm_tx.startgas else state.gas_limit
 
         try:
-            print("validate")
             evm_tx = self.__validate_tx(tx, state, from_address, gas)
-            print("ready apply")
             success, output = apply_transaction(
                 state, evm_tx, tx_wrapper_hash=bytes(32)
             )
-            print("end apply",output)
             return output if success else None
         except Exception as e:
             Logger.warning_every_sec("Failed to apply transaction: {}".format(e), 1)
@@ -1916,14 +1912,12 @@ class ShardState:
 
     def _get_evm_state_from_height(self, height: Optional[int]) -> Optional[EvmState]:
         if height is None or height == self.header_tip.height:
-            print("1919",len(self.evm_state.sender_disallow_map),self.evm_state.sender_disallow_map)
             return self.evm_state
 
         # note `_get_evm_state_for_new_block` actually fetches the state in the previous block
         # so adding 1 is needed here to get the next block
         block = self.db.get_minor_block_by_height(height + 1)
         if not block:
-            print("192666")
             Logger.error("Failed to get block at height {}".format(height))
             return None
         return self._get_evm_state_for_new_block(block)
