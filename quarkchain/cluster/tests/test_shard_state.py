@@ -2864,8 +2864,11 @@ class TestShardState(unittest.TestCase):
             state.finalize_and_add_block(b1)
 
     def test_enable_eip155_signer_timestamp(self):
+        # whitelist acc1, make tx to acc2
+        # but do not whitelist acc2 and tx fails
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        acc2 = Address.create_random_account(full_shard_key=0)
 
         env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
         state = create_default_shard_state(env=env)
@@ -2873,23 +2876,35 @@ class TestShardState(unittest.TestCase):
         # Add a root block to have all the shards initialized
         root_block = state.root_tip.create_block_to_append().finalize()
         state.add_root_block(root_block)
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = 0
+        env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = None
 
-        tx = create_contract_creation_transaction(
-            shard_state=state, key=id1.get_key(), from_address=acc1, to_full_shard_key=0
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=acc2,
+            value=5000000,
+            gas=50000,
+            version=2,
         )
         self.assertTrue(state.add_tx(tx))
 
         b1 = state.create_block_to_mine()
         self.assertEqual(len(b1.tx_list), 1)
 
-        env.quark_chain_config.ENABLE_EVM_TIMESTAMP = b1.header.create_time + 100
+        env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = (
+            b1.header.create_time + 100
+        )
         b2 = state.create_block_to_mine()
         self.assertEqual(len(b2.tx_list), 0)
 
-        with self.assertRaisesRegexp(
-            RuntimeError, "smart contract tx is not allowed before evm is enabled"
-        ):
-            state.finalize_and_add_block(b1)
+        env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = (
+            b2.header.create_time - 100
+        )
+        b3 = state.create_block_to_mine()
+        self.assertEqual(len(b3.tx_list), 1)
+        state.finalize_and_add_block(b3)
 
     def test_enable_evm_timestamp_with_contract_call(self):
         id1 = Identity.create_random_identity()
