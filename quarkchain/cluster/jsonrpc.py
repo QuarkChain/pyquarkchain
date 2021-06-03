@@ -1149,8 +1149,10 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard=None):
+        print("eth_call---")
         """ Returns the result of the transaction application without putting in block chain """
         data = self._convert_eth_call_data(data, shard)
+        print("call---")
         return await self.call(data)
 
     @public_methods.add
