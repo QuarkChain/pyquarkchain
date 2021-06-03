@@ -1375,21 +1375,22 @@ class JSONRPCHttpServer:
         return loglist_encoder(logs)
 
     async def _call_or_estimate_gas(self, is_call: bool, **data):
+        print("===1")
         """ Returns the result of the transaction application without putting in block chain """
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
-
+        print("==2")
         def get_data_default(key, decoder, default=None):
             if key in data:
                 return decoder(data[key])
             return default
-
+        print("33333")
         to = get_data_default("to", address_decoder, None)
         if to is None:
             raise InvalidParams("Missing to")
-
+        print("444")
         to_full_shard_key = int.from_bytes(to[20:], "big")
-
+        print("555")
         gas = get_data_default("gas", quantity_decoder, 0)
         gas_price = get_data_default("gasPrice", quantity_decoder, 0)
         value = get_data_default("value", quantity_decoder, 0)
@@ -1400,6 +1401,7 @@ class JSONRPCHttpServer:
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
         )
+        print("666")
         transfer_token_id = get_data_default(
             "transfer_token_id",
             quantity_decoder,
