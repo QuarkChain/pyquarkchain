@@ -863,12 +863,14 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)
     async def call(self, data, block_height=None):
+        print("86666666-call")
         return await self._call_or_estimate_gas(
             is_call=True, block_height=block_height, **data
         )
 
     @public_methods.add
     async def estimateGas(self, data):
+        print("872--------calll")
         return await self._call_or_estimate_gas(is_call=False, **data)
 
     @public_methods.add
@@ -1166,6 +1168,7 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
     async def eth_estimateGas(self, data, shard):
+        print("1171------------------","eth_estimateGas")
         data = self._convert_eth_call_data(data, shard)
         return await self.estimateGas(**data)
 
