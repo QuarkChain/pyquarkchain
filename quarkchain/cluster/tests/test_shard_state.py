@@ -2893,6 +2893,7 @@ class TestShardState(unittest.TestCase):
         b1 = state.create_block_to_mine()
         self.assertEqual(len(b1.tx_list), 1)
 
+        state.evm_state.timestamp=b1.header.create_time
         env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = (
             b1.header.create_time + 100
         )
@@ -2900,8 +2901,9 @@ class TestShardState(unittest.TestCase):
         self.assertEqual(len(b2.tx_list), 0)
 
         env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = (
-            b2.header.create_time - 100
+            b1.header.create_time - 100
         )
+        self.assertTrue(state.add_tx(tx))
         b3 = state.create_block_to_mine()
         self.assertEqual(len(b3.tx_list), 1)
         state.finalize_and_add_block(b3)

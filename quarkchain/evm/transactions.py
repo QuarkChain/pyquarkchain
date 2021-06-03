@@ -174,7 +174,7 @@ class Transaction(rlp.Serializable):
             self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
             self.v = (
                 self.v
-                + 35
+                + 35 - 27
                 + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID * 2
             )
         if self.version > 2:
