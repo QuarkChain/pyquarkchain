@@ -110,6 +110,7 @@ def create_transfer_transaction(
     data=b"",
     gas_token_id=None,
     transfer_token_id=None,
+    version=0,
 ):
     if gas_token_id is None:
         gas_token_id = shard_state.env.quark_chain_config.genesis_token
@@ -131,7 +132,9 @@ def create_transfer_transaction(
         network_id=shard_state.env.quark_chain_config.NETWORK_ID,
         gas_token_id=gas_token_id,
         transfer_token_id=transfer_token_id,
+        version=version,
     )
+    evm_tx.set_quark_chain_config(shard_state.env.quark_chain_config)
     evm_tx.sign(key=key)
     return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
