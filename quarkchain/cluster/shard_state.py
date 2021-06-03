@@ -1820,8 +1820,10 @@ class ShardState:
                 success, _ = apply_transaction(
                     evm_state, evm_tx, tx_wrapper_hash=bytes(32)
                 )
+                print("gas sunncess",gas)
                 return success
             except Exception:
+                print("gas failed",gas)
                 return None
 
         while lo + 1 < hi:
