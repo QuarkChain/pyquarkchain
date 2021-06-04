@@ -1406,7 +1406,7 @@ class JSONRPCHttpServer:
             to_full_shard_key= int.from_bytes(sender[20:], "big")
             to=None
             print("tttttttttt",to_full_shard_key,to)
-        else
+        else:
             to=to[:20]
 
         gas_token_id = get_data_default(
