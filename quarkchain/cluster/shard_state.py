@@ -522,7 +522,7 @@ class ShardState:
         req_nonce = evm_state.get_nonce(evm_tx.sender)
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
             return evm_tx
-
+        print("validate_transaction")
         # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         validate_transaction(evm_state, evm_tx)
         return evm_tx

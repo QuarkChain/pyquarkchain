@@ -161,6 +161,7 @@ def validate_transaction(state, tx):
     # (3) the gas limit is no smaller than the intrinsic gas,
     # g0, used by the transaction;
     total_gas = tx.intrinsic_gas_used
+    print("164444",total_gas,tx.intrinsic_gas_used)
     if tx.startgas < total_gas:
         raise InsufficientStartGas(rp(tx, "startgas", tx.startgas, total_gas))
 
