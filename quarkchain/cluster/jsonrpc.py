@@ -875,6 +875,7 @@ class JSONRPCHttpServer:
 
     @public_methods.add
     async def getTransactionReceipt(self, tx_id):
+        print("===========")
         id_bytes = data_decoder(tx_id)
         if len(id_bytes) != 36:
             raise InvalidParams("Invalid id encoding")
@@ -888,6 +889,7 @@ class JSONRPCHttpServer:
             )
         )
         resp = await self.master.get_transaction_receipt(tx_hash, branch)
+        print("resp===",resp)
         if not resp:
             return None
         minor_block, i, receipt = resp

@@ -1577,9 +1577,11 @@ class MasterServer:
         self, tx_hash, branch
     ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         if branch.value not in self.branch_to_slaves:
+            print("noneeeeeeeeeeeeeeeeee")
             return None
 
         slave = self.branch_to_slaves[branch.value][0]
+        print("1584------------")
         return await slave.get_transaction_receipt(tx_hash, branch)
 
     async def get_all_transactions(self, branch: Branch, start: bytes, limit: int):
