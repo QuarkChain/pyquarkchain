@@ -1406,6 +1406,8 @@ class JSONRPCHttpServer:
             to_full_shard_key= int.from_bytes(sender[20:], "big")
             to=None
             print("tttttttttt",to_full_shard_key,to)
+        else
+            to=to[:20]
 
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
@@ -1424,7 +1426,7 @@ class JSONRPCHttpServer:
             nonce,
             gas_price,
             gas,
-            to[:20],
+            to,
             value,
             data_,
             from_full_shard_key=from_full_shard_key,
