@@ -214,7 +214,7 @@ class Transaction(rlp.Serializable):
     def intrinsic_gas_used(self):
         num_zero_bytes = str_to_bytes(self.data).count(ascii_chr(0))
         num_non_zero_bytes = len(self.data) - num_zero_bytes
-        print("----",self.to,self.is_cross_shard)
+        print("----",self.to,self.is_cross_shard,opcodes.CREATE[3])
         return (
             opcodes.GTXCOST
             + (opcodes.CREATE[3] if not self.to else 0)
