@@ -1243,7 +1243,9 @@ class MasterServer:
                 if peer == from_peer:
                     continue
                 try:
+                    print("peer.ssssssssssssssssssss",bytes.hex(tx.get_hash()))
                     peer.send_transaction(tx)
+                    print("peer.send end")
                 except Exception:
                     Logger.log_exception()
         return True
