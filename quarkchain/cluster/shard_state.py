@@ -1644,6 +1644,7 @@ class ShardState:
         self, h
     ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         block, index = self.db.get_transaction_by_hash(h)
+        print("sharddd_get__",block,index,h.hex())
         if not block:
             return None
         try:
