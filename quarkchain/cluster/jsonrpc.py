@@ -1388,9 +1388,9 @@ class JSONRPCHttpServer:
                 return decoder(data[key])
             return default
         print("33333")
-        to = get_data_default("to", address_decoder, None)
-        if to is None:
-            raise InvalidParams("Missing to")
+        # to = get_data_default("to", address_decoder, None)
+        # if to is None:
+        #     raise InvalidParams("Missing to")
         print("444")
         to_full_shard_key = int.from_bytes(to[20:], "big")
         print("555")
