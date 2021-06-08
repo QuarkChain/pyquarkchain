@@ -140,8 +140,9 @@ def validate_transaction(state, tx):
     if (
         state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
         and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+        and tx.version == 2
     ):
-        check(tx.version != 2, "EIP155 Signer has not enable yet.")
+        raise InvalidTransaction("EIP155 Signer has not enable yet.")
 
     # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
     if (
@@ -398,8 +399,9 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     if (
         state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
         and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+        and tx.version == 2
     ):
-        check(tx.version != 2, "EIP155 Signer has not enable yet.")
+        raise InvalidTransaction("EIP155 Signer has not enable yet.")
 
     # buy startgas
     gasprice, refund_rate = tx.gasprice, 100
