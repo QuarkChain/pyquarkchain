@@ -140,13 +140,13 @@ def validate_transaction(state, tx):
             state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
             and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
         ):
-            raise InvalidTransaction("EIP155 Signer has not enable yet.")
+            raise InvalidTransaction("EIP155 Signer is not enable yet.")
         if tx.from_chain_id != tx.to_chain_id or tx.from_shard_id != tx.to_shard_id:
             raise InvalidTransaction(
                 "EIP155 Signer do not support cross shard transaction."
             )
         if tx.gas_token_id != 35760:  # qkc 35760
-            raise InvalidTransaction("EIP155 Signer only support qkc as gas toke.")
+            raise InvalidTransaction("EIP155 Signer only support qkc as gas token.")
         if tx.transfer_token_id != 35760:  # qkc 35760
             raise InvalidTransaction(
                 "EIP155 Signer only support qkc as transfer token."
@@ -403,23 +403,6 @@ def apply_transaction(state, tx: transactions.Transaction, tx_wrapper_hash):
     local_fee_rate = (
         1 - state.qkc_config.reward_tax_rate if state.qkc_config else Fraction(1)
     )
-
-    if tx.version == 2:
-        if (
-            state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
-            and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
-        ):
-            raise InvalidTransaction("EIP155 Signer has not enable yet.")
-        if tx.from_chain_id != tx.to_chain_id or tx.from_shard_id != tx.to_shard_id:
-            raise InvalidTransaction(
-                "EIP155 Signer do not support cross shard transaction."
-            )
-        if tx.gas_token_id != 35760:
-            raise InvalidTransaction("EIP155 Signer only support qkc as gas toke.")
-        if tx.transfer_token_id != 35760:
-            raise InvalidTransaction(
-                "EIP155 Signer only support qkc as transfer token."
-            )
 
     # buy startgas
     gasprice, refund_rate = tx.gasprice, 100
