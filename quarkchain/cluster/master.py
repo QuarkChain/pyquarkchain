@@ -1512,7 +1512,7 @@ class MasterServer:
         return {
             "networkId": self.env.quark_chain_config.NETWORK_ID,
             "chainSize": self.env.quark_chain_config.CHAIN_SIZE,
-            "baseethchainid": self.env.quark_chain_config.BASE_ETH_CHAIN_ID,
+            "baseEthChainId": self.env.quark_chain_config.BASE_ETH_CHAIN_ID,
             "shardServerCount": len(self.slave_pool),
             "rootHeight": self.root_state.tip.height,
             "rootDifficulty": self.root_state.tip.difficulty,

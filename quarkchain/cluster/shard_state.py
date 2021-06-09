@@ -508,16 +508,27 @@ class ShardState:
                     "smart contract tx is not allowed before evm is enabled"
                 )
 
-        # Check if EIP155 Signer is disabled
-        if (
-            self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
-            and evm_state.timestamp
-            < self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP
-        ):
-            if evm_tx.version == 2:
+        # Check tx which version = 2
+        if evm_tx.version == 2:
+            if (
+                self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
+                and evm_state.timestamp
+                < self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+            ):
                 raise RuntimeError(
                     "TX with version 2 is not allowed before EIP155 Signer is enabled"
                 )
+            if (
+                evm_tx.from_chain_id != evm_tx.to_chain_id
+                or evm_tx.from_shard_id != evm_tx.to_shard_id
+            ):
+                raise RuntimeError(
+                    "EIP155 Signer do not support cross shard transaction."
+                )
+            if evm_tx.gas_token_id != 35760:  # qkc 35760
+                raise RuntimeError("EIP155 Signer only support qkc as gas toke.")
+            if evm_tx.transfer_token_id != 35760:  # qkc 35760
+                raise RuntimeError("EIP155 Signer only support qkc as transfer token.")
 
         req_nonce = evm_state.get_nonce(evm_tx.sender)
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
