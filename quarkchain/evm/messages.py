@@ -175,6 +175,7 @@ def validate_transaction(state, tx):
 
     default_chain_token = state.shard_config.default_chain_token
     bal = {tx.transfer_token_id: state.get_balance(tx.sender, tx.transfer_token_id)}
+    print("balll",bytes.hex(tx.sender),tx.transfer_token_id,tx.gas_token_id)
     if tx.transfer_token_id != tx.gas_token_id:
         bal[tx.gas_token_id] = state.get_balance(tx.sender, tx.gas_token_id)
 
