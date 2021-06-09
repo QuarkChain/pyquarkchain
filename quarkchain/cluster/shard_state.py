@@ -533,7 +533,7 @@ class ShardState:
         req_nonce = evm_state.get_nonce(evm_tx.sender)
         if req_nonce < evm_tx.nonce <= req_nonce + MAX_FUTURE_TX_NONCE:
             return evm_tx
-        print("validate_transaction")
+
         # This will check signature, nonce, balance, gas limit. Skip if nonce not strictly incremental
         validate_transaction(evm_state, evm_tx)
         return evm_tx
@@ -1655,7 +1655,6 @@ class ShardState:
         self, h
     ) -> Optional[Tuple[MinorBlock, int, TransactionReceipt]]:
         block, index = self.db.get_transaction_by_hash(h)
-        print("sharddd_get__",block,index,h.hex())
         if not block:
             return None
         try:
@@ -1832,10 +1831,8 @@ class ShardState:
                 success, _ = apply_transaction(
                     evm_state, evm_tx, tx_wrapper_hash=bytes(32)
                 )
-                print("gas success",gas)
                 return success
             except Exception:
-                print("gas failed",gas)
                 return None
 
         while lo + 1 < hi:
