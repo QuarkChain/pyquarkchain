@@ -1396,7 +1396,7 @@ class JSONRPCHttpServer:
                 return decoder(data[key])
             return default
 
-        to = get_data_default("to", address_decoder, None)
+        to = get_data_default("to", address_decoder, b"\x00" * 24)
         # if to is None:
         #     raise InvalidParams("Missing to")
 
