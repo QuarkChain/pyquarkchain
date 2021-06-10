@@ -37,7 +37,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         expected_json = """
 {
     "CHAIN_SIZE": 3,
-    "BASE_ETH_CHAIN_ID": 110000,
+    "BASE_ETH_CHAIN_ID": 100000,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 3,
     "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,

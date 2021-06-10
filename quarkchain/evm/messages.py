@@ -136,6 +136,7 @@ def validate_transaction(state, tx):
         raise UnsignedTransaction(tx)
 
     if tx.version == 2:
+        chain_config = state.qkc_config.CHAINS[tx.from_chain_id]
         if (
             state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
             and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
@@ -145,9 +146,17 @@ def validate_transaction(state, tx):
             raise InvalidTransaction(
                 "EIP155 Signer do not support cross shard transaction."
             )
-        if tx.gas_token_id != 35760:  # qkc 35760
+        # network_id will be set to eth_chain_id by the middle layer
+        if tx.network_id != chain_config.ETH_CHAIN_ID:
+            raise InvalidTransaction("Invalid network_id.")
+        if (
+            chain_config.ETH_CHAIN_ID - state.qkc_config.BASE_ETH_CHAIN_ID - 1
+            != tx.from_chain_id
+        ):
+            raise InvalidTransaction("Invalid Eth_Chain_Id.")
+        if tx.gas_token_id != chain_config.DEFAULT_CHAIN_TOKEN:
             raise InvalidTransaction("EIP155 Signer only support qkc as gas token.")
-        if tx.transfer_token_id != 35760:  # qkc 35760
+        if tx.transfer_token_id != chain_config.DEFAULT_CHAIN_TOKEN:
             raise InvalidTransaction(
                 "EIP155 Signer only support qkc as transfer token."
             )

@@ -9,6 +9,7 @@ from eth_keys import KeyAPI
 
 import quarkchain.db
 import quarkchain.evm.config
+from quarkchain.constants import MAINNET_BASE_ETH_CHAIN_ID
 from quarkchain.core import Address
 from quarkchain.utils import check, is_p2, token_id_encode
 
@@ -121,7 +122,7 @@ class POSWConfig(BaseConfig):
 
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
-    ETH_CHAIN_ID = 110001
+    ETH_CHAIN_ID = MAINNET_BASE_ETH_CHAIN_ID + 1
     SHARD_SIZE = 2
     DEFAULT_CHAIN_TOKEN = "QKC"
 
@@ -276,7 +277,7 @@ class RootConfig(BaseConfig):
 
 class QuarkChainConfig(BaseConfig):
     CHAIN_SIZE = 3
-    BASE_ETH_CHAIN_ID = 110000
+    BASE_ETH_CHAIN_ID = MAINNET_BASE_ETH_CHAIN_ID
     MAX_NEIGHBORS = 32
 
     NETWORK_ID = NetworkId.TESTNET_PORSCHE
@@ -462,7 +463,7 @@ class QuarkChainConfig(BaseConfig):
         root_block_time,
         minor_block_time,
         default_token,
-        base_eth_chain_id=110000,
+        base_eth_chain_id=MAINNET_BASE_ETH_CHAIN_ID,
     ):
         self.CHAIN_SIZE = chain_size
 
