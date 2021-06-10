@@ -135,9 +135,10 @@ def create_transfer_transaction(
         version=version,
     )
     evm_tx.set_quark_chain_config(shard_state.env.quark_chain_config)
-    evm_tx.sign(key=key)
     if evm_tx.version == 2:
-        evm_tx.network_id = evm_tx.eth_chain_id
+        evm_tx.sign(key=key, network_id=evm_tx.eth_chain_id)
+    else:
+        evm_tx.sign(key=key)
     return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
 
