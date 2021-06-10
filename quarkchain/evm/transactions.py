@@ -136,7 +136,8 @@ class Transaction(rlp.Serializable):
                 pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
             if self.version == 2:
                 v = (
-                    35-27
+                    35
+                    - 27
                     + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID
                     * 2
                 )
@@ -174,7 +175,8 @@ class Transaction(rlp.Serializable):
             self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
             self.v = (
                 self.v
-                + 35 - 27
+                + 35
+                - 27
                 + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID * 2
             )
         if self.version > 2:
@@ -268,6 +270,10 @@ class Transaction(rlp.Serializable):
             or self.from_shard_id != self.to_shard_id
         )
 
+    @property
+    def eth_chain_id(self):
+        return self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID
+
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.hash == other.hash
 
@@ -333,7 +339,7 @@ def unsigned_eip155_tx_from_tx(tx):
         to=tx.to,
         value=tx.value,
         data=tx.data,
-        ethchainid=tx.quark_chain_config.CHAINS[tx.from_chain_id].ETH_CHAIN_ID,
+        ethchainid=tx.eth_chain_id,
         param1=0,
         param2=0,
     )
