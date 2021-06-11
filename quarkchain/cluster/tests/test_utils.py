@@ -111,11 +111,20 @@ def create_transfer_transaction(
     gas_token_id=None,
     transfer_token_id=None,
     version=0,
+    network_id=None,
 ):
     if gas_token_id is None:
         gas_token_id = shard_state.env.quark_chain_config.genesis_token
     if transfer_token_id is None:
         transfer_token_id = shard_state.env.quark_chain_config.genesis_token
+    if network_id is None:
+        network_id = shard_state.env.quark_chain_config.NETWORK_ID
+        if version == 2:
+            chain_id = from_address.full_shard_key >> 16
+            network_id = shard_state.env.quark_chain_config.CHAINS[
+                chain_id
+            ].ETH_CHAIN_ID
+
     """ Create an in-shard xfer tx
     """
     evm_tx = EvmTransaction(
@@ -129,16 +138,13 @@ def create_transfer_transaction(
         data=data,
         from_full_shard_key=from_address.full_shard_key,
         to_full_shard_key=to_address.full_shard_key,
-        network_id=shard_state.env.quark_chain_config.NETWORK_ID,
+        network_id=network_id,
         gas_token_id=gas_token_id,
         transfer_token_id=transfer_token_id,
         version=version,
     )
     evm_tx.set_quark_chain_config(shard_state.env.quark_chain_config)
-    if evm_tx.version == 2:
-        evm_tx.sign(key=key, network_id=evm_tx.eth_chain_id)
-    else:
-        evm_tx.sign(key=key)
+    evm_tx.sign(key=key)
     return TypedTransaction(SerializedEvmTransaction.from_evm_tx(evm_tx))
 
 
