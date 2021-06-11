@@ -1,6 +1,7 @@
 # Modified from pyethereum under MIT license
 from collections import Counter
 from fractions import Fraction
+from quarkchain.utils import token_id_encode
 
 import rlp
 
@@ -137,6 +138,7 @@ def validate_transaction(state, tx):
 
     if tx.version == 2:
         chain_config = state.qkc_config.CHAINS[tx.from_chain_id]
+        default_token_id = token_id_encode(chain_config.DEFAULT_CHAIN_TOKEN)
         if (
             state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
             and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
@@ -154,11 +156,17 @@ def validate_transaction(state, tx):
             != tx.from_chain_id
         ):
             raise InvalidTransaction("Invalid Eth_Chain_Id.")
-        if tx.gas_token_id != chain_config.DEFAULT_CHAIN_TOKEN:
-            raise InvalidTransaction("EIP155 Signer only support qkc as gas token.")
-        if tx.transfer_token_id != chain_config.DEFAULT_CHAIN_TOKEN:
+        if tx.gas_token_id != default_token_id:
             raise InvalidTransaction(
-                "EIP155 Signer only support qkc as transfer token."
+                "EIP155 Signer only support {} as gas token.".format(
+                    chain_config.DEFAULT_CHAIN_TOKEN
+                )
+            )
+        if tx.transfer_token_id != default_token_id:
+            raise InvalidTransaction(
+                "EIP155 Signer only support {} as transfer token.".format(
+                    chain_config.DEFAULT_CHAIN_TOKEN
+                )
             )
 
     # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
