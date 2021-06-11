@@ -450,11 +450,12 @@ class ShardState:
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
 
         if evm_tx.network_id != self.env.quark_chain_config.NETWORK_ID:
-            raise RuntimeError(
-                "evm tx network id mismatch. expect {} but got {}".format(
-                    self.env.quark_chain_config.NETWORK_ID, evm_tx.network_id
+            if evm_tx.version != 2:
+                raise RuntimeError(
+                    "evm tx network id mismatch. expect {} but got {}".format(
+                        self.env.quark_chain_config.NETWORK_ID, evm_tx.network_id
+                    )
                 )
-            )
 
         if not self.branch.is_in_branch(evm_tx.from_full_shard_key):
             raise RuntimeError(
