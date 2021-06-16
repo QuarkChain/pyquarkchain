@@ -203,9 +203,7 @@ def root_block_encoder(block, extra_info):
     return d
 
 
-def minor_block_encoder(
-    quark_chain_config, block, include_transactions=False, extra_info=None
-):
+def minor_block_encoder(block, include_transactions=False, extra_info=None):
     """Encode a block as JSON object.
 
     :param block: a :class:`ethereum.block.Block`
@@ -228,7 +226,7 @@ def minor_block_encoder(
     if include_transactions:
         d["transactions"] = []
         for i, _ in enumerate(block.tx_list):
-            d["transactions"].append(tx_encoder(quark_chain_config, block, i))
+            d["transactions"].append(tx_encoder(block, i))
     else:
         d["transactions"] = [
             id_encoder(tx.get_hash(), block.header.branch.get_full_shard_id())
@@ -263,14 +261,13 @@ def minor_block_header_encoder(header: MinorBlockHeader) -> Dict:
     return d
 
 
-def tx_encoder(quark_chain_config, block, i):
+def tx_encoder(block, i):
     """Encode a transaction as JSON object.
 
     `transaction` is the `i`th transaction in `block`.
     """
     tx = block.tx_list[i]
     evm_tx = tx.tx.to_evm_tx()
-    evm_tx.set_quark_chain_config(quark_chain_config)
     branch = block.header.branch
     return {
         "id": id_encoder(tx.get_hash(), evm_tx.from_full_shard_key),
@@ -816,9 +813,7 @@ class JSONRPCHttpServer:
         )
         if not block:
             return None
-        return minor_block_encoder(
-            self.master.env.quark_chain_config, block, include_transactions, extra_info
-        )
+        return minor_block_encoder(block, include_transactions, extra_info)
 
     @public_methods.add
     @decode_arg("full_shard_key", quantity_decoder)
@@ -846,9 +841,7 @@ class JSONRPCHttpServer:
         )
         if not block:
             return None
-        return minor_block_encoder(
-            self.master.env.quark_chain_config, block, include_transactions, extra_info
-        )
+        return minor_block_encoder(block, include_transactions, extra_info)
 
     @public_methods.add
     @decode_arg("tx_id", id_decoder)
@@ -864,7 +857,7 @@ class JSONRPCHttpServer:
             return None
         if len(minor_block.tx_list) <= i:
             return None
-        return tx_encoder(self.master.env.quark_chain_config, minor_block, i)
+        return tx_encoder(minor_block, i)
 
     @public_methods.add
     @decode_arg("block_height", block_height_decoder)
@@ -1119,9 +1112,7 @@ class JSONRPCHttpServer:
         )
         if block is None:
             return None
-        return block_transcoder(
-            minor_block_encoder(self.master.env.quark_chain_config, block)
-        )
+        return block_transcoder(minor_block_encoder(block))
 
     @public_methods.add
     @decode_arg("address", eth_address_to_quarkchain_address_decoder)
@@ -1396,7 +1387,7 @@ class JSONRPCHttpServer:
                 return decoder(data[key])
             return default
 
-        to = get_data_default("to", address_decoder, b"\x00" * 24)
+        to = get_data_default("to", address_decoder, None)
         to_full_shard_key = int.from_bytes(to[20:], "big")
 
         gas = get_data_default("gas", quantity_decoder, 0)
@@ -1406,8 +1397,8 @@ class JSONRPCHttpServer:
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         sender_address = Address.create_from(sender)
         from_full_shard_key = sender_address.full_shard_key
-        if to == b"\x00" * 24:
-            to_full_shard_key = int.from_bytes(sender[20:], "big")
+        if to is None:
+            to_full_shard_key = 0
             to = b""
         else:
             to = to[:20]

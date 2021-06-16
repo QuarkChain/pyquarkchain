@@ -135,12 +135,7 @@ class Transaction(rlp.Serializable):
             if self.version == 1:
                 pub = ecrecover_to_pub(self.hash_typed, self.v, self.r, self.s)
             if self.version == 2:
-                v = (
-                    35
-                    - 27
-                    + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID
-                    * 2
-                )
+                v = 35 - 27 + self.network_id * 2
                 if self.v < v:
                     raise InvalidTransaction(
                         "Invalid signature (wrong v with tx version = 2)"
@@ -173,12 +168,7 @@ class Transaction(rlp.Serializable):
             self.v, self.r, self.s = ecsign(self.hash_typed, key)
         if self.version == 2:
             self.v, self.r, self.s = ecsign(self.hash_unsigned, key)
-            self.v = (
-                self.v
-                + 35
-                - 27
-                + self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID * 2
-            )
+            self.v = self.v + 35 - 27 + self.network_id * 2
         if self.version > 2:
             raise InvalidTransaction("Invalid transaction version.")
         self._in_mutable_context = False
@@ -272,7 +262,7 @@ class Transaction(rlp.Serializable):
 
     @property
     def eth_chain_id(self):
-        return self.quark_chain_config.CHAINS[self.from_chain_id].ETH_CHAIN_ID
+        return self.network_id
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and self.hash == other.hash
