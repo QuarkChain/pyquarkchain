@@ -139,7 +139,7 @@ def validate_transaction(state, tx):
     if tx.version == 2:
         # When tx.version == 2 (EIP155 tx), check
         # 0. EIP155_SIGNER enable
-        # 1. tx.v == tx.network_id * 2 + 35
+        # 1. tx.v == tx.network_id * 2 + 35 (+ 1)
         # 2. gas_token_id & transfer_token_id should equal to default_token_id (like qkc)
         # 3. tx.from_chain_id, tx.to_chain_id should match with chain_config.ETH_CHAIN_ID
         # 4. from_shard_id = 0 & to_shard_id = 0
