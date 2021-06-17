@@ -150,8 +150,12 @@ def validate_transaction(state, tx):
             and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
         ):
             raise InvalidTransaction("EIP155 Signer is not enable yet.")
-        if tx.v != 35 + tx.network_id * 2:
-            raise InvalidTransaction("network_id does not match the signature.")
+        if tx.v != 35 + tx.network_id * 2 and tx.v != 35 + 1 + tx.network_id * 2:
+            raise InvalidTransaction(
+                "network_id {} does not match the signature v {}.".format(
+                    tx.network_id, tx.v
+                )
+            )
         if tx.from_chain_id != tx.to_chain_id:
             raise InvalidTransaction(
                 "EIP155 Signer do not support cross shard transaction."
