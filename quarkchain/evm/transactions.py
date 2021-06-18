@@ -236,6 +236,14 @@ class Transaction(rlp.Serializable):
         return self.quark_chain_config.get_shard_size_by_chain_id(self.to_chain_id)
 
     @property
+    def from_shard_key(self):
+        return self.from_full_shard_key & 65535
+
+    @property
+    def to_shard_key(self):
+        return self.to_full_shard_key & 65535
+
+    @property
     def from_shard_id(self):
         shard_mask = self.from_shard_size - 1
         return self.from_full_shard_key & shard_mask

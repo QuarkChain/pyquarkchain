@@ -142,7 +142,7 @@ def validate_transaction(state, tx):
         # 1. tx.v == tx.network_id * 2 + 35 (+ 1)
         # 2. gas_token_id & transfer_token_id should equal to default_token_id (like qkc)
         # 3. tx.from_chain_id, tx.to_chain_id should match with chain_config.ETH_CHAIN_ID
-        # 4. from_shard_id = 0 & to_shard_id = 0
+        # 4. tx.from_shard_key = 0 & tx.to_shard_key = 0
         chain_config = state.qkc_config.CHAINS[tx.from_chain_id]
         default_token_id = token_id_encode(chain_config.DEFAULT_CHAIN_TOKEN)
         if (
@@ -160,7 +160,7 @@ def validate_transaction(state, tx):
             raise InvalidTransaction(
                 "EIP155 Signer do not support cross shard transaction."
             )
-        if tx.from_shard_id != 0 or tx.to_shard_id != 0:
+        if tx.from_shard_key != 0 or tx.to_shard_key != 0:
             raise InvalidTransaction(
                 "EIP155 Signer do not support cross shard transaction."
             )
