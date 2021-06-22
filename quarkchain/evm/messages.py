@@ -141,8 +141,8 @@ def validate_transaction(state, tx):
         # 0. EIP155_SIGNER enable
         # 1. tx.v == tx.network_id * 2 + 35 (+ 1)
         # 2. gas_token_id & transfer_token_id should equal to default_token_id (like qkc)
-        # 3. tx.from_chain_id, tx.to_chain_id should match with chain_config.ETH_CHAIN_ID
-        # 4. tx.from_shard_key = 0 & tx.to_shard_key = 0
+        # 3. tx.from_chain_id == tx.to_chain_id and tx.from_shard_key = 0 & tx.to_shard_key = 0
+        # 4. tx.network_id == chain_config.ETH_CHAIN_ID, where chain_config is derived from tx.from_chain_id
         chain_config = state.qkc_config.CHAINS[tx.from_chain_id]
         default_token_id = token_id_encode(chain_config.DEFAULT_CHAIN_TOKEN)
         if (
@@ -150,7 +150,7 @@ def validate_transaction(state, tx):
             and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
         ):
             raise InvalidTransaction("EIP155 Signer is not enable yet.")
-        if tx.v != 35 + tx.network_id * 2 and tx.v != 35 + 1 + tx.network_id * 2:
+        if tx.v != 35 + tx.network_id * 2 and tx.v != 36 + tx.network_id * 2:
             raise InvalidTransaction(
                 "network_id {} does not match the signature v {}.".format(
                     tx.network_id, tx.v

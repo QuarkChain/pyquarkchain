@@ -1387,9 +1387,6 @@ class JSONRPCHttpServer:
                 return decoder(data[key])
             return default
 
-        to = get_data_default("to", address_decoder, None)
-        to_full_shard_key = int.from_bytes(to[20:], "big")
-
         gas = get_data_default("gas", quantity_decoder, 0)
         gas_price = get_data_default("gasPrice", quantity_decoder, 0)
         value = get_data_default("value", quantity_decoder, 0)
@@ -1397,10 +1394,12 @@ class JSONRPCHttpServer:
         sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
         sender_address = Address.create_from(sender)
         from_full_shard_key = sender_address.full_shard_key
+        to = get_data_default("to", address_decoder, None)
         if to is None:
             to_full_shard_key = 0
             to = b""
         else:
+            to_full_shard_key = int.from_bytes(to[20:], "big")
             to = to[:20]
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
