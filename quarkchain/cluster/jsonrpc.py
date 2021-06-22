@@ -1392,8 +1392,8 @@ class JSONRPCHttpServer:
             to_full_shard_byte = b"\x00" * 4
             to = b""
         else:
+            to_full_shard_byte = to[20:]
             to = to[:20]
-            to_full_shard_byte = int.from_bytes(to[20:], "big")
 
         to_full_shard_key = int.from_bytes(to_full_shard_byte, "big")
         gas = get_data_default("gas", quantity_decoder, 0)
