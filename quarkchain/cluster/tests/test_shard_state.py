@@ -2952,8 +2952,9 @@ class TestShardState(unittest.TestCase):
             value=5000000,
             gas=50000,
             version=2,
-        )
-        tx1.set_signature(tx0.v, tx0.r, tx0.s)
+         )
+        evm_tx = tx0.tx.to_evm_tx()
+        tx1.tx.to_evm_tx().set_signature(evm_tx.v, evm_tx.r, evm_tx.s)
         self.assertFalse(state1.add_tx(tx1))
 
     def test_enable_evm_timestamp_with_contract_call(self):

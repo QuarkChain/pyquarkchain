@@ -178,10 +178,10 @@ class Transaction(rlp.Serializable):
 
     def set_signature(self, v, r, s):
         """
-        only use for test,
+        only use for test
         """
+        self._in_mutable_context = True
         self.v, self.r, self.s = v, r, s
-        return self
 
     @property
     def hash(self):
