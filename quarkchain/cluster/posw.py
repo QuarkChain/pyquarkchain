@@ -26,7 +26,7 @@ def get_posw_coinbase_blockcnt(
     header_hash: bytes,
     header_func: Callable[[bytes], Optional[Header]],
 ) -> Dict[bytes, int]:
-    """ PoSW needed function: get coinbase address counts up until the given block
+    """PoSW needed function: get coinbase address counts up until the given block
     hash (inclusive) within the PoSW window.
 
     Raise ValueError if anything goes wrong.

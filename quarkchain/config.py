@@ -9,6 +9,7 @@ from eth_keys import KeyAPI
 
 import quarkchain.db
 import quarkchain.evm.config
+from quarkchain.constants import MAINNET_BASE_ETH_CHAIN_ID
 from quarkchain.core import Address
 from quarkchain.utils import check, is_p2, token_id_encode
 
@@ -121,6 +122,7 @@ class POSWConfig(BaseConfig):
 
 class ChainConfig(BaseConfig):
     CHAIN_ID = 0
+    ETH_CHAIN_ID = MAINNET_BASE_ETH_CHAIN_ID + 1
     SHARD_SIZE = 2
     DEFAULT_CHAIN_TOKEN = "QKC"
 
@@ -275,7 +277,7 @@ class RootConfig(BaseConfig):
 
 class QuarkChainConfig(BaseConfig):
     CHAIN_SIZE = 3
-
+    BASE_ETH_CHAIN_ID = MAINNET_BASE_ETH_CHAIN_ID
     MAX_NEIGHBORS = 32
 
     NETWORK_ID = NetworkId.TESTNET_PORSCHE
@@ -310,6 +312,7 @@ class QuarkChainConfig(BaseConfig):
     TX_WHITELIST_SENDERS = []
     ENABLE_EVM_TIMESTAMP = None
     ENABLE_QKCHASHX_HEIGHT = None
+    ENABLE_EIP155_SIGNER_TIMESTAMP = None
     ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_POSW_STAKING_DECAY_TIMESTAMP = None
@@ -338,6 +341,7 @@ class QuarkChainConfig(BaseConfig):
         for chain_id in range(self.CHAIN_SIZE):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = chain_id
+            chain_config.ETH_CHAIN_ID = self.BASE_ETH_CHAIN_ID + chain_id + 1
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             chain_config.CONSENSUS_CONFIG = POWConfig()
             chain_config.CONSENSUS_CONFIG.TARGET_BLOCK_TIME = 3
@@ -364,6 +368,7 @@ class QuarkChainConfig(BaseConfig):
             shard_id = shard_config.SHARD_ID
             check(full_shard_id == (chain_id << 16 | shard_size | shard_id))
             check(is_p2(shard_size))
+            check(shard_config.ETH_CHAIN_ID == self.BASE_ETH_CHAIN_ID + chain_id + 1)
             if chain_id in self._chain_id_to_shard_size:
                 check(shard_size == self._chain_id_to_shard_size[chain_id])
             else:
@@ -411,17 +416,17 @@ class QuarkChainConfig(BaseConfig):
         return self._chain_id_to_shard_size[chain_id]
 
     def get_genesis_root_height(self, full_shard_id: int) -> int:
-        """ Return the root block height at which the shard shall be created"""
+        """Return the root block height at which the shard shall be created"""
         return self.shards[full_shard_id].GENESIS.ROOT_HEIGHT
 
     def get_full_shard_ids(self) -> List[int]:
-        """ Return a list of full_shard_ids found in the config"""
+        """Return a list of full_shard_ids found in the config"""
         return list(self.shards.keys())
 
     def get_initialized_full_shard_ids_before_root_height(
         self, root_height: int
     ) -> List[int]:
-        """ Return a list of ids of the shards that have been initialized before a certain root height"""
+        """Return a list of ids of the shards that have been initialized before a certain root height"""
         ids = []
         for full_shard_id, config in self.shards.items():
             if config.GENESIS.ROOT_HEIGHT < root_height:
@@ -458,6 +463,7 @@ class QuarkChainConfig(BaseConfig):
         root_block_time,
         minor_block_time,
         default_token,
+        base_eth_chain_id=MAINNET_BASE_ETH_CHAIN_ID,
     ):
         self.CHAIN_SIZE = chain_size
 
@@ -472,6 +478,7 @@ class QuarkChainConfig(BaseConfig):
         for chain_id in range(chain_size):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = chain_id
+            chain_config.ETH_CHAIN_ID = base_eth_chain_id + chain_id + 1
             chain_config.SHARD_SIZE = shard_size_per_chain
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_SIMULATE
             chain_config.CONSENSUS_CONFIG = POWConfig()
@@ -505,6 +512,9 @@ class QuarkChainConfig(BaseConfig):
         shards = dict()
         for s in config.CHAINS:
             chain_config = ChainConfig.from_dict(s)
+            chain_config.ETH_CHAIN_ID = (
+                config.BASE_ETH_CHAIN_ID + chain_config.CHAIN_ID + 1
+            )
             chains.append(chain_config)
             for shard_id in range(chain_config.SHARD_SIZE):
                 shard_config = ShardConfig(chain_config)

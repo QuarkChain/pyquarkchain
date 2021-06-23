@@ -87,8 +87,7 @@ def data_decoder(hex_str, allow_optional=False):
 
 
 def data_encoder(data_bytes):
-    """Encode unformatted binary `dataBytes`.
-    """
+    """Encode unformatted binary `dataBytes`."""
     return "0x" + data_bytes.hex()
 
 
@@ -132,12 +131,12 @@ def full_shard_key_encoder(full_shard_key):
 
 
 def id_encoder(hash_bytes, full_shard_key):
-    """ Encode hash and full_shard_key into hex """
+    """Encode hash and full_shard_key into hex"""
     return data_encoder(hash_bytes + full_shard_key.to_bytes(4, byteorder="big"))
 
 
 def id_decoder(hex_str):
-    """ Decode an id to (hash, full_shard_key) """
+    """Decode an id to (hash, full_shard_key)"""
     data_bytes = data_decoder(hex_str)
     if len(data_bytes) != 36:
         raise InvalidParams("Invalid id encoding")
@@ -925,7 +924,7 @@ class JSONRPCHttpServer:
     @decode_arg("limit", quantity_decoder)
     async def getAllTransactions(self, full_shard_key, start="0x", limit="0xa"):
         """ "start" should be the "next" in the response for fetching next page.
-            "start" can also be "0x" to fetch from the beginning (i.e., latest).
+        "start" can also be "0x" to fetch from the beginning (i.e., latest).
         """
         branch = Branch(
             self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
@@ -952,8 +951,8 @@ class JSONRPCHttpServer:
         self, address, start="0x", limit="0xa", transfer_token_id=None
     ):
         """ "start" should be the "next" in the response for fetching next page.
-            "start" can also be "0x" to fetch from the beginning (i.e., latest).
-            "start" can be "0x00" to fetch the pending outgoing transactions.
+        "start" can also be "0x" to fetch from the beginning (i.e., latest).
+        "start" can be "0x00" to fetch the pending outgoing transactions.
         """
         address = Address.create_from(address)
         if limit > 20:
@@ -1052,9 +1051,13 @@ class JSONRPCHttpServer:
         minor_block, i = await self.master.get_transaction_by_hash(tx_hash, branch)
         if not minor_block:
             return None
-        confirming_hash = self.master.root_state.db.get_root_block_confirming_minor_block(
-            minor_block.header.get_hash()
-            + minor_block.header.branch.get_full_shard_id().to_bytes(4, byteorder="big")
+        confirming_hash = (
+            self.master.root_state.db.get_root_block_confirming_minor_block(
+                minor_block.header.get_hash()
+                + minor_block.header.branch.get_full_shard_id().to_bytes(
+                    4, byteorder="big"
+                )
+            )
         )
         if confirming_hash is None:
             return quantity_encoder(0)
@@ -1149,7 +1152,7 @@ class JSONRPCHttpServer:
     @public_methods.add
     @decode_arg("shard", shard_id_decoder)
     async def eth_call(self, data, shard=None):
-        """ Returns the result of the transaction application without putting in block chain """
+        """Returns the result of the transaction application without putting in block chain"""
         data = self._convert_eth_call_data(data, shard)
         return await self.call(data)
 
@@ -1289,8 +1292,10 @@ class JSONRPCHttpServer:
         if limit > 10000:
             limit = 10000
         block_hash, full_shard_key = block_id
-        full_shard_id = self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
-            full_shard_key
+        full_shard_id = (
+            self.master.env.quark_chain_config.get_full_shard_id_by_full_shard_key(
+                full_shard_key
+            )
         )
         try:
             result = await self.master.get_total_balance(
@@ -1324,7 +1329,7 @@ class JSONRPCHttpServer:
 
     @private_methods.add
     async def getKadRoutingTable(self):
-        """ returns a list of nodes in the p2p discovery routing table, in the enode format
+        """returns a list of nodes in the p2p discovery routing table, in the enode format
         eg. "enode://PUBKEY@IP:PORT"
         """
         if not isinstance(self.master.network, P2PManager):
@@ -1373,7 +1378,7 @@ class JSONRPCHttpServer:
         return loglist_encoder(logs)
 
     async def _call_or_estimate_gas(self, is_call: bool, **data):
-        """ Returns the result of the transaction application without putting in block chain """
+        """Returns the result of the transaction application without putting in block chain"""
         if not isinstance(data, dict):
             raise InvalidParams("Transaction must be an object")
 
@@ -1384,17 +1389,23 @@ class JSONRPCHttpServer:
 
         to = get_data_default("to", address_decoder, None)
         if to is None:
-            raise InvalidParams("Missing to")
+            to_full_shard_byte = b"\x00" * 4
+            to = b""
+        else:
+            to_full_shard_byte = to[20:]
+            to = to[:20]
 
-        to_full_shard_key = int.from_bytes(to[20:], "big")
-
+        to_full_shard_key = int.from_bytes(to_full_shard_byte, "big")
         gas = get_data_default("gas", quantity_decoder, 0)
         gas_price = get_data_default("gasPrice", quantity_decoder, 0)
         value = get_data_default("value", quantity_decoder, 0)
         data_ = get_data_default("data", data_decoder, b"")
-        sender = get_data_default("from", address_decoder, b"\x00" * 20 + to[20:])
+        sender = get_data_default(
+            "from", address_decoder, b"\x00" * 20 + to_full_shard_byte
+        )
         sender_address = Address.create_from(sender)
         from_full_shard_key = sender_address.full_shard_key
+
         gas_token_id = get_data_default(
             "gas_token_id", quantity_decoder, self.env.quark_chain_config.genesis_token
         )
@@ -1411,7 +1422,7 @@ class JSONRPCHttpServer:
             nonce,
             gas_price,
             gas,
-            to[:20],
+            to,
             value,
             data_,
             from_full_shard_key=from_full_shard_key,

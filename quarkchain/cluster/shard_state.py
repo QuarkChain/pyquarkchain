@@ -115,8 +115,10 @@ class XshardTxCursor:
                 if self.shard_state.branch.is_in_branch(
                     self.rblock.header.coinbase_address.full_shard_key
                 ):
-                    coinbase_amount = self.rblock.header.coinbase_amount_map.balance_map.get(
-                        self.shard_state.genesis_token_id, 0
+                    coinbase_amount = (
+                        self.rblock.header.coinbase_amount_map.balance_map.get(
+                            self.shard_state.genesis_token_id, 0
+                        )
                     )
 
                 # Perform x-shard from root chain coinbase
@@ -139,8 +141,7 @@ class XshardTxCursor:
             return None
 
     def get_next_tx(self):
-        """ Return XshardDeposit if succeed else return None
-        """
+        """Return XshardDeposit if succeed else return None"""
         # Check if reach EOF
         if self.rblock is None:
             return None
@@ -229,7 +230,7 @@ class XshardTxCursor:
 
 
 class ShardState:
-    """  State of a shard, which includes
+    """State of a shard, which includes
     - evm state
     - minor blockchain
     - root blockchain and cross-shard transactions
@@ -276,7 +277,7 @@ class ShardState:
         self.subscription_manager = SubscriptionManager()
 
     def init_from_root_block(self, root_block):
-        """ Master will send its root chain tip when it connects to slaves.
+        """Master will send its root chain tip when it connects to slaves.
         Shards will initialize its state based on the root block.
         """
         check(
@@ -294,8 +295,10 @@ class ShardState:
             )
         )
 
-        confirmed_header_tip = self.db.get_last_confirmed_minor_block_header_at_root_block(
-            root_block.header.get_hash()
+        confirmed_header_tip = (
+            self.db.get_last_confirmed_minor_block_header_at_root_block(
+                root_block.header.get_hash()
+            )
         )
         header_tip = confirmed_header_tip
         if not header_tip:
@@ -363,7 +366,7 @@ class ShardState:
         return state
 
     def init_genesis_state(self, root_block):
-        """ root_block should have the same height as configured in shard GENESIS.
+        """root_block should have the same height as configured in shard GENESIS.
         If a genesis block has already been created (probably from another root block
         with the same height), create and store the new genesis block from root_block
         without modifying the in-memory state of this ShardState object.
@@ -446,7 +449,16 @@ class ShardState:
 
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
 
-        if evm_tx.network_id != self.env.quark_chain_config.NETWORK_ID:
+        if evm_tx.version == 2:
+            # network_id will be set to eth_chain_id by the middle layer
+            # when version == 2
+            if evm_tx.network_id != self.shard_config.ETH_CHAIN_ID:
+                raise RuntimeError(
+                    "evm tx network id mismatch. expect {} but got {}".format(
+                        self.shard_config.ETH_CHAIN_ID, evm_tx.network_id
+                    )
+                )
+        elif evm_tx.network_id != self.env.quark_chain_config.NETWORK_ID:
             raise RuntimeError(
                 "evm tx network id mismatch. expect {} but got {}".format(
                     self.env.quark_chain_config.NETWORK_ID, evm_tx.network_id
@@ -530,7 +542,7 @@ class ShardState:
         )
 
     def add_tx(self, tx: TypedTransaction, xshard_gas_limit=None):
-        """ Add a tx to the tx queue
+        """Add a tx to the tx queue
         xshard_gas_limit is used for testing, which discards the tx if
         - tx is x-shard; and
         - tx's startgas exceeds xshard_gas_limit
@@ -625,8 +637,7 @@ class ShardState:
         xshard_gas_limit=None,
         validate_time=True,
     ):
-        """ Validate a block before running evm transactions
-        """
+        """Validate a block before running evm transactions"""
         if block.header.version != 0:
             raise ValueError("incorrect minor block version")
 
@@ -728,8 +739,10 @@ class ShardState:
         ):
             raise ValueError("prev root block height must be non-decreasing")
 
-        prev_confirmed_minor_block = self.db.get_last_confirmed_minor_block_header_at_root_block(
-            block.header.hash_prev_root_block
+        prev_confirmed_minor_block = (
+            self.db.get_last_confirmed_minor_block_header_at_root_block(
+                block.header.hash_prev_root_block
+            )
         )
         if prev_confirmed_minor_block and not self.__is_same_minor_chain(
             prev_header, prev_confirmed_minor_block
@@ -797,8 +810,7 @@ class ShardState:
         return evm_state
 
     def __is_minor_block_linked_to_root_tip(self, m_block):
-        """ Determine whether a minor block is a descendant of a minor block confirmed by root tip
-        """
+        """Determine whether a minor block is a descendant of a minor block confirmed by root tip"""
         if not self.confirmed_header_tip:
             # genesis
             return True
@@ -815,7 +827,7 @@ class ShardState:
         return header == self.confirmed_header_tip
 
     def __rewrite_block_index_to(self, minor_block, add_tx_back_to_queue=True):
-        """ Find the common ancestor in the current chain and rewrite index till minor_block """
+        """Find the common ancestor in the current chain and rewrite index till minor_block"""
         new_chain = []
         old_chain = []
 
@@ -888,7 +900,7 @@ class ShardState:
         write_db=True,
         validate_time=True,
     ):
-        """  Add a block to local db.  Perform validate and update tip accordingly
+        """Add a block to local db.  Perform validate and update tip accordingly
         gas_limit and xshard_gas_limit are used for testing only.
         Returns None if block is already added (if force is False).
         Returns a list of CrossShardTransactionDeposit from block.
@@ -1065,7 +1077,7 @@ class ShardState:
     def finalize_and_add_block(
         self, block, gas_limit=None, xshard_gas_limit=None, validate_time=True
     ):
-        """ Finalize the block by filling post-tx data including tx fee collected
+        """Finalize the block by filling post-tx data including tx fee collected
         gas_limit and xshard_gas_limit is used to verify customized gas limits and they are for test purpose only
         """
         evm_state = self.run_block(block)
@@ -1119,8 +1131,7 @@ class ShardState:
     def execute_tx(
         self, tx: TypedTransaction, from_address=None, height: Optional[int] = None
     ) -> Optional[bytes]:
-        """Execute the tx using a copy of state
-        """
+        """Execute the tx using a copy of state"""
         evm_state = self._get_evm_state_from_height(height)
         if not evm_state:
             return None
@@ -1173,7 +1184,7 @@ class ShardState:
         return coinbase
 
     def __get_all_unconfirmed_header_list(self) -> List[MinorBlockHeader]:
-        """ height in ascending order """
+        """height in ascending order"""
         header_list = []
         header = self.header_tip
         start_height = (
@@ -1194,7 +1205,7 @@ class ShardState:
         return headers[0:max_blocks]
 
     def get_unconfirmed_headers_coinbase_amount(self) -> int:
-        """ only returns genesis token coinbase amount
+        """only returns genesis token coinbase amount
         TODO remove coinbase_amount_map from minor header, this is the ONLY place that requires it
         """
         amount = 0
@@ -1209,7 +1220,7 @@ class ShardState:
         return self.shard_config.max_blocks_per_shard_in_one_root_block
 
     def __add_transactions_to_block(self, block: MinorBlock, evm_state: EvmState):
-        """ Fill up the block tx list with tx from the tx queue"""
+        """Fill up the block tx list with tx from the tx queue"""
         poped_txs = []
 
         while evm_state.gas_used < evm_state.gas_limit:
@@ -1252,6 +1263,16 @@ class ShardState:
                     # Drop the smart contract creation tx from tx_queue
                     continue
 
+            # Check if EIP155 Signer is disabled
+            if (
+                self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
+                and block.header.create_time
+                < self.env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+            ):
+                if evm_tx.version == 2:
+                    # Drop the tx with incompatible signature
+                    continue
+
             try:
                 apply_transaction(evm_state, evm_tx, tx.get_hash())
                 block.add_tx(tx)
@@ -1273,8 +1294,7 @@ class ShardState:
         xshard_gas_limit=None,
         include_tx=True,
     ):
-        """ Create a block to append and include TXs to maximize rewards
-        """
+        """Create a block to append and include TXs to maximize rewards"""
         start_time = time.time()
         tracking_data = {
             "inception": time_ms(),
@@ -1334,8 +1354,7 @@ class ShardState:
         return block
 
     def get_block_by_hash(self, h):
-        """ Return an validated block.  Return None if no such block exists in db
-        """
+        """Return an validated block.  Return None if no such block exists in db"""
         return self.db.get_minor_block_by_hash(h)
 
     def contain_block_by_hash(self, h):
@@ -1347,7 +1366,7 @@ class ShardState:
     def add_cross_shard_tx_list_by_minor_block_hash(
         self, h, tx_list: CrossShardTransactionList
     ):
-        """ Add a cross shard tx list from remote shard
+        """Add a cross shard tx list from remote shard
         The list should be validated by remote shard, however,
         it is better to diagnose some bugs in peer shard if we could check
         - x-shard gas limit exceeded
@@ -1369,7 +1388,7 @@ class ShardState:
         self.meta_tip = block.meta
 
     def add_root_block(self, root_block: RootBlock):
-        """ Add a root block.
+        """Add a root block.
         Make sure all cross shard tx lists of remote shards confirmed by the root block are in local db.
         Return True if the new block become head else False.
         Raise ValueError on any failure.
@@ -1430,8 +1449,10 @@ class ShardState:
                 )
             )
 
-        last_minor_header_in_prev_root_block = self.db.get_last_confirmed_minor_block_header_at_root_block(
-            root_block.header.hash_prev_block
+        last_minor_header_in_prev_root_block = (
+            self.db.get_last_confirmed_minor_block_header_at_root_block(
+                root_block.header.hash_prev_block
+            )
         )
         if len(shard_headers) != 0:
             # Master should assure this check will not fail
@@ -1551,6 +1572,7 @@ class ShardState:
         else:
             gas_used_start = opcodes.GTXXSHARDCOST if deposit.gas_price != 0 else 0
 
+        # No need to check tx version == 2 in xshard tx as it has been check in the from shard
         if (
             self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP is not None
             and evm_state.timestamp < self.env.quark_chain_config.ENABLE_EVM_TIMESTAMP
@@ -1606,7 +1628,7 @@ class ShardState:
         return self.db.contain_remote_minor_block_hash(h)
 
     def get_transaction_by_hash(self, h):
-        """ Returns (block, index) where index is the position of tx in the block """
+        """Returns (block, index) where index is the position of tx in the block"""
         block, index = self.db.get_transaction_by_hash(h)
         if block:
             return block, index
@@ -1922,7 +1944,7 @@ class ShardState:
         return self._get_evm_state_for_new_block(next_block), next_block
 
     def _get_posw_coinbase_blockcnt(self, header_hash: bytes) -> Dict[bytes, int]:
-        """ PoSW needed function: get coinbase addresses up until the given block
+        """PoSW needed function: get coinbase addresses up until the given block
         hash (inclusive) along with block counts within the PoSW window.
 
         Raise ValueError if anything goes wrong.

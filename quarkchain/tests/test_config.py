@@ -28,6 +28,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         for i in range(config.CHAIN_SIZE):
             chain_config = ChainConfig()
             chain_config.CHAIN_ID = i
+            chain_config.ETH_CHAIN_ID = config.BASE_ETH_CHAIN_ID + 1 + i
             chain_config.SHARD_SIZE = 2
             chain_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
             chain_config.CONSENSUS_CONFIG = POWConfig()
@@ -36,6 +37,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         expected_json = """
 {
     "CHAIN_SIZE": 3,
+    "BASE_ETH_CHAIN_ID": 100000,
     "MAX_NEIGHBORS": 32,
     "NETWORK_ID": 3,
     "TRANSACTION_QUEUE_SIZE_LIMIT_PER_SHARD": 10000,
@@ -81,6 +83,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "CHAINS": [
         {
             "CHAIN_ID": 0,
+            "ETH_CHAIN_ID": 100001,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
@@ -118,6 +121,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         },
         {
             "CHAIN_ID": 1,
+            "ETH_CHAIN_ID": 100002,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
@@ -155,6 +159,7 @@ class TestQuarkChainConfig(unittest.TestCase):
         },
         {
             "CHAIN_ID": 2,
+            "ETH_CHAIN_ID": 100003,
             "SHARD_SIZE": 2,
             "DEFAULT_CHAIN_TOKEN": "QKC",
             "CONSENSUS_TYPE": "POW_DOUBLESHA256",
@@ -198,6 +203,7 @@ class TestQuarkChainConfig(unittest.TestCase):
     "TX_WHITELIST_SENDERS": [],
     "ENABLE_EVM_TIMESTAMP": null,
     "ENABLE_QKCHASHX_HEIGHT": null,
+    "ENABLE_EIP155_SIGNER_TIMESTAMP": null,
     "ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP": null,
     "ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP": null,
     "ENABLE_POSW_STAKING_DECAY_TIMESTAMP": null,

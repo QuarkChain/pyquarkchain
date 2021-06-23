@@ -98,7 +98,7 @@ from quarkchain.constants import (
 
 
 class SyncTask:
-    """ Given a header and a peer, the task will synchronize the local state
+    """Given a header and a peer, the task will synchronize the local state
     including root chain and shards with the peer up to the height of the header.
     """
 
@@ -337,7 +337,7 @@ class SyncTask:
 
 
 class Synchronizer:
-    """ Buffer the headers received from peer and sync one by one """
+    """Buffer the headers received from peer and sync one by one"""
 
     def __init__(self):
         self.tasks = dict()
@@ -380,7 +380,7 @@ class Synchronizer:
         }
 
     def _pop_best_task(self):
-        """ pop and return the task with heightest root """
+        """pop and return the task with heightest root"""
         check(len(self.tasks) > 0)
         remove_list = []
         best_peer = None
@@ -459,7 +459,7 @@ class SlaveConnection(ClusterConnection):
         asyncio.ensure_future(self.active_and_loop_forever())
 
     def get_connection_to_forward(self, metadata):
-        """ Override ProxyConnection.get_connection_to_forward()
+        """Override ProxyConnection.get_connection_to_forward()
         Forward traffic from slave to peer
         """
         if metadata.cluster_peer_id == RESERVED_CLUSTER_PEER_ID:
@@ -491,7 +491,7 @@ class SlaveConnection(ClusterConnection):
         return resp.id, resp.full_shard_id_list
 
     async def send_connect_to_slaves(self, slave_info_list):
-        """ Make slave connect to other slaves.
+        """Make slave connect to other slaves.
         Returns True on success
         """
         req = ConnectToSlavesRequest(slave_info_list)
@@ -756,7 +756,7 @@ OP_RPC_MAP = {
 
 
 class MasterServer:
-    """ Master node in a cluster
+    """Master node in a cluster
     It does two things to initialize the cluster:
     1. Setup connection with all the slaves in ClusterConfig
     2. Make slaves connect to each other
@@ -838,13 +838,13 @@ class MasterServer:
         return self.artificial_tx_config
 
     def __has_all_shards(self):
-        """ Returns True if all the shards have been run by at least one node """
+        """Returns True if all the shards have been run by at least one node"""
         return len(self.branch_to_slaves) == len(
             self.env.quark_chain_config.get_full_shard_ids()
         ) and all([len(slaves) > 0 for _, slaves in self.branch_to_slaves.items()])
 
     async def __connect(self, host, port):
-        """ Retries until success """
+        """Retries until success"""
         Logger.info("Trying to connect {}:{}".format(host, port))
         while True:
             try:
@@ -861,7 +861,7 @@ class MasterServer:
         return reader, writer
 
     async def __connect_to_slaves(self):
-        """ Master connects to all the slaves """
+        """Master connects to all the slaves"""
         futures = []
         slaves = []
         for slave_info in self.cluster_config.get_slave_info_list():
@@ -905,7 +905,7 @@ class MasterServer:
                     self.branch_to_slaves.setdefault(full_shard_id, []).append(slave)
 
     async def __setup_slave_to_slave_connections(self):
-        """ Make slaves connect to other slaves.
+        """Make slaves connect to other slaves.
         Retries until success.
         """
         for slave in self.slave_pool:
@@ -1176,7 +1176,7 @@ class MasterServer:
         return block or None
 
     async def get_account_data(self, address: Address):
-        """ Returns a dict where key is Branch and value is AccountBranchData """
+        """Returns a dict where key is Branch and value is AccountBranchData"""
         futures = []
         for slave in self.slave_pool:
             request = GetAccountDataRequest(address)
@@ -1223,7 +1223,7 @@ class MasterServer:
         return None
 
     async def add_transaction(self, tx: TypedTransaction, from_peer=None):
-        """ Add transaction to the cluster and broadcast to peers """
+        """Add transaction to the cluster and broadcast to peers"""
         evm_tx = tx.tx.to_evm_tx()  # type: EvmTransaction
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
@@ -1251,7 +1251,7 @@ class MasterServer:
     async def execute_transaction(
         self, tx: TypedTransaction, from_address, block_height: Optional[int]
     ) -> Optional[bytes]:
-        """ Execute transaction without persistence """
+        """Execute transaction without persistence"""
         evm_tx = tx.tx.to_evm_tx()
         evm_tx.set_quark_chain_config(self.env.quark_chain_config)
         branch = Branch(evm_tx.from_full_shard_id)
@@ -1274,7 +1274,7 @@ class MasterServer:
         self.synchronizer.add_task(header, peer)
 
     async def add_root_block(self, r_block: RootBlock):
-        """ Add root block locally and broadcast root block to all shards and .
+        """Add root block locally and broadcast root block to all shards and .
         All update root block should be done in serial to avoid inconsistent global root block state.
         """
         # use write-ahead log so if crashed the root block can be re-broadcasted
@@ -1324,7 +1324,7 @@ class MasterServer:
         return resp.error_code == 0
 
     async def add_root_block_from_miner(self, block):
-        """ Should only be called by miner """
+        """Should only be called by miner"""
         # TODO: push candidate block to miner
         if block.header.hash_prev_block != self.root_state.tip.get_hash():
             Logger.info(
@@ -1336,16 +1336,14 @@ class MasterServer:
         await self.add_root_block(block)
 
     def broadcast_command(self, op, cmd):
-        """ Broadcast command to all slaves.
-        """
+        """Broadcast command to all slaves."""
         for slave_conn in self.slave_pool:
             slave_conn.write_command(
                 op=op, cmd=cmd, metadata=ClusterMetadata(ROOT_BRANCH, 0)
             )
 
     def broadcast_rpc(self, op, req):
-        """ Broadcast RPC request to all slaves.
-        """
+        """Broadcast RPC request to all slaves."""
         future_list = []
         for slave_conn in self.slave_pool:
             future_list.append(
@@ -1415,8 +1413,8 @@ class MasterServer:
         self.branch_to_shard_stats[shard_stats.branch.value] = shard_stats
 
     def update_tx_count_history(self, tx_count, xshard_tx_count, timestamp):
-        """ maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 12 hours window
-        Note that this is also counting transactions on forks and thus larger than if only couting the best chains. """
+        """maintain a list of tuples of (epoch minute, tx count, xshard tx count) of 12 hours window
+        Note that this is also counting transactions on forks and thus larger than if only couting the best chains."""
         minute = int(timestamp / 60) * 60
         if len(self.tx_count_history) == 0 or self.tx_count_history[-1][0] < minute:
             self.tx_count_history.append((minute, tx_count, xshard_tx_count))
@@ -1512,6 +1510,7 @@ class MasterServer:
         return {
             "networkId": self.env.quark_chain_config.NETWORK_ID,
             "chainSize": self.env.quark_chain_config.CHAIN_SIZE,
+            "baseEthChainId": self.env.quark_chain_config.BASE_ETH_CHAIN_ID,
             "shardServerCount": len(self.slave_pool),
             "rootHeight": self.root_state.tip.height,
             "rootDifficulty": self.root_state.tip.difficulty,
@@ -1565,7 +1564,7 @@ class MasterServer:
         return await slave.get_minor_block_by_height(height, branch, need_extra_info)
 
     async def get_transaction_by_hash(self, tx_hash, branch):
-        """ Returns (MinorBlock, i) where i is the index of the tx in the block tx_list """
+        """Returns (MinorBlock, i) where i is the index of the tx in the block tx_list"""
         if branch.value not in self.branch_to_slaves:
             return None
 
@@ -1757,7 +1756,7 @@ class MasterServer:
         return ret
 
     async def posw_diff_adjust(self, block: RootBlock) -> Optional[int]:
-        """"Return None if PoSW check doesn't apply."""
+        """ "Return None if PoSW check doesn't apply."""
         posw_info = await self._posw_info(block)
         return posw_info and posw_info.effective_difficulty
 
@@ -1779,8 +1778,10 @@ class MasterServer:
         check(full_shard_id in self.branch_to_slaves)
 
         # get chain 0 shard 0's last confirmed block header
-        last_confirmed_minor_block_header = self.root_state.get_last_confirmed_minor_block_header(
-            block.header.hash_prev_block, full_shard_id
+        last_confirmed_minor_block_header = (
+            self.root_state.get_last_confirmed_minor_block_header(
+                block.header.hash_prev_block, full_shard_id
+            )
         )
         if not last_confirmed_minor_block_header:
             # happens if no shard block has been confirmed

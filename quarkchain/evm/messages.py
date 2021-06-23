@@ -1,6 +1,7 @@
 # Modified from pyethereum under MIT license
 from collections import Counter
 from fractions import Fraction
+from quarkchain.utils import token_id_encode
 
 import rlp
 
@@ -55,7 +56,6 @@ def rp(tx, what, actual, target):
 
 
 class Log(rlp.Serializable):
-
     # TODO: original version used zpad (here replaced by int32.serialize); had
     # comment "why zpad"?
     fields = [
@@ -90,7 +90,6 @@ class Log(rlp.Serializable):
 
 
 class Receipt(rlp.Serializable):
-
     fields = [
         ("state_root", binary),
         (
@@ -136,6 +135,53 @@ def validate_transaction(state, tx):
     # (1) The transaction signature is valid;
     if not tx.sender:  # sender is set and validated on Transaction initialization
         raise UnsignedTransaction(tx)
+
+    if tx.version == 2:
+        # When tx.version == 2 (EIP155 tx), check
+        # 0. EIP155_SIGNER enable
+        # 1. tx.v == tx.network_id * 2 + 35 (+ 1)
+        # 2. gas_token_id & transfer_token_id should equal to default_token_id (like qkc)
+        # 3. tx.from_chain_id == tx.to_chain_id and tx.from_shard_key = 0 & tx.to_shard_key = 0
+        # 4. tx.network_id == chain_config.ETH_CHAIN_ID, where chain_config is derived from tx.from_chain_id
+        chain_config = state.qkc_config.CHAINS[tx.from_chain_id]
+        default_token_id = token_id_encode(chain_config.DEFAULT_CHAIN_TOKEN)
+        if (
+            state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP is not None
+            and state.timestamp < state.qkc_config.ENABLE_EIP155_SIGNER_TIMESTAMP
+        ):
+            raise InvalidTransaction("EIP155 Signer is not enable yet.")
+        if tx.v != 35 + tx.network_id * 2 and tx.v != 36 + tx.network_id * 2:
+            raise InvalidTransaction(
+                "network_id {} does not match the signature v {}.".format(
+                    tx.network_id, tx.v
+                )
+            )
+        if tx.from_chain_id != tx.to_chain_id:
+            raise InvalidTransaction(
+                "EIP155 Signer do not support cross shard transaction."
+            )
+        if tx.from_shard_key != 0 or tx.to_shard_key != 0:
+            raise InvalidTransaction(
+                "EIP155 Signer do not support cross shard transaction."
+            )
+        if tx.gas_token_id != default_token_id:
+            raise InvalidTransaction(
+                "EIP155 Signer only support {} as gas token.".format(
+                    chain_config.DEFAULT_CHAIN_TOKEN
+                )
+            )
+        if tx.transfer_token_id != default_token_id:
+            raise InvalidTransaction(
+                "EIP155 Signer only support {} as transfer token.".format(
+                    chain_config.DEFAULT_CHAIN_TOKEN
+                )
+            )
+        assert (tx.network_id == chain_config.ETH_CHAIN_ID, "Invalid network_id.")
+        assert (
+            tx.eth_chain_id - state.qkc_config.BASE_ETH_CHAIN_ID - 1
+            == tx.from_chain_id,
+            "Invalid Eth_Chain_Id.",
+        )
 
     # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
     if (
@@ -564,8 +610,8 @@ class VMExt:
         self.revert = state.revert
         self.transfer_value = state.transfer_value
         self.deduct_value = state.deduct_value
-        self.add_cross_shard_transaction_deposit = lambda deposit: state.xshard_list.append(
-            deposit
+        self.add_cross_shard_transaction_deposit = (
+            lambda deposit: state.xshard_list.append(deposit)
         )
         self.reset_storage = state.reset_storage
         self.tx_origin = sender
@@ -580,10 +626,10 @@ def apply_msg(ext, msg):
 
 
 def transfer_failure_by_posw_balance_check(ext, msg):
-    return msg.sender in ext.sender_disallow_map and msg.value + ext.sender_disallow_map[
-        msg.sender
-    ] > ext.get_balance(
-        msg.sender
+    return (
+        msg.sender in ext.sender_disallow_map
+        and msg.value + ext.sender_disallow_map[msg.sender]
+        > ext.get_balance(msg.sender)
     )
 
 
