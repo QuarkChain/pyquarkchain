@@ -176,6 +176,13 @@ class Transaction(rlp.Serializable):
         self._sender = utils.privtoaddr(key)
         return self
 
+    def set_signature(self, v, r, s):
+        """
+        only use for test,
+        """
+        self.v, self.r, self.s = v, r, s
+        return self
+
     @property
     def hash(self):
         return sha3_256(rlp.encode(self))
