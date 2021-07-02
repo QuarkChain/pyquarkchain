@@ -173,7 +173,7 @@ class AbstractConnection:
     async def loop_once(self):
         try:
             metadata, raw_data = await self.read_metadata_and_raw_data()
-            print("176----",metadata,raw_data)
+            print("176----")
             if metadata is None:
                 # Hit EOF
                 self.close()
