@@ -214,6 +214,7 @@ class Peer(P2PConnection):
             Logger.debug(
                 "Received tx {} from peer {}".format(tx.get_hash().hex(), self.id.hex())
             )
+            print("txxxxxxxxxxxxxxxxxxxxxxxx",tx)
             await self.master_server.add_transaction(tx, self)
 
     async def handle_new_minor_block_header_list(self, op, cmd, rpc_id):
