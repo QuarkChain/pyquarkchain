@@ -254,6 +254,7 @@ class PeerShardConnection(VirtualConnection):
         self.shard.synchronizer.add_task(m_header, self)
 
     async def handle_new_transaction_list_command(self, op_code, cmd, rpc_id):
+        print("ipcode",op_code,cmd,rpc_id)
         if len(cmd.transaction_list) > NEW_TRANSACTION_LIST_LIMIT:
             self.close_with_error("Too many transactions in one command")
         print("shard ----add txlist")

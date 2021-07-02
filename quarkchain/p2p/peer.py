@@ -375,6 +375,7 @@ class BasePeer(BaseService):
         while self.is_operational:
             try:
                 cmd, msg = await self.read_msg(timeout=self.peer_idle_timeout)
+                print("cmd",cmd,"msg",msg)
             except (PeerConnectionLost, TimeoutError) as err:
                 self.logger.debug(
                     "%s stopped responding (%r), disconnecting", self.remote, err
