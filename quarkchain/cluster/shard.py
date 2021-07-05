@@ -532,8 +532,8 @@ class Shard:
                     break
                 await asyncio.sleep(0.1)
 
-            if coinbase_addr.is_empty():  # devnet or wrong config
-                coinbase_addr.full_shard_key = self.full_shard_id
+            # if coinbase_addr.is_empty():  # devnet or wrong config
+            coinbase_addr.full_shard_key = self.full_shard_id
             return self.state.create_block_to_mine(address=coinbase_addr)
 
         async def __add_block(block):
