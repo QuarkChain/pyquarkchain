@@ -656,7 +656,7 @@ def _apply_msg(ext, msg, code):
 
     # early exit if msg.sender is disallowed
     if transfer_failure_by_posw_balance_check(ext, msg):
-        log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
+        # log_msg.warn("SENDER NOT ALLOWED", sender=encode_hex(msg.sender))
         return 0, 0, []
 
     # transfer value, quit if not enough
