@@ -220,7 +220,7 @@ class Miner:
                     # This is a hack to get the latest minor block included since testnet does not check difficulty
                     if self.consensus_type == ConsensusType.POW_SIMULATE:
                         block = await self.create_block_async_func(
-                            Address.create_empty_account()
+                            Address.create_random_account()
                         )
                         block.header.nonce = random.randint(0, 2 ** 32 - 1)
                         self._track(block)
