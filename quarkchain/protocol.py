@@ -135,8 +135,7 @@ class AbstractConnection:
     async def handle_metadata_and_raw_data(self, metadata, raw_data):
         """ Subclass can override this to provide customized handler """
         op, cmd, rpc_id = self.__parse_command(raw_data)
-        # if op!=148 and op!=147 and op!=145 and op!=146 and op!=13 and op!=1:
-            # print("sbssss",op,cmd,rpc_id)
+
         if op not in self.op_ser_map:
             raise RuntimeError("{}: unsupported op {}".format(self.name, op))
 
@@ -174,7 +173,6 @@ class AbstractConnection:
     async def loop_once(self):
         try:
             metadata, raw_data = await self.read_metadata_and_raw_data()
-            # print("176----")
             if metadata is None:
                 # Hit EOF
                 self.close()

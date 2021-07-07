@@ -375,7 +375,6 @@ class BasePeer(BaseService):
         while self.is_operational:
             try:
                 cmd, msg = await self.read_msg(timeout=self.peer_idle_timeout)
-                print("cmd",cmd,"msg",msg)
             except (PeerConnectionLost, TimeoutError) as err:
                 self.logger.debug(
                     "%s stopped responding (%r), disconnecting", self.remote, err
@@ -409,7 +408,6 @@ class BasePeer(BaseService):
         frame_data = await self.read(read_size + MAC_LEN, timeout=timeout)
         msg = self.decrypt_body(frame_data, frame_size)
         cmd = self.get_protocol_command_for(msg)
-        # print("???????????????????????????????????????",msg,cmd)
         # NOTE: This used to be a bottleneck but it doesn't seem to be so anymore. If we notice
         # too much time is being spent on this again, we need to consider running this in a
         # ProcessPoolExecutor(). Need to make sure we don't use all CPUs in the machine for that,

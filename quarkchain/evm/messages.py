@@ -259,7 +259,6 @@ def validate_transaction(state, tx):
 
     # (7) check block gas limit
     if state.gas_used + tx.startgas > state.gas_limit:
-        print("======",state.gas_used,tx.startgas,state.gas_limit)
         raise BlockGasLimitReached(
             rp(tx, "gaslimit", state.gas_used + tx.startgas, state.gas_limit)
         )
