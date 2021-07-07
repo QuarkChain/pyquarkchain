@@ -9,7 +9,7 @@ jobs:
   download-snapshot-and-checkdb:
     runs-on: self-hosted
     container: quarkchaindocker/pyquarkchain:mainnet1.1.1
-    timeout-minutes: 4320
+    timeout-minutes: 10080
 
     steps:
     - uses: actions/checkout@v2
