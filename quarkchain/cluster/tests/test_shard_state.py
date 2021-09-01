@@ -2952,10 +2952,22 @@ class TestShardState(unittest.TestCase):
             value=5000000,
             gas=50000,
             version=2,
-         )
+        )
         evm_tx = tx0.tx.to_evm_tx()
         tx1.tx.to_evm_tx().set_signature(evm_tx.v, evm_tx.r, evm_tx.s)
         self.assertFalse(state1.add_tx(tx1))
+
+        tx2 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc_1_1,
+            to_address=acc_1_2,
+            value=5000000,
+            gas=50000,
+            version=2,
+            network_id=evm_tx.network_id,
+        )
+        self.assertFalse(state1.add_tx(tx2))
 
     def test_enable_evm_timestamp_with_contract_call(self):
         id1 = Identity.create_random_identity()
