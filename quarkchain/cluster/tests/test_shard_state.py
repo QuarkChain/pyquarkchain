@@ -2893,7 +2893,7 @@ class TestShardState(unittest.TestCase):
         b1 = state.create_block_to_mine()
         self.assertEqual(len(b1.tx_list), 1)
 
-        state.evm_state.timestamp=b1.header.create_time
+        state.evm_state.timestamp = b1.header.create_time
         env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = (
             b1.header.create_time + 100
         )
@@ -2907,6 +2907,67 @@ class TestShardState(unittest.TestCase):
         b3 = state.create_block_to_mine()
         self.assertEqual(len(b3.tx_list), 1)
         state.finalize_and_add_block(b3)
+
+    def test_eip155_signer_attack(self):
+        # use chain 0 signed tx to submit to chain 1
+        id0 = Identity.create_random_identity()
+        id1 = Identity.create_random_identity()
+        acc_0_1 = Address.create_from_identity(id0, full_shard_key=0)
+        acc_0_2 = Address.create_from_identity(id0, full_shard_key=0)
+        acc_1_1 = Address.create_from_identity(id1, full_shard_key=65536)
+        acc_1_2 = Address.create_from_identity(id1, full_shard_key=65536)
+
+        env = get_test_env(genesis_account=acc_0_1, genesis_minor_quarkash=10000000)
+        state0 = create_default_shard_state(env=env, shard_id=0)
+        state1 = create_default_shard_state(env=env, shard_id=1)
+
+        # Add a root block to have all the shards initialized
+        root_block = state0.root_tip.create_block_to_append().finalize()
+        state0.add_root_block(root_block)
+        state1.add_root_block(root_block)
+        env.quark_chain_config.ENABLE_TX_TIMESTAMP = 0
+        env.quark_chain_config.ENABLE_EIP155_SIGNER_TIMESTAMP = None
+
+        tx0 = create_transfer_transaction(
+            shard_state=state0,
+            key=id0.get_key(),
+            from_address=acc_0_1,
+            to_address=acc_0_2,
+            value=5000000,
+            gas=50000,
+            version=2,
+        )
+        self.assertTrue(state0.add_tx(tx0))
+
+        b0 = state0.create_block_to_mine()
+        self.assertEqual(len(b0.tx_list), 1)
+
+        state0.finalize_and_add_block(b0)
+
+        tx1 = create_transfer_transaction(
+            shard_state=state1,
+            key=id0.get_key(),
+            from_address=acc_1_1,
+            to_address=acc_1_2,
+            value=5000000,
+            gas=50000,
+            version=2,
+        )
+        evm_tx = tx0.tx.to_evm_tx()
+        tx1.tx.to_evm_tx().set_signature(evm_tx.v, evm_tx.r, evm_tx.s)
+        self.assertFalse(state1.add_tx(tx1))
+
+        tx2 = create_transfer_transaction(
+            shard_state=state1,
+            key=id1.get_key(),
+            from_address=acc_1_1,
+            to_address=acc_1_2,
+            value=5000000,
+            gas=50000,
+            version=2,
+            network_id=evm_tx.network_id,
+        )
+        self.assertFalse(state1.add_tx(tx2))
 
     def test_enable_evm_timestamp_with_contract_call(self):
         id1 = Identity.create_random_identity()
