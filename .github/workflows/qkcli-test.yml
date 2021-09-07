@@ -23,4 +23,4 @@ jobs:
       - run: go version
       - run: cd qkcli && go build
       - run: cd qkcli && go install
-      - run: cd tester && bash parallel_executor.sh
+      - run: cd qkcli/tester && bash parallel_executor.sh
