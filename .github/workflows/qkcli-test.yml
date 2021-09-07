@@ -1,9 +1,10 @@
 name: qkcli-integration-test
 
-on:
-  push:
-    branches:
-      - master
+on: [push]
+# on:
+  # push:
+    # branches:
+      # - master
 
 jobs:
   mnt-test-using-qkcli:

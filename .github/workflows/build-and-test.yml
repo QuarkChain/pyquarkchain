@@ -1,6 +1,10 @@
 name: commit-build-test
 
-on: [push]
+# on: [push]
+on:
+  push:
+    branches:
+      - master
 
 env:
   PYTHONPATH: ${{ github.workspace }}
