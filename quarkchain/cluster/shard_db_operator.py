@@ -266,7 +266,7 @@ class ShardDbOperator(TransactionHistoryMixin):
 
         # height -> set(minor block hash) for counting wasted blocks
         self.height_to_minor_block_hashes = dict()
-        self.rblock_cache = LRUCache(maxsize=256)
+        self.rblock_cache = LRUCache(maxsize=4096)  # enough for 4096 * 60 / 3600 / 24 = 2.84 days
         self.mblock_cache = LRUCache(maxsize=4096)
         self.mblock_header_cache = LRUCache(maxsize=10240)
 
