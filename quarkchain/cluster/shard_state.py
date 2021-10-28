@@ -1320,6 +1320,15 @@ class ShardState:
         # Cross-shard receive must be handled before including tx from tx_queue
         # This is part of consensus.
         block.header.hash_prev_root_block = self.root_tip.get_hash()
+        
+        # Move up to 100 rblock to prevent xchain cursor running out
+        prev_block_rblock = self.db.get_root_block_header_by_hash(prev_block.header.hash_prev_root_block)
+        assert (self.root_tip.height >= prev_block_rblock.height) # may further assert they are chained?
+        if (self.root_tip.height - prev_block_rblock.height > 100):
+            block.header.hash_prev_root_block = self.db.get_root_block_header_by_height(
+                block.header.hash_prev_root_block,
+                prev_block_rblock.height + 100
+            ).get_hash()
         (
             xtx_list,
             evm_state.xshard_tx_cursor_info,
