@@ -120,7 +120,7 @@ def compute_state_test_unit(state, txdata, indices, konfig, is_qkc_state, qkc_en
             tx.v = parse_int_or_hex(txdata["v"])
             tx._in_mutable_context = False
         # Run it
-        prev = state.to_dict()
+        prev = copy.deepcopy(state.to_dict())
         success, output = apply_transaction(state, tx, tx_wrapper_hash=bytes(32))
     except InvalidTransaction as e:
         print("Exception: %r" % e)
