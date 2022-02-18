@@ -339,3 +339,21 @@ class TestQuarkChainConfig(unittest.TestCase):
         env.cluster_config = cluster_config
         for addr in PRECOMPILED_CONTRACTS_AFTER_EVM_ENABLED:
             self.assertEqual(specials[addr][1], 123)
+
+    def test_get_diff_divider(self):
+        block_timestamp = 1646064000
+        config = QuarkChainConfig().config.ROOT.POSW_CONFIG
+        config.BOOST_TIMESTAMP = 0
+        self.assertEqual(config.DIFF_DIVIDER, config.get_diff_divider(block_timestamp))
+        config.BOOST_TIMESTAMP = block_timestamp + 1
+        self.assertEqual(config.DIFF_DIVIDER, config.get_diff_divider(block_timestamp))
+        config.BOOST_TIMESTAMP = block_timestamp - 1
+        self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLER_PER_STEP,
+                         config.get_diff_divider(block_timestamp))
+        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_SETP_INTERVAL * config.BOOST_STEPS + 1
+        self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLER_PER_STEP * config.BOOST_STEPS,
+                         config.get_diff_divider(block_timestamp))
+        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_SETP_INTERVAL * config.BOOST_STEPS - 1
+        self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLER_PER_STEP * config.BOOST_STEPS,
+                         config.get_diff_divider(block_timestamp))
+
