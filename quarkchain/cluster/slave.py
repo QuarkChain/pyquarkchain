@@ -964,6 +964,9 @@ class SlaveServer:
             )
             shard.miner.start()
 
+    def get_default_shard_id(self):
+        return self.full_shard_id_list[0]
+
     def create_transactions(
         self, num_tx_per_shard, x_shard_percent, tx: TypedTransaction
     ):
