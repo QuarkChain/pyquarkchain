@@ -342,7 +342,7 @@ class TestQuarkChainConfig(unittest.TestCase):
 
     def test_get_diff_divider(self):
         block_timestamp = 1646064000
-        config = QuarkChainConfig().config.ROOT.POSW_CONFIG
+        config = QuarkChainConfig().ROOT.POSW_CONFIG
         config.BOOST_TIMESTAMP = 0
         self.assertEqual(config.DIFF_DIVIDER, config.get_diff_divider(block_timestamp))
         config.BOOST_TIMESTAMP = block_timestamp + 1
