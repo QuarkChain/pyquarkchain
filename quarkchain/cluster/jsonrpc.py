@@ -1469,7 +1469,6 @@ class JSONRPCWebsocketServer:
         self.port = port
         self.host = host
         self.env = env
-        self.default_shard_id = slave_server.get_default_shard_id()
         self.slave = slave_server
         self.counters = dict()
         self.pending_tx_cache = LRUCache(maxsize=1024)
@@ -1516,9 +1515,6 @@ class JSONRPCWebsocketServer:
                         sub_id = response["result"]
                         full_shard_id = shard_id_decoder(d.get("params")[1])
                         sub_ids[sub_id] = full_shard_id
-                    elif method == "eth_subscribe":
-                        sub_id = response["result"]
-                        sub_ids[sub_id] = self.default_shard_id
                     elif method == "unsubscribe":
                         sub_id = d.get("params")[0]
                         del sub_ids[sub_id]

@@ -116,10 +116,10 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "DIFF_DIVIDER": 20,
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000,
-				"BOOST_TIMESTAMP": 0,
-				"BOOST_MULTIPLER_PER_STEP": 2,
-				"BOOST_STEPS": 8,
-				"BOOST_SETP_INTERVAL": 172800
+                "BOOST_TIMESTAMP": 0,
+                "BOOST_MULTIPLER_PER_STEP": 2,
+                "BOOST_STEPS": 8,
+                "BOOST_SETP_INTERVAL": 172800
             },
             "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         },
