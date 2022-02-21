@@ -120,7 +120,7 @@ class POSWConfig(BaseConfig):
     TOTAL_STAKE_PER_BLOCK = (10 ** 9) * QUARKSH_TO_JIAOZI
     BOOST_TIMESTAMP = 0  # 0 mean Disable
     BOOST_MULTIPLER_PER_STEP = 2
-    BOOST_STEPS = 8
+    BOOST_STEPS = 10
     BOOST_STEP_INTERVAL = 43200
 
     def get_diff_divider(self, block_timestamp):
@@ -268,7 +268,7 @@ class RootConfig(BaseConfig):
         self.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 240000 * QUARKSH_TO_JIAOZI
         self.POSW_CONFIG.BOOST_TIMESTAMP = 0
         self.POSW_CONFIG.BOOST_MULTIPLER_PER_STEP = 2
-        self.POSW_CONFIG.BOOST_STEPS = 8
+        self.POSW_CONFIG.BOOST_STEPS = 10
         self.POSW_CONFIG.BOOST_STEP_INTERVAL = 172800
 
     def to_dict(self):
