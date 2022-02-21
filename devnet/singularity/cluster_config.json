@@ -61,7 +61,7 @@
         "BOOST_TIMESTAMP": 1645372800,
         "BOOST_MULTIPLER_PER_STEP": 2,
         "BOOST_STEPS": 8,
-        "BOOST_SETP_INTERVAL": 43200
+        "BOOST_STEP_INTERVAL": 43200
       }
     },
     "CHAINS": [

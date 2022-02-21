@@ -121,12 +121,12 @@ class POSWConfig(BaseConfig):
     BOOST_TIMESTAMP = 0  # 0 mean Disable
     BOOST_MULTIPLER_PER_STEP = 2
     BOOST_STEPS = 8
-    BOOST_SETP_INTERVAL = 43200
+    BOOST_STEP_INTERVAL = 43200
 
     def get_diff_divider(self, block_timestamp):
         diff_divider = self.DIFF_DIVIDER
         if 0 < self.BOOST_TIMESTAMP < block_timestamp:
-            steps = (block_timestamp - self.BOOST_TIMESTAMP) // self.BOOST_SETP_INTERVAL + 1
+            steps = (block_timestamp - self.BOOST_TIMESTAMP) // self.BOOST_STEP_INTERVAL + 1
             if steps > self.BOOST_STEPS:
                 steps = self.BOOST_STEPS
 
@@ -266,9 +266,10 @@ class RootConfig(BaseConfig):
         self.POSW_CONFIG.WINDOW_SIZE = 4320  # 72 hours
         self.POSW_CONFIG.DIFF_DIVIDER = 1000
         self.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 240000 * QUARKSH_TO_JIAOZI
+        self.POSW_CONFIG.BOOST_TIMESTAMP = 0
         self.POSW_CONFIG.BOOST_MULTIPLER_PER_STEP = 2
         self.POSW_CONFIG.BOOST_STEPS = 8
-        self.POSW_CONFIG.BOOST_SETP_INTERVAL = 172800
+        self.POSW_CONFIG.BOOST_STEP_INTERVAL = 172800
 
     def to_dict(self):
         ret = super().to_dict()

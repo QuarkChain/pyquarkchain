@@ -81,7 +81,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "BOOST_TIMESTAMP": 0,
             "BOOST_MULTIPLER_PER_STEP": 2,
             "BOOST_STEPS": 8,
-            "BOOST_SETP_INTERVAL": 172800
+            "BOOST_STEP_INTERVAL": 172800
         }
     },
     "CHAINS": [
@@ -123,7 +123,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "BOOST_TIMESTAMP": 0,
                 "BOOST_MULTIPLER_PER_STEP": 2,
                 "BOOST_STEPS": 8,
-                "BOOST_SETP_INTERVAL": 43200
+                "BOOST_STEP_INTERVAL": 43200
             },
             "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         },
@@ -165,7 +165,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "BOOST_TIMESTAMP": 0,
                 "BOOST_MULTIPLER_PER_STEP": 2,
                 "BOOST_STEPS": 8,
-                "BOOST_SETP_INTERVAL": 43200
+                "BOOST_STEP_INTERVAL": 43200
             },
             "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         },
@@ -207,7 +207,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "BOOST_TIMESTAMP": 0,
                 "BOOST_MULTIPLER_PER_STEP": 2,
                 "BOOST_STEPS": 8,
-                "BOOST_SETP_INTERVAL": 43200
+                "BOOST_STEP_INTERVAL": 43200
             },
             "MAX_MINOR_BLOCKS_IN_MEMORY": 1536
         }
@@ -350,10 +350,10 @@ class TestQuarkChainConfig(unittest.TestCase):
         config.BOOST_TIMESTAMP = block_timestamp - 1
         self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLER_PER_STEP,
                          config.get_diff_divider(block_timestamp))
-        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_SETP_INTERVAL * config.BOOST_STEPS + 1
+        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_STEP_INTERVAL * config.BOOST_STEPS + 1
         self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLER_PER_STEP, config.BOOST_STEPS),
                          config.get_diff_divider(block_timestamp))
-        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_SETP_INTERVAL * config.BOOST_STEPS - 1
+        config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_STEP_INTERVAL * config.BOOST_STEPS - 1
         self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLER_PER_STEP, config.BOOST_STEPS),
                          config.get_diff_divider(block_timestamp))
 
