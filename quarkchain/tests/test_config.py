@@ -79,7 +79,7 @@ class TestQuarkChainConfig(unittest.TestCase):
             "WINDOW_SIZE": 4320,
             "TOTAL_STAKE_PER_BLOCK": 240000000000000000000000,
             "BOOST_TIMESTAMP": 0,
-            "BOOST_MULTIPLER_PER_STEP": 2,
+            "BOOST_MULTIPLIER_PER_STEP": 2,
             "BOOST_STEPS": 10,
             "BOOST_STEP_INTERVAL": 172800
         }
@@ -121,7 +121,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000,
                 "BOOST_TIMESTAMP": 0,
-                "BOOST_MULTIPLER_PER_STEP": 2,
+                "BOOST_MULTIPLIER_PER_STEP": 2,
                 "BOOST_STEPS": 10,
                 "BOOST_STEP_INTERVAL": 43200
             },
@@ -163,7 +163,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000,
                 "BOOST_TIMESTAMP": 0,
-                "BOOST_MULTIPLER_PER_STEP": 2,
+                "BOOST_MULTIPLIER_PER_STEP": 2,
                 "BOOST_STEPS": 10,
                 "BOOST_STEP_INTERVAL": 43200
             },
@@ -205,7 +205,7 @@ class TestQuarkChainConfig(unittest.TestCase):
                 "WINDOW_SIZE": 256,
                 "TOTAL_STAKE_PER_BLOCK": 1000000000000000000000000000,
                 "BOOST_TIMESTAMP": 0,
-                "BOOST_MULTIPLER_PER_STEP": 2,
+                "BOOST_MULTIPLIER_PER_STEP": 2,
                 "BOOST_STEPS": 10,
                 "BOOST_STEP_INTERVAL": 43200
             },
@@ -348,12 +348,12 @@ class TestQuarkChainConfig(unittest.TestCase):
         config.BOOST_TIMESTAMP = block_timestamp + 1
         self.assertEqual(config.DIFF_DIVIDER, config.get_diff_divider(block_timestamp))
         config.BOOST_TIMESTAMP = block_timestamp - 1
-        self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLER_PER_STEP,
+        self.assertEqual(config.DIFF_DIVIDER * config.BOOST_MULTIPLIER_PER_STEP,
                          config.get_diff_divider(block_timestamp))
         config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_STEP_INTERVAL * config.BOOST_STEPS + 1
-        self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLER_PER_STEP, config.BOOST_STEPS),
+        self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLIER_PER_STEP, config.BOOST_STEPS),
                          config.get_diff_divider(block_timestamp))
         config.BOOST_TIMESTAMP = block_timestamp - config.BOOST_STEP_INTERVAL * config.BOOST_STEPS - 1
-        self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLER_PER_STEP, config.BOOST_STEPS),
+        self.assertEqual(config.DIFF_DIVIDER * pow(config.BOOST_MULTIPLIER_PER_STEP, config.BOOST_STEPS),
                          config.get_diff_divider(block_timestamp))
 

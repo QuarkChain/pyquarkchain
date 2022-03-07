@@ -36,7 +36,7 @@
       "CONSENSUS_TYPE": "POW_ETHASH",
       "CONSENSUS_CONFIG": {
         "TARGET_BLOCK_TIME": 60,
-        "REMOTE_MINE": false
+        "REMOTE_MINE": true
       },
       "GENESIS": {
         "VERSION": 0,
@@ -54,12 +54,12 @@
       "EPOCH_INTERVAL": 525600,
       "POSW_CONFIG": {
         "ENABLED": true,
-        "ENABLE_TIMESTAMP": 1645716600,
+        "ENABLE_TIMESTAMP": 1646668800,
         "DIFF_DIVIDER": 100,
         "WINDOW_SIZE": 512,
         "TOTAL_STAKE_PER_BLOCK": 10000000000000000000000,
-        "BOOST_TIMESTAMP": 1645718100,
-        "BOOST_MULTIPLER_PER_STEP": 2,
+        "BOOST_TIMESTAMP": 1646719200,
+        "BOOST_MULTIPLIER_PER_STEP": 2,
         "BOOST_STEPS": 10,
         "BOOST_STEP_INTERVAL": 3600
       }

@@ -119,7 +119,7 @@ class POSWConfig(BaseConfig):
     # = total stakes / alpha
     TOTAL_STAKE_PER_BLOCK = (10 ** 9) * QUARKSH_TO_JIAOZI
     BOOST_TIMESTAMP = 0  # 0 mean Disable
-    BOOST_MULTIPLER_PER_STEP = 2
+    BOOST_MULTIPLIER_PER_STEP = 2
     BOOST_STEPS = 10
     BOOST_STEP_INTERVAL = 43200
 
@@ -130,7 +130,7 @@ class POSWConfig(BaseConfig):
             if steps > self.BOOST_STEPS:
                 steps = self.BOOST_STEPS
 
-            diff_divider = self.DIFF_DIVIDER * pow(self.BOOST_MULTIPLER_PER_STEP, steps)
+            diff_divider = self.DIFF_DIVIDER * pow(self.BOOST_MULTIPLIER_PER_STEP, steps)
 
         return diff_divider
 
@@ -267,7 +267,7 @@ class RootConfig(BaseConfig):
         self.POSW_CONFIG.DIFF_DIVIDER = 1000
         self.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 240000 * QUARKSH_TO_JIAOZI
         self.POSW_CONFIG.BOOST_TIMESTAMP = 0
-        self.POSW_CONFIG.BOOST_MULTIPLER_PER_STEP = 2
+        self.POSW_CONFIG.BOOST_MULTIPLIER_PER_STEP = 2
         self.POSW_CONFIG.BOOST_STEPS = 10
         self.POSW_CONFIG.BOOST_STEP_INTERVAL = 172800
 
