@@ -82,7 +82,7 @@ def get_posw_info(
 
     diff = header.difficulty
     ret = lambda success: PoSWInfo(
-        diff // config.DIFF_DIVIDER if success else diff,
+        diff // config.get_diff_divider(header.create_time) if success else diff,
         block_threshold,
         # mined blocks should include current one, assuming success
         posw_mined_blocks=cnt + 1,

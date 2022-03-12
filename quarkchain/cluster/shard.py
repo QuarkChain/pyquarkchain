@@ -406,7 +406,7 @@ class SyncTask:
                 consensus_type = shard_config.CONSENSUS_TYPE
                 diff = header.difficulty
                 if shard_config.POSW_CONFIG.ENABLED:
-                    diff //= shard_config.POSW_CONFIG.DIFF_DIVIDER
+                    diff //= shard_config.POSW_CONFIG.get_diff_divider(header.create_time)
                 validate_seal(
                     header,
                     consensus_type,
