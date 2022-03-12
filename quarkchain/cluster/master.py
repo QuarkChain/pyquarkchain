@@ -1459,7 +1459,7 @@ class MasterServer:
             shard["poswEnabled"] = config.ENABLED
             shard["poswMinStake"] = config.TOTAL_STAKE_PER_BLOCK
             shard["poswWindowSize"] = config.WINDOW_SIZE
-            shard["difficultyDivider"] = config.DIFF_DIVIDER
+            shard["difficultyDivider"] = config.get_diff_divider(shard_stats.timestamp)
             shards.append(shard)
         shards.sort(key=lambda x: x["fullShardId"])
 
@@ -1685,7 +1685,7 @@ class MasterServer:
             check(isinstance(block, RootBlock))
             posw_mineable = await self.posw_mineable(block)
             config = self.env.quark_chain_config.ROOT.POSW_CONFIG
-            return work, config.DIFF_DIVIDER if posw_mineable else None
+            return work, config.get_diff_divider(block.header.create_time) if posw_mineable else None
 
         if branch.value not in self.branch_to_slaves:
             return None, None

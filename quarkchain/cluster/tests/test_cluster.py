@@ -2502,6 +2502,7 @@ class TestCluster(unittest.TestCase):
             qkc_config.ROOT.POSW_CONFIG.WINDOW_SIZE = 2
             # should always pass pow check if posw is applied
             qkc_config.ROOT.POSW_CONFIG.DIFF_DIVIDER = 1000000
+            qkc_config.ROOT.POSW_CONFIG.BOOST_TIMESTAMP = 0
             shard = next(iter(clusters[0].slave_list[0].shards.values()))
 
             # monkey patch staking results
