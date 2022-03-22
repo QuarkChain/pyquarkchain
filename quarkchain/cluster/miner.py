@@ -86,6 +86,7 @@ class Simulate(MiningAlgorithm):
     def mine(self, start_nonce: int, end_nonce: int) -> Optional[MiningResult]:
         time.sleep(0.1)
         if time.time() > self.target_time:
+            Logger.info("Simulate miner: time.time() {} > self.target_time {}".format(time.time(), self.target_time))
             return MiningResult(self.work.hash, random.randint(0, MAX_NONCE), bytes(32))
         return None
 
@@ -222,6 +223,7 @@ class Miner:
                         block = await self.create_block_async_func(
                             Address.create_empty_account()
                         )
+                        Logger.info("consensus_type = POW_SIMULATE {}".format(block.header.create_time))
                         block.header.nonce = random.randint(0, 2 ** 32 - 1)
                         self._track(block)
                         self._log_status(block)
@@ -369,6 +371,7 @@ class Miner:
                     return
 
                 debug_log("outer mining loop", 0.1)
+                Logger.info("mine_loop")
                 consensus_type = mining_params["consensus_type"]
                 mining_algo_gen = consensus_to_mining_algo[consensus_type]
                 mining_algo = mining_algo_gen(work, **mining_params)
