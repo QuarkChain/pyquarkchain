@@ -1191,6 +1191,7 @@ class ShardState:
             self.confirmed_header_tip.height if self.confirmed_header_tip else -1
         )
         steps = header.height - start_height
+        Logger.info("{} blocks to be confirm".format(steps))
         max_height = start_height + max_blocks
         st = time_ms()
         for i in range(steps):
@@ -1201,7 +1202,7 @@ class ShardState:
             )
         check(header == self.confirmed_header_tip)
         header_list.reverse()
-        Logger.debug("get_unconfirmed_header_list: unconfirmed header {}, max_blocks = {}, time use {} ms."
+        Logger.info("get_unconfirmed_header_list: unconfirmed header {}, max_blocks = {}, time use {} ms."
                      .format(steps, max_blocks, time_ms() - st))
         return header_list
 
