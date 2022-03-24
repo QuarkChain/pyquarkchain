@@ -1,5 +1,6 @@
 import unittest
 
+import time
 import quarkchain.db
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
@@ -9,7 +10,7 @@ from quarkchain.core import CrossShardTransactionList
 from quarkchain.diff import EthDifficultyCalculator
 
 
-def create_default_state(env, diff_calc=None):
+def create_default_state(env, diff_calc=None, create_time=None):
     r_state = RootState(env=env, diff_calc=diff_calc)
     s_state_list = dict()
     for full_shard_id in env.quark_chain_config.get_full_shard_ids():
@@ -30,7 +31,7 @@ def create_default_state(env, diff_calc=None):
     for state in s_state_list.values():
         minor_header_list.append(state.header_tip)
 
-    root_block = r_state.create_block_to_mine(minor_header_list)
+    root_block = r_state.create_block_to_mine(minor_header_list, create_time=create_time)
     assert r_state.add_block(root_block)
     for state in s_state_list.values():
         assert state.add_root_block(root_block)
@@ -636,15 +637,16 @@ class TestRootState(unittest.TestCase):
 
     def test_root_state_add_root_block_too_many_minor_blocks(self):
         env = get_test_env()
-        r_state, s_states = create_default_state(env)
+        r_state, s_states = create_default_state(env, create_time=int(time.time()) - 1000)
         s_state0 = s_states[2 | 0]
         headers = []
         max_mblock_in_rblock = (
             s_state0.shard_config.max_blocks_per_shard_in_one_root_block
         )
 
+        start_create_time = int(time.time()) - max_mblock_in_rblock
         for i in range(max_mblock_in_rblock + 1):
-            b = s_state0.create_block_to_mine()
+            b = s_state0.create_block_to_mine(create_time=start_create_time + i)
             add_minor_block_to_cluster(s_states, b)
             headers.append(b.header)
             r_state.add_validated_minor_block_hash(
