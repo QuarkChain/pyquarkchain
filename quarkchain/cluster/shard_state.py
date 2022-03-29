@@ -1183,26 +1183,32 @@ class ShardState:
         # TODO: add x-shard tx
         return coinbase
 
-    def __get_all_unconfirmed_header_list(self) -> List[MinorBlockHeader]:
+    def __get_unconfirmed_header_list(self, max_blocks) -> List[MinorBlockHeader]:
         """height in ascending order"""
         header_list = []
         header = self.header_tip
         start_height = (
             self.confirmed_header_tip.height if self.confirmed_header_tip else -1
         )
-        for i in range(header.height - start_height):
-            header_list.append(header)
+        steps = header.height - start_height
+        Logger.debug("{} blocks to be confirm".format(steps))
+        max_height = start_height + max_blocks
+        st = time_ms()
+        for i in range(steps):
+            if header.height <= max_height:
+                header_list.append(header)
             header = self.db.get_minor_block_header_by_hash(
                 header.hash_prev_minor_block
             )
+        Logger.debug("get_unconfirmed_header_list: unconfirmed header {}, max_blocks = {}, time use {} ms."
+                        .format(steps, max_blocks, time_ms() - st))
         check(header == self.confirmed_header_tip)
         header_list.reverse()
         return header_list
 
     def get_unconfirmed_header_list(self) -> List[MinorBlockHeader]:
-        headers = self.__get_all_unconfirmed_header_list()
         max_blocks = self.__get_max_blocks_in_one_root_block()
-        return headers[0:max_blocks]
+        return self.__get_unconfirmed_header_list(max_blocks)
 
     def get_unconfirmed_headers_coinbase_amount(self) -> int:
         """only returns genesis token coinbase amount
@@ -1320,6 +1326,15 @@ class ShardState:
         # Cross-shard receive must be handled before including tx from tx_queue
         # This is part of consensus.
         block.header.hash_prev_root_block = self.root_tip.get_hash()
+        
+        # Move up to 100 rblock to prevent xchain cursor running out
+        prev_block_rblock = self.db.get_root_block_header_by_hash(prev_block.header.hash_prev_root_block)
+        assert (self.root_tip.height >= prev_block_rblock.height) # may further assert they are chained?
+        if (self.root_tip.height - prev_block_rblock.height > 100):
+            block.header.hash_prev_root_block = self.db.get_root_block_header_by_height(
+                block.header.hash_prev_root_block,
+                prev_block_rblock.height + 100
+            ).get_hash()
         (
             xtx_list,
             evm_state.xshard_tx_cursor_info,

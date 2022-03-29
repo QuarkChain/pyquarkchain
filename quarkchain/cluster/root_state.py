@@ -59,7 +59,7 @@ class RootDb:
         self.tip_header = None
 
         self.__recover_from_db()
-        self.rblock_cache = LRUCache(maxsize=1024)
+        self.rblock_cache = LRUCache(maxsize=8192) # enough for 8192 * 60 / 3600 / 24 = 5.6 days
 
     def __recover_from_db(self):
         """ Recover the best chain from local database.
