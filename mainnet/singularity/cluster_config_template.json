@@ -7,7 +7,7 @@
   "ENABLE_TRANSACTION_HISTORY": false,
   "DB_PATH_ROOT": "./qkc-data/mainnet",
   "LOG_LEVEL": "info",
-  "START_SIMULATED_MINING": false,
+  "START_SIMULATED_MINING": true,
   "CLEAN": false,
   "GENESIS_DIR": null,
   "QUARKCHAIN": {
