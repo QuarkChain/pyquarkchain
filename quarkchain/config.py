@@ -125,7 +125,7 @@ class POSWConfig(BaseConfig):
 
     def get_diff_divider(self, block_timestamp):
         diff_divider = self.DIFF_DIVIDER
-        if 0 < self.BOOST_TIMESTAMP < block_timestamp:
+        if 0 < self.BOOST_TIMESTAMP <= block_timestamp:
             steps = (block_timestamp - self.BOOST_TIMESTAMP) // self.BOOST_STEP_INTERVAL + 1
             if steps > self.BOOST_STEPS:
                 steps = self.BOOST_STEPS
