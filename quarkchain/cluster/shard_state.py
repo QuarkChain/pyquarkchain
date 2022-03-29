@@ -1200,7 +1200,7 @@ class ShardState:
             header = self.db.get_minor_block_header_by_hash(
                 header.hash_prev_minor_block
             )
-        Logger.info("get_unconfirmed_header_list: unconfirmed header {}, max_blocks = {}, time use {} ms."
+        Logger.debug("get_unconfirmed_header_list: unconfirmed header {}, max_blocks = {}, time use {} ms."
                         .format(steps, max_blocks, time_ms() - st))
         check(header == self.confirmed_header_tip)
         header_list.reverse()
