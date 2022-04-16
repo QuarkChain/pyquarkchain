@@ -246,13 +246,13 @@ class PeerShardConnection(VirtualConnection):
             return
 
         # Do not download if the prev root block is not synced
-        rblock_header = self.state.get_root_block_header_by_hash(m_header.hash_prev_root_block)
+        rblock_header = self.shard_state.get_root_block_header_by_hash(m_header.hash_prev_root_block)
         if (rblock_header is None):
             return
 
         # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
         # This means the minor block's root is a fork, which will be handled by master sync
-        confirmed_root_header = self.state.get_root_block_header_by_hash(self.shard_state.confirmed_header_tip.hash_prev_root_block)
+        confirmed_root_header = self.shard_state.get_root_block_header_by_hash(self.shard_state.confirmed_header_tip.hash_prev_root_block)
         if confirmed_root_header != None and confirmed_root_header.height > rblock_header.height:
             return
 
