@@ -253,7 +253,7 @@ class PeerShardConnection(VirtualConnection):
         # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
         # This means the minor block's root is a fork, which will be handled by master sync
         confirmed_root_header = self.shard_state.get_root_block_header_by_hash(self.shard_state.confirmed_header_tip.hash_prev_root_block)
-        if confirmed_root_header != None and confirmed_root_header.height > rblock_header.height:
+        if confirmed_root_header is not None and confirmed_root_header.height > rblock_header.height:
             return
 
         Logger.info_every_sec(
