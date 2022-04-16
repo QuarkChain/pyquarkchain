@@ -1006,12 +1006,14 @@ class SlaveServer:
                 bs = await f.read()
                 for b in bs:
                     if b == 0:
+                        Logger.info("Disable profiling")
                         if self.profiling is not None:
                             self.profiling.disable()
                             self.profiling.print_stats("time")
 
                         self.profiling = None
                     elif b == 1:
+                        Logger.info("Enable profiling")
                         self.profiling = cProfile.Profile()
                         self.profiling.enable()
 
