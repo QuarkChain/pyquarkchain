@@ -693,12 +693,10 @@ class Shard:
         if (rblock_header is None):
             return
 
-        # Ignore old blocks if its confirmed root is too old
-        # Such block should be synced by master sychronizer
-        if (
-            self.state.root_tip
-            and self.state.root_tip.height - rblock_header.height > 4096
-        ):
+        # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
+        # This means the minor block's root is a fork, which will be handled by master sync
+        confirmed_root_header = self.shard_state.get_root_block_header_by_hash(self.shard_state.confirmed_header_tip.hash_prev_root_block)
+        if confirmed_root_header is not None and confirmed_root_header.height > rblock_header.height:
             return
 
         try:
