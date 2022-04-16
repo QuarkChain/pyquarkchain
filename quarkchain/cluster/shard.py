@@ -686,8 +686,7 @@ class Shard:
         # Such block should be synced by master sychronizer
         if (
             self.state.root_tip
-            and self.state.root_tip.height - rblock_header.height
-            > self.state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
+            and self.state.root_tip.height - rblock_header.height > 4096
         ):
             return
 
