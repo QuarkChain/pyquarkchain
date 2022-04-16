@@ -678,9 +678,15 @@ class Shard:
         # There is a race that the root block may not be processed at the moment.
         # Ignore it if its root block is not found.
         # Otherwise, validate_block() will fail and we will disconnect the peer.
+        rblock = self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
+        if (rblock is None):
+            return
+
+        # Ignore old blocks for if its confirmed root is too old
         if (
-            self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
-            is None
+            self.state.root_tip
+            and self.state.root_tip.height - rblock.header.height
+            > self.state.env.quark_chain_config.ROOT.MAX_STALE_ROOT_BLOCK_HEIGHT_DIFF
         ):
             return
 
