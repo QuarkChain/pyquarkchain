@@ -4,6 +4,7 @@ import errno
 import os
 import cProfile
 from typing import Optional, Tuple, Dict, List, Union
+import aiofiles
 
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.cluster.miner import MiningWork
@@ -999,8 +1000,24 @@ class SlaveServer:
             )
         )
 
+    async def __handle_profiling(self):
+        async with aiofiles.open('/var/slave_{}.ipc'.format(self.env.arguments.node_id), mode='rb') as f:
+            while True:
+                bs = await f.read()
+                for b in bs:
+                    if b == 0:
+                        if self.profiling is not None:
+                            self.profiling.disable()
+                            self.profiling.print_stats("time")
+
+                        self.profiling = None
+                    elif b == 1:
+                        self.profiling = cProfile.Profile()
+                        self.profiling.enable()
+
     def start(self):
         self.loop.create_task(self.__start_server())
+        self.loop.create_task(self.__handle_profiling())
 
     def do_loop(self):
         try:

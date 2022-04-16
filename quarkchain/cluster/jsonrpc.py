@@ -2,6 +2,8 @@ import asyncio
 import inspect
 import json
 from typing import Callable, Dict, List, Optional
+import cProfile
+
 
 import aiohttp_cors
 import websockets
@@ -1279,6 +1281,19 @@ class JSONRPCHttpServer:
         return await self.master.set_target_block_time(
             root_block_time, minor_block_time
         )
+
+    @private_methods.add
+    async def setProfiling(self, enable=False):
+        if enable:
+            self.profile = cProfile.Profile()
+            self.profile.enable()
+        else:
+            if self.profile is not None:
+                self.profile.disable()
+                self.profile.print_stats("time")
+
+            self.profile = None
+
 
     @public_methods.add
     @decode_arg("block_id", id_decoder)
