@@ -245,6 +245,18 @@ class PeerShardConnection(VirtualConnection):
         if self.shard_state.header_tip.height >= m_header.height:
             return
 
+        # Do not download if the prev root block is not synced
+        rblock_header = self.shard_state.get_root_block_header_by_hash(m_header.hash_prev_root_block)
+        if (rblock_header is None):
+            return
+
+        # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
+        # This means the minor block's root is a fork, which will be handled by master sync
+        confirmed_tip = self.shard_state.confirmed_header_tip
+        confirmed_root_header = None if confirmed_tip is None else self.shard_state.get_root_block_header_by_hash(confirmed_tip.hash_prev_root_block)
+        if confirmed_root_header is not None and confirmed_root_header.height > rblock_header.height:
+            return
+
         Logger.info_every_sec(
             "[{}] received new tip with height {}".format(
                 m_header.branch.to_str(), m_header.height
@@ -678,10 +690,15 @@ class Shard:
         # There is a race that the root block may not be processed at the moment.
         # Ignore it if its root block is not found.
         # Otherwise, validate_block() will fail and we will disconnect the peer.
-        if (
-            self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
-            is None
-        ):
+        rblock_header = self.state.get_root_block_header_by_hash(block.header.hash_prev_root_block)
+        if (rblock_header is None):
+            return
+
+        # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
+        # This means the minor block's root is a fork, which will be handled by master sync
+        confirmed_tip = self.state.confirmed_header_tip
+        confirmed_root_header = None if confirmed_tip is None else self.state.get_root_block_header_by_hash(confirmed_tip.hash_prev_root_block)
+        if confirmed_root_header is not None and confirmed_root_header.height > rblock_header.height:
             return
 
         try:
