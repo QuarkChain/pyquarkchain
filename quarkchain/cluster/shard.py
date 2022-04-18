@@ -697,7 +697,7 @@ class Shard:
         # Do not download if the new header's confirmed root is lower then current root tip last header's confirmed root
         # This means the minor block's root is a fork, which will be handled by master sync
         confirmed_tip = self.state.confirmed_header_tip
-        confirmed_root_header = None if confirmed_tip is None else self.state.get_root_block_header_by_hash(self.state.confirmed_tip.hash_prev_root_block)
+        confirmed_root_header = None if confirmed_tip is None else self.state.get_root_block_header_by_hash(confirmed_tip.hash_prev_root_block)
         if confirmed_root_header is not None and confirmed_root_header.height > rblock_header.height:
             return
 
