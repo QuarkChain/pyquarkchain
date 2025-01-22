@@ -293,6 +293,7 @@ def tx_encoder(block, i):
         "gasTokenId": quantity_encoder(evm_tx.gas_token_id),
         "transferTokenStr": token_id_decode(evm_tx.transfer_token_id),
         "gasTokenStr": token_id_decode(evm_tx.gas_token_id),
+        "version": quantity_encoder(evm_tx.version),
         "r": quantity_encoder(evm_tx.r),
         "s": quantity_encoder(evm_tx.s),
         "v": quantity_encoder(evm_tx.v),
