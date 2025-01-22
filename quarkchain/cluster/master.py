@@ -948,8 +948,8 @@ class MasterServer:
 
         start_time = time.monotonic()
         # Start with root db
-        check_db_rblock_from = self.env.arguments.check_db_rblock_from # highest height
-        check_db_rblock_to = self.env.arguments.check_db_rblock_to # lowest height
+        check_db_rblock_from = self.env.arguments.check_db_rblock_from # highest height (inclusive)
+        check_db_rblock_to = self.env.arguments.check_db_rblock_to # lowest height (exclusive)
         rb = self.root_state.get_root_block_by_height(check_db_rblock_to)
         Logger.info(
             "Starting from root block height: {0}, batch size: {1}, to block height: {2}".format(
@@ -963,14 +963,12 @@ class MasterServer:
                 )
             )
         count = 0
-        while rb.header.height <= check_db_rblock_from:
+        while rb.header.height < check_db_rblock_from:
             if count % 100 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
             rb_list = []
             for i in range(self.env.arguments.check_db_rblock_batch):
                 count += 1
-                rb_list.append(rb)
-
                 if rb.header.height >= check_db_rblock_from:
                     break
 
@@ -995,6 +993,7 @@ class MasterServer:
                             rb.header.height
                         )
                     )
+                rb_list.append(rb)
 
             future_list = []
             header_list = []
