@@ -28,6 +28,13 @@ def handle_root_print_tip(env, args):
     return 0
 
 
+def handle_root_set_tip(env, args):
+    root_state = RootState(env)
+    root_state.db.update_tip_hash(bytes.fromhex(args.hash))
+    print("root tip reset to: 0x{}". args.hash)
+    return 0
+
+
 def handle_root_print_by_height(env, args):
     root_state = RootState(env)
     header = root_state.db.get_root_block_header_by_height(args.height)
@@ -92,6 +99,7 @@ def main():
         "root_print_by_height": handle_root_print_by_height,
         "root_print_by_hash": handle_root_print_by_hash,
         "root_print_block": handle_root_print_block,
+        "root_set_tip": handle_root_set_tip,
     }
 
     if args.action == "interactive":
