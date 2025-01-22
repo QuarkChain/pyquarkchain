@@ -952,8 +952,8 @@ class MasterServer:
         check_db_rblock_to = self.env.arguments.check_db_rblock_to # lowest height
         rb = self.root_state.get_root_block_by_height(check_db_rblock_to)
         Logger.info(
-            "Starting from root block height: {0}, batch size: {1}".format(
-                rb.header.height, self.env.arguments.check_db_rblock_batch
+            "Starting from root block height: {0}, batch size: {1}, to block height: {2}".format(
+                check_db_rblock_from, self.env.arguments.check_db_rblock_batch, check_db_rblock_to
             )
         )
         if self.root_state.db.get_root_block_by_hash(rb.header.get_hash()) != rb:
@@ -969,9 +969,11 @@ class MasterServer:
             rb_list = []
             for i in range(self.env.arguments.check_db_rblock_batch):
                 count += 1
-                if rb.header.height > check_db_rblock_from:
-                    break
                 rb_list.append(rb)
+
+                if rb.header.height >= check_db_rblock_from:
+                    break
+
                 # Check the following invariants
                 # - next_rb.prev_hash == rb
                 # - can get next_rb by height
