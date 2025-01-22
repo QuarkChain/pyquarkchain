@@ -31,7 +31,7 @@ def handle_root_print_tip(env, args):
 def handle_root_set_tip(env, args):
     root_state = RootState(env)
     root_state.db.update_tip_hash(bytes.fromhex(args.hash))
-    print("root tip reset to: 0x{}". args.hash)
+    print("root tip reset to: 0x{}".format(args.hash))
     return 0
 
 

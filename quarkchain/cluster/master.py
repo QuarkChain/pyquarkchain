@@ -948,11 +948,9 @@ class MasterServer:
 
         start_time = time.monotonic()
         # Start with root db
-        rb = self.root_state.get_tip_block()
-        check_db_rblock_from = self.env.arguments.check_db_rblock_from
-        check_db_rblock_to = self.env.arguments.check_db_rblock_to
-        if check_db_rblock_from >= 0 and check_db_rblock_from < rb.header.height:
-            rb = self.root_state.get_root_block_by_height(check_db_rblock_from)
+        check_db_rblock_from = self.env.arguments.check_db_rblock_from # highest height
+        check_db_rblock_to = self.env.arguments.check_db_rblock_to # lowest height
+        rb = self.root_state.get_root_block_by_height(check_db_rblock_to)
         Logger.info(
             "Starting from root block height: {0}, batch size: {1}".format(
                 rb.header.height, self.env.arguments.check_db_rblock_batch
@@ -965,27 +963,31 @@ class MasterServer:
                 )
             )
         count = 0
-        while rb.header.height >= max(check_db_rblock_to, 1):
+        while rb.header.height <= check_db_rblock_from:
             if count % 100 == 0:
                 Logger.info("Checking root block height: {}".format(rb.header.height))
             rb_list = []
             for i in range(self.env.arguments.check_db_rblock_batch):
                 count += 1
-                if rb.header.height < max(check_db_rblock_to, 1):
+                if rb.header.height > check_db_rblock_from:
                     break
                 rb_list.append(rb)
-                # Make sure the rblock matches the db one
-                prev_rb = self.root_state.db.get_root_block_by_hash(
-                    rb.header.hash_prev_block
+                # Check the following invariants
+                # - next_rb.prev_hash == rb
+                # - can get next_rb by height
+                # - can get next_rb by hash
+
+                next_rb = self.root_state.db.get_root_block_by_height(
+                    rb.header.height + 1
                 )
-                if prev_rb.header.get_hash() != rb.header.hash_prev_block:
+                if rb.header.get_hash() != next_rb.header.hash_prev_block:
                     log_error_and_exit(
                         "Root block height {} mismatches previous block hash".format(
-                            rb.header.height
+                            next_rb.header.height
                         )
                     )
-                rb = prev_rb
-                if self.root_state.get_root_block_by_height(rb.header.height) != rb:
+                rb = next_rb
+                if self.root_state.get_root_block_by_hash(rb.header.get_hash()) != rb:
                     log_error_and_exit(
                         "Root block height {} mismatches canonical chain".format(
                             rb.header.height
