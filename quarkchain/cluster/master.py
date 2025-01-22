@@ -989,7 +989,7 @@ class MasterServer:
                         )
                     )
                 rb = next_rb
-                if self.root_state.get_root_block_by_hash(rb.header.get_hash()) != rb:
+                if self.root_state.db.get_root_block_by_hash(rb.header.get_hash()) != rb:
                     log_error_and_exit(
                         "Root block height {} mismatches canonical chain".format(
                             rb.header.height
