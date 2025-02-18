@@ -1,0 +1,44 @@
+name: nightly-check-db
+
+on: [push]
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  download-snapshot-and-checkdb:
+    runs-on: self-hosted
+    container: quarkchaindocker/pyquarkchain:mainnet1.6.1
+    timeout-minutes: 4320
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: master
+
+    - name: Install Dependencies and Build
+      run: |
+        apt update && apt upgrade
+        apt install sshpass
+        PYTHONPATH=/code/pyquarkchain pip3 install -e .
+        cd qkchash && make clean && make
+
+    - name: Download DB snapshot
+      run: |
+        mkdir -p quarkchain/cluster/qkc-data
+        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp u446960-sub2@u446960-sub2.your-storagebox.de:archive.tar.zip data.tar.gz
+        tar xvfz data.tar.gz
+        rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
+
+    - name: Check DB
+      run: |
+        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+        day_of_week=`date +%u`
+        end=$(( day_of_week == 7 ? 0 : height - 100000 ))  # run whole dataset on Sunday
+        echo "Checking: $height -> $end"
+        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh \
+          --check_db=True \
+          --check_db_rblock_batch=100 \
+          --check_db_rblock_from=$height \
+          --check_db_rblock_to=$end \
+          --cluster_config `pwd`/mainnet/singularity/cluster_config_template_8nodes.json
