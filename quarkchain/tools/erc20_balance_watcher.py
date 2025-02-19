@@ -1,3 +1,5 @@
+# jsonrpcclient==3.*
+# requests==2.*
 import jsonrpcclient
 import time
 import logging
@@ -6,8 +8,8 @@ import smtplib
 from email.message import EmailMessage
 
 
-HOST = "http://jrpc.mainnet.quarkchain.io"
-PORT = "38391"
+HOST = "https://eth.llamarpc.com"
+PORT = "443"
 
 FORMAT = "%(asctime)-15s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -17,7 +19,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def query(endpoint, *args):
+def query(endpoint, args):
     retry, resp = 0, None
     while retry <= 5:
         try:
@@ -29,15 +31,12 @@ def query(endpoint, *args):
     return resp
 
 
-def query_balance(recipient, chain_id, token_str):
+def query_balance(recipient):
     resp = query(
-        "getBalances",
-        recipient.lower() + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
+        "eth_call",
+        [{"from": None, "to": "0xea26c4ac16d4a5a106820bc8aee85fd0b7b2b664", "data": "0x70a08231"+int(recipient, 0).to_bytes(32, byteorder="big").hex()}, "latest"]
     )
-    for balance in resp.data.result["balances"]:
-        if balance["tokenStr"] == token_str:
-            return int(balance["balance"], 16)
-    return 0
+    return int(resp.data.result, 0)
 
 
 def main():
@@ -57,6 +56,7 @@ def main():
     parser.add_argument("--username", type=str, default="", help="email username")
     parser.add_argument("--password", type=str, default="", help="email password")
     parser.add_argument("--test_email", type=bool, default=False, help="send a test email when start")
+
 
     args = parser.parse_args()
     HOST = args.host
@@ -79,22 +79,19 @@ def main():
             s.send_message(emsg)
 
     while True:
-        total_balance = 0
         logger.info("Checking balance")
-        for chain_id in range(8):
-            balance = query_balance(args.recipient, chain_id, "QKC")
-            total_balance += balance
+        balance = query_balance(args.recipient)
         logger.info(
-            "Balance query done, recipient: {0}, total_balance: {1} ({2:,.2f} QKC))".format(
-                args.recipient, total_balance, total_balance / (10 ** 18)
+            "Balance query done, recipient: {0}, balance: {1} ({2:,.2f} QKC))".format(
+                args.recipient, balance, balance / (10 ** 18)
             )
         )
 
-        if (prev_balance is not None and prev_balance != total_balance) or (args.force_interval is not None and time.monotonic() - prev_send >= args.force_interval):
+        if (prev_balance is not None and prev_balance != balance) or (args.force_interval is not None and time.monotonic() - prev_send >= args.force_interval):
             msg = "Recipient {3}, balance changed: previous {0:,.2f}, now {1:,.2f}, diff {2:,.2f}".format(
                 prev_balance / (10 ** 18),
-                total_balance / (10 ** 18),
-                (total_balance - prev_balance) / (10 ** 18),
+                balance / (10 ** 18),
+                (balance - prev_balance) / (10 ** 18),
                 args.recipient,
             )
             logger.info(msg)
@@ -109,7 +106,7 @@ def main():
                 s.send_message(emsg)
             prev_send = time.monotonic()
 
-        prev_balance = total_balance
+        prev_balance = balance
         time.sleep(args.check_interval)
 
 
