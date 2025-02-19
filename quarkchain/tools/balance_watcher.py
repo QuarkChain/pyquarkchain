@@ -49,6 +49,9 @@ def main():
     parser.add_argument(
         "--check_interval", type=int, default=15 * 60, help="recipient to query"
     )
+    parser.add_argument(
+        "--force_interval", type=int, default=None, help="interval to forcibly send update"
+    )
     parser.add_argument("--from_addr", type=str, default="", help="from address")
     parser.add_argument("--to_addr", type=str, default="", help="to address")
     parser.add_argument("--username", type=str, default="", help="email username")
@@ -60,6 +63,7 @@ def main():
     PORT = args.port
 
     prev_balance = None
+    prev_send = time.monotonic()
 
     if args.test_email:
         msg = "test email for {}".format(args.recipient)
@@ -86,7 +90,7 @@ def main():
             )
         )
 
-        if prev_balance is not None and prev_balance != total_balance:
+        if (prev_balance is not None and prev_balance != total_balance) or (args.force_interval is not None and time.monotonic() - prev_send >= args.force_interval):
             msg = "Recipient {3}, balance changed: previous {0:,.2f}, now {1:,.2f}, diff {2:,.2f}".format(
                 prev_balance / (10 ** 18),
                 total_balance / (10 ** 18),
@@ -103,6 +107,7 @@ def main():
                 s.starttls()
                 s.login(args.username, args.password)
                 s.send_message(emsg)
+            prev_send = time.monotonic()
 
         prev_balance = total_balance
         time.sleep(args.check_interval)
