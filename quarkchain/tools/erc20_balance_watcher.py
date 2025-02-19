@@ -1,5 +1,5 @@
-# jsonrpcclient==2.5.2
-# requests==2.20.0
+# jsonrpcclient==3.*
+# requests==2.*
 import jsonrpcclient
 import time
 import logging
@@ -19,7 +19,7 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-def query(endpoint, *args):
+def query(endpoint, args):
     retry, resp = 0, None
     while retry <= 5:
         try:
@@ -36,7 +36,7 @@ def query_balance(recipient):
         "eth_call",
         [{"from": None, "to": "0xea26c4ac16d4a5a106820bc8aee85fd0b7b2b664", "data": "0x70a08231"+int(recipient, 0).to_bytes(32, byteorder="big").hex()}, "latest"]
     )
-    return int(resp, 0)
+    return int(resp.data.result, 0)
 
 
 def main():
