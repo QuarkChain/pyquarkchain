@@ -1,3 +1,5 @@
+# jsonrpcclient==2.5.2
+# requests==2.20.0
 import jsonrpcclient
 import time
 import logging
