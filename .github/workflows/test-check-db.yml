@@ -8,7 +8,7 @@ env:
 jobs:
   download-snapshot-and-checkdb:
     runs-on: self-hosted
-    container: quarkchaindocker/pyquarkchain:test1.6.1
+    container: quarkchaindocker/pyquarkchain:mainnet1.6.1
     timeout-minutes: 4320
 
     steps:
@@ -18,6 +18,7 @@ jobs:
 
     - name: Install Dependencies and Build
       run: |
+        apt update | apt upgrade -y | apt install sshpass
         PYTHONPATH=/code/pyquarkchain pip3 install -e .
         cd qkchash && make clean && make
 
