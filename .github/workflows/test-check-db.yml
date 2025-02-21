@@ -25,7 +25,7 @@ jobs:
     - name: Download DB snapshot
       run: |
         mkdir -p quarkchain/cluster/qkc-data
-        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp u446960-sub2@u446960-sub2.your-storagebox.de:archive.tar.zip data.tar.gz
+        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:archive.tar.zip data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
