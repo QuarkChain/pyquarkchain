@@ -18,7 +18,7 @@ jobs:
 
     - name: Install Dependencies and Build
       run: |
-        apt update | apt upgrade -y | apt install sshpass
+        apt update && apt upgrade -y && apt install sshpass
         PYTHONPATH=/code/pyquarkchain pip3 install -e .
         cd qkchash && make clean && make
 
