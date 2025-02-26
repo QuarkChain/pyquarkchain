@@ -18,3 +18,5 @@ sshpass -p $PriKey scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/nu
 echo $filename > VERSION
 
 sshpass -p $PriKey scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null VERSION u446960@u446960.your-storagebox.de:public-data/VERSION
+
+rm $filename
