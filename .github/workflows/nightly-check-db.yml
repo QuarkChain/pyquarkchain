@@ -10,7 +10,7 @@ env:
 jobs:
   download-snapshot-and-checkdb:
     runs-on: self-hosted
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    container: quarkchaindocker/pyquarkchain:mainnet1.6.1
     timeout-minutes: 4320
 
     steps:
@@ -20,14 +20,16 @@ jobs:
 
     - name: Install Dependencies and Build
       run: |
+        apt update && apt upgrade -y && apt install sshpass
         PYTHONPATH=/code/pyquarkchain pip3 install -e .
         cd qkchash && make clean && make
 
     - name: Download DB snapshot
       run: |
         mkdir -p quarkchain/cluster/qkc-data
-        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/LATEST > LATEST
-        curl -s https://s3-us-west-2.amazonaws.com/qkcmainnet/data/`cat LATEST`.tar.gz --output data.tar.gz
+        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:VERSION VERSION
+        fileName=`cat VERSION`
+        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:$fileName data.tar.gz
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
