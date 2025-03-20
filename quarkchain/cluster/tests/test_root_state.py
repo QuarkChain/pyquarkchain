@@ -4,6 +4,7 @@ import quarkchain.db
 from quarkchain.cluster.root_state import RootState
 from quarkchain.cluster.shard_state import ShardState
 from quarkchain.cluster.tests.test_utils import get_test_env
+from quarkchain.config import ConsensusType
 from quarkchain.core import Address
 from quarkchain.core import CrossShardTransactionList
 from quarkchain.diff import EthDifficultyCalculator
@@ -727,19 +728,21 @@ class TestRootState(unittest.TestCase):
         r_state.root_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
         r_state.root_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 100
         r_state.root_config.POSW_CONFIG.WINDOW_SIZE = 512
+        r_state.root_config.POSW_CONFIG.ENABLED = True
 
         # created time is greater than threshold
         b1 = r_state.get_tip_block().create_block_to_append(create_time=101, address=acc)
-        posw_info = r_state.get_posw_info(b1)
+        posw_info = r_state.get_posw_info(b1, 200, acc)
         # 200 qkc with 100 required per block, should equal 2 mineable blocks
+        self.assertIsNotNone(posw_info)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
 
         # decay (factor = 0.5) should kick in and double mineable blocks
         b1.header.height = r_state.shard_config.EPOCH_INTERVAL
-        posw_info = r_state.get_posw_info(b1)
+        posw_info = r_state.get_posw_info(b1, 200, acc)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / (100 / 2))
 
         # no effect before the enable timestamp
         b1.header.create_time = 99
-        posw_info = r_state.get_posw_info(b1)
+        posw_info = r_state.get_posw_info(b1, 200, acc)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
