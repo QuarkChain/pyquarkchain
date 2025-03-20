@@ -720,29 +720,31 @@ class TestRootState(unittest.TestCase):
         )
 
     def test_root_posw_stake_by_block_decay_by_epoch(self):
-        acc = Address(b"\x01" * 20, full_shard_key=0)
+        acc_byte = b"\x01" * 20
+        acc = Address(acc_byte, full_shard_key=0)
         env = get_test_env(genesis_account=acc, genesis_minor_quarkash=200)
         r_state, s_states = create_default_state(env)
         env.quark_chain_config.ENABLE_ROOT_POSW_STAKING_DECAY_TIMESTAMP = 100
 
         r_state.root_config.CONSENSUS_TYPE = ConsensusType.POW_DOUBLESHA256
+        r_state.root_config.EPOCH_INTERVAL = 525600
         r_state.root_config.POSW_CONFIG.TOTAL_STAKE_PER_BLOCK = 100
         r_state.root_config.POSW_CONFIG.WINDOW_SIZE = 512
         r_state.root_config.POSW_CONFIG.ENABLED = True
 
         # created time is greater than threshold
         b1 = r_state.get_tip_block().create_block_to_append(create_time=101, address=acc)
-        posw_info = r_state.get_posw_info(b1, 200, acc)
+        posw_info = r_state.get_posw_info(b1, 200, acc_byte)
         # 200 qkc with 100 required per block, should equal 2 mineable blocks
         self.assertIsNotNone(posw_info)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
 
         # decay (factor = 0.5) should kick in and double mineable blocks
-        b1.header.height = r_state.shard_config.EPOCH_INTERVAL
-        posw_info = r_state.get_posw_info(b1, 200, acc)
+        b1.header.height = r_state.root_config.EPOCH_INTERVAL
+        posw_info = r_state.get_posw_info(b1, 200, acc_byte)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / (100 / 2))
 
         # no effect before the enable timestamp
         b1.header.create_time = 99
-        posw_info = r_state.get_posw_info(b1, 200, acc)
+        posw_info = r_state.get_posw_info(b1, 200, acc_byte)
         self.assertEqual(posw_info.posw_mineable_blocks, 200 / 100)
