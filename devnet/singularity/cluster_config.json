@@ -54,7 +54,7 @@
       "COINBASE_AMOUNT": 156000000000000000000,
       "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 40,
       "DIFFICULTY_ADJUSTMENT_FACTOR": 1024,
-      "EPOCH_INTERVAL": 1440,
+      "EPOCH_INTERVAL": 720,
       "POSW_CONFIG": {
         "ENABLED": true,
         "ENABLE_TIMESTAMP": 1646668800,
@@ -112,7 +112,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 0
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 1,
@@ -135,9 +135,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800010000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00010000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00010000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -148,7 +158,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 20000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 2,
@@ -171,9 +181,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800020000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00020000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00020000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -184,7 +204,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 3,
@@ -207,9 +227,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800030000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00030000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00030000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -220,7 +250,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 80000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 4,
@@ -243,9 +273,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800040000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00040000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00040000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -256,7 +296,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 160000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 5,
@@ -279,9 +319,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800050000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00050000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00050000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -292,7 +342,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 320000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 6,
@@ -315,9 +365,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800060000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00060000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00060000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -328,7 +388,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 40000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       },
       {
         "CHAIN_ID": 7,
@@ -351,9 +411,19 @@
           "GAS_LIMIT": 12000000,
           "NONCE": 0,
           "ALLOC": {
+            "a92885095A33E45A3C018Df7Aa6242B62Acb971800070000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            },
+            "5C935469C5592Aeeac3372e922d9bCEabDF8830d00070000": {
+              "balances": {
+                "QKC": 600000000000000000000000000
+              }
+            }
           }
         },
-        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00000000",
+        "COINBASE_ADDRESS": "5C935469C5592Aeeac3372e922d9bCEabDF8830d00070000",
         "COINBASE_AMOUNT": 6500000000000000000,
         "DIFFICULTY_ADJUSTMENT_CUTOFF_TIME": 7,
         "DIFFICULTY_ADJUSTMENT_FACTOR": 512,
@@ -364,7 +434,7 @@
           "WINDOW_SIZE": 256,
           "TOTAL_STAKE_PER_BLOCK": 160000000000000000000000
         },
-        "EPOCH_INTERVAL": 8640
+        "EPOCH_INTERVAL": 4320
       }
     ],
     "REWARD_TAX_RATE": 0.5,
