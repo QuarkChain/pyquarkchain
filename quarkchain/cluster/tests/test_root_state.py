@@ -754,4 +754,4 @@ class TestRootState(unittest.TestCase):
         # no effect before the enable timestamp
         b1.header.create_time = 99
         posw_info = r_state.get_posw_info(b1, 200, acc_byte)
-        self.assertEqual(posw_info.posw_mineable_blocks, 0)
+        self.assertIsNone(posw_info)
