@@ -664,7 +664,7 @@ class RootState:
             self.env.quark_chain_config.ENABLE_ROOT_POSW_STAKING_DECAY_TIMESTAMP
         )
         if enable_decay_ts is not None and block.header.create_time > enable_decay_ts:
-            stake_per_block = self.__decay_by_epoch(stake_per_block, block.header.height)
+            stake_per_block = stake_per_block // 2
         block_cnt = get_posw_coinbase_blockcnt(
             config.WINDOW_SIZE,
             self.coinbase_addr_cache,
@@ -672,16 +672,3 @@ class RootState:
             self.db.get_root_block_header_by_hash,
         )
         return get_posw_info(config, block.header, stakes, block_cnt, stake_per_block, signer=signer)
-
-    def __decay_by_epoch(self, value: int, block_height: int):
-        epoch = (
-            block_height
-            // self.env.quark_chain_config.ROOT.EPOCH_INTERVAL
-        )
-        decay_numerator = (
-            self.env.quark_chain_config.block_reward_decay_factor.numerator ** epoch
-        )
-        decay_denominator = (
-            self.env.quark_chain_config.block_reward_decay_factor.denominator ** epoch
-        )
-        return value * decay_numerator // decay_denominator
