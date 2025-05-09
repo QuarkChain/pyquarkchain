@@ -332,6 +332,10 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.height_to_minor_block_hashes.setdefault(m_block.header.height, set()).add(
             m_block.header.get_hash()
         )
+        if m_block.header.height - 4096 in self.height_to_minor_block_hashes:
+            del self.height_to_minor_block_hashes[
+                m_block.header.height - 4096
+            ]
 
         self.put_confirmed_cross_shard_transaction_deposit_list(
             m_block_hash, x_shard_receive_tx_list
