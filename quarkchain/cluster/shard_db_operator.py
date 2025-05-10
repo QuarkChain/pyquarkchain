@@ -332,6 +332,11 @@ class ShardDbOperator(TransactionHistoryMixin):
         self.height_to_minor_block_hashes.setdefault(m_block.header.height, set()).add(
             m_block.header.get_hash()
         )
+        
+        # remove the oldest minor block hash from the height_to_minor_block_hashes
+        # if the height is greater than 4096
+        # this is to prevent the height_to_minor_block_hashes from growing indefinitely
+        # and to keep the memory usage in check
         if m_block.header.height - 4096 in self.height_to_minor_block_hashes:
             del self.height_to_minor_block_hashes[
                 m_block.header.height - 4096

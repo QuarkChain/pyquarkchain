@@ -36,7 +36,7 @@ if ETHASH_LIB == "ethash":
     hashimoto = hashimoto_slow
 elif ETHASH_LIB == "pyethash":
 
-    @lru_cache(2)
+    @lru_cache(10)
     def calculate_cache(n):
         return pyethash.mkcache_bytes(n * EPOCH_LENGTH)
 
