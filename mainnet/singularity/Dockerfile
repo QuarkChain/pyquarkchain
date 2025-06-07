@@ -19,7 +19,7 @@ RUN git clone --branch mainnet1.1.0 https://github.com/QuarkChain/pyquarkchain.g
 RUN pip install -r pyquarkchain/requirements.txt
 
 # add qkchash c++ lib
-ADD https://s3-us-west-2.amazonaws.com/qkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
+ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
 
 EXPOSE 22 38291 38391 38491
 ENV PYTHONPATH /code/pyquarkchain
