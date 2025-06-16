@@ -171,7 +171,7 @@ Public RPCs are documented in the [Developer Guide](https://developers.quarkchai
 You may find a list of accounts with tokens preallocated through the genesis blocks [here](https://github.com/QuarkChain/pyquarkchain/blob/master/quarkchain/genesis_data/alloc.json). Feel free to use any of them to issue transactions.
 
 ## Loadtest
-Follow [this wiki page](https://github.com/QuarkChain/pyquarkchain/wiki/Loadtest) to loadtest your cluster and see how fast it processes large volumn of transacations.
+Follow [this wiki page](https://github.com/QuarkChain/pyquarkchain/wiki/Loadtest) to loadtest your cluster and see how fast it processes large volume of transacations.
 
 ## Issue
 Please open issues on github to report bugs or make feature requests.
