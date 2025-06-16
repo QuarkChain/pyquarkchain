@@ -1,0 +1,14 @@
+FROM quarkchaindocker/pyquarkchain:mainnet1.6.1
+WORKDIR /code/pyquarkchain
+
+RUN apt update && \
+    apt upgrade -y && \
+    apt install -y vim
+
+RUN git checkout master
+RUN git pull
+
+ARG GIT_TAG
+RUN echo "checkout to $GIT_TAG"
+RUN git checkout $GIT_TAG
+
