@@ -13,15 +13,16 @@ RUN apt-get update && apt-get install -y \
 # set up code
 RUN mkdir /code
 WORKDIR /code
-RUN git clone --branch mainnet1.1.0 https://github.com/QuarkChain/pyquarkchain.git
+RUN git clone https://github.com/QuarkChain/pyquarkchain.git
 
 # py dep
+RUN pip install "Cython<3"
 RUN pip install -r pyquarkchain/requirements.txt
 
 # add qkchash c++ lib
 ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
 
 EXPOSE 22 38291 38391 38491
-ENV PYTHONPATH /code/pyquarkchain
-ENV QKCHASHLIB /code/pyquarkchain/qkchash/libqkchash.so
+ENV PYTHONPATH=/code/pyquarkchain
+ENV QKCHASHLIB=/code/pyquarkchain/qkchash/libqkchash.so
 WORKDIR /code/pyquarkchain
