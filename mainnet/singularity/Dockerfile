@@ -1,7 +1,7 @@
 FROM python:3.7-buster
 LABEL maintainer="quarkchain"
 # install rocksdb
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libbz2-dev \
     libgflags-dev \
     liblz4-dev \
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     libsnappy-dev \
     libzstd-dev \
     zlib1g-dev \
+    vim \
   && rm -rf /var/lib/apt/lists/*
 # set up code
 RUN mkdir /code
