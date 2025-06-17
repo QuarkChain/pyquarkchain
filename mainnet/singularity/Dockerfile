@@ -23,6 +23,7 @@ RUN echo "checkout to $GIT_TAG"
 RUN git checkout $GIT_TAG
 
 # py dep
+# install Cython separately, because adding it to requirements.txt and installing it will cause docker build to fail
 RUN pip install "Cython<3"
 RUN pip install -r requirements.txt
 
