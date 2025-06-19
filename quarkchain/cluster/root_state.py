@@ -659,10 +659,16 @@ class RootState:
         if block.header.height == 0:  # genesis
             return None
         config = self.root_config.POSW_CONFIG  # type: POSWConfig
+        stake_per_block = config.TOTAL_STAKE_PER_BLOCK
+        enable_decay_ts = (
+            self.env.quark_chain_config.ENABLE_ROOT_POSW_STAKING_DECAY_TIMESTAMP
+        )
+        if enable_decay_ts is not None and block.header.create_time > enable_decay_ts:
+            stake_per_block = stake_per_block // 2
         block_cnt = get_posw_coinbase_blockcnt(
             config.WINDOW_SIZE,
             self.coinbase_addr_cache,
             block.header.hash_prev_block,
             self.db.get_root_block_header_by_hash,
         )
-        return get_posw_info(config, block.header, stakes, block_cnt, signer=signer)
+        return get_posw_info(config, block.header, stakes, block_cnt, stake_per_block, signer=signer)
