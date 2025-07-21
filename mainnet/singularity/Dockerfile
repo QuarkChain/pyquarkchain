@@ -1,5 +1,6 @@
 FROM python:3.7-buster
 LABEL maintainer="quarkchain"
+RUN sed -i 's/deb.debian.org/archive.debian.org/' /etc/apt/sources.list
 # install rocksdb
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     libbz2-dev \
