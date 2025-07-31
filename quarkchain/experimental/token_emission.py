@@ -3,11 +3,16 @@ GENESIS_TIMESTAMP = 1556639999
 GENESIS_SUPPLY = 6 * (10 ** 9) * (10 ** 18) # 6B
 
 # block times are estimated based on block 2982930
-ROOT_BLOCK_TIME = (1728506186 - GENESIS_TIMESTAMP) / 2982930  # ~ 57.61
+ROOT_BLOCK_TIME = (1728506186 - GENESIS_TIMESTAMP) / 2982930  # ~ 57.6165672
+SHARD_BLOCK_TIME = (1728506186 - GENESIS_TIMESTAMP) / (17530850 + 17478840 + 17518941 + 17517331 + 17597426 + 17503472 + 17455360 + 17384838) * 8  # ~ 9.8218329
+
+# block times estimated based on block 3424775
+ROOT_BLOCK_TIME = (1753940218 - GENESIS_TIMESTAMP) / 3424757  # ~ 57.609990723429426
+SHARD_BLOCK_TIME = (1753940218 - GENESIS_TIMESTAMP) / (20128311 + 20055471 + 20097991 + 20158893 + 20197548 + 20100651 + 20027186 + 20013766) * 8  # ~ 9.817163506287608
+
 ROOT_EPOCH_INTERVAL = 525600
 ROOT_BLOCK_REWARD = 156000000000000000000
 
-SHARD_BLOCK_TIME = (1728506186 - GENESIS_TIMESTAMP) / (17530850 + 17478840 + 17518941 + 17517331 + 17597426 + 17503472 + 17455360 + 17384838) * 8  # ~ 9.82
 SHARD_EPOCH_INTERVAL = 3153600 # unit of blocks
 SHARD_GENESIS_NUMBER = 8
 SHARD_BLOCK_REWARD = 6500000000000000000
@@ -59,7 +64,7 @@ def print_end_of_month_supply(with_new_shards=False):
     for year in range(2022, 2028):
         for month in range(1, 13):
             day = calendar.monthrange(year, month)[1]
-            dt = datetime.datetime(year, month, day, 0, 0)
+            dt = datetime.datetime(year, month, day, 0, 0, 0, tzinfo=datetime.timezone.utc)
             print("{}: {}".format(dt, get_circulating_supply(int(dt.timestamp()), with_new_shards) / 1e18))
 
 
