@@ -1,26 +1,20 @@
 import argparse
-import aiohttp
 import asyncio
 import logging
 import rlp
-from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Identity
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient
 
 
 class Endpoint:
     def __init__(self, url):
-        self.url = url
-        asyncio.get_event_loop().run_until_complete(self.__create_session())
+        self.client = AsyncJsonRpcClient(url)
 
-    async def __create_session(self):
-        self.session = aiohttp.ClientSession()
-
-    async def __send_request(self, *args):
-        client = aiohttpClient(self.session, self.url)
-        response = await client.request(*args)
+    async def __send_request(self, method, *args):
+        response = await self.client.call(method, *args)
         return response
 
     async def send_transaction(self, tx):
@@ -109,10 +103,6 @@ def main():
     parser.add_argument("--jrpc_endpoint", default="localhost:38391", type=str)
     parser.add_argument("--log_jrpc", default=False, type=bool)
     args = parser.parse_args()
-
-    if not args.log_jrpc:
-        logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-        logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
     data = bytes.fromhex(args.data)
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)

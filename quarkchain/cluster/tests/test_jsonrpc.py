@@ -1,12 +1,6 @@
-import asyncio
 import json
-import logging
 import unittest
 from contextlib import contextmanager
-
-import aiohttp
-from jsonrpcclient.aiohttp_client import aiohttpClient
-from jsonrpcclient.exceptions import ReceivedErrorResponse
 import websockets
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -36,11 +30,7 @@ from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
-
-
-# disable jsonrpcclient verbose logging
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient, JsonRpcError
 
 
 @contextmanager
@@ -57,14 +47,10 @@ def jrpc_http_server_context(master):
         server.shutdown()
 
 
-def send_request(*args):
-    async def __send_request(*args):
-        async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-            client = aiohttpClient(session, "http://localhost:38391")
-            response = await client.request(*args)
-            return response
+rpc_client = AsyncJsonRpcClient("http://localhost:38391")
 
-    return call_async(__send_request(*args))
+def send_request(method, *args):
+     return call_async(rpc_client.call(method, *args))
 
 
 class TestJSONRPCHttp(unittest.TestCase):
@@ -931,9 +917,9 @@ class TestJSONRPCHttp(unittest.TestCase):
             self.assertEqual(2, len(resp[0]["topics"]))
             # missing shard ID should fail
             for endpoint in ("getLogs", "eth_getLogs"):
-                with self.assertRaises(ReceivedErrorResponse):
+                with self.assertRaises(JsonRpcError):
                     send_request(endpoint, [{}])
-                with self.assertRaises(ReceivedErrorResponse):
+                with self.assertRaises(JsonRpcError):
                     send_request(endpoint, [{}, None])
 
     def test_estimateGas(self):

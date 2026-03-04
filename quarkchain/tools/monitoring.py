@@ -1,4 +1,3 @@
-import jsonrpcclient
 import ipaddress
 import argparse
 
@@ -8,6 +7,7 @@ from datetime import datetime
 
 import asyncio
 from jsonrpc_async import Server
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 
 """
@@ -19,7 +19,8 @@ and be able to query stats or adjust mining difficulty on demand
 def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
-    peers = jsonrpcclient.request(json_rpc_url, "getPeers")
+    cli = JsonRpcClient(json_rpc_url)
+    peers = cli.call("getPeers")
     return [
         "{}:{}".format(ipaddress.ip_address(int(p["ip"], 16)), int(p["port"], 16))
         for p in peers["peers"]

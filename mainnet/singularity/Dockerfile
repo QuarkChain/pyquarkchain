@@ -1,4 +1,4 @@
-FROM python:3.7-buster
+FROM python:3.13-slim
 LABEL maintainer="quarkchain"
 RUN sed -i 's/deb.debian.org/archive.debian.org/' /etc/apt/sources.list
 # install rocksdb

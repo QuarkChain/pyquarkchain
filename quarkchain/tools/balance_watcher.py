@@ -1,18 +1,15 @@
-import jsonrpcclient
 import time
 import logging
 import argparse
 import smtplib
 from email.message import EmailMessage
-
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 HOST = "http://jrpc.mainnet.quarkchain.io"
 PORT = "38391"
 
 FORMAT = "%(asctime)-15s %(message)s"
 logging.basicConfig(format=FORMAT)
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -21,7 +18,8 @@ def query(endpoint, *args):
     retry, resp = 0, None
     while retry <= 5:
         try:
-            resp = jsonrpcclient.request(HOST + ":" + PORT, endpoint, *args)
+            cli = JsonRpcClient(HOST + ":" + PORT)
+            resp = cli.call(endpoint, *args)
             break
         except Exception:
             retry += 1
