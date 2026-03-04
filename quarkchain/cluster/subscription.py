@@ -2,7 +2,7 @@ import asyncio
 import json
 from typing import List, Dict, Tuple, Optional, Callable
 
-from jsonrpcserver.exceptions import InvalidParams
+from quarkchain.cluster.jsonrpcserver import InvalidParams
 from websockets import WebSocketServerProtocol
 
 from quarkchain.core import MinorBlock
