@@ -98,7 +98,7 @@ class QKCLogger(logging.getLoggerClass()):
     refer to ABSLLogger
     """
 
-    def findCaller(self, stack_info=False):
+    def findCaller(self, stack_info=False, stacklevel=1):
         frame = sys._getframe(2)
         f_to_skip = {
             func for func in dir(Logger) if callable(getattr(Logger, func))
