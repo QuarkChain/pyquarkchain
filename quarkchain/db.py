@@ -3,7 +3,7 @@ import copy
 import pathlib
 import shutil
 
-from rocksdict import Rdict
+from rocksdict import Rdict, Options, DBCompressionType
 
 
 class Db:
@@ -63,52 +63,81 @@ class PersistentDb(Db):
             self._destroy()
         pathlib.Path(self.db_path).mkdir(parents=True, exist_ok=True)
 
-        self._db = Rdict(self.db_path)
+        options = Options(raw_mode=True)
+        options.create_if_missing(True)
+        options.set_max_open_files(100000)  # ubuntu 16.04 max files descriptors 524288
+        options.set_write_buffer_size(128 * 1024 * 1024)  # 128 MiB
+        options.set_max_write_buffer_number(3)
+        options.set_target_file_size_base(67108864)
+        options.set_compression_type(DBCompressionType.snappy())
+        self._db = Rdict(db_path, options)
 
     def _destroy(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
 
     def get(self, key, default=None):
         key = key.encode() if not isinstance(key, bytes) else key
-        value = self._db[key]
+        value = self._db.get(key)
         return default if value is None else value
+
+    def multi_get(self, keys):
+        keys = [k.encode() if not isinstance(k, bytes) else k for k in keys]
+        values = self._db.get(keys)  # returns a list of values
+        return dict(zip(keys, values))
 
     def put(self, key, value):
         key = key.encode() if not isinstance(key, bytes) else key
         value = bytes(value) if isinstance(value, bytearray) else value
-        self._db[key] = value
+        return self._db.put(key, value)
 
     def delete(self, key):
         key = key.encode() if not isinstance(key, bytes) else key
-        try:
-            del self._db[key]
-        except KeyError:
-            pass
+        return self._db.delete(key)
 
     def remove(self, key):
         return self.delete(key)
 
     def __contains__(self, key):
         key = key.encode() if not isinstance(key, bytes) else key
-        return self._db[key] is not None
+        return self._db.get(key) is not None
 
     def range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in [start, end) ordered by key in ascending order"""
-        for k, v in self._db.iter(start, end):
-            yield k, v
+        it = self._db.iter()
+        it.seek(start)
+        while it.valid():
+            k = it.key()
+            if k >= end:
+                return
+            yield k, it.value()
+            it.next()
 
     def reversed_range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in (end, start] ordered key in descending order"""
-        for k, v in reversed(list(self._db.iter(end, start))):
-            yield k, v
+        it = self._db.iter()
+        it.seek_for_prev(start)
+        while it.valid():
+            k = it.key()
+            if k <= end:
+                return
+            yield k, it.value()
+            it.prev()
 
     def close(self):
-        # No close() available for rocksdb
-        # see https://github.com/twmht/python-rocksdb/issues/10
         self._db.close()
 
     def __deepcopy__(self, memo):
         raise NotImplementedError
+        # LevelDB cannot be deep copied
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k == "db":
+                setattr(result, k, v)
+                continue
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
 
 
 class OverlayDb(Db):
