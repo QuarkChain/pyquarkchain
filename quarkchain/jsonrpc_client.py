@@ -37,11 +37,11 @@ class AsyncJsonRpcClient:
     def __init__(self, url, timeout=10):
         self.client = httpx.AsyncClient(base_url=url, timeout=timeout)
 
-    async def call(self, method, *params):
+    async def call(self, method, params=None):
         payload = {
             "jsonrpc": "2.0",
             "method": method,
-            "params": list(params),
+            "params": params if params is not None else [],
             "id": str(uuid.uuid4()),
         }
 
@@ -50,7 +50,7 @@ class AsyncJsonRpcClient:
         data = resp.json()
 
         if "error" in data:
-            raise RuntimeError(data["error"])
+            raise JsonRpcError(data["error"])
 
         return data.get("result")
 

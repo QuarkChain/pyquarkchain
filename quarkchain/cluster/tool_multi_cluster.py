@@ -70,16 +70,16 @@ async def main():
         args.json_rpc_private_port += 1
 
     tasks = list()
-    tasks.append(asyncio.ensure_future(clusters[0].run()))
+    tasks.append(asyncio.create_task(clusters[0].run()))
     await asyncio.sleep(3)
     for cluster in clusters[1:]:
-        tasks.append(asyncio.ensure_future(cluster.run()))
+        tasks.append(asyncio.create_task(cluster.run()))
     try:
         await asyncio.gather(*tasks)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         try:
             for cluster in clusters:
-                asyncio.get_event_loop().run_until_complete(cluster.shutdown())
+                await cluster.shutdown()
         except Exception:
             pass
 
@@ -87,13 +87,10 @@ async def main():
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    loop = asyncio.get_event_loop()
     try:
-        loop.run_until_complete(main())
+        asyncio.run(main())
     except KeyboardInterrupt:
         try:
             cl.kill_child_processes(os.getpid())
         except Exception:
             pass
-    finally:
-        loop.close()

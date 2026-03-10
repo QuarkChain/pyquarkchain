@@ -266,7 +266,7 @@ class Miner:
         # no-op if enabled or mining remotely
         if not self.enabled or self.remote:
             return None
-        return asyncio.ensure_future(mine_new_block())
+        return asyncio.create_task(mine_new_block())
 
     async def get_work(self, coinbase_addr: Address, now=None) -> (MiningWork, Block):
         if not self.remote:

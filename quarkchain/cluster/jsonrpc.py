@@ -463,7 +463,7 @@ private_methods = RpcMethods()
 # noinspection PyPep8Naming
 class JSONRPCHttpServer:
     @classmethod
-    def start_public_server(cls, env, master_server):
+    async def start_public_server(cls, env, master_server):
         server = cls(
             env,
             master_server,
@@ -471,11 +471,11 @@ class JSONRPCHttpServer:
             env.cluster_config.JSON_RPC_HOST,
             public_methods,
         )
-        server.start()
+        await server.start()
         return server
 
     @classmethod
-    def start_private_server(cls, env, master_server):
+    async def start_private_server(cls, env, master_server):
         server = cls(
             env,
             master_server,
@@ -483,11 +483,11 @@ class JSONRPCHttpServer:
             env.cluster_config.PRIVATE_JSON_RPC_HOST,
             private_methods,
         )
-        server.start()
+        await server.start()
         return server
 
     @classmethod
-    def start_test_server(cls, env, master_server):
+    async def start_test_server(cls, env, master_server):
         methods = RpcMethods()
         for method in public_methods.values():
             methods.add(method)
@@ -500,13 +500,13 @@ class JSONRPCHttpServer:
             env.cluster_config.JSON_RPC_HOST,
             methods,
         )
-        server.start()
+        await server.start()
         return server
 
     def __init__(
         self, env, master_server: MasterServer, port, host, methods: RpcMethods
     ):
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.port = port
         self.host = host
         self.env = env
@@ -535,14 +535,14 @@ class JSONRPCHttpServer:
             self.counters[method] = 1
         # Use armor to prevent the handler from being cancelled when
         # aiohttp server loses connection to client
-        response = await self.handlers.dispatch(request)
+        response = await self.handlers.dispatch(d)
+        if response is None:
+            return web.Response()
         if "error" in response:
             Logger.error(response)
-        if response.is_notification:
-            return web.Response()
-        return web.json_response(response, status=response.http_status)
+        return web.json_response(response)
 
-    def start(self):
+    async def start(self):
         app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
         cors = aiohttp_cors.setup(app)
         route = app.router.add_post("/", self.__handle)
@@ -558,12 +558,12 @@ class JSONRPCHttpServer:
             },
         )
         self.runner = web.AppRunner(app, access_log=None)
-        self.loop.run_until_complete(self.runner.setup())
+        await self.runner.setup()
         site = web.TCPSite(self.runner, self.host, self.port)
-        self.loop.run_until_complete(site.start())
+        await site.start()
 
-    def shutdown(self):
-        self.loop.run_until_complete(self.runner.cleanup())
+    async def shutdown(self):
+        await self.runner.cleanup()
 
     # JSON RPC handlers
     @public_methods.add
@@ -1445,7 +1445,7 @@ class JSONRPCHttpServer:
 
 class JSONRPCWebsocketServer:
     @classmethod
-    def start_websocket_server(cls, env, slave_server):
+    async def start_websocket_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
@@ -1453,13 +1453,13 @@ class JSONRPCWebsocketServer:
             env.slave_config.HOST,
             public_methods,
         )
-        server.start()
+        await server.start()
         return server
 
     def __init__(
         self, env, slave_server: SlaveServer, port, host, methods: RpcMethods
     ):
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.port = port
         self.host = host
         self.env = env
@@ -1475,7 +1475,7 @@ class JSONRPCWebsocketServer:
 
         self.shard_subscription_managers = self.slave.shard_subscription_managers
 
-    async def __handle(self, websocket, path):
+    async def __handle(self, websocket):
         sub_ids = dict()  # per-websocket var, Dict[sub_id, full_shard_id]
         try:
             async for message in websocket:
@@ -1494,7 +1494,7 @@ class JSONRPCWebsocketServer:
                 msg_id = d.get("id", 0)
 
                 response = await self.handlers.dispatch(
-                    message,
+                    d,
                     context={
                         "websocket": websocket,
                         "msg_id": msg_id,
@@ -1502,6 +1502,8 @@ class JSONRPCWebsocketServer:
                     },
                 )
 
+                if response is None:
+                    continue
                 if "error" in response:
                     Logger.error(response)
                 else:
@@ -1512,8 +1514,7 @@ class JSONRPCWebsocketServer:
                     elif method == "unsubscribe":
                         sub_id = d.get("params")[0]
                         del sub_ids[sub_id]
-                if not response.is_notification:
-                    await websocket.send(json.dumps(response))
+                await websocket.send(json.dumps(response))
         finally:  # current websocket connection terminates, remove subscribers in this connection
             for sub_id, full_shard_id in sub_ids.items():
                 try:
@@ -1524,9 +1525,9 @@ class JSONRPCWebsocketServer:
                 except:
                     pass
 
-    def start(self):
+    async def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
-        self.loop.run_until_complete(start_server)
+        await start_server
 
     def shutdown(self):
         pass  # TODO

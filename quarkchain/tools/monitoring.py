@@ -68,9 +68,7 @@ async def crawl_async(ip, p2p_port, jrpc_port):
 
 
 def crawl_bfs(ip, p2p_port, jrpc_port):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    cache = loop.run_until_complete(crawl_async(ip, p2p_port, jrpc_port))
+    cache = asyncio.run(crawl_async(ip, p2p_port, jrpc_port))
 
     res = {}
     # we can avoid the loop, but it will look crazy
@@ -182,7 +180,7 @@ def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
             for idx, cluster in enumerate(clusters)
         ]
     )
-    asyncio.get_event_loop().run_until_complete(async_watch(clusters))
+    asyncio.run(async_watch(clusters))
 
 
 def main():

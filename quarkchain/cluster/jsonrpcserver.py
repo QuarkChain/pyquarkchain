@@ -1,3 +1,4 @@
+import inspect
 from typing import Any, Callable, Dict, Optional, Awaitable
 
 from aiohttp import web
@@ -85,7 +86,7 @@ class RpcMethods:
         self._methods[method_name] = func
         return func
 
-    async def dispatch(self, request_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def dispatch(self, request_json: Dict[str, Any], context=None) -> Optional[Dict[str, Any]]:
         req_id = None
 
         try:
@@ -109,10 +110,14 @@ class RpcMethods:
             handler = self._methods[method]
             params = request_json.get("params", [])
 
+            # Check if handler accepts a context parameter
+            sig = inspect.signature(handler)
+            pass_context = context is not None and "context" in sig.parameters
+
             if isinstance(params, list):
-                result = await handler(*params)
+                result = await handler(*params, context=context) if pass_context else await handler(*params)
             elif isinstance(params, dict):
-                result = await handler(**params)
+                result = await handler(**params, context=context) if pass_context else await handler(**params)
             else:
                 raise InvalidParams()
 
@@ -132,6 +137,16 @@ class RpcMethods:
                 "id": req_id,
             }
 
+        except TypeError as e:
+            # Could be missing/extra arguments → treat as invalid params
+            return {
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32602,
+                    "message": str(e),
+                },
+                "id": req_id,
+            }
         except Exception:
             return {
                 "jsonrpc": "2.0",

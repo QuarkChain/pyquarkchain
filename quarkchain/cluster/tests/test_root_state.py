@@ -62,7 +62,7 @@ class TestRootState(unittest.TestCase):
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
         root_block.header.version = 1
-        with self.assertRaisesRegexp(ValueError, "incorrect root block version"):
+        with self.assertRaisesRegex(ValueError, "incorrect root block version"):
             r_state.add_block(root_block)
 
         root_block.header.version = 0
@@ -73,7 +73,7 @@ class TestRootState(unittest.TestCase):
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
         root_block.header.height += 1
-        with self.assertRaisesRegexp(ValueError, "incorrect block height"):
+        with self.assertRaisesRegex(ValueError, "incorrect block height"):
             r_state.add_block(root_block)
 
     def test_blocks_with_incorrect_merkle_and_minor_block_list(self):
@@ -96,7 +96,7 @@ class TestRootState(unittest.TestCase):
         root_block0 = r_state.create_block_to_mine([b0.header, b1.header])
         root_block1 = r_state.create_block_to_mine([b0.header])
 
-        with self.assertRaisesRegexp(ValueError, "incorrect merkle root"):
+        with self.assertRaisesRegex(ValueError, "incorrect merkle root"):
             root_block1.header.hash_merkle_root = root_block0.header.hash_merkle_root
             r_state.add_block(root_block1)
 
@@ -109,11 +109,11 @@ class TestRootState(unittest.TestCase):
         root_block_with_incorrect_mlist2 = r_state.create_block_to_mine(
             [b1.header, b0.header]
         )
-        with self.assertRaisesRegexp(ValueError, "does not link to previous block"):
+        with self.assertRaisesRegex(ValueError, "does not link to previous block"):
             r_state.add_block(root_block_with_incorrect_mlist0)
-        with self.assertRaisesRegexp(ValueError, "does not link to previous block"):
+        with self.assertRaisesRegex(ValueError, "does not link to previous block"):
             r_state.add_block(root_block_with_incorrect_mlist1)
-        with self.assertRaisesRegexp(ValueError, "shard id must be ordered"):
+        with self.assertRaisesRegex(ValueError, "shard id must be ordered"):
             r_state.add_block(root_block_with_incorrect_mlist2)
 
     def test_blocks_with_incorrect_total_difficulty(self):
@@ -121,7 +121,7 @@ class TestRootState(unittest.TestCase):
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
         root_block.header.total_difficulty += 1
-        with self.assertRaisesRegexp(ValueError, "incorrect total difficulty"):
+        with self.assertRaisesRegex(ValueError, "incorrect total difficulty"):
             r_state.add_block(root_block)
 
     def test_reorg_with_shorter_chain(self):
@@ -654,7 +654,7 @@ class TestRootState(unittest.TestCase):
         root_block = r_state.create_block_to_mine(
             m_header_list=headers, create_time=headers[-1].create_time + 1
         )
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             ValueError, "too many minor blocks in the root block for shard"
         ):
             r_state.add_block(root_block)
