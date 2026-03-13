@@ -37,11 +37,11 @@ class AsyncJsonRpcClient:
     def __init__(self, url, timeout=10):
         self.client = httpx.AsyncClient(base_url=url, timeout=timeout)
 
-    async def call(self, method, params=None):
+    async def call(self, method, *params):
         payload = {
             "jsonrpc": "2.0",
             "method": method,
-            "params": params if params is not None else [],
+            "params": list(params),
             "id": str(uuid.uuid4()),
         }
 
