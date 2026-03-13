@@ -22,7 +22,7 @@ from quarkchain.evm.messages import pay_native_token_as_gas, get_gas_utility_inf
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
-from quarkchain.utils import call_async, check, is_p2
+from quarkchain.utils import call_async, check, is_p2, _get_or_create_event_loop
 
 
 def get_test_env(
@@ -329,7 +329,7 @@ def create_test_clusters(
 
     bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
-    loop = asyncio.get_event_loop()
+    loop = _get_or_create_event_loop()
 
     for i in range(num_cluster):
         env = get_test_env(
@@ -403,7 +403,7 @@ def create_test_clusters(
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, master_server, loop)
-        network.start_server()
+        loop.run_until_complete(network.start_server())
         if connect and i != 0:
             peer = call_async(network.connect("127.0.0.1", bootstrap_port))
         else:
@@ -415,14 +415,14 @@ def create_test_clusters(
 
 
 def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
-    loop = asyncio.get_event_loop()
+    loop = _get_or_create_event_loop()
 
     # allow pending RPCs to finish to avoid annoying connection reset error messages
     loop.run_until_complete(asyncio.sleep(0.1))
 
     for cluster in cluster_list:
         # Shutdown simple network first
-        cluster.network.shutdown()
+        loop.run_until_complete(cluster.network.shutdown())
 
     # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
     loop.run_until_complete(asyncio.sleep(0.1))
@@ -439,6 +439,13 @@ def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
         loop.run_until_complete(cluster.master.get_shutdown_future())
 
     check(expect_aborted_rpc_count == AbstractConnection.aborted_rpc_count)
+
+    # Cancel all remaining tasks so they don't bleed into the next test
+    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+    for task in pending:
+        task.cancel()
+    if pending:
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
 
 
 class ClusterContext(ContextDecorator):

@@ -183,7 +183,7 @@ class TestShardState(unittest.TestCase):
         state = create_default_shard_state(env=env)
         root_block = state.root_tip.create_block_to_append()
         root_block.header.version = 1
-        with self.assertRaisesRegexp(ValueError, "incorrect root block version"):
+        with self.assertRaisesRegex(ValueError, "incorrect root block version"):
             state.add_root_block(root_block.finalize())
 
         root_block.header.version = 0
@@ -191,7 +191,7 @@ class TestShardState(unittest.TestCase):
 
         shard_block = state.create_block_to_mine()
         shard_block.header.version = 1
-        with self.assertRaisesRegexp(ValueError, "incorrect minor block version"):
+        with self.assertRaisesRegex(ValueError, "incorrect minor block version"):
             state.finalize_and_add_block(shard_block)
 
         shard_block.header.version = 0
@@ -1569,7 +1569,7 @@ class TestShardState(unittest.TestCase):
             gas_limit=opcodes.GTXXSHARDCOST,
             xshard_gas_limit=2 * opcodes.GTXXSHARDCOST,
         )
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             ValueError, "xshard_gas_limit \\d+ should not exceed total gas_limit"
         ):
             # xshard_gas_limit should be smaller than gas_limit
@@ -1582,7 +1582,7 @@ class TestShardState(unittest.TestCase):
         b6 = state0.create_block_to_mine(
             address=acc3, xshard_gas_limit=opcodes.GTXXSHARDCOST
         )
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             ValueError, "incorrect xshard gas limit, expected \\d+, actual \\d+"
         ):
             # xshard_gas_limit should be gas_limit // 2
@@ -1830,7 +1830,7 @@ class TestShardState(unittest.TestCase):
         )
         self.assertFalse(state0.add_tx(tx0))
         b0.add_tx(tx0)
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             RuntimeError, "xshard evm tx exceeds xshard gas limit"
         ):
             state0.finalize_and_add_block(b0)
@@ -1850,7 +1850,7 @@ class TestShardState(unittest.TestCase):
         )
         self.assertFalse(state0.add_tx(tx2, xshard_gas_limit=opcodes.GTXCOST * 9))
         b2.add_tx(tx2)
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             RuntimeError, "xshard evm tx exceeds xshard gas limit"
         ):
             state0.finalize_and_add_block(b2, xshard_gas_limit=opcodes.GTXCOST * 9)
@@ -2090,7 +2090,7 @@ class TestShardState(unittest.TestCase):
         )
 
         # Too many blocks
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             ValueError, "too many minor blocks in the root block"
         ):
             state.add_root_block(root_block)
@@ -2830,7 +2830,7 @@ class TestShardState(unittest.TestCase):
         b4 = state.create_block_to_mine()
         self.assertEqual(len(b4.tx_list), 0)
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             RuntimeError, "unwhitelisted senders not allowed before tx is enabled"
         ):
             state.finalize_and_add_block(b3)
@@ -2858,7 +2858,7 @@ class TestShardState(unittest.TestCase):
         b2 = state.create_block_to_mine()
         self.assertEqual(len(b2.tx_list), 0)
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)
@@ -2999,7 +2999,7 @@ class TestShardState(unittest.TestCase):
         b2 = state.create_block_to_mine()
         self.assertEqual(len(b2.tx_list), 0)
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
             RuntimeError, "smart contract tx is not allowed before evm is enabled"
         ):
             state.finalize_and_add_block(b1)

@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.constant_time import bytes_eq
 
 from eth_utils import to_tuple
 
-from eth_hash.preimage import BasePreImage
+from eth_hash.abc import PreImageAPI
 from eth_keys import datatypes
 
 from quarkchain.utils import Logger, time_ms
@@ -128,8 +128,8 @@ PeerConnection = NamedTuple(
         ("writer", asyncio.StreamWriter),
         ("aes_secret", bytes),
         ("mac_secret", bytes),
-        ("egress_mac", BasePreImage),
-        ("ingress_mac", BasePreImage),
+        ("egress_mac", PreImageAPI),
+        ("ingress_mac", PreImageAPI),
     ],
 )
 

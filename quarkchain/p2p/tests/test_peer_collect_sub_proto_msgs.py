@@ -7,8 +7,8 @@ from quarkchain.p2p.tools.paragon import BroadcastData, GetSum
 from quarkchain.p2p.tools.paragon.helpers import get_directly_linked_peers
 
 @pytest.mark.asyncio
-async def test_peer_subscriber_filters_messages(request, event_loop):
-    peer, remote = await get_directly_linked_peers(request, event_loop)
+async def test_peer_subscriber_filters_messages(request):
+    peer, remote = await get_directly_linked_peers(request)
 
     with peer.collect_sub_proto_messages() as collector:
         assert collector in peer._subscribers
