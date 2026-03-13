@@ -1,18 +1,12 @@
 #! /usr/bin/env python3
 
 import argparse
-import logging
 import time
 from datetime import datetime
-import jsonrpcclient
 import psutil
 import numpy
 from decimal import Decimal
-
-
-# disable jsonrpcclient verbose logging
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 
 def now():
@@ -23,8 +17,8 @@ def fstr(v: float):
     return "{:.2f}".format(v)
 
 
-def basic(client, ip):
-    s = client.send(jsonrpcclient.Request("getStats"))
+def basic(client: JsonRpcClient, ip):
+    s = client.client("getStats")
     msg = "QuarkChain Cluster Stats\n\n"
     msg += "CPU:                {}\n".format(psutil.cpu_count())
     msg += "Memory:             {} GB\n".format(
@@ -37,8 +31,8 @@ def basic(client, ip):
     return msg
 
 
-def stats(client):
-    s = client.send(jsonrpcclient.Request("getStats"))
+def stats(client: JsonRpcClient):
+    s = client.call("getStats")
     return {
         "time": now(),
         "syncing": str(s["syncing"]),
@@ -60,7 +54,7 @@ def stats(client):
     }
 
 
-def query_stats(client, args):
+def query_stats(client: JsonRpcClient, args):
     if args.verbose:
         format = "{time:20} {syncing:>8} {tps:>5} {pendingTx:>10} {confirmedTx:>10} {bps:>9} {sbps:>9} {cpu:>9} {root:>7} {shards}"
     else:
@@ -91,7 +85,7 @@ def format_qkc(qkc: Decimal):
     return "{:.18f}".format(qkc).rstrip("0").rstrip(".")
 
 
-def query_address(client, args):
+def query_address(client: JsonRpcClient, args):
     address_hex = args.address.lower().lstrip("0").lstrip("x")
     token_str = args.token.upper()
     assert len(address_hex) == 48
@@ -103,11 +97,7 @@ def query_address(client, args):
     )
 
     while True:
-        data = client.send(
-            jsonrpcclient.Request(
-                "getAccountData", address="0x" + address_hex, include_shards=True
-            )
-        )
+        data = client.call("getAccountData", address="0x" + address_hex, include_shards=True)
         shards_wei = []
         for shard_balance in data["shards"]:
             for token_balances in shard_balance["balances"]:
@@ -152,9 +142,9 @@ def main():
     args = parser.parse_args()
 
     private_endpoint = "http://{}:38491".format(args.ip)
-    private_client = jsonrpcclient.HTTPClient(private_endpoint)
+    private_client = JsonRpcClient(private_endpoint)
     public_endpoint = "http://{}:38391".format(args.ip)
-    public_client = jsonrpcclient.HTTPClient(public_endpoint)
+    public_client = JsonRpcClient(public_endpoint)
 
     print(basic(private_client, args.ip))
 
