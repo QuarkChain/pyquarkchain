@@ -1526,11 +1526,11 @@ class JSONRPCWebsocketServer:
                     pass
 
     async def start(self):
-        start_server = websockets.serve(self.__handle, self.host, self.port)
-        await start_server
+        self._server = await websockets.serve(self.__handle, self.host, self.port)
 
     def shutdown(self):
-        pass  # TODO
+        if hasattr(self, '_server') and self._server is not None:
+            self._server.close()
 
     @staticmethod
     def response_transcoder(sub_id, result):
