@@ -10,7 +10,7 @@ env:
 jobs:
   download-snapshot-and-checkdb:
     runs-on: self-hosted
-    container: quarkchaindocker/pyquarkchain:mainnet1.6.1
+    container: quarkchaindocker/pyquarkchain:test-py3.13
     timeout-minutes: 4320
 
     steps:
