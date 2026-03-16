@@ -15,7 +15,7 @@ class Endpoint:
     def __init__(self, url):
         self.client = AsyncJsonRpcClient(url)
 
-    async def __send_request(self, method,  *args):
+    async def __send_request(self, method, *args):
         # manual retry since the library has hard-coded timeouts
         while True:
             try:

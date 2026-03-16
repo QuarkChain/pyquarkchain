@@ -53,6 +53,23 @@ class AsyncJsonRpcClient:
             raise JsonRpcError(data["error"])
 
         return data.get("result")
+    
+    async def call_with_dict_params(self, method, params):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+            "id": str(uuid.uuid4()),
+        }
 
+        resp = await self.client.post("", json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if "error" in data:
+            raise JsonRpcError(data["error"])
+
+        return data.get("result")
+    
     async def close(self):
         await self.client.aclose()        
