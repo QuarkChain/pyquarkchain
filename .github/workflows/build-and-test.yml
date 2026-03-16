@@ -8,7 +8,7 @@ env:
 jobs:
   test-without-integration:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    container: quarkchaindocker/pyquarkchain:test-py3.13
 
     steps:
     - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
 
   evm-tests-runner-1:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    container: quarkchaindocker/pyquarkchain:test-py3.13
 
     steps:
     - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
 
   evm-tests-runner-2:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    container: quarkchaindocker/pyquarkchain:test-py3.13
 
     steps:
     - uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
 
   test-integration-and-qkc-specific-state:
     runs-on: ubuntu-latest
-    container: quarkchaindocker/pyquarkchain:mainnet1.1.1
+    container: quarkchaindocker/pyquarkchain:test-py3.13
 
     steps:
     - uses: actions/checkout@v4
