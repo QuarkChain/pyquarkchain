@@ -191,6 +191,11 @@ class AbstractConnection:
         while self.state == ConnectionState.ACTIVE:
             await self.loop_once()
 
+        # Ensure active_event is set so wait_until_active() callers are not stuck
+        # (e.g. if connection closed before it ever became active)
+        if not self.active_event.is_set():
+            self.active_event.set()
+
         assert self.state == ConnectionState.CLOSED
 
         # Abort all in-flight RPCs
@@ -287,5 +292,19 @@ class Connection(AbstractConnection):
     def close(self):
         """ Override AbstractConnection.close()
         """
+        self.reader.feed_eof()
         self.writer.close()
         super().close()
+
+    async def active_and_loop_forever(self):
+        """ Override AbstractConnection.active_and_loop_forever() to ensure the
+        underlying TCP socket is released even when the task is cancelled.
+        Without this, cancelled tasks leave file descriptors registered in epoll
+        indefinitely, which accumulates across many tests.
+        """
+        try:
+            await super().active_and_loop_forever()
+        except asyncio.CancelledError:
+            if not self.writer.is_closing():
+                self.writer.close()
+            raise
