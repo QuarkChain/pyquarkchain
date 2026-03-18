@@ -128,7 +128,7 @@ class Peer(P2PConnection):
             "Established virtual shard connections with peer {}".format(self.id.hex())
         )
 
-        asyncio.create_task(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
         await self.wait_until_active()
 
         # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
@@ -421,6 +421,7 @@ class SimpleNetwork(AbstractNetwork):
         # 0 is reserved for master
         self.next_cluster_peer_id = 0
         self.cluster_peer_pool = dict()  # cluster peer id => peer
+        self._seed_task = None
 
     async def new_peer(self, client_reader, client_writer):
         peer = Peer(
@@ -498,13 +499,15 @@ class SimpleNetwork(AbstractNetwork):
 
     async def shutdown(self):
         self.shutdown_peers()
+        if self._seed_task and not self._seed_task.done():
+            self._seed_task.cancel()
         self.server.close()
         await self.server.wait_closed()
 
     async def start(self):
         await self.start_server()
 
-        asyncio.create_task(
+        self._seed_task = asyncio.create_task(
             self.connect_seed(
                 self.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_HOST,
                 self.env.cluster_config.SIMPLE_NETWORK.BOOTSTRAP_PORT,

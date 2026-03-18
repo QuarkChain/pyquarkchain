@@ -456,7 +456,7 @@ class SlaveConnection(ClusterConnection):
         self.full_shard_id_list = full_shard_id_list
         check(len(full_shard_id_list) > 0)
 
-        asyncio.create_task(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
     def get_connection_to_forward(self, metadata):
         """Override ProxyConnection.get_connection_to_forward()
@@ -1068,7 +1068,7 @@ class MasterServer:
         self.cluster_active_future.set_result(None)
 
     def start(self):
-        self.loop.create_task(self.__init_cluster())
+        self._init_task = self.loop.create_task(self.__init_cluster())
 
     async def do_loop(self, callbacks: List[Callable]):
         if self.env.arguments.enable_profiler:
@@ -1102,6 +1102,8 @@ class MasterServer:
             self.cluster_active_future.set_exception(
                 RuntimeError("failed to start the cluster")
             )
+        if hasattr(self, '_init_task') and self._init_task and not self._init_task.done():
+            self._init_task.cancel()
 
     def get_shutdown_future(self):
         return self.shutdown_future

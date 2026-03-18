@@ -108,7 +108,7 @@ class MasterConnection(ClusterConnection):
         self.slave_server = slave_server  # type: SlaveServer
         self.shards = slave_server.shards  # type: Dict[Branch, Shard]
 
-        asyncio.create_task(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
         # cluster_peer_id -> {branch_value -> shard_conn}
         self.v_conn_map = dict()
@@ -346,7 +346,7 @@ class MasterConnection(ClusterConnection):
                 shard=shard,
                 name="{}_vconn_{}".format(self.name, req.cluster_peer_id),
             )
-            asyncio.create_task(peer_shard_conn.active_and_loop_forever())
+            peer_shard_conn._loop_task = asyncio.create_task(peer_shard_conn.active_and_loop_forever())
             active_futures.append(peer_shard_conn.active_event.wait())
             shard_to_conn[shard] = peer_shard_conn
 
@@ -725,7 +725,7 @@ class SlaveConnection(Connection):
 
         self.ping_received_event = asyncio.Event()
 
-        asyncio.create_task(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
     async def wait_until_ping_received(self):
         await self.ping_received_event.wait()
@@ -999,7 +999,7 @@ class SlaveServer:
         )
 
     def start(self):
-        self.loop.create_task(self.__start_server())
+        self._server_task = self.loop.create_task(self.__start_server())
 
     async def do_loop(self):
         try:
