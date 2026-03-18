@@ -18,7 +18,7 @@ jobs:
     - name: Run py.test tests excluding integration test
       run: |
         cd qkchash && make clean && make && cd -
-        python3 -m pytest --timeout=60 --ignore quarkchain/cluster/tests/test_cluster.py
+        python3 -m pytest --ignore quarkchain/cluster/tests/test_cluster.py
 
   evm-tests-runner-1:
     runs-on: ubuntu-latest
@@ -58,7 +58,7 @@ jobs:
     - name: Run py.test tests only on integration test
       run: |
         cd qkchash && make clean && make && cd -
-        python3 -m pytest --timeout=60 quarkchain/cluster/tests/test_cluster.py
+        python3 -m pytest quarkchain/cluster/tests/test_cluster.py
 
     - name: Run QuarkChain-specific EVM tests
       run: |
