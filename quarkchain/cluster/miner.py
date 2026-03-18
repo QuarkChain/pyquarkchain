@@ -187,10 +187,11 @@ class Miner:
         # key can be None, meaning default coinbase address from local config
         self.current_works = LRUCache(128)
         self.root_signer_private_key = root_signer_private_key
+        self._mining_task = None
 
     def start(self):
         self.enabled = True
-        self._mine_new_block_async()
+        self._mining_task = self._mine_new_block_async()
 
     def is_enabled(self):
         return self.enabled
@@ -201,6 +202,9 @@ class Miner:
             # end the mining process
             self.input_q.put((None, {}))
         self.enabled = False
+        if self._mining_task and not self._mining_task.done():
+            self._mining_task.cancel()
+            self._mining_task = None
 
     def _mine_new_block_async(self):
         async def handle_mined_block():

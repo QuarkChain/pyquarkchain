@@ -593,7 +593,7 @@ class Shard:
                 shard=self,
                 name="{}_vconn_{}".format(master_conn.name, cluster_peer_id),
             )
-            asyncio.create_task(peer_shard_conn.active_and_loop_forever())
+            peer_shard_conn._loop_task = asyncio.create_task(peer_shard_conn.active_and_loop_forever())
             conns.append(peer_shard_conn)
         await asyncio.gather(*[conn.active_event.wait() for conn in conns])
         for conn in conns:

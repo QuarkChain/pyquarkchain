@@ -58,6 +58,8 @@ class AbstractConnection:
         if name is None:
             name = "conn_{}".format(self.__get_next_connection_id())
         self.name = name if name else "[connection name missing]"
+        self._loop_task = None  # Track the active_and_loop_forever task
+        self._handler_tasks = set()  # Track message handler tasks
 
     async def read_metadata_and_raw_data(self):
         raise NotImplementedError()
@@ -180,29 +182,40 @@ class AbstractConnection:
             self.close_with_error("{}: error reading request: {}".format(self.name, e))
             return
 
-        asyncio.create_task(
+        task = asyncio.create_task(
             self.__internal_handle_metadata_and_raw_data(metadata, raw_data)
         )
+        self._handler_tasks.add(task)
+        task.add_done_callback(self._handler_tasks.discard)
 
     async def active_and_loop_forever(self):
-        if self.state == ConnectionState.CONNECTING:
-            self.state = ConnectionState.ACTIVE
-            self.active_event.set()
-        while self.state == ConnectionState.ACTIVE:
-            await self.loop_once()
+        try:
+            if self.state == ConnectionState.CONNECTING:
+                self.state = ConnectionState.ACTIVE
+                self.active_event.set()
+            while self.state == ConnectionState.ACTIVE:
+                await self.loop_once()
+        finally:
+            # Cancel any in-flight handler tasks
+            for task in self._handler_tasks:
+                task.cancel()
+            self._handler_tasks.clear()
 
-        # Ensure active_event is set so wait_until_active() callers are not stuck
-        # (e.g. if connection closed before it ever became active)
-        if not self.active_event.is_set():
-            self.active_event.set()
+            # Ensure active_event is set so wait_until_active() callers are not stuck
+            # (e.g. if connection closed before it ever became active)
+            if not self.active_event.is_set():
+                self.active_event.set()
 
-        assert self.state == ConnectionState.CLOSED
+            if self.state != ConnectionState.CLOSED:
+                self.state = ConnectionState.CLOSED
+                self.close_event.set()
 
-        # Abort all in-flight RPCs
-        for rpc_id, future in self.rpc_future_map.items():
-            future.set_exception(RuntimeError("{}: connection abort".format(self.name)))
-        AbstractConnection.aborted_rpc_count += len(self.rpc_future_map)
-        self.rpc_future_map.clear()
+            # Abort all in-flight RPCs (runs even on cancellation)
+            for rpc_id, future in self.rpc_future_map.items():
+                if not future.done():
+                    future.set_exception(RuntimeError("{}: connection abort".format(self.name)))
+            AbstractConnection.aborted_rpc_count += len(self.rpc_future_map)
+            self.rpc_future_map.clear()
 
     async def wait_until_active(self):
         await self.active_event.wait()
@@ -214,6 +227,8 @@ class AbstractConnection:
         if self.state != ConnectionState.CLOSED:
             self.state = ConnectionState.CLOSED
             self.close_event.set()
+            if self._loop_task and not self._loop_task.done():
+                self._loop_task.cancel()
 
     def close_with_error(self, error):
         self.close()

@@ -427,25 +427,36 @@ def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
     # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
     loop.run_until_complete(asyncio.sleep(0.1))
 
-    for cluster in cluster_list:
-        for slave in cluster.slave_list:
-            slave.master.close()
-            loop.run_until_complete(slave.get_shutdown_future())
+    try:
+        # Close all connections BEFORE calling shutdown() to ensure tasks are cancelled
+        for cluster in cluster_list:
+            for slave in cluster.slave_list:
+                slave.master.close()
+            for slave in cluster.master.slave_pool:
+                slave.close()
 
-        for slave in cluster.master.slave_pool:
-            slave.close()
+        # Give cancelled tasks a moment to clean up
+        loop.run_until_complete(asyncio.sleep(0.05))
 
-        cluster.master.shutdown()
-        loop.run_until_complete(cluster.master.get_shutdown_future())
+        # Now wait for servers to fully shut down
+        for cluster in cluster_list:
+            for slave in cluster.slave_list:
+                loop.run_until_complete(slave.get_shutdown_future())
+                # Ensure TCP server socket is fully released
+                if hasattr(slave, 'server') and slave.server:
+                    loop.run_until_complete(slave.server.wait_closed())
+            cluster.master.shutdown()
+            loop.run_until_complete(cluster.master.get_shutdown_future())
 
-    check(expect_aborted_rpc_count == AbstractConnection.aborted_rpc_count)
-
-    # Cancel all remaining tasks so they don't bleed into the next test
-    pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
-    for task in pending:
-        task.cancel()
-    if pending:
-        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        check(expect_aborted_rpc_count == AbstractConnection.aborted_rpc_count)
+    finally:
+        # Always cancel remaining tasks, even if check() fails
+        pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+        for task in pending:
+            task.cancel()
+        if pending:
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        AbstractConnection.aborted_rpc_count = 0
 
 
 class ClusterContext(ContextDecorator):
