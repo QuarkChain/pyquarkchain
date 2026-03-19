@@ -33,8 +33,6 @@ class UPnPService(BaseService):
         self.port = port
         
         self._service = None
-        self._refresh_task = None
-        self._running = False
 
 
     # -----------------------------
@@ -62,12 +60,6 @@ class UPnPService(BaseService):
 		
 
     async def stop(self):
-        self._running = False
-        if self._refresh_task:
-            self._refresh_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await self._refresh_task
-
         await self._delete_port_mapping()
 
 
@@ -86,7 +78,8 @@ class UPnPService(BaseService):
             try:
                 # Wait for the port mapping lifetime, and then try registering it again
                 await self.wait(asyncio.sleep(self._nat_portmap_lifetime))
-                await self._add_port_mapping()
+                if self._service:
+                    await self._add_port_mapping()
             except OperationCancelled:
                 break
             except Exception:
@@ -94,8 +87,6 @@ class UPnPService(BaseService):
 
 
     async def _discover(self, session):
-        found = asyncio.Event()
-
         requester = AiohttpSessionRequester(session)
         factory = UpnpFactory(requester)
 
@@ -107,24 +98,25 @@ class UPnPService(BaseService):
                     if "WANIPConn" in service.service_type:
                         self._service = service
                         self.logger.info("Found UPnP WANIP service")
-                        found.set()
                         return
             except Exception as e:
                 self.logger.debug(f"Ignoring device: {e}")
 
-        await async_search(on_response)
-
         try:
-            await asyncio.wait_for(found.wait(), timeout=UPNP_DISCOVER_TIMEOUT_SECONDS)
+            await asyncio.wait_for(
+                async_search(on_response),
+                timeout=UPNP_DISCOVER_TIMEOUT_SECONDS,
+            )
         except asyncio.TimeoutError:
-            self.logger.warning("No suitable UPnP device discovered")
+            if not self._service:
+                self.logger.warning("No suitable UPnP device discovered")
 
 
     async def _add_port_mapping(self):
         internal_ip = self._get_internal_ip()
 
         self.logger.info(
-            f"Adding port mapping {self.external_port}->{internal_ip}:{self.internal_port}"
+            f"Adding port mapping {self.port}->{internal_ip}:{self.port}"
         )
 
         for protocol, description in [
@@ -147,14 +139,15 @@ class UPnPService(BaseService):
         if not self._service:
             return
 
-        with suppress(Exception):
-            await self._service.async_call_action(
-                "DeletePortMapping",
-                NewRemoteHost="",
-                NewExternalPort=self.external_port,
-                NewProtocol=self.protocol,
-            )
-            self.logger.info("Deleted UPnP port mapping")
+        for protocol in ["TCP", "UDP"]:
+            with suppress(Exception):
+                await self._service.async_call_action(
+                    "DeletePortMapping",
+                    NewRemoteHost="",
+                    NewExternalPort=self.port,
+                    NewProtocol=protocol,
+                )
+        self.logger.info("Deleted UPnP port mapping")
 
 
     async def _get_external_ip(self) -> Optional[str]:
@@ -178,4 +171,30 @@ class UPnPService(BaseService):
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
         finally:
-            s.close()	
+            s.close()
+
+
+if __name__ == "__main__":
+    import logging
+    import argparse
+
+    logging.basicConfig(level=logging.INFO)
+
+    parser = argparse.ArgumentParser(description="Test UPnP NAT port mapping")
+    parser.add_argument("--port", type=int, default=38291, help="Port to map (default: 38291)")
+    args = parser.parse_args()
+
+    async def main():
+        svc = UPnPService(port=args.port)
+        print(f"Discovering UPnP devices (timeout {UPNP_DISCOVER_TIMEOUT_SECONDS}s)...")
+        external_ip = await svc.discover()
+        if external_ip:
+            print(f"External IP: {external_ip}")
+            print(f"Port {args.port} mapped successfully")
+            input("Press Enter to remove mapping and exit...")
+            await svc.stop()
+            print("Mapping removed")
+        else:
+            print("UPnP discovery failed - no suitable device found")
+
+    asyncio.run(main())
