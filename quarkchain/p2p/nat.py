@@ -186,7 +186,17 @@ if __name__ == "__main__":
 
     async def main():
         svc = UPnPService(port=args.port)
-        print(f"Discovering UPnP devices (timeout {UPNP_DISCOVER_TIMEOUT_SECONDS}s)...")
+
+        # Test _get_internal_ip
+        internal_ip = svc._get_internal_ip()
+        print(f"Internal IP: {internal_ip}")
+
+        # Test _get_external_ip (without UPnP, falls back to None)
+        external_ip_before = await svc._get_external_ip()
+        print(f"External IP (before discover): {external_ip_before}")
+
+        # Test UPnP discover + port mapping
+        print(f"\nDiscovering UPnP devices (timeout {UPNP_DISCOVER_TIMEOUT_SECONDS}s)...")
         external_ip = await svc.discover()
         if external_ip:
             print(f"External IP: {external_ip}")
