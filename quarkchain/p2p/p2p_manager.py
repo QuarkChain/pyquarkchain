@@ -1,3 +1,4 @@
+import asyncio
 import ipaddress
 import socket
 from cryptography.hazmat.primitives.constant_time import bytes_eq
@@ -125,7 +126,7 @@ class QuarkPeer(BasePeer):
         self.secure_peer.add_sync_task()
         if self.secure_peer.state == ConnectionState.CONNECTING:
             self.secure_peer.state = ConnectionState.ACTIVE
-            self.secure_peer.active_future.set_result(None)
+            self.secure_peer.active_event.set()
         try:
             while self.is_operational:
                 metadata, raw_data = await self.secure_peer.read_metadata_and_raw_data()
@@ -415,8 +416,8 @@ class P2PManager(AbstractNetwork):
         self.ip = ipaddress.ip_address(socket.gethostbyname(socket.gethostname()))
         self.port = env.cluster_config.P2P_PORT
 
-    def start(self) -> None:
-        self.loop.create_task(self.server.run())
+    async def start(self) -> None:
+        asyncio.create_task(self.server.run())
 
     def iterate_peers(self):
         return [p.secure_peer for p in self.server.peer_pool.connected_nodes.values()]
@@ -436,7 +437,7 @@ class P2PManager(AbstractNetwork):
             return quark_peer.secure_peer
         return None
 
-    def shutdown(self):
+    async def shutdown(self):
         for peer_id, peer in self.active_peer_pool.items():
             peer.close()
-        self.loop.run_until_complete(self.server.cancel())
+        await self.server.cancel()

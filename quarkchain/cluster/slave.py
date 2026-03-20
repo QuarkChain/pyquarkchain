@@ -89,7 +89,7 @@ from quarkchain.core import (
 )
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
-from quarkchain.utils import check, Logger
+from quarkchain.utils import check, Logger, _get_or_create_event_loop
 
 
 class MasterConnection(ClusterConnection):
@@ -103,12 +103,12 @@ class MasterConnection(ClusterConnection):
             MASTER_OP_RPC_MAP,
             name=name,
         )
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.env = env
         self.slave_server = slave_server  # type: SlaveServer
         self.shards = slave_server.shards  # type: Dict[Branch, Shard]
 
-        asyncio.ensure_future(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
         # cluster_peer_id -> {branch_value -> shard_conn}
         self.v_conn_map = dict()
@@ -346,8 +346,8 @@ class MasterConnection(ClusterConnection):
                 shard=shard,
                 name="{}_vconn_{}".format(self.name, req.cluster_peer_id),
             )
-            asyncio.ensure_future(peer_shard_conn.active_and_loop_forever())
-            active_futures.append(peer_shard_conn.active_future)
+            peer_shard_conn._loop_task = asyncio.create_task(peer_shard_conn.active_and_loop_forever())
+            active_futures.append(peer_shard_conn.active_event.wait())
             shard_to_conn[shard] = peer_shard_conn
 
         # wait for all the connections to become active before return
@@ -723,12 +723,12 @@ class SlaveConnection(Connection):
         self.full_shard_id_list = full_shard_id_list
         self.shards = self.slave_server.shards
 
-        self.ping_received_future = asyncio.get_event_loop().create_future()
+        self.ping_received_event = asyncio.Event()
 
-        asyncio.ensure_future(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
     async def wait_until_ping_received(self):
-        await self.ping_received_future
+        await self.ping_received_event.wait()
 
     def close_with_error(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
@@ -756,7 +756,7 @@ class SlaveConnection(Connection):
                 "Empty shard mask list from slave {}".format(self.id)
             )
 
-        self.ping_received_future.set_result(None)
+        self.ping_received_event.set()
 
         return Pong(self.slave_server.id, self.slave_server.full_shard_id_list)
 
@@ -808,7 +808,7 @@ class SlaveConnectionManager:
             self.full_shard_id_to_slaves[full_shard_id] = []
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
-        self.loop = asyncio.get_event_loop()
+        self.loop = _get_or_create_event_loop()
 
     def close_all(self):
         for conn in self.slave_connections:
@@ -850,7 +850,7 @@ class SlaveConnectionManager:
         host = slave_info.host.decode("ascii")
         port = slave_info.port
         try:
-            reader, writer = await asyncio.open_connection(host, port, loop=self.loop)
+            reader, writer = await asyncio.open_connection(host, port)
         except Exception as e:
             err_msg = "Failed to connect {}:{} with exception {}".format(host, port, e)
             Logger.info(err_msg)
@@ -887,7 +887,7 @@ class SlaveServer:
     """ Slave node in a cluster """
 
     def __init__(self, env, name="slave"):
-        self.loop = asyncio.get_event_loop()
+        self.loop = _get_or_create_event_loop()
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.full_shard_id_list = self.env.slave_config.FULL_SHARD_ID_LIST
@@ -991,7 +991,6 @@ class SlaveServer:
             self.__handle_new_connection,
             "0.0.0.0",
             self.env.slave_config.PORT,
-            loop=self.loop,
         )
         Logger.info(
             "Listening on {} for intra-cluster RPC".format(
@@ -1000,11 +999,11 @@ class SlaveServer:
         )
 
     def start(self):
-        self.loop.create_task(self.__start_server())
+        self._server_task = self.loop.create_task(self.__start_server())
 
-    def do_loop(self):
+    async def do_loop(self):
         try:
-            self.loop.run_until_complete(self.shutdown_future)
+            await self.shutdown_future
         except KeyboardInterrupt:
             pass
 
@@ -1464,15 +1463,9 @@ def parse_args():
     return env
 
 
-def main():
+async def _main_async(env):
     from quarkchain.cluster.jsonrpc import JSONRPCWebsocketServer
 
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    env = parse_args()
-
-    if env.arguments.enable_profiler:
-        profile = cProfile.Profile()
-        profile.enable()
     slave_server = SlaveServer(env)
     slave_server.start()
 
@@ -1483,12 +1476,23 @@ def main():
         )
         callbacks.append(json_rpc_websocket_server.shutdown)
 
-    slave_server.do_loop()
+    await slave_server.do_loop()
+    Logger.info("Slave server is shutdown")
+
+
+def main():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    env = parse_args()
+
+    if env.arguments.enable_profiler:
+        profile = cProfile.Profile()
+        profile.enable()
+
+    asyncio.run(_main_async(env))
+
     if env.arguments.enable_profiler:
         profile.disable()
         profile.print_stats("time")
-
-    Logger.info("Slave server is shutdown")
 
 
 if __name__ == "__main__":

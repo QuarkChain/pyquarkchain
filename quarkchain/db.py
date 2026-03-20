@@ -3,7 +3,7 @@ import copy
 import pathlib
 import shutil
 
-import rocksdb
+from rocksdict import Rdict, Options, DBCompressionType
 
 
 class Db:
@@ -63,15 +63,14 @@ class PersistentDb(Db):
             self._destroy()
         pathlib.Path(self.db_path).mkdir(parents=True, exist_ok=True)
 
-        options = rocksdb.Options()
-        options.create_if_missing = True
-        options.max_open_files = 100000  # ubuntu 16.04 max files descriptors 524288
-        options.write_buffer_size = 128 * 1024 * 1024  # 128 MiB
-        options.max_write_buffer_number = 3
-        options.target_file_size_base = 67108864
-
-        options.compression = rocksdb.CompressionType.snappy_compression
-        self._db = rocksdb.DB(db_path, options)
+        options = Options(raw_mode=True)
+        options.create_if_missing(True)
+        options.set_max_open_files(100000)  # ubuntu 16.04 max files descriptors 524288
+        options.set_write_buffer_size(128 * 1024 * 1024)  # 128 MiB
+        options.set_max_write_buffer_number(3)
+        options.set_target_file_size_base(67108864)
+        options.set_compression_type(DBCompressionType.snappy())
+        self._db = Rdict(db_path, options)
 
     def _destroy(self):
         shutil.rmtree(self.db_path, ignore_errors=True)
@@ -83,7 +82,8 @@ class PersistentDb(Db):
 
     def multi_get(self, keys):
         keys = [k.encode() if not isinstance(k, bytes) else k for k in keys]
-        return self._db.multi_get(keys)  # returns a dict with keys as keys
+        values = self._db.get(keys)  # returns a list of values
+        return dict(zip(keys, values))
 
     def put(self, key, value):
         key = key.encode() if not isinstance(key, bytes) else key
@@ -103,29 +103,28 @@ class PersistentDb(Db):
 
     def range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in [start, end) ordered by key in ascending order"""
-        it = self._db.iteritems()
+        it = self._db.iter()
         it.seek(start)
-        for item in it:
-            if item[0] < end:
-                yield item
-            else:
+        while it.valid():
+            k = it.key()
+            if k >= end:
                 return
+            yield k, it.value()
+            it.next()
 
     def reversed_range_iter(self, start, end):
         """ A generator yielding (key, value) for keys in (end, start] ordered key in descending order"""
-        it = self._db.iteritems()
+        it = self._db.iter()
         it.seek_for_prev(start)
-        it = reversed(it)
-        for item in it:
-            if item[0] > end:
-                yield item
-            else:
+        while it.valid():
+            k = it.key()
+            if k <= end:
                 return
+            yield k, it.value()
+            it.prev()
 
     def close(self):
-        # No close() available for rocksdb
-        # see https://github.com/twmht/python-rocksdb/issues/10
-        pass
+        self._db.close()
 
     def __deepcopy__(self, memo):
         raise NotImplementedError

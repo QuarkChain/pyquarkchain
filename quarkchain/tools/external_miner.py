@@ -1,7 +1,6 @@
 import argparse
 import copy
 import functools
-import logging
 import random
 import signal
 import threading
@@ -9,17 +8,12 @@ import time
 from itertools import cycle
 from typing import Dict, Optional, List, Tuple
 
-import jsonrpcclient
 from queue import LifoQueue
 
 from quarkchain.cluster.miner import Miner, MiningWork, MiningResult
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.utils import int_left_most_bit
-
-# disable jsonrpcclient verbose logging
-
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 
 TIMEOUT = 10
@@ -29,7 +23,7 @@ cluster_host = "localhost"
 
 @functools.lru_cache(maxsize=5)
 def get_jsonrpc_cli(jrpc_url):
-    return jsonrpcclient.HTTPClient(jrpc_url)
+    return JsonRpcClient(jrpc_url, TIMEOUT)
 
 
 def get_work_rpc(
@@ -40,12 +34,7 @@ def get_work_rpc(
 ) -> MiningWork:
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
-    header_hash, height, diff = cli.send(
-        jsonrpcclient.Request(
-            "getWork", hex(full_shard_id) if full_shard_id is not None else None
-        ),
-        timeout=timeout,
-    )
+    header_hash, height, diff = cli.call("getWork", hex(full_shard_id) if full_shard_id is not None else None)
     return MiningWork(bytes.fromhex(header_hash[2:]), int(height, 16), int(diff, 16))
 
 
@@ -58,15 +47,12 @@ def submit_work_rpc(
 ) -> bool:
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
-    success = cli.send(
-        jsonrpcclient.Request(
-            "submitWork",
-            hex(full_shard_id) if full_shard_id is not None else None,
-            "0x" + res.header_hash.hex(),
-            hex(res.nonce),
-            "0x" + res.mixhash.hex(),
-        ),
-        timeout=timeout,
+    success = cli.call(
+        "submitWork",
+        hex(full_shard_id) if full_shard_id is not None else None,
+        "0x" + res.header_hash.hex(),
+        hex(res.nonce),
+        "0x" + res.mixhash.hex(),
     )
     return success
 
