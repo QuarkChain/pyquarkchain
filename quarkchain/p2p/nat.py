@@ -62,7 +62,6 @@ class UPnPService(BaseService):
     async def stop(self):
         await self._delete_port_mapping()
 
-
         
     # -----------------------------
     # Internal logic
