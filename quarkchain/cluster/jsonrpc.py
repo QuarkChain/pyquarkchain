@@ -463,7 +463,7 @@ private_methods = RpcMethods()
 # noinspection PyPep8Naming
 class JSONRPCHttpServer:
     @classmethod
-    async def start_public_server(cls, env, master_server):
+    def start_public_server(cls, env, master_server):
         server = cls(
             env,
             master_server,
@@ -471,11 +471,11 @@ class JSONRPCHttpServer:
             env.cluster_config.JSON_RPC_HOST,
             public_methods,
         )
-        await server.start()
+        server.start()
         return server
 
     @classmethod
-    async def start_private_server(cls, env, master_server):
+    def start_private_server(cls, env, master_server):
         server = cls(
             env,
             master_server,
@@ -483,11 +483,11 @@ class JSONRPCHttpServer:
             env.cluster_config.PRIVATE_JSON_RPC_HOST,
             private_methods,
         )
-        await server.start()
+        server.start()
         return server
 
     @classmethod
-    async def start_test_server(cls, env, master_server):
+    def start_test_server(cls, env, master_server):
         methods = RpcMethods()
         for method in public_methods.values():
             methods.add(method)
@@ -500,7 +500,7 @@ class JSONRPCHttpServer:
             env.cluster_config.JSON_RPC_HOST,
             methods,
         )
-        await server.start()
+        server.start()
         return server
 
     def __init__(
@@ -542,7 +542,7 @@ class JSONRPCHttpServer:
             Logger.error(response)
         return web.json_response(response)
 
-    async def start(self):
+    def start(self):
         app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
         cors = aiohttp_cors.setup(app)
         route = app.router.add_post("/", self.__handle)
@@ -558,12 +558,12 @@ class JSONRPCHttpServer:
             },
         )
         self.runner = web.AppRunner(app, access_log=None)
-        await self.runner.setup()
+        self.loop.run_until_complete(self.runner.setup())
         site = web.TCPSite(self.runner, self.host, self.port)
-        await site.start()
+        self.loop.run_until_complete(site.start())
 
-    async def shutdown(self):
-        await self.runner.cleanup()
+    def shutdown(self):
+        self.loop.run_until_complete(self.runner.cleanup())
 
     # JSON RPC handlers
     @public_methods.add
@@ -1445,7 +1445,7 @@ class JSONRPCHttpServer:
 
 class JSONRPCWebsocketServer:
     @classmethod
-    async def start_websocket_server(cls, env, slave_server):
+    def start_websocket_server(cls, env, slave_server):
         server = cls(
             env,
             slave_server,
@@ -1453,7 +1453,7 @@ class JSONRPCWebsocketServer:
             env.slave_config.HOST,
             public_methods,
         )
-        await server.start()
+        server.start()
         return server
 
     def __init__(
@@ -1525,9 +1525,9 @@ class JSONRPCWebsocketServer:
                 except:
                     pass
 
-    async def start(self):
+    def start(self):
         start_server = websockets.serve(self.__handle, self.host, self.port)
-        await start_server
+        self.loop.run_until_complete(start_server)
 
     def shutdown(self):
         pass  # TODO
