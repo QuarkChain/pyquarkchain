@@ -381,7 +381,13 @@ class Logger:
                 "level": level_str,
                 "message": msg,
             }
-            asyncio.create_task(
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running event loop (e.g., during startup/shutdown).
+                # Silently skip Kafka logging to avoid crashing the caller.
+                return
+            loop.create_task(
                 cls._kafka_logger.log_kafka_sample_async(
                     cls._kafka_logger.cluster_config.MONITORING.ERRORS, sample
                 )

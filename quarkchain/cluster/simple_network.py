@@ -408,8 +408,7 @@ class SimpleNetwork(AbstractNetwork):
     """Fully connected P2P network for inter-cluster communication
     """
 
-    def __init__(self, env, master_server, loop):
-        self.loop = loop
+    def __init__(self, env, master_server):
         self.env = env
         self.active_peer_pool = dict()  # peer id => peer
         self.self_id = random_bytes(32)

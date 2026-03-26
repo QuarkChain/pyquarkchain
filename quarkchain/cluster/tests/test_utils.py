@@ -402,7 +402,7 @@ def create_test_clusters(
                 shard.state.diff_calc = easy_diff_calc
 
         # Start simple network and connect to seed host
-        network = SimpleNetwork(env, master_server, loop)
+        network = SimpleNetwork(env, master_server)
         loop.run_until_complete(network.start_server())
         if connect and i != 0:
             peer = call_async(network.connect("127.0.0.1", bootstrap_port))

@@ -369,8 +369,7 @@ class P2PManager(AbstractNetwork):
     network.port
     """
 
-    def __init__(self, env, master_server, loop):
-        self.loop = loop
+    def __init__(self, env, master_server):
         self.env = env
         self.master_server = master_server
         master_server.network = self  # cannot say this is a good design
