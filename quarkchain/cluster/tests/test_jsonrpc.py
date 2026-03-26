@@ -50,11 +50,11 @@ def jrpc_http_server_context(master):
     env.cluster_config.JSON_RPC_PORT = 38391
     # to pass the circleCi
     env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
-    server = JSONRPCHttpServer.start_test_server(env, master)
+    server = call_async(JSONRPCHttpServer.start_test_server(env, master))
     try:
         yield server
     finally:
-        server.shutdown()
+        call_async(server.shutdown())
 
 
 def send_request(*args):
@@ -1222,7 +1222,7 @@ def jrpc_websocket_server_context(slave_server, port=38590):
     env.slave_config = env.cluster_config.get_slave_config("S0")
     env.slave_config.HOST = "0.0.0.0"
     env.slave_config.WEBSOCKET_JSON_RPC_PORT = port
-    server = JSONRPCWebsocketServer.start_websocket_server(env, slave_server)
+    server = call_async(JSONRPCWebsocketServer.start_websocket_server(env, slave_server))
     try:
         yield server
     finally:
