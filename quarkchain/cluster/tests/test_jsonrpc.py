@@ -1,6 +1,9 @@
 import json
 import unittest
 from contextlib import asynccontextmanager
+import aiohttp
+from jsonrpcclient.aiohttp_client import aiohttpClient
+from jsonrpcclient.exceptions import ReceivedErrorResponse
 import websockets
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -30,8 +33,10 @@ from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import sha3_256, token_id_encode
-from quarkchain.jsonrpc_client import AsyncJsonRpcClient, JsonRpcError
 
+# disable jsonrpcclient verbose logging
+logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
+logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 @asynccontextmanager
 async def jrpc_http_server_context(master):
@@ -47,15 +52,12 @@ async def jrpc_http_server_context(master):
         await server.shutdown()
 
 
-async def send_request(method, params=None):
+async def send_request(*args):
      # Create a fresh client per call to avoid event loop binding issues
      # with IsolatedAsyncioTestCase (each test gets a new loop)
-     rpc_client = AsyncJsonRpcClient("http://localhost:38391")
-     if params is None:
-         params = []
-     if isinstance(params, dict):
-         return await rpc_client.call_with_dict_params(method, params)
-     return await rpc_client.call(method, *params)
+    async with aiohttp.ClientSession() as session:
+        client = aiohttpClient(session, "http://localhost:38391")
+        return await client.request(*args)
 
 
 class TestJSONRPCHttp(unittest.IsolatedAsyncioTestCase):
@@ -803,9 +805,9 @@ class TestJSONRPCHttp(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(2, len(resp[0]["topics"]))
             # missing shard ID should fail
             for endpoint in ("getLogs", "eth_getLogs"):
-                with self.assertRaises(JsonRpcError):
+                with self.assertRaises(ReceivedErrorResponse):
                     await send_request(endpoint, [{}])
-                with self.assertRaises(JsonRpcError):
+                with self.assertRaises(ReceivedErrorResponse):
                     await send_request(endpoint, [{}, None])
 
     async def test_estimateGas(self):
