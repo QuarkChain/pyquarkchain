@@ -102,7 +102,7 @@ class BaseServer(BaseService):
         self.logger.info("Running server...")
         mapped_external_ip = None
         if self.upnp_service:
-            mapped_external_ip = await self.upnp_service.discover()
+            mapped_external_ip = await self.upnp_service.add_nat_portmap()
         external_ip = mapped_external_ip or "0.0.0.0"
         await self._start_tcp_listener()
         self.logger.info(
