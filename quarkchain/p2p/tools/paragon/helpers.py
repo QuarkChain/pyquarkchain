@@ -169,7 +169,6 @@ async def get_directly_linked_peers_without_handshake(
 
 async def get_directly_linked_peers(
     request: Any,
-    event_loop: asyncio.AbstractEventLoop = None,
     alice_factory: BasePeerFactory = None,
     bob_factory: BasePeerFactory = None,
 ) -> Tuple[BasePeer, BasePeer]:

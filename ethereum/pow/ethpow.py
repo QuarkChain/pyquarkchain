@@ -1,5 +1,4 @@
 import warnings
-from functools import lru_cache
 from typing import Tuple, Optional, List, Union
 
 from eth_utils import big_endian_to_int
@@ -9,7 +8,6 @@ from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGT
 
 
 # always have python implementation declared
-@lru_cache(10)
 def get_cache_slow(cache_size: int, block_number: int) -> List[List[int]]:
     return ethash.mkcache(cache_size, block_number)
 
