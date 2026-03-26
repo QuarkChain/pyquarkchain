@@ -1881,11 +1881,10 @@ async def _main_async(env):
         if env.cluster_config.START_SIMULATED_MINING:
             asyncio.create_task(master.start_mining())
 
-    loop = asyncio.get_running_loop()
     if env.cluster_config.use_p2p():
-        network = P2PManager(env, master, loop)
+        network = P2PManager(env, master)
     else:
-        network = SimpleNetwork(env, master, loop)
+        network = SimpleNetwork(env, master)
     await network.start()
 
     callbacks = [network.shutdown]
