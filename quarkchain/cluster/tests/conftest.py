@@ -3,21 +3,22 @@ import asyncio
 import pytest
 
 from quarkchain.protocol import AbstractConnection
+from quarkchain.utils import _get_or_create_event_loop
 
 
 @pytest.fixture(autouse=True)
-def cleanup_after_test():
-    """Reset shared state and restore event loop after each test.
-
-    IsolatedAsyncioTestCase closes its event loop when done.  Subsequent
-    sync tests (or their imports) may call asyncio.get_event_loop(), which
-    fails in Python 3.12+ when no loop is set.  Re-create one here.
-    """
+def cleanup_event_loop():
+    """Cancel all pending asyncio tasks after each test to prevent inter-test contamination."""
     yield
+    loop = _get_or_create_event_loop()
+    # Multiple rounds of cleanup: cancelling tasks can spawn new tasks in finally blocks
+    for _ in range(3):
+        pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
+        if not pending:
+            break
+        for task in pending:
+            task.cancel()
+        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        # Let the loop process any callbacks triggered by cancellation
+        loop.run_until_complete(asyncio.sleep(0))
     AbstractConnection.aborted_rpc_count = 0
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            asyncio.set_event_loop(asyncio.new_event_loop())
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())

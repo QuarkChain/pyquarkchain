@@ -89,7 +89,7 @@ from quarkchain.core import (
 )
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.protocol import Connection
-from quarkchain.utils import check, Logger
+from quarkchain.utils import check, Logger, _get_or_create_event_loop
 
 
 class MasterConnection(ClusterConnection):
@@ -808,7 +808,7 @@ class SlaveConnectionManager:
             self.full_shard_id_to_slaves[full_shard_id] = []
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
-        self.loop = asyncio.get_running_loop()
+        self.loop = _get_or_create_event_loop()
 
     def close_all(self):
         for conn in self.slave_connections:
@@ -887,7 +887,7 @@ class SlaveServer:
     """ Slave node in a cluster """
 
     def __init__(self, env, name="slave"):
-        self.loop = asyncio.get_running_loop()
+        self.loop = _get_or_create_event_loop()
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.full_shard_id_list = self.env.slave_config.FULL_SHARD_ID_LIST
