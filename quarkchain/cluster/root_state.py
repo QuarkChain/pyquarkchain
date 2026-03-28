@@ -610,7 +610,7 @@ class RootState:
                 "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.minor_block_header_list),
             }
-            asyncio.ensure_future(
+            asyncio.create_task(
                 self.env.cluster_config.kafka_logger.log_kafka_sample_async(
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )

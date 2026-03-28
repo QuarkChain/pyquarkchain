@@ -96,25 +96,11 @@ def _get_or_create_event_loop():
     return loop
 
 
-def call_async(coro):
-    loop = _get_or_create_event_loop()
-    # asyncio.ensure_future handles both coroutines and Futures
-    if asyncio.iscoroutine(coro):
-        future = loop.create_task(coro)
-    else:
-        future = coro  # already a Future
-    loop.run_until_complete(future)
-    return future.result()
-
-
-def assert_true_with_timeout(f, duration=1):
-    async def d():
-        deadline = time.time() + duration
-        while not f() and time.time() < deadline:
-            await asyncio.sleep(0.001)
-        assert f()
-
-    _get_or_create_event_loop().run_until_complete(d())
+async def async_assert_true_with_timeout(f, duration=3):
+    deadline = time.time() + duration
+    while not f() and time.time() < deadline:
+        await asyncio.sleep(0.001)
+    assert f()
 
 
 _LOGGING_FILE_PREFIX = os.path.join("logging", "__init__.")

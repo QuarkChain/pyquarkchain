@@ -51,13 +51,13 @@ def add_minor_block_to_cluster(s_states, block):
         )
 
 
-class TestRootState(unittest.TestCase):
-    def test_root_state_simple(self):
+class TestRootState(unittest.IsolatedAsyncioTestCase):
+    async def test_root_state_simple(self):
         env = get_test_env()
         state = RootState(env=env)
         self.assertEqual(state.tip.height, 0)
 
-    def test_blocks_with_incorrect_version(self):
+    async def test_blocks_with_incorrect_version(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
@@ -68,7 +68,7 @@ class TestRootState(unittest.TestCase):
         root_block.header.version = 0
         r_state.add_block(root_block)
 
-    def test_blocks_with_incorrect_height(self):
+    async def test_blocks_with_incorrect_height(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
@@ -76,7 +76,7 @@ class TestRootState(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "incorrect block height"):
             r_state.add_block(root_block)
 
-    def test_blocks_with_incorrect_merkle_and_minor_block_list(self):
+    async def test_blocks_with_incorrect_merkle_and_minor_block_list(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         self.assertEqual(r_state.tip.total_difficulty, 2000000)
@@ -116,7 +116,7 @@ class TestRootState(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "shard id must be ordered"):
             r_state.add_block(root_block_with_incorrect_mlist2)
 
-    def test_blocks_with_incorrect_total_difficulty(self):
+    async def test_blocks_with_incorrect_total_difficulty(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         root_block = r_state.create_block_to_mine([])
@@ -124,7 +124,7 @@ class TestRootState(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "incorrect total difficulty"):
             r_state.add_block(root_block)
 
-    def test_reorg_with_shorter_chain(self):
+    async def test_reorg_with_shorter_chain(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
 
@@ -148,7 +148,7 @@ class TestRootState(unittest.TestCase):
         self.assertIsNone(r_state.db.get_root_block_by_height(3), None)
         self.assertEqual(r_state.db.get_root_block_by_height(2), root_block10)
 
-    def test_root_state_and_shard_state_add_block(self):
+    async def test_root_state_and_shard_state_add_block(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         self.assertEqual(r_state.tip.total_difficulty, 2000000)
@@ -184,7 +184,7 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(s_state1.add_root_block(root_block))
         self.assertEqual(s_state1.root_tip, root_block.header)
 
-    def test_root_state_add_block_no_proof_of_progress(self):
+    async def test_root_state_add_block_no_proof_of_progress(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         s_state0 = s_states[2 | 0]
@@ -208,7 +208,7 @@ class TestRootState(unittest.TestCase):
         root_block = r_state.create_block_to_mine([b1.header])
         self.assertTrue(r_state.add_block(root_block))
 
-    def test_root_state_add_two_blocks(self):
+    async def test_root_state_add_two_blocks(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         s_state0 = s_states[2 | 0]
@@ -243,7 +243,7 @@ class TestRootState(unittest.TestCase):
 
         self.assertTrue(r_state.add_block(root_block1))
 
-    def test_root_state_and_shard_state_fork(self):
+    async def test_root_state_and_shard_state_fork(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
 
@@ -324,7 +324,7 @@ class TestRootState(unittest.TestCase):
         self.assertEqual(s_state0.root_tip, root_block2.header)
         self.assertEqual(s_state1.root_tip, root_block2.header)
 
-    def test_root_state_difficulty_and_coinbase(self):
+    async def test_root_state_difficulty_and_coinbase(self):
         env = get_test_env()
         env.quark_chain_config.SKIP_ROOT_DIFFICULTY_CHECK = False
         env.quark_chain_config.ROOT.GENESIS.DIFFICULTY = 1000
@@ -408,7 +408,7 @@ class TestRootState(unittest.TestCase):
             root_block0.header.difficulty,
         )
 
-    def test_root_state_recovery(self):
+    async def test_root_state_recovery(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
 
@@ -476,8 +476,9 @@ class TestRootState(unittest.TestCase):
             recovered_state.db.get_root_block_by_height(tip_height), root_block0
         )
 
-    def test_add_root_block_with_minor_block_with_wrong_root_block_hash(self):
-        """ Test for the following case
+    async def test_add_root_block_with_minor_block_with_wrong_root_block_hash(self):
+        """ 
+        Test for the following case
                  +--+    +--+
                  |r1|<---|r3|
                 /+--+    +--+
@@ -559,7 +560,7 @@ class TestRootState(unittest.TestCase):
         )
         self.assertTrue(r_state.add_block(root_block4))
 
-    def test_add_minor_block_with_wrong_root_block_hash(self):
+    async def test_add_minor_block_with_wrong_root_block_hash(self):
         """ Test for the following case
                  +--+
                  |r1|
@@ -634,7 +635,7 @@ class TestRootState(unittest.TestCase):
         with self.assertRaises(ValueError):
             add_minor_block_to_cluster(s_states, m3)
 
-    def test_root_state_add_root_block_too_many_minor_blocks(self):
+    async def test_root_state_add_root_block_too_many_minor_blocks(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         s_state0 = s_states[2 | 0]
@@ -665,7 +666,7 @@ class TestRootState(unittest.TestCase):
         )
         r_state.add_block(root_block)
 
-    def test_root_chain_fork_using_largest_total_diff(self):
+    async def test_root_chain_fork_using_largest_total_diff(self):
         env = get_test_env(shard_size=1)
         r_state, s_states = create_default_state(env)
 
@@ -684,7 +685,7 @@ class TestRootState(unittest.TestCase):
         self.assertTrue(r_state.add_block(rb3))
         self.assertEqual(r_state.tip.get_hash(), rb3.header.get_hash())
 
-    def test_root_coinbase_decay(self):
+    async def test_root_coinbase_decay(self):
         env = get_test_env()
         r_state, s_states = create_default_state(env)
         coinbase = r_state._calculate_root_block_coinbase(
