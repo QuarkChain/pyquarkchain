@@ -1,6 +1,6 @@
 import asyncio
 import socket
-from contextlib import closing
+from contextlib import ContextDecorator, closing
 
 from quarkchain.cluster.cluster_config import (
     ClusterConfig,
@@ -22,7 +22,7 @@ from quarkchain.evm.messages import pay_native_token_as_gas, get_gas_utility_inf
 from quarkchain.evm.specials import SystemContract
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.protocol import AbstractConnection
-from quarkchain.utils import check, is_p2
+from quarkchain.utils import call_async, check, is_p2, _get_or_create_event_loop
 
 
 def get_test_env(
@@ -307,7 +307,7 @@ def get_next_port():
         return s.getsockname()[1]
 
 
-async def create_test_clusters(
+def create_test_clusters(
     num_cluster,
     genesis_account,
     chain_size,
@@ -329,6 +329,7 @@ async def create_test_clusters(
 
     bootstrap_port = get_next_port()  # first cluster will listen on this port
     cluster_list = []
+    loop = _get_or_create_event_loop()
 
     for i in range(num_cluster):
         env = get_test_env(
@@ -393,7 +394,7 @@ async def create_test_clusters(
         master_server.start()
 
         # Wait until the cluster is ready
-        await master_server.cluster_active_future
+        loop.run_until_complete(master_server.cluster_active_future)
 
         # Substitute diff calculate with an easier one
         for slave in slave_server_list:
@@ -402,9 +403,9 @@ async def create_test_clusters(
 
         # Start simple network and connect to seed host
         network = SimpleNetwork(env, master_server)
-        await network.start_server()
+        loop.run_until_complete(network.start_server())
         if connect and i != 0:
-            peer = await network.connect("127.0.0.1", bootstrap_port)
+            peer = call_async(network.connect("127.0.0.1", bootstrap_port))
         else:
             peer = None
 
@@ -413,18 +414,18 @@ async def create_test_clusters(
     return cluster_list
 
 
-async def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
-    loop = asyncio.get_running_loop()
+def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
+    loop = _get_or_create_event_loop()
 
     # allow pending RPCs to finish to avoid annoying connection reset error messages
-    await asyncio.sleep(0.1)
+    loop.run_until_complete(asyncio.sleep(0.1))
 
     for cluster in cluster_list:
         # Shutdown simple network first
-        await cluster.network.shutdown()
+        loop.run_until_complete(cluster.network.shutdown())
 
     # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
-    await asyncio.sleep(0.1)
+    loop.run_until_complete(asyncio.sleep(0.1))
 
     try:
         # Close all connections BEFORE calling shutdown() to ensure tasks are cancelled
@@ -435,32 +436,30 @@ async def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
                 slave.close()
 
         # Give cancelled tasks a moment to clean up
-        await asyncio.sleep(0.05)
+        loop.run_until_complete(asyncio.sleep(0.05))
 
         # Now wait for servers to fully shut down
         for cluster in cluster_list:
             for slave in cluster.slave_list:
-                await slave.get_shutdown_future()
+                loop.run_until_complete(slave.get_shutdown_future())
                 # Ensure TCP server socket is fully released
                 if hasattr(slave, 'server') and slave.server:
-                    await slave.server.wait_closed()
+                    loop.run_until_complete(slave.server.wait_closed())
             cluster.master.shutdown()
-            await cluster.master.get_shutdown_future()
+            loop.run_until_complete(cluster.master.get_shutdown_future())
 
         check(expect_aborted_rpc_count == AbstractConnection.aborted_rpc_count)
     finally:
         # Always cancel remaining tasks, even if check() fails
-        # Exclude current task to avoid recursive cancellation
-        current = asyncio.current_task()
-        pending = [t for t in asyncio.all_tasks(loop) if not t.done() and t is not current]
+        pending = [t for t in asyncio.all_tasks(loop) if not t.done()]
         for task in pending:
             task.cancel()
         if pending:
-            await asyncio.gather(*pending, return_exceptions=True)
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
         AbstractConnection.aborted_rpc_count = 0
 
 
-class ClusterContext:
+class ClusterContext(ContextDecorator):
     def __init__(
         self,
         num_cluster,
@@ -494,8 +493,8 @@ class ClusterContext:
         check(is_p2(self.num_slaves))
         check(is_p2(self.shard_size))
 
-    async def __aenter__(self):
-        self.cluster_list = await create_test_clusters(
+    def __enter__(self):
+        self.cluster_list = create_test_clusters(
             self.num_cluster,
             self.genesis_account,
             self.chain_size,
@@ -512,8 +511,8 @@ class ClusterContext:
         )
         return self.cluster_list
 
-    async def __aexit__(self, exc_type, exc_val, traceback):
-        await shutdown_clusters(self.cluster_list)
+    def __exit__(self, exc_type, exc_val, traceback):
+        shutdown_clusters(self.cluster_list)
 
 
 def mock_pay_native_token_as_gas(mock=None):
@@ -521,26 +520,15 @@ def mock_pay_native_token_as_gas(mock=None):
     mock = mock or (lambda *x: (100, x[-1]))
 
     def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            async def wrapper(*args, **kwargs):
-                import quarkchain.evm.messages as m
+        def wrapper(*args, **kwargs):
+            import quarkchain.evm.messages as m
 
-                m.get_gas_utility_info = mock
-                m.pay_native_token_as_gas = mock
-                ret = await f(*args, **kwargs)
-                m.get_gas_utility_info = get_gas_utility_info
-                m.pay_native_token_as_gas = pay_native_token_as_gas
-                return ret
-        else:
-            def wrapper(*args, **kwargs):
-                import quarkchain.evm.messages as m
-
-                m.get_gas_utility_info = mock
-                m.pay_native_token_as_gas = mock
-                ret = f(*args, **kwargs)
-                m.get_gas_utility_info = get_gas_utility_info
-                m.pay_native_token_as_gas = pay_native_token_as_gas
-                return ret
+            m.get_gas_utility_info = mock
+            m.pay_native_token_as_gas = mock
+            ret = f(*args, **kwargs)
+            m.get_gas_utility_info = get_gas_utility_info
+            m.pay_native_token_as_gas = pay_native_token_as_gas
+            return ret
 
         return wrapper
 

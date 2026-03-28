@@ -88,7 +88,7 @@ from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.p2p.p2p_manager import P2PManager
 from quarkchain.p2p.utils import RESERVED_CLUSTER_PEER_ID
-from quarkchain.utils import Logger, check
+from quarkchain.utils import Logger, check, _get_or_create_event_loop
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
@@ -763,7 +763,7 @@ class MasterServer:
     """
 
     def __init__(self, env, root_state, name="master"):
-        self.loop = asyncio.get_running_loop()
+        self.loop = _get_or_create_event_loop()
         self.env = env
         self.root_state = root_state  # type: RootState
         self.network = None  # will be set by network constructor
