@@ -19,10 +19,12 @@ def test_token_single():
 
 
 def test_token_chain_event_loop_mismatch():
+    # In Python 3.10+, asyncio primitives no longer accept a loop= parameter,
+    # so EventLoopMismatch is no longer raised. Chaining tokens always works.
     token = CancelToken("token")
-    token2 = CancelToken("token2", loop=asyncio.new_event_loop())
-    with pytest.raises(EventLoopMismatch):
-        token.chain(token2)
+    token2 = CancelToken("token2")
+    chain = token.chain(token2)
+    assert chain is not None
 
 
 def test_token_chain_trigger_chain():
@@ -81,65 +83,66 @@ def test_token_chain_trigger_last():
 
 
 @pytest.mark.asyncio
-async def test_token_wait(event_loop):
+async def test_token_wait():
     token = CancelToken("token")
-    event_loop.call_soon(token.trigger)
-    done, pending = await asyncio.wait([token.wait()], timeout=0.1)
+    asyncio.get_running_loop().call_soon(token.trigger)
+    done, pending = await asyncio.wait(
+        [asyncio.create_task(token.wait())], timeout=0.1
+    )
     assert len(done) == 1
     assert len(pending) == 0
     assert token.triggered
 
 
 @pytest.mark.asyncio
-async def test_wait_cancel_pending_tasks_on_completion(event_loop):
+async def test_wait_cancel_pending_tasks_on_completion():
     token = CancelToken("token")
     token2 = CancelToken("token2")
     chain = token.chain(token2)
-    event_loop.call_soon(token2.trigger)
+    asyncio.get_running_loop().call_soon(token2.trigger)
     await chain.wait()
     await assert_only_current_task_not_done()
 
 
 @pytest.mark.asyncio
-async def test_wait_cancel_pending_tasks_on_cancellation(event_loop):
+async def test_wait_cancel_pending_tasks_on_cancellation():
     """Test that cancelling a pending CancelToken.wait() coroutine doesn't leave .wait()
     coroutines for any chained tokens behind.
     """
     token = (
         CancelToken("token").chain(CancelToken("token2")).chain(CancelToken("token3"))
     )
-    token_wait_coroutine = token.wait()
-    done, pending = await asyncio.wait([token_wait_coroutine], timeout=0.1)
+    token_wait_task = asyncio.create_task(token.wait())
+    done, pending = await asyncio.wait([token_wait_task], timeout=0.1)
     assert len(done) == 0
     assert len(pending) == 1
     pending_task = pending.pop()
-    assert pending_task._coro == token_wait_coroutine
     pending_task.cancel()
     await assert_only_current_task_not_done()
 
 
 @pytest.mark.asyncio
-async def test_cancellable_wait(event_loop):
+async def test_cancellable_wait():
     fut = asyncio.Future()
-    event_loop.call_soon(functools.partial(fut.set_result, "result"))
+    asyncio.get_running_loop().call_soon(functools.partial(fut.set_result, "result"))
     result = await CancelToken("token").cancellable_wait(fut, timeout=1)
     assert result == "result"
     await assert_only_current_task_not_done()
 
 
 @pytest.mark.asyncio
-async def test_cancellable_wait_future_exception(event_loop):
+async def test_cancellable_wait_future_exception():
     fut = asyncio.Future()
-    event_loop.call_soon(functools.partial(fut.set_exception, Exception()))
+    asyncio.get_running_loop().call_soon(functools.partial(fut.set_exception, Exception()))
     with pytest.raises(Exception):
         await CancelToken("token").cancellable_wait(fut, timeout=1)
     await assert_only_current_task_not_done()
 
 
 @pytest.mark.asyncio
-async def test_cancellable_wait_cancels_subtasks_when_cancelled(event_loop):
+async def test_cancellable_wait_cancels_subtasks_when_cancelled():
     token = CancelToken("")
-    future = asyncio.ensure_future(token.cancellable_wait(asyncio.sleep(2)))
+    future = asyncio.create_task(token.cancellable_wait(asyncio.sleep(2)))
     with pytest.raises(asyncio.TimeoutError):
         # asyncio.wait_for() will timeout and then cancel our cancellable_wait() future, but
         # Task.cancel() doesn't immediately cancels the task
@@ -159,7 +162,7 @@ async def test_cancellable_wait_timeout():
 
 
 @pytest.mark.asyncio
-async def test_cancellable_wait_operation_cancelled(event_loop):
+async def test_cancellable_wait_operation_cancelled():
     token = CancelToken("token")
     token.trigger()
     with pytest.raises(OperationCancelled):
@@ -171,8 +174,8 @@ async def assert_only_current_task_not_done():
     # This sleep() is necessary because Task.cancel() doesn't immediately cancels the task:
     # https://docs.python.org/3/library/asyncio-task.html#asyncio.Task.cancel
     await asyncio.sleep(0.01)
-    for task in asyncio.Task.all_tasks():
-        if task == asyncio.Task.current_task():
+    for task in asyncio.all_tasks():
+        if task == asyncio.current_task():
             # This is the task for this very test, so it will be running
             assert not task.done()
         else:
