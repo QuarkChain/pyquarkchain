@@ -163,7 +163,7 @@ def main():
 
     endpoint = Endpoint("http://" + args.jrpc_endpoint)
     addrByAmount = read_addr(args.tqkc_file)
-    asyncio.run(fund(endpoint, genesisId, addrByAmount))
+    asyncio.get_event_loop().run_until_complete(fund(endpoint, genesisId, addrByAmount))
 
 
 if __name__ == "__main__":
