@@ -10,7 +10,6 @@ eth-utils>=2.3
 eth-keys>=0.5
 eth-bloom>=2.0
 httpx>=0.28
-jsonrpc_async>=2.1.2
 numpy>=1.26
 psutil>=6
 rocksdict
@@ -29,3 +28,4 @@ netifaces>=0.11
 
 # pyethapp/accounts.py dependency
 pbkdf2>=1.3
+pyethash>=0.1.27,<1.0.0
