@@ -1,12 +1,6 @@
-import asyncio
 import json
-import logging
 import unittest
 from contextlib import contextmanager
-
-import aiohttp
-from jsonrpcclient.aiohttp_client import aiohttpClient
-from jsonrpcclient.exceptions import ReceivedErrorResponse
 import websockets
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -36,11 +30,7 @@ from quarkchain.env import DEFAULT_ENV
 from quarkchain.evm.messages import mk_contract_address
 from quarkchain.evm.transactions import Transaction as EvmTransaction
 from quarkchain.utils import call_async, sha3_256, token_id_encode
-
-
-# disable jsonrpcclient verbose logging
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient, JsonRpcError
 
 
 @contextmanager
@@ -57,14 +47,10 @@ def jrpc_http_server_context(master):
         server.shutdown()
 
 
-def send_request(*args):
-    async def __send_request(*args):
-        async with aiohttp.ClientSession(loop=asyncio.get_event_loop()) as session:
-            client = aiohttpClient(session, "http://localhost:38391")
-            response = await client.request(*args)
-            return response
+rpc_client = AsyncJsonRpcClient("http://localhost:38391")
 
-    return call_async(__send_request(*args))
+def send_request(method, *args):
+     return call_async(rpc_client.call_with_dict_params(method, *args))
 
 
 class TestJSONRPCHttp(unittest.TestCase):
@@ -852,12 +838,12 @@ class TestJSONRPCHttp(unittest.TestCase):
                 # no filter object as wild cards
                 resp = req({})
                 self.assertEqual(1, len(resp))
-                self.assertDictContainsSubset(expected_log_parts, resp[0])
+                self.assertTrue(expected_log_parts.items() <= resp[0].items())
 
                 # filter with from/to blocks
                 resp = req({"fromBlock": "0x0", "toBlock": "0x1"})
                 self.assertEqual(1, len(resp))
-                self.assertDictContainsSubset(expected_log_parts, resp[0])
+                self.assertTrue(expected_log_parts.items() <= resp[0].items())
                 resp = req({"fromBlock": "0x0", "toBlock": "0x0"})
                 self.assertEqual(0, len(resp))
 
@@ -893,7 +879,7 @@ class TestJSONRPCHttp(unittest.TestCase):
                 for f in (filter_obj, filter_obj_nested):
                     resp = req(f)
                     self.assertEqual(1, len(resp))
-                    self.assertDictContainsSubset(expected_log_parts, resp[0])
+                    self.assertTrue(expected_log_parts.items() <= resp[0].items())
                     self.assertEqual(
                         "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
                         resp[0]["topics"][0],
@@ -927,13 +913,13 @@ class TestJSONRPCHttp(unittest.TestCase):
             expected_log_parts["transactionIndex"] = "0x3"  # after root block coinbase
             expected_log_parts["transactionHash"] = "0x" + tx.get_hash().hex()
             expected_log_parts["blockHash"] = "0x" + block.header.get_hash().hex()
-            self.assertDictContainsSubset(expected_log_parts, resp[0])
+            self.assertTrue(expected_log_parts.items() <= resp[0].items())
             self.assertEqual(2, len(resp[0]["topics"]))
             # missing shard ID should fail
             for endpoint in ("getLogs", "eth_getLogs"):
-                with self.assertRaises(ReceivedErrorResponse):
+                with self.assertRaises(JsonRpcError):
                     send_request(endpoint, [{}])
-                with self.assertRaises(ReceivedErrorResponse):
+                with self.assertRaises(JsonRpcError):
                     send_request(endpoint, [{}, None])
 
     def test_estimateGas(self):
@@ -1632,7 +1618,7 @@ class TestJSONRPCWebsocket(unittest.TestCase):
                 response = call_async(websocket.recv())
                 count += 1
                 d = json.loads(response)
-                self.assertDictContainsSubset(expected_log_parts, d["params"]["result"])
+                self.assertTrue(expected_log_parts.items() <= d["params"]["result"].items())
                 self.assertEqual(
                     "0xa9378d5bd800fae4d5b8d4c6712b2b64e8ecc86fdc831cb51944000fc7c8ecfa",
                     d["params"]["result"]["topics"][0],

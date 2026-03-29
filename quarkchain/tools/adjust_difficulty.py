@@ -1,10 +1,10 @@
-import monitoring
-
 import argparse
 import asyncio
 import json
 from datetime import datetime
-from jsonrpc_async import Server
+
+from quarkchain.tools import monitoring
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient
 
 """
 this is a centralized place that sets mining difficulty
@@ -15,9 +15,9 @@ we can always do more fancy improvements such as setting this based on past N bl
 
 
 async def async_adjust(idx, server, root, minor, mining):
-    response = await server.setTargetBlockTime(root, minor)
+    response = await server.call("setTargetBlockTime", root, minor)
     print("idx={};response={}".format(idx, response))
-    await server.setMining(mining)
+    await server.call("setMining", mining)
 
 
 async def async_adjust_difficulty(args):
@@ -35,7 +35,7 @@ async def async_adjust_difficulty(args):
             if count == num_nodes:
                 raise Exception("no change")
             servers = [
-                (idx, Server("http://{}".format(cluster)))
+                (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
                 for idx, cluster in enumerate(clusters)
             ]
             await asyncio.gather(
@@ -89,11 +89,11 @@ async def adjust_imbalanced_hashpower(args):
         clusters_rich = clusters[:num_rich]
         clusters_poor = clusters[num_rich:]
         servers_rich = [
-            (idx, Server("http://{}".format(cluster)))
+            (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
             for idx, cluster in enumerate(clusters_rich)
         ]
         servers_poor = [
-            (idx, Server("http://{}".format(cluster)))
+            (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
             for idx, cluster in enumerate(clusters_poor)
         ]
         rich_root = int(num_nodes * args.base_root / 9)

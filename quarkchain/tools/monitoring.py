@@ -1,4 +1,3 @@
-import jsonrpcclient
 import ipaddress
 import argparse
 
@@ -7,7 +6,7 @@ import json
 from datetime import datetime
 
 import asyncio
-from jsonrpc_async import Server
+from quarkchain.jsonrpc_client import JsonRpcClient, AsyncJsonRpcClient
 
 
 """
@@ -19,7 +18,8 @@ and be able to query stats or adjust mining difficulty on demand
 def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
-    peers = jsonrpcclient.request(json_rpc_url, "getPeers")
+    cli = JsonRpcClient(json_rpc_url)
+    peers = cli.call("getPeers")
     return [
         "{}:{}".format(ipaddress.ip_address(int(p["ip"], 16)), int(p["port"], 16))
         for p in peers["peers"]
@@ -32,13 +32,13 @@ async def fetch_peers_async(node):
     :return: list of tuple(ip, p2p_port, jrpc_port)
     """
     json_rpc_url = "http://{}:{}".format(node[0], node[2])
-    server = Server(json_rpc_url)
+    server = AsyncJsonRpcClient(json_rpc_url, timeout=5)
     try:
-        peers = await asyncio.wait_for(server.get_peers(), 5)
+        peers = await server.call("getPeers")
     except Exception:
         print("Failed to get peers from {}".format(json_rpc_url))
         peers = {"peers": []}
-    await server.session.close()
+    await server.close()
     return [
         (
             str(ipaddress.ip_address(int(p["ip"], 16))),
@@ -149,13 +149,13 @@ CONST_INTERVAL = 1
 
 
 async def async_stats(idx, server):
-    response = await server.get_stats()
+    response = await server.call("getStats")
     print("idx={};{}={}".format(idx, CONST_METRIC, response[CONST_METRIC]))
 
 
 async def async_watch(clusters):
     servers = [
-        (idx, Server("http://{}".format(cluster)))
+        (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
         for idx, cluster in enumerate(clusters)
     ]
     while True:
