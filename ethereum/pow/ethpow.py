@@ -8,8 +8,12 @@ from ethereum.pow import ethash
 from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
 
 
+# NOTE: pyethash C++ acceleration removed — not supported on Python 3.13.
+# Impact: pure Python hashimoto is ~60-100x slower, affects PoW verification only.
+# To add back, fork pyethash and fix the int/Py_ssize_t type mismatch in core.c.
+# See: https://github.com/QuarkChain/pyquarkchain/issues/976
+#
 # always have python implementation declared
-@lru_cache(10)
 def get_cache_slow(cache_size: int, block_number: int) -> List[List[int]]:
     return ethash.mkcache(cache_size, block_number)
 
