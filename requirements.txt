@@ -15,7 +15,6 @@ psutil>=6
 rocksdict
 requests>=2.28.0
 py_ecc>=7
-pyethash>=0.1.27,<1.0.0
 pytest-timeout>=2.0.1
 websockets>=12
 
