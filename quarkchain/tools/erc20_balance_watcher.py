@@ -18,13 +18,15 @@ logger.setLevel(logging.INFO)
 def query(endpoint, args):
     retry, resp = 0, None
     while retry <= 5:
+        cli = JsonRpcClient(HOST + ":" + PORT)
         try:
-            cli = JsonRpcClient(HOST + ":" + PORT)
             resp = cli.call(endpoint, *args)
             break
         except Exception:
             retry += 1
             time.sleep(0.5)
+        finally:
+            cli.close()
     return resp
 
 
@@ -33,7 +35,7 @@ def query_balance(recipient):
         "eth_call",
         [{"from": None, "to": "0xea26c4ac16d4a5a106820bc8aee85fd0b7b2b664", "data": "0x70a08231"+int(recipient, 0).to_bytes(32, byteorder="big").hex()}, "latest"]
     )
-    return int(resp.data.result, 0)
+    return int(resp, 0)
 
 
 def main():

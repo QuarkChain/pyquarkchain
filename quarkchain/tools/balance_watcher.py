@@ -17,22 +17,24 @@ logger.setLevel(logging.INFO)
 def query(endpoint, *args):
     retry, resp = 0, None
     while retry <= 5:
+        cli = JsonRpcClient(HOST + ":" + PORT)
         try:
-            cli = JsonRpcClient(HOST + ":" + PORT)
             resp = cli.call(endpoint, *args)
             break
         except Exception:
             retry += 1
             time.sleep(0.5)
+        finally:
+            cli.close()
     return resp
 
 
 def query_balance(recipient, chain_id, token_str):
     resp = query(
         "getBalances",
-        recipient.lower() + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
+        "0x" + recipient.lower().lstrip("0x") + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
     )
-    for balance in resp.data.result["balances"]:
+    for balance in resp["balances"]:
         if balance["tokenStr"] == token_str:
             return int(balance["balance"], 16)
     return 0

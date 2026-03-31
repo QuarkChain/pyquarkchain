@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import logging
 import rlp
 
 from quarkchain.env import DEFAULT_ENV
@@ -27,7 +26,7 @@ class Endpoint:
         resp = await self.__send_request("getTransactionReceipt", tx_id)
         if not resp:
             return None
-        return resp["contract_address"]
+        return resp["contractAddress"]
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
@@ -36,11 +35,11 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shard_size"], 16)
+        return int(resp["chainSize"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["network_id"], 16)
+        return int(resp["networkId"], 16)
 
 
 def create_transaction(address, key, nonce, data, network_id) -> EvmTransaction:
