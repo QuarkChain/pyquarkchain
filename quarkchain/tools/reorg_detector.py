@@ -18,26 +18,28 @@ logger.setLevel(logging.INFO)
 def query(endpoint, *args):
     retry, resp = 0, None
     while retry <= 5:
+        cli = JsonRpcClient(HOST + ":" + PORT)
         try:
-            cli = JsonRpcClient(HOST + ":" + PORT)
             resp = cli.call(endpoint, *args)
             break
         except Exception:
             retry += 1
             time.sleep(0.5)
+        finally:
+            cli.close()
     return resp
 
 
 def query_tip():
     resp = query("getRootBlockByHeight", None)
-    return int(resp.data.result["height"], 16), resp.data.result["hash"]
+    return int(resp["height"], 16), resp["hash"]
 
 
 def query_rblock_with_height(height):
     if isinstance(height, int):
         height = hex(height)
     resp = query("getRootBlockByHeight", height)
-    return int(resp.data.result["height"], 16), resp.data.result["hash"]
+    return int(resp["height"], 16), resp["hash"]
 
 
 def main():

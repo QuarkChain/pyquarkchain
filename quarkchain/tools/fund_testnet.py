@@ -43,11 +43,11 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shard_size"], 16)
+        return int(resp["chainSize"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["network_id"], 16)
+        return int(resp["networkId"], 16)
 
 
 def create_transaction(address, key, nonce, to, network_id, amount) -> EvmTransaction:
@@ -85,7 +85,7 @@ async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
             print("retry tx={}".format(tx_id))
             await endpoint.send_transaction(tx)
 
-    height = int(resp["block_height"], 16)
+    height = int(resp["blockHeight"], 16)
     status = int(resp["status"], 16)
     print(
         "shard={} tx={} block={} status={} amount={}".format(

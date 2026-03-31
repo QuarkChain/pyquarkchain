@@ -19,7 +19,14 @@ def fetch_peers(ip, jrpc_port):
     json_rpc_url = "http://{}:{}".format(ip, jrpc_port)
     print("calling {}".format(json_rpc_url))
     cli = JsonRpcClient(json_rpc_url)
-    peers = cli.call("getPeers")
+    try:
+        peers = cli.call("getPeers")
+        print("success {}".format(json_rpc_url))
+    except Exception:
+        print("Failed to get peers from {}".format(json_rpc_url))
+        return []
+    finally:
+        cli.close()
     return [
         "{}:{}".format(ipaddress.ip_address(int(p["ip"], 16)), int(p["port"], 16))
         for p in peers["peers"]
