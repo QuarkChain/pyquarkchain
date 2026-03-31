@@ -18,7 +18,7 @@ def fstr(v: float):
 
 
 def basic(client: JsonRpcClient, ip):
-    s = client.client("getStats")
+    s = client.call("getStats")
     msg = "QuarkChain Cluster Stats\n\n"
     msg += "CPU:                {}\n".format(psutil.cpu_count())
     msg += "Memory:             {} GB\n".format(

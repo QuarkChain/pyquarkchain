@@ -2,8 +2,7 @@ import asyncio
 import json
 from typing import Any, List, Dict, Tuple, Optional, Callable
 
-from quarkchain.cluster.jsonrpcserver import InvalidParams
-
+from quarkchain.cluster.jsonrpc_server import InvalidParams
 from quarkchain.core import MinorBlock
 
 SUB_NEW_HEADS = "newHeads"
