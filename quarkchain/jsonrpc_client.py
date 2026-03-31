@@ -1,3 +1,8 @@
+# httpx is chosen over aiohttp because it provides both sync and async clients
+# with a unified API, keeping this module simple and consistent. aiohttp is
+# async-only, so the sync client (JsonRpcClient) would need a separate HTTP
+# implementation (e.g. urllib.request). httpx as a pure client library is
+# lightweight (~200KB with deps) and doesn't overlap with aiohttp's server role.
 import httpx
 import uuid
 
