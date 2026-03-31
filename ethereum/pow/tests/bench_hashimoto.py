@@ -5,8 +5,10 @@ Run with:
 or:
     python ethereum/pow/tests/bench_hashimoto.py
 
-Uses test-sized DAG parameters (cache_size=1024, full_size=32*1024) so the
-benchmark completes quickly without generating a full mainnet DAG.
+Uses real mainnet parameters (block 0: cache ~16MB, full_size ~1GB) so that
+pure Python and pyethash C++ are compared under identical conditions.
+Note: pyethash may not be supported on Python 3.13, so this benchmark may fail to run on that version.
+See https://github.com/QuarkChain/pyquarkchain/issues/976
 """
 
 import timeit
@@ -14,14 +16,16 @@ import timeit
 from eth_utils import big_endian_to_int
 
 from ethereum.pow.ethash import mkcache, hashimoto_light as py_hashimoto_light
+from ethereum.pow.ethash_utils import get_cache_size, get_full_size
 
-# Fixed inputs — mirror the is_test=True path in ethpow.py
-CACHE_SIZE = 1024
-FULL_SIZE = 32 * 1024
 BLOCK_NUMBER = 0
 HEADER = bytes(32)
 NONCE = (0).to_bytes(8, byteorder="big")
 ROUNDS = 100
+
+# Use real mainnet parameters to match pyethash internal sizes
+CACHE_SIZE = get_cache_size(BLOCK_NUMBER)
+FULL_SIZE = get_full_size(BLOCK_NUMBER)
 
 cache = mkcache(CACHE_SIZE, BLOCK_NUMBER)
 
@@ -34,18 +38,17 @@ results = {}
 
 elapsed = timeit.timeit(bench_python, number=ROUNDS)
 results["pure Python"] = elapsed
+print(f"Cache size: {CACHE_SIZE} bytes, Full size: {FULL_SIZE} bytes")
 print(f"pure Python : {elapsed:.3f}s for {ROUNDS} calls  ({elapsed/ROUNDS*1000:.1f} ms/call)")
 
 try:
     import pyethash
 
-    # pyethash.mkcache_bytes takes block_number directly (mirrors calculate_cache in ethpow.py)
     cpp_cache = pyethash.mkcache_bytes(BLOCK_NUMBER)
     nonce_int = big_endian_to_int(NONCE)
+    print(f"pyethash cache size: {len(cpp_cache)} bytes")
 
     def bench_cpp():
-        # Signature matches ethpow.py line 53-54:
-        #   pyethash.hashimoto_light(block_number, cache_bytes, mining_hash, nonce_int)
         pyethash.hashimoto_light(BLOCK_NUMBER, cpp_cache, HEADER, nonce_int)
 
     elapsed_cpp = timeit.timeit(bench_cpp, number=ROUNDS)
