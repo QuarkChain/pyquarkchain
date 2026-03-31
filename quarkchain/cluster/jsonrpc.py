@@ -34,7 +34,7 @@ from cachetools import LRUCache
 import uuid
 from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.subscription import SUB_LOGS
-from quarkchain.cluster.jsonrpcserver import RpcMethods, InvalidParams
+from quarkchain.cluster.jsonrpc_server import RpcMethods, InvalidParams
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -506,7 +506,7 @@ class JSONRPCHttpServer:
     def __init__(
         self, env, master_server: MasterServer, port, host, methods: RpcMethods
     ):
-        self.loop = asyncio.get_running_loop()
+        self.loop = asyncio.get_event_loop()
         self.port = port
         self.host = host
         self.env = env
@@ -533,9 +533,9 @@ class JSONRPCHttpServer:
             self.counters[method] += 1
         else:
             self.counters[method] = 1
-        # Use armor to prevent the handler from being cancelled when
+        # Use asyncio.shield to prevent the handler from being cancelled when
         # aiohttp server loses connection to client
-        response = await self.handlers.dispatch(d)
+        response = await asyncio.shield(self.handlers.dispatch(d))
         if response is None:
             return web.Response()
         if "error" in response:
@@ -1459,7 +1459,7 @@ class JSONRPCWebsocketServer:
     def __init__(
         self, env, slave_server: SlaveServer, port, host, methods: RpcMethods
     ):
-        self.loop = asyncio.get_running_loop()
+        self.loop = asyncio.get_event_loop()
         self.port = port
         self.host = host
         self.env = env

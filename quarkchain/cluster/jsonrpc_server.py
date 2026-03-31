@@ -34,10 +34,10 @@ class InvalidParams(JsonRpcError):
     code = -32602
     message = "Invalid params"
 
-
 class ServerError(JsonRpcError):
     code = -32000
     message = "Server error"
+
 
 class RpcMethods:
     def __init__(self):
