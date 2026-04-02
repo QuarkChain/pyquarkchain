@@ -12,7 +12,7 @@ eth-bloom>=2.0
 httpx>=0.28
 numpy>=1.26
 psutil>=6
-rocksdict
+rocksdict>=0.3.24
 requests>=2.28.0
 py_ecc>=7
 pytest-timeout>=2.0.1
