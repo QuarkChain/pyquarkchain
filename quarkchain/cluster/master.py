@@ -2,7 +2,11 @@ import argparse
 import asyncio
 import os
 import cProfile
+import io
+import pstats
+import signal
 import sys
+import threading
 from fractions import Fraction
 
 import psutil
@@ -755,6 +759,17 @@ OP_RPC_MAP = {
 }
 
 
+def _dump_profile(profile, label="PROFILE STATS"):
+    """Print top 20 profile stats sorted by cumulative time."""
+    stream = io.StringIO()
+    stats = pstats.Stats(profile, stream=stream)
+    stats.sort_stats("cumulative")
+    stats.print_stats(20)
+    print(f"\n========== {label} ==========", flush=True)
+    print(stream.getvalue(), flush=True)
+    print(f"========== END {label} ==========\n", flush=True)
+
+
 class MasterServer:
     """Master node in a cluster
     It does two things to initialize the cluster:
@@ -1071,8 +1086,19 @@ class MasterServer:
         self._init_task = self.loop.create_task(self.__init_cluster())
 
     async def do_loop(self, callbacks: List[Callable]):
+        profile = None
+        stop_event = None
         if self.env.arguments.enable_profiler:
             profile = cProfile.Profile()
+            stop_event = threading.Event()
+
+            def _dump_periodically():
+                while not stop_event.wait(600):
+                    profile.disable()
+                    _dump_profile(profile, "MASTER PROFILE STATS (periodic)")
+                    profile.enable()
+
+            threading.Thread(target=_dump_periodically, daemon=True).start()
             profile.enable()
 
         try:
@@ -1086,9 +1112,10 @@ class MasterServer:
                     if asyncio.iscoroutine(result):
                         await result
 
-        if self.env.arguments.enable_profiler:
+        if profile:
+            stop_event.set()
             profile.disable()
-            profile.print_stats("time")
+            _dump_profile(profile, "MASTER PROFILE STATS (on exit)")
 
     async def wait_until_cluster_active(self):
         # Wait until cluster is ready

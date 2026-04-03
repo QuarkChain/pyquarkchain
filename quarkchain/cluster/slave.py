@@ -3,6 +3,10 @@ import asyncio
 import errno
 import os
 import cProfile
+import io
+import pstats
+import signal
+import threading
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -1480,19 +1484,61 @@ async def _main_async(env):
     Logger.info("Slave server is shutdown")
 
 
+PROFILE_DUMP_INTERVAL = 300  # 10 minutes
+
+
+def _dump_profile(profile, label="PROFILE STATS"):
+    """Print top 20 profile stats sorted by cumulative time."""
+    stream = io.StringIO()
+    stats = pstats.Stats(profile, stream=stream)
+    stats.sort_stats("cumulative")
+    stats.print_stats(20)
+    print(f"\n========== {label} ==========", flush=True)
+    print(stream.getvalue(), flush=True)
+    print(f"========== END {label} ==========\n", flush=True)
+
+
+def _dump_profile_periodically(profile, stop_event):
+    """Dump profile stats every PROFILE_DUMP_INTERVAL seconds."""
+    while not stop_event.wait(PROFILE_DUMP_INTERVAL):
+        profile.disable()
+        _dump_profile(profile, "PROFILE STATS (periodic dump)")
+        profile.enable()
+
+
 def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     env = parse_args()
 
+    profile = None
+    stop_event = None
     if env.arguments.enable_profiler:
         profile = cProfile.Profile()
+        stop_event = threading.Event()
+
+        def sigterm_handler(signum, frame):
+            stop_event.set()
+            profile.disable()
+            _dump_profile(profile, "PROFILE STATS (on exit)")
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGTERM, sigterm_handler)
+        threading.Thread(
+            target=_dump_profile_periodically,
+            args=(profile, stop_event),
+            daemon=True,
+        ).start()
         profile.enable()
 
-    asyncio.run(_main_async(env))
-
-    if env.arguments.enable_profiler:
-        profile.disable()
-        profile.print_stats("time")
+    try:
+        asyncio.run(_main_async(env))
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        if profile:
+            stop_event.set()
+            profile.disable()
+            _dump_profile(profile, "PROFILE STATS (on exit)")
 
 
 if __name__ == "__main__":
