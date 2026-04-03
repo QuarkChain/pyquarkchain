@@ -31,7 +31,7 @@ class UPnPService(BaseService):
         """
         super().__init__(token)
         self.port = port
-        
+        self._session = None
         self._service = None
 
 
@@ -44,14 +44,12 @@ class UPnPService(BaseService):
         Discover router and create initial port mapping.
         Returns external IP if successful.
         """
-        session = aiohttp.ClientSession()
-        try:
-            await self._discover(session)
-        finally:
-            await session.close()
+        self._session = aiohttp.ClientSession()
+        await self._discover(self._session)
 
         if not self._service:
             self.logger.warning("No UPnP WANIP service found")
+            await self._close_session()
             return None
 
         await self._add_port_mapping()
@@ -61,6 +59,12 @@ class UPnPService(BaseService):
 
     async def stop(self):
         await self._delete_port_mapping()
+        await self._close_session()
+
+    async def _close_session(self):
+        if self._session:
+            await self._session.close()
+            self._session = None
 
         
     # -----------------------------
@@ -101,14 +105,7 @@ class UPnPService(BaseService):
             except Exception as e:
                 self.logger.debug(f"Ignoring device: {e}")
 
-        try:
-            await asyncio.wait_for(
-                async_search(on_response),
-                timeout=UPNP_DISCOVER_TIMEOUT_SECONDS,
-            )
-        except asyncio.TimeoutError:
-            if not self._service:
-                self.logger.warning("No suitable UPnP device discovered")
+        await async_search(on_response, timeout=UPNP_DISCOVER_TIMEOUT_SECONDS)
 
 
     async def _add_port_mapping(self):
@@ -177,7 +174,8 @@ if __name__ == "__main__":
     import logging
     import argparse
 
-    logging.basicConfig(level=logging.INFO)
+    from quarkchain.utils import Logger
+    Logger.set_logging_level("info")
 
     parser = argparse.ArgumentParser(description="Test UPnP NAT port mapping")
     parser.add_argument("--port", type=int, default=38291, help="Port to map (default: 38291)")
