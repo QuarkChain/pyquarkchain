@@ -1,8 +1,5 @@
-import warnings
 from functools import lru_cache
 from typing import Tuple, Optional, List, Union
-
-from eth_utils import big_endian_to_int
 
 from ethereum.pow import ethash
 from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
