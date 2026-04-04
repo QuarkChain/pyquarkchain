@@ -13,7 +13,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run: pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run py.test tests excluding integration test
       run: |
@@ -27,7 +27,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run: pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run EVM tests - runner 1
       run: |
@@ -40,7 +40,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run: pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run EVM tests - runner 2
       run: |
@@ -53,7 +53,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Project Dependencies
-      run: PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run: pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
 
     - name: Run py.test tests only on integration test
       run: |
