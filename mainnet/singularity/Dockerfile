@@ -30,6 +30,11 @@ RUN git checkout $GIT_TAG
 # py dep
 RUN pip install -r requirements.txt
 
+# cleanup build dependencies to reduce image size
+RUN apt-get purge -y build-essential gcc g++ make \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # add qkchash c++ lib
 ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
 
