@@ -579,7 +579,7 @@ class ShardState:
                 return False
 
             self.tx_queue.add_transaction(tx)
-            asyncio.ensure_future(
+            asyncio.create_task(
                 self.subscription_manager.notify_new_pending_tx(
                     [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
                 )
@@ -860,18 +860,18 @@ class ShardState:
             if add_tx_back_to_queue:
                 self.__add_transactions_from_block(block)
         if len(old_chain) > 0:
-            asyncio.ensure_future(self.subscription_manager.notify_log(old_chain, True))
+            asyncio.create_task(self.subscription_manager.notify_log(old_chain, True))
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
         # new_chain has at least one block, starting from minor_block with block height descending
-        asyncio.ensure_future(
+        asyncio.create_task(
             self.subscription_manager.notify_new_heads(
                 sorted(new_chain, key=lambda x: x.header.height)
             )
         )
-        asyncio.ensure_future(self.subscription_manager.notify_log(new_chain))
+        asyncio.create_task(self.subscription_manager.notify_log(new_chain))
 
     # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
@@ -883,7 +883,7 @@ class ShardState:
             tx_hashes.append(
                 tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
             )
-        asyncio.ensure_future(
+        asyncio.create_task(
             self.subscription_manager.notify_new_pending_tx(tx_hashes)
         )
 
@@ -1050,7 +1050,7 @@ class ShardState:
                 "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.tx_list),
             }
-            asyncio.ensure_future(
+            asyncio.create_task(
                 self.env.cluster_config.kafka_logger.log_kafka_sample_async(
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
@@ -1392,7 +1392,7 @@ class ShardState:
             tx.tx_hash + tx.from_address.full_shard_key.to_bytes(4, byteorder="big")
             for tx in tx_list.tx_list
         ]
-        asyncio.ensure_future(
+        asyncio.create_task(
             self.subscription_manager.notify_new_pending_tx(tx_hashes)
         )
 

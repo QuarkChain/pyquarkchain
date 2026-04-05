@@ -45,8 +45,7 @@ def ecdh_agree(privkey: datatypes.PrivateKey, pubkey: datatypes.PublicKey) -> by
     privkey_as_int = int(cast(int, privkey))
     ec_privkey = ec.derive_private_key(privkey_as_int, CURVE, default_backend())
     pubkey_bytes = b"\x04" + pubkey.to_bytes()
-    pubkey_nums = ec.EllipticCurvePublicNumbers.from_encoded_point(CURVE, pubkey_bytes)
-    ec_pubkey = pubkey_nums.public_key(default_backend())
+    ec_pubkey = ec.EllipticCurvePublicKey.from_encoded_point(CURVE, pubkey_bytes)
     return ec_privkey.exchange(ec.ECDH(), ec_pubkey)
 
 

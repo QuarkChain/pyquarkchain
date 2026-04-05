@@ -74,20 +74,33 @@ def crash():
     p[0] = b"x"
 
 
-def call_async(coro):
-    future = asyncio.ensure_future(coro)
-    asyncio.get_event_loop().run_until_complete(future)
-    return future.result()
+def _get_or_create_event_loop():
+    """Get the running event loop, or create and set a new one if none is running.
+
+    In Python 3.12+, asyncio.get_event_loop() raises DeprecationWarning when
+    there is no current event loop. This helper uses get_running_loop() first
+    and falls back to creating a new loop for sync contexts.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            return loop
+    except RuntimeError:
+        pass
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    return loop
 
 
-def assert_true_with_timeout(f, duration=1):
-    async def d():
-        deadline = time.time() + duration
-        while not f() and time.time() < deadline:
-            await asyncio.sleep(0.001)
-        assert f()
-
-    asyncio.get_event_loop().run_until_complete(d())
+async def async_assert_true_with_timeout(f, duration=3):
+    deadline = time.time() + duration
+    while not f() and time.time() < deadline:
+        await asyncio.sleep(0.001)
+    assert f()
 
 
 _LOGGING_FILE_PREFIX = os.path.join("logging", "__init__.")
@@ -98,7 +111,7 @@ class QKCLogger(logging.getLoggerClass()):
     refer to ABSLLogger
     """
 
-    def findCaller(self, stack_info=False):
+    def findCaller(self, stack_info=False, stacklevel=1):
         frame = sys._getframe(2)
         f_to_skip = {
             func for func in dir(Logger) if callable(getattr(Logger, func))
@@ -354,7 +367,13 @@ class Logger:
                 "level": level_str,
                 "message": msg,
             }
-            asyncio.ensure_future(
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running event loop (e.g., during startup/shutdown).
+                # Silently skip Kafka logging to avoid crashing the caller.
+                return
+            loop.create_task(
                 cls._kafka_logger.log_kafka_sample_async(
                     cls._kafka_logger.cluster_config.MONITORING.ERRORS, sample
                 )

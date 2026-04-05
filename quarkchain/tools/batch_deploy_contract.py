@@ -118,7 +118,7 @@ def main():
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
     endpoint = Endpoint("http://" + args.jrpc_endpoint)
-    asyncio.get_event_loop().run_until_complete(deploy(endpoint, genesisId, data))
+    asyncio.run(deploy(endpoint, genesisId, data))
 
 
 if __name__ == "__main__":
