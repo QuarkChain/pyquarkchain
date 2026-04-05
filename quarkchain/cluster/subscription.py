@@ -1,10 +1,8 @@
 import asyncio
 import json
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import Any, List, Dict, Tuple, Optional, Callable
 
-from jsonrpcserver.exceptions import InvalidParams
-from websockets import WebSocketServerProtocol
-
+from quarkchain.cluster.jsonrpc_server import InvalidParams
 from quarkchain.core import MinorBlock
 
 SUB_NEW_HEADS = "newHeads"
@@ -20,7 +18,7 @@ class SubscriptionManager:
             SUB_NEW_PENDING_TX: {},
             SUB_LOGS: {},
             SUB_SYNC: {},
-        }  # type: Dict[str, Dict[str, WebSocketServerProtocol]]
+        }  # type: Dict[str, Dict[str, Any]]
         self.log_filter_gen = {}  # type: Dict[str, Callable]
 
     def add_subscriber(self, sub_type, sub_id, conn, extra=None):
@@ -89,7 +87,7 @@ class SubscriptionManager:
             }
         for sub_id, websocket in self.subscribers[SUB_SYNC].items():
             response = self.response_encoder(sub_id, result)
-            asyncio.ensure_future(websocket.send(json.dumps(response)))
+            asyncio.create_task(websocket.send(json.dumps(response)))
 
     @staticmethod
     def response_encoder(sub_id, result):

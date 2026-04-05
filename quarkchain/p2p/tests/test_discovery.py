@@ -140,8 +140,9 @@ async def test_wait_ping(echo):
     node = random_node()
 
     # Schedule a call to proto.recv_ping() simulating a ping from the node we expect.
-    recv_ping_coroutine = asyncio.coroutine(lambda: proto.recv_ping_v4(node, echo, b""))
-    asyncio.ensure_future(recv_ping_coroutine())
+    async def do_recv_ping():
+        proto.recv_ping_v4(node, echo, b"")
+    asyncio.create_task(do_recv_ping())
 
     got_ping = await proto.wait_ping(node)
 
@@ -151,8 +152,9 @@ async def test_wait_ping(echo):
 
     # If we waited for a ping from a different node, wait_ping() would timeout and thus return
     # false.
-    recv_ping_coroutine = asyncio.coroutine(lambda: proto.recv_ping_v4(node, echo, b""))
-    asyncio.ensure_future(recv_ping_coroutine())
+    async def do_recv_ping2():
+        proto.recv_ping_v4(node, echo, b"")
+    asyncio.create_task(do_recv_ping2())
 
     node2 = random_node()
     got_ping = await proto.wait_ping(node2)
@@ -174,10 +176,9 @@ async def test_wait_pong():
         token,
         discovery._get_msg_expiration(),
     ]
-    recv_pong_coroutine = asyncio.coroutine(
-        lambda: proto.recv_pong_v4(node, pong_msg_payload, b"")
-    )
-    asyncio.ensure_future(recv_pong_coroutine())
+    async def do_recv_pong():
+        proto.recv_pong_v4(node, pong_msg_payload, b"")
+    asyncio.create_task(do_recv_pong())
 
     got_pong = await proto.wait_pong_v4(node, token)
 
@@ -189,15 +190,14 @@ async def test_wait_pong():
     # If the remote node echoed something different than what we expected, wait_pong() would
     # timeout.
     wrong_token = b"foo"
-    pong_msg_payload = [
+    wrong_pong_msg_payload = [
         us.address.to_endpoint(),
         wrong_token,
         discovery._get_msg_expiration(),
     ]
-    recv_pong_coroutine = asyncio.coroutine(
-        lambda: proto.recv_pong_v4(node, pong_msg_payload, b"")
-    )
-    asyncio.ensure_future(recv_pong_coroutine())
+    async def do_recv_wrong_pong():
+        proto.recv_pong_v4(node, wrong_pong_msg_payload, b"")
+    asyncio.create_task(do_recv_wrong_pong())
 
     got_pong = await proto.wait_pong_v4(node, token)
 
@@ -217,10 +217,9 @@ async def test_wait_neighbours():
         [n.address.to_endpoint() + [n.pubkey.to_bytes()] for n in neighbours],
         discovery._get_msg_expiration(),
     ]
-    recv_neighbours_coroutine = asyncio.coroutine(
-        lambda: proto.recv_neighbours_v4(node, neighbours_msg_payload, b"")
-    )
-    asyncio.ensure_future(recv_neighbours_coroutine())
+    async def do_recv_neighbours():
+        proto.recv_neighbours_v4(node, neighbours_msg_payload, b"")
+    asyncio.create_task(do_recv_neighbours())
 
     received_neighbours = await proto.wait_neighbours(node)
 
@@ -245,7 +244,9 @@ async def test_bond():
     proto.send_ping_v4 = lambda remote: token
 
     # Pretend we get a pong from the node we are bonding with.
-    proto.wait_pong_v4 = asyncio.coroutine(lambda n, t: t == token and n == node)
+    async def mock_wait_pong_v4(n, t):
+        return t == token and n == node
+    proto.wait_pong_v4 = mock_wait_pong_v4
 
     bonded = await proto.bond(node)
 
@@ -274,12 +275,12 @@ async def test_update_routing_table_triggers_bond_if_eviction_candidate():
 
     bond_called = False
 
-    def bond(node):
+    async def bond(node):
         nonlocal bond_called
         bond_called = True
         assert node == old_node
 
-    proto.bond = asyncio.coroutine(bond)
+    proto.bond = bond
     # Pretend our routing table failed to add the new node by returning the least recently seen
     # node for an eviction check.
     proto.routing.add_node = lambda n: old_node
@@ -389,13 +390,13 @@ def test_find_node_neighbours_v5():
 
 
 @pytest.mark.asyncio
-async def test_topic_query(event_loop, short_timeout_undo):
-    bob = await get_listening_discovery_protocol(event_loop)
+async def test_topic_query(short_timeout_undo):
+    bob = await get_listening_discovery_protocol()
     les_nodes = [random_node() for _ in range(10)]
     topic = b"les"
     for n in les_nodes:
         bob.topic_table.add_node(n, topic)
-    alice = await get_listening_discovery_protocol(event_loop)
+    alice = await get_listening_discovery_protocol()
 
     echo = alice.send_topic_query(bob.this_node, topic)
     received_nodes = await alice.wait_topic_nodes(bob.this_node, echo)
@@ -405,9 +406,9 @@ async def test_topic_query(event_loop, short_timeout_undo):
 
 
 @pytest.mark.asyncio
-async def test_topic_register(event_loop):
-    bob = await get_listening_discovery_protocol(event_loop)
-    alice = await get_listening_discovery_protocol(event_loop)
+async def test_topic_register():
+    bob = await get_listening_discovery_protocol()
+    alice = await get_listening_discovery_protocol()
     topics = [b"les", b"les2"]
 
     # In order to register ourselves under a given topic we need to first get a ticket.
@@ -553,10 +554,11 @@ def get_discovery_protocol(seed=b"seed", address=None):
     )
 
 
-async def get_listening_discovery_protocol(event_loop):
+async def get_listening_discovery_protocol():
     addr = kademlia.Address("127.0.0.1", random.randint(1024, 9999))
     proto = get_discovery_protocol(os.urandom(4), addr)
-    await event_loop.create_datagram_endpoint(
+    loop = asyncio.get_running_loop()
+    await loop.create_datagram_endpoint(
         lambda: proto, local_addr=(addr.ip, addr.udp_port), family=socket.AF_INET
     )
     return proto

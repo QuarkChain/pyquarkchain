@@ -3,6 +3,10 @@ import asyncio
 import errno
 import os
 import cProfile
+import io
+import pstats
+import signal
+import threading
 from typing import Optional, Tuple, Dict, List, Union
 
 from quarkchain.cluster.cluster_config import ClusterConfig
@@ -103,12 +107,12 @@ class MasterConnection(ClusterConnection):
             MASTER_OP_RPC_MAP,
             name=name,
         )
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.env = env
         self.slave_server = slave_server  # type: SlaveServer
         self.shards = slave_server.shards  # type: Dict[Branch, Shard]
 
-        asyncio.ensure_future(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
         # cluster_peer_id -> {branch_value -> shard_conn}
         self.v_conn_map = dict()
@@ -346,8 +350,8 @@ class MasterConnection(ClusterConnection):
                 shard=shard,
                 name="{}_vconn_{}".format(self.name, req.cluster_peer_id),
             )
-            asyncio.ensure_future(peer_shard_conn.active_and_loop_forever())
-            active_futures.append(peer_shard_conn.active_future)
+            peer_shard_conn._loop_task = asyncio.create_task(peer_shard_conn.active_and_loop_forever())
+            active_futures.append(peer_shard_conn.active_event.wait())
             shard_to_conn[shard] = peer_shard_conn
 
         # wait for all the connections to become active before return
@@ -723,12 +727,12 @@ class SlaveConnection(Connection):
         self.full_shard_id_list = full_shard_id_list
         self.shards = self.slave_server.shards
 
-        self.ping_received_future = asyncio.get_event_loop().create_future()
+        self.ping_received_event = asyncio.Event()
 
-        asyncio.ensure_future(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
     async def wait_until_ping_received(self):
-        await self.ping_received_future
+        await self.ping_received_event.wait()
 
     def close_with_error(self, error):
         Logger.info("Closing connection with slave {}".format(self.id))
@@ -756,7 +760,7 @@ class SlaveConnection(Connection):
                 "Empty shard mask list from slave {}".format(self.id)
             )
 
-        self.ping_received_future.set_result(None)
+        self.ping_received_event.set()
 
         return Pong(self.slave_server.id, self.slave_server.full_shard_id_list)
 
@@ -808,7 +812,7 @@ class SlaveConnectionManager:
             self.full_shard_id_to_slaves[full_shard_id] = []
         self.slave_connections = set()
         self.slave_ids = set()  # set(bytes)
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
 
     def close_all(self):
         for conn in self.slave_connections:
@@ -850,7 +854,7 @@ class SlaveConnectionManager:
         host = slave_info.host.decode("ascii")
         port = slave_info.port
         try:
-            reader, writer = await asyncio.open_connection(host, port, loop=self.loop)
+            reader, writer = await asyncio.open_connection(host, port)
         except Exception as e:
             err_msg = "Failed to connect {}:{} with exception {}".format(host, port, e)
             Logger.info(err_msg)
@@ -887,7 +891,7 @@ class SlaveServer:
     """ Slave node in a cluster """
 
     def __init__(self, env, name="slave"):
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.env = env
         self.id = bytes(self.env.slave_config.ID, "ascii")
         self.full_shard_id_list = self.env.slave_config.FULL_SHARD_ID_LIST
@@ -991,7 +995,6 @@ class SlaveServer:
             self.__handle_new_connection,
             "0.0.0.0",
             self.env.slave_config.PORT,
-            loop=self.loop,
         )
         Logger.info(
             "Listening on {} for intra-cluster RPC".format(
@@ -1000,11 +1003,11 @@ class SlaveServer:
         )
 
     def start(self):
-        self.loop.create_task(self.__start_server())
+        self._server_task = self.loop.create_task(self.__start_server())
 
-    def do_loop(self):
+    async def do_loop(self):
         try:
-            self.loop.run_until_complete(self.shutdown_future)
+            await self.shutdown_future
         except KeyboardInterrupt:
             pass
 
@@ -1464,15 +1467,9 @@ def parse_args():
     return env
 
 
-def main():
+async def _main_async(env):
     from quarkchain.cluster.jsonrpc import JSONRPCWebsocketServer
 
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    env = parse_args()
-
-    if env.arguments.enable_profiler:
-        profile = cProfile.Profile()
-        profile.enable()
     slave_server = SlaveServer(env)
     slave_server.start()
 
@@ -1483,12 +1480,65 @@ def main():
         )
         callbacks.append(json_rpc_websocket_server.shutdown)
 
-    slave_server.do_loop()
-    if env.arguments.enable_profiler:
-        profile.disable()
-        profile.print_stats("time")
-
+    await slave_server.do_loop()
     Logger.info("Slave server is shutdown")
+
+
+PROFILE_DUMP_INTERVAL = 300  # 10 minutes
+
+
+def _dump_profile(profile, label="PROFILE STATS"):
+    """Print top 20 profile stats sorted by cumulative time."""
+    stream = io.StringIO()
+    stats = pstats.Stats(profile, stream=stream)
+    stats.sort_stats("cumulative")
+    stats.print_stats(20)
+    print(f"\n========== {label} ==========", flush=True)
+    print(stream.getvalue(), flush=True)
+    print(f"========== END {label} ==========\n", flush=True)
+
+
+def _dump_profile_periodically(profile, stop_event):
+    """Dump profile stats every PROFILE_DUMP_INTERVAL seconds."""
+    while not stop_event.wait(PROFILE_DUMP_INTERVAL):
+        profile.disable()
+        _dump_profile(profile, "PROFILE STATS (periodic dump)")
+        profile.enable()
+
+
+def main():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    env = parse_args()
+
+    profile = None
+    stop_event = None
+    if env.arguments.enable_profiler:
+        profile = cProfile.Profile()
+        stop_event = threading.Event()
+
+        def sigterm_handler(signum, frame):
+            stop_event.set()
+            profile.disable()
+            _dump_profile(profile, "PROFILE STATS (on exit)")
+            raise SystemExit(0)
+
+        signal.signal(signal.SIGTERM, sigterm_handler)
+        threading.Thread(
+            target=_dump_profile_periodically,
+            args=(profile, stop_event),
+            daemon=True,
+        ).start()
+        profile.enable()
+
+    try:
+        asyncio.run(_main_async(env))
+    except (KeyboardInterrupt, SystemExit):
+        pass
+    finally:
+        if profile:
+            stop_event.set()
+            profile.disable()
+            _dump_profile(profile, "PROFILE STATS (on exit)")
 
 
 if __name__ == "__main__":

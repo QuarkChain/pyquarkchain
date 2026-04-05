@@ -35,8 +35,8 @@ def create_default_shard_state(
     return shard_state
 
 
-class TestShardDbOperator(unittest.TestCase):
-    def test_get_minor_block_by_hash(self):
+class TestShardDbOperator(unittest.IsolatedAsyncioTestCase):
+    async def test_get_minor_block_by_hash(self):
         db = ShardDbOperator(InMemoryDb(), DEFAULT_ENV, Branch(2))
         block = MinorBlock(MinorBlockHeader(), MinorBlockMeta())
         block_hash = block.header.get_hash()
@@ -47,7 +47,7 @@ class TestShardDbOperator(unittest.TestCase):
         self.assertEqual(db.get_minor_block_header_by_hash(block_hash), block.header)
         self.assertIsNone(db.get_minor_block_header_by_hash(b""))
 
-    def test_get_transaction_by_address(self):
+    async def test_get_transaction_by_address(self):
         id1 = Identity.create_random_identity()
         miner_addr = Address.create_random_account(full_shard_key=0)
         acc00 = Address.create_from_identity(id1, full_shard_key=0)

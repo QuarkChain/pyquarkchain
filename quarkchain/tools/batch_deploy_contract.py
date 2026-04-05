@@ -1,26 +1,19 @@
 import argparse
-import aiohttp
 import asyncio
-import logging
 import rlp
-from jsonrpcclient.aiohttp_client import aiohttpClient
 
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Identity
 from quarkchain.evm.transactions import Transaction as EvmTransaction
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient
 
 
 class Endpoint:
     def __init__(self, url):
-        self.url = url
-        asyncio.get_event_loop().run_until_complete(self.__create_session())
+        self.client = AsyncJsonRpcClient(url)
 
-    async def __create_session(self):
-        self.session = aiohttp.ClientSession()
-
-    async def __send_request(self, *args):
-        client = aiohttpClient(self.session, self.url)
-        response = await client.request(*args)
+    async def __send_request(self, method, *args):
+        response = await self.client.call(method, *args)
         return response
 
     async def send_transaction(self, tx):
@@ -33,7 +26,7 @@ class Endpoint:
         resp = await self.__send_request("getTransactionReceipt", tx_id)
         if not resp:
             return None
-        return resp["contract_address"]
+        return resp["contractAddress"]
 
     async def get_nonce(self, account):
         addressHex = "0x" + account.serialize().hex()
@@ -42,11 +35,11 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shard_size"], 16)
+        return int(resp["chainSize"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["network_id"], 16)
+        return int(resp["networkId"], 16)
 
 
 def create_transaction(address, key, nonce, data, network_id) -> EvmTransaction:
@@ -110,15 +103,11 @@ def main():
     parser.add_argument("--log_jrpc", default=False, type=bool)
     args = parser.parse_args()
 
-    if not args.log_jrpc:
-        logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-        logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
-
     data = bytes.fromhex(args.data)
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
     endpoint = Endpoint("http://" + args.jrpc_endpoint)
-    asyncio.get_event_loop().run_until_complete(deploy(endpoint, genesisId, data))
+    asyncio.run(deploy(endpoint, genesisId, data))
 
 
 if __name__ == "__main__":
