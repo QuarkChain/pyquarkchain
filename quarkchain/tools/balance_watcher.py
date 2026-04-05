@@ -1,18 +1,15 @@
-import jsonrpcclient
 import time
 import logging
 import argparse
 import smtplib
 from email.message import EmailMessage
-
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 HOST = "http://jrpc.mainnet.quarkchain.io"
 PORT = "38391"
 
 FORMAT = "%(asctime)-15s %(message)s"
 logging.basicConfig(format=FORMAT)
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -20,21 +17,24 @@ logger.setLevel(logging.INFO)
 def query(endpoint, *args):
     retry, resp = 0, None
     while retry <= 5:
+        cli = JsonRpcClient(HOST + ":" + PORT)
         try:
-            resp = jsonrpcclient.request(HOST + ":" + PORT, endpoint, *args)
+            resp = cli.call(endpoint, *args)
             break
         except Exception:
             retry += 1
             time.sleep(0.5)
+        finally:
+            cli.close()
     return resp
 
 
 def query_balance(recipient, chain_id, token_str):
     resp = query(
         "getBalances",
-        recipient.lower() + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
+        "0x" + recipient.lower().lstrip("0x") + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
     )
-    for balance in resp.data.result["balances"]:
+    for balance in resp["balances"]:
         if balance["tokenStr"] == token_str:
             return int(balance["balance"], 16)
     return 0

@@ -1,33 +1,25 @@
 import argparse
-import aiohttp
 import asyncio
 import logging
-import pickle
 import random
 import rlp
 from collections import defaultdict
-from jsonrpcclient.aiohttp_client import aiohttpClient
 from typing import Dict, List
 
 from quarkchain.env import DEFAULT_ENV
 from quarkchain.core import Address, Identity
 from quarkchain.evm.transactions import Transaction as EvmTransaction
-
+from quarkchain.jsonrpc_client import AsyncJsonRpcClient
 
 class Endpoint:
     def __init__(self, url):
-        self.url = url
-        asyncio.get_event_loop().run_until_complete(self.__create_session())
+        self.client = AsyncJsonRpcClient(url)
 
-    async def __create_session(self):
-        self.session = aiohttp.ClientSession()
-
-    async def __send_request(self, *args):
-        client = aiohttpClient(self.session, self.url)
+    async def __send_request(self, method, *args):
         # manual retry since the library has hard-coded timeouts
         while True:
             try:
-                response = await client.request(*args)
+                response = await self.client.call(method, *args)
                 break
             except Exception as e:
                 print("{} !timeout! retrying {}".format(self.url, e))
@@ -51,11 +43,11 @@ class Endpoint:
 
     async def get_shard_size(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["shard_size"], 16)
+        return int(resp["chainSize"], 16)
 
     async def get_network_id(self):
         resp = await self.__send_request("networkInfo")
-        return int(resp["network_id"], 16)
+        return int(resp["networkId"], 16)
 
 
 def create_transaction(address, key, nonce, to, network_id, amount) -> EvmTransaction:
@@ -93,7 +85,7 @@ async def fund_shard(endpoint, genesisId, to, network_id, shard, amount):
             print("retry tx={}".format(tx_id))
             await endpoint.send_transaction(tx)
 
-    height = int(resp["block_height"], 16)
+    height = int(resp["blockHeight"], 16)
     status = int(resp["status"], 16)
     print(
         "shard={} tx={} block={} status={} amount={}".format(
@@ -166,10 +158,6 @@ def main():
     parser.add_argument("--log_jrpc", default=False, type=bool)
     parser.add_argument("--tqkc_file", required=True, type=str)
     args = parser.parse_args()
-
-    if not args.log_jrpc:
-        logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-        logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
