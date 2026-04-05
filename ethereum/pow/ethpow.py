@@ -1,21 +1,15 @@
-import warnings
 from functools import lru_cache
 from typing import Tuple, Optional, List, Union
-
-from eth_utils import big_endian_to_int
 
 from ethereum.pow import ethash
 from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
 
-try:
-    import pyethash
 
-    ETHASH_LIB = "pyethash"  # the C++ based implementation
-except ImportError:
-    ETHASH_LIB = "ethash"
-    warnings.warn("using pure python implementation", ImportWarning)
-
-
+# NOTE: pyethash C++ acceleration removed — not supported on Python 3.13.
+# Impact: pure Python hashimoto is ~60-100x slower, affects PoW verification only.
+# To add back, fork pyethash and fix the int/Py_ssize_t type mismatch in core.c.
+# See: https://github.com/QuarkChain/pyquarkchain/issues/976
+#
 # always have python implementation declared
 def get_cache_slow(cache_size: int, block_number: int) -> List[List[int]]:
     return ethash.mkcache(cache_size, block_number)
@@ -30,33 +24,9 @@ def hashimoto_slow(
 ):
     return ethash.hashimoto_light(full_size, cache, mining_hash, bin_nonce)
 
+get_cache = get_cache_slow
+hashimoto = hashimoto_slow
 
-if ETHASH_LIB == "ethash":
-    get_cache = get_cache_slow
-    hashimoto = hashimoto_slow
-elif ETHASH_LIB == "pyethash":
-
-    @lru_cache(10)
-    def calculate_cache(n):
-        return pyethash.mkcache_bytes(n * EPOCH_LENGTH)
-
-    def get_cache(cache_size: int, block_number: int):
-        return calculate_cache(block_number // EPOCH_LENGTH)
-
-    def hashimoto(
-        block_number: int,
-        full_size: int,
-        cache: Union[List[List[int]], bytes],
-        mining_hash: bytes,
-        bin_nonce: bytes,
-    ):
-        return pyethash.hashimoto_light(
-            block_number, cache, mining_hash, big_endian_to_int(bin_nonce)
-        )
-
-
-else:
-    raise Exception("invalid ethash library set")
 
 
 @lru_cache(maxsize=32)
