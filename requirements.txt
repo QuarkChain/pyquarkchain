@@ -9,7 +9,7 @@ jsonrpcserver==3.5.4
 jsonrpc-async==0.6
 numpy==1.15.1
 psutil==5.6.6
-python-rocksdb==0.6.9
+rocksdict==0.3.29
 requests==2.20.0
 aiohttp_cors==0.7.0
 eth-utils==1.2.0

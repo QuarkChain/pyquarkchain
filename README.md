@@ -65,12 +65,6 @@ source ~/virtualenv/qc/bin/activate
 # the rest of the tutorial assumes virtual environment
 ```
 
-Install rocksdb which is required by the `python-rocksdb` module in the next step
-
-```bash
-brew install rocksdb
-```
-
 To install the required modules for the project. Under `pyquarkchain` dir where `setup.py` is located
 
 ```bash
