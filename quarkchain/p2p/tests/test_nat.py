@@ -30,10 +30,19 @@ if not Logger._qkc_logger:
 
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+MOCK_EXTERNAL_IP = "198.51.100.1"
+MOCK_INTERNAL_IP = "192.168.1.100"
+MOCK_DEVICE_URL = "http://192.168.1.1:5000/mock-device.xml"
+
+
+# ---------------------------------------------------------------------------
 # Helpers / Fixtures
 # ---------------------------------------------------------------------------
 
-def _make_mock_service(external_ip="203.0.113.5"):
+def _make_mock_service(external_ip=MOCK_EXTERNAL_IP):
     """Create a mock WANIPConnection service."""
     service = MagicMock()
     service.service_type = "urn:schemas-upnp-org:service:WANIPConnection:1"
@@ -51,7 +60,7 @@ def _make_mock_service(external_ip="203.0.113.5"):
 def mock_socket():
     with patch("quarkchain.p2p.nat.socket") as m:
         sock = MagicMock()
-        sock.getsockname.return_value = ("192.168.1.100", 12345)
+        sock.getsockname.return_value = (MOCK_INTERNAL_IP, 12345)
         m.AF_INET = socket.AF_INET
         m.SOCK_DGRAM = socket.SOCK_DGRAM
         m.socket.return_value = sock
@@ -90,7 +99,7 @@ def test_get_internal_ip(mock_socket):
     _, sock = mock_socket
     svc = UPnPService(port=30303)
 
-    assert svc._get_internal_ip() == "192.168.1.100"
+    assert svc._get_internal_ip() == MOCK_INTERNAL_IP
     sock.connect.assert_called_once_with(("8.8.8.8", 80))
     sock.close.assert_called_once()
 
@@ -102,9 +111,9 @@ def test_get_internal_ip(mock_socket):
 @pytest.mark.asyncio
 async def test_get_external_ip_with_service():
     svc = UPnPService(port=30303)
-    svc._service = _make_mock_service("203.0.113.5")
+    svc._service = _make_mock_service(MOCK_EXTERNAL_IP)
 
-    assert await svc._get_external_ip() == "203.0.113.5"
+    assert await svc._get_external_ip() == MOCK_EXTERNAL_IP
 
 
 @pytest.mark.asyncio
@@ -140,7 +149,7 @@ async def test_add_port_mapping(mock_socket):
     calls = mock_svc.async_call_action.call_args_list
     assert calls[0].args[0] == "AddPortMapping"
     assert calls[0].kwargs["NewProtocol"] == "TCP"
-    assert calls[0].kwargs["NewInternalClient"] == "192.168.1.100"
+    assert calls[0].kwargs["NewInternalClient"] == MOCK_INTERNAL_IP
     assert calls[0].kwargs["NewExternalPort"] == 30303
     assert calls[1].args[0] == "AddPortMapping"
     assert calls[1].kwargs["NewProtocol"] == "UDP"
@@ -211,7 +220,7 @@ async def test_close_session_already_none():
 async def test_discover_success(mock_async_search, mock_requester_cls,
                                 mock_factory_cls, mock_socket, mock_aiohttp):
     _, session = mock_aiohttp
-    mock_wan_service = _make_mock_service("203.0.113.5")
+    mock_wan_service = _make_mock_service(MOCK_EXTERNAL_IP)
 
     fake_device = MagicMock()
     fake_device.services = {"WANIPConn1": mock_wan_service}
@@ -221,7 +230,7 @@ async def test_discover_success(mock_async_search, mock_requester_cls,
 
     async def fake_search(on_response, timeout=30):
         response = MagicMock()
-        response.location = "http://192.168.1.1:5000/rootDesc.xml"
+        response.location = MOCK_DEVICE_URL
         await on_response(response)
 
     mock_async_search.side_effect = fake_search
@@ -229,9 +238,9 @@ async def test_discover_success(mock_async_search, mock_requester_cls,
     svc = UPnPService(port=30303)
     external_ip = await svc.discover()
 
-    assert external_ip == "203.0.113.5"
+    assert external_ip == MOCK_EXTERNAL_IP
     mock_factory.async_create_device.assert_awaited_once_with(
-        "http://192.168.1.1:5000/rootDesc.xml"
+        MOCK_DEVICE_URL
     )
     # 2x AddPortMapping (TCP+UDP) + 1x GetExternalIPAddress
     assert mock_wan_service.async_call_action.call_count == 3
@@ -270,7 +279,7 @@ async def test_discover_skips_device_without_wanipconn(mock_async_search,
 
     async def fake_search(on_response, timeout=30):
         response = MagicMock()
-        response.location = "http://192.168.1.1:5000/rootDesc.xml"
+        response.location = MOCK_DEVICE_URL
         await on_response(response)
 
     mock_async_search.side_effect = fake_search
@@ -298,7 +307,7 @@ async def test_discover_ignores_device_creation_error(mock_async_search,
 
     async def fake_search(on_response, timeout=30):
         response = MagicMock()
-        response.location = "http://192.168.1.1:5000/rootDesc.xml"
+        response.location = MOCK_DEVICE_URL
         await on_response(response)
 
     mock_async_search.side_effect = fake_search
@@ -411,3 +420,64 @@ async def test_run_continues_on_exception(mock_socket):
     await svc._run()
 
     assert attempt == 2
+
+
+# ---------------------------------------------------------------------------
+# Full lifecycle: discover -> _run refresh -> stop
+# ---------------------------------------------------------------------------
+
+@patch("quarkchain.p2p.nat.UpnpFactory")
+@patch("quarkchain.p2p.nat.AiohttpSessionRequester")
+@patch("quarkchain.p2p.nat.async_search")
+@pytest.mark.asyncio
+async def test_full_lifecycle(mock_async_search, mock_requester_cls,
+                              mock_factory_cls, mock_socket, mock_aiohttp):
+    """Test the complete lifecycle: discover -> _run refresh -> stop."""
+    _, session = mock_aiohttp
+    mock_wan_service = _make_mock_service(MOCK_EXTERNAL_IP)
+
+    fake_device = MagicMock()
+    fake_device.services = {"WANIPConn1": mock_wan_service}
+
+    mock_factory = mock_factory_cls.return_value
+    mock_factory.async_create_device = AsyncMock(return_value=fake_device)
+
+    async def fake_search(on_response, timeout=30):
+        response = MagicMock()
+        response.location = MOCK_DEVICE_URL
+        await on_response(response)
+
+    mock_async_search.side_effect = fake_search
+
+    svc = UPnPService(port=38291)
+
+    # Phase 1: discover — should find service and add initial port mapping
+    external_ip = await svc.discover()
+
+    assert external_ip == MOCK_EXTERNAL_IP
+    assert svc._service is mock_wan_service
+    assert svc._session is not None
+
+    all_calls = mock_wan_service.async_call_action.call_args_list
+    add_calls = [c for c in all_calls if c.args[0] == "AddPortMapping"]
+    assert len(add_calls) == 2  # TCP + UDP from discover
+
+    # Phase 2: _run refresh — simulate one refresh cycle
+    svc._nat_portmap_lifetime = 0
+    svc.events.started.set()
+    svc.wait = _fake_wait_after(svc, iterations=2)
+
+    await svc._run()
+
+    all_calls = mock_wan_service.async_call_action.call_args_list
+    add_calls = [c for c in all_calls if c.args[0] == "AddPortMapping"]
+    assert len(add_calls) == 4  # 2 from discover + 2 from refresh
+
+    # Phase 3: stop — should delete mappings and close session
+    await svc.stop()
+
+    all_calls = mock_wan_service.async_call_action.call_args_list
+    delete_calls = [c for c in all_calls if c.args[0] == "DeletePortMapping"]
+    assert len(delete_calls) == 2  # TCP + UDP
+    session.close.assert_awaited_once()
+    assert svc._session is None
