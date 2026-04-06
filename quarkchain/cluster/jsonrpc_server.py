@@ -1,7 +1,10 @@
 import inspect
+import logging
 from typing import Any, Callable, Dict, Optional, Awaitable
 
 from aiohttp import web
+
+logger = logging.getLogger(__name__)
 
 
 class JsonRpcError(Exception):
@@ -148,6 +151,7 @@ class RpcMethods:
                 "id": req_id,
             }
         except Exception:
+            logger.exception("Internal JSON-RPC error for method %s", method)
             return {
                 "jsonrpc": "2.0",
                 "error": {
@@ -160,7 +164,7 @@ class RpcMethods:
     async def aiohttp_handler(self, request: web.Request) -> web.Response:
         body = await request.json()
 
-        # 支持 batch
+        # support batch
         if isinstance(body, list):
             responses = [await self.dispatch(item) for item in body]
             return web.json_response(responses)

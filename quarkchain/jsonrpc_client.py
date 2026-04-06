@@ -30,7 +30,7 @@ class JsonRpcClient:
         data = resp.json()
 
         if "error" in data:
-            raise RuntimeError(data["error"])
+            raise JsonRpcError(data["error"])
 
         return data.get("result")
 
@@ -43,27 +43,21 @@ class AsyncJsonRpcClient:
         self.client = httpx.AsyncClient(base_url=url, timeout=timeout)
 
     async def call(self, method, *params):
+        # JSON-RPC "params" can be a list (positional) or dict (named).
+        # The old jsonrpcclient library handled this internally; since we
+        # replaced it with a hand-rolled client we replicate the logic here:
+        #   call("method", [a, b])   -> params = [a, b]       (positional)
+        #   call("method", {k: v})   -> params = {k: v}       (named)
+        #   call("method", a, b)     -> params = [a, b]       (positional)
+        if len(params) == 1 and isinstance(params[0], (dict, list)):
+            rpc_params = params[0]
+        else:
+            rpc_params = list(params)
+
         payload = {
             "jsonrpc": "2.0",
             "method": method,
-            "params": list(params),
-            "id": str(uuid.uuid4()),
-        }
-
-        resp = await self.client.post("", json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-
-        if "error" in data:
-            raise JsonRpcError(data["error"])
-
-        return data.get("result")
-    
-    async def call_with_dict_params(self, method, params):
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
+            "params": rpc_params,
             "id": str(uuid.uuid4()),
         }
 
