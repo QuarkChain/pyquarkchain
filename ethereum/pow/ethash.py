@@ -1,15 +1,31 @@
-import copy
+import numpy as np
 from functools import lru_cache
 from typing import Callable, Dict, List
 
-from ethereum.pow.ethash_utils import *
+from ethereum.pow.ethash_utils import (
+    serialize_hash, ethash_sha3_256,
+    ethash_sha3_512_np, ethash_sha3_256_np,
+    FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
+    DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
+)
+
+# uint32 overflow is intentional in FNV arithmetic
+np.seterr(over="ignore")
+
+_FNV_PRIME = np.uint32(FNV_PRIME)
 
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 
-def mkcache(cache_size: int, block_number) -> List[List[int]]:
+def _fnv_arr(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+    return a * _FNV_PRIME ^ b
+
+
+def mkcache(cache_size: int, block_number) -> np.ndarray:
     while len(cache_seeds) <= block_number // EPOCH_LENGTH:
-        new_seed = serialize_hash(ethash_sha3_256(cache_seeds[-1]))
+        new_seed = serialize_hash(
+            ethash_sha3_256_np(cache_seeds[-1]).tolist()
+        )
         cache_seeds.append(new_seed)
 
     seed = cache_seeds[block_number // EPOCH_LENGTH]
@@ -17,78 +33,76 @@ def mkcache(cache_size: int, block_number) -> List[List[int]]:
 
 
 @lru_cache(10)
-def _get_cache(seed, n) -> List[List[int]]:
-    # Sequentially produce the initial dataset
-    o = [ethash_sha3_512(seed)]
+def _get_cache(seed: bytes, n: int) -> np.ndarray:
+    """Returns cache as uint32 ndarray of shape (n, 16)."""
+    o = np.empty((n, 16), dtype=np.uint32)
+    o[0] = ethash_sha3_512_np(seed)
     for i in range(1, n):
-        o.append(ethash_sha3_512(o[-1]))
-
-    # Use a low-round version of randmemohash
+        o[i] = ethash_sha3_512_np(o[i - 1])
     for _ in range(CACHE_ROUNDS):
         for i in range(n):
-            v = o[i][0] % n
-            o[i] = ethash_sha3_512(list(map(xor, o[(i - 1 + n) % n], o[v])))
-
+            v = int(o[i, 0]) % n
+            xored = o[(i - 1 + n) % n] ^ o[v]
+            o[i] = ethash_sha3_512_np(xored)
     return o
 
 
-def calc_dataset_item(cache: List[List[int]], i: int) -> List[int]:
+def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
     n = len(cache)
     r = HASH_BYTES // WORD_BYTES
-    # initialize the mix
-    mix = copy.copy(cache[i % n])  # type: List[int]
-    mix[0] ^= i
-    mix = ethash_sha3_512(mix)
-    # fnv it with a lot of random cache nodes based on i
+    mix = cache[i % n].copy()
+    mix[0] ^= np.uint32(i)
+    mix = ethash_sha3_512_np(mix)
     for j in range(DATASET_PARENTS):
-        cache_index = fnv(i ^ j, mix[j % r])
-        mix = list(map(fnv, mix, cache[cache_index % n]))
-    return ethash_sha3_512(mix)
+        cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
+        mix = mix * _FNV_PRIME ^ cache[cache_index % n]
+    return ethash_sha3_512_np(mix)
 
 
-def calc_dataset(full_size, cache) -> List[List[int]]:
-    o = []
-    for i in range(full_size // HASH_BYTES):
-        o.append(calc_dataset_item(cache, i))
-    return o
+def calc_dataset(full_size, cache: np.ndarray) -> np.ndarray:
+    rows = full_size // HASH_BYTES
+    out = np.empty((rows, 16), dtype=np.uint32)
+    for i in range(rows):
+        out[i] = calc_dataset_item(cache, i)
+    return out
 
 
 def hashimoto(
     header: bytes,
     nonce: bytes,
     full_size: int,
-    dataset_lookup: Callable[[int], List[int]],
+    dataset_lookup: Callable[[int], np.ndarray],
 ) -> Dict:
     n = full_size // HASH_BYTES
     w = MIX_BYTES // WORD_BYTES
     mixhashes = MIX_BYTES // HASH_BYTES
-    # combine header+nonce into a 64 byte seed
-    s = ethash_sha3_512(header + nonce[::-1])
-    mix = []
-    for _ in range(MIX_BYTES // HASH_BYTES):
-        mix.extend(s)
-    # mix in random dataset nodes
+
+    s = ethash_sha3_512_np(header + nonce[::-1])     # (16,) uint32
+    mix = np.tile(s, mixhashes)                      # (32,) uint32
+
     for i in range(ACCESSES):
-        p = fnv(i ^ s[0], mix[i % w]) % (n // mixhashes) * mixhashes
-        newdata = []
-        for j in range(mixhashes):
-            newdata.extend(dataset_lookup(p + j))
-        mix = list(map(fnv, mix, newdata))
-    # compress mix
-    cmix = []
-    for i in range(0, len(mix), 4):
-        cmix.append(fnv(fnv(fnv(mix[i], mix[i + 1]), mix[i + 2]), mix[i + 3]))
+        p = ((i ^ int(s[0])) * FNV_PRIME ^ int(mix[i % w])) & 0xFFFFFFFF
+        p = p % (n // mixhashes) * mixhashes
+        newdata = np.concatenate([dataset_lookup(p + j) for j in range(mixhashes)])
+        mix = mix * _FNV_PRIME ^ newdata
+
+    mix_r = mix.reshape(-1, 4)
+    cmix = mix_r[:, 0] * _FNV_PRIME ^ mix_r[:, 1]
+    cmix = cmix * _FNV_PRIME ^ mix_r[:, 2]
+    cmix = cmix * _FNV_PRIME ^ mix_r[:, 3]
+
+    s_cmix = np.concatenate([s, cmix])
     return {
-        b"mix digest": serialize_hash(cmix),
-        b"result": serialize_hash(ethash_sha3_256(s + cmix)),
+        b"mix digest": cmix.tobytes(),
+        b"result": ethash_sha3_256_np(s_cmix).tobytes(),
     }
 
 
 def hashimoto_light(
-    full_size: int, cache: List[List[int]], header: bytes, nonce: bytes
+    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes
 ) -> Dict:
     return hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
 
 
-def hashimoto_full(dataset: List[List[int]], header: bytes, nonce: bytes) -> Dict:
+def hashimoto_full(dataset: np.ndarray, header: bytes, nonce: bytes) -> Dict:
     return hashimoto(header, nonce, len(dataset) * HASH_BYTES, lambda x: dataset[x])

@@ -1,6 +1,7 @@
+import struct
 from typing import List, Union
 
-from eth_utils import encode_hex, decode_hex
+import numpy as np
 
 try:
     from Crypto.Hash import keccak
@@ -22,8 +23,6 @@ except Exception:
         return _sha3.sha3_512(x).digest()
 
 
-import sys
-
 WORD_BYTES = 4  # bytes in word
 DATASET_BYTES_INIT = 2 ** 30  # bytes in dataset at genesis
 DATASET_BYTES_GROWTH = 2 ** 23  # growth per epoch (~7 GB per year)
@@ -38,31 +37,36 @@ ACCESSES = 64  # number of accesses in hashimoto loop
 
 FNV_PRIME = 0x01000193
 
+# Pre-computed struct formats for common sizes
+_FMT_16I = struct.Struct("<16I")  # 64 bytes = 16 uint32 (HASH_BYTES)
+_FMT_8I = struct.Struct("<8I")   # 32 bytes = 8 uint32
+_FMT_32I = struct.Struct("<32I") # 128 bytes = 32 uint32 (MIX_BYTES)
+
 
 def fnv(v1, v2):
-    return (v1 * FNV_PRIME ^ v2) % 2 ** 32
-
-
-# Assumes little endian bit ordering (same as Intel architectures)
-def decode_int(s):
-    return int(encode_hex(s[::-1]), 16) if s else 0
-
-
-def encode_int(s):
-    a = "%x" % s
-    return b"" if s == 0 else decode_hex("0" * (len(a) % 2) + a)[::-1]
-
-
-def zpad(s, length):
-    return s + b"\x00" * max(0, length - len(s))
+    return (v1 * FNV_PRIME ^ v2) & 0xFFFFFFFF
 
 
 def serialize_hash(h: List[int]) -> bytes:
-    return b"".join([zpad(encode_int(x), 4) for x in h])
+    n = len(h)
+    if n == 16:
+        return _FMT_16I.pack(*h)
+    if n == 8:
+        return _FMT_8I.pack(*h)
+    if n == 32:
+        return _FMT_32I.pack(*h)
+    return struct.pack("<%dI" % n, *h)
 
 
 def deserialize_hash(h: bytes) -> List[int]:
-    return [decode_int(h[i : i + WORD_BYTES]) for i in range(0, len(h), WORD_BYTES)]
+    n = len(h)
+    if n == 64:
+        return list(_FMT_16I.unpack(h))
+    if n == 32:
+        return list(_FMT_8I.unpack(h))
+    if n == 128:
+        return list(_FMT_32I.unpack(h))
+    return list(struct.unpack("<%dI" % (n // 4), h))
 
 
 def hash_words(h, sz, x) -> List[int]:
@@ -72,23 +76,34 @@ def hash_words(h, sz, x) -> List[int]:
     return deserialize_hash(y)
 
 
-def to_bytes(x):
-    if sys.version_info.major > 2 and isinstance(x, str):
-        x = bytes(x, "utf-8")
-    return x
-
-
 def xor(a, b):
     return a ^ b
 
 
 # sha3 hash function, outputs 64 bytes
 def ethash_sha3_512(x: Union[bytes, List[int]]) -> List[int]:
-    return hash_words(lambda v: _sha3_512(to_bytes(v)), 64, x)
+    if isinstance(x, list):
+        x = serialize_hash(x)
+    return list(_FMT_16I.unpack(_sha3_512(x)))
 
 
 def ethash_sha3_256(x: Union[bytes, List[int]]) -> List[int]:
-    return hash_words(lambda v: _sha3_256(to_bytes(v)), 32, x)
+    if isinstance(x, list):
+        x = serialize_hash(x)
+    return list(_FMT_8I.unpack(_sha3_256(x)))
+
+
+# numpy variants: accept bytes or ndarray, return uint32 ndarray
+def ethash_sha3_512_np(x: Union[bytes, np.ndarray]) -> np.ndarray:
+    if isinstance(x, np.ndarray):
+        x = x.tobytes()
+    return np.frombuffer(_sha3_512(x), dtype=np.uint32).copy()
+
+
+def ethash_sha3_256_np(x: Union[bytes, np.ndarray]) -> np.ndarray:
+    if isinstance(x, np.ndarray):
+        x = x.tobytes()
+    return np.frombuffer(_sha3_256(x), dtype=np.uint32).copy()
 
 
 # Works for dataset and cache
