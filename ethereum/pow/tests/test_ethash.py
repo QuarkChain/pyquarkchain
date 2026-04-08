@@ -1,5 +1,7 @@
 import unittest
 
+import numpy as np
+
 from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
 from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
 from ethereum.pow.ethpow import EthashMiner, check_pow
@@ -127,6 +129,30 @@ class TestEthash(unittest.TestCase):
                 1, header_hash, mixhash, nonce_found, 100, is_test=True
             )
             self.assertTrue(validity)
+
+    def test_cython_matches_python_fallback(self):
+        """Cython inner loop produces the same result as pure-Python path."""
+        import ethereum.pow.ethash as _mod
+        from ethereum.pow.ethash import calc_dataset_item
+
+        if _mod._cy_mix_parents is None:
+            self.skipTest("Cython extension not built")
+
+        cache = mkcache(1024, 0)
+
+        # run with Cython
+        cy_results = [calc_dataset_item(cache, i) for i in range(16)]
+
+        # disable Cython, run pure-Python fallback
+        saved = _mod._cy_mix_parents
+        _mod._cy_mix_parents = None
+        try:
+            py_results = [calc_dataset_item(cache, i) for i in range(16)]
+        finally:
+            _mod._cy_mix_parents = saved
+
+        for i, (cy, py) in enumerate(zip(cy_results, py_results)):
+            np.testing.assert_array_equal(cy, py, err_msg=f"mismatch at item {i}")
 
     def test_pyethash(self):
         header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"

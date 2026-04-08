@@ -71,8 +71,11 @@ To install the required modules for the project. Under `pyquarkchain` dir where 
 # you may want to set the following if cryptography complains about header files: (https://github.com/pyca/cryptography/issues/3489)
 # export CPPFLAGS=-I/usr/local/opt/openssl/include
 # export LDFLAGS=-L/usr/local/opt/openssl/lib
-pip install -e .
+pip install -r requirements.txt
+python setup.py build_ext --inplace
 ```
+
+The second command builds the optional Cython extension (`ethash_cy`) that speeds up ethash `calc_dataset_item` by ~20x. It requires a C compiler. If the build is skipped, the pure-Python fallback is used automatically.
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 
