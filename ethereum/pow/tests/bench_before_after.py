@@ -82,22 +82,22 @@ def mid_ethash_sha3_512(x):
     return list(_FMT_16I.unpack(_sha3_512(x)))
 
 # ===========================================================================
-# NEW — numpy ndarray (current implementation)
+# Round 2 — numpy ndarray (current implementation)
 # ===========================================================================
 np.seterr(over="ignore")
 
-from ethereum.pow.ethash_utils import ethash_sha3_512_np
+from ethereum.pow.ethash_utils import ethash_sha3_512
 
-_FMT_16I_NEW = struct.Struct("<16I")
+_FMT_16I_R2 = struct.Struct("<16I")
 
-def new_fnv(v1, v2):
+def r2_fnv(v1, v2):
     return (v1 * FNV_PRIME ^ v2) & 0xFFFFFFFF
 
-def new_ethash_sha3_512_np(x):
+def r2_ethash_sha3_512(x):
     """Wrapper: accepts list or bytes, returns ndarray."""
     if isinstance(x, list):
-        x = _FMT_16I_NEW.pack(*x)
-    return ethash_sha3_512_np(x)
+        x = _FMT_16I_R2.pack(*x)
+    return ethash_sha3_512(x)
 
 # ===========================================================================
 # Benchmark harness
@@ -110,19 +110,25 @@ def bench(func, args, rounds=200_000):
         func(*args)
     return time.perf_counter() - t0
 
-def row3(label, old_fn, old_args, mid_fn, mid_args, new_fn, new_args, N):
-    t_old = bench(old_fn, old_args, N)
-    t_mid = bench(mid_fn, mid_args, N)
-    t_new = bench(new_fn, new_args, N)
-    print(f"{label:<30} {t_old:>10.4f} {t_mid:>10.4f} {t_new:>10.4f} "
-          f"{t_old/t_mid:>7.1f}x {t_old/t_new:>7.1f}x")
+def row3(label, fns_and_args, N):
+    """fns_and_args: list of (fn, args) tuples, one per round."""
+    times = [bench(fn, args, N) for fn, args in fns_and_args]
+    t0 = times[0]
+    cols = "".join(f"{t:>10.4f}" for t in times)
+    ratios = "".join(f"{t0/t:>8.1f}x" for t in times[1:])
+    print(f"{label:<30}{cols}{ratios}")
 
-def row2(label, old_fn, old_args, mid_fn, mid_args, N):
-    """For functions removed in new — only old vs mid."""
-    t_old = bench(old_fn, old_args, N)
-    t_mid = bench(mid_fn, mid_args, N)
-    print(f"{label:<30} {t_old:>10.4f} {t_mid:>10.4f} {'N/A':>10} "
-          f"{t_old/t_mid:>7.1f}x {'N/A':>7}")
+def row_partial(label, fns_and_args, N):
+    """Same as row3 but missing rounds show N/A."""
+    times = [bench(fn, args, N) if fn is not None else None
+             for fn, args in fns_and_args]
+    t0 = times[0]
+    cols = "".join(f"{t:>10.4f}" if t is not None else f"{'N/A':>10}" for t in times)
+    ratios = "".join(
+        f"{t0/t:>8.1f}x" if t is not None else f"{'N/A':>8}"
+        for t in times[1:]
+    )
+    print(f"{label:<30}{cols}{ratios}")
 
 if __name__ == "__main__":
     hash_list_16  = [i * 1000003 & 0xFFFFFFFF for i in range(16)]
@@ -132,36 +138,41 @@ if __name__ == "__main__":
 
     N = 200_000
     print(f"Rounds: {N:,}\n")
-    print(f"{'Function':<30} {'Old (s)':>10} {'Mid (s)':>10} {'New (s)':>10} {'old/mid':>8} {'old/new':>8}")
+    # header: Old + R1 + R2 + old/R1 + old/R2
+    print(f"{'Function':<30} {'Old (s)':>10} {'R1 (s)':>10} {'R2 (s)':>10} {'old/R1':>8} {'old/R2':>8}")
     print("-" * 82)
 
-    # serialize/deserialize removed in new — old vs mid only
-    row2("serialize_hash (16 ints)",
-         old_serialize_hash, (hash_list_16,),
-         mid_serialize_hash, (hash_list_16,), N)
-    row2("serialize_hash (8 ints)",
-         old_serialize_hash, (hash_list_8,),
-         mid_serialize_hash, (hash_list_8,), N)
-    row2("deserialize_hash (64B)",
-         old_deserialize_hash, (hash_bytes_64,),
-         mid_deserialize_hash, (hash_bytes_64,), N)
-    row2("deserialize_hash (32B)",
-         old_deserialize_hash, (hash_bytes_32,),
-         mid_deserialize_hash, (hash_bytes_32,), N)
+    # serialize/deserialize: only old and R1 (removed in R2)
+    row_partial("serialize_hash (16 ints)",
+        [(old_serialize_hash, (hash_list_16,)),
+         (mid_serialize_hash, (hash_list_16,)),
+         (None, None)], N)
+    row_partial("serialize_hash (8 ints)",
+        [(old_serialize_hash, (hash_list_8,)),
+         (mid_serialize_hash, (hash_list_8,)),
+         (None, None)], N)
+    row_partial("deserialize_hash (64B)",
+        [(old_deserialize_hash, (hash_bytes_64,)),
+         (mid_deserialize_hash, (hash_bytes_64,)),
+         (None, None)], N)
+    row_partial("deserialize_hash (32B)",
+        [(old_deserialize_hash, (hash_bytes_32,)),
+         (mid_deserialize_hash, (hash_bytes_32,)),
+         (None, None)], N)
 
-    # fnv and sha3 — all three versions
+    # fnv and sha3 — all three rounds
     row3("fnv",
-         old_fnv, (0xDEADBEEF, 0xCAFEBABE),
-         mid_fnv, (0xDEADBEEF, 0xCAFEBABE),
-         new_fnv, (0xDEADBEEF, 0xCAFEBABE), N)
+        [(old_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
+         (mid_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
+         (r2_fnv,   (0xDEADBEEF, 0xCAFEBABE))], N)
     row3("ethash_sha3_512 (bytes)",
-         old_ethash_sha3_512,    (hash_bytes_64,),
-         mid_ethash_sha3_512,    (hash_bytes_64,),
-         new_ethash_sha3_512_np, (hash_bytes_64,), N)
+        [(old_ethash_sha3_512, (hash_bytes_64,)),
+         (mid_ethash_sha3_512, (hash_bytes_64,)),
+         (r2_ethash_sha3_512,  (hash_bytes_64,))], N)
     row3("ethash_sha3_512 (list)",
-         old_ethash_sha3_512,    (hash_list_16,),
-         mid_ethash_sha3_512,    (hash_list_16,),
-         new_ethash_sha3_512_np, (hash_list_16,), N)
+        [(old_ethash_sha3_512, (hash_list_16,)),
+         (mid_ethash_sha3_512, (hash_list_16,)),
+         (r2_ethash_sha3_512,  (hash_list_16,))], N)
 
     # End-to-end: check_pow
     print("\n--- End-to-end: check_pow (is_test=True) ---")

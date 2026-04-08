@@ -9,11 +9,11 @@ class TestEthashUtils(unittest.TestCase):
     """Test correctness of ethash_utils functions."""
 
     def test_ethash_sha3_512_known_vector(self):
-        """ethash_sha3_512_np with seed zero is stable across runs."""
-        from ethereum.pow.ethash_utils import ethash_sha3_512_np
+        """ethash_sha3_512 with seed zero is stable across runs."""
+        from ethereum.pow.ethash_utils import ethash_sha3_512
         seed = b"\x00" * 32
-        result = ethash_sha3_512_np(seed)
-        self.assertEqual(ethash_sha3_512_np(seed).tobytes(), result.tobytes())
+        result = ethash_sha3_512(seed)
+        self.assertEqual(ethash_sha3_512(seed).tobytes(), result.tobytes())
 
 
 class TestEthash(unittest.TestCase):

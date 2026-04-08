@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Callable, Dict, List
 
 from ethereum.pow.ethash_utils import (
-    ethash_sha3_512_np, ethash_sha3_256_np,
+    ethash_sha3_512, ethash_sha3_256,
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
 )
@@ -22,7 +22,7 @@ def _fnv_arr(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 def mkcache(cache_size: int, block_number) -> np.ndarray:
     while len(cache_seeds) <= block_number // EPOCH_LENGTH:
-        new_seed = ethash_sha3_256_np(cache_seeds[-1]).tobytes()
+        new_seed = ethash_sha3_256(cache_seeds[-1]).tobytes()
         cache_seeds.append(new_seed)
 
     seed = cache_seeds[block_number // EPOCH_LENGTH]
@@ -33,14 +33,14 @@ def mkcache(cache_size: int, block_number) -> np.ndarray:
 def _get_cache(seed: bytes, n: int) -> np.ndarray:
     """Returns cache as uint32 ndarray of shape (n, 16)."""
     o = np.empty((n, 16), dtype=np.uint32)
-    o[0] = ethash_sha3_512_np(seed)
+    o[0] = ethash_sha3_512(seed)
     for i in range(1, n):
-        o[i] = ethash_sha3_512_np(o[i - 1])
+        o[i] = ethash_sha3_512(o[i - 1])
     for _ in range(CACHE_ROUNDS):
         for i in range(n):
             v = int(o[i, 0]) % n
             xored = o[(i - 1 + n) % n] ^ o[v]
-            o[i] = ethash_sha3_512_np(xored)
+            o[i] = ethash_sha3_512(xored)
     return o
 
 
@@ -49,12 +49,12 @@ def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
     r = HASH_BYTES // WORD_BYTES   # 16
     mix = cache[i % n].copy()
     mix[0] ^= i                    # numpy auto-converts int, no explicit np.uint32() boxing
-    mix = ethash_sha3_512_np(mix)
+    mix = ethash_sha3_512(mix)
     for j in range(DATASET_PARENTS):
         cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
         mix *= _FNV_PRIME           # in-place: no temp array allocation
         mix ^= cache[cache_index % n]  # in-place: no temp array allocation
-    return ethash_sha3_512_np(mix)
+    return ethash_sha3_512(mix)
 
 
 def calc_dataset(full_size, cache: np.ndarray) -> np.ndarray:
@@ -75,7 +75,7 @@ def hashimoto(
     w = MIX_BYTES // WORD_BYTES
     mixhashes = MIX_BYTES // HASH_BYTES
 
-    s = ethash_sha3_512_np(header + nonce[::-1])     # (16,) uint32
+    s = ethash_sha3_512(header + nonce[::-1])     # (16,) uint32
     mix = np.tile(s, mixhashes)                      # (32,) uint32
     s0 = int(s[0])                                   # hoist constant, avoid repeated unboxing
     newdata = np.empty(w, dtype=np.uint32)           # pre-allocate, reused every iteration
@@ -96,7 +96,7 @@ def hashimoto(
     s_cmix = np.concatenate([s, cmix])
     return {
         b"mix digest": cmix.tobytes(),
-        b"result": ethash_sha3_256_np(s_cmix).tobytes(),
+        b"result": ethash_sha3_256(s_cmix).tobytes(),
     }
 
 
