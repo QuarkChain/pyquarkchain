@@ -3,7 +3,6 @@ from functools import lru_cache
 from typing import Callable, Dict, List
 
 from ethereum.pow.ethash_utils import (
-    serialize_hash, ethash_sha3_256,
     ethash_sha3_512_np, ethash_sha3_256_np,
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
@@ -23,16 +22,14 @@ def _fnv_arr(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 
 def mkcache(cache_size: int, block_number) -> np.ndarray:
     while len(cache_seeds) <= block_number // EPOCH_LENGTH:
-        new_seed = serialize_hash(
-            ethash_sha3_256_np(cache_seeds[-1]).tolist()
-        )
+        new_seed = ethash_sha3_256_np(cache_seeds[-1]).tobytes()
         cache_seeds.append(new_seed)
 
     seed = cache_seeds[block_number // EPOCH_LENGTH]
     return _get_cache(seed, cache_size // HASH_BYTES)
 
 
-@lru_cache(10)
+@lru_cache(2)
 def _get_cache(seed: bytes, n: int) -> np.ndarray:
     """Returns cache as uint32 ndarray of shape (n, 16)."""
     o = np.empty((n, 16), dtype=np.uint32)
@@ -49,13 +46,14 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
 
 def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
     n = len(cache)
-    r = HASH_BYTES // WORD_BYTES
+    r = HASH_BYTES // WORD_BYTES   # 16
     mix = cache[i % n].copy()
-    mix[0] ^= np.uint32(i)
+    mix[0] ^= i                    # numpy auto-converts int, no explicit np.uint32() boxing
     mix = ethash_sha3_512_np(mix)
     for j in range(DATASET_PARENTS):
         cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
-        mix = mix * _FNV_PRIME ^ cache[cache_index % n]
+        mix *= _FNV_PRIME           # in-place: no temp array allocation
+        mix ^= cache[cache_index % n]  # in-place: no temp array allocation
     return ethash_sha3_512_np(mix)
 
 
@@ -79,12 +77,16 @@ def hashimoto(
 
     s = ethash_sha3_512_np(header + nonce[::-1])     # (16,) uint32
     mix = np.tile(s, mixhashes)                      # (32,) uint32
+    s0 = int(s[0])                                   # hoist constant, avoid repeated unboxing
+    newdata = np.empty(w, dtype=np.uint32)           # pre-allocate, reused every iteration
 
     for i in range(ACCESSES):
-        p = ((i ^ int(s[0])) * FNV_PRIME ^ int(mix[i % w])) & 0xFFFFFFFF
+        p = ((i ^ s0) * FNV_PRIME ^ int(mix[i % w])) & 0xFFFFFFFF
         p = p % (n // mixhashes) * mixhashes
-        newdata = np.concatenate([dataset_lookup(p + j) for j in range(mixhashes)])
-        mix = mix * _FNV_PRIME ^ newdata
+        for j in range(mixhashes):                   # avoid np.concatenate alloc+copy
+            newdata[j * 16:(j + 1) * 16] = dataset_lookup(p + j)
+        mix *= _FNV_PRIME                            # in-place: no temp array
+        mix ^= newdata                               # in-place: no temp array
 
     mix_r = mix.reshape(-1, 4)
     cmix = mix_r[:, 0] * _FNV_PRIME ^ mix_r[:, 1]

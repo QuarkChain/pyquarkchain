@@ -1,26 +1,14 @@
-import struct
-from typing import List, Union
+from typing import Union
+from Crypto.Hash import keccak
 
 import numpy as np
 
-try:
-    from Crypto.Hash import keccak
 
-    def _sha3_256(x):
-        return keccak.new(digest_bits=256, data=x).digest()
+def _sha3_256(x):
+    return keccak.new(digest_bits=256, data=x).digest()
 
-    def _sha3_512(x):
-        return keccak.new(digest_bits=512, data=x).digest()
-
-
-except Exception:
-    import sha3 as _sha3
-
-    def _sha3_256(x):
-        return _sha3.sha3_256(x).digest()
-
-    def _sha3_512(x):
-        return _sha3.sha3_512(x).digest()
+def _sha3_512(x):
+    return keccak.new(digest_bits=512, data=x).digest()
 
 
 WORD_BYTES = 4  # bytes in word
@@ -37,90 +25,19 @@ ACCESSES = 64  # number of accesses in hashimoto loop
 
 FNV_PRIME = 0x01000193
 
-# Pre-computed struct formats for common sizes
-_FMT_16I = struct.Struct("<16I")  # 64 bytes = 16 uint32 (HASH_BYTES)
-_FMT_8I = struct.Struct("<8I")   # 32 bytes = 8 uint32
-_FMT_32I = struct.Struct("<32I") # 128 bytes = 32 uint32 (MIX_BYTES)
 
-
-def fnv(v1, v2):
-    return (v1 * FNV_PRIME ^ v2) & 0xFFFFFFFF
-
-
-def serialize_hash(h: List[int]) -> bytes:
-    n = len(h)
-    if n == 16:
-        return _FMT_16I.pack(*h)
-    if n == 8:
-        return _FMT_8I.pack(*h)
-    if n == 32:
-        return _FMT_32I.pack(*h)
-    return struct.pack("<%dI" % n, *h)
-
-
-def deserialize_hash(h: bytes) -> List[int]:
-    n = len(h)
-    if n == 64:
-        return list(_FMT_16I.unpack(h))
-    if n == 32:
-        return list(_FMT_8I.unpack(h))
-    if n == 128:
-        return list(_FMT_32I.unpack(h))
-    return list(struct.unpack("<%dI" % (n // 4), h))
-
-
-def hash_words(h, sz, x) -> List[int]:
-    if isinstance(x, list):
-        x = serialize_hash(x)
-    y = h(x)
-    return deserialize_hash(y)
-
-
-def xor(a, b):
-    return a ^ b
-
-
-# sha3 hash function, outputs 64 bytes
-def ethash_sha3_512(x: Union[bytes, List[int]]) -> List[int]:
-    if isinstance(x, list):
-        x = serialize_hash(x)
-    return list(_FMT_16I.unpack(_sha3_512(x)))
-
-
-def ethash_sha3_256(x: Union[bytes, List[int]]) -> List[int]:
-    if isinstance(x, list):
-        x = serialize_hash(x)
-    return list(_FMT_8I.unpack(_sha3_256(x)))
-
-
-# numpy variants: accept bytes or ndarray, return uint32 ndarray
 def ethash_sha3_512_np(x: Union[bytes, np.ndarray]) -> np.ndarray:
+    """sha3-512: bytes or ndarray in, uint32 ndarray (16,) out."""
     if isinstance(x, np.ndarray):
         x = x.tobytes()
     return np.frombuffer(_sha3_512(x), dtype=np.uint32).copy()
 
 
 def ethash_sha3_256_np(x: Union[bytes, np.ndarray]) -> np.ndarray:
+    """sha3-256: bytes or ndarray in, uint32 ndarray (8,) out."""
     if isinstance(x, np.ndarray):
         x = x.tobytes()
     return np.frombuffer(_sha3_256(x), dtype=np.uint32).copy()
-
-
-# Works for dataset and cache
-def serialize_cache(ds):
-    return b"".join([serialize_hash(h) for h in ds])
-
-
-serialize_dataset = serialize_cache
-
-
-def deserialize_cache(ds):
-    return [
-        deserialize_hash(ds[i : i + HASH_BYTES]) for i in range(0, len(ds), HASH_BYTES)
-    ]
-
-
-deserialize_dataset = deserialize_cache
 
 
 def isprime(x):

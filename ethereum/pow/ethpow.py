@@ -11,14 +11,14 @@ from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGT
 # See: https://github.com/QuarkChain/pyquarkchain/issues/976
 #
 # always have python implementation declared
-def get_cache_slow(cache_size: int, block_number: int) -> List[List[int]]:
+def get_cache_slow(cache_size: int, block_number: int):
     return ethash.mkcache(cache_size, block_number)
 
 
 def hashimoto_slow(
     block_number: int,
     full_size: int,
-    cache: Union[List[List[int]], bytes],
+    cache,
     mining_hash: bytes,
     bin_nonce: bytes,
 ):
@@ -26,7 +26,6 @@ def hashimoto_slow(
 
 get_cache = get_cache_slow
 hashimoto = hashimoto_slow
-
 
 
 @lru_cache(maxsize=32)
@@ -40,7 +39,6 @@ def check_pow(
     cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
-        # use python implementation to allow overriding cache & dataset size
         cache_gen = get_cache_slow
         mining_gen = hashimoto_slow
     else:
@@ -98,7 +96,6 @@ def mine(
     cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
-        # use python implementation to allow overriding cache & dataset size
         cache_gen = get_cache_slow
         mining_gen = hashimoto_slow
     else:
@@ -111,7 +108,6 @@ def mine(
     nonce = start_nonce
     target = (2 ** 256 // (difficulty or 1) - 1).to_bytes(32, byteorder="big")
     for i in range(1, rounds + 1):
-        # hashimoto expected big-indian byte representation
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
         o = mining_gen(block_number, full_size, cache, mining_hash, bin_nonce)
         if o[b"result"] <= target:

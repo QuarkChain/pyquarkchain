@@ -1,139 +1,19 @@
-import struct
 import unittest
 
 from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
-from ethereum.pow.ethash_utils import (
-    EPOCH_LENGTH,
-    HASH_BYTES,
-    FNV_PRIME,
-    fnv,
-    serialize_hash,
-    deserialize_hash,
-    ethash_sha3_512,
-    ethash_sha3_256,
-)
+from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
 from ethereum.pow.ethpow import EthashMiner, check_pow
 
 
 class TestEthashUtils(unittest.TestCase):
-    """Test correctness of optimized ethash_utils functions against reference implementations."""
-
-    @staticmethod
-    def _ref_serialize_hash(h):
-        """Reference implementation using struct (known correct for little-endian uint32)."""
-        return struct.pack("<%dI" % len(h), *h)
-
-    @staticmethod
-    def _ref_deserialize_hash(h):
-        """Reference implementation using struct."""
-        return list(struct.unpack("<%dI" % (len(h) // 4), h))
-
-    @staticmethod
-    def _ref_fnv(v1, v2):
-        return (v1 * FNV_PRIME ^ v2) & 0xFFFFFFFF
-
-    def test_serialize_hash_16_ints(self):
-        """serialize_hash with 16 uint32s (64 bytes, HASH_BYTES)."""
-        h = [i * 0xF4243 & 0xFFFFFFFF for i in range(16)]
-        self.assertEqual(serialize_hash(h), self._ref_serialize_hash(h))
-
-    def test_serialize_hash_8_ints(self):
-        """serialize_hash with 8 uint32s (32 bytes)."""
-        h = [i * 0xDEAD & 0xFFFFFFFF for i in range(8)]
-        self.assertEqual(serialize_hash(h), self._ref_serialize_hash(h))
-
-    def test_serialize_hash_32_ints(self):
-        """serialize_hash with 32 uint32s (128 bytes, MIX_BYTES)."""
-        h = [i * 0xBEEF & 0xFFFFFFFF for i in range(32)]
-        self.assertEqual(serialize_hash(h), self._ref_serialize_hash(h))
-
-    def test_serialize_hash_edge_values(self):
-        """serialize_hash with edge values: 0, max uint32."""
-        h = [0, 1, 0xFFFFFFFF, 0x80000000] + [0] * 12
-        self.assertEqual(serialize_hash(h), self._ref_serialize_hash(h))
-
-    def test_deserialize_hash_64_bytes(self):
-        """deserialize_hash with 64 bytes (16 uint32s)."""
-        h = [i * 0xF4243 & 0xFFFFFFFF for i in range(16)]
-        data = self._ref_serialize_hash(h)
-        self.assertEqual(deserialize_hash(data), h)
-
-    def test_deserialize_hash_32_bytes(self):
-        """deserialize_hash with 32 bytes (8 uint32s)."""
-        h = [i * 0xDEAD & 0xFFFFFFFF for i in range(8)]
-        data = self._ref_serialize_hash(h)
-        self.assertEqual(deserialize_hash(data), h)
-
-    def test_deserialize_hash_128_bytes(self):
-        """deserialize_hash with 128 bytes (32 uint32s)."""
-        h = [i * 0xBEEF & 0xFFFFFFFF for i in range(32)]
-        data = self._ref_serialize_hash(h)
-        self.assertEqual(deserialize_hash(data), h)
-
-    def test_serialize_deserialize_roundtrip(self):
-        """serialize then deserialize should return the original list."""
-        for n in (8, 16, 32):
-            h = [i * 7 + 3 & 0xFFFFFFFF for i in range(n)]
-            self.assertEqual(deserialize_hash(serialize_hash(h)), h)
-
-    def test_fnv(self):
-        """fnv against reference implementation with various inputs."""
-        test_pairs = [
-            (0, 0),
-            (1, 1),
-            (0xFFFFFFFF, 0xFFFFFFFF),
-            (0xDEADBEEF, 0xCAFEBABE),
-            (0, 0xFFFFFFFF),
-            (123456, 654321),
-        ]
-        for v1, v2 in test_pairs:
-            self.assertEqual(fnv(v1, v2), self._ref_fnv(v1, v2))
-
-    def test_fnv_within_uint32(self):
-        """fnv result must always fit in uint32."""
-        result = fnv(0xFFFFFFFF, 0xFFFFFFFF)
-        self.assertLessEqual(result, 0xFFFFFFFF)
-        self.assertGreaterEqual(result, 0)
-
-    def test_ethash_sha3_512_bytes_input(self):
-        """ethash_sha3_512 with bytes input returns 16 uint32s."""
-        data = b"\x00" * 64
-        result = ethash_sha3_512(data)
-        self.assertEqual(len(result), 16)
-        self.assertTrue(all(0 <= v <= 0xFFFFFFFF for v in result))
-        # verify roundtrip: serialize result back to bytes and re-hash should be deterministic
-        self.assertEqual(ethash_sha3_512(data), result)
-
-    def test_ethash_sha3_512_list_input(self):
-        """ethash_sha3_512 with list input should equal bytes input of serialized list."""
-        h = [i * 0xF4243 & 0xFFFFFFFF for i in range(16)]
-        result_from_list = ethash_sha3_512(h)
-        result_from_bytes = ethash_sha3_512(serialize_hash(h))
-        self.assertEqual(result_from_list, result_from_bytes)
-
-    def test_ethash_sha3_256_bytes_input(self):
-        """ethash_sha3_256 with bytes input returns 8 uint32s."""
-        data = b"\x00" * 32
-        result = ethash_sha3_256(data)
-        self.assertEqual(len(result), 8)
-        self.assertTrue(all(0 <= v <= 0xFFFFFFFF for v in result))
-
-    def test_ethash_sha3_256_list_input(self):
-        """ethash_sha3_256 with list input should equal bytes input of serialized list."""
-        h = [i * 0xDEAD & 0xFFFFFFFF for i in range(8)]
-        result_from_list = ethash_sha3_256(h)
-        result_from_bytes = ethash_sha3_256(serialize_hash(h))
-        self.assertEqual(result_from_list, result_from_bytes)
+    """Test correctness of ethash_utils functions."""
 
     def test_ethash_sha3_512_known_vector(self):
-        """ethash_sha3_512 with seed zero (used in cache generation epoch 0)."""
+        """ethash_sha3_512_np with seed zero is stable across runs."""
+        from ethereum.pow.ethash_utils import ethash_sha3_512_np
         seed = b"\x00" * 32
-        result = ethash_sha3_512(seed)
-        # verify by serializing and comparing hex
-        result_hex = serialize_hash(result).hex()
-        # re-derive: this must be stable across runs
-        result2 = ethash_sha3_512(seed)
-        self.assertEqual(serialize_hash(result2).hex(), result_hex)
+        result = ethash_sha3_512_np(seed)
+        self.assertEqual(ethash_sha3_512_np(seed).tobytes(), result.tobytes())
 
 
 class TestEthash(unittest.TestCase):
@@ -159,7 +39,7 @@ class TestEthash(unittest.TestCase):
         for cache_size, epoch, expected_cache in testcases:
             block_number = epoch * EPOCH_LENGTH
             cache = mkcache(cache_size, block_number)
-            cache_hex = "".join(serialize_hash(ls).hex() for ls in cache)
+            cache_hex = "".join(row.tobytes().hex() for row in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
     def test_dataset_gen(self):
@@ -176,7 +56,7 @@ class TestEthash(unittest.TestCase):
             block_number = epoch * EPOCH_LENGTH
             cache = mkcache(cache_size, block_number)
             dataset = calc_dataset(dataset_size, cache)
-            dataset_hex = "".join(serialize_hash(ls).hex() for ls in dataset)
+            dataset_hex = "".join(row.tobytes().hex() for row in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
