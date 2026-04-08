@@ -1,8 +1,8 @@
 """
-Benchmark: old (hex-based) vs mid (struct+list) vs new (struct+numpy) implementations.
+Benchmark: old (hex-based) vs R1 (struct+list) vs R2 (struct+numpy) implementations.
 
 - old: original implementation using hex-based encode/decode
-- mid: struct.pack/unpack + Python list (first optimization)
+- R1: struct.pack/unpack + Python list (first optimization)
 - new: struct.pack/unpack + numpy ndarray (current implementation)
 
 Run with:
@@ -53,32 +53,32 @@ def old_ethash_sha3_512(x):
     return old_deserialize_hash(_sha3_512(x))
 
 # ===========================================================================
-# MID — struct+list (first optimization: replace hex with struct)
+# Round 1 — struct+list (first optimization: replace hex with struct)
 # ===========================================================================
 _FMT_16I = struct.Struct("<16I")
 _FMT_8I  = struct.Struct("<8I")
 _FMT_32I = struct.Struct("<32I")
 
-def mid_serialize_hash(h):
+def r1_serialize_hash(h):
     n = len(h)
     if n == 16: return _FMT_16I.pack(*h)
     if n == 8:  return _FMT_8I.pack(*h)
     if n == 32: return _FMT_32I.pack(*h)
     return struct.pack("<%dI" % n, *h)
 
-def mid_deserialize_hash(h):
+def r1_deserialize_hash(h):
     n = len(h)
     if n == 64:  return list(_FMT_16I.unpack(h))
     if n == 32:  return list(_FMT_8I.unpack(h))
     if n == 128: return list(_FMT_32I.unpack(h))
     return list(struct.unpack("<%dI" % (n // 4), h))
 
-def mid_fnv(v1, v2):
+def r1_fnv(v1, v2):
     return (v1 * FNV_PRIME ^ v2) & 0xFFFFFFFF
 
-def mid_ethash_sha3_512(x):
+def r1_ethash_sha3_512(x):
     if isinstance(x, list):
-        x = mid_serialize_hash(x)
+        x = r1_serialize_hash(x)
     return list(_FMT_16I.unpack(_sha3_512(x)))
 
 # ===========================================================================
@@ -145,33 +145,33 @@ if __name__ == "__main__":
     # serialize/deserialize: only old and R1 (removed in R2)
     row_partial("serialize_hash (16 ints)",
         [(old_serialize_hash, (hash_list_16,)),
-         (mid_serialize_hash, (hash_list_16,)),
+         (r1_serialize_hash, (hash_list_16,)),
          (None, None)], N)
     row_partial("serialize_hash (8 ints)",
         [(old_serialize_hash, (hash_list_8,)),
-         (mid_serialize_hash, (hash_list_8,)),
+         (r1_serialize_hash, (hash_list_8,)),
          (None, None)], N)
     row_partial("deserialize_hash (64B)",
         [(old_deserialize_hash, (hash_bytes_64,)),
-         (mid_deserialize_hash, (hash_bytes_64,)),
+         (r1_deserialize_hash, (hash_bytes_64,)),
          (None, None)], N)
     row_partial("deserialize_hash (32B)",
         [(old_deserialize_hash, (hash_bytes_32,)),
-         (mid_deserialize_hash, (hash_bytes_32,)),
+         (r1_deserialize_hash, (hash_bytes_32,)),
          (None, None)], N)
 
     # fnv and sha3 — all three rounds
     row3("fnv",
         [(old_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
-         (mid_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
+         (r1_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
          (r2_fnv,   (0xDEADBEEF, 0xCAFEBABE))], N)
     row3("ethash_sha3_512 (bytes)",
         [(old_ethash_sha3_512, (hash_bytes_64,)),
-         (mid_ethash_sha3_512, (hash_bytes_64,)),
+         (r1_ethash_sha3_512, (hash_bytes_64,)),
          (r2_ethash_sha3_512,  (hash_bytes_64,))], N)
     row3("ethash_sha3_512 (list)",
         [(old_ethash_sha3_512, (hash_list_16,)),
-         (mid_ethash_sha3_512, (hash_list_16,)),
+         (r1_ethash_sha3_512, (hash_list_16,)),
          (r2_ethash_sha3_512,  (hash_list_16,))], N)
 
     # End-to-end: check_pow
