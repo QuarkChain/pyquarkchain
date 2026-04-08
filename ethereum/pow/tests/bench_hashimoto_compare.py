@@ -1,9 +1,10 @@
 """
-Benchmark hashimoto_light: old (hex-based) vs mid (struct+list) vs new (struct+numpy).
+Benchmark hashimoto_light: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+Cython).
 
 - old: original hex-based implementation
-- mid: struct.pack/unpack + Python list
-- new: struct.pack/unpack + numpy ndarray (current implementation)
+- R1:  struct.pack/unpack + Python list
+- R2:  struct.pack/unpack + numpy ndarray
+- R3:  R2 + Cython inner loop for calc_dataset_item (256-iter FNV mixing)
 
 Uses is_test=True sizes (cache=1024B, dataset=32KB) for fast iteration.
 Run with:
@@ -185,9 +186,42 @@ np.seterr(over="ignore")
 
 from ethereum.pow.ethash import (
     mkcache as r2_mkcache,
-    calc_dataset_item as r2_calc_dataset_item,
     hashimoto_light as r2_hashimoto_light,
+    _cy_mix_parents,
 )
+from ethereum.pow.ethash_utils import ethash_sha3_512 as _r2_sha3_512
+
+_R2_FNV_PRIME = np.uint32(FNV_PRIME)
+
+
+def r2_calc_dataset_item(cache, i):
+    """R2: numpy inner loop (pure Python, no Cython)."""
+    n = len(cache)
+    r = HASH_BYTES // WORD_BYTES
+    mix = cache[i % n].copy()
+    mix[0] ^= i
+    mix = _r2_sha3_512(mix)
+    for j in range(DATASET_PARENTS):
+        cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
+        mix *= _R2_FNV_PRIME
+        mix ^= cache[cache_index % n]
+    return _r2_sha3_512(mix)
+
+
+# ===========================================================================
+# Round 3 — numpy + Cython inner loop
+# ===========================================================================
+_has_cython = _cy_mix_parents is not None
+
+
+def r3_calc_dataset_item(cache, i):
+    """R3: Cython inner loop."""
+    n = len(cache)
+    mix = cache[i % n].copy()
+    mix[0] ^= i
+    mix = _r2_sha3_512(mix)
+    _cy_mix_parents(mix, cache, i)
+    return _r2_sha3_512(mix)
 
 # ===========================================================================
 # Main
@@ -211,35 +245,17 @@ if __name__ == "__main__":
     old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
     mid_r = r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, NONCE)
     new_r = r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
-    assert old_r == mid_r, f"old/mid MISMATCH"
-    assert old_r == new_r, f"old/new MISMATCH"
-    print(f"  result   match=OK  mix={old_r[b'mix digest'].hex()[:16]}...\n")
+    assert old_r == mid_r, "old/R1 MISMATCH"
+    assert old_r == new_r, "old/R2 MISMATCH"
 
-    # ---- hashimoto_light benchmark ----
-    N = 30
-    print(f"{'':45} {'total':>8} {'per call':>10}")
-    print(f"hashimoto_light  x{N} calls  (cache=1KB, dataset=32KB)")
-
-    for _ in range(2):
-        old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
-        r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, NONCE)
-        r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
-
-    t0 = time.perf_counter()
-    for i in range(N): old_hashimoto_light(FULL_SIZE, old_cache, HEADER, i.to_bytes(8, "big"))
-    t_old = time.perf_counter() - t0
-
-    t0 = time.perf_counter()
-    for i in range(N): r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, i.to_bytes(8, "big"))
-    t_mid = time.perf_counter() - t0
-
-    t0 = time.perf_counter()
-    for i in range(N): r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
-    t_new = time.perf_counter() - t0
-
-    print(f"  old  {t_old:.3f}s  {t_old/N*1000:.1f}ms/call")
-    print(f"  R1   {t_mid:.3f}s  {t_mid/N*1000:.1f}ms/call  old/R1={t_old/t_mid:.2f}x")
-    print(f"  R2   {t_new:.3f}s  {t_new/N*1000:.1f}ms/call  old/R2={t_old/t_new:.2f}x\n")
+    if _has_cython:
+        # R3 uses the same cache as R2 (numpy ndarray)
+        for i in range(16):
+            r2_item = r2_calc_dataset_item(r2_cache, i)
+            r3_item = r3_calc_dataset_item(r2_cache, i)
+            assert np.array_equal(r2_item, r3_item), f"R2/R3 mismatch at item {i}"
+    cython_tag = "OK" if _has_cython else "SKIP (not built)"
+    print(f"  result   match=OK  R3={cython_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
 
     # ---- calc_dataset_item breakdown ----
     N2 = 300
@@ -255,8 +271,57 @@ if __name__ == "__main__":
 
     t0 = time.perf_counter()
     for i in range(N2): r2_calc_dataset_item(r2_cache, i)
-    t_new_i = time.perf_counter() - t0
+    t_r2_i = time.perf_counter() - t0
 
     print(f"  old  {t_old_i:.3f}s  {t_old_i/N2*1000:.2f}ms/call")
     print(f"  R1   {t_mid_i:.3f}s  {t_mid_i/N2*1000:.2f}ms/call  old/R1={t_old_i/t_mid_i:.2f}x")
-    print(f"  R2   {t_new_i:.3f}s  {t_new_i/N2*1000:.2f}ms/call  old/R2={t_old_i/t_new_i:.2f}x")
+    print(f"  R2   {t_r2_i:.3f}s  {t_r2_i/N2*1000:.2f}ms/call  old/R2={t_old_i/t_r2_i:.2f}x", end="")
+    if _has_cython:
+        t0 = time.perf_counter()
+        for i in range(N2): r3_calc_dataset_item(r2_cache, i)
+        t_r3_i = time.perf_counter() - t0
+        print(f"\n  R3   {t_r3_i:.3f}s  {t_r3_i/N2*1000:.2f}ms/call  old/R3={t_old_i/t_r3_i:.2f}x  R2/R3={t_r2_i/t_r3_i:.1f}x")
+    else:
+        print("\n  R3   (skipped — Cython extension not built)")
+
+    # ---- hashimoto_light benchmark ----
+    N = 30
+    print(f"\nhashimoto_light  x{N} calls  (cache=1KB, dataset=32KB)")
+
+    for _ in range(2):
+        old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
+        r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, NONCE)
+        r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+
+    t0 = time.perf_counter()
+    for i in range(N): old_hashimoto_light(FULL_SIZE, old_cache, HEADER, i.to_bytes(8, "big"))
+    t_old = time.perf_counter() - t0
+
+    t0 = time.perf_counter()
+    for i in range(N): r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, i.to_bytes(8, "big"))
+    t_mid = time.perf_counter() - t0
+
+    # R2 without Cython: temporarily disable
+    import ethereum.pow.ethash as _ethmod
+    _save = _ethmod._cy_mix_parents
+    _ethmod._cy_mix_parents = None
+    for _ in range(2):
+        r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+    t0 = time.perf_counter()
+    for i in range(N): r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
+    t_r2 = time.perf_counter() - t0
+    _ethmod._cy_mix_parents = _save
+
+    print(f"  old  {t_old:.3f}s  {t_old/N*1000:.1f}ms/call")
+    print(f"  R1   {t_mid:.3f}s  {t_mid/N*1000:.1f}ms/call  old/R1={t_old/t_mid:.2f}x")
+    print(f"  R2   {t_r2:.3f}s  {t_r2/N*1000:.1f}ms/call  old/R2={t_old/t_r2:.2f}x", end="")
+    if _has_cython:
+        # R3: hashimoto_light with Cython (already the default import path)
+        for _ in range(2):
+            r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+        t0 = time.perf_counter()
+        for i in range(N): r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
+        t_r3 = time.perf_counter() - t0
+        print(f"\n  R3   {t_r3:.3f}s  {t_r3/N*1000:.1f}ms/call  old/R3={t_old/t_r3:.2f}x  R2/R3={t_r2/t_r3:.1f}x")
+    else:
+        print("\n  R3   (skipped — Cython extension not built)")

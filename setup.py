@@ -1,7 +1,30 @@
 import os
 
-from setuptools import setup
+from setuptools import setup, Extension
 from setuptools.command.develop import develop
+
+# Optional Cython extension: native inner loop for ethash calc_dataset_item.
+# Built only if both Cython and numpy are importable at setup time. The
+# Python implementation in ethereum/pow/ethash.py falls back transparently
+# when the compiled module is not present.
+ext_modules = []
+try:
+    from Cython.Build import cythonize
+    import numpy as _np
+
+    ext_modules = cythonize(
+        [
+            Extension(
+                "ethereum.pow.ethash_cy",
+                sources=["ethereum/pow/ethash_cy.pyx"],
+                include_dirs=[_np.get_include()],
+                define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
+            )
+        ],
+        language_level=3,
+    )
+except ImportError:
+    pass
 
 install_requires = set(x.strip() for x in open("requirements.txt"))
 install_requires_replacements = {}
@@ -46,4 +69,5 @@ setup(
     install_requires=install_requires,
     python_requires=">=3.5",
     cmdclass={"develop": custom_develop},
+    ext_modules=ext_modules,
 )

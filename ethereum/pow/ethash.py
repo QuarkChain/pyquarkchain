@@ -13,6 +13,14 @@ np.seterr(over="ignore")
 
 _FNV_PRIME = np.uint32(FNV_PRIME)
 
+# Optional Cython inner loop for calc_dataset_item. Falls back to pure numpy
+# when the compiled extension isn't built (e.g. source checkouts without a
+# C compiler).
+try:
+    from ethereum.pow.ethash_cy import mix_parents as _cy_mix_parents
+except ImportError:  # pragma: no cover
+    _cy_mix_parents = None
+
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 
@@ -46,14 +54,19 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
 
 def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
     n = len(cache)
-    r = HASH_BYTES // WORD_BYTES   # 16
     mix = cache[i % n].copy()
     mix[0] ^= i                    # numpy auto-converts int, no explicit np.uint32() boxing
     mix = ethash_sha3_512(mix)
-    for j in range(DATASET_PARENTS):
-        cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
-        mix *= _FNV_PRIME           # in-place: no temp array allocation
-        mix ^= cache[cache_index % n]  # in-place: no temp array allocation
+    if _cy_mix_parents is not None:
+        # mix is already C-contiguous uint32[16] (it's a fresh ndarray from
+        # ethash_sha3_512). cache rows are also contiguous uint32[16].
+        _cy_mix_parents(mix, cache, i)
+    else:
+        r = HASH_BYTES // WORD_BYTES   # 16
+        for j in range(DATASET_PARENTS):
+            cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
+            mix *= _FNV_PRIME           # in-place: no temp array allocation
+            mix ^= cache[cache_index % n]  # in-place: no temp array allocation
     return ethash_sha3_512(mix)
 
 
