@@ -29,6 +29,7 @@ RUN git checkout $GIT_TAG
 
 # py dep
 RUN pip install -r requirements.txt
+RUN python setup.py build_ext --inplace
 
 # add qkchash c++ lib
 ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
