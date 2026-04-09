@@ -1,23 +1,32 @@
 """
-Benchmark hashimoto_light: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+Cython).
+Benchmark suite: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+Cython) vs R4 (full Cython).
 
 - old: original hex-based implementation
 - R1:  struct.pack/unpack + Python list
 - R2:  struct.pack/unpack + numpy ndarray
 - R3:  R2 + Cython inner loop for calc_dataset_item (256-iter FNV mixing)
+- R4:  full Cython + C keccak (no Python overhead in hot path)
+
+Sections:
+  1. mkcache build time
+  2. Correctness assertions
+  3. Primitive micro-benchmarks (serialize/fnv/sha3)
+  4. calc_dataset_item throughput
+  5. hashimoto_light throughput
+  6. check_pow end-to-end
 
 Uses is_test=True sizes (cache=1024B, dataset=32KB) for fast iteration.
 Run with:
-    PYTHONPATH=. python ethereum/pow/tests/bench_hashimoto_compare.py
+    PYTHONPATH=. python -m ethereum.pow.tests.bench_hashimoto_compare
 """
-
 import copy
 import struct
 import time
 
 import numpy as np
-from eth_utils import encode_hex, decode_hex
 from Crypto.Hash import keccak
+
+from . import old_ethash
 
 # ---------------------------------------------------------------------------
 # Shared keccak
@@ -34,75 +43,16 @@ CACHE_ROUNDS = 3
 FNV_PRIME = 0x01000193
 
 # ===========================================================================
-# OLD — hex-based
+# OLD — hex-based (imported from old_ethash.py, which is a copy of the original ethash.py)
 # ===========================================================================
-def _old_decode_int(s):
-    return int(encode_hex(s[::-1]), 16) if s else 0
-
-def _old_encode_int(s):
-    a = "%x" % s
-    return b"" if s == 0 else decode_hex("0" * (len(a) % 2) + a)[::-1]
-
-def _old_serialize_hash(h):
-    return b"".join([_old_encode_int(x).ljust(4, b"\x00") for x in h])
-
-def _old_deserialize_hash(h):
-    return [_old_decode_int(h[i:i + WORD_BYTES]) for i in range(0, len(h), WORD_BYTES)]
-
-def _old_sha3_512(x):
-    if isinstance(x, list): x = _old_serialize_hash(x)
-    return _old_deserialize_hash(_sha3_512(x))
-
-def _old_sha3_256(x):
-    if isinstance(x, list): x = _old_serialize_hash(x)
-    return _old_deserialize_hash(_sha3_256(x))
-
-def _old_fnv(v1, v2):
-    return (v1 * FNV_PRIME ^ v2) % 2 ** 32
-
-def old_mkcache(cache_size, seed):
-    n = cache_size // HASH_BYTES
-    o = [_old_sha3_512(seed)]
-    for i in range(1, n):
-        o.append(_old_sha3_512(o[-1]))
-    for _ in range(CACHE_ROUNDS):
-        for i in range(n):
-            v = o[i][0] % n
-            o[i] = _old_sha3_512([a ^ b for a, b in zip(o[(i - 1 + n) % n], o[v])])
-    return o
-
-def old_calc_dataset_item(cache, i):
-    n = len(cache)
-    r = HASH_BYTES // WORD_BYTES
-    mix = copy.copy(cache[i % n])
-    mix[0] ^= i
-    mix = _old_sha3_512(mix)
-    for j in range(DATASET_PARENTS):
-        cache_index = _old_fnv(i ^ j, mix[j % r])
-        mix = list(map(_old_fnv, mix, cache[cache_index % n]))
-    return _old_sha3_512(mix)
-
-def old_hashimoto_light(full_size, cache, header, nonce):
-    n = full_size // HASH_BYTES
-    w = MIX_BYTES // WORD_BYTES
-    mixhashes = MIX_BYTES // HASH_BYTES
-    s = _old_sha3_512(header + nonce[::-1])
-    mix = []
-    for _ in range(mixhashes):
-        mix.extend(s)
-    for i in range(ACCESSES):
-        p = _old_fnv(i ^ s[0], mix[i % w]) % (n // mixhashes) * mixhashes
-        newdata = []
-        for j in range(mixhashes):
-            newdata.extend(old_calc_dataset_item(cache, p + j))
-        mix = list(map(_old_fnv, mix, newdata))
-    cmix = []
-    for i in range(0, len(mix), 4):
-        cmix.append(_old_fnv(_old_fnv(_old_fnv(mix[i], mix[i+1]), mix[i+2]), mix[i+3]))
-    return {
-        b"mix digest": _old_serialize_hash(cmix),
-        b"result": _old_serialize_hash(_old_sha3_256(s + cmix)),
-    }
+old_mkcache           = old_ethash.mkcache
+old_calc_dataset_item = old_ethash.calc_dataset_item
+old_hashimoto_light   = old_ethash.hashimoto_light
+_old_fnv              = old_ethash.fnv
+_old_serialize_hash   = old_ethash.serialize_hash
+_old_deserialize_hash = old_ethash.deserialize_hash
+_old_sha3_512         = old_ethash.sha3_512
+_old_sha3_256         = old_ethash.sha3_256
 
 # ===========================================================================
 # Round 1 — struct+list
@@ -186,18 +136,17 @@ np.seterr(over="ignore")
 
 from ethereum.pow.ethash import (
     mkcache as r2_mkcache,
-    hashimoto_light as r2_hashimoto_light,
-    _cy_mix_parents,
+    hashimoto as _r2_hashimoto,
 )
 from ethereum.pow.ethash_utils import ethash_sha3_512 as _r2_sha3_512
 
 _R2_FNV_PRIME = np.uint32(FNV_PRIME)
 
 
-def r2_calc_dataset_item(cache, i):
-    """R2: numpy inner loop (pure Python, no Cython)."""
+def r2_calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
+    """R2: pure-Python numpy calc_dataset_item."""
     n = len(cache)
-    r = HASH_BYTES // WORD_BYTES
+    r = HASH_BYTES // WORD_BYTES   # 16
     mix = cache[i % n].copy()
     mix[0] ^= i
     mix = _r2_sha3_512(mix)
@@ -207,21 +156,85 @@ def r2_calc_dataset_item(cache, i):
         mix ^= cache[cache_index % n]
     return _r2_sha3_512(mix)
 
+def r2_hashimoto_light(full_size, cache, header, nonce):
+    """R2: pure-Python hashimoto_light (numpy + pycryptodome keccak)."""
+    return _r2_hashimoto(header, nonce, full_size, lambda x: r2_calc_dataset_item(cache, x))
+
 
 # ===========================================================================
-# Round 3 — numpy + Cython inner loop
+# Round 3 — numpy + Cython mix_parents
 # ===========================================================================
-_has_cython = _cy_mix_parents is not None
+try:
+    from ethereum.pow.ethash_cy import mix_parents as _cy_mix_parents
+    _has_cython = True
+except ImportError:
+    _has_cython = False
 
 
 def r3_calc_dataset_item(cache, i):
-    """R3: Cython inner loop."""
+    """R3: Cython inner loop (mix_parents only, Python sha3)."""
     n = len(cache)
     mix = cache[i % n].copy()
     mix[0] ^= i
     mix = _r2_sha3_512(mix)
     _cy_mix_parents(mix, cache, i)
     return _r2_sha3_512(mix)
+
+
+def r3_hashimoto_light(full_size, cache, header, nonce):
+    """R3: hashimoto using r3_calc_dataset_item (Cython mix_parents + Python sha3)."""
+    return _r2_hashimoto(header, nonce, full_size, lambda x: r3_calc_dataset_item(cache, x))
+
+
+# ===========================================================================
+# Round 4 — full Cython + C keccak (no Python overhead in hot path)
+# ===========================================================================
+try:
+    from ethereum.pow.ethash_cy import (
+        cy_calc_dataset_item as r4_calc_dataset_item,
+        cy_hashimoto_light as _r4_hashimoto_light_raw,
+    )
+    _has_r4 = True
+except ImportError:
+    _has_r4 = False
+
+
+def r4_hashimoto_light(full_size, cache, header, nonce):
+    """R4: full Cython hashimoto_light. Adapts bytes args to uint8 arrays."""
+    return _r4_hashimoto_light_raw(
+        full_size, cache,
+        np.frombuffer(header, dtype=np.uint8),
+        np.frombuffer(nonce, dtype=np.uint8),
+    )
+
+# ===========================================================================
+# Micro-benchmark helpers
+# ===========================================================================
+def _bench(func, args, rounds=200_000):
+    for _ in range(1000):
+        func(*args)
+    t0 = time.perf_counter()
+    for _ in range(rounds):
+        func(*args)
+    return time.perf_counter() - t0
+
+def _row3(label, fns_and_args, N):
+    times = [_bench(fn, args, N) for fn, args in fns_and_args]
+    t0 = times[0]
+    cols = "".join(f"{t:>10.4f}" for t in times)
+    ratios = "".join(f"{t0/t:>8.1f}x" for t in times[1:])
+    print(f"{label:<30}{cols}{ratios}")
+
+def _row_partial(label, fns_and_args, N):
+    times = [_bench(fn, args, N) if fn is not None else None
+             for fn, args in fns_and_args]
+    t0 = times[0]
+    cols = "".join(f"{t:>10.4f}" if t is not None else f"{'N/A':>10}" for t in times)
+    ratios = "".join(
+        f"{t0/t:>8.1f}x" if t is not None else f"{'N/A':>8}"
+        for t in times[1:]
+    )
+    print(f"{label:<30}{cols}{ratios}")
 
 # ===========================================================================
 # Main
@@ -249,13 +262,20 @@ if __name__ == "__main__":
     assert old_r == new_r, "old/R2 MISMATCH"
 
     if _has_cython:
-        # R3 uses the same cache as R2 (numpy ndarray)
         for i in range(16):
             r2_item = r2_calc_dataset_item(r2_cache, i)
             r3_item = r3_calc_dataset_item(r2_cache, i)
             assert np.array_equal(r2_item, r3_item), f"R2/R3 mismatch at item {i}"
-    cython_tag = "OK" if _has_cython else "SKIP (not built)"
-    print(f"  result   match=OK  R3={cython_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
+    if _has_r4:
+        for i in range(16):
+            r2_item = r2_calc_dataset_item(r2_cache, i)
+            r4_item = r4_calc_dataset_item(r2_cache, i)
+            assert np.array_equal(r2_item, r4_item), f"R2/R4 mismatch at item {i}"
+        r4_r = r4_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+        assert old_r == r4_r, "old/R4 hashimoto MISMATCH"
+    cy_tag = "OK" if _has_cython else "SKIP"
+    r4_tag = "OK" if _has_r4 else "SKIP"
+    print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
 
     # ---- calc_dataset_item breakdown ----
     N2 = 300
@@ -280,9 +300,16 @@ if __name__ == "__main__":
         t0 = time.perf_counter()
         for i in range(N2): r3_calc_dataset_item(r2_cache, i)
         t_r3_i = time.perf_counter() - t0
-        print(f"\n  R3   {t_r3_i:.3f}s  {t_r3_i/N2*1000:.2f}ms/call  old/R3={t_old_i/t_r3_i:.2f}x  R2/R3={t_r2_i/t_r3_i:.1f}x")
+        print(f"\n  R3   {t_r3_i:.3f}s  {t_r3_i/N2*1000:.2f}ms/call  old/R3={t_old_i/t_r3_i:.2f}x  R2/R3={t_r2_i/t_r3_i:.1f}x", end="")
     else:
-        print("\n  R3   (skipped — Cython extension not built)")
+        print("\n  R3   (skipped — Cython extension not built)", end="")
+    if _has_r4:
+        t0 = time.perf_counter()
+        for i in range(N2): r4_calc_dataset_item(r2_cache, i)
+        t_r4_i = time.perf_counter() - t0
+        print(f"\n  R4   {t_r4_i:.3f}s  {t_r4_i/N2*1000:.2f}ms/call  old/R4={t_old_i/t_r4_i:.2f}x  R3/R4={t_r3_i/t_r4_i:.1f}x")
+    else:
+        print("\n  R4   (skipped — Cython R4 not built)")
 
     # ---- hashimoto_light benchmark ----
     N = 30
@@ -301,27 +328,94 @@ if __name__ == "__main__":
     for i in range(N): r1_hashimoto_light(FULL_SIZE, r1_cache, HEADER, i.to_bytes(8, "big"))
     t_mid = time.perf_counter() - t0
 
-    # R2 without Cython: temporarily disable
-    import ethereum.pow.ethash as _ethmod
-    _save = _ethmod._cy_mix_parents
-    _ethmod._cy_mix_parents = None
+    # R2: pure Python hashimoto_light (always the _slow variant)
     for _ in range(2):
         r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
     t0 = time.perf_counter()
     for i in range(N): r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
     t_r2 = time.perf_counter() - t0
-    _ethmod._cy_mix_parents = _save
 
     print(f"  old  {t_old:.3f}s  {t_old/N*1000:.1f}ms/call")
     print(f"  R1   {t_mid:.3f}s  {t_mid/N*1000:.1f}ms/call  old/R1={t_old/t_mid:.2f}x")
     print(f"  R2   {t_r2:.3f}s  {t_r2/N*1000:.1f}ms/call  old/R2={t_old/t_r2:.2f}x", end="")
     if _has_cython:
-        # R3: hashimoto_light with Cython (already the default import path)
+        # R3: hashimoto_light with Cython mix_parents + Python sha3
         for _ in range(2):
-            r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+            r3_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
         t0 = time.perf_counter()
-        for i in range(N): r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
+        for i in range(N): r3_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
         t_r3 = time.perf_counter() - t0
-        print(f"\n  R3   {t_r3:.3f}s  {t_r3/N*1000:.1f}ms/call  old/R3={t_old/t_r3:.2f}x  R2/R3={t_r2/t_r3:.1f}x")
+        print(f"\n  R3   {t_r3:.3f}s  {t_r3/N*1000:.1f}ms/call  old/R3={t_old/t_r3:.2f}x  R2/R3={t_r2/t_r3:.1f}x", end="")
     else:
-        print("\n  R3   (skipped — Cython extension not built)")
+        print("\n  R3   (skipped — Cython extension not built)", end="")
+    if _has_r4:
+        # R4: full Cython + C keccak
+        for _ in range(2):
+            r4_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
+        t0 = time.perf_counter()
+        for i in range(N): r4_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
+        t_r4 = time.perf_counter() - t0
+        print(f"\n  R4   {t_r4:.3f}s  {t_r4/N*1000:.1f}ms/call  old/R4={t_old/t_r4:.2f}x  R3/R4={t_r3/t_r4:.1f}x")
+    else:
+        print("\n  R4   (skipped — Cython R4 not built)")
+
+    # ---- primitive micro-benchmarks (old vs R1 vs R2) ----
+    NM = 200_000
+    hash_list_16  = [i * 1000003 & 0xFFFFFFFF for i in range(16)]
+    hash_list_8   = [i * 1000003 & 0xFFFFFFFF for i in range(8)]
+    hash_bytes_64 = _old_serialize_hash(hash_list_16)
+    hash_bytes_32 = _old_serialize_hash(hash_list_8)
+
+    def _r2_sha3_512_list(x):
+        if isinstance(x, list):
+            x = _FMT_16I.pack(*x)
+        return _r2_sha3_512(x)
+
+    print(f"\nprimitive micro-benchmarks  x{NM:,} rounds")
+    print(f"{'Function':<30} {'Old (s)':>10} {'R1 (s)':>10} {'R2 (s)':>10} {'old/R1':>8} {'old/R2':>8}")
+    print("-" * 82)
+    _row_partial("serialize_hash (16 ints)",
+        [(_old_serialize_hash, (hash_list_16,)),
+         (_r1_serialize,       (hash_list_16,)),
+         (None, None)], NM)
+    _row_partial("serialize_hash (8 ints)",
+        [(_old_serialize_hash, (hash_list_8,)),
+         (_r1_serialize,       (hash_list_8,)),
+         (None, None)], NM)
+    _row_partial("deserialize_hash (64B)",
+        [(_old_deserialize_hash, (hash_bytes_64,)),
+         (_r1_deserialize,       (hash_bytes_64,)),
+         (None, None)], NM)
+    _row_partial("deserialize_hash (32B)",
+        [(_old_deserialize_hash, (hash_bytes_32,)),
+         (_r1_deserialize,       (hash_bytes_32,)),
+         (None, None)], NM)
+    _row_partial("fnv",
+        [(_old_fnv,  (0xDEADBEEF, 0xCAFEBABE)),
+         (_r1_fnv,   (0xDEADBEEF, 0xCAFEBABE)),
+         (None, None)], NM)
+    _row3("ethash_sha3_512 (bytes)",
+        [(_old_sha3_512, (hash_bytes_64,)),
+         (_r1_sha3_512,  (hash_bytes_64,)),
+         (_r2_sha3_512,  (hash_bytes_64,))], NM)
+    _row3("ethash_sha3_512 (list)",
+        [(_old_sha3_512,      (hash_list_16,)),
+         (_r1_sha3_512,       (hash_list_16,)),
+         (_r2_sha3_512_list,  (hash_list_16,))], NM)
+
+    # ---- check_pow end-to-end ----
+    print("\ncheck_pow end-to-end  (is_test=True)")
+    from ethereum.pow.ethpow import check_pow
+    _cp_header = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"
+    _cp_nonce  = (44).to_bytes(8, byteorder="big")
+    _cp_mix    = bytes.fromhex("5dd318d2dff0aac95a3af5617db0bfb07eee8b0ab4a42f01d6161336be758106")
+    N3 = 20
+    check_pow.cache_clear()
+    check_pow(1, _cp_header, _cp_mix, _cp_nonce, 100, is_test=True)
+    check_pow.cache_clear()
+    t0 = time.perf_counter()
+    for _ in range(N3):
+        check_pow.cache_clear()
+        check_pow(1, _cp_header, _cp_mix, _cp_nonce, 100, is_test=True)
+    t_cp = time.perf_counter() - t0
+    print(f"  x{N3}: {t_cp:.4f}s  ({t_cp/N3*1000:.1f}ms/call)")

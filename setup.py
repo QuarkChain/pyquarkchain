@@ -16,8 +16,8 @@ try:
         [
             Extension(
                 "ethereum.pow.ethash_cy",
-                sources=["ethereum/pow/ethash_cy.pyx"],
-                include_dirs=[_np.get_include()],
+                sources=["ethereum/pow/ethash_cy.pyx", "ethereum/pow/keccak_tiny.c"],
+                include_dirs=[_np.get_include(), "ethereum/pow"],
                 define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
             )
         ],

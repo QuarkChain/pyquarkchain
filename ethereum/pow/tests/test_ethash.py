@@ -131,28 +131,42 @@ class TestEthash(unittest.TestCase):
             self.assertTrue(validity)
 
     def test_cython_matches_python_fallback(self):
-        """Cython inner loop produces the same result as pure-Python path."""
-        import ethereum.pow.ethash as _mod
-        from ethereum.pow.ethash import calc_dataset_item
-
-        if _mod._cy_mix_parents is None:
+        """numpy and Cython implementations both match the original hex-based baseline."""
+        try:
+            from ethereum.pow.ethash_cy import cy_calc_dataset_item, cy_hashimoto_light
+        except ImportError:
             self.skipTest("Cython extension not built")
 
-        cache = mkcache(1024, 0)
+        from ethereum.pow.ethash import calc_dataset_item, hashimoto
+        from ethereum.pow.tests import old_ethash
 
-        # run with Cython
-        cy_results = [calc_dataset_item(cache, i) for i in range(16)]
+        old_cache = old_ethash.mkcache(1024, b"\x00" * 32)
+        new_cache = mkcache(1024, 0)
 
-        # disable Cython, run pure-Python fallback
-        saved = _mod._cy_mix_parents
-        _mod._cy_mix_parents = None
-        try:
-            py_results = [calc_dataset_item(cache, i) for i in range(16)]
-        finally:
-            _mod._cy_mix_parents = saved
+        # calc_dataset_item and cy_calc_dataset_item vs old baseline
+        for i in range(16):
+            baseline = old_ethash.serialize_hash(old_ethash.calc_dataset_item(old_cache, i))
+            self.assertEqual(
+                calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"calc_dataset_item mismatch vs old at item {i}",
+            )
+            self.assertEqual(
+                cy_calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"cy_calc_dataset_item mismatch vs old at item {i}",
+            )
 
-        for i, (cy, py) in enumerate(zip(cy_results, py_results)):
-            np.testing.assert_array_equal(cy, py, err_msg=f"mismatch at item {i}")
+        # hashimoto_light: Python hashimoto vs Cython cy_hashimoto_light
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+        full_size = 32 * 1024
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(new_cache, x))
+        cy_r = cy_hashimoto_light(
+            full_size, new_cache,
+            np.frombuffer(header, dtype=np.uint8),
+            np.frombuffer(nonce, dtype=np.uint8),
+        )
+        self.assertEqual(py_r[b"mix digest"], cy_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"], cy_r[b"result"])
 
     def test_pyethash(self):
         header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"

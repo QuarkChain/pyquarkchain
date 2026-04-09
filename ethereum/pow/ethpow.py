@@ -1,21 +1,15 @@
+from typing import Tuple, Optional
 from functools import lru_cache
-from typing import Tuple, Optional, List, Union
 
 from ethereum.pow import ethash
 from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
 
 
-# NOTE: pyethash C++ acceleration removed — not supported on Python 3.13.
-# Impact: pure Python hashimoto is ~60-100x slower, affects PoW verification only.
-# To add back, fork pyethash and fix the int/Py_ssize_t type mismatch in core.c.
-# See: https://github.com/QuarkChain/pyquarkchain/issues/976
-#
-# always have python implementation declared
-def get_cache_slow(cache_size: int, block_number: int):
+def get_cache(cache_size: int, block_number: int):
     return ethash.mkcache(cache_size, block_number)
 
 
-def hashimoto_slow(
+def hashimoto(
     block_number: int,
     full_size: int,
     cache,
@@ -23,9 +17,6 @@ def hashimoto_slow(
     bin_nonce: bytes,
 ):
     return ethash.hashimoto_light(full_size, cache, mining_hash, bin_nonce)
-
-get_cache = get_cache_slow
-hashimoto = hashimoto_slow
 
 
 @lru_cache(maxsize=32)
@@ -36,19 +27,16 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
-    cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
-        cache_gen = get_cache_slow
-        mining_gen = hashimoto_slow
     else:
         cache_size, full_size = (
             get_cache_size(block_number),
             get_full_size(block_number),
         )
 
-    cache = cache_gen(cache_size, block_number)
-    mining_output = mining_gen(block_number, full_size, cache, header_hash, nonce)
+    cache = get_cache(cache_size, block_number)
+    mining_output = hashimoto(block_number, full_size, cache, header_hash, nonce)
     if mining_output[b"mix digest"] != mixhash:
         return False
     result = int.from_bytes(mining_output[b"result"], byteorder="big")
@@ -93,23 +81,20 @@ def mine(
     rounds: int = 1000,
     is_test: bool = False,
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
-    cache_gen, mining_gen = get_cache, hashimoto
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
-        cache_gen = get_cache_slow
-        mining_gen = hashimoto_slow
     else:
         cache_size, full_size = (
             get_cache_size(block_number),
             get_full_size(block_number),
         )
 
-    cache = cache_gen(cache_size, block_number)
+    cache = get_cache(cache_size, block_number)
     nonce = start_nonce
     target = (2 ** 256 // (difficulty or 1) - 1).to_bytes(32, byteorder="big")
     for i in range(1, rounds + 1):
         bin_nonce = (nonce + i).to_bytes(8, byteorder="big")
-        o = mining_gen(block_number, full_size, cache, mining_hash, bin_nonce)
+        o = hashimoto(block_number, full_size, cache, mining_hash, bin_nonce)
         if o[b"result"] <= target:
             assert len(bin_nonce) == 8
             assert len(o[b"mix digest"]) == 32
