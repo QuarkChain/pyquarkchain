@@ -75,7 +75,14 @@ pip install -r requirements.txt
 python setup.py build_ext --inplace
 ```
 
-The second command builds the optional Cython extension (`ethash_cy`) that speeds up ethash `calc_dataset_item` by ~20x. It requires a C compiler. If the build is skipped, the pure-Python fallback is used automatically.
+The second command builds the optional native extensions that accelerate Ethash PoW verification:
+
+- **Cython extension** (`ethash_cy`): requires a C compiler — ~30x speedup
+- **Rust extension** (`ethash_rs`): requires [Rust/cargo](https://rustup.rs) — ~112x speedup
+
+Both are built in-place by `python setup.py build_ext --inplace`. If either build is skipped (compiler or Rust not available), the pure-Python fallback is used automatically.
+
+The auto-detection order is `ethash_rs` → `ethash_cy` → pure Python. Override with the `ETHASH_LIB` environment variable (`ethash_rs`, `ethash_cy`, or `ethash`).
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 

@@ -168,6 +168,38 @@ class TestEthash(unittest.TestCase):
         self.assertEqual(py_r[b"mix digest"], cy_r[b"mix digest"])
         self.assertEqual(py_r[b"result"], cy_r[b"result"])
 
+    def test_rust_matches_python_fallback(self):
+        """Rust (ethash_rs) implementation matches the original hex-based baseline."""
+        try:
+            from ethereum.pow.ethash_rs import rs_calc_dataset_item, rs_hashimoto_light
+        except ImportError:
+            self.skipTest("Rust extension not built (run: python setup.py build_ext --inplace)")
+
+        from ethereum.pow.ethash import calc_dataset_item, hashimoto
+        from ethereum.pow.tests import old_ethash
+
+        old_cache = old_ethash.mkcache(1024, b"\x00" * 32)
+        new_cache = mkcache(1024, 0)
+
+        for i in range(16):
+            baseline = old_ethash.serialize_hash(old_ethash.calc_dataset_item(old_cache, i))
+            self.assertEqual(
+                rs_calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"rs_calc_dataset_item mismatch at item {i}",
+            )
+
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+        full_size = 32 * 1024
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(new_cache, x))
+        rs_r = rs_hashimoto_light(
+            full_size, new_cache,
+            np.frombuffer(header, dtype=np.uint8),
+            np.frombuffer(nonce, dtype=np.uint8),
+        )
+        self.assertEqual(py_r[b"mix digest"], rs_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"], rs_r[b"result"])
+
     def test_pyethash(self):
         header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"
         for diff, expected_nonce in ((100, 34), (500, 78)):

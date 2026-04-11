@@ -3,9 +3,8 @@ import os
 from setuptools import setup, Extension
 from setuptools.command.develop import develop
 
-# Optional Cython extension: native inner loop for ethash calc_dataset_item.
-# Built only if both Cython and numpy are importable at setup time. The
-# Python implementation in ethereum/pow/ethash.py falls back transparently
+# Optional Cython extension for ethash acceleration.
+# The Python implementation in ethereum/pow/ethash.py falls back transparently
 # when the compiled module is not present.
 ext_modules = []
 try:
@@ -23,6 +22,22 @@ try:
         ],
         language_level=3,
     )
+except ImportError:
+    pass
+
+# Optional Rust extension for ethash acceleration.
+# Requires Rust/cargo and setuptools-rust to be installed.
+rust_extensions = []
+try:
+    from setuptools_rust import RustExtension
+
+    rust_extensions = [
+        RustExtension(
+            "ethereum.pow.ethash_rs",
+            path="ethereum/pow/ethash_rs/Cargo.toml",
+            debug=False,
+        )
+    ]
 except ImportError:
     pass
 
@@ -70,4 +85,5 @@ setup(
     python_requires=">=3.5",
     cmdclass={"develop": custom_develop},
     ext_modules=ext_modules,
+    rust_extensions=rust_extensions,
 )
