@@ -30,11 +30,16 @@ _mix_parents_fn = None
 ETHASH_LIB = os.environ.get("ETHASH_LIB", "auto")
 
 if ETHASH_LIB == "auto":
+    # Check symbol presence to avoid false-positives from namespace packages
+    # (e.g. the ethash_rs/ Cargo source directory looks like a package but has
+    # no compiled symbols until the extension is built).
+    _REQUIRED = {"ethash_rs": "rs_hashimoto_light", "ethash_cy": "cy_hashimoto_light"}
     for _candidate in ("ethash_rs", "ethash_cy"):
         try:
-            importlib.import_module(f"ethereum.pow.{_candidate}")
-            ETHASH_LIB = _candidate
-            break
+            _mod = importlib.import_module(f"ethereum.pow.{_candidate}")
+            if hasattr(_mod, _REQUIRED[_candidate]):
+                ETHASH_LIB = _candidate
+                break
         except ImportError:
             continue
     else:

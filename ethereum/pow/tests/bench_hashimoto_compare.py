@@ -207,6 +207,45 @@ def r4_hashimoto_light(full_size, cache, header, nonce):
         np.frombuffer(nonce, dtype=np.uint8),
     )
 
+
+# ===========================================================================
+# Round 5 — Rust + tiny-keccak (ethash_rs)
+# ===========================================================================
+try:
+    from ethereum.pow.ethash_rs import (
+        rs_calc_dataset_item as r5_calc_dataset_item,
+        rs_hashimoto_light as _r5_hashimoto_light_raw,
+        rs_mkcache as _r5_mkcache_raw,
+    )
+    _has_r5 = True
+except ImportError:
+    _has_r5 = False
+
+
+def r5_mkcache(cache_size, block_number):
+    """R5: Rust mkcache."""
+    from ethereum.pow.ethash import mkcache as _r2_mkcache
+    # Use the same seed derivation as the Python path, then delegate to Rust.
+    # rs_mkcache takes (seed: uint8[32], n: int).
+    from ethereum.pow.ethash import cache_seeds
+    from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
+    from ethereum.pow.ethash_utils import ethash_sha3_256
+    while len(cache_seeds) <= block_number // EPOCH_LENGTH:
+        new_seed = ethash_sha3_256(cache_seeds[-1]).tobytes()
+        cache_seeds.append(new_seed)
+    seed = cache_seeds[block_number // EPOCH_LENGTH]
+    n = cache_size // HASH_BYTES
+    return _r5_mkcache_raw(np.frombuffer(seed, dtype=np.uint8), n)
+
+
+def r5_hashimoto_light(full_size, cache, header, nonce):
+    """R5: Rust hashimoto_light. Adapts bytes args to uint8 arrays."""
+    return _r5_hashimoto_light_raw(
+        full_size, cache,
+        np.frombuffer(header, dtype=np.uint8),
+        np.frombuffer(nonce, dtype=np.uint8),
+    )
+
 # ===========================================================================
 # Micro-benchmark helpers
 # ===========================================================================
@@ -251,8 +290,14 @@ if __name__ == "__main__":
     t0 = time.perf_counter(); old_cache = old_mkcache(CACHE_SIZE, SEED); t_oc = time.perf_counter() - t0
     t0 = time.perf_counter(); r1_cache = r1_mkcache(CACHE_SIZE, SEED); t_mc = time.perf_counter() - t0
     t0 = time.perf_counter(); r2_cache = r2_mkcache(CACHE_SIZE, 0);    t_nc = time.perf_counter() - t0
-    print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  "
-          f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x")
+    r5_cache = None
+    if _has_r5:
+        t0 = time.perf_counter(); r5_cache = r5_mkcache(CACHE_SIZE, 0); t_r5c = time.perf_counter() - t0
+        print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  R5={t_r5c*1000:.1f}ms  "
+              f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x  old/R5={t_oc/t_r5c:.1f}x")
+    else:
+        print(f"  mkcache  old={t_oc*1000:.1f}ms  R1={t_mc*1000:.1f}ms  R2={t_nc*1000:.1f}ms  "
+              f"old/R1={t_oc/t_mc:.1f}x  old/R2={t_oc/t_nc:.1f}x")
 
     # ---- correctness ----
     old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
@@ -273,9 +318,17 @@ if __name__ == "__main__":
             assert np.array_equal(r2_item, r4_item), f"R2/R4 mismatch at item {i}"
         r4_r = r4_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
         assert old_r == r4_r, "old/R4 hashimoto MISMATCH"
+    if _has_r5:
+        for i in range(16):
+            r2_item = r2_calc_dataset_item(r2_cache, i)
+            r5_item = r5_calc_dataset_item(r5_cache, i)
+            assert np.array_equal(r2_item, r5_item), f"R2/R5 mismatch at item {i}"
+        r5_r = r5_hashimoto_light(FULL_SIZE, r5_cache, HEADER, NONCE)
+        assert old_r == r5_r, "old/R5 hashimoto MISMATCH"
     cy_tag = "OK" if _has_cython else "SKIP"
     r4_tag = "OK" if _has_r4 else "SKIP"
-    print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
+    r5_tag = "OK" if _has_r5 else "SKIP"
+    print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  R5={r5_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
 
     # ---- calc_dataset_item breakdown ----
     N2 = 300
@@ -307,9 +360,18 @@ if __name__ == "__main__":
         t0 = time.perf_counter()
         for i in range(N2): r4_calc_dataset_item(r2_cache, i)
         t_r4_i = time.perf_counter() - t0
-        print(f"\n  R4   {t_r4_i:.3f}s  {t_r4_i/N2*1000:.2f}ms/call  old/R4={t_old_i/t_r4_i:.2f}x  R3/R4={t_r3_i/t_r4_i:.1f}x")
+        print(f"\n  R4   {t_r4_i:.3f}s  {t_r4_i/N2*1000:.2f}ms/call  old/R4={t_old_i/t_r4_i:.2f}x  R3/R4={t_r3_i/t_r4_i:.1f}x", end="")
     else:
-        print("\n  R4   (skipped — Cython R4 not built)")
+        print("\n  R4   (skipped — Cython R4 not built)", end="")
+    if _has_r5:
+        t0 = time.perf_counter()
+        for i in range(N2): r5_calc_dataset_item(r5_cache, i)
+        t_r5_i = time.perf_counter() - t0
+        prev_i = t_r4_i if _has_r4 else t_r2_i
+        prev_label = "R4" if _has_r4 else "R2"
+        print(f"\n  R5   {t_r5_i:.3f}s  {t_r5_i/N2*1000:.2f}ms/call  old/R5={t_old_i/t_r5_i:.2f}x  {prev_label}/R5={prev_i/t_r5_i:.1f}x")
+    else:
+        print("\n  R5   (skipped — Rust extension not built)")
 
     # ---- hashimoto_light benchmark ----
     N = 30
@@ -355,9 +417,21 @@ if __name__ == "__main__":
         t0 = time.perf_counter()
         for i in range(N): r4_hashimoto_light(FULL_SIZE, r2_cache, HEADER, i.to_bytes(8, "big"))
         t_r4 = time.perf_counter() - t0
-        print(f"\n  R4   {t_r4:.3f}s  {t_r4/N*1000:.1f}ms/call  old/R4={t_old/t_r4:.2f}x  R3/R4={t_r3/t_r4:.1f}x")
+        print(f"\n  R4   {t_r4:.3f}s  {t_r4/N*1000:.1f}ms/call  old/R4={t_old/t_r4:.2f}x  R3/R4={t_r3/t_r4:.1f}x", end="")
     else:
-        print("\n  R4   (skipped — Cython R4 not built)")
+        print("\n  R4   (skipped — Cython R4 not built)", end="")
+    if _has_r5:
+        # R5: Rust + tiny-keccak
+        for _ in range(2):
+            r5_hashimoto_light(FULL_SIZE, r5_cache, HEADER, NONCE)
+        t0 = time.perf_counter()
+        for i in range(N): r5_hashimoto_light(FULL_SIZE, r5_cache, HEADER, i.to_bytes(8, "big"))
+        t_r5 = time.perf_counter() - t0
+        prev = t_r4 if _has_r4 else t_r2
+        prev_label = "R4" if _has_r4 else "R2"
+        print(f"\n  R5   {t_r5:.3f}s  {t_r5/N*1000:.1f}ms/call  old/R5={t_old/t_r5:.2f}x  {prev_label}/R5={prev/t_r5:.1f}x")
+    else:
+        print("\n  R5   (skipped — Rust extension not built)")
 
     # ---- primitive micro-benchmarks (old vs R1 vs R2) ----
     NM = 200_000
