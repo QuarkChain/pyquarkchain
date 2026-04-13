@@ -33,6 +33,7 @@ class UPnPService(BaseService):
         self.port = port
         self._session = None
         self._service = None
+        self._discover_lock = asyncio.Lock()
 
 
     # -----------------------------
@@ -46,27 +47,30 @@ class UPnPService(BaseService):
 
         Failures are best-effort: any exception is logged and None is returned so
         server startup can continue without UPnP.
+
+        Concurrent calls are serialised by _discover_lock so that two callers cannot
+        race on _session / _service state.
         """
-        # Close any leftover session from a previous (possibly concurrent) call.
-        await self._close_session()
-        self._session = aiohttp.ClientSession()
-        try:
-            await self._discover(self._session)
+        async with self._discover_lock:
+            await self._close_session()
+            self._session = aiohttp.ClientSession()
+            try:
+                await self._discover(self._session)
 
-            if not self._service:
-                self.logger.warning("No UPnP WANIP service found")
+                if not self._service:
+                    self.logger.warning("No UPnP WANIP service found")
+                    return None
+
+                await self._add_port_mapping()
+                return await self._get_external_ip()
+            except Exception:
+                self.logger.exception("UPnP setup failed; continuing without NAT port mapping")
+                self._service = None
                 return None
-
-            await self._add_port_mapping()
-            return await self._get_external_ip()
-        except Exception:
-            self.logger.exception("UPnP setup failed; continuing without NAT port mapping")
-            self._service = None
-            return None
-        finally:
-            # If setup failed (no service), the session is no longer needed.
-            if not self._service:
-                await self._close_session()
+            finally:
+                # If setup failed (no service), the session is no longer needed.
+                if not self._service:
+                    await self._close_session()
 
     async def stop(self) -> None:
         await self._delete_port_mapping()
