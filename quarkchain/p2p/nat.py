@@ -110,6 +110,7 @@ class UPnPService(BaseService):
     async def _discover(self, session):
         requester = AiohttpSessionRequester(session)
         factory = UpnpFactory(requester)
+        found = asyncio.Event()
 
         async def on_response(response):
             if self._service:
@@ -120,6 +121,9 @@ class UPnPService(BaseService):
                 return
             try:
                 device = await factory.async_create_device(location)
+                # Re-check: concurrent callbacks may have found the service while we awaited
+                if self._service:
+                    return
 
                 def _iter_services(dev):
                     yield from dev.services.values()
@@ -130,11 +134,22 @@ class UPnPService(BaseService):
                     if "WANIPConn" in service.service_type:
                         self._service = service
                         self.logger.info("Found UPnP WANIP service")
+                        found.set()
                         return
             except Exception as e:
                 self.logger.debug(f"Ignoring device: {e}")
 
-        await async_search(on_response, timeout=UPNP_DISCOVER_TIMEOUT_SECONDS)
+        search_task = asyncio.ensure_future(
+            async_search(on_response, timeout=UPNP_DISCOVER_TIMEOUT_SECONDS)
+        )
+        try:
+            await asyncio.wait_for(found.wait(), timeout=UPNP_DISCOVER_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            pass
+        finally:
+            search_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await search_task
 
     async def _add_port_mapping(self) -> None:
         internal_ip = self._get_internal_ip()
