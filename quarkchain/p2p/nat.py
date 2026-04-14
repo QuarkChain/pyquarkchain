@@ -112,10 +112,21 @@ class UPnPService(BaseService):
         factory = UpnpFactory(requester)
 
         async def on_response(response):
+            if self._service:
+                return
+            # async_upnp_client passes headers as a CaseInsensitiveDict
+            location = response.get("location") if hasattr(response, "get") else getattr(response, "location", None)
+            if not location:
+                return
             try:
-                device = await factory.async_create_device(response.location)
+                device = await factory.async_create_device(location)
 
-                for service in device.services.values():
+                def _iter_services(dev):
+                    yield from dev.services.values()
+                    for sub in getattr(dev, "embedded_devices", {}).values():
+                        yield from _iter_services(sub)
+
+                for service in _iter_services(device):
                     if "WANIPConn" in service.service_type:
                         self._service = service
                         self.logger.info("Found UPnP WANIP service")
@@ -146,7 +157,7 @@ class UPnPService(BaseService):
                         NewProtocol=protocol,
                         NewInternalPort=self.port,
                         NewInternalClient=internal_ip,
-                        NewEnabled=1,
+                        NewEnabled=True,
                         NewPortMappingDescription=description,
                         NewLeaseDuration=self._nat_portmap_lifetime,
                     )
