@@ -40,12 +40,6 @@ RUN pip install -r requirements.txt
 # Build Cython and Rust extensions in-place (ethash acceleration)
 RUN python setup.py build_ext --inplace
 
-# Cleanup build dependencies to reduce image size
-RUN apt-get purge -y build-essential curl gcc g++ make \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/* /root/.cargo /root/.rustup \
-       /code/pyquarkchain/ethereum/pow/ethash_rs/target
-
 # add qkchash c++ lib
 ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
 

@@ -51,7 +51,7 @@ public:
         return *this;
     };
     LLRB<T>& operator=(const LLRB<T>& other)  = delete;
-    LLRB<T>(LLRB<T>&& o) = default;
+    LLRB(LLRB<T>&& o) = default;
 
     void insert(T value) {
         Node* n = insert(getNode(root_), value);
